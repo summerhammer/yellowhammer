@@ -1,0 +1,33 @@
+# SwiftLint — the repo's lint/format gate (swift-format is not used).
+# See CLAUDE.md § Local choices. Paths stay broad because the target layout
+# is still an open decision.
+
+excluded:
+  - .build
+  - .worktrees
+  - DerivedData
+  - "**/*.generated.swift"
+
+opt_in_rules:
+  - empty_count
+  - explicit_init
+  - first_where
+  - last_where
+  - redundant_nil_coalescing
+  - toggle_bool
+  - unneeded_parentheses_in_closure_argument
+  - vertical_whitespace_closing_braces
+
+line_length:
+  warning: 120
+  error: 160
+  ignores_comments: true
+
+identifier_name:
+  # The glossary is the ubiquitous language; short domain terms are legitimate.
+  min_length:
+    warning: 2
+
+type_name:
+  min_length:
+    warning: 3

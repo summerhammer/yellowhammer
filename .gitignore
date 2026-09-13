@@ -1,0 +1,13 @@
+# Local-only agent settings (shared .claude/settings.json IS tracked)
+.claude/settings.local.json
+
+# Swift / Xcode build output
+.build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Agent worktrees and scratch space
+.worktrees/
+
+.DS_Store
