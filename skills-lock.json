@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "skein-swiftui": {
+      "source": "rozd/skein",
+      "sourceType": "github",
+      "skillPath": "skills/skein-swiftui/SKILL.md",
+      "computedHash": "54752e1ccb63d29356ee454caef38501fab9b82b1cc1fa710d3c5ba573c8caa8"
+    }
+  }
+}
