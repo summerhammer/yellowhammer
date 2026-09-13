@@ -133,20 +133,47 @@ optimisation.
   shelling out to `sqlite3` is ruled out.
 - **Lint: SwiftLint** — `swiftlint lint`, `swiftlint --fix`. `swift-format` is not
   installed. A `PostToolUse` hook runs `swiftlint --fix` on edited Swift files.
+- **Build: a thin committed Xcode project plus a local Swift package.** Tuist and a
+  package-only build were considered and rejected. Swift 6 language mode everywhere.
+  - `Yellowhammer.xcodeproj` holds only two targets, using buildable folders:
+    `Yellowhammer` (the app, `dev.yellowhammer`) and `Engine` (a command-line tool,
+    product `yh`, `dev.yellowhammer.engine`). The app embeds `yh` in `Contents/MacOS`
+    through a Copy Files phase with Code Sign On Copy. The `Engine` target embeds its
+    Info.plist in the binary so codesign uses the bundle identifier, not the file name.
+    Debug and Release are the only build configurations: rehearsal is a runtime mode
+    of a Night, never a build configuration or scheme.
+  - `Packages/YellowhammerKit` holds all logic. Tests run with
+    `swift test --package-path Packages/YellowhammerKit`; the app builds with
+    `xcodebuild -project Yellowhammer.xcodeproj -scheme Yellowhammer build`.
+  - Edit `.pbxproj` only for build settings. Adding targets, package products or
+    capabilities is done in Xcode by a human.
+- **Names.** The command is `yh` — its subcommands are the Acts, and they get typed
+  into Orca Automations by hand, so they are a contract. A module is named after the
+  glossary term it holds, and vendor code is named `<Vendor>Adapter` (`LinearAdapter`,
+  `OrcaADEAdapter`, `GitHubAdapter`, `CLIAdapters`). No module is named after a Port
+  (Apple already has a `Dispatch` module), and no type shares its module's name. TOML
+  configuration lives in `Config` — not `Operator`, which is the human.
+- **Modules exist to enforce the binding rules, and one is added only when its first
+  real code lands.** `Engine` never imports an adapter (ADR-001); only
+  `EngineCommand` wires adapters in. The app never links `Engine` (shell, not host).
+  `Journal` and `Ledger` are separate modules (ADR-003).
 
 ## Open decisions — raise them, do not invent them
 
-- **Build system is undecided** — SPM vs a committed Xcode project vs Tuist. There is
-  no build, test or notarization command yet. Do not create `Package.swift`, an
-  `.xcodeproj`, or a target layout unasked.
-- **Minimum macOS version** is stated as a rule, never a digit: the higher of Orca
-  ADE's own minimum and the SwiftUI APIs actually used. Never hardcode one.
+- **Minimum macOS version** is a rule, not a digit: the higher of Orca ADE's own
+  minimum and the SwiftUI APIs actually used. `26.5` is **provisional**. It appears in
+  two places, which must stay equal: `MACOSX_DEPLOYMENT_TARGET` in the project and
+  `platforms` in `Package.swift`.
 - **How an Orca Automation invokes an executable inside a signed `.app` bundle** is
-  `TBD`, to be closed by an empirical probe. The app/Engine target layout waits on it.
+  `TBD`, to be closed by an empirical probe. `Contents/MacOS/yh` is provisional. The
+  same probe should settle whether `yh` can post to Notification Centre as it stands
+  or needs a helper `.app` — and whether `yh` must go on `PATH`, where it would clash
+  with Homebrew's `yh` formula.
 - **Whether local git sits behind a Port** is `TBD` (ADR-001). Do not force it either way.
 - Also unspecified: on-disk paths for the Journal, Ledger and Routing Table TOML;
-  module, target, scheme and bundle identifier names; SQLite DDL and migrations; window
-  versus menu-bar app; and which Nav Flow screens the app owns versus Linear.
+  SQLite DDL and migrations; window versus menu-bar app; and which Nav Flow screens the
+  app owns versus Linear. The spec's glossary has no entry for *Engine* or
+  *Yellowhammer app*.
 - **Brand is entirely unfilled.** `../yellowhammer-spec/docs/brand/*.md` are
   unpopulated templates — the hex values are `#000000` placeholders and no fonts are
   chosen. The one real artifact is the semantic text-style table, which maps 1:1 onto
