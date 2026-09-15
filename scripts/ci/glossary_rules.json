@@ -1,0 +1,56 @@
+[
+  {
+    "id": "GL001",
+    "pattern": "(?<!Linear )(?<!Xcode )(?<!Swift package )(?<!SwiftPM )(?<!Orca )\\bproject\\b",
+    "scopes": ["strings", "commit-messages"],
+    "flags": {"case_sensitive": true},
+    "message": "Lowercase 'project' refers to Linear's concept; use 'Project' (capital P) for Yellowhammer's scope",
+    "glossary": "docs/glossary.md#project"
+  },
+  {
+    "id": "GL002",
+    "pattern": "\\b(reviewAttempt|review_attempt|retryRound|retry_round|attemptRound|attempt_round|checkAttempt|check_attempt|roundAttempt|round_attempt)\\b",
+    "scopes": ["identifiers", "strings"],
+    "flags": {"case_sensitive": true},
+    "message": "Round and Attempt are distinct counters: a review is a Round (same worker, same worktree), not an Attempt",
+    "glossary": "docs/glossary.md#round"
+  },
+  {
+    "id": "GL003",
+    "pattern": "Board|Workspace|Dispatch|Publication",
+    "scopes": ["test-names"],
+    "flags": {"case_sensitive": true},
+    "message": "Port names in tests: name the vendor (Linear, Orca ADE, GitHub) not the Port abstraction",
+    "glossary": "docs/glossary.md#port"
+  },
+  {
+    "id": "GL004",
+    "pattern": "\\b(daemon|background_service|background service)\\b",
+    "scopes": ["strings"],
+    "flags": {"case_sensitive": false},
+    "message": "Nothing is resident; avoid 'daemon' or 'background service' in UI copy. Yellowhammer is shell, not host",
+    "glossary": "docs/glossary.md#night"
+  },
+  {
+    "id": "GL005",
+    "pattern": "\\b(sprint|ticket)\\b",
+    "scopes": ["comments", "strings"],
+    "flags": {"case_sensitive": false},
+    "message": "Linear vocabulary: use 'Card', not 'ticket' or 'sprint' — we have no sprints (see Cycle)",
+    "glossary": "docs/glossary.md#card"
+  },
+  {
+    "id": "GL006",
+    "pattern": "\\bLinear (cycle|sprint)\\b",
+    "scopes": ["comments", "strings"],
+    "flags": {"case_sensitive": false},
+    "message": "Our Cycle is a Linear milestone, not a Linear cycle or sprint — clarify which you mean",
+    "glossary": "docs/glossary.md#cycle"
+  },
+  {
+    "id": "GL007",
+    "kind": "package-target-name",
+    "message": "Module cannot be named after a Port; Ports are protocol abstractions, not code targets",
+    "glossary": "docs/glossary.md#port"
+  }
+]

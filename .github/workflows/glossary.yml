@@ -1,0 +1,47 @@
+name: Glossary
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  glossary:
+    name: Glossary conformance (warnings)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Run unit tests
+        run: python3 -m unittest discover -s scripts/ci/tests -p 'test_check_glossary.py' -v
+
+      - name: Run glossary check
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            python3 scripts/ci/check_glossary.py \
+              --repo-root . \
+              --rules scripts/ci/glossary_rules.json \
+              --commits "${BASE_SHA}..${HEAD_SHA}" \
+              --summary-file "$GITHUB_STEP_SUMMARY"
+          else
+            python3 scripts/ci/check_glossary.py \
+              --repo-root . \
+              --rules scripts/ci/glossary_rules.json \
+              --summary-file "$GITHUB_STEP_SUMMARY"
+          fi
