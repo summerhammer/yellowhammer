@@ -1,0 +1,8 @@
+[linear]
+credential = "keychain:linear"
+
+[github]
+credential = "keychain:github"
+
+[[routing]]
+route = { cli = "claude", model = "opus", efort = "high" }

@@ -1,0 +1,4 @@
+# Machine configuration
+
+[linear]
+credential = "keychain:\linear"

@@ -1,0 +1,9 @@
+[linear]
+credential = "keychain:linear"
+
+[github]
+credential = "keychain:github"
+
+[[routing]]
+repo-role = "backend"
+route = "claude/sonnet"

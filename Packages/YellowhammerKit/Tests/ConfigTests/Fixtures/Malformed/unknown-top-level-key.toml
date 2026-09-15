@@ -1,0 +1,7 @@
+# Machine configuration
+schedule = "nightly"
+[linear]
+credential = "keychain:linear"
+
+[github]
+credential = "keychain:github"

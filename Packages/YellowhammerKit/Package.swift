@@ -10,6 +10,7 @@ let package = Package(
     ],
     products: [
         .library(name: "Domain", targets: ["Domain"]),
+        .library(name: "Config", targets: ["Config"]),
         .library(name: "Engine", targets: ["Engine"]),
         .library(name: "EngineCommand", targets: ["EngineCommand"])
     ],
@@ -24,6 +25,10 @@ let package = Package(
             name: "Domain"
         ),
         .target(
+            name: "Config",
+            dependencies: ["Domain"]
+        ),
+        .target(
             name: "Engine",
             dependencies: ["Domain"]
         ),
@@ -34,6 +39,14 @@ let package = Package(
                 "Domain",
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
             ]
+        ),
+        .testTarget(
+            name: "ConfigTests",
+            dependencies: [
+                "Config",
+                "Domain"
+            ],
+            resources: [.copy("Fixtures")]
         ),
         .testTarget(
             name: "EngineCommandTests",
