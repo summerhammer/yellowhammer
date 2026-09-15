@@ -1,0 +1,14 @@
+id = "bad"
+name = "Bad Override"
+linear_project = "BAD"
+spec_source = "~/dev/spec"
+
+[[repos]]
+name = "bad"
+path = "~/dev/bad"
+role = "backend"
+check = "swift test"
+
+[[routing]]
+kind = "review"
+route = "gemini/pro"

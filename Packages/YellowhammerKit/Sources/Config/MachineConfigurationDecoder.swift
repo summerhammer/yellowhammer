@@ -10,13 +10,20 @@ struct MachineConfigurationDecoder {
         decoding = ConfigurationDecoding(file: file)
     }
 
+    /// The base Routing Table is checked against this file's own `[cli]` declarations: every route
+    /// must name a declared CLI Adapter.
     func decode(_ root: TOMLTable) throws(ConfigurationError) -> MachineConfiguration {
         try decoding.rejectUnknownKeys(in: root, path: nil, allowed: ["linear", "github", "cli", "routing"])
+        let linearCredential = try decoding.credential(in: root, table: "linear")
+        let gitHubCredential = try decoding.credential(in: root, table: "github")
+        let cliAdapters = try cliAdapters(in: root)
+        var routingDecoding = decoding
+        routingDecoding.declaredCLIAdapters = Set(cliAdapters.map(\.name))
         return MachineConfiguration(
-            linearCredential: try decoding.credential(in: root, table: "linear"),
-            gitHubCredential: try decoding.credential(in: root, table: "github"),
-            cliAdapters: try cliAdapters(in: root),
-            routingTable: try decoding.routingTable(in: root)
+            linearCredential: linearCredential,
+            gitHubCredential: gitHubCredential,
+            cliAdapters: cliAdapters,
+            routingTable: try routingDecoding.routingTable(in: root)
         )
     }
 

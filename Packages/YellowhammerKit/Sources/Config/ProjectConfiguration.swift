@@ -4,8 +4,10 @@ import Foundation
 /// One Project's configuration file: its Linear project, Repos, specification source, Bounds, schedule,
 /// optional GitHub credential and Routing Table overrides.
 ///
-/// Rules that span Projects, or that need the machine-wide file, are not checked here.
-public struct ProjectConfiguration: Equatable, Sendable {
+/// Decoding also enforces that the Project has exactly one specification source, counted across both
+/// kinds: a `spec_source` path, or one Repo of Repo Role `spec`. Rules that span Projects, or that
+/// need the machine-wide file, are checked by ``Configuration``.
+public struct ProjectConfiguration: Sendable {
     public var id: ProjectID
     public var name: String
     /// Linear's project this Project projects onto, as an opaque reference.
@@ -20,6 +22,9 @@ public struct ProjectConfiguration: Equatable, Sendable {
     public var gitHubCredential: CredentialReference?
     /// This Project's Routing Table overrides, in file order, not yet merged with the base table.
     public var routingOverrides: [RoutingEntry]
+    /// The line of each Repo's `path` key, parallel to `repos`, so that a cross-Project error can
+    /// point at it. Empty for a value not decoded from a file. Not part of equality.
+    var repoPathLines: [Int] = []
 
     public init(
         id: ProjectID,
@@ -44,6 +49,21 @@ public struct ProjectConfiguration: Equatable, Sendable {
     }
 }
 
+extension ProjectConfiguration: Equatable {
+    /// Compares every public property; ``repoPathLines`` is source bookkeeping, not configuration.
+    public static func == (lhs: ProjectConfiguration, rhs: ProjectConfiguration) -> Bool {
+        lhs.id == rhs.id
+            && lhs.name == rhs.name
+            && lhs.linearProject == rhs.linearProject
+            && lhs.specSource == rhs.specSource
+            && lhs.repos == rhs.repos
+            && lhs.bounds == rhs.bounds
+            && lhs.schedule == rhs.schedule
+            && lhs.gitHubCredential == rhs.gitHubCredential
+            && lhs.routingOverrides == rhs.routingOverrides
+    }
+}
+
 extension ProjectConfiguration {
     /// `~/.config/yellowhammer/projects/<id>.toml` under the given home directory.
     public static func defaultFileURL(homeDirectory: URL, id: ProjectID) -> URL {
@@ -54,7 +74,12 @@ extension ProjectConfiguration {
     }
 
     /// Also refuses a file whose name, less its extension, is not its `id`.
-    public static func load(contentsOf url: URL) throws(ConfigurationError) -> ProjectConfiguration {
+    ///
+    /// When `declaredCLIAdapters` is given, every route in the Routing Table overrides must name one
+    /// of them; nil skips that check, which needs the machine-wide file.
+    public static func load(
+        contentsOf url: URL, declaredCLIAdapters: Set<String>? = nil
+    ) throws(ConfigurationError) -> ProjectConfiguration {
         let file = url.path(percentEncoded: false)
         let text: String
         do {
@@ -62,18 +87,28 @@ extension ProjectConfiguration {
         } catch {
             throw ConfigurationError(file: file, line: 1, key: nil, reason: .unreadable(error.localizedDescription))
         }
-        return try parse(text, file: file, fileStem: url.deletingPathExtension().lastPathComponent)
+        return try parse(
+            text,
+            file: file,
+            fileStem: url.deletingPathExtension().lastPathComponent,
+            declaredCLIAdapters: declaredCLIAdapters
+        )
     }
 
-    public static func parse(_ text: String, file: String) throws(ConfigurationError) -> ProjectConfiguration {
-        try parse(text, file: file, fileStem: nil)
+    public static func parse(
+        _ text: String, file: String, declaredCLIAdapters: Set<String>? = nil
+    ) throws(ConfigurationError) -> ProjectConfiguration {
+        try parse(text, file: file, fileStem: nil, declaredCLIAdapters: declaredCLIAdapters)
     }
 
     private static func parse(
-        _ text: String, file: String, fileStem: String?
+        _ text: String, file: String, fileStem: String?, declaredCLIAdapters: Set<String>?
     ) throws(ConfigurationError) -> ProjectConfiguration {
         let root = try TOMLParser.parse(text, file: file)
-        return try ProjectConfigurationDecoder(file: file, fileStem: fileStem).decode(root)
+        let decoder = ProjectConfigurationDecoder(
+            file: file, fileStem: fileStem, declaredCLIAdapters: declaredCLIAdapters
+        )
+        return try decoder.decode(root)
     }
 }
 

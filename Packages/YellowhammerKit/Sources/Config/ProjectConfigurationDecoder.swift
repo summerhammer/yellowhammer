@@ -8,18 +8,19 @@ struct ProjectConfigurationDecoder {
     /// When set, the `id` must equal it.
     private let fileStem: String?
 
-    init(file: String, fileStem: String?) {
-        decoding = ConfigurationDecoding(file: file)
+    init(file: String, fileStem: String?, declaredCLIAdapters: Set<String>? = nil) {
+        decoding = ConfigurationDecoding(file: file, declaredCLIAdapters: declaredCLIAdapters)
         self.fileStem = fileStem
     }
 
+    /// The specification-source rule runs last, so a malformed file reports its shape error first.
     func decode(_ root: TOMLTable) throws(ConfigurationError) -> ProjectConfiguration {
         try decoding.rejectUnknownKeys(
             in: root,
             path: nil,
             allowed: ["id", "name", "linear_project", "spec_source", "repos", "limits", "schedule", "github", "routing"]
         )
-        return ProjectConfiguration(
+        var configuration = ProjectConfiguration(
             id: try projectID(in: root),
             name: try decoding.requiredString("name", in: root, path: nil),
             linearProject: try decoding.requiredString("linear_project", in: root, path: nil),
@@ -30,6 +31,46 @@ struct ProjectConfigurationDecoder {
             gitHubCredential: try gitHubCredential(in: root),
             routingOverrides: try decoding.routingTable(in: root)
         )
+        configuration.repoPathLines = repoPathLines(in: root)
+        try requireExactlyOneSpecificationSource(in: root)
+        return configuration
+    }
+
+    // MARK: - Specification source
+
+    /// Exactly one across both kinds — a `spec_source` path or one Repo of Repo Role `spec` — never
+    /// two of either, never one of each, and never none (glossary → Spec Source; feature-authoring
+    /// business rules). Sources are counted in file order and the second one found is refused.
+    private func requireExactlyOneSpecificationSource(in root: TOMLTable) throws(ConfigurationError) {
+        var sources: [(key: String, line: Int)] = []
+        if let specSource = root["spec_source"] {
+            sources.append((key: "spec_source", line: specSource.line))
+        }
+        if case .array(let elements)? = root["repos"]?.content {
+            for (index, element) in elements.enumerated() {
+                guard case .table(let table) = element.content,
+                      case .string("spec")? = table["role"]?.content
+                else { continue }
+                sources.append((key: "repos[\(index)].role", line: table["role"]?.line ?? table.line))
+            }
+        }
+        sources.sort { $0.line < $1.line }
+        guard let first = sources.first else {
+            throw decoding.error(line: 1, key: nil, .noSpecificationSource)
+        }
+        if sources.count > 1 {
+            let second = sources[1]
+            throw decoding.error(line: second.line, key: second.key, .secondSpecificationSource(firstLine: first.line))
+        }
+    }
+
+    /// Run after ``repos(in:)`` succeeded, so every element is a table with a `path`.
+    private func repoPathLines(in root: TOMLTable) -> [Int] {
+        guard case .array(let elements)? = root["repos"]?.content else { return [] }
+        return elements.map { element in
+            guard case .table(let table) = element.content else { return element.line }
+            return table["path"]?.line ?? table.line
+        }
     }
 
     // MARK: - Identity

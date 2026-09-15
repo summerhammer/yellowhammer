@@ -72,7 +72,13 @@ private let routingFixtures: [MalformedFixture] = [
     MalformedFixture("route-subtable-missing-model", line: 10, key: "routing[0].route.model", .missingKey),
     MalformedFixture("route-table-empty-cli", line: 8, key: "routing[0].route.cli", .emptyString),
     MalformedFixture("fallback-empty-string", line: 9, key: "routing[0].fallbacks[1]", .invalidRoute("")),
-    MalformedFixture("duplicate-routing-entry", line: 12, key: "routing[1]", .duplicateRoutingEntry(firstLine: 7))
+    MalformedFixture("duplicate-routing-entry", line: 12, key: "routing[1]", .duplicateRoutingEntry(firstLine: 7)),
+    // Every route must name a declared CLI Adapter (routing/add-an-agent-cli).
+    MalformedFixture("route-undeclared-cli", line: 10, key: "routing[0].route", .undeclaredCLIAdapter("gemini")),
+    MalformedFixture(
+        "fallback-undeclared-cli", line: 11, key: "routing[0].fallbacks[1]", .undeclaredCLIAdapter("gemini")
+    ),
+    MalformedFixture("routing-without-cli-table", line: 8, key: "routing[0].route", .undeclaredCLIAdapter("claude"))
 ]
 
 @Test(

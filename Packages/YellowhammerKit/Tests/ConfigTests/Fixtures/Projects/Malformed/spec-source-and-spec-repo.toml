@@ -1,0 +1,10 @@
+id = "spec-source-and-spec-repo"
+name = "Spec Source And Spec Repo"
+linear_project = "SSR"
+spec_source = "~/dev/spec"
+
+[[repos]]
+name = "spec-repo"
+path = "~/dev/other-spec"
+role = "spec"
+check = "none"

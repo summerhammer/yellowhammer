@@ -7,6 +7,13 @@ struct ConfigurationDecoding {
     private static let defaultEffort = "medium"
 
     let file: String
+    /// When set, every route must name one of these CLI Adapters; nil skips the check.
+    var declaredCLIAdapters: Set<String>?
+
+    init(file: String, declaredCLIAdapters: Set<String>? = nil) {
+        self.file = file
+        self.declaredCLIAdapters = declaredCLIAdapters
+    }
 
     func error(line: Int, key: String?, _ reason: ConfigurationError.Reason) -> ConfigurationError {
         ConfigurationError(file: file, line: line, key: key, reason: reason)
@@ -98,6 +105,7 @@ struct ConfigurationDecoding {
             firstLines[key] = table.line
             entries.append(entry)
         }
+        try requireDeclaredAdapters(for: entries, elements: elements)
         return entries
     }
 
@@ -144,6 +152,29 @@ struct ConfigurationDecoding {
             routes.append(try route(element, path: "\(key)[\(index)]", defaultEffort: defaultEffort))
         }
         return routes
+    }
+
+    /// Refuses a route whose CLI has no adapter declaration when ``declaredCLIAdapters`` is set
+    /// (routing/add-an-agent-cli): a CLI in the Routing Table without an adapter fails at load, not
+    /// at 02:00. Runs after the whole table decoded, so a shape error is always reported first.
+    private func requireDeclaredAdapters(
+        for entries: [RoutingEntry], elements: [TOMLValue]
+    ) throws(ConfigurationError) {
+        guard let declaredCLIAdapters else { return }
+        for (index, entry) in entries.enumerated() {
+            guard case .table(let table) = elements[index].content else { continue }
+            let path = "routing[\(index)]"
+            if !declaredCLIAdapters.contains(entry.route.cli) {
+                let line = table["route"]?.line ?? table.line
+                throw error(line: line, key: "\(path).route", .undeclaredCLIAdapter(entry.route.cli))
+            }
+            guard case .array(let fallbacks)? = table["fallbacks"]?.content else { continue }
+            for (fallbackIndex, fallback) in entry.fallbacks.enumerated()
+            where !declaredCLIAdapters.contains(fallback.cli) {
+                let key = "\(path).fallbacks[\(fallbackIndex)]"
+                throw error(line: fallbacks[fallbackIndex].line, key: key, .undeclaredCLIAdapter(fallback.cli))
+            }
+        }
     }
 
     /// A `cli/model` or `cli/model/effort` string, or a table with `cli`, `model` and optional `effort`.

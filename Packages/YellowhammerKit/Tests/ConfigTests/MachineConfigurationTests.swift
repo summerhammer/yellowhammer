@@ -82,6 +82,7 @@ func alternativeTableSpellings() throws {
     let text = """
     linear.credential = "keychain:linear"
     github = { credential = "keychain:github" }
+    cli.claude = {}
     routing = [{ route = "claude/opus/high" }]
     """
     let configuration = try MachineConfiguration.parse(text, file: "config.toml")

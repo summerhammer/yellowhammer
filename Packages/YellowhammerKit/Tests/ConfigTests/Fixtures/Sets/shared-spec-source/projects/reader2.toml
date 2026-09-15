@@ -1,0 +1,10 @@
+id = "reader2"
+name = "Reader Two"
+linear_project = "RD2"
+spec_source = "~/dev/./spec/"
+
+[[repos]]
+name = "reader2"
+path = "~/dev/reader2"
+role = "web"
+check = "npm test"

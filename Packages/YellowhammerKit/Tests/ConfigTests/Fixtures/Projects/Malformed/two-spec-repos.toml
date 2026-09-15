@@ -1,0 +1,15 @@
+id = "two-spec-repos"
+name = "Two Spec Repos"
+linear_project = "TSR"
+
+[[repos]]
+name = "spec-a"
+path = "~/dev/spec-a"
+role = "spec"
+check = "none"
+
+[[repos]]
+name = "spec-b"
+path = "~/dev/spec-b"
+role = "spec"
+check = "none"

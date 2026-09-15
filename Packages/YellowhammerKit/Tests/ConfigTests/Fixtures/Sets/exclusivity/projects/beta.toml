@@ -1,0 +1,16 @@
+id = "beta"
+name = "Beta"
+linear_project = "BET"
+spec_source = "~/dev/spec"
+
+[[repos]]
+name = "beta-only"
+path = "~/dev/beta"
+role = "web"
+check = "npm test"
+
+[[repos]]
+name = "shared-again"
+path = "~/dev/./shared/"
+role = "backend"
+check = "swift test"

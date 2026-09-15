@@ -1,0 +1,14 @@
+id = "good"
+name = "Good Override"
+linear_project = "GOOD"
+spec_source = "~/dev/spec"
+
+[[repos]]
+name = "good"
+path = "~/dev/good"
+role = "backend"
+check = "swift test"
+
+[[routing]]
+kind = "review"
+route = "codex/gpt-5.4/high"
