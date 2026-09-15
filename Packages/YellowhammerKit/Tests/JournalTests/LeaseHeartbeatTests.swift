@@ -4,20 +4,32 @@ import Testing
 
 @testable import Journal
 
-private final class TestState: @unchecked Sendable {
-    private(set) var beatCount = 0
-    private let sawCancellationLock = Mutex(false)
+/// What a test observes from the beat and the body, guarded because they run in different tasks.
+private final class TestState: Sendable {
+    private let beats = Mutex(0)
+    private let cancellationSeen = Mutex(false)
 
-    var bodySawCancellation: Bool {
-        sawCancellationLock.withLock { $0 }
-    }
+    var beatCount: Int { beats.withLock { $0 } }
+    var bodySawCancellation: Bool { cancellationSeen.withLock { $0 } }
 
-    func incrementBeatCount() {
-        beatCount += 1
+    /// Returns the count after this beat.
+    @discardableResult
+    func recordBeat() -> Int {
+        beats.withLock { count in
+            count += 1
+            return count
+        }
     }
 
     func markBodySawCancellation() {
-        sawCancellationLock.withLock { $0 = true }
+        cancellationSeen.withLock { $0 = true }
+    }
+
+    /// Waits until at least `count` beats have happened. Bounded so a broken loop fails, not hangs.
+    func waitForBeats(_ count: Int) async throws {
+        for _ in 0..<500 where beatCount < count {
+            try await Task.sleep(for: .milliseconds(10))
+        }
     }
 }
 
@@ -25,7 +37,7 @@ private final class TestState: @unchecked Sendable {
 func heartbeatReturnsBodyValue() async throws {
     let expectedValue = 42
     let result = try await withLeaseHeartbeat(
-        every: Duration(secondsComponent: 0, attosecondsComponent: 20_000_000_000_000),
+        every: .milliseconds(20),
         beat: { },
         body: { expectedValue }
     )
@@ -40,7 +52,7 @@ func heartbeatPropagatesBodyError() async throws {
 
     do {
         _ = try await withLeaseHeartbeat(
-            every: Duration(secondsComponent: 0, attosecondsComponent: 20_000_000_000_000),
+            every: .milliseconds(20),
             beat: { },
             body: {
                 throw TestError.bodyFailed
@@ -52,17 +64,16 @@ func heartbeatPropagatesBodyError() async throws {
     }
 }
 
-@Test("With 20 ms interval and body sleeping 150 ms, beat count is ≥ 3 and body's value returns")
+@Test("The beat runs repeatedly while the body is in progress, and the body's value returns")
 func heartbeatBeatsAtInterval() async throws {
     let state = TestState()
-    let interval = Duration.milliseconds(20)
+    // The body waits for the third beat rather than sleeping a fixed time, so a slow machine
+    // cannot fail the test; it can only make it slower.
     let result = try await withLeaseHeartbeat(
-        every: interval,
-        beat: {
-            state.incrementBeatCount()
-        },
+        every: .milliseconds(20),
+        beat: { state.recordBeat() },
         body: {
-            try await Task.sleep(for: Duration.milliseconds(150))
+            try await state.waitForBeats(3)
             return "done"
         }
     )
@@ -81,10 +92,9 @@ func heartbeatBeatErrorCancelsBody() async throws {
 
     do {
         _ = try await withLeaseHeartbeat(
-            every: Duration.milliseconds(10),
+            every: .milliseconds(10),
             beat: {
-                state.incrementBeatCount()
-                if state.beatCount >= 2 {
+                if state.recordBeat() >= 2 {
                     throw TestError.beatFailed
                 }
             },
@@ -92,7 +102,7 @@ func heartbeatBeatErrorCancelsBody() async throws {
                 try await withTaskCancellationHandler(
                     operation: {
                         while true {
-                            try await Task.sleep(for: Duration.milliseconds(10))
+                            try await Task.sleep(for: .milliseconds(10))
                             try Task.checkCancellation()
                         }
                     },
@@ -115,21 +125,18 @@ func heartbeatBeatErrorCancelsBody() async throws {
 @Test("Once body finishes, no further beats happen")
 func heartbeatStopsAfterBody() async throws {
     let state = TestState()
-    let interval = Duration.milliseconds(30)
 
     _ = try await withLeaseHeartbeat(
-        every: interval,
-        beat: {
-            state.incrementBeatCount()
-        },
+        every: .milliseconds(10),
+        beat: { state.recordBeat() },
         body: {
-            try await Task.sleep(for: Duration.milliseconds(50))
+            try await state.waitForBeats(2)
             return "done"
         }
     )
 
     let countAfterBody = state.beatCount
-    try await Task.sleep(for: Duration.milliseconds(100))
+    try await Task.sleep(for: .milliseconds(100))
 
     #expect(state.beatCount == countAfterBody)
 }
