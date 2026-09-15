@@ -1,0 +1,29 @@
+name: Deployment target
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  deployment-target:
+    name: Deployment target consistency
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Run unit tests
+        run: python3 -m unittest discover -s scripts/ci/tests -p 'test_check_deployment_target.py' -v
+
+      - name: Check deployment target consistency
+        run: python3 scripts/ci/check_deployment_target.py
