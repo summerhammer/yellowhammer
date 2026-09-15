@@ -1,7 +1,7 @@
 import ArgumentParser
 import Domain
 import Engine
-import EngineCommand
+@testable import EngineCommand
 import Testing
 
 @Test("The command is named yh")
@@ -16,11 +16,15 @@ func subcommandsAreTheActsInOrder() {
     #expect(names == Act.allCases.map(\.rawValue))
 }
 
-@Test("Each subcommand parses and runs its own Act", arguments: Act.allCases)
+@Test("Each subcommand parses and runs its own Act for a configured Project", arguments: Act.allCases)
 func subcommandRunsItsAct(_ act: Act) async throws {
-    var command = try #require(try RootCommand.parseAsRoot([act.rawValue]) as? any AsyncParsableCommand)
+    let directory = ConfigurationDirectory()
+    try directory.writeMachineFile()
+    try directory.writeValidProjectFile(id: "yellowhammer")
+    let parsed = try RootCommand.parseAsRoot([act.rawValue, "--project", "yellowhammer"])
+    let command = try #require(parsed as? any ActCommand)
     await #expect(throws: EngineInvocationError.notImplemented(act)) {
-        try await command.run()
+        try await command.run(configurationDirectory: directory.url)
     }
 }
 
@@ -28,5 +32,12 @@ func subcommandRunsItsAct(_ act: Act) async throws {
 func unknownSubcommandFailsToParse() {
     #expect(throws: (any Error).self) {
         try RootCommand.parseAsRoot(["deploy"])
+    }
+}
+
+@Test("An Act without --project fails to parse", arguments: Act.allCases)
+func actWithoutProjectFailsToParse(_ act: Act) {
+    #expect(throws: (any Error).self) {
+        try RootCommand.parseAsRoot([act.rawValue])
     }
 }

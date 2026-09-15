@@ -37,6 +37,7 @@ let package = Package(
             dependencies: [
                 "Engine",
                 "Domain",
+                "Config",
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
             ]
         ),
