@@ -634,5 +634,62 @@ class TestMB2MB4ImportViolations(unittest.TestCase):
                        f"Expected MB4 violation but got: {violations}")
 
 
+
+class TestMB5EngineOpensJournal(unittest.TestCase):
+    """MB5: Engine never opens a Journal; it is handed one Project's by EngineCommand."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.engine_dir = os.path.join(self.temp_dir, 'Sources', 'Engine')
+        os.makedirs(self.engine_dir)
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+
+    def write_engine_file(self, name, content):
+        with open(os.path.join(self.engine_dir, name), 'w') as f:
+            f.write(content)
+
+    def test_engine_opening_journal_fails_mb5(self):
+        self.write_engine_file('Bad.swift', (
+            'import Journal\n'
+            'let sibling = try JournalStore.open(configurationDirectory: dir, projectID: other)\n'
+        ))
+        violations = check_module.check_engine_opens_journal(self.temp_dir)
+        self.assertEqual([v['rule'] for v in violations], ['MB5'])
+        self.assertEqual(violations[0]['line'], 2)
+
+    def test_engine_opening_journal_read_only_fails_mb5(self):
+        self.write_engine_file('Bad.swift', 'let j = try JournalStore.openReadOnly(at: url, projectID: id)\n')
+        violations = check_module.check_engine_opens_journal(self.temp_dir)
+        self.assertEqual([v['rule'] for v in violations], ['MB5'])
+
+    def test_engine_handed_a_journal_passes_mb5(self):
+        self.write_engine_file('Good.swift', (
+            'import Journal\n'
+            '// Never JournalStore.open(...) here: the invocation is handed its Journal.\n'
+            'struct EngineInvocation { let journal: JournalStore }\n'
+        ))
+        violations = check_module.check_engine_opens_journal(self.temp_dir)
+        self.assertEqual(violations, [])
+
+    def test_other_modules_may_open(self):
+        command_dir = os.path.join(self.temp_dir, 'Sources', 'EngineCommand')
+        os.makedirs(command_dir)
+        with open(os.path.join(command_dir, 'Wiring.swift'), 'w') as f:
+            f.write('let journal = try JournalStore.open(configurationDirectory: dir, projectID: project.id)\n')
+        violations = check_module.check_engine_opens_journal(self.temp_dir)
+        self.assertEqual(violations, [])
+
+    def test_real_engine_passes_mb5(self):
+        current_file = Path(__file__)
+        for parent in current_file.parents:
+            package_root = parent / 'Packages' / 'YellowhammerKit'
+            if package_root.exists():
+                violations = check_module.check_engine_opens_journal(str(package_root))
+                self.assertEqual(violations, [])
+                return
+        self.skipTest("Could not locate real repository")
+
 if __name__ == '__main__':
     unittest.main()

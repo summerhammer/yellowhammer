@@ -159,7 +159,10 @@ optimisation.
 - **Modules exist to enforce the binding rules, and one is added only when its first
   real code lands.** `Engine` never imports an adapter (ADR-001); only
   `EngineCommand` wires adapters in. The app never links `Engine` (shell, not host).
-  `Journal` and `Ledger` are separate modules (ADR-003).
+  `Journal` and `Ledger` are separate modules (ADR-003). `Engine` never opens a Journal:
+  `EngineCommand` opens the resolved Project's and hands it to the invocation, so nothing
+  in `Engine` can address a sibling Project's (ADR-002). CI checks all of these
+  (`scripts/ci/check_module_boundaries.py`, MB1–MB5).
 
 ## Decided — read the ruling, do not re-open
 

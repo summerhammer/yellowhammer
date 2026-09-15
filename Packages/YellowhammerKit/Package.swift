@@ -42,7 +42,7 @@ let package = Package(
         ),
         .target(
             name: "Engine",
-            dependencies: ["Domain"]
+            dependencies: ["Domain", "Journal"]
         ),
         .target(
             name: "EngineCommand",
@@ -50,6 +50,7 @@ let package = Package(
                 "Engine",
                 "Domain",
                 "Config",
+                "Journal",
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
             ]
         ),
@@ -72,7 +73,9 @@ let package = Package(
             name: "EngineCommandTests",
             dependencies: [
                 "EngineCommand",
-                "Domain"
+                "Engine",
+                "Domain",
+                "Journal"
             ]
         )
     ]
