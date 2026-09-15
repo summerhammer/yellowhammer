@@ -12,6 +12,16 @@
 		5083DD5B305674F500E6D6D3 /* EngineCommand in Frameworks */ = {isa = PBXBuildFile; productRef = 5083DD5A305674F500E6D6D3 /* EngineCommand */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		5083DD5C305674F500E6D6D3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5083DD2C3056702600E6D6D3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5083DD45305670D400E6D6D3;
+			remoteInfo = Engine;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXCopyFilesBuildPhase section */
 		5083DD44305670D400E6D6D3 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
@@ -105,6 +115,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				5083DD5D305674F500E6D6D3 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				5083DD363056702600E6D6D3 /* Yellowhammer */,
@@ -207,6 +218,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		5083DD5D305674F500E6D6D3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5083DD45305670D400E6D6D3 /* Engine */;
+			targetProxy = 5083DD5C305674F500E6D6D3 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		5083DD3D3056702800E6D6D3 /* Debug */ = {
