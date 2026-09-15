@@ -32,7 +32,7 @@ func eventTypeRawValues() {
         "ActStarted", "ActEnded", "ActIncomplete", "ActStoodDown",
         "MainlineFetchFailed", "AbsentNightDetected", "AuthoringNoWorkAvailable",
         "ManagedBlockDelimiterBroken", "NotificationDeliveryFailed", "RateBudgetExhausted",
-        "LeaseReclaimed"
+        "LeaseReclaimed", "CardLeaseReclaimed"
     ]
     let actual = JournalEventType.allCases.map { $0.rawValue }.sorted()
     #expect(actual == expected.sorted())
@@ -256,5 +256,32 @@ func leaseReclaimedRoundTrips() throws {
     }
     #expect(readRunID == previousRun)
     #expect(readAct == .build)
+    #expect(readExpiredAt == expiredAt)
+}
+
+@Test("cardLeaseReclaimed event round-trips")
+func cardLeaseReclaimedRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+    let previousRun = RunID()
+    let cardID: Int64 = 42
+    let expiredAt = epoch.addingTimeInterval(600)
+
+    try journal.append(
+        .cardLeaseReclaimed(cardID: cardID, previousRunID: previousRun, expiredAt: expiredAt),
+        act: nil,
+        runID: run,
+        now: epoch
+    )
+    let records = try journal.events()
+
+    #expect(records.count == 1)
+    guard case .cardLeaseReclaimed(let readCardID, let readRunID, let readExpiredAt) = records[0].event else {
+        Issue.record("Event is not cardLeaseReclaimed")
+        return
+    }
+    #expect(readCardID == cardID)
+    #expect(readRunID == previousRun)
     #expect(readExpiredAt == expiredAt)
 }

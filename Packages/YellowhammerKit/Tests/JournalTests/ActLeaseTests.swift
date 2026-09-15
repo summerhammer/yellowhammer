@@ -252,6 +252,15 @@ func policyIsConfigurable() throws {
     #expect(refreshed.expiresAt == epoch.addingTimeInterval(8))
 }
 
+@Test("LeasePolicy.heartbeatDuration converts to Duration without truncation")
+func heartbeatDurationPrecision() {
+    let short = LeasePolicy(heartbeatInterval: 0.25, timeToLive: 5)
+    #expect(short.heartbeatDuration == .milliseconds(250))
+
+    let ruled = LeasePolicy.ruled
+    #expect(ruled.heartbeatDuration == .seconds(60))
+}
+
 @Test("The schema itself refuses a second Act lease row")
 func schemaRefusesSecondRow() throws {
     let fixture = try JournalFixture()
