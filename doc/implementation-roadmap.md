@@ -21,6 +21,10 @@ disagreement is a defect in this file.
   - **Work** — what is built, configured or produced.
   - **Spec** — the stories, rulings and documents that define it.
   - **Done when** — how you can check the step is complete.
+  - **Agent** — recommended Claude Code implementor model and effort (`Fable 5.1 High`,
+    `Fable 5.1 Medium`, `Opus 5 Medium`, `Sonnet 5 Medium`). Open steps only. Fable for steps
+    where lease, transaction, ancestry or state-machine correctness is the work; Opus for
+    bounded adapters, CLI surfaces and app screens; Sonnet for scripted `[DevOps]` steps.
 - **Every acceptance criterion in a cited story is part of "done".** A "Done when" line picks out
   the key checks. It does not replace the story's criteria.
 - **DevOps** steps are marked `[DevOps]`. They sit where they are needed in the order, not in a
@@ -204,7 +208,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 
 ## Phase 2 — Configuration
 
-### [ ] P2.1 Machine-wide configuration file
+### [x] P2.1 Machine-wide configuration file
 - **Work**
   - Read the machine-wide TOML base file: Linear workspace authorization reference, base Routing
     Table entries, CLI Adapter declarations, machine default GitHub credentials.
@@ -215,10 +219,11 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Spec** — risks.md OQ13 Facet 1; `routing/overview`; system-overview → CLI Adapters and the
   Routing Table.
 - **Gate** — G-3.
+- **Agent** — Opus 5 Medium.
 - **Done when** — Valid fixture files load into typed configuration. Each malformed fixture gives a
   precise error.
 
-### [ ] P2.2 Per-Project configuration files
+### [x] P2.2 Per-Project configuration files
 - **Work**
   - Read one TOML file per Project: `id`, `name`, `linear_project`, `[[repos]]` (`name`, `path`,
     `role`, required `check`, `protected_paths`), the single specification source (`spec_source`
@@ -230,6 +235,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Spec** — risks.md OQ13 Facet 1, OQ14, OQ45 (per-Project GitHub credential), OQ51 (Spec Source);
   `bounds/overview`; `graph-execution/gate-a-card-on-the-repository-check`.
 - **Gates** — G-13 (default value only), G-16 (key names for the three unnamed bounds).
+- **Agent** — Opus 5 Medium.
 - **Done when** — Fixture Projects load with defaults applied where keys are absent and allowed.
 
 ### [ ] P2.3 Load-time validation with per-Project failure isolation
@@ -248,6 +254,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   7. A Spec Source carries a path only (no role, check or protected paths).
 - **Spec** — risks.md OQ13, OQ14, OQ51; `routing/add-an-agent-cli`;
   `feature-authoring/overview` → Business Rules; `graph-execution/gate-a-card-on-the-repository-check`.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — A fixture matrix covers every rule, including "two conflicting Projects refused,
   third Project loads".
 
@@ -259,6 +266,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Expose the merged result as one flat table per Project.
 - **Spec** — `routing/overview`; `routing/resolve-a-route-for-a-card`; Machine Scope Ruling
   (risks.md).
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Fixtures prove that an override replaces the base entry and its fallbacks, and
   that non-overridden entries pass through.
 
@@ -269,6 +277,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - When `--project <id>` names a Project that is absent or invalidated, `yh` exits with code 1
     without running an Act.
 - **Spec** — risks.md OQ13 Facet 2; OQ52 Face 1 (orphaned LaunchAgents fail fast).
+- **Agent** — Opus 5 Medium.
 - **Done when** — Both cases are covered by CLI tests that assert exit code and message.
 
 ---
@@ -294,6 +303,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   `feature-authoring/author-citable-definitions-of-done`; risks.md OQ52 (Journal path, never
   deleted by the product).
 - **Gates** — G-3, G-4.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — A Journal is created for a fixture Project. Migrations run from an empty file to
   the current version. A second Project gets a separate file.
 
@@ -304,6 +314,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Two overlapping Acts of the **same** Project do not corrupt state (single writer plus leases).
 - **Spec** — `shift-scheduling/fire-an-act-on-schedule`; `loop-state/claim-and-heartbeat-a-run-lease`;
   ADR-002.
+- **Agent** — Fable 5.1 High.
 - **Done when** — Tests run two overlapping same-Project invocations and show no corruption. The
   engine has no API that addresses a second Project's Journal.
 
@@ -316,6 +327,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - No event log spans Projects.
 - **Spec** — `shift-scheduling/do-one-acts-work-and-exit`; risks.md OQ12, OQ13; system-overview →
   Integration Map.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Each named event type is appended by at least one code path under test. The table
   refuses updates and deletes.
 
@@ -328,6 +340,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Lease revalidation is exposed so that every board write can check it (used by P5.4).
 - **Spec** — `loop-state/claim-and-heartbeat-a-run-lease`; system-overview → Sleep hazard.
 - **Gate** — G-15 (values).
+- **Agent** — Fable 5.1 High.
 - **Done when** — Rehearsal-assertable tests show claim, heartbeat, expiry, and refusal of a second
   claim while unexpired.
 
@@ -339,6 +352,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     roster, schedule or mode column.
 - **Spec** — ADR-003; `routing/add-an-agent-cli`; risks.md OQ47, OQ48.
 - **Gates** — G-3, G-4.
+- **Agent** — Opus 5 Medium.
 - **Done when** — Two concurrent invocations for different Projects write Probe Results without
   conflict. The schema has no table beyond Probe Result history.
 
@@ -356,6 +370,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Spec** — `shift-scheduling/fire-an-act-on-schedule`; `feature-authoring/select-the-next-feature`
   (forced authoring); risks.md OQ52 Face 2 (gestures); `CLAUDE.md` → Names.
 - **Gate** — G-12 (term naming).
+- **Agent** — Opus 5 Medium.
 - **Done when** — Each subcommand parses, loads configuration for exactly one Project, and exits.
 
 ### [ ] P4.2 One Act's work, then exit
@@ -366,6 +381,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     Journal alone.
 - **Spec** — `shift-scheduling/do-one-acts-work-and-exit`; `CLAUDE.md` → What the app must not do
   (Nothing resident).
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Tests kill an invocation mid-Act and show that the next invocation reconstructs
   state from the Journal only.
 
@@ -377,6 +393,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     Cards do not count as unfinished.
   - When a predicate is false, the Act records an idle tick and exits 0.
 - **Spec** — `shift-scheduling/fire-an-act-on-schedule`; risks.md OQ13 Facet 2.
+- **Agent** — Opus 5 Medium.
 - **Done when** — Journal fixtures cover each predicate in both directions.
 
 ### [ ] P4.4 Night lifecycle in the Journal
@@ -386,6 +403,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Detect a Night left open with no completion, and record it on that Project's next Night.
 - **Spec** — `shift-scheduling/open-and-close-the-night-card`; risks.md OQ52 Face 2 (Night carries
   `project_id`).
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Journal tests cover open, close, and "opened and died" detection.
 
 ### [ ] P4.5 Resumption self-audit (absent Nights)
@@ -396,6 +414,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Never charge `unanswered_nights_max` for missed Nights, and never auto-Block for them.
 - **Spec** — risks.md OQ12 Surface 2, OQ47; `bounds/bound-unanswered-nights`.
 - **Depends on** — the schedule representation from P13.2.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Fixtures with missed intervals produce the event and no bound change.
 
 ---
@@ -411,6 +430,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Document rotation and revocation.
 - **Spec** — system-overview → *Why the board identity is its own subsystem concern*; feasibility
   probes → Linear (Identity & notifications); risks.md OQ13 (keychain token reference), OQ49.
+- **Agent** — Sonnet 5 Medium.
 - **Done when** — A token for the app identity can be obtained from each workspace, and a comment
   it writes triggers the Operator's inbox notification.
 
@@ -422,6 +442,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Keep vendor types, error shapes and query language inside the adapter. Only Yellowhammer
     vocabulary and opaque identifiers cross the Port.
 - **Spec** — ADR-001; stack.md → Board access; feasibility probes → Linear.
+- **Agent** — Opus 5 Medium.
 - **Done when** — Adapter tests against the scratch workspace read a Linear project's issues.
   Nothing outside the adapter refers to a Linear type.
 
@@ -437,6 +458,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Make provisioning idempotent and report exactly what it changed.
 - **Spec** — risks.md OQ2, OQ13 Facet 1; board-projection/overview; feasibility probes → Linear
   (A16, A17).
+- **Agent** — Opus 5 Medium.
 - **Done when** — Running provisioning twice against the scratch team changes nothing the second
   time. A label-name collision is reported and not overwritten.
 
@@ -464,6 +486,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     either all of them or none of them on the board.
 - **Spec** — `board-projection/write-board-updates-through-the-outbox`;
   `board-projection/maintain-the-managed-block`; risks.md OQ56.
+- **Agent** — Fable 5.1 High.
 - **Done when** — Rehearsal-assertable tests: replay after a killed run creates no duplicate issue
   or comment; a stale-lease write never reaches Linear; broken delimiters abort safely; a forced
   mid-transaction failure leaves no partial board.
@@ -482,6 +505,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - When the budget is exhausted, do less work rather than act on stale reads, and record a
     workspace-wide degradation event.
 - **Spec** — `board-projection/read-board-changes-by-delta`; risks.md OQ55.
+- **Agent** — Fable 5.1 High.
 - **Done when** — Scratch-team tests show a human comment and a state change picked up by one
   request. A sibling Project's Card in the same team is never selected.
 
@@ -497,6 +521,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Hash the **rendered** block and skip the write when the hash equals the last-posted hash.
   - Stop maintaining a Cancelled Card's block from the Act boundary where cancellation is read.
 - **Spec** — `board-projection/maintain-the-managed-block` (first story).
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests show hash-skip, label-group exclusivity, and no writes to a
   Cancelled Card.
 
@@ -511,6 +536,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     lands, completion carries a placeholder verdict.
   - Record the idle verdict for `AuthoringNoWorkAvailable`.
 - **Spec** — `shift-scheduling/open-and-close-the-night-card`; DR7; risks.md OQ13 Facet 2.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal Night against the scratch team: one Night Card opens and closes; a
   killed-and-resumed Act leaves exactly one.
 
@@ -525,6 +551,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Repost Card board state from the Journal after a crash.
 - **Spec** — board-projection/overview; `bounds/escalate-a-question-to-the-operator`; glossary →
   Cancelled.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests cover each transition and the anomaly case.
 
 ---
@@ -541,6 +568,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     `MainlineFetchFailed`.
   - Never fetch a Spec Source. Read its local default branch or `HEAD`.
 - **Spec** — system-overview → Integration Map (Engine → Configured repositories); risks.md OQ19.
+- **Agent** — Opus 5 Medium.
 - **Done when** — Fixture repos cover fetch success, fetch failure with fallback, and a Spec Source
   that is never fetched.
 
@@ -549,6 +577,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   that repository's mainline. Report the `k of N` merged fraction across a Feature's repositories.
 - **Spec** — `feature-authoring/select-the-next-feature` (predecessor-ancestry story);
   `landing/announce-a-partial-landing`.
+- **Agent** — Opus 5 Medium.
 - **Done when** — Fixture repositories with and without the branch merged give the right verdict,
   with no network access.
 
@@ -556,6 +585,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Work** — Test-merge a Feature Branch against mainline without touching any working tree,
   writing any commit or contacting GitHub. Return clean, or conflicting with the conflicting paths.
 - **Spec** — `landing/open-one-pull-request-per-repository`; glossary → Mainline Conflict.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Fixture repos where mainline has and has not moved give the right verdict. The
   working tree and refs are unchanged afterwards.
 
@@ -564,6 +594,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   recorded path changed between the commit and head. One `rev-parse` and one path-scoped diff per
   Card per foreign repository.
 - **Spec** — `board-projection/check-card-readiness-at-dispatch`; risks.md OQ24.
+- **Agent** — Opus 5 Medium.
 - **Done when** — Fixture repos cover touched, untouched and renamed-path cases, with no network.
 
 ### [ ] P6.5 Mainline read for transcription and specification
@@ -575,6 +606,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Refuse any read of a repository outside the Project's configuration.
 - **Spec** — `feature-authoring/author-an-architectural-brief`;
   `feature-authoring/author-citable-definitions-of-done`; risks.md OQ51.
+- **Agent** — Opus 5 Medium.
 - **Done when** — Fixture spec repos resolve valid IDs, reject missing ones, and a path in another
   Project's repo is refused.
 
@@ -587,6 +619,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Choose the credential: the Project's GitHub credential when set, otherwise the machine default.
 - **Spec** — `loop-state/reconcile-worktrees-at-act-start`; `landing/open-one-pull-request-per-repository`;
   system-overview → Engine → GitHub; risks.md OQ45.
+- **Agent** — Opus 5 Medium.
 - **Done when** — Fixture repos cover WIP commit idempotency, reset, and each push outcome (push
   itself is not asserted in rehearsal).
 
@@ -601,6 +634,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Never create, place or delete a worktree outside Orca ADE.
 - **Spec** — `graph-execution/allocate-a-worktree-per-graph-and-repo`; feasibility probes → Orca ADE;
   risks.md OQ57.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal-assertable: a three-repo fixture Feature holds three Worktrees whose
   names match their Feature Branches.
 
@@ -609,6 +643,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   Kill each one with `SIGKILL`. Wait until the count is zero before anything inspects, commits or
   resets the Worktree.
 - **Spec** — `loop-state/reconcile-worktrees-at-act-start`; `loop-state/reclaim-an-expired-lease`.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — A test process left with its cwd in a fixture Worktree is terminated, and
   reconciliation waits for quiescence.
 
@@ -624,6 +659,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
      Project's.
   - Running reconciliation twice creates no duplicate WIP commit.
 - **Spec** — `loop-state/reconcile-worktrees-at-act-start`; TD2.
+- **Agent** — Fable 5.1 High.
 - **Done when** — Rehearsal tests cover a ghost path, a dirty worktree, a sibling Project's
   worktree, and idempotency.
 
@@ -643,6 +679,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Spec** — `graph-execution/run-a-card`; `bounds/escalate-a-question-to-the-operator`;
   `feature-authoring/author-the-cycle-and-card-dag` (adoption payload); routing/overview (the CLI
   owns execution).
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Schemas validate the fixture files. An empty or malformed file fails validation.
 
 ### [ ] P7.2 Process lifecycle for agent CLI runs
@@ -655,6 +692,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Rehearsal mode never spawns a CLI. It reads fixture result files.
 - **Spec** — `graph-execution/run-a-card`; `routing/add-an-agent-cli`; risks.md OQ57;
   system-overview → Integration Map (CLI Adapters → Agent CLIs).
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Tests with a stub executable cover clean exit, exit 0 with empty file, `SIGTERM`
   and `SIGKILL` with orphaned children, and rehearsal fixtures. Crash/kill behaviour of a real CLI
   is exercised by the Probe (P7.4), not asserted in rehearsal.
@@ -668,6 +706,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - mapping model and effort from the route;
   - parsing and validating structured output.
 - **Spec** — `routing/add-an-agent-cli`; feasibility probes → Agent CLIs.
+- **Agent** — Opus 5 Medium.
 - **Done when** — Each adapter passes its Probe (P7.4) on a developer machine.
 
 ### [ ] P7.4 Probes and Probe Results
@@ -680,6 +719,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - A CLI that fails the unattended or containment probe is not offered as a route target, and the
     reason is reported. No cost probe exists.
 - **Spec** — `routing/add-an-agent-cli`; ADR-003; risks.md OQ48.
+- **Agent** — Opus 5 Medium.
 - **Done when** — Probes run on the developer machine for `claude` and `codex` and write Ledger rows.
   A deliberately broken adapter stub is excluded from routing with a reason.
 
@@ -689,6 +729,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     documented manual release-checklist step if no such runner exists) that re-runs every Probe
     against the pinned and the latest CLI versions and fails loudly on drift.
 - **Spec** — R11; `routing/add-an-agent-cli` (re-running the probe detects drift).
+- **Agent** — Sonnet 5 Medium.
 - **Done when** — Drift in a CLI's output format turns the job red before a release ships.
 
 ### [ ] P7.6 Route resolution
@@ -703,6 +744,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Read the merged table fresh on each Act. Nothing is learned or inferred.
 - **Spec** — `routing/resolve-a-route-for-a-card`; risks.md OQ13 Facet 3.
 - **Gate** — G-17.
+- **Agent** — Fable 5.1 High.
 - **Done when** — Rehearsal-assertable tests cover each precedence rule, fallback walk, probe
   exclusion and the zero-candidate block.
 
@@ -716,6 +758,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - An Override pinned in triage resets the budget epoch and exclusion set.
   - Record whether each retry landed on a genuinely different route (for P12.2).
 - **Spec** — `routing/exclude-tried-routes-on-retry`; risks.md OQ13 Facet 3.
+- **Agent** — Fable 5.1 High.
 - **Done when** — Rehearsal-assertable tests cover each classification.
 
 ---
@@ -733,6 +776,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   6. Runs lanes concurrently, and each lane's Cards one at a time in authored order.
   7. Writes back and exits.
 - **Spec** — `graph-execution/overview`; `shift-scheduling/fire-an-act-on-schedule`.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — A rehearsal build Act over a fixture Feature performs the steps in order, as
   recorded in the event log.
 
@@ -754,6 +798,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Spec** — `board-projection/check-card-readiness-at-dispatch`;
   `feature-authoring/author-citable-definitions-of-done` (second story);
   `feature-authoring/author-an-architectural-brief`.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests cover each failure kind, the Divergence route, the voided stamp,
   and untagged clause minting.
 
@@ -764,6 +809,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     consumes no Attempt. The lane moves on.
   - Every user-facing description states that this is a scoping check and not a sandbox.
 - **Spec** — `bounds/refuse-protected-paths-before-dispatch`; R3.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests show refusal with no dispatch. The limitation text appears in
   user-facing copy.
 
@@ -777,6 +823,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Record the outcome in the Journal and project it (P5.6).
 - **Spec** — `graph-execution/run-a-card` (first story); `graph-execution/overview` (roles are
   internals of a run, not actors).
+- **Agent** — Fable 5.1 High.
 - **Done when** — A rehearsal run over fixture result files takes a Card from Ready to done, with
   every step recorded. Model output and the Check result are not asserted.
 
@@ -789,6 +836,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Attach Check output to the Card.
   - The accepted cost of a flaky Check (R6) is stated wherever this is documented.
 - **Spec** — `graph-execution/gate-a-card-on-the-repository-check`; DR5.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Wiring tests show the Check runs between worker and reviewer and a failure opens a
   `check` Round. The Check result itself is not asserted in rehearsal.
 
@@ -800,6 +848,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - On exhausting `review_rounds_max`, the Card is Blocked only if the Attempt budget is also
     exhausted. Block Reason distinguishes blocked by check from blocked by reviewer.
 - **Spec** — `graph-execution/run-a-card` (second story); `bounds/bound-review-rounds-and-attempts`.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal-assertable bound arithmetic with small configured values.
 
 ### [ ] P8.7 Attempts and hard failure
@@ -811,6 +860,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     reboots.
 - **Spec** — `graph-execution/run-a-card` (third story); `bounds/bound-review-rounds-and-attempts`;
   system-overview → Interruption.
+- **Agent** — Fable 5.1 High.
 - **Done when** — Rehearsal-assertable tests cover both-budgets rule and consumption accounting.
 
 ### [ ] P8.8 Failure-cause recurrence
@@ -820,6 +870,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     retrying, even with budget left. Never correlate across Projects.
   - Show the promotion and its reason on the Card.
 - **Spec** — `loop-state/record-failure-cause-recurrence`.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests over multiple Nights promote on recurrence, not on first occurrence.
 
 ### [ ] P8.9 Block mid-lane and Cancelled Cards
@@ -831,6 +882,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     interrupted. No Attempt consumed. Nothing posted to it. No Worktree released early. Commits
     stand. Journal row intact. Reopening restores it with no budget reset.
 - **Spec** — `graph-execution/handle-a-block-mid-graph`; `graph-execution/run-a-card` (fourth story).
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests: a lane continues past a block; cancel and reopen round-trips with
   counters unchanged.
 
@@ -844,6 +896,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Record the crash for the Night Summary.
 - **Spec** — `loop-state/reclaim-an-expired-lease`.
 - **Gate** — G-15 (values only).
+- **Agent** — Fable 5.1 High.
 - **Done when** — A rehearsal kills a real engine invocation mid-Card; the next build Act reclaims
   within the TTL, with the right classification.
 
@@ -852,6 +905,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   never pushes, and never opens a pull request. It still writes to Linear, allocates real Worktrees,
   uses the real Ledger, and never commits into a Worktree.
 - **Spec** — system-overview → Environment Differences.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — A rehearsal build Act leaves no process spawn of any agent CLI and no push in its
   event log.
 
@@ -868,6 +922,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   4. Select (P9.3) and author (P9.4–P9.7) in one transaction.
   5. If nothing is selectable, record `AuthoringNoWorkAvailable` and close as an idle Night.
 - **Spec** — `feature-authoring/select-the-next-feature`; risks.md OQ13 Facet 2.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests cover each quiet-Night reason, each recorded on the Night Card.
 
 ### [ ] P9.2 Predecessor-ancestry gate
@@ -882,6 +937,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     Conflicts for the Feature card and the standing Summary line.
   - On the same pass, when ancestry first reaches all N, run the post-merge closure (P10.8).
 - **Spec** — `feature-authoring/select-the-next-feature` (third story); `landing/overview`.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Fixture repositories with and without the predecessor merged give the right
   result. Pure local git, no model, no network.
 
@@ -898,6 +954,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     backward-compatible seam (naming the seam), a Feature whose repositories cannot be determined,
     and a Feature that needs a contract from a repository outside this Project.
 - **Spec** — `feature-authoring/select-the-next-feature` (first, second and fourth stories).
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Wiring tests show selection results are recorded and refusals produce Waiting on
   You with no dispatch. The quality of the selection itself is not asserted.
 
@@ -915,6 +972,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     Card.
   - Create no Linear milestones or Linear cycles.
 - **Spec** — `feature-authoring/author-the-cycle-and-card-dag` (first story); risks.md OQ54.
+- **Agent** — Fable 5.1 High.
 - **Done when** — Rehearsal tests: a forced failure mid-transaction leaves no issues; a resumed
   author Act creates no duplicates; Cards appear nested under the Feature Issue.
 
@@ -928,6 +986,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - A Feature too thin to cite goes Waiting on You before any dispatch, naming the uncitable
     clauses, with no Attempt and a Night Summary. Its roll-up reads `needs you`.
 - **Spec** — `feature-authoring/author-citable-definitions-of-done`; DR4; risks.md TD8, OQ18.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests check the clause line format, the Journal rows, and the
   thin-spec refusal path. Clause content is not asserted.
 
@@ -939,6 +998,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - A needed contract that cannot be read sends the Feature to Waiting on You, naming the repository.
   - The agent CLI never gets the Spec Source path.
 - **Spec** — `feature-authoring/author-an-architectural-brief`.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests check the block format and provenance fields. Brief content is not
   asserted.
 
@@ -950,6 +1010,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Count consecutive refusals for the refusal-drift promotion bound (P11.6).
 - **Spec** — `feature-authoring/author-citable-definitions-of-done` (second story); glossary →
   Refusal.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal bound arithmetic with a small configured value.
 
 ---
@@ -962,6 +1023,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   Verification (P10.5); return (P10.6) or archive (P10.7); write back. The land Act fires once per
   Cycle, and no lane reopens after it.
 - **Spec** — `landing/overview`; risks.md OQ8.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — A rehearsal land Act runs each step up to the rehearsal boundaries.
 
 ### [ ] P10.2 Push Feature Branches
@@ -973,6 +1035,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     Feature card, naming the repository.
   - Never push to main.
 - **Spec** — `landing/open-one-pull-request-per-repository`.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Wiring tests on local bare remotes cover each outcome. GitHub push is not asserted
   in rehearsal.
 
@@ -981,6 +1044,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   reported, nothing is resolved, and the landing still proceeds. A clean verdict is never described
   as "safe to merge".
 - **Spec** — `landing/open-one-pull-request-per-repository`.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Fixture repos produce a conflict verdict with paths. Landing continues.
 
 ### [ ] P10.4 Publication adapter: GitHub pull requests
@@ -999,6 +1063,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Spec** — `landing/open-one-pull-request-per-repository`; `landing/announce-a-partial-landing`;
   risks.md OQ31, OQ26.
 - **Gate** — P1.1 item 6 (cost in the body).
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Body rendering is tested against fixtures (copy only, not model content). A
   production-only smoke test on a sandbox GitHub repository opens one pull request.
 
@@ -1014,6 +1079,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - A Partial Landing always fails verification.
 - **Spec** — `verification/verify-a-feature-clause-by-clause`; DR4.
 - **Gate** — G-11.
+- **Agent** — Fable 5.1 High.
 - **Done when** — Report rendering and different-agent routing are tested. Verdicts are not
   asserted.
 
@@ -1022,6 +1088,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   met clauses too. Pull requests stay open and linked. Not Done, not archived. That Project's author
   Act authors nothing while it is returned.
 - **Spec** — `verification/return-a-feature-with-unmet-clauses`.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal state-transition tests.
 
 ### [ ] P10.7 Archive the Cycle on a verified Feature
@@ -1031,6 +1098,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     Done or archive it.
   - Never merge or close a pull request. Archival does not release the next Feature.
 - **Spec** — `verification/archive-the-cycle-on-a-verified-feature`; risks.md OQ54.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests for the verification route.
 
 ### [ ] P10.8 Closure by merge (observed ancestry)
@@ -1041,6 +1109,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     narrative comment, and count it in that Night Summary.
   - For `k < N`, change only the merged fraction. Write no receipt.
 - **Spec** — `landing/announce-a-partial-landing`; `morning-report/triage-the-morning`; R17, R18.
+- **Agent** — Fable 5.1 High.
 - **Done when** — Fixture repositories with k = 0, k < N and k = N produce exactly the specified
   writes.
 
@@ -1052,6 +1121,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     as the merge does.
 - **Spec** — `morning-report/triage-the-morning`; ooux/nav-flow.md (path 2).
 - **Gate** — G-6 (where the gesture lives: Linear or the app).
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests of both settle outcomes.
 
 ---
@@ -1063,6 +1133,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   record the question in the Journal, set `waiting_reason = question`. No Round, no Attempt. Hold
   the Worktree. The lane continues.
 - **Spec** — `bounds/escalate-a-question-to-the-operator` (first story).
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests with a fixture "question" result file.
 
 ### [ ] P11.2 Answer detection and resumption
@@ -1076,6 +1147,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Spec** — `bounds/escalate-a-question-to-the-operator` (second story);
   `board-projection/read-board-changes-by-delta` (OQ37 copy).
 - **Gate** — G-8.
+- **Agent** — Fable 5.1 High.
 - **Done when** — Rehearsal tests against real comments in the scratch team, for each branch.
 
 ### [ ] P11.3 Banked replies after landing
@@ -1087,6 +1159,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Derive the banked-answer marker on the Feature member row at read time. No roll-up change.
 - **Spec** — `board-projection/read-board-changes-by-delta`; `board-projection/maintain-the-managed-block`
   (second story); risks.md OQ8.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests cover first and repeated banked replies.
 
 ### [ ] P11.4 `unanswered_nights_max`
@@ -1098,6 +1171,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Before any Worktree release, push the Feature Branch and record the ref.
   - An auto-Blocked Card is not terminal and can be re-readied with counters preserved.
 - **Spec** — `bounds/bound-unanswered-nights`; DR8; risks.md OQ14, OQ47.
+- **Agent** — Opus 5 Medium.
 - **Done when** — Rehearsal-assertable bound arithmetic with `unanswered_nights_max = 1`, including
   the stopped-Project case (no Acts, no change).
 
@@ -1115,6 +1189,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Adoption is part of the authoring transaction.
 - **Spec** — `feature-authoring/author-the-cycle-and-card-dag` (second story);
   `feature-authoring/select-the-next-feature`.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests of adopt and refuse-to-adopt, with counters verified.
 
 ### [ ] P11.6 Promotion and re-selection bounds
@@ -1127,6 +1202,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Report proximity to each in the Night Summary.
 - **Spec** — `bounds/overview`; `feature-authoring/select-the-next-feature`; risks.md OQ14 (4).
 - **Gate** — G-16.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal bound arithmetic with small values.
 
 ---
@@ -1150,6 +1226,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     `MainlineFetchFailed`, absent Nights detected, local-notification failures, anomalies.
   - Nothing spans Projects. No machine-wide bound line.
 - **Spec** — `morning-report/write-the-night-summary`; `loop-state/*`; risks.md OQ12.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal Nights of each kind (idle, quiet, crashed, partial) render the
   specified lines.
 
@@ -1161,6 +1238,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   `author_supplied_citation_count`.
 - **Spec** — `morning-report/report-the-instrumented-rates`; DR1; risks.md TD8.
 - **Gate** — G-9 (first rate only).
+- **Agent** — Opus 5 Medium.
 - **Done when** — Rates computed from multi-Night rehearsal Journals match hand-computed values.
 
 ### [ ] P12.3 Feature roll-up
@@ -1175,6 +1253,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Hash-skip over the rendered block.
 - **Spec** — `board-projection/maintain-the-managed-block` (second story); glossary → Roll-up;
   risks.md OQ31.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests cover each lattice word, each template, and reposting when only
   lane completion, merged fraction, conflict, live set or Feature state changes.
 
@@ -1184,6 +1263,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     event, reason) under its own bundle identity, then exits. No window and nothing resident.
   - Notification permission request at setup, with Time Sensitive where available.
 - **Spec** — `morning-report/notify-the-operator-of-exceptions`; risks.md OQ9.
+- **Agent** — Opus 5 Medium.
 - **Done when** — Launching the app headlessly with post arguments shows a notification and the
   process exits.
 
@@ -1196,6 +1276,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Spec** — `morning-report/notify-the-operator-of-exceptions`; system-overview → Notification
   behaviour.
 - **Gate** — G-10.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — With notifications disabled or the app missing, an Act completes and logs the
   failure.
 
@@ -1211,6 +1292,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Notification permission registration through the headless app.
   - Routing warnings for entries with no fallback or a single CLI.
 - **Spec** — risks.md OQ13 Facet 1 and Facet 3; `bounds/bound-unanswered-nights` (defaults).
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — On a clean user account, `yh setup --init` produces a configuration that passes
   validation, and provisioning is idempotent.
 
@@ -1225,6 +1307,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     Orca ADE).
 - **Spec** — `shift-scheduling/overview`; risks.md OQ13, OQ44, OQ53.
 - **Gate** — G-7.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Installed jobs fire `yh` on a developer machine at the scheduled times, and the
   event log shows each Act.
 
@@ -1233,6 +1316,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   inspect `launchd` job status, detect orphaned LaunchAgents (`--fix` unloads and removes them after
   confirmation), and warn on routing entries with no fallback.
 - **Spec** — risks.md OQ13, OQ52 Face 1.
+- **Agent** — Opus 5 Medium.
 - **Done when** — Each check has a passing and a failing fixture. An orphaned agent is found and
   removed.
 
@@ -1241,6 +1325,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   and a diagnosis of a missed Night (sleep, missing or disabled job, pre-initialization crash). No
   cross-Project verdict.
 - **Spec** — risks.md OQ12 Surface 3.
+- **Agent** — Opus 5 Medium.
 - **Done when** — Each diagnosis is produced from a staged scenario.
 
 ### [ ] P13.5 `yh project remove <id>`
@@ -1251,6 +1336,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - WIP-commit and push dirty Worktrees, then remove Worktrees through Orca ADE.
   - Close any open Night in the Journal with reason `project_removed`. Keep the Journal file.
 - **Spec** — risks.md OQ52 Face 1.
+- **Agent** — Opus 5 Medium.
 - **Done when** — A rehearsal Project is removed with every listed effect, and removal during a
   running Act is refused.
 
@@ -1269,6 +1355,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Optional per-Project windows.
   - `yellowhammer://project/<id>` URL scheme.
 - **Spec** — risks.md OQ52 Face 2; ooux/nav-flow.md → Multi-Project Navigation.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — The selector and deep link open the named Project. A UI test confirms no status is
   shown in the selector.
 
@@ -1276,6 +1363,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Work** — The app-side path for everything `yh setup` does (P13.1–P13.2), including notification
   permission status stated once, without nagging.
 - **Spec** — risks.md OQ13; system-overview → Notification behaviour.
+- **Agent** — Opus 5 Medium.
 - **Done when** — A clean account is fully set up through the app alone.
 
 ### [ ] P14.3 Configuration editing
@@ -1284,6 +1372,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   valid under P2.3. Direct TOML editing stays supported.
 - **Spec** — system-overview → Integration Map (app edits Routing Table); ooux/nav-flow.md →
   Setup; risks.md OQ51.
+- **Agent** — Opus 5 Medium.
 - **Done when** — Edits made in the app round-trip through the loader. Invalid edits are refused
   with the loader's message.
 
@@ -1291,6 +1380,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Work** — List declared CLIs with their latest Probe Result from the Ledger, and run a Probe on
   demand.
 - **Spec** — system-overview → Yellowhammer app; `routing/add-an-agent-cli`.
+- **Agent** — Opus 5 Medium.
 - **Done when** — A Probe started from the app writes a Ledger row shown in the list.
 
 ### [ ] P14.5 Journal reading (account behind a Card)
@@ -1298,12 +1388,14 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   routes, Check output). Opening the Journal read-only is enforced.
 - **Spec** — system-overview → Yellowhammer app; `CLAUDE.md` → Read-only on every Journal.
 - **Gate** — G-6.
+- **Agent** — Opus 5 Medium.
 - **Done when** — Opening a Journal in the app while an Act writes it causes no write conflict and no
   modification.
 
 ### [ ] P14.6 Status view
 - **Work** — The app equivalent of `yh status` (P13.4) and `yh doctor` findings, per Project.
 - **Spec** — risks.md OQ12 Surface 3.
+- **Agent** — Opus 5 Medium.
 - **Done when** — Staged scenarios give the same diagnoses as the CLI.
 
 ### [ ] P14.7 Recalibrate
@@ -1311,6 +1403,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   a rehearsal Night.
 - **Spec** — ooux/nav-flow.md → Global nav; risks.md OQ52 Face 2.
 - **Gate** — G-6.
+- **Agent** — Opus 5 Medium.
 - **Done when** — A rehearsal Night started from the app runs as a normal invocation that survives
   quitting the app.
 
@@ -1319,12 +1412,14 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   without making the app where a decision is recorded.
 - **Spec** — ooux/nav-flow.md; ooux/sketch-sheets.md; ooux/cta-matrix.md.
 - **Gate** — G-6.
+- **Agent** — Opus 5 Medium.
 - **Done when** — Scope defined by G-6.
 
 ### [ ] P14.9 Shell-not-host verification
 - **Work** — An automated check that runs a rehearsal Night with the app never launched, and another
   that quits the app mid-Act. Both Nights complete identically.
 - **Spec** — system-overview → Yellowhammer app (hard constraint).
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — Both runs produce equivalent Journals and Night Cards.
 
 ---
@@ -1339,6 +1434,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     provisioning.
   - Scratch credentials stored per P5.1.
 - **Spec** — system-overview → Environments.
+- **Agent** — Sonnet 5 Medium.
 - **Done when** — A rehearsal Project can run against the scratch team repeatedly and be reset.
 
 ### [ ] P15.2 `[DevOps]` Throwaway repositories and fixtures
@@ -1350,6 +1446,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Scenario fixtures: predecessor merged or not, mainline moved or not, Transcription Block path
     touched, protected path, conflicting branch.
 - **Spec** — system-overview → What a story may assert against a rehearsal Night.
+- **Agent** — Opus 5 Medium.
 - **Done when** — One command builds the full fixture set from nothing.
 
 ### [ ] P15.3 Rehearsal scenario suite
@@ -1370,12 +1467,14 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
       or writes.
   13. Configuration with two conflicting Projects plus one valid Project.
 - **Spec** — system-overview → Environment Differences; every epic listed above.
+- **Agent** — Fable 5.1 High.
 - **Done when** — The suite runs from a single command and passes on a developer machine.
 
 ### [ ] P15.4 `[DevOps]` Rehearsal suite in automation
 - **Work** — Run P15.3 on a schedule on a self-hosted Apple Silicon runner with Orca ADE installed
   and scratch credentials available, or add it as a required manual release-checklist step when no
   such runner exists. Publish Journals and Night Card links as artifacts.
+- **Agent** — Sonnet 5 Medium.
 - **Done when** — A failed scenario blocks the release checklist.
 
 ---
@@ -1388,6 +1487,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     Connect API key or equivalent) in the release machine's keychain and in CI secrets.
   - Document ownership, expiry dates and renewal.
 - **Spec** — stack.md → Distribution; feasibility probes → Build and packaging.
+- **Agent** — Sonnet 5 Medium.
 - **Done when** — The release job can sign and authenticate for notarization without manual input.
 
 ### [ ] P16.2 `[DevOps]` Release build configuration
@@ -1399,6 +1499,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Versioning scheme: marketing version and build number set from the release tag in CI.
 - **Spec** — `CLAUDE.md` → Local choices (Build); stack.md → Platform Targets.
 - **Gate** — G-2.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — A Release build from a tag carries the tag's version in both the app and `yh`.
 
 ### [ ] P16.3 `[DevOps]` Notarization, stapling and verification
@@ -1406,6 +1507,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   the result, staples the ticket, and verifies with `codesign --verify --deep --strict`, `spctl
   --assess`, and `stapler validate`. It fails on any rejection and archives the notarization log.
 - **Spec** — stack.md → Distribution.
+- **Agent** — Fable 5.1 Medium.
 - **Done when** — A tagged build produces a notarized, stapled artifact that passes all three checks.
 
 ### [ ] P16.4 `[DevOps]` Packaging and distribution
@@ -1415,12 +1517,14 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     it covers.
   - Host the download on the chosen direct-distribution channel.
 - **Spec** — stack.md → Distribution (direct, not Mac App Store).
+- **Agent** — Sonnet 5 Medium.
 - **Done when** — A downloaded artifact installs on a clean Apple Silicon Mac with no Gatekeeper
   warning.
 
 ### [ ] P16.5 `[DevOps]` Update channel
 - **Work** — Implement the update channel decided in G-14.
 - **Gate** — G-14.
+- **Agent** — Sonnet 5 Medium.
 - **Done when** — Defined by G-14.
 
 ### [ ] P16.6 `[DevOps]` Installed-product verification
@@ -1431,6 +1535,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   4. `yh doctor` passes with Orca ADE, at least one CLI and the production Linear identity.
   5. Quitting and never opening the app does not affect a scheduled Act.
 - **Spec** — feasibility probes → Build and packaging; risks.md OQ9, OQ53.
+- **Agent** — Opus 5 Medium.
 - **Done when** — The checklist is completed and recorded for the release.
 
 ### [ ] P16.7 Release checklist
@@ -1438,6 +1543,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   rehearsal suite (P15.3/P15.4) green; notarization verified; installed-product verification (P16.6)
   done; release notes with spec commit and story IDs; spec conflicts from P1.1 checked for new
   answers.
+- **Agent** — Opus 5 Medium.
 - **Done when** — The checklist is committed and used for the first release.
 
 ### [ ] P16.8 First production Night
@@ -1451,6 +1557,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Record observations for the open threshold questions (G-13, G-15) without changing values in the
     same step.
 - **Spec** — DR1; `morning-report/triage-the-morning`; goals.md.
+- **Agent** — Fable 5.1 High.
 - **Done when** — One production Night has run and been triaged from the board, and the observations
   are filed.
 
