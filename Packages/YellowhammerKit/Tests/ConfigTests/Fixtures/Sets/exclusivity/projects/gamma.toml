@@ -1,0 +1,10 @@
+id = "gamma"
+name = "Gamma"
+linear_project = "GAM"
+spec_source = "~/dev/spec"
+
+[[repos]]
+name = "gamma"
+path = "~/dev/gamma"
+role = "backend"
+check = "swift test"

@@ -1,0 +1,10 @@
+id = "only"
+name = "Only"
+linear_project = "ONL"
+spec_source = "~/dev/spec"
+
+[[repos]]
+name = "only"
+path = "~/dev/only"
+role = "backend"
+check = "swift test"

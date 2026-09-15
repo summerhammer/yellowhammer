@@ -1,0 +1,10 @@
+id = "fine"
+name = "Fine"
+linear_project = "FIN"
+spec_source = "~/dev/spec"
+
+[[repos]]
+name = "fine"
+path = "~/dev/fine"
+role = "backend"
+check = "swift test"

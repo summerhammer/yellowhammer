@@ -58,9 +58,24 @@ private let credentialAndRoutingFixtures: [MalformedFixture] = [
     MalformedFixture("routing-duplicate", line: 15, key: "routing[1]", .duplicateRoutingEntry(firstLine: 11))
 ]
 
+/// Exactly one specification source across both kinds, and a Spec Source is a path only. The other
+/// per-file rules of P2.3 are covered above: `missing-check` (an absent `check` is refused, never
+/// read as `none`) and `bounds-zero` (`unanswered_nights_max` must be an integer >= 1).
+private let specificationSourceFixtures: [MalformedFixture] = [
+    MalformedFixture("no-spec-source", line: 1, key: nil, .noSpecificationSource),
+    MalformedFixture("two-spec-repos", line: 14, key: "repos[1].role", .secondSpecificationSource(firstLine: 8)),
+    MalformedFixture(
+        "spec-source-and-spec-repo", line: 9, key: "repos[0].role", .secondSpecificationSource(firstLine: 4)
+    ),
+    MalformedFixture(
+        "spec-source-table", line: 11, key: "spec_source", .typeMismatch(expected: "string", found: "table")
+    )
+]
+
 @Test(
     "Each malformed Project file is reported with its file, line and key",
     arguments: identityFixtures + repoFixtures + limitsAndScheduleFixtures + credentialAndRoutingFixtures
+        + specificationSourceFixtures
 )
 func malformedProjectFixture(_ fixture: MalformedFixture) throws {
     let url = try #require(
@@ -83,6 +98,7 @@ func parseSkipsFileStemCheck() throws {
     id = "anything"
     name = "Anything"
     linear_project = "ANY"
+    spec_source = "~/spec"
 
     [[repos]]
     name = "repo"
@@ -93,4 +109,39 @@ func parseSkipsFileStemCheck() throws {
     let configuration = try ProjectConfiguration.parse(text, file: "/tmp/other-name.toml")
     #expect(configuration.id.rawValue == "anything")
     #expect(configuration.repos.first?.check == Check.none)
+}
+
+private let overrideText = """
+id = "override"
+name = "Override"
+linear_project = "OVR"
+spec_source = "~/spec"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "none"
+
+[[routing]]
+kind = "review"
+route = "claude/opus"
+fallbacks = ["gemini/pro"]
+"""
+
+@Test("A Routing Table override naming a CLI with no adapter is refused only when the adapters are known")
+func overrideAdapterCheckNeedsTheDeclaredAdapters() throws {
+    let unchecked = try ProjectConfiguration.parse(overrideText, file: "/tmp/override.toml")
+    #expect(unchecked.routingOverrides.count == 1)
+
+    let checked = Result { () throws(ConfigurationError) in
+        try ProjectConfiguration.parse(overrideText, file: "/tmp/override.toml", declaredCLIAdapters: ["claude"])
+    }
+    guard case .failure(let error) = checked else {
+        Issue.record("expected the override to be refused")
+        return
+    }
+    #expect(error.line == 15)
+    #expect(error.key == "routing[0].fallbacks[0]")
+    #expect(error.reason == .undeclaredCLIAdapter("gemini"))
 }

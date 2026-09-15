@@ -1,3 +1,5 @@
+import Domain
+
 /// A configuration file that could not be read, located by file, line and key.
 public struct ConfigurationError: Error, Equatable, Sendable {
     public enum Reason: Equatable, Sendable {
@@ -19,6 +21,10 @@ public struct ConfigurationError: Error, Equatable, Sendable {
         case duplicateRepo(firstLine: Int)
         case notPositive(Int64)
         case invalidTimeOfDay(String)
+        case noSpecificationSource
+        case secondSpecificationSource(firstLine: Int)
+        case undeclaredCLIAdapter(String)
+        case workingRepoConflict(project: ProjectID, file: String)
     }
 
     public let file: String
@@ -83,6 +89,16 @@ extension ConfigurationError.Reason: CustomStringConvertible {
             return "must be an integer >= 1, got \(value)"
         case .invalidTimeOfDay(let value):
             return "must be in HH:MM format with hours 00-23 and minutes 00-59, got \"\(value)\""
+        case .noSpecificationSource:
+            return "a Project must declare exactly one specification source: "
+                + "a spec_source path or one repo with role \"spec\"; found none"
+        case .secondSpecificationSource(let firstLine):
+            return "a Project must declare exactly one specification source; "
+                + "another is already declared on line \(firstLine)"
+        case .undeclaredCLIAdapter(let cli):
+            return "route names CLI \"\(cli)\", which has no [cli.\(cli)] adapter declaration"
+        case .workingRepoConflict(let project, let file):
+            return "repository is also declared as a working Repo by Project \"\(project.rawValue)\" (\(file))"
         }
     }
 }

@@ -1,0 +1,15 @@
+id = "owner"
+name = "Owner"
+linear_project = "OWN"
+
+[[repos]]
+name = "spec"
+path = "~/dev/spec"
+role = "spec"
+check = "none"
+
+[[repos]]
+name = "backend"
+path = "~/dev/owner-backend"
+role = "backend"
+check = "swift test"

@@ -1,0 +1,10 @@
+id = "alpha"
+name = "Alpha"
+linear_project = "ALP"
+spec_source = "~/dev/spec"
+
+[[repos]]
+name = "shared"
+path = "~/dev/shared"
+role = "backend"
+check = "swift test"

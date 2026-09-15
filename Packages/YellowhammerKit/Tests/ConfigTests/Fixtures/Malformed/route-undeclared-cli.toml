@@ -1,0 +1,10 @@
+[linear]
+credential = "keychain:linear"
+
+[github]
+credential = "keychain:github"
+
+[cli.claude]
+
+[[routing]]
+route = "gemini/pro"

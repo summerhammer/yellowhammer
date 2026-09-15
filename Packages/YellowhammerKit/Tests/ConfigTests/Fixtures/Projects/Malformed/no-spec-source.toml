@@ -1,0 +1,9 @@
+id = "no-spec-source"
+name = "No Spec Source"
+linear_project = "NSS"
+
+[[repos]]
+name = "backend"
+path = "~/dev/backend"
+role = "backend"
+check = "swift test"

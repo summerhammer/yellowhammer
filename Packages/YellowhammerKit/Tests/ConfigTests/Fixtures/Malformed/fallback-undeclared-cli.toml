@@ -1,0 +1,11 @@
+[linear]
+credential = "keychain:linear"
+
+[github]
+credential = "keychain:github"
+
+[cli.claude]
+
+[[routing]]
+route = "claude/sonnet"
+fallbacks = ["claude/opus", "gemini/pro"]

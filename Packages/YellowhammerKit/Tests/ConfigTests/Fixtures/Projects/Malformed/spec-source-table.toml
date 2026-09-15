@@ -1,0 +1,12 @@
+id = "spec-source-table"
+name = "Spec Source Table"
+linear_project = "SST"
+
+[[repos]]
+name = "backend"
+path = "~/dev/backend"
+role = "backend"
+check = "swift test"
+
+[spec_source]
+path = "~/dev/spec"
