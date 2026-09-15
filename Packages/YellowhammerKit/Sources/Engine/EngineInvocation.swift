@@ -67,7 +67,11 @@ public struct EngineInvocation: Sendable {
             _ = try? journal.append(.actStarted, act: act, runID: runID)
         }
         do {
-            try await work()
+            try await withLeaseHeartbeat(
+                every: leasePolicy.heartbeatDuration,
+                beat: { try journal.heartbeatActLease(runID: runID, policy: leasePolicy) },
+                body: { try await work() }
+            )
             _ = try? journal.append(.actEnded, act: act, runID: runID)
         } catch {
             // An Act that cannot complete records why, where it can, before exiting. The Act's failure

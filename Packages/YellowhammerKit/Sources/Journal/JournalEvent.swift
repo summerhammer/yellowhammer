@@ -22,6 +22,8 @@ public enum JournalEvent: Equatable, Sendable {
     case rateBudgetExhausted(degradation: String)
     /// An expired Act-scoped lease was taken over by a new run: the previous run crashed or slept past its TTL.
     case leaseReclaimed(previousRunID: RunID, previousAct: Act, expiredAt: Date)
+    /// An expired Card-scoped lease was taken over by a new run: the previous run crashed or slept past its TTL.
+    case cardLeaseReclaimed(cardID: Int64, previousRunID: RunID, expiredAt: Date)
 
     /// The type of this event.
     public var type: JournalEventType {
@@ -48,6 +50,8 @@ public enum JournalEvent: Equatable, Sendable {
             .rateBudgetExhausted
         case .leaseReclaimed:
             .leaseReclaimed
+        case .cardLeaseReclaimed:
+            .cardLeaseReclaimed
         }
     }
 
@@ -83,6 +87,12 @@ public enum JournalEvent: Equatable, Sendable {
             [
                 "expired_at": JournalStore.timestamp(expiredAt),
                 "previous_act": previousAct.rawValue,
+                "previous_run_id": previousRunID.rawValue
+            ]
+        case .cardLeaseReclaimed(let cardID, let previousRunID, let expiredAt):
+            [
+                "card_id": String(cardID),
+                "expired_at": JournalStore.timestamp(expiredAt),
                 "previous_run_id": previousRunID.rawValue
             ]
         }
@@ -128,6 +138,8 @@ public enum JournalEvent: Equatable, Sendable {
             .rateBudgetExhausted(degradation: try reader.require("degradation"))
         case .leaseReclaimed:
             try Self.decodeLeaseReclaimed(reader)
+        case .cardLeaseReclaimed:
+            try Self.decodeCardLeaseReclaimed(reader)
         }
     }
 
@@ -151,6 +163,13 @@ public enum JournalEvent: Equatable, Sendable {
         let act = try reader.act("previous_act")
         let expiredAt = try reader.date("expired_at")
         return .leaseReclaimed(previousRunID: runID, previousAct: act, expiredAt: expiredAt)
+    }
+
+    private static func decodeCardLeaseReclaimed(_ reader: PayloadReader) throws -> JournalEvent {
+        let cardID = try reader.int64("card_id")
+        let runID = try reader.runID("previous_run_id")
+        let expiredAt = try reader.date("expired_at")
+        return .cardLeaseReclaimed(cardID: cardID, previousRunID: runID, expiredAt: expiredAt)
     }
 }
 
@@ -197,6 +216,14 @@ private struct PayloadReader: Sendable {
         }
         return mode
     }
+
+    func int64(_ key: String) throws -> Int64 {
+        let text = try require(key)
+        guard let value = Int64(text) else {
+            throw JournalError.eventUnreadable(id: rowID)
+        }
+        return value
+    }
 }
 
 /// The type of a JournalEvent, with raw values matching the spec's PascalCase names.
@@ -212,4 +239,5 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case notificationDeliveryFailed = "NotificationDeliveryFailed"
     case rateBudgetExhausted = "RateBudgetExhausted"
     case leaseReclaimed = "LeaseReclaimed"
+    case cardLeaseReclaimed = "CardLeaseReclaimed"
 }

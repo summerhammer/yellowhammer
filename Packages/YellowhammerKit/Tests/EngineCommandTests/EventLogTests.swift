@@ -183,3 +183,90 @@ func deadPredecessorReclaimIsRecordedInOrder() async throws {
     #expect(previousRunID == deadRun)
     #expect(previousAct == .author)
 }
+
+@Test("The Act lease is heartbeated while the work runs")
+func actLeaseIsHeartbeatDuringWork() async throws {
+    let directory = ConfigurationDirectory()
+    try directory.writeMachineFile()
+    try directory.writeValidProjectFile(id: "alpha")
+    let projectID = try #require(ProjectID(rawValue: "alpha"))
+    let journal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    // TTL must be >= 2s because whole-second storage loses up to 1s of precision
+    let shortPolicy = LeasePolicy(heartbeatInterval: 0.05, timeToLive: 2)
+    let runID = RunID()
+
+    let invocation = EngineInvocation(
+        act: .build,
+        mode: .real,
+        journal: journal,
+        runID: runID,
+        leasePolicy: shortPolicy,
+        work: {
+            try await Task.sleep(for: Duration.milliseconds(3000))
+            // Revalidating 3 s in, past a 2 s TTL, succeeds only because heartbeats kept the lease alive.
+            _ = try journal.revalidateActLease(runID: runID)
+        }
+    )
+
+    try await invocation.run()
+
+    // Invocation must have completed without throwing (heartbeats kept the lease alive)
+    let events = try journal.events()
+    #expect(events.contains { $0.type == .actEnded })
+}
+
+@Test("A lost Act lease cancels the work and is recorded as ActIncomplete")
+func lostActLeaseCancelsWork() async throws {
+    let directory = ConfigurationDirectory()
+    try directory.writeMachineFile()
+    try directory.writeValidProjectFile(id: "alpha")
+    let projectID = try #require(ProjectID(rawValue: "alpha"))
+    let journal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    let shortPolicy = LeasePolicy(heartbeatInterval: 0.05, timeToLive: 1)
+    let runID = RunID()
+    let takerRunID = RunID()
+
+    let invocation = EngineInvocation(
+        act: .build,
+        mode: .real,
+        journal: journal,
+        runID: runID,
+        leasePolicy: shortPolicy,
+        work: {
+            try await Task.sleep(for: Duration.milliseconds(100))
+
+            // Have a second store "steal" the lease by claiming at a far-future time
+            let takeover = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+            _ = try takeover.claimActLease(
+                act: .author, runID: takerRunID, mode: .real, policy: shortPolicy,
+                now: Date().addingTimeInterval(3)
+            )
+
+            // Loop until we lose the lease or timeout
+            for _ in 0..<300 {
+                try await Task.sleep(for: Duration.milliseconds(10))
+                if Task.isCancelled { break }
+            }
+        }
+    )
+
+    do {
+        try await invocation.run()
+        Issue.record("Invocation did not throw actLeaseLost")
+    } catch let error as JournalError {
+        guard case .actLeaseLost(let errorRunID, _) = error else {
+            Issue.record("Error is not actLeaseLost")
+            return
+        }
+        #expect(errorRunID == runID)
+    }
+
+    let events = try journal.events()
+    let hasIncomplete = events.contains { $0.type == .actIncomplete }
+    let hasEnded = events.contains { $0.type == .actEnded }
+    #expect(hasIncomplete)
+    #expect(!hasEnded)
+
+    let current = try journal.currentActLease()
+    #expect(current?.runID == takerRunID)
+}
