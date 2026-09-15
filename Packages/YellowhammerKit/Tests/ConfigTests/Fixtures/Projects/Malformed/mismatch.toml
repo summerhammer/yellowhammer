@@ -1,0 +1,9 @@
+id = "other-project"
+name = "Mismatch ID"
+linear_project = "MM"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"

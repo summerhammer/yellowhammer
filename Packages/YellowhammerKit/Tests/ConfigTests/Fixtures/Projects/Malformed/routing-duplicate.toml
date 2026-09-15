@@ -1,0 +1,17 @@
+id = "routing-duplicate"
+name = "Routing Duplicate"
+linear_project = "RD"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"
+
+[[routing]]
+kind = "impl"
+route = "claude/sonnet"
+
+[[routing]]
+kind = "impl"
+route = "codex/gpt-5.4"

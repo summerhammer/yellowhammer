@@ -1,0 +1,15 @@
+id = "duplicate-repo-name"
+name = "Duplicate Repo"
+linear_project = "DR"
+
+[[repos]]
+name = "repo"
+path = "~/path1"
+role = "backend"
+check = "test"
+
+[[repos]]
+name = "repo"
+path = "~/path2"
+role = "web"
+check = "test"

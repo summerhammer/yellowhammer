@@ -1,0 +1,9 @@
+id = "invalid@id!"
+name = "Invalid ID"
+linear_project = "INV"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"

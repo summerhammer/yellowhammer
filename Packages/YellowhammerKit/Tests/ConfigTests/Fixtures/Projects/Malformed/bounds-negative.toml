@@ -1,0 +1,12 @@
+id = "bounds-negative"
+name = "Bounds Negative"
+linear_project = "BN"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"
+
+[limits]
+attempts_per_card = -1

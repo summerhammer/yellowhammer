@@ -1,0 +1,12 @@
+id = "build-every-zero"
+name = "Build Zero"
+linear_project = "BZ"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"
+
+[schedule]
+build_every_minutes = 0

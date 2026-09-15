@@ -1,0 +1,12 @@
+id = "bounds-zero"
+name = "Bounds Zero"
+linear_project = "BZ"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"
+
+[limits]
+unanswered_nights_max = 0

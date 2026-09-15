@@ -1,0 +1,13 @@
+id = "unknown-github-key"
+name = "GitHub Unknown"
+linear_project = "GU"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"
+
+[github]
+credential = "keychain:github"
+unknown_key = "value"

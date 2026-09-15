@@ -1,0 +1,10 @@
+id = "protected-paths-not-array"
+name = "Bad Paths"
+linear_project = "BP"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"
+protected_paths = "not-array"

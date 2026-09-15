@@ -1,0 +1,12 @@
+id = "routing-invalid-route"
+name = "Routing Bad"
+linear_project = "RB"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"
+
+[[routing]]
+route = "invalid"

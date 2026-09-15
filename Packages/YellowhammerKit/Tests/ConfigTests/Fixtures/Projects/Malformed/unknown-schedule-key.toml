@@ -1,0 +1,12 @@
+id = "unknown-schedule-key"
+name = "Unknown Schedule"
+linear_project = "US"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"
+
+[schedule]
+weird_time = "23:00"

@@ -1,0 +1,12 @@
+id = "invalid-time-hour"
+name = "Bad Time Hour"
+linear_project = "BTH"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"
+
+[schedule]
+night_start = "25:00"

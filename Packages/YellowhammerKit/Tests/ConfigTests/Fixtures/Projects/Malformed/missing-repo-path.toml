@@ -1,0 +1,8 @@
+id = "missing-repo-path"
+name = "Repo No Path"
+linear_project = "RNP"
+
+[[repos]]
+name = "repo"
+role = "backend"
+check = "test"

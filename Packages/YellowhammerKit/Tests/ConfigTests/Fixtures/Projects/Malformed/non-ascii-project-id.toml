@@ -1,0 +1,9 @@
+id = "café"
+name = "Non-ASCII ID"
+linear_project = "NA"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"

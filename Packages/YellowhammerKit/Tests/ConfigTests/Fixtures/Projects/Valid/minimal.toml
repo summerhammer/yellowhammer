@@ -1,0 +1,10 @@
+id = "minimal"
+name = "Minimal Project"
+linear_project = "MIN"
+spec_source = "~/dev/minimal-spec"
+
+[[repos]]
+name = "only-repo"
+path = "~/dev/minimal"
+role = "backend"
+check = "swift test"
