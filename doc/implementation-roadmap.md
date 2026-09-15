@@ -318,7 +318,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Tests run two overlapping same-Project invocations and show no corruption. The
   engine has no API that addresses a second Project's Journal.
 
-### [ ] P3.3 Event log
+### [x] P3.3 Event log
 - **Work**
   - Append-only event writing for every Act, including Act start/end, the reason an Act could not
     complete (where it can record one), `MainlineFetchFailed`, `AbsentNightDetected`,
