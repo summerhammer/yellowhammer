@@ -238,7 +238,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Opus 5 Medium.
 - **Done when** — Fixture Projects load with defaults applied where keys are absent and allowed.
 
-### [ ] P2.3 Load-time validation with per-Project failure isolation
+### [x] P2.3 Load-time validation with per-Project failure isolation
 - **Work** — Validation rules, each with a precise error:
   1. **Working repo exclusivity:** the same path declared as a working repo in two Projects
      invalidates **both** Projects. Sibling Projects still load.
