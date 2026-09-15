@@ -88,3 +88,20 @@ public struct RoutingEntry: Equatable, Sendable {
         self.fallbacks = fallbacks
     }
 }
+
+extension RoutingEntry {
+    /// What identifies a row: the merge and the duplicate check both key on it.
+    public struct Key: Hashable, Sendable {
+        public var kind: Kind
+        public var repoRole: RepoRoleMatch
+
+        public init(kind: Kind, repoRole: RepoRoleMatch) {
+            self.kind = kind
+            self.repoRole = repoRole
+        }
+    }
+
+    public var key: Key {
+        Key(kind: kind, repoRole: repoRole)
+    }
+}
