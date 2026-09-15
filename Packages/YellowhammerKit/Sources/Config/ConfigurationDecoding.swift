@@ -91,27 +91,21 @@ struct ConfigurationDecoding {
             throw error(line: value.line, key: "routing", reason)
         }
         var entries: [RoutingEntry] = []
-        var firstLines: [RoutingKey: Int] = [:]
+        var firstLines: [RoutingEntry.Key: Int] = [:]
         for (index, element) in elements.enumerated() {
             let path = "routing[\(index)]"
             guard case .table(let table) = element.content else {
                 throw error(line: element.line, key: path, .typeMismatch(expected: "table", found: element.typeName))
             }
             let entry = try routingEntry(table, path: path)
-            let key = RoutingKey(kind: entry.kind, repoRole: entry.repoRole)
-            if let firstLine = firstLines[key] {
+            if let firstLine = firstLines[entry.key] {
                 throw error(line: table.line, key: path, .duplicateRoutingEntry(firstLine: firstLine))
             }
-            firstLines[key] = table.line
+            firstLines[entry.key] = table.line
             entries.append(entry)
         }
         try requireDeclaredAdapters(for: entries, elements: elements)
         return entries
-    }
-
-    private struct RoutingKey: Hashable {
-        let kind: Kind
-        let repoRole: RepoRoleMatch
     }
 
     func routingEntry(_ table: TOMLTable, path: String) throws(ConfigurationError) -> RoutingEntry {

@@ -1,0 +1,30 @@
+[linear]
+credential = "keychain:linear"
+
+[github]
+credential = "keychain:github"
+
+[cli.claude]
+
+[cli.codex]
+
+[[routing]]
+kind = "*"
+repo_role = "*"
+route = "claude/sonnet/medium"
+fallbacks = ["codex/gpt-5.4/medium"]
+
+[[routing]]
+kind = "impl.boilerplate"
+route = "claude/haiku/low"
+fallbacks = ["codex/gpt-5.4-mini/low"]
+
+[[routing]]
+kind = "review"
+route = "claude/opus/high"
+fallbacks = ["codex/gpt-5.4/high", "claude/sonnet/high"]
+
+[[routing]]
+kind = "impl"
+repo_role = "backend"
+route = "codex/gpt-5.4/medium"

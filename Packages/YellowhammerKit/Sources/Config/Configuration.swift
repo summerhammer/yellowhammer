@@ -16,11 +16,25 @@ public struct Configuration: Sendable {
     public var projects: [ProjectConfiguration]
     /// Projects refused at load, sorted by file.
     public var invalidProjects: [InvalidProject]
+    /// The merged Routing Table of every Project in ``projects``, keyed by Project id. Built once, at load.
+    public var routingTables: [ProjectID: RoutingTable]
 
-    public init(machine: MachineConfiguration, projects: [ProjectConfiguration], invalidProjects: [InvalidProject]) {
+    public init(
+        machine: MachineConfiguration,
+        projects: [ProjectConfiguration],
+        invalidProjects: [InvalidProject],
+        routingTables: [ProjectID: RoutingTable]
+    ) {
         self.machine = machine
         self.projects = projects
         self.invalidProjects = invalidProjects
+        self.routingTables = routingTables
+    }
+
+    /// Returns the merged Routing Table for the given Project id, or nil for a Project that was not loaded,
+    /// including one listed in ``invalidProjects``.
+    public func routingTable(for id: ProjectID) -> RoutingTable? {
+        routingTables[id]
     }
 }
 
@@ -82,10 +96,19 @@ extension Configuration {
                 projects.append(configuration)
             }
         }
+        let sortedProjects = projects.sorted { $0.id.rawValue < $1.id.rawValue }
+
+        // Build the merged Routing Table for each valid Project.
+        var routingTables: [ProjectID: RoutingTable] = [:]
+        for project in sortedProjects {
+            routingTables[project.id] = RoutingTable(base: machine.routingTable, overrides: project.routingOverrides)
+        }
+
         return Configuration(
             machine: machine,
-            projects: projects.sorted { $0.id.rawValue < $1.id.rawValue },
-            invalidProjects: invalid.sorted { $0.file < $1.file }
+            projects: sortedProjects,
+            invalidProjects: invalid.sorted { $0.file < $1.file },
+            routingTables: routingTables
         )
     }
 
