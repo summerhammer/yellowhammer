@@ -3,6 +3,7 @@ import Config
 import Domain
 import Engine
 import Foundation
+import Journal
 
 public struct RootCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
@@ -32,8 +33,13 @@ extension ActCommand {
     }
 
     func run(configurationDirectory: URL) async throws {
-        _ = try ProjectResolution.resolve(projectArgument: project, configurationDirectory: configurationDirectory)
-        let invocation = EngineInvocation(act: Self.act)
+        let (_, project) = try ProjectResolution.resolve(
+            projectArgument: project, configurationDirectory: configurationDirectory
+        )
+        // The invocation is scoped to the resolved Project: this is the one Journal it is given.
+        let journal = try JournalStore.open(configurationDirectory: configurationDirectory, projectID: project.id)
+        // Rehearsal is a runtime mode of a Night; the command surface that requests it is P4.1's.
+        let invocation = EngineInvocation(act: Self.act, mode: .real, journal: journal)
         try await invocation.run()
     }
 }

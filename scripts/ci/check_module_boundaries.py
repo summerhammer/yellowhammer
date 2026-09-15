@@ -7,6 +7,7 @@ Rules:
   MB2: Only EngineCommand wires adapters (exception: adapter test targets can import their own)
   MB3: App never links Engine (checked via pbxproj packageProductDependencies + transitive deps)
   MB4: Journal and Ledger never depend on each other
+  MB5: Engine never opens a Journal (it is handed exactly one Project's; only EngineCommand opens)
 
 Exit codes:
   0 - All rules satisfied
@@ -26,6 +27,7 @@ RULES = {
     'MB2': 'only-enginecommand-wires-adapters',
     'MB3': 'app-never-links-engine',
     'MB4': 'journal-ledger-separate',
+    'MB5': 'engine-never-opens-journal',
 }
 
 
@@ -417,6 +419,38 @@ def check_app_imports_engine(repo_root):
     return violations
 
 
+JOURNAL_OPEN_PATTERN = re.compile(r'\bJournalStore\s*\.\s*open(?:ReadOnly)?\s*\(')
+
+
+def check_engine_opens_journal(package_root):
+    """
+    MB5: Engine source never opens a Journal. An invocation is handed exactly one Project's
+    Journal by EngineCommand, so the Engine has no code path that could address a sibling's.
+    Returns: list of violations
+    """
+    engine_dir = os.path.join(package_root, 'Sources', 'Engine')
+    violations = []
+
+    if os.path.exists(engine_dir):
+        for root, dirs, filenames in os.walk(engine_dir):
+            for filename in filenames:
+                if filename.endswith('.swift'):
+                    filepath = os.path.join(root, filename)
+                    with open(filepath, 'r') as f:
+                        lines = f.readlines()
+
+                    for line_num, line in enumerate(lines, 1):
+                        if JOURNAL_OPEN_PATTERN.search(strip_comments(line)):
+                            violations.append({
+                                'rule': 'MB5',
+                                'file': filepath,
+                                'line': line_num,
+                                'message': "Engine opens a Journal; it must be handed its Project's by EngineCommand"
+                            })
+
+    return violations
+
+
 def compute_transitive_deps(target_name, all_targets, memo=None):
     """Compute transitive dependencies of a target."""
     if memo is None:
@@ -534,6 +568,10 @@ def main():
     # Check MB3: app sources never import Engine/EngineCommand
     app_import_violations = check_app_imports_engine(str(repo_root))
     all_violations.extend(app_import_violations)
+
+    # Check MB5: Engine never opens a Journal
+    journal_open_violations = check_engine_opens_journal(str(repo_root / 'Packages' / 'YellowhammerKit'))
+    all_violations.extend(journal_open_violations)
 
     # Report violations
     if all_violations:

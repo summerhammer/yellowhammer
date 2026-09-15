@@ -33,6 +33,9 @@ enum JournalMigrations {
             try createProjectStateTable(db)
             try createEventTable(db)
         }
+        migrator.registerMigration("v2-act-lease") { db in
+            try createActLeaseTable(db)
+        }
         return migrator
     }
 }
