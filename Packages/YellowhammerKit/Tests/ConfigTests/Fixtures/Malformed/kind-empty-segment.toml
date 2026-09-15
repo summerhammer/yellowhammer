@@ -1,0 +1,9 @@
+[linear]
+credential = "keychain:linear"
+
+[github]
+credential = "keychain:github"
+
+[[routing]]
+kind = "impl..x"
+route = "claude/sonnet"

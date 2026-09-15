@@ -1,0 +1,52 @@
+# Machine-wide configuration.
+
+[linear]
+credential = "keychain:linear"
+
+[github]
+credential = "keychain:github"
+
+[cli.claude]
+executable = "/opt/homebrew/bin/claude"
+
+[cli.codex]
+
+[cli."local agent"]
+executable = '/usr/local/bin/agent'
+
+# Base Routing Table.
+
+[[routing]]
+route = "claude/sonnet"
+
+[[routing]]
+kind = "impl.boilerplate"
+repo_role = "backend"
+route = "claude/sonnet/low"
+fallbacks = [
+  "codex/gpt-5.4/high",
+  "claude/haiku",                        # inherits the primary route's effort
+  { cli = "claude", model = "opus", effort = "high" },
+  { cli = "codex", model = "gpt-5.4" },  # inherits the primary route's effort
+]
+
+[[routing]]
+kind = "*"
+repo_role = "mobile"
+route = { cli = "codex", model = "gpt-5.4" }
+fallbacks = ["claude/opus"]
+
+[[routing]]
+kind = "review"
+repo_role = "*"
+fallbacks = []
+
+[routing.route]
+cli = "claude"
+model = "opus"
+effort = "high"
+
+[[routing]]
+kind = "impl"
+repo_role = "data-pipeline"
+route = { cli = "claude", model = "sonnet", effort = "xhigh" }

@@ -1,0 +1,14 @@
+[linear]
+credential = "keychain:linear"
+
+[github]
+credential = "keychain:github"
+
+[[routing]]
+kind = "*"
+repo_role = "backend"
+route = "claude/sonnet"
+
+[[routing]]
+repo_role = "backend"
+route = "codex/gpt-5.4"
