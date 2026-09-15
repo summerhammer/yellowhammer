@@ -270,7 +270,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Fixtures prove that an override replaces the base entry and its fallbacks, and
   that non-overridden entries pass through.
 
-### [ ] P2.5 Missing-configuration behaviour
+### [x] P2.5 Missing-configuration behaviour
 - **Work**
   - When an Act fires and configuration is missing or uninitialized, `yh` exits with code 1 and
     prints remediation text pointing to `yh setup` or `Yellowhammer.app`.
