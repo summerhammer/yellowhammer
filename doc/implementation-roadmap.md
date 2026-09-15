@@ -307,7 +307,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — A Journal is created for a fixture Project. Migrations run from an empty file to
   the current version. A second Project gets a separate file.
 
-### [ ] P3.2 Journal single-writer discipline
+### [x] P3.2 Journal single-writer discipline
 - **Work**
   - An invocation opens only its own Project's Journal. Nothing in the engine can take a sibling
     Project's Journal path.
