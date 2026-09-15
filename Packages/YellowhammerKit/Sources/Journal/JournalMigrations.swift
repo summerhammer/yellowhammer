@@ -1,0 +1,38 @@
+import GRDB
+
+/// The Journal's forward-only migrations (Decision Gates Ruling, G-4).
+///
+/// A migration, once shipped, is never edited or reordered: add a new one. The engine migrates on
+/// open; the app never does, and refuses a store that knows a migration this build does not.
+enum JournalMigrations {
+    /// Every identifier this build knows, in registration order. Derived from the migrator so that
+    /// the list and the registrations cannot drift apart.
+    static var migrationIdentifiers: [String] {
+        migrator.migrations
+    }
+
+    static var migrator: DatabaseMigrator {
+        var migrator = DatabaseMigrator()
+        migrator.registerMigration("v1-initial-schema") { db in
+            try createNightTable(db)
+            try createFeatureTable(db)
+            try createCycleTable(db)
+            try createCardTable(db)
+            try createAttemptTable(db)
+            try createRoundTable(db)
+            try createRouteExclusionTable(db)
+            try createLeaseTable(db)
+            try createWorktreeTable(db)
+            try createFailureCauseTable(db)
+            try createManagedBlockTable(db)
+            try createClauseTable(db)
+            try createTranscriptionBlockTable(db)
+            try createOutboxTable(db)
+            try createBankedReplyTable(db)
+            try createBankedReplyMainlineTable(db)
+            try createProjectStateTable(db)
+            try createEventTable(db)
+        }
+        return migrator
+    }
+}

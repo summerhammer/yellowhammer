@@ -11,6 +11,7 @@ let package = Package(
     products: [
         .library(name: "Domain", targets: ["Domain"]),
         .library(name: "Config", targets: ["Config"]),
+        .library(name: "Journal", targets: ["Journal"]),
         .library(name: "Engine", targets: ["Engine"]),
         .library(name: "EngineCommand", targets: ["EngineCommand"])
     ],
@@ -18,6 +19,10 @@ let package = Package(
         .package(
             url: "https://github.com/apple/swift-argument-parser",
             from: "1.8.2"
+        ),
+        .package(
+            url: "https://github.com/groue/GRDB.swift.git",
+            from: "7.11.1"
         )
     ],
     targets: [
@@ -27,6 +32,13 @@ let package = Package(
         .target(
             name: "Config",
             dependencies: ["Domain"]
+        ),
+        .target(
+            name: "Journal",
+            dependencies: [
+                "Domain",
+                .product(name: "GRDB", package: "GRDB.swift")
+            ]
         ),
         .target(
             name: "Engine",
@@ -48,6 +60,13 @@ let package = Package(
                 "Domain"
             ],
             resources: [.copy("Fixtures")]
+        ),
+        .testTarget(
+            name: "JournalTests",
+            dependencies: [
+                "Journal",
+                "Domain"
+            ]
         ),
         .testTarget(
             name: "EngineCommandTests",
