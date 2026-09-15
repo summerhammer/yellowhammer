@@ -331,7 +331,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Each named event type is appended by at least one code path under test. The table
   refuses updates and deletes.
 
-### [ ] P3.4 Leases
+### [x] P3.4 Leases
 - **Work**
   - Claim a lease on a Card for a run (`runId`) before dispatch.
   - Heartbeat every 60 seconds while work is in progress. Expire after a 10-minute TTL with no
