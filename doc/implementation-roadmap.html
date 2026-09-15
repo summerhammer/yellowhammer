@@ -1,0 +1,3378 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Implementation Roadmap</title>
+  <style>
+
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+</style>
+  <style type="text/css">
+
+
+
+:root {
+color-scheme: light dark;
+--font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue",
+"Inter", Roboto, Arial, sans-serif;
+--font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+"Liberation Mono", monospace;
+--measure: 46rem;
+--radius: 6px;
+
+--bg: #ffffff;
+--bg-subtle: #f6f7f9;
+--bg-code: #f3f4f6;
+--fg: #1d2127;
+--fg-muted: #5b6370;
+--fg-faint: #8a919c;
+--border: #e2e5ea;
+--border-strong: #cdd2d9;
+--accent: #0b62c4;
+--accent-soft: #e8f1fc;
+--mark: #fff3b0;
+--note: #0b62c4;
+--tip: #1a7f4b;
+--warning: #a86200;
+--danger: #c0392b;
+
+--syn-keyword: #a626a4;
+--syn-type: #b25e00;
+--syn-string: #1a7f4b;
+--syn-number: #b25e00;
+--syn-comment: #8a919c;
+--syn-function: #0b62c4;
+--syn-variable: #c0392b;
+--syn-builtin: #0e7c86;
+--syn-error: #c0392b;
+}
+@media screen and (prefers-color-scheme: dark) {
+:root {
+--bg: #15171b;
+--bg-subtle: #1c1f24;
+--bg-code: #22262c;
+--fg: #e3e6eb;
+--fg-muted: #a0a7b2;
+--fg-faint: #6f7783;
+--border: #2c3139;
+--border-strong: #3a4049;
+--accent: #6cb0ff;
+--accent-soft: #1b2a3d;
+--mark: #5c4d12;
+--note: #6cb0ff;
+--tip: #5fcf94;
+--warning: #e6a54a;
+--danger: #f07a6c;
+--syn-keyword: #d38ee0;
+--syn-type: #e6a54a;
+--syn-string: #8fd6a6;
+--syn-number: #e6a54a;
+--syn-comment: #6f7783;
+--syn-function: #6cb0ff;
+--syn-variable: #f07a6c;
+--syn-builtin: #62c7cf;
+--syn-error: #f07a6c;
+}
+}
+
+
+
+*,
+*::before,
+*::after {
+box-sizing: border-box;
+}
+html {
+font-size: 100%;
+-webkit-text-size-adjust: 100%;
+text-size-adjust: 100%;
+scroll-padding-top: 1.5rem;
+background: var(--bg);
+}
+body {
+margin: 0 auto;
+max-width: var(--measure);
+padding: 4rem 1.5rem 6rem;
+background: var(--bg);
+color: var(--fg);
+font-family: var(--font-body);
+font-size: 1rem;
+line-height: 1.65;
+font-kerning: normal;
+font-variant-ligatures: common-ligatures;
+-webkit-font-smoothing: antialiased;
+-moz-osx-font-smoothing: grayscale;
+overflow-wrap: break-word;
+hyphens: auto;
+}
+::selection {
+background: var(--accent-soft);
+}
+
+
+
+#title-block-header {
+margin-bottom: 3rem;
+padding-bottom: 1.5rem;
+border-bottom: 1px solid var(--border);
+}
+#title-block-header .title {
+margin: 0 0 0.5rem;
+font-size: 2.4rem;
+line-height: 1.15;
+letter-spacing: -0.025em;
+}
+#title-block-header .subtitle {
+margin: 0 0 1rem;
+color: var(--fg-muted);
+font-size: 1.25rem;
+font-weight: 400;
+}
+#title-block-header .author,
+#title-block-header .date {
+margin: 0;
+color: var(--fg-muted);
+font-size: 0.9rem;
+}
+#title-block-header .abstract {
+margin-top: 1.5rem;
+color: var(--fg-muted);
+}
+#title-block-header .abstract-title {
+font-weight: 600;
+text-transform: uppercase;
+letter-spacing: 0.06em;
+font-size: 0.75rem;
+}
+
+
+
+h1, h2, h3, h4, h5, h6 {
+margin: 2.4em 0 0.6em;
+color: var(--fg);
+font-weight: 650;
+line-height: 1.25;
+letter-spacing: -0.012em;
+hyphens: manual;
+text-wrap: balance;
+}
+h1 { font-size: 2rem; letter-spacing: -0.022em; }
+h2 {
+font-size: 1.5rem;
+padding-bottom: 0.3em;
+border-bottom: 1px solid var(--border);
+}
+h3 { font-size: 1.2rem; }
+h4 { font-size: 1.05rem; }
+h5, h6 {
+font-size: 0.8rem;
+text-transform: uppercase;
+letter-spacing: 0.06em;
+color: var(--fg-muted);
+}
+body > h1:first-child,
+body > h2:first-child,
+#title-block-header + h1,
+#title-block-header + h2,
+#TOC + h1,
+#TOC + h2 {
+margin-top: 0;
+}
+h1 code, h2 code, h3 code, h4 code {
+font-size: 0.9em;
+}
+
+
+
+p, ul, ol, dl, blockquote, pre, table, figure, .callout {
+margin: 0 0 1.1rem;
+}
+a {
+color: var(--accent);
+text-decoration: underline;
+text-decoration-thickness: 1px;
+text-underline-offset: 0.18em;
+text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+a:hover {
+text-decoration-color: currentColor;
+}
+strong, b { font-weight: 650; }
+small { font-size: 0.85em; }
+mark {
+background: var(--mark);
+color: inherit;
+padding: 0 0.15em;
+border-radius: 2px;
+}
+abbr[title] {
+text-decoration: underline dotted;
+cursor: help;
+}
+kbd {
+font-family: var(--font-mono);
+font-size: 0.8em;
+padding: 0.1em 0.4em;
+border: 1px solid var(--border-strong);
+border-bottom-width: 2px;
+border-radius: 4px;
+background: var(--bg-subtle);
+}
+sup, sub {
+font-size: 0.75em;
+line-height: 0;
+}
+hr {
+margin: 3rem 0;
+border: 0;
+border-top: 1px solid var(--border);
+}
+span.smallcaps { font-variant: small-caps; }
+span.underline { text-decoration: underline; }
+
+
+
+ul, ol {
+padding-left: 1.5rem;
+}
+li {
+margin: 0.25rem 0;
+}
+li > ul,
+li > ol {
+margin: 0.25rem 0 0.4rem;
+}
+li > p {
+margin-bottom: 0.5rem;
+}
+ul li::marker {
+color: var(--fg-faint);
+}
+ol li::marker {
+color: var(--fg-muted);
+font-variant-numeric: tabular-nums;
+}
+ul.task-list,
+ul.task-list[class] {
+list-style: none;
+padding-left: 0.25rem;
+}
+ul.task-list li input[type="checkbox"] {
+margin: 0 0.5em 0.2em -1.4em;
+vertical-align: middle;
+accent-color: var(--accent);
+}
+ul.task-list li {
+padding-left: 1.4em;
+}
+ul.task-list li > ul:not(.task-list) {
+padding-left: 1.1rem;
+}
+dt {
+font-weight: 650;
+margin-top: 0.8rem;
+}
+dd {
+margin: 0.2rem 0 0 1.5rem;
+color: var(--fg-muted);
+}
+
+
+
+blockquote {
+padding: 0.2rem 0 0.2rem 1.1rem;
+margin-left: 0;
+margin-right: 0;
+border-left: 3px solid var(--border-strong);
+color: var(--fg-muted);
+}
+blockquote > :last-child {
+margin-bottom: 0;
+}
+
+.note, .tip, .warning, .danger, .important, .caution, .callout {
+--c: var(--note);
+padding: 0.85rem 1.1rem;
+margin: 0 0 1.1rem;
+border: 1px solid color-mix(in srgb, var(--c) 30%, var(--border));
+border-left: 4px solid var(--c);
+border-radius: var(--radius);
+background: color-mix(in srgb, var(--c) 6%, var(--bg));
+}
+.tip { --c: var(--tip); }
+.warning, .important { --c: var(--warning); }
+.danger, .caution { --c: var(--danger); }
+.note > :first-child, .tip > :first-child, .warning > :first-child,
+.danger > :first-child, .important > :first-child, .caution > :first-child,
+.callout > :first-child {
+margin-top: 0;
+}
+.note > :last-child, .tip > :last-child, .warning > :last-child,
+.danger > :last-child, .important > :last-child, .caution > :last-child,
+.callout > :last-child {
+margin-bottom: 0;
+}
+.title {
+font-weight: 650;
+}
+.note > .title, .tip > .title, .warning > .title,
+.danger > .title, .important > .title, .caution > .title {
+margin-bottom: 0.3rem;
+color: var(--c);
+font-size: 0.8rem;
+text-transform: uppercase;
+letter-spacing: 0.06em;
+}
+
+
+
+code, pre, samp {
+font-family: var(--font-mono);
+font-size: 0.875em;
+font-variant-ligatures: none;
+hyphens: none;
+}
+:not(pre) > code {
+padding: 0.12em 0.36em;
+border-radius: 4px;
+background: var(--bg-code);
+color: var(--fg);
+white-space: break-spaces;
+overflow-wrap: anywhere;
+}
+a > code {
+color: inherit;
+}
+pre {
+padding: 0.9rem 1.1rem;
+overflow-x: auto;
+border: 1px solid var(--border);
+border-radius: var(--radius);
+background: var(--bg-subtle);
+line-height: 1.5;
+tab-size: 4;
+}
+pre > code {
+font-size: 0.85rem;
+padding: 0;
+background: none;
+white-space: pre;
+}
+div.sourceCode {
+margin: 0 0 1.1rem;
+background: none;
+overflow: visible;
+}
+div.sourceCode > pre {
+margin: 0;
+}
+
+pre.numberSource code > span > a:first-child::before {
+color: var(--fg-faint);
+}
+pre.numberSource {
+border-left: 1px solid var(--border);
+}
+
+code span.al { color: var(--syn-error); font-weight: 600; } 
+code span.an { color: var(--syn-comment); font-style: italic; } 
+code span.at { color: var(--syn-variable); } 
+code span.bn { color: var(--syn-number); } 
+code span.bu { color: var(--syn-builtin); } 
+code span.cf { color: var(--syn-keyword); font-weight: 500; } 
+code span.ch { color: var(--syn-string); } 
+code span.cn { color: var(--syn-number); } 
+code span.co { color: var(--syn-comment); font-style: italic; } 
+code span.cv { color: var(--syn-comment); font-style: italic; } 
+code span.do { color: var(--syn-comment); font-style: italic; } 
+code span.dt { color: var(--syn-type); } 
+code span.dv { color: var(--syn-number); } 
+code span.er { color: var(--syn-error); font-weight: 600; } 
+code span.ex { color: var(--syn-builtin); } 
+code span.fl { color: var(--syn-number); } 
+code span.fu { color: var(--syn-function); } 
+code span.im { color: var(--syn-keyword); } 
+code span.in { color: var(--syn-comment); font-style: italic; } 
+code span.kw { color: var(--syn-keyword); font-weight: 500; } 
+code span.op { color: var(--fg-muted); } 
+code span.ot { color: var(--syn-builtin); } 
+code span.pp { color: var(--syn-keyword); } 
+code span.sc { color: var(--syn-string); } 
+code span.ss { color: var(--syn-string); } 
+code span.st { color: var(--syn-string); } 
+code span.va { color: var(--syn-variable); } 
+code span.vs { color: var(--syn-string); } 
+code span.wa { color: var(--syn-comment); font-style: italic; font-weight: 600; } 
+
+
+
+table {
+width: 100%;
+border-collapse: collapse;
+border-spacing: 0;
+font-size: 0.9rem;
+line-height: 1.5;
+font-variant-numeric: tabular-nums;
+hyphens: manual;
+}
+caption {
+caption-side: top;
+padding-bottom: 0.5rem;
+color: var(--fg-muted);
+font-size: 0.85rem;
+text-align: left;
+}
+th, td {
+padding: 0.55rem 0.75rem;
+border-bottom: 1px solid var(--border);
+vertical-align: top;
+text-align: left;
+}
+thead th {
+border-bottom: 2px solid var(--border-strong);
+color: var(--fg-muted);
+font-size: 0.78rem;
+font-weight: 600;
+text-transform: uppercase;
+letter-spacing: 0.04em;
+white-space: nowrap;
+}
+tbody tr:last-child td {
+border-bottom-color: var(--border-strong);
+}
+tbody tr:hover td {
+background: var(--bg-subtle);
+}
+th:first-child, td:first-child { padding-left: 0.25rem; }
+th:last-child, td:last-child { padding-right: 0.25rem; }
+td > :last-child { margin-bottom: 0; }
+td code {
+font-size: 0.82em;
+}
+
+
+
+img, svg, video {
+max-width: 100%;
+height: auto;
+}
+figure {
+margin-left: 0;
+margin-right: 0;
+text-align: center;
+}
+figure img {
+border-radius: var(--radius);
+}
+figcaption {
+margin-top: 0.5rem;
+color: var(--fg-muted);
+font-size: 0.85rem;
+}
+
+
+
+nav#TOC {
+margin: 0 0 3rem;
+padding: 1.1rem 1.4rem;
+border: 1px solid var(--border);
+border-radius: var(--radius);
+background: var(--bg-subtle);
+font-size: 0.92rem;
+}
+nav#TOC::before {
+content: "Contents";
+display: block;
+margin-bottom: 0.5rem;
+color: var(--fg-muted);
+font-size: 0.75rem;
+font-weight: 600;
+text-transform: uppercase;
+letter-spacing: 0.06em;
+}
+nav#TOC ul {
+margin: 0;
+padding-left: 0;
+list-style: none;
+}
+nav#TOC ul ul {
+padding-left: 1.1rem;
+}
+nav#TOC li {
+margin: 0.15rem 0;
+}
+nav#TOC a {
+color: var(--fg);
+text-decoration: none;
+}
+nav#TOC a:hover {
+color: var(--accent);
+}
+
+
+
+a.footnote-ref {
+text-decoration: none;
+}
+a.footnote-ref sup {
+padding: 0 0.1em;
+font-weight: 600;
+}
+section.footnotes,
+aside#footnotes {
+margin-top: 3.5rem;
+color: var(--fg-muted);
+font-size: 0.875rem;
+}
+section.footnotes hr,
+aside#footnotes hr {
+margin: 0 0 1.25rem;
+width: 6rem;
+}
+a.footnote-back {
+text-decoration: none;
+}
+
+div.csl-entry {
+margin-bottom: 0.5rem;
+}
+div.hanging-indent {
+margin-left: 1.5em;
+text-indent: -1.5em;
+}
+
+math[display="block"],
+.math.display {
+display: block;
+overflow-x: auto;
+margin: 1rem 0;
+}
+
+
+
+@media screen and (max-width: 640px) {
+body {
+padding: 2rem 1rem 4rem;
+font-size: 0.97rem;
+}
+#title-block-header .title { font-size: 1.9rem; }
+h1 { font-size: 1.7rem; }
+h2 { font-size: 1.35rem; }
+table {
+display: block;
+overflow-x: auto;
+}
+}
+
+
+
+@page {
+margin: 18mm 16mm 20mm;
+}
+@media print {
+:root {
+color-scheme: light;
+--bg: #ffffff;
+--bg-subtle: #f7f7f8;
+--bg-code: #f2f2f4;
+--fg: #000000;
+--fg-muted: #444a52;
+--border: #d9dce1;
+--border-strong: #b9bec6;
+--accent: #0a4f9e;
+}
+html, body {
+background: #fff;
+}
+body {
+max-width: none;
+padding: 0;
+font-size: 10.5pt;
+line-height: 1.5;
+-webkit-print-color-adjust: exact;
+print-color-adjust: exact;
+}
+#title-block-header .title { font-size: 22pt; }
+h1 { font-size: 18pt; }
+h2 { font-size: 14pt; }
+h3 { font-size: 12pt; }
+h4 { font-size: 11pt; }
+h1, h2, h3, h4, h5, h6 {
+break-after: avoid;
+page-break-after: avoid;
+}
+p, li, dd, blockquote {
+orphans: 3;
+widows: 3;
+}
+pre, blockquote, figure, tr, img, .callout,
+.note, .tip, .warning, .danger, .important, .caution {
+break-inside: avoid;
+page-break-inside: avoid;
+}
+pre, pre > code {
+white-space: pre-wrap;
+overflow-wrap: anywhere;
+}
+thead {
+display: table-header-group;
+}
+table {
+display: table;
+font-size: 9pt;
+}
+tbody tr:hover td {
+background: none;
+}
+a {
+color: var(--fg);
+text-decoration-color: var(--border-strong);
+}
+
+a[href^="http"]:not(:has(code, img))::after {
+content: " (" attr(href) ")";
+color: var(--fg-muted);
+font-size: 0.8em;
+overflow-wrap: anywhere;
+}
+nav#TOC {
+break-after: page;
+border: 0;
+background: none;
+padding: 0;
+}
+nav#TOC a::after {
+content: none !important;
+}
+hr {
+margin: 1.5rem 0;
+}
+}
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Implementation Roadmap</h1>
+</header>
+<h1 id="yellowhammer-implementation-roadmap">Yellowhammer —
+Implementation Roadmap</h1>
+<p>Built against <code>../yellowhammer-spec</code> @
+<code>eea7711</code> (2026-09-15).</p>
+<p>This roadmap lists <strong>what</strong> has to be built and
+<strong>in what order</strong>. It holds no implementation advice and
+makes no architectural decisions. Where the spec leaves a decision open,
+the roadmap names it as a <strong>Decision Gate</strong> and says which
+steps wait on it. It does not pick an answer.</p>
+<p>The spec is authoritative. This file quotes no spec content. It
+points to it by story ID (<code>&lt;epic&gt;/&lt;story&gt;</code>), ADR,
+DR, OQ or document path. Before you start a step, read the cited story
+<strong>and</strong> its epic’s <code>overview.md</code>. If this
+roadmap and the spec disagree, the spec wins, and the disagreement is a
+defect in this file.</p>
+<hr />
+<h2 id="how-to-read-this-document">How to read this document</h2>
+<ul>
+<li><strong>Phases</strong> run in order. A phase depends on the phases
+before it unless it says otherwise.</li>
+<li><strong>Steps</strong> inside a phase run in the order listed unless
+marked <em>(parallel with …)</em>.</li>
+<li>Each step has:
+<ul>
+<li><strong>Work</strong> — what is built, configured or produced.</li>
+<li><strong>Spec</strong> — the stories, rulings and documents that
+define it.</li>
+<li><strong>Done when</strong> — how you can check the step is
+complete.</li>
+</ul></li>
+<li><strong>Every acceptance criterion in a cited story is part of
+“done”.</strong> A “Done when” line picks out the key checks. It does
+not replace the story’s criteria.</li>
+<li><strong>DevOps</strong> steps are marked <code>[DevOps]</code>. They
+sit where they are needed in the order, not in a separate track.</li>
+<li><strong>Testing constraint (binding on every step):</strong> assert
+only what <code>docs/tech/system-overview.md</code> → <em>What a story
+may assert against a rehearsal Night</em> allows. Never assert
+model-authored content, the engine-run Check against fixtures, push,
+pull request creation or body, or attempt-completion behaviour on
+crash/kill.</li>
+</ul>
+<h3 id="phase-map">Phase map</h3>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Name</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Foundations &amp; delivery pipeline</td>
+<td>Repo, CI, lint, test, traceability, local prerequisites</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Decision gates</td>
+<td>Open decisions to close before the steps that depend on them</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Configuration</td>
+<td>Machine and per-Project TOML, load-time validation</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Local stores</td>
+<td>The Journal (per Project) and the Ledger (per machine)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Engine invocation shell</td>
+<td><code>yh &lt;act&gt; --project &lt;id&gt;</code>: one Act, then
+exit</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Board: Linear</td>
+<td>Identity, provisioning, Outbox, Delta Read, Managed Block, Night
+Card</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Repositories &amp; Worktrees</td>
+<td>Local mainline reads, Orca ADE worktrees, reconciliation</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Dispatch &amp; Routing</td>
+<td>CLI Adapters, Probes, process lifecycle, route resolution</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Build Act</td>
+<td>Readiness, Protected Paths, the Card loop, Rounds/Attempts,
+leases</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Author Act</td>
+<td>Feature selection, ancestry gate, authoring transaction, DoD,
+briefs</td>
+</tr>
+<tr>
+<td>10</td>
+<td>Land Act &amp; Verification</td>
+<td>Push, pull requests, merge test, Partial Landing, Verification,
+archival</td>
+</tr>
+<tr>
+<td>11</td>
+<td>Escalation, Adoption &amp; remaining Bounds</td>
+<td>Waiting on You, banked replies, Adoption, promotion bounds</td>
+</tr>
+<tr>
+<td>12</td>
+<td>Morning report</td>
+<td>Night Summary, instrumented rates, roll-up, exception
+notification</td>
+</tr>
+<tr>
+<td>13</td>
+<td>Setup &amp; operations CLI</td>
+<td><code>yh setup</code>, scheduled jobs, <code>yh doctor</code>,
+<code>yh status</code>, Project removal</td>
+</tr>
+<tr>
+<td>14</td>
+<td>Yellowhammer app</td>
+<td>The shell: setup, configuration, probes, Journal reading,
+notifications</td>
+</tr>
+<tr>
+<td>15</td>
+<td>Rehearsal environment &amp; end-to-end rehearsal</td>
+<td>Scratch Linear team, throwaway repos, full rehearsal Nights</td>
+</tr>
+<tr>
+<td>16</td>
+<td>Release engineering &amp; first production Night</td>
+<td>Signing, notarization, packaging, install check, go-live</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="phase-0-foundations-delivery-pipeline">Phase 0 — Foundations
+&amp; delivery pipeline</h2>
+<h3 id="p0.1-devops-remote-repository-and-branch-policy">[ ] P0.1
+<code>[DevOps]</code> Remote repository and branch policy</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Create the remote repository for <code>yellowhammer</code> under the
+source-control org. The repo has no remote yet (see
+<code>CLAUDE.md</code> → Git).</li>
+<li>Push <code>main</code>. Protect <code>main</code>: changes arrive by
+pull request only, and CI must pass.</li>
+<li>Record the repo’s relationship to <code>../yellowhammer-spec</code>
+(a separate repo, read-only from here) in the README.</li>
+</ul></li>
+<li><strong>Spec</strong> — <code>CLAUDE.md</code> → Git;
+<code>skill.md</code> → <em>The spec is read-only from a consumer
+repo</em>.</li>
+<li><strong>Done when</strong> — <code>main</code> is protected on the
+remote. A direct push to <code>main</code> is refused.</li>
+</ul>
+<h3 id="p0.2-devops-pull-request-template-with-spec-traceability">[ ]
+P0.2 <code>[DevOps]</code> Pull request template with spec
+traceability</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Add a pull request template with a required
+<code>Spec: &lt;epic&gt;/&lt;story&gt; @ &lt;spec commit sha&gt;</code>
+line.</li>
+<li>Add a checklist: every acceptance criterion of the cited story is
+covered, or listed as not satisfied with a reason.</li>
+<li>Add a CI check that fails a pull request whose body has no
+well-formed <code>Spec:</code> line (with an explicit exemption marker
+for non-spec work such as DevOps).</li>
+</ul></li>
+<li><strong>Spec</strong> — <code>skill.md</code> → <em>Citing the
+spec</em>; <code>CLAUDE.md</code> → Git.</li>
+<li><strong>Done when</strong> — A pull request with no
+<code>Spec:</code> line and no exemption fails CI.</li>
+</ul>
+<h3 id="p0.3-devops-continuous-integration-pipeline">[ ] P0.3
+<code>[DevOps]</code> Continuous integration pipeline</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>A CI workflow on Apple Silicon macOS runners, on every pull request
+and on <code>main</code>:
+<ol type="1">
+<li>Resolve and cache package dependencies.</li>
+<li>Lint with SwiftLint (the committed <code>.swiftlint.yml</code>),
+with violations failing the build.</li>
+<li>Run the package test suite
+(<code>swift test --package-path Packages/YellowhammerKit</code>).</li>
+<li>Build the <code>Yellowhammer</code> scheme (Debug), which embeds
+<code>yh</code>.</li>
+<li>Check that the built bundle contains <code>Contents/MacOS/yh</code>
+and that <code>codesign --verify --deep --strict</code> passes on the
+Debug product.</li>
+</ol></li>
+<li>Pin the Xcode and Swift toolchain version used by CI and record it
+in the README.</li>
+<li>Publish test results and build logs as CI artifacts.</li>
+</ul></li>
+<li><strong>Spec</strong> — <code>CLAUDE.md</code> → Local choices
+(Build, Lint, Testing);
+<code>docs/tech/investigations/2026-09-13-feasibility-probes.md</code> →
+Build and packaging.</li>
+<li><strong>Done when</strong> — A pull request shows lint, test and
+build as separate required checks. A lint violation, a failing test or a
+missing <code>yh</code> each fail the pipeline.</li>
+</ul>
+<h3 id="p0.4-devops-deployment-target-consistency-check">[ ] P0.4
+<code>[DevOps]</code> Deployment-target consistency check</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Add a CI check that <code>MACOSX_DEPLOYMENT_TARGET</code> in the
+Xcode project and <code>platforms</code> in <code>Package.swift</code>
+are equal. It fails the build when they differ.</li>
+</ul></li>
+<li><strong>Spec</strong> — <code>CLAUDE.md</code> → Open decisions
+(Minimum macOS version); <code>docs/tech/stack.md</code> → Platform
+Targets.</li>
+<li><strong>Done when</strong> — Changing one of the two values without
+the other fails CI.</li>
+</ul>
+<h3 id="p0.5-devops-module-boundary-enforcement">[ ] P0.5
+<code>[DevOps]</code> Module boundary enforcement</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Add CI checks for the binding import rules: the engine logic never
+imports an adapter, only the engine command wiring imports adapters, the
+app never links the engine, and the Journal and the Ledger are
+separate.</li>
+</ul></li>
+<li><strong>Spec</strong> — ADR-001, ADR-003; <code>CLAUDE.md</code> →
+Local choices (Modules).</li>
+<li><strong>Done when</strong> — A test commit that breaks each rule
+fails CI with a message that names the rule.</li>
+</ul>
+<h3 id="p0.6-devops-dependency-and-supply-chain-hygiene">[ ] P0.6
+<code>[DevOps]</code> Dependency and supply-chain hygiene</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Commit resolved package versions. Enable automated dependency-update
+pull requests for Swift packages and CI actions.</li>
+<li>Enable secret scanning on the remote repository.</li>
+<li>Add a <code>.gitignore</code> audit so that no credentials,
+Journals, Ledgers, local TOML or scratch fixtures can be committed.</li>
+</ul></li>
+<li><strong>Done when</strong> — Dependency-update PRs arrive. A test
+secret pushed on a branch is flagged.</li>
+</ul>
+<h3 id="p0.7-devops-developer-workstation-prerequisites">[ ] P0.7
+<code>[DevOps]</code> Developer workstation prerequisites</h3>
+<ul>
+<li><strong>Work</strong> — Write a <code>CONTRIBUTING.md</code> section
+listing, and a check script verifying:
+<ul>
+<li>Apple Silicon Mac, Xcode toolchain, SwiftLint.</li>
+<li>Orca ADE installed (the version recorded in the feasibility probes,
+or later).</li>
+<li>At least one agent CLI installed and authenticated
+(<code>claude</code>, <code>codex</code>).</li>
+<li>Access to the scratch Linear team (see P15.1) and the Developer ID
+signing identity (see P16.1), where the developer’s role needs
+them.</li>
+<li><code>git</code> available on the path used by a bare
+environment.</li>
+</ul></li>
+<li><strong>Spec</strong> — <code>docs/tech/stack.md</code> →
+Distribution (four prerequisites); feasibility probes → Method.</li>
+<li><strong>Done when</strong> — A new developer runs the check script
+and gets a pass/fail per prerequisite.</li>
+</ul>
+<h3 id="p0.8-glossary-term-conformance-tooling">[ ] P0.8 Glossary-term
+conformance tooling</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>A lightweight lint (CI job, warning level) that flags known
+forbidden synonyms in identifiers, UI copy and commit messages.
+Examples: lowercase <code>project</code> for our Project in type names,
+“attempt” used where the code means Round, a Port name in a test
+name.</li>
+</ul></li>
+<li><strong>Spec</strong> — <code>docs/glossary.md</code>;
+<code>CLAUDE.md</code> → Ubiquitous language.</li>
+<li><strong>Done when</strong> — The job runs in CI and reports findings
+on a pull request.</li>
+</ul>
+<hr />
+<h2 id="phase-1-decision-gates">Phase 1 — Decision gates</h2>
+<p>These decisions were open in the spec or in <code>CLAUDE.md</code>.
+<strong>All are closed</strong> by the spec’s <em>Decision Gates Ruling
+— 2026-09-15</em>
+(<code>risks.md#decision-gates-ruling-2026-09-15</code>); the rule is
+cited by gate number there. This roadmap still does not restate the
+decisions — read them in the spec. Two carry a probe that must pass
+before the code that depends on them: <strong>G-6</strong> (settle
+workflow-state group) and <strong>G-8</strong> (threaded-reply parent
+comment on the Delta Read).</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>Gate</th>
+<th>Decision (now closed)</th>
+<th>Where recorded</th>
+<th>Blocks</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>G-1</td>
+<td>Whether local git reads sit behind a Port</td>
+<td>ADR-001; system-overview → Open Questions</td>
+<td>P6.1–P6.6</td>
+</tr>
+<tr>
+<td>G-2</td>
+<td>Minimum macOS version (the higher of Orca ADE’s floor and the
+SwiftUI APIs used)</td>
+<td>stack.md → Platform Targets; <code>CLAUDE.md</code></td>
+<td>P16.2 (final value); P14 (API choice)</td>
+</tr>
+<tr>
+<td>G-3</td>
+<td>On-disk paths for the Ledger and the Routing Table TOML (Journal
+path is given in OQ52; config root in OQ13)</td>
+<td><code>CLAUDE.md</code> → Open decisions; risks.md OQ13, OQ52</td>
+<td>P2.1, P3.1, P3.5</td>
+</tr>
+<tr>
+<td>G-4</td>
+<td>SQLite DDL and migration policy for the Journal and the Ledger</td>
+<td><code>CLAUDE.md</code> → Open decisions</td>
+<td>P3.1, P3.5</td>
+</tr>
+<tr>
+<td>G-5</td>
+<td>Window app versus menu-bar app</td>
+<td><code>CLAUDE.md</code> → Open decisions</td>
+<td>P14.1</td>
+</tr>
+<tr>
+<td>G-6</td>
+<td>Which Nav Flow screens the app owns versus Linear</td>
+<td><code>CLAUDE.md</code>; ooux/nav-flow.md</td>
+<td>P14.4–P14.8</td>
+</tr>
+<tr>
+<td>G-7</td>
+<td>Build Act firing cadence, and what stops build firing after
+land</td>
+<td>shift-scheduling/overview → Open Questions</td>
+<td>P13.2</td>
+</tr>
+<tr>
+<td>G-8</td>
+<td>How a comment is classified as an answer or not (TD9, A19)</td>
+<td>risks.md TD9</td>
+<td>P11.2</td>
+</tr>
+<tr>
+<td>G-9</td>
+<td>How “accepted without reopening the diff” is observed</td>
+<td>morning-report/overview → Open Questions</td>
+<td>P12.2</td>
+</tr>
+<tr>
+<td>G-10</td>
+<td>Whether “Night opened” notifies on a normal Night</td>
+<td>morning-report/notify-the-operator-of-exceptions → Open
+Questions</td>
+<td>P12.5</td>
+</tr>
+<tr>
+<td>G-11</td>
+<td>How a clause whose citation no longer resolves is reported at
+verification (unmet or a third outcome)</td>
+<td>verification/overview → Open Questions</td>
+<td>P10.5</td>
+</tr>
+<tr>
+<td>G-12</td>
+<td>Glossary entries for <em>Engine</em>, <em>Yellowhammer app</em>,
+<em>rehearsal Night</em></td>
+<td>system-overview → Open Questions</td>
+<td>Naming in P4, P14, P15</td>
+</tr>
+<tr>
+<td>G-13</td>
+<td>Whether <code>review_rounds_max = 2</code> stays now that check
+rounds share it (R6)</td>
+<td>bounds/overview → Open Questions</td>
+<td>Default in P2.2 (value only)</td>
+</tr>
+<tr>
+<td>G-14</td>
+<td>Software update channel for the directly distributed
+<code>.app</code> (not addressed in the spec)</td>
+<td>— (raise as a spec gap)</td>
+<td>P16.5</td>
+</tr>
+<tr>
+<td>G-15</td>
+<td>Lease TTL / heartbeat revision after probe results (A2)</td>
+<td>loop-state/overview → Open Questions</td>
+<td>P3.4, P8.10 (values only)</td>
+</tr>
+<tr>
+<td>G-16</td>
+<td>Identifiers for the re-selection, refusal-drift promotion and
+divergence promotion bounds</td>
+<td>bounds/overview</td>
+<td>P2.2, P11.6</td>
+</tr>
+<tr>
+<td>G-17</td>
+<td>Board representation of a per-Card Override (glossary → Override;
+OQ13 mentions an Override label)</td>
+<td>glossary.md; risks.md OQ13</td>
+<td>P7.6</td>
+</tr>
+</tbody>
+</table>
+<h3 id="x-p1.1-raise-spec-conflicts-found-while-building-this-roadmap">[x]
+P1.1 Raise spec conflicts found while building this roadmap</h3>
+<ul>
+<li><strong>Work</strong> — Propose these corrections to the spec
+owners. <strong>Do not edit the spec from this repo.</strong>
+<ol type="1">
+<li><code>shift-scheduling/fire-an-act-on-schedule</code> still says
+cross-Project contention is settled by “machine-wide Bounds, arbitrated
+by compare-and-reserve against the Ledger”. OQ15 and ADR-003 leave no
+machine-wide Bounds, and the Ledger holds Probe Results only.</li>
+<li><code>shift-scheduling/open-and-close-the-night-card</code> still
+has a criterion about a machine-wide Bound being reached.</li>
+<li><code>loop-state/record-failure-cause-recurrence</code> says the
+Ledger holds “the two machine-wide Bounds’ running totals”.</li>
+<li><code>docs/tech/system-overview.md</code>: the Integration Map
+diagram has “admits a lane by compare-and-reserve”. <em>Environment
+Differences</em> keeps a machine-wide-bound exhaustion passage (flagged
+there as unreconciled). It also says an Attempt is held by an agent CLI
+process “in an Orca terminal”, which OQ57 retired.</li>
+<li><code>docs/tech/stack.md</code> → Notable Constraints still says
+Orca ADE “owns worktrees and terminals”.</li>
+<li><code>landing/open-one-pull-request-per-repository</code> asks for
+each Card’s “cost” in the pull request body. Cost accounting is retired
+(OQ16).</li>
+<li><code>bounds/escalate-a-question-to-the-operator</code> still lists
+the acknowledgement strings as “Open”. OQ37 closed them (see
+<code>board-projection/read-board-changes-by-delta</code>).</li>
+<li>The Delta Read query: the story uses a <code>comments</code> root
+with an issue→project filter. The feasibility probe resolution table
+names <code>projectComments</code>.</li>
+<li><code>routing/overview</code> → Known Constraints attributes the
+no-repeat rule to DR5 (via OQ13). DR5 is the Check ruling.</li>
+<li>Assumption ID <strong>A20</strong> is used twice in risks.md
+(flagged in the feasibility probes).</li>
+</ol></li>
+<li><strong>Also raise against this repo’s
+<code>CLAUDE.md</code>:</strong> it still says Acts are fired by an Orca
+ADE Automation and that Orca ADE owns all scheduling. OQ53 moved
+scheduling to <code>launchd</code>/cron. The “How an Orca Automation
+invokes an executable” open decision is closed by OQ53.</li>
+<li><strong>Done when</strong> — Each item is filed with the spec owners
+and answered (accepted or rejected).</li>
+<li><strong>Outcome (2026-09-15)</strong> — All ten items and the
+<code>CLAUDE.md</code> item were accepted and fixed in the spec and in
+<code>CLAUDE.md</code>. Item 9 was already fixed at spec HEAD. The same
+pass also fixed: the Open Questions register lost in the
+<code>risks.md</code> compression (every <code>OQn</code> citation
+resolves again), ADR-002’s “three Orca automations configured by hand”,
+ADR-001’s retired Orca Automation link, stale open items already closed
+by OQ8/OQ10/OQ19, and Linear’s request budget (the app identity’s is
+5,000/hour; 2,500 was a personal API key’s).</li>
+</ul>
+<hr />
+<h2 id="phase-2-configuration">Phase 2 — Configuration</h2>
+<h3 id="p2.1-machine-wide-configuration-file">[ ] P2.1 Machine-wide
+configuration file</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Read the machine-wide TOML base file: Linear workspace authorization
+reference, base Routing Table entries, CLI Adapter declarations, machine
+default GitHub credentials.</li>
+<li>Parse the routing entry shape: optional <code>kind</code>
+(longest-prefix match, default <code>*</code>), optional
+<code>repo_role</code> (default <code>*</code>), primary route (table or
+<code>cli/model/effort</code> shorthand), ordered <code>fallbacks</code>
+(with the <code>cli/model</code> pair defaulting rules).</li>
+<li>Report parse errors with file, line and key.</li>
+</ul></li>
+<li><strong>Spec</strong> — risks.md OQ13 Facet 1;
+<code>routing/overview</code>; system-overview → CLI Adapters and the
+Routing Table.</li>
+<li><strong>Gate</strong> — G-3.</li>
+<li><strong>Done when</strong> — Valid fixture files load into typed
+configuration. Each malformed fixture gives a precise error.</li>
+</ul>
+<h3 id="p2.2-per-project-configuration-files">[ ] P2.2 Per-Project
+configuration files</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Read one TOML file per Project: <code>id</code>, <code>name</code>,
+<code>linear_project</code>, <code>[[repos]]</code> (<code>name</code>,
+<code>path</code>, <code>role</code>, required <code>check</code>,
+<code>protected_paths</code>), the single specification source
+(<code>spec_source</code> path, or a working repo with
+<code>role = &quot;spec&quot;</code>), <code>[limits]</code>
+(<code>review_rounds_max</code> default 2,
+<code>attempts_per_card</code> default 3,
+<code>unanswered_nights_max</code> default 3, the three promotion and
+re-selection thresholds), optional per-Project routing overrides, and an
+optional per-Project GitHub credential.</li>
+<li>Keep the Repo Role vocabulary open, with the four standard roles
+recognised.</li>
+</ul></li>
+<li><strong>Spec</strong> — risks.md OQ13 Facet 1, OQ14, OQ45
+(per-Project GitHub credential), OQ51 (Spec Source);
+<code>bounds/overview</code>;
+<code>graph-execution/gate-a-card-on-the-repository-check</code>.</li>
+<li><strong>Gates</strong> — G-13 (default value only), G-16 (key names
+for the three unnamed bounds).</li>
+<li><strong>Done when</strong> — Fixture Projects load with defaults
+applied where keys are absent and allowed.</li>
+</ul>
+<h3 id="p2.3-load-time-validation-with-per-project-failure-isolation">[
+] P2.3 Load-time validation with per-Project failure isolation</h3>
+<ul>
+<li><strong>Work</strong> — Validation rules, each with a precise error:
+<ol type="1">
+<li><strong>Working repo exclusivity:</strong> the same path declared as
+a working repo in two Projects invalidates <strong>both</strong>
+Projects. Sibling Projects still load.</li>
+<li><strong>Exactly one specification source</strong> across both kinds.
+Zero or more than one invalidates that Project only.</li>
+<li><strong>Explicit <code>check</code></strong> on every working repo.
+A missing key is refused; it is never read as <code>none</code>.</li>
+<li><strong><code>unanswered_nights_max</code> is an integer ≥
+1.</strong> Zero or negative is refused.</li>
+<li><strong>Adapter validation:</strong> every route resolves to a
+declared CLI Adapter. A CLI in the Routing Table with no adapter is
+refused with an explicit error.</li>
+<li><strong>Declaration kind</strong> is checked, not just the path: a
+Spec Source in Project A and a working Repo in Project B is valid.</li>
+<li>A Spec Source carries a path only (no role, check or protected
+paths).</li>
+</ol></li>
+<li><strong>Spec</strong> — risks.md OQ13, OQ14, OQ51;
+<code>routing/add-an-agent-cli</code>;
+<code>feature-authoring/overview</code> → Business Rules;
+<code>graph-execution/gate-a-card-on-the-repository-check</code>.</li>
+<li><strong>Done when</strong> — A fixture matrix covers every rule,
+including “two conflicting Projects refused, third Project loads”.</li>
+</ul>
+<h3 id="p2.4-routing-table-merge">[ ] P2.4 Routing Table merge</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Merge the machine-wide base table with each Project’s optional
+override table <strong>once, at load</strong>, keyed by (Kind, Repo
+Role). A per-Project entry replaces its base counterpart outright,
+fallbacks included.</li>
+<li>Expose the merged result as one flat table per Project.</li>
+</ul></li>
+<li><strong>Spec</strong> — <code>routing/overview</code>;
+<code>routing/resolve-a-route-for-a-card</code>; Machine Scope Ruling
+(risks.md).</li>
+<li><strong>Done when</strong> — Fixtures prove that an override
+replaces the base entry and its fallbacks, and that non-overridden
+entries pass through.</li>
+</ul>
+<h3 id="p2.5-missing-configuration-behaviour">[ ] P2.5
+Missing-configuration behaviour</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>When an Act fires and configuration is missing or uninitialized,
+<code>yh</code> exits with code 1 and prints remediation text pointing
+to <code>yh setup</code> or <code>Yellowhammer.app</code>.</li>
+<li>When <code>--project &lt;id&gt;</code> names a Project that is
+absent or invalidated, <code>yh</code> exits with code 1 without running
+an Act.</li>
+</ul></li>
+<li><strong>Spec</strong> — risks.md OQ13 Facet 2; OQ52 Face 1 (orphaned
+LaunchAgents fail fast).</li>
+<li><strong>Done when</strong> — Both cases are covered by CLI tests
+that assert exit code and message.</li>
+</ul>
+<hr />
+<h2 id="phase-3-local-stores">Phase 3 — Local stores</h2>
+<h3 id="p3.1-journal-store-creation-and-schema">[ ] P3.1 Journal store:
+creation and schema</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>One Journal per Project, created on first use at the Project’s
+Journal path. The engine invocation for that Project is its only
+writer.</li>
+<li>A schema that holds everything the epics name: Nights (with
+<code>project_id</code>), Features, Cycles, Cards (with repository
+label, Kind, authored order, state, <code>waiting_reason</code>, Block
+Reason), Attempts (route, classification, result, how it was consumed),
+Rounds (lens, verdict, requested changes, judged commit), routes tried /
+excluded routes per budget epoch, Leases (<code>runId</code>, heartbeat,
+expiry), Worktree ids and paths as a per-(Feature, repo) set,
+failure-cause hashes and recurrence counts, last-posted Managed Block
+hashes, <code>clause</code> table (cid, issue, level, text, location ID,
+provenance, invalidation state and cause), Transcription Block
+provenance, Outbox entries, banked replies (Night, per-repo mainline
+commit), adoption-refusal and divergence counts, and the append-only
+<code>event</code> table.</li>
+<li>Repo Lane membership is <strong>not</strong> stored. It is derived
+from each Card’s repository label.</li>
+<li>Schema versioning and a forward migration path.</li>
+</ul></li>
+<li><strong>Spec</strong> — <code>loop-state/overview</code>;
+<code>shift-scheduling/do-one-acts-work-and-exit</code>;
+<code>feature-authoring/author-citable-definitions-of-done</code>;
+risks.md OQ52 (Journal path, never deleted by the product).</li>
+<li><strong>Gates</strong> — G-3, G-4.</li>
+<li><strong>Done when</strong> — A Journal is created for a fixture
+Project. Migrations run from an empty file to the current version. A
+second Project gets a separate file.</li>
+</ul>
+<h3 id="p3.2-journal-single-writer-discipline">[ ] P3.2 Journal
+single-writer discipline</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>An invocation opens only its own Project’s Journal. Nothing in the
+engine can take a sibling Project’s Journal path.</li>
+<li>Two overlapping Acts of the <strong>same</strong> Project do not
+corrupt state (single writer plus leases).</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>shift-scheduling/fire-an-act-on-schedule</code>;
+<code>loop-state/claim-and-heartbeat-a-run-lease</code>; ADR-002.</li>
+<li><strong>Done when</strong> — Tests run two overlapping same-Project
+invocations and show no corruption. The engine has no API that addresses
+a second Project’s Journal.</li>
+</ul>
+<h3 id="p3.3-event-log">[ ] P3.3 Event log</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Append-only event writing for every Act, including Act start/end,
+the reason an Act could not complete (where it can record one),
+<code>MainlineFetchFailed</code>, <code>AbsentNightDetected</code>,
+<code>AuthoringNoWorkAvailable</code>,
+<code>ManagedBlockDelimiterBroken</code>, notification delivery
+failures, rate-limit degradations (named as workspace-wide), crash
+reclaims.</li>
+<li>No event log spans Projects.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>shift-scheduling/do-one-acts-work-and-exit</code>; risks.md OQ12,
+OQ13; system-overview → Integration Map.</li>
+<li><strong>Done when</strong> — Each named event type is appended by at
+least one code path under test. The table refuses updates and
+deletes.</li>
+</ul>
+<h3 id="p3.4-leases">[ ] P3.4 Leases</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Claim a lease on a Card for a run (<code>runId</code>) before
+dispatch.</li>
+<li>Heartbeat every 60 seconds while work is in progress. Expire after a
+10-minute TTL with no heartbeat. Keep both values configurable as
+“merely true today”.</li>
+<li>An unexpired lease blocks dispatch by another run of the same
+Project.</li>
+<li>Lease revalidation is exposed so that every board write can check it
+(used by P5.4).</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>loop-state/claim-and-heartbeat-a-run-lease</code>; system-overview
+→ Sleep hazard.</li>
+<li><strong>Gate</strong> — G-15 (values).</li>
+<li><strong>Done when</strong> — Rehearsal-assertable tests show claim,
+heartbeat, expiry, and refusal of a second claim while unexpired.</li>
+</ul>
+<h3 id="p3.5-ledger-store">[ ] P3.5 Ledger store</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>One Ledger per machine, outside every Project, written by any
+Project’s invocation under its own transaction.</li>
+<li>It holds <strong>only</strong> Probe Result history per agent CLI.
+It has no Bounds, lane leases, Project roster, schedule or mode
+column.</li>
+</ul></li>
+<li><strong>Spec</strong> — ADR-003;
+<code>routing/add-an-agent-cli</code>; risks.md OQ47, OQ48.</li>
+<li><strong>Gates</strong> — G-3, G-4.</li>
+<li><strong>Done when</strong> — Two concurrent invocations for
+different Projects write Probe Results without conflict. The schema has
+no table beyond Probe Result history.</li>
+</ul>
+<hr />
+<h2 id="phase-4-engine-invocation-shell">Phase 4 — Engine invocation
+shell</h2>
+<h3 id="p4.1-command-surface-for-the-acts">[ ] P4.1 Command surface for
+the Acts</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li><code>yh author --project &lt;id&gt;</code>,
+<code>yh build --project &lt;id&gt;</code>,
+<code>yh land --project &lt;id&gt;</code> as the Act contract (typed
+into scheduled jobs by hand, so it is stable).</li>
+<li>A way for the Operator to force an Act, and to force the author Act
+for a named Feature.</li>
+<li>A runtime switch for rehearsal mode on a Night (a runtime mode,
+never a build configuration or scheme).</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>shift-scheduling/fire-an-act-on-schedule</code>;
+<code>feature-authoring/select-the-next-feature</code> (forced
+authoring); risks.md OQ52 Face 2 (gestures); <code>CLAUDE.md</code> →
+Names.</li>
+<li><strong>Gate</strong> — G-12 (term naming).</li>
+<li><strong>Done when</strong> — Each subcommand parses, loads
+configuration for exactly one Project, and exits.</li>
+</ul>
+<h3 id="p4.2-one-acts-work-then-exit">[ ] P4.2 One Act’s work, then
+exit</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>An invocation does exactly one Act’s work and exits. It keeps no
+state in memory between Acts, holds no timer, and starts no background
+process that outlives it.</li>
+<li>A resumed Act rebuilds Attempt and Round counts, routes tried and
+Worktree paths from the Journal alone.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>shift-scheduling/do-one-acts-work-and-exit</code>;
+<code>CLAUDE.md</code> → What the app must not do (Nothing
+resident).</li>
+<li><strong>Done when</strong> — Tests kill an invocation mid-Act and
+show that the next invocation reconstructs state from the Journal
+only.</li>
+</ul>
+<h3 id="p4.3-act-trigger-predicates">[ ] P4.3 Act trigger
+predicates</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>The author Act does work when the Project has no ready Cards, or
+when forced.</li>
+<li>The build Act does work repeatedly through the Night.</li>
+<li>The land Act does work when the in-flight Feature’s Cycle has no
+unfinished Cards. Cancelled Cards do not count as unfinished.</li>
+<li>When a predicate is false, the Act records an idle tick and exits
+0.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>shift-scheduling/fire-an-act-on-schedule</code>; risks.md OQ13
+Facet 2.</li>
+<li><strong>Done when</strong> — Journal fixtures cover each predicate
+in both directions.</li>
+</ul>
+<h3 id="p4.4-night-lifecycle-in-the-journal">[ ] P4.4 Night lifecycle in
+the Journal</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Record the Night (per Project, <code>project_id</code> first-class)
+at the first Act of the Night.</li>
+<li>Record Night close with a status and a reason.</li>
+<li>Detect a Night left open with no completion, and record it on that
+Project’s next Night.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>shift-scheduling/open-and-close-the-night-card</code>; risks.md
+OQ52 Face 2 (Night carries <code>project_id</code>).</li>
+<li><strong>Done when</strong> — Journal tests cover open, close, and
+“opened and died” detection.</li>
+</ul>
+<h3 id="p4.5-resumption-self-audit-absent-nights">[ ] P4.5 Resumption
+self-audit (absent Nights)</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>At the first Act of a run, compare the Journal’s Night and event
+timestamps against the Project’s configured schedule. Log
+<code>AbsentNightDetected</code> with the missed intervals.</li>
+<li>Hand the gap to the Night Summary (P12.1).</li>
+<li>Never charge <code>unanswered_nights_max</code> for missed Nights,
+and never auto-Block for them.</li>
+</ul></li>
+<li><strong>Spec</strong> — risks.md OQ12 Surface 2, OQ47;
+<code>bounds/bound-unanswered-nights</code>.</li>
+<li><strong>Depends on</strong> — the schedule representation from
+P13.2.</li>
+<li><strong>Done when</strong> — Fixtures with missed intervals produce
+the event and no bound change.</li>
+</ul>
+<hr />
+<h2 id="phase-5-board-linear">Phase 5 — Board: Linear</h2>
+<h3 id="p5.1-devops-linear-board-identity-registration">[ ] P5.1
+<code>[DevOps]</code> Linear board identity registration</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Register Yellowhammer’s own Linear OAuth 2.0 application (client
+credentials, <code>actor=app</code>), one for the scratch workspace and
+one for production.</li>
+<li>Store client credentials in the macOS Keychain on developer and CI
+machines. Keep them out of the repo. The configuration file holds a
+keychain token reference only.</li>
+<li>Document rotation and revocation.</li>
+</ul></li>
+<li><strong>Spec</strong> — system-overview → <em>Why the board identity
+is its own subsystem concern</em>; feasibility probes → Linear (Identity
+&amp; notifications); risks.md OQ13 (keychain token reference),
+OQ49.</li>
+<li><strong>Done when</strong> — A token for the app identity can be
+obtained from each workspace, and a comment it writes triggers the
+Operator’s inbox notification.</li>
+</ul>
+<h3 id="p5.2-board-adapter-authenticated-graphql-access">[ ] P5.2 Board
+adapter: authenticated GraphQL access</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Authenticate as the registered identity, never as a personal API
+key.</li>
+<li>Scope every read and write to one Project’s Linear project.</li>
+<li>Record request and complexity budget signals from responses, and
+handle rate-limit refusals.</li>
+<li>Keep vendor types, error shapes and query language inside the
+adapter. Only Yellowhammer vocabulary and opaque identifiers cross the
+Port.</li>
+</ul></li>
+<li><strong>Spec</strong> — ADR-001; stack.md → Board access;
+feasibility probes → Linear.</li>
+<li><strong>Done when</strong> — Adapter tests against the scratch
+workspace read a Linear project’s issues. Nothing outside the adapter
+refers to a Linear type.</li>
+</ul>
+<h3 id="p5.3-linear-provisioning-setup-time">[ ] P5.3 Linear
+provisioning (setup-time)</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Provision the team’s <code>Waiting on You</code> workflow state if
+missing (once per team, shared by Projects in that team).</li>
+<li>Provision the mutually exclusive object-type label group
+(<code>Feature</code>, <code>Card</code>, <code>Night Card</code>).
+Detect a clash with existing workspace labels of the same name (the
+probe found <code>Feature</code> already present).</li>
+<li>Provision the Block Reason label group and disposition labels the
+stories need.</li>
+<li>Verify or create each Project’s Linear project.</li>
+<li>Make provisioning idempotent and report exactly what it
+changed.</li>
+</ul></li>
+<li><strong>Spec</strong> — risks.md OQ2, OQ13 Facet 1;
+board-projection/overview; feasibility probes → Linear (A16, A17).</li>
+<li><strong>Done when</strong> — Running provisioning twice against the
+scratch team changes nothing the second time. A label-name collision is
+reported and not overwritten.</li>
+</ul>
+<h3 id="p5.4-outbox">[ ] P5.4 Outbox</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Every board write goes through the Outbox: issue creation, Managed
+Block rewrites, comments, labels, workflow state, assignment,
+attachments, <code>parentId</code> changes, <code>issueArchive</code>,
+Night Card creation and completion.</li>
+<li>Entries are held in the Project’s Journal and survive process death.
+After a crash, each accepted entry is either completed or safely
+re-attempted.</li>
+<li>Deterministic client UUIDs for <code>issueCreate</code> and
+<code>commentCreate</code>. A “conflict on insert” response is recorded
+as already applied.</li>
+<li>Updates follow the JIT pre-flight read-modify-write rule.
+Description updates read <code>id description updatedAt</code>
+immediately before the mutation, never from a cached copy.</li>
+<li>Delimiter fencing: replace only the text between
+<code>&lt;!-- yh:managed:start --&gt;</code> and
+<code>&lt;!-- yh:managed:end --&gt;</code>, leaving everything outside
+byte-identical. On missing or broken delimiters: do not write the
+description, record <code>ManagedBlockDelimiterBroken</code>, post a
+diagnostic comment, leave the description untouched.</li>
+<li>Record each description write with the SHA-256 of the preserved
+human prose.</li>
+<li><strong>Lease revalidation immediately before each write.</strong>
+An expired or reclaimed lease aborts the write before it reaches
+Linear.</li>
+<li>A permanent write failure is recorded in the event log for the Night
+Summary. A rate-limit refusal is recorded as a
+<strong>workspace-wide</strong> budget event.</li>
+<li>Authoring-transaction support: a group of writes (Feature, Cycle,
+Cards, adoptions) that leaves either all of them or none of them on the
+board.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>board-projection/write-board-updates-through-the-outbox</code>;
+<code>board-projection/maintain-the-managed-block</code>; risks.md
+OQ56.</li>
+<li><strong>Done when</strong> — Rehearsal-assertable tests: replay
+after a killed run creates no duplicate issue or comment; a stale-lease
+write never reaches Linear; broken delimiters abort safely; a forced
+mid-transaction failure leaves no partial board.</li>
+</ul>
+<h3 id="p5.5-delta-read">[ ] P5.5 Delta Read</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>One batched compound query per Act, per Project: issues updated
+since the last sync plus comments created since the last sync, both
+scoped to the Project’s Linear project.</li>
+<li>Persist the last sync point in the Journal.</li>
+<li>Filter out Yellowhammer’s own comments by identity.</li>
+<li>Surface Operator edits to brief, DoD, links, labels, assignment and
+state (including <code>Cancelled</code>) before dispatch decisions.</li>
+<li>Detect human changes that break the authoring invariant (a Card
+moved to another repository) and report them instead of
+dispatching.</li>
+<li>Reconcile deleted or manually re-stated Cards against the
+Journal.</li>
+<li>When the budget is exhausted, do less work rather than act on stale
+reads, and record a workspace-wide degradation event.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>board-projection/read-board-changes-by-delta</code>; risks.md
+OQ55.</li>
+<li><strong>Done when</strong> — Scratch-team tests show a human comment
+and a state change picked up by one request. A sibling Project’s Card in
+the same team is never selected.</li>
+</ul>
+<h3 id="p5.6-managed-block-rendering-and-hash-skip-cards">[ ] P5.6
+Managed Block rendering and hash-skip (Cards)</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Render the Card Managed Block: Kind, repository, Architectural Brief
+(with Transcription Blocks), Definition of Done with clause markers and
+Spec Citations, position in its Repo Lane’s authored order, managed
+footer. No predecessor links.</li>
+<li>After each Attempt, render route, Check result (including “green
+came from a model alone” for <code>check = none</code>), Rounds with
+lens and verdict, outcome, and how the Attempt was consumed.</li>
+<li>Keep disposition labels in step, including a Block Reason that tells
+blocked-by-check from blocked-by-reviewer. No label carries the
+Project.</li>
+<li>Hash the <strong>rendered</strong> block and skip the write when the
+hash equals the last-posted hash.</li>
+<li>Stop maintaining a Cancelled Card’s block from the Act boundary
+where cancellation is read.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>board-projection/maintain-the-managed-block</code> (first
+story).</li>
+<li><strong>Done when</strong> — Rehearsal tests show hash-skip,
+label-group exclusivity, and no writes to a Cancelled Card.</li>
+</ul>
+<h3 id="p5.7-night-card-open-and-close">[ ] P5.7 Night Card open and
+close</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>The first Act of a Project’s Night creates that Project’s Night Card
+through the Outbox, <strong>before</strong> any work is dispatched. It
+is an ordinary issue with the Night Card label, in the Project’s Linear
+project.</li>
+<li>Exactly one Night Card per Project per Night, including idle Nights.
+A resumed Act never creates a second one.</li>
+<li>Completion at the end of the Night carries the Night Summary
+(content from P12.1). Until P12 lands, completion carries a placeholder
+verdict.</li>
+<li>Record the idle verdict for
+<code>AuthoringNoWorkAvailable</code>.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>shift-scheduling/open-and-close-the-night-card</code>; DR7;
+risks.md OQ13 Facet 2.</li>
+<li><strong>Done when</strong> — Rehearsal Night against the scratch
+team: one Night Card opens and closes; a killed-and-resumed Act leaves
+exactly one.</li>
+</ul>
+<h3 id="p5.8-board-state-writes-for-cards-and-features">[ ] P5.8 Board
+state writes for Cards and Features</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Workflow-state transitions Yellowhammer owns: Ready, in progress,
+Blocked (with Block Reason), Waiting on You (with assignment to the
+Operator as delivery), Done.</li>
+<li>Read <code>Cancelled</code> and never write it. Treat it as taking
+effect at the next Act boundary, never as deletion.</li>
+<li>Report a Waiting on You Card with no Journal record behind it as an
+anomaly on the Night Card, and never dispatch it.</li>
+<li>Repost Card board state from the Journal after a crash.</li>
+</ul></li>
+<li><strong>Spec</strong> — board-projection/overview;
+<code>bounds/escalate-a-question-to-the-operator</code>; glossary →
+Cancelled.</li>
+<li><strong>Done when</strong> — Rehearsal tests cover each transition
+and the anomaly case.</li>
+</ul>
+<hr />
+<h2 id="phase-6-repositories-worktrees">Phase 6 — Repositories &amp;
+Worktrees</h2>
+<blockquote>
+<p><strong>Gate G-1</strong> (git behind a Port or not) must be closed
+before this phase starts.</p>
+</blockquote>
+<h3 id="p6.1-mainline-refresh-at-act-start">[ ] P6.1 Mainline refresh at
+Act start</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>At the start of each author, build and land Act, refresh each
+working repo’s remote-tracking mainline with a non-destructive fetch of
+its default branch.</li>
+<li>On failure (offline or unreachable), continue on the cached ref and
+record <code>MainlineFetchFailed</code>.</li>
+<li>Never fetch a Spec Source. Read its local default branch or
+<code>HEAD</code>.</li>
+</ul></li>
+<li><strong>Spec</strong> — system-overview → Integration Map (Engine →
+Configured repositories); risks.md OQ19.</li>
+<li><strong>Done when</strong> — Fixture repos cover fetch success,
+fetch failure with fallback, and a Spec Source that is never
+fetched.</li>
+</ul>
+<h3 id="p6.2-ancestry-test">[ ] P6.2 Ancestry test</h3>
+<ul>
+<li><strong>Work</strong> — Given a Feature Branch and a repository,
+decide whether the branch is an ancestor of that repository’s mainline.
+Report the <code>k of N</code> merged fraction across a Feature’s
+repositories.</li>
+<li><strong>Spec</strong> —
+<code>feature-authoring/select-the-next-feature</code>
+(predecessor-ancestry story);
+<code>landing/announce-a-partial-landing</code>.</li>
+<li><strong>Done when</strong> — Fixture repositories with and without
+the branch merged give the right verdict, with no network access.</li>
+</ul>
+<h3 id="p6.3-merge-test-mainline-conflict-detection">[ ] P6.3 Merge test
+(Mainline Conflict detection)</h3>
+<ul>
+<li><strong>Work</strong> — Test-merge a Feature Branch against mainline
+without touching any working tree, writing any commit or contacting
+GitHub. Return clean, or conflicting with the conflicting paths.</li>
+<li><strong>Spec</strong> —
+<code>landing/open-one-pull-request-per-repository</code>; glossary →
+Mainline Conflict.</li>
+<li><strong>Done when</strong> — Fixture repos where mainline has and
+has not moved give the right verdict. The working tree and refs are
+unchanged afterwards.</li>
+</ul>
+<h3 id="p6.4-path-scoped-provenance-diff">[ ] P6.4 Path-scoped
+provenance diff</h3>
+<ul>
+<li><strong>Work</strong> — For a recorded (repo, paths, commit),
+resolve mainline head and report whether any recorded path changed
+between the commit and head. One <code>rev-parse</code> and one
+path-scoped diff per Card per foreign repository.</li>
+<li><strong>Spec</strong> —
+<code>board-projection/check-card-readiness-at-dispatch</code>; risks.md
+OQ24.</li>
+<li><strong>Done when</strong> — Fixture repos cover touched, untouched
+and renamed-path cases, with no network.</li>
+</ul>
+<h3 id="p6.5-mainline-read-for-transcription-and-specification">[ ] P6.5
+Mainline read for transcription and specification</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Read file content at a mainline commit, for a working Repo or the
+Project’s Spec Source, and return it with the commit it was read
+at.</li>
+<li>Resolve Spec Citations (story ID
+<code>&lt;epic&gt;/&lt;story&gt;</code>, goal ID) against the Project’s
+single specification source, as a resolves / does-not-resolve
+predicate.</li>
+<li>Refuse any read of a repository outside the Project’s
+configuration.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>feature-authoring/author-an-architectural-brief</code>;
+<code>feature-authoring/author-citable-definitions-of-done</code>;
+risks.md OQ51.</li>
+<li><strong>Done when</strong> — Fixture spec repos resolve valid IDs,
+reject missing ones, and a path in another Project’s repo is
+refused.</li>
+</ul>
+<h3 id="p6.6-local-commit-wip-and-push-operations">[ ] P6.6 Local
+commit, WIP and push operations</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Commit uncommitted Worktree content as a WIP commit on the Feature
+Branch.</li>
+<li>Reset a Worktree to the last known-good commit.</li>
+<li>Push a Feature Branch (production only; rehearsal never pushes).
+Record push success, refusal by branch protection, and missing or
+insufficient credentials, each as a distinct outcome.</li>
+<li>Choose the credential: the Project’s GitHub credential when set,
+otherwise the machine default.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>loop-state/reconcile-worktrees-at-act-start</code>;
+<code>landing/open-one-pull-request-per-repository</code>;
+system-overview → Engine → GitHub; risks.md OQ45.</li>
+<li><strong>Done when</strong> — Fixture repos cover WIP commit
+idempotency, reset, and each push outcome (push itself is not asserted
+in rehearsal).</li>
+</ul>
+<h3 id="p6.7-workspace-adapter-orca-ade-worktrees">[ ] P6.7 Workspace
+adapter: Orca ADE worktrees</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Request one Worktree per (Feature, repo) from Orca ADE, with the
+worktree name equal to the Feature Branch name
+<code>yh-&lt;project&gt;-&lt;feature&gt;</code> (no slashes).</li>
+<li>Record ids and paths in the Journal as a per-Feature set keyed by
+repository. A Card resolves its Worktree by its repository label.</li>
+<li>Release a Worktree only after its Feature Branch has been pushed and
+the ref recorded.</li>
+<li>Run <code>git worktree prune</code> on the repository before each
+new allocation.</li>
+<li>Never create, place or delete a worktree outside Orca ADE.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>graph-execution/allocate-a-worktree-per-graph-and-repo</code>;
+feasibility probes → Orca ADE; risks.md OQ57.</li>
+<li><strong>Done when</strong> — Rehearsal-assertable: a three-repo
+fixture Feature holds three Worktrees whose names match their Feature
+Branches.</li>
+</ul>
+<h3 id="p6.8-process-fencing-sweep">[ ] P6.8 Process fencing sweep</h3>
+<ul>
+<li><strong>Work</strong> — Find every process holding an open file or a
+working directory inside a Worktree path. Kill each one with
+<code>SIGKILL</code>. Wait until the count is zero before anything
+inspects, commits or resets the Worktree.</li>
+<li><strong>Spec</strong> —
+<code>loop-state/reconcile-worktrees-at-act-start</code>;
+<code>loop-state/reclaim-an-expired-lease</code>.</li>
+<li><strong>Done when</strong> — A test process left with its cwd in a
+fixture Worktree is terminated, and reconciliation waits for
+quiescence.</li>
+</ul>
+<h3 id="p6.9-worktree-reconciliation-at-build-act-start">[ ] P6.9
+Worktree reconciliation at build Act start</h3>
+<ul>
+<li><strong>Work</strong> — In order, for <strong>every</strong> path in
+this Project’s in-flight Feature set, and only that set:
+<ol type="1">
+<li>Check the recorded path with <code>stat</code>. Never trust Orca
+ADE’s list alone.</li>
+<li>Missing path: purge Orca’s stale record
+(<code>orca worktree rm --force &lt;id&gt;</code>), note the lost build
+state in the Journal, return the Card to a clean slate.</li>
+<li>Run the process fencing sweep (P6.8).</li>
+<li>Uncommitted work: WIP commit on the Feature Branch, reset to last
+known-good commit, hand the WIP ref to the retry as context.</li>
+<li>A worktree this Act cannot account for is never treated as stale. It
+may be a sibling Project’s.</li>
+</ol>
+<ul>
+<li>Running reconciliation twice creates no duplicate WIP commit.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>loop-state/reconcile-worktrees-at-act-start</code>; TD2.</li>
+<li><strong>Done when</strong> — Rehearsal tests cover a ghost path, a
+dirty worktree, a sibling Project’s worktree, and idempotency.</li>
+</ul>
+<hr />
+<h2 id="phase-7-dispatch-routing">Phase 7 — Dispatch &amp; Routing</h2>
+<h3 id="p7.1-result-schema-and-instruction-contract">[ ] P7.1 Result
+schema and instruction contract</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Define the forced JSON result schema(s) for architect, worker and
+reviewer outcomes, including the worker’s “question for the Operator”
+outcome and the reviewer’s verdict with requested changes.</li>
+<li>Define how the instruction is composed from the Card, its
+Architectural Brief, its Definition of Done and its repository, plus the
+payloads that travel with it (WIP ref, answered question with every
+reply, banked replies with their Night and commits, round
+feedback).</li>
+<li>Define fixture result files for rehearsal Nights.</li>
+</ul></li>
+<li><strong>Spec</strong> — <code>graph-execution/run-a-card</code>;
+<code>bounds/escalate-a-question-to-the-operator</code>;
+<code>feature-authoring/author-the-cycle-and-card-dag</code> (adoption
+payload); routing/overview (the CLI owns execution).</li>
+<li><strong>Done when</strong> — Schemas validate the fixture files. An
+empty or malformed file fails validation.</li>
+</ul>
+<h3 id="p7.2-process-lifecycle-for-agent-cli-runs">[ ] P7.2 Process
+lifecycle for agent CLI runs</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Spawn the agent CLI directly inside the Worktree path, in its own
+process group.</li>
+<li>On timeout or engine abort: <code>SIGTERM</code> to the group, a
+3-second grace window, then <code>SIGKILL</code>.</li>
+<li>Dual-key completion: exit status 0 <strong>and</strong> a non-empty,
+schema-valid result file. Exit 0 with a missing or invalid file is
+Crashed-Unknown.</li>
+<li>Record an exit code attributable to the CLI, for route-failure
+classification.</li>
+<li>Rehearsal mode never spawns a CLI. It reads fixture result
+files.</li>
+</ul></li>
+<li><strong>Spec</strong> — <code>graph-execution/run-a-card</code>;
+<code>routing/add-an-agent-cli</code>; risks.md OQ57; system-overview →
+Integration Map (CLI Adapters → Agent CLIs).</li>
+<li><strong>Done when</strong> — Tests with a stub executable cover
+clean exit, exit 0 with empty file, <code>SIGTERM</code> and
+<code>SIGKILL</code> with orphaned children, and rehearsal fixtures.
+Crash/kill behaviour of a real CLI is exercised by the Probe (P7.4), not
+asserted in rehearsal.</li>
+</ul>
+<h3 id="p7.3-cli-adapters-claude-and-codex">[ ] P7.3 CLI Adapters:
+<code>claude</code> and <code>codex</code></h3>
+<ul>
+<li><strong>Work</strong> — One adapter per CLI, each defining:
+<ul>
+<li>argv shape for unattended dispatch with no prompt (closed stdin,
+permission mode or sandbox flags as each CLI requires);</li>
+<li>forcing the result schema and locating the result file;</li>
+<li>session resumption (for Rounds on the same worker);</li>
+<li>mapping model and effort from the route;</li>
+<li>parsing and validating structured output.</li>
+</ul></li>
+<li><strong>Spec</strong> — <code>routing/add-an-agent-cli</code>;
+feasibility probes → Agent CLIs.</li>
+<li><strong>Done when</strong> — Each adapter passes its Probe (P7.4) on
+a developer machine.</li>
+</ul>
+<h3 id="p7.4-probes-and-probe-results">[ ] P7.4 Probes and Probe
+Results</h3>
+<ul>
+<li><strong>Work</strong> — A Probe per adapter that checks, and records
+in the Ledger:
+<ol type="1">
+<li>unattended dispatch with no interactive auth or permission
+prompt;</li>
+<li>schema-conforming result file on clean exit;</li>
+<li>process-group containment under <code>SIGTERM</code> and
+<code>SIGKILL</code>, with no leaked orphans;</li>
+<li>session resumption;</li>
+<li>drift in argv, session handling or output format when re-run after a
+CLI update.</li>
+</ol>
+<ul>
+<li>A CLI that fails the unattended or containment probe is not offered
+as a route target, and the reason is reported. No cost probe
+exists.</li>
+</ul></li>
+<li><strong>Spec</strong> — <code>routing/add-an-agent-cli</code>;
+ADR-003; risks.md OQ48.</li>
+<li><strong>Done when</strong> — Probes run on the developer machine for
+<code>claude</code> and <code>codex</code> and write Ledger rows. A
+deliberately broken adapter stub is excluded from routing with a
+reason.</li>
+</ul>
+<h3 id="p7.5-devops-scheduled-probe-drift-check">[ ] P7.5
+<code>[DevOps]</code> Scheduled probe drift check</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>A CI job (on a self-hosted Apple Silicon runner with the CLIs
+installed and authenticated, or a documented manual release-checklist
+step if no such runner exists) that re-runs every Probe against the
+pinned and the latest CLI versions and fails loudly on drift.</li>
+</ul></li>
+<li><strong>Spec</strong> — R11; <code>routing/add-an-agent-cli</code>
+(re-running the probe detects drift).</li>
+<li><strong>Done when</strong> — Drift in a CLI’s output format turns
+the job red before a release ships.</li>
+</ul>
+<h3 id="p7.6-route-resolution">[ ] P7.6 Route resolution</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Resolve per Card at dispatch: select by per-Card Override, then Kind
+(longest prefix), then Repo Role; then filter by attempt-history
+exclusion and probe failure.</li>
+<li>An Override beats Kind, Repo Role and attempt-history exclusion, but
+not probe failure.</li>
+<li>Fall through configured fallbacks before giving up.</li>
+<li>Zero candidates: Blocked with Block Reason <code>hard failure</code>
+(<code>fallbacks exhausted</code>), no phantom Attempts, lane moves
+on.</li>
+<li>Record the resolved route on the Attempt and report it onto the
+Card.</li>
+<li>Read the merged table fresh on each Act. Nothing is learned or
+inferred.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>routing/resolve-a-route-for-a-card</code>; risks.md OQ13 Facet
+3.</li>
+<li><strong>Gate</strong> — G-17.</li>
+<li><strong>Done when</strong> — Rehearsal-assertable tests cover each
+precedence rule, fallback walk, probe exclusion and the zero-candidate
+block.</li>
+</ul>
+<h3 id="p7.7-route-exclusion-on-retry">[ ] P7.7 Route exclusion on
+retry</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>After a capability failure, exclude every route already tried for
+the Card in its budget epoch. The set is held in the Journal.</li>
+<li>Crashed-Unknown: consume the Attempt, do not exclude, retry the same
+route once.</li>
+<li>An attributable CLI exit code: treat as a route failure and
+exclude.</li>
+<li>Resuming from Waiting on You: consume an Attempt, do not
+exclude.</li>
+<li>An Override pinned in triage resets the budget epoch and exclusion
+set.</li>
+<li>Record whether each retry landed on a genuinely different route (for
+P12.2).</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>routing/exclude-tried-routes-on-retry</code>; risks.md OQ13 Facet
+3.</li>
+<li><strong>Done when</strong> — Rehearsal-assertable tests cover each
+classification.</li>
+</ul>
+<hr />
+<h2 id="phase-8-build-act">Phase 8 — Build Act</h2>
+<h3 id="p8.1-build-act-sequence">[ ] P8.1 Build Act sequence</h3>
+<ul>
+<li><strong>Work</strong> — In order, each build Act:
+<ol type="1">
+<li>Opens or joins the Night (P5.7).</li>
+<li>Refreshes mainlines (P6.1).</li>
+<li>Reclaims expired leases (P8.10), then reconciles Worktrees (P6.9),
+then reposts board state from the Journal (P5.8).</li>
+<li>Performs the Delta Read (P5.5) and applies Cancelled, edits and
+answers.</li>
+<li>Derives Repo Lanes from the in-flight Feature’s Cards.</li>
+<li>Runs lanes concurrently, and each lane’s Cards one at a time in
+authored order.</li>
+<li>Writes back and exits.</li>
+</ol></li>
+<li><strong>Spec</strong> — <code>graph-execution/overview</code>;
+<code>shift-scheduling/fire-an-act-on-schedule</code>.</li>
+<li><strong>Done when</strong> — A rehearsal build Act over a fixture
+Feature performs the steps in order, as recorded in the event log.</li>
+</ul>
+<h3 id="p8.2-readiness-check-at-dispatch">[ ] P8.2 Readiness Check at
+dispatch</h3>
+<ul>
+<li><strong>Work</strong> — On every build Act, for each Card about to
+dispatch:
+<ul>
+<li>An Architectural Brief and a Definition of Done are present.</li>
+<li>Every Spec Citation still resolves.</li>
+<li>For each Transcription Block, run the path-scoped provenance diff
+(P6.4). Stale means Divergence: Waiting on You with
+<code>waiting_reason = divergence</code>, naming what moved. Increment
+the consecutive-divergence count, reset it on any clean pass.</li>
+<li>An Operator edit inside a Transcription Block voids that block’s
+stamp (Operator-supplied, as of the Night seen), with no refusal, no
+Attempt and no notice. An edit elsewhere voids nothing.</li>
+<li>Detect and mint IDs for untagged human clauses (Author-supplied),
+stamp the marker through the Outbox, and validate the citation. Clause
+text or citation edits invalidate earlier verification results with the
+named cause.</li>
+<li>A failing Card is not dispatched, consumes no Attempt or Round, the
+failure is reported on the Card, and the lane moves on.</li>
+<li>No Feature-level pass.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>board-projection/check-card-readiness-at-dispatch</code>;
+<code>feature-authoring/author-citable-definitions-of-done</code>
+(second story);
+<code>feature-authoring/author-an-architectural-brief</code>.</li>
+<li><strong>Done when</strong> — Rehearsal tests cover each failure
+kind, the Divergence route, the voided stamp, and untagged clause
+minting.</li>
+</ul>
+<h3 id="p8.3-protected-paths-refusal">[ ] P8.3 Protected Paths
+refusal</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Before dispatch, check the Card’s declared scope against the
+repository’s protected paths.</li>
+<li>A match is not dispatched, moves to Blocked or Waiting on You
+carrying the protected path, and consumes no Attempt. The lane moves
+on.</li>
+<li>Every user-facing description states that this is a scoping check
+and not a sandbox.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>bounds/refuse-protected-paths-before-dispatch</code>; R3.</li>
+<li><strong>Done when</strong> — Rehearsal tests show refusal with no
+dispatch. The limitation text appears in user-facing copy.</li>
+</ul>
+<h3 id="p8.4-card-run-architect-worker-check-reviewer">[ ] P8.4 Card
+run: architect → worker → Check → reviewer</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Claim the lease (P3.4) and heartbeat throughout.</li>
+<li>Resolve the route (P7.6). Compose the instruction (P7.1). Dispatch
+architect, then worker, in the lane’s Worktree (P7.2).</li>
+<li>Run the repository Check (P8.5) after the worker and before the
+reviewer.</li>
+<li>Dispatch the reviewer. On approval after a passing Check, the Card
+ends successfully.</li>
+<li>Record the outcome in the Journal and project it (P5.6).</li>
+</ul></li>
+<li><strong>Spec</strong> — <code>graph-execution/run-a-card</code>
+(first story); <code>graph-execution/overview</code> (roles are
+internals of a run, not actors).</li>
+<li><strong>Done when</strong> — A rehearsal run over fixture result
+files takes a Card from Ready to done, with every step recorded. Model
+output and the Check result are not asserted.</li>
+</ul>
+<h3 id="p8.5-engine-run-check">[ ] P8.5 Engine-run Check</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Run the repository’s declared <code>check</code> command in the
+Worktree, and record its output.</li>
+<li><code>check = none</code>: record that the green came from a model
+alone.</li>
+<li>A failed Check creates a Round with <code>lens = check</code>,
+returning to the same worker, route and Worktree, bounded by
+<code>review_rounds_max</code>.</li>
+<li>Attach Check output to the Card.</li>
+<li>The accepted cost of a flaky Check (R6) is stated wherever this is
+documented.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>graph-execution/gate-a-card-on-the-repository-check</code>;
+DR5.</li>
+<li><strong>Done when</strong> — Wiring tests show the Check runs
+between worker and reviewer and a failure opens a <code>check</code>
+Round. The Check result itself is not asserted in rehearsal.</li>
+</ul>
+<h3 id="p8.6-rounds-review-and-check-lenses">[ ] P8.6 Rounds (review and
+check lenses)</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Reviewer requests changes: Round <code>n+1</code> with
+<code>lens = review</code> on the same worker, route and Worktree. No
+Attempt consumed.</li>
+<li>Each Round records lens, verdict, requested changes and judged
+commit, and is shown on the Card.</li>
+<li>On exhausting <code>review_rounds_max</code>, the Card is Blocked
+only if the Attempt budget is also exhausted. Block Reason distinguishes
+blocked by check from blocked by reviewer.</li>
+</ul></li>
+<li><strong>Spec</strong> — <code>graph-execution/run-a-card</code>
+(second story);
+<code>bounds/bound-review-rounds-and-attempts</code>.</li>
+<li><strong>Done when</strong> — Rehearsal-assertable bound arithmetic
+with small configured values.</li>
+</ul>
+<h3 id="p8.7-attempts-and-hard-failure">[ ] P8.7 Attempts and hard
+failure</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>A hard failure ends the Attempt. The retry is a fresh dispatch with
+route exclusion (P7.7).</li>
+<li>Bound Attempts by <code>attempts_per_card</code>. A Card blocks only
+when both budgets are exhausted, or when no route remains.</li>
+<li>Record how each Attempt was consumed, so the account can tell three
+failed routes from two reboots.</li>
+</ul></li>
+<li><strong>Spec</strong> — <code>graph-execution/run-a-card</code>
+(third story); <code>bounds/bound-review-rounds-and-attempts</code>;
+system-overview → Interruption.</li>
+<li><strong>Done when</strong> — Rehearsal-assertable tests cover
+both-budgets rule and consumption accounting.</li>
+</ul>
+<h3 id="p8.8-failure-cause-recurrence">[ ] P8.8 Failure-cause
+recurrence</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Reduce each failure to a failure-cause hash stored against the Card
+in the Journal.</li>
+<li>Count recurrences across that Project’s Nights. On recurrence,
+promote to Triage instead of retrying, even with budget left. Never
+correlate across Projects.</li>
+<li>Show the promotion and its reason on the Card.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>loop-state/record-failure-cause-recurrence</code>.</li>
+<li><strong>Done when</strong> — Rehearsal tests over multiple Nights
+promote on recurrence, not on first occurrence.</li>
+</ul>
+<h3 id="p8.9-block-mid-lane-and-cancelled-cards">[ ] P8.9 Block mid-lane
+and Cancelled Cards</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>A Blocked or Waiting on You Card does not halt its lane. Later Cards
+run with their own budgets.</li>
+<li>Record the blocked Card as a hole for landing (P10.4).</li>
+<li>Report a later Card that needed the blocked Card’s work as an
+authoring invariant violation.</li>
+<li>A Card cancelled in Linear drops out at the next Act boundary. The
+running agent is not interrupted. No Attempt consumed. Nothing posted to
+it. No Worktree released early. Commits stand. Journal row intact.
+Reopening restores it with no budget reset.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>graph-execution/handle-a-block-mid-graph</code>;
+<code>graph-execution/run-a-card</code> (fourth story).</li>
+<li><strong>Done when</strong> — Rehearsal tests: a lane continues past
+a block; cancel and reopen round-trips with counters unchanged.</li>
+</ul>
+<h3 id="p8.10-lease-reclaim">[ ] P8.10 Lease reclaim</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>A later Act of the same Project reclaims an expired lease with a new
+<code>runId</code>.</li>
+<li>Before reposting or retrying, run the process fencing sweep on the
+Worktree (P6.8).</li>
+<li>Classify: a valid result file means the Attempt finished (record its
+outcome); no valid file means Crashed-Unknown with no route exclusion
+unless a CLI-attributable exit code exists.</li>
+<li>Repost the Card to Ready with a crash comment through the
+Outbox.</li>
+<li>Record the crash for the Night Summary.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>loop-state/reclaim-an-expired-lease</code>.</li>
+<li><strong>Gate</strong> — G-15 (values only).</li>
+<li><strong>Done when</strong> — A rehearsal kills a real engine
+invocation mid-Card; the next build Act reclaims within the TTL, with
+the right classification.</li>
+</ul>
+<h3 id="p8.11-rehearsal-boundaries-in-the-build-act">[ ] P8.11 Rehearsal
+boundaries in the build Act</h3>
+<ul>
+<li><strong>Work</strong> — In rehearsal mode the build Act never
+dispatches an agent CLI (fixture result files), never pushes, and never
+opens a pull request. It still writes to Linear, allocates real
+Worktrees, uses the real Ledger, and never commits into a Worktree.</li>
+<li><strong>Spec</strong> — system-overview → Environment
+Differences.</li>
+<li><strong>Done when</strong> — A rehearsal build Act leaves no process
+spawn of any agent CLI and no push in its event log.</li>
+</ul>
+<hr />
+<h2 id="phase-9-author-act">Phase 9 — Author Act</h2>
+<h3 id="p9.1-author-act-sequence-and-quiet-nights">[ ] P9.1 Author Act
+sequence and quiet Nights</h3>
+<ul>
+<li><strong>Work</strong> — In order:
+<ol type="1">
+<li>Open the Night Card (P5.7).</li>
+<li>If a Feature is already in flight for this Project (including
+returned, Blocked or half-triaged), author nothing and record the skip,
+naming the Feature.</li>
+<li>Run the predecessor-ancestry gate (P9.2).</li>
+<li>Select (P9.3) and author (P9.4–P9.7) in one transaction.</li>
+<li>If nothing is selectable, record
+<code>AuthoringNoWorkAvailable</code> and close as an idle Night.</li>
+</ol></li>
+<li><strong>Spec</strong> —
+<code>feature-authoring/select-the-next-feature</code>; risks.md OQ13
+Facet 2.</li>
+<li><strong>Done when</strong> — Rehearsal tests cover each quiet-Night
+reason, each recorded on the Night Card.</li>
+</ul>
+<h3 id="p9.2-predecessor-ancestry-gate">[ ] P9.2 Predecessor-ancestry
+gate</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Check that the predecessor Feature’s Feature Branches are ancestors
+of mainline in every repository it touched (this Project’s repos
+only).</li>
+<li>Otherwise: author nothing, and name the predecessor and the
+repositories not yet containing it. No Worktree, dispatch or
+Attempt.</li>
+<li>A merged Partial Landing satisfies the gate for the repositories it
+reached. A verified but unmerged Feature does not.</li>
+<li>On the same pass, re-run the merge test on every unmerged branch
+(P6.3) and record Mainline Conflicts for the Feature card and the
+standing Summary line.</li>
+<li>On the same pass, when ancestry first reaches all N, run the
+post-merge closure (P10.8).</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>feature-authoring/select-the-next-feature</code> (third story);
+<code>landing/overview</code>.</li>
+<li><strong>Done when</strong> — Fixture repositories with and without
+the predecessor merged give the right result. Pure local git, no model,
+no network.</li>
+</ul>
+<h3 id="p9.3-feature-selection">[ ] P9.3 Feature selection</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Read the Project’s single specification source and its repos’
+mainlines.</li>
+<li>Select one Feature and record it with written reasoning, including
+the sequence (what came before, what follows, why the seam falls
+there).</li>
+<li>Determine and record the repositories it touches, from the
+specification and Repo Roles.</li>
+<li>Consider Blocked Cards left by closed Features for Adoption (P11.5).
+Never select or adopt a Cancelled Card.</li>
+<li>Support forced authoring for a Feature the Operator names.</li>
+<li>Refuse, as Waiting on You before any dispatch: a Feature whose split
+cannot fall on a backward-compatible seam (naming the seam), a Feature
+whose repositories cannot be determined, and a Feature that needs a
+contract from a repository outside this Project.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>feature-authoring/select-the-next-feature</code> (first, second
+and fourth stories).</li>
+<li><strong>Done when</strong> — Wiring tests show selection results are
+recorded and refusals produce Waiting on You with no dispatch. The
+quality of the selection itself is not asserted.</li>
+</ul>
+<h3 id="p9.4-authoring-transaction-feature-cycle-and-cards">[ ] P9.4
+Authoring transaction: Feature, Cycle and Cards</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Create the Feature Issue (Feature label, feature-level DoD in the
+description, selection reasoning).</li>
+<li>Create the Cycle in the Journal, bound to the Feature.</li>
+<li>Create one Card per unit of work, one repository each, as native
+sub-issues of the Feature Issue (<code>parentId</code>), each with Kind
+and authored order within its repository.</li>
+<li>Apply the authoring invariant: split across repositories into a
+sequence of Features, or author a single coarser Card within one
+repository. No Card-to-Card links.</li>
+<li>Include adopted Cards (P11.5) in the same transaction.</li>
+<li>All of it through the Outbox as one all-or-nothing group. On
+failure, record it on the Night Card.</li>
+<li>Create no Linear milestones or Linear cycles.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>feature-authoring/author-the-cycle-and-card-dag</code> (first
+story); risks.md OQ54.</li>
+<li><strong>Done when</strong> — Rehearsal tests: a forced failure
+mid-transaction leaves no issues; a resumed author Act creates no
+duplicates; Cards appear nested under the Feature Issue.</li>
+</ul>
+<h3 id="p9.5-citable-definitions-of-done">[ ] P9.5 Citable Definitions
+of Done</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Author clauses at Card and Feature level, before any code exists,
+each with one Spec Citation (story ID or goal ID) that resolves at
+authoring time.</li>
+<li>Write only citable clauses. Mint a <code>cid</code> per clause, and
+write the line with the <code>&lt;!-- yh:clause:&lt;id&gt; --&gt;</code>
+marker and the citation.</li>
+<li>Persist each clause in the Journal <code>clause</code> table with
+provenance <code>machine-found</code>.</li>
+<li>A Feature too thin to cite goes Waiting on You before any dispatch,
+naming the uncitable clauses, with no Attempt and a Night Summary. Its
+roll-up reads <code>needs you</code>.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>feature-authoring/author-citable-definitions-of-done</code>; DR4;
+risks.md TD8, OQ18.</li>
+<li><strong>Done when</strong> — Rehearsal tests check the clause line
+format, the Journal rows, and the thin-spec refusal path. Clause content
+is not asserted.</li>
+</ul>
+<h3 id="p9.6-architectural-briefs-and-transcription-blocks">[ ] P9.6
+Architectural Briefs and Transcription Blocks</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Author a brief per Card inside the Managed Block, separate from the
+DoD.</li>
+<li>For a Card that consumes a contract from another repository (or
+content from the Spec Source), add a Transcription Block with repo,
+every path read, symbol, mainline commit and a content hash.</li>
+<li>A needed contract that cannot be read sends the Feature to Waiting
+on You, naming the repository.</li>
+<li>The agent CLI never gets the Spec Source path.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>feature-authoring/author-an-architectural-brief</code>.</li>
+<li><strong>Done when</strong> — Rehearsal tests check the block format
+and provenance fields. Brief content is not asserted.</li>
+</ul>
+<h3 id="p9.7-refusal-lifecycle-at-feature-level">[ ] P9.7 Refusal
+lifecycle at Feature level</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>A refused Feature Issue sits in Waiting on You with its Refusal
+content.</li>
+<li>When <code>unanswered_nights_max</code> expires, convert to Blocked
+with Block Reason <code>unanswered</code>; the roll-up follows to
+<code>blocked</code>.</li>
+<li>Count consecutive refusals for the refusal-drift promotion bound
+(P11.6).</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>feature-authoring/author-citable-definitions-of-done</code>
+(second story); glossary → Refusal.</li>
+<li><strong>Done when</strong> — Rehearsal bound arithmetic with a small
+configured value.</li>
+</ul>
+<hr />
+<h2 id="phase-10-land-act-verification">Phase 10 — Land Act &amp;
+Verification</h2>
+<h3 id="p10.1-land-act-sequence">[ ] P10.1 Land Act sequence</h3>
+<ul>
+<li><strong>Work</strong> — In order: open or join the Night; refresh
+mainlines; for each Repo Lane: merge test (P10.3), push (P10.2), open
+pull request (P10.4); release Worktrees only after push; run
+Verification (P10.5); return (P10.6) or archive (P10.7); write back. The
+land Act fires once per Cycle, and no lane reopens after it.</li>
+<li><strong>Spec</strong> — <code>landing/overview</code>; risks.md
+OQ8.</li>
+<li><strong>Done when</strong> — A rehearsal land Act runs each step up
+to the rehearsal boundaries.</li>
+</ul>
+<h3 id="p10.2-push-feature-branches">[ ] P10.2 Push Feature
+Branches</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Push each repository’s Feature Branch before its Worktree is
+released, and record the ref on the Card.</li>
+<li>A repository with no completed work: no branch, no pull request,
+recorded rather than failed.</li>
+<li>Branch-protection refusal and missing or insufficient credentials:
+recorded and reported on the Feature card, naming the repository.</li>
+<li>Never push to main.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>landing/open-one-pull-request-per-repository</code>.</li>
+<li><strong>Done when</strong> — Wiring tests on local bare remotes
+cover each outcome. GitHub push is not asserted in rehearsal.</li>
+</ul>
+<h3 id="p10.3-mainline-conflict-at-landing">[ ] P10.3 Mainline Conflict
+at landing</h3>
+<ul>
+<li><strong>Work</strong> — Test-merge each Feature Branch before
+Worktree release. A conflict is recorded and reported, nothing is
+resolved, and the landing still proceeds. A clean verdict is never
+described as “safe to merge”.</li>
+<li><strong>Spec</strong> —
+<code>landing/open-one-pull-request-per-repository</code>.</li>
+<li><strong>Done when</strong> — Fixture repos produce a conflict
+verdict with paths. Landing continues.</li>
+</ul>
+<h3 id="p10.4-publication-adapter-github-pull-requests">[ ] P10.4
+Publication adapter: GitHub pull requests</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Open exactly one pull request per repository from its Feature
+Branch. Write-only: never read pull request state.</li>
+<li>Body: Feature, its Cards with route, checks and Rounds, the “merging
+releases the next Feature” statement, the Mainline Conflict verdict as
+of this Night with conflicting paths, and a link to the Feature card for
+live state.</li>
+<li>Partial Landing body: the fixed opening lines, the as-of stamp,
+every incomplete Card by title with reason and state, every unmet clause
+quoted with its citation, the carried-forward list, the “all N closes
+it” statement, and the DR4 contingency note next to the rule in
+documentation.</li>
+<li>Record pull request links on the Feature card and contributing
+Cards.</li>
+<li>The body is written once and never updated, duplicated or
+reopened.</li>
+<li>Rehearsal never opens a pull request.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>landing/open-one-pull-request-per-repository</code>;
+<code>landing/announce-a-partial-landing</code>; risks.md OQ31,
+OQ26.</li>
+<li><strong>Gate</strong> — P1.1 item 6 (cost in the body).</li>
+<li><strong>Done when</strong> — Body rendering is tested against
+fixtures (copy only, not model content). A production-only smoke test on
+a sandbox GitHub repository opens one pull request.</li>
+</ul>
+<h3 id="p10.5-verification-clause-by-clause">[ ] P10.5 Verification
+clause by clause</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Dispatch Verification to an agent other than the one that wrote the
+code.</li>
+<li>Report every clause: <code>cid</code>, text, Spec Citation,
+provenance, verdict, what was checked, and the interpretation verified
+under. No aggregate “passed”.</li>
+<li>Verify against the DoD authored before code existed.</li>
+<li>Surface an unresolved citation as its own outcome, never as
+met.</li>
+<li>Write the report to the Feature Managed Block and the pull request
+bodies. State the “auditable, not sound” limitation beside it.</li>
+<li>A Partial Landing always fails verification.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>verification/verify-a-feature-clause-by-clause</code>; DR4.</li>
+<li><strong>Gate</strong> — G-11.</li>
+<li><strong>Done when</strong> — Report rendering and different-agent
+routing are tested. Verdicts are not asserted.</li>
+</ul>
+<h3 id="p10.6-return-a-feature-with-unmet-clauses">[ ] P10.6 Return a
+Feature with unmet clauses</h3>
+<ul>
+<li><strong>Work</strong> — Return and assign the Feature to the
+Operator, listing unmet clauses with citations and met clauses too. Pull
+requests stay open and linked. Not Done, not archived. That Project’s
+author Act authors nothing while it is returned.</li>
+<li><strong>Spec</strong> —
+<code>verification/return-a-feature-with-unmet-clauses</code>.</li>
+<li><strong>Done when</strong> — Rehearsal state-transition tests.</li>
+</ul>
+<h3 id="p10.7-archive-the-cycle-on-a-verified-feature">[ ] P10.7 Archive
+the Cycle on a verified Feature</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Archive only when every clause is met. Record which route closed the
+Feature.</li>
+<li>Detach surviving Blocked Cards (<code>parentId: null</code>) with
+counters intact. Move the Feature Issue to Done or archive it.</li>
+<li>Never merge or close a pull request. Archival does not release the
+next Feature.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>verification/archive-the-cycle-on-a-verified-feature</code>;
+risks.md OQ54.</li>
+<li><strong>Done when</strong> — Rehearsal tests for the verification
+route.</li>
+</ul>
+<h3 id="p10.8-closure-by-merge-observed-ancestry">[ ] P10.8 Closure by
+merge (observed ancestry)</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>When ancestry reaches all N (observed in P9.2), close the Feature by
+merge: move the roll-up to a closed value, auto-Block every Card still
+Waiting on You with its counters, detach surviving Cards, archive the
+Cycle, mark the Night triaged and green Cards accepted, post the
+post-merge narrative comment, and count it in that Night Summary.</li>
+<li>For <code>k &lt; N</code>, change only the merged fraction. Write no
+receipt.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>landing/announce-a-partial-landing</code>;
+<code>morning-report/triage-the-morning</code>; R17, R18.</li>
+<li><strong>Done when</strong> — Fixture repositories with k = 0, k &lt;
+N and k = N produce exactly the specified writes.</li>
+</ul>
+<h3 id="p10.9-settle-gesture-release">[ ] P10.9 Settle gesture
+(release)</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Provide the Operator’s settle action per Project: keep in flight or
+release. On a Partial Landing, offer <code>release</code> only.</li>
+<li><code>release</code> abandons the unmerged pull requests on our side
+and salvages unfinished Cards exactly as the merge does.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>morning-report/triage-the-morning</code>; ooux/nav-flow.md (path
+2).</li>
+<li><strong>Gate</strong> — G-6 (where the gesture lives: Linear or the
+app).</li>
+<li><strong>Done when</strong> — Rehearsal tests of both settle
+outcomes.</li>
+</ul>
+<hr />
+<h2 id="phase-11-escalation-adoption-remaining-bounds">Phase 11 —
+Escalation, Adoption &amp; remaining Bounds</h2>
+<h3 id="p11.1-waiting-on-you-from-a-workers-question">[ ] P11.1 Waiting
+on You from a worker’s question</h3>
+<ul>
+<li><strong>Work</strong> — Move the Card to Waiting on You, assign the
+Operator, post the question as a comment, record the question in the
+Journal, set <code>waiting_reason = question</code>. No Round, no
+Attempt. Hold the Worktree. The lane continues.</li>
+<li><strong>Spec</strong> —
+<code>bounds/escalate-a-question-to-the-operator</code> (first
+story).</li>
+<li><strong>Done when</strong> — Rehearsal tests with a fixture
+“question” result file.</li>
+</ul>
+<h3 id="p11.2-answer-detection-and-resumption">[ ] P11.2 Answer
+detection and resumption</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Pre-landing, from the Delta Read: a recognised answer moves the Card
+out of Waiting on You and queues it for the next build Act. Resumption
+consumes an Attempt, no exclusion, reuses a held Worktree, and carries
+the question plus every reply flagged Operator-supplied.</li>
+<li>Post acknowledgement (a) for a recognised answer and (b) for an
+unrecognised comment, with the canonical copy and nights remaining.</li>
+<li>On a <code>divergence</code> Card: record and acknowledge with (d).
+No resume, nothing carried forward.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>bounds/escalate-a-question-to-the-operator</code> (second story);
+<code>board-projection/read-board-changes-by-delta</code> (OQ37
+copy).</li>
+<li><strong>Gate</strong> — G-8.</li>
+<li><strong>Done when</strong> — Rehearsal tests against real comments
+in the scratch team, for each branch.</li>
+</ul>
+<h3 id="p11.3-banked-replies-after-landing">[ ] P11.3 Banked replies
+after landing</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>A recognised answer on a Card whose Cycle has landed is banked:
+recorded, acknowledged with (c), Card stays in Waiting on You, clock
+stopped.</li>
+<li>A second reply appends, is acknowledged on its own, and is stamped
+with its Night.</li>
+<li>Stamp each banked reply with the mainline commit of every repo the
+Card touches.</li>
+<li>Derive the banked-answer marker on the Feature member row at read
+time. No roll-up change.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>board-projection/read-board-changes-by-delta</code>;
+<code>board-projection/maintain-the-managed-block</code> (second story);
+risks.md OQ8.</li>
+<li><strong>Done when</strong> — Rehearsal tests cover first and
+repeated banked replies.</li>
+</ul>
+<h3 id="p11.4-unanswered_nights_max">[ ] P11.4
+<code>unanswered_nights_max</code></h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Count that Project’s Nights while a Card waits. Past the bound,
+auto-Block with <code>unanswered</code> (question) or
+<code>undecided</code> (divergence), keeping the assignment and full
+reporting.</li>
+<li>The clock halts on an answer, is suspended while Cancelled, restarts
+from zero on an adoption refusal, and is never advanced by a timer,
+calendar count or catch-up sweep.</li>
+<li>Before any Worktree release, push the Feature Branch and record the
+ref.</li>
+<li>An auto-Blocked Card is not terminal and can be re-readied with
+counters preserved.</li>
+</ul></li>
+<li><strong>Spec</strong> — <code>bounds/bound-unanswered-nights</code>;
+DR8; risks.md OQ14, OQ47.</li>
+<li><strong>Done when</strong> — Rehearsal-assertable bound arithmetic
+with <code>unanswered_nights_max = 1</code>, including the
+stopped-Project case (no Acts, no change).</li>
+</ul>
+<h3 id="p11.5-adoption">[ ] P11.5 Adoption</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>A later Feature adopts a Blocked Card left by a closed Feature: keep
+counters, round history, Block Reason and question; no new budgets.</li>
+<li>Re-validate against current mainline under the authoring invariant
+before adopting.</li>
+<li>On success: re-point <code>parentId</code> to the new Feature Issue,
+place the Card in the new Cycle and its repository’s lane, start it in a
+fresh Worktree, record why it started cold, and include the banked-reply
+payload with its stated nature.</li>
+<li>On failure: do not adopt or re-author, record a durable Divergence,
+return the Card as a fresh Waiting on You naming what moved, author the
+Feature without it. The board carries one current notice; the Journal
+accumulates them.</li>
+<li>Adoption is part of the authoring transaction.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>feature-authoring/author-the-cycle-and-card-dag</code> (second
+story); <code>feature-authoring/select-the-next-feature</code>.</li>
+<li><strong>Done when</strong> — Rehearsal tests of adopt and
+refuse-to-adopt, with counters verified.</li>
+</ul>
+<h3 id="p11.6-promotion-and-re-selection-bounds">[ ] P11.6 Promotion and
+re-selection bounds</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Refusal-drift promotion: consecutive refusals past the operator-set
+bound make a standing item. Nothing else changes.</li>
+<li>Divergence promotion: consecutive failed adoptions past the bound
+make a standing item. Reset on a clean adoption.</li>
+<li>Re-selection bound: ends the author Act’s backlog walk for the
+Night.</li>
+<li>Report proximity to each in the Night Summary.</li>
+</ul></li>
+<li><strong>Spec</strong> — <code>bounds/overview</code>;
+<code>feature-authoring/select-the-next-feature</code>; risks.md OQ14
+(4).</li>
+<li><strong>Gate</strong> — G-16.</li>
+<li><strong>Done when</strong> — Rehearsal bound arithmetic with small
+values.</li>
+</ul>
+<hr />
+<h2 id="phase-12-morning-report">Phase 12 — Morning report</h2>
+<h3 id="p12.1-night-summary">[ ] P12.1 Night Summary</h3>
+<ul>
+<li><strong>Work</strong> — Computed from the Project’s Journal event
+table and written on the Night Card, every Night, including idle ones:
+<ul>
+<li>A constant-time verdict line.</li>
+<li>Quiet-Night reasons, including the unlanded predecessor with its
+repositories.</li>
+<li>Per Card touched: route, Check result (including model-alone
+greens), Rounds with lenses.</li>
+<li>Blocked versus Waiting on You counts, and recurrences versus first
+occurrences.</li>
+<li>Pull requests opened per repository, Partial Landing flags.</li>
+<li>One line per answer arriving on a landed Card, on the Night it
+arrived.</li>
+<li>Standing line: every un-adopted Card, individually, with its closed
+Feature, Block Reason and elapsed Nights (also rendered on the Card
+detail header). Cancelled Cards leave the line.</li>
+<li>Standing line: the unmerged in-flight Feature, Nights held,
+<code>k of N</code> merged, Mainline Conflicts with paths.</li>
+<li>Crashes and reclaims, permanent write failures, workspace-wide
+rate-limit events, <code>MainlineFetchFailed</code>, absent Nights
+detected, local-notification failures, anomalies.</li>
+<li>Nothing spans Projects. No machine-wide bound line.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>morning-report/write-the-night-summary</code>;
+<code>loop-state/*</code>; risks.md OQ12.</li>
+<li><strong>Done when</strong> — Rehearsal Nights of each kind (idle,
+quiet, crashed, partial) render the specified lines.</li>
+</ul>
+<h3 id="p12.2-instrumented-rates">[ ] P12.2 Instrumented rates</h3>
+<ul>
+<li><strong>Work</strong> — Report per Project, accumulating across that
+Project’s Nights, with no pass/fail presentation and no cross-Project
+figure: share of green Cards accepted without reopening the diff; share
+of Nights ending with at least one pull request per touched repository;
+proximity to each Bound; Nights started from an empty board; whether
+every retry landed on a different route;
+<code>author_supplied_citation_count</code>.</li>
+<li><strong>Spec</strong> —
+<code>morning-report/report-the-instrumented-rates</code>; DR1; risks.md
+TD8.</li>
+<li><strong>Gate</strong> — G-9 (first rate only).</li>
+<li><strong>Done when</strong> — Rates computed from multi-Night
+rehearsal Journals match hand-computed values.</li>
+</ul>
+<h3 id="p12.3-feature-roll-up">[ ] P12.3 Feature roll-up</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Derive the roll-up state from Card states and Repo Lane completion,
+with fallback to the Feature Issue’s own state when there are no
+Cards.</li>
+<li>Render the fixed sentence shapes for the running and closed halves,
+the zero-Card templates, the
+<code>no live Cards · &lt;c&gt; cancelled</code> absence case, and
+Mainline Conflicts beside the sentence.</li>
+<li>State-sorted member list grouped by Repo Lane, with adopted,
+banked-answer and Cancelled markers; Cancelled at the bottom.</li>
+<li>A single Blocked Card always dominates and is counted.</li>
+<li>Hash-skip over the rendered block.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>board-projection/maintain-the-managed-block</code> (second story);
+glossary → Roll-up; risks.md OQ31.</li>
+<li><strong>Done when</strong> — Rehearsal tests cover each lattice
+word, each template, and reposting when only lane completion, merged
+fraction, conflict, live set or Feature state changes.</li>
+</ul>
+<h3 id="p12.4-headless-notification-posting-mode-in-the-app">[ ] P12.4
+Headless notification posting mode in the app</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li><code>Yellowhammer.app</code> accepts a one-shot headless launch
+that posts one local notification (Project, event, reason) under its own
+bundle identity, then exits. No window and nothing resident.</li>
+<li>Notification permission request at setup, with Time Sensitive where
+available.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>morning-report/notify-the-operator-of-exceptions</code>; risks.md
+OQ9.</li>
+<li><strong>Done when</strong> — Launching the app headlessly with post
+arguments shows a notification and the process exits.</li>
+</ul>
+<h3 id="p12.5-exception-notification-from-acts">[ ] P12.5 Exception
+notification from Acts</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>On Night opened, halted (with reason) and closed: write the event to
+the Night Card first, then invoke the headless app post naming the
+Project.</li>
+<li>Fire and forget. Failure is logged to the Journal and never fails
+the Act or Night. No retry, acknowledgement, state or combined
+notification.</li>
+</ul></li>
+<li><strong>Spec</strong> —
+<code>morning-report/notify-the-operator-of-exceptions</code>;
+system-overview → Notification behaviour.</li>
+<li><strong>Gate</strong> — G-10.</li>
+<li><strong>Done when</strong> — With notifications disabled or the app
+missing, an Act completes and logs the failure.</li>
+</ul>
+<hr />
+<h2 id="phase-13-setup-operations-cli">Phase 13 — Setup &amp; operations
+CLI</h2>
+<h3 id="p13.1-yh-setup">[ ] P13.1 <code>yh setup</code></h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Interactive and non-interactive modes (<code>--init</code>,
+<code>--config &lt;path&gt;</code>).</li>
+<li>Generate the machine-wide file and per-Project files with
+defaults.</li>
+<li>Linear authorization, provisioning (P5.3), Linear project check or
+creation.</li>
+<li>Notification permission registration through the headless app.</li>
+<li>Routing warnings for entries with no fallback or a single CLI.</li>
+</ul></li>
+<li><strong>Spec</strong> — risks.md OQ13 Facet 1 and Facet 3;
+<code>bounds/bound-unanswered-nights</code> (defaults).</li>
+<li><strong>Done when</strong> — On a clean user account,
+<code>yh setup --init</code> produces a configuration that passes
+validation, and provisioning is idempotent.</li>
+</ul>
+<h3 id="p13.2-scheduled-job-generation">[ ] P13.2 Scheduled job
+generation</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Generate three <code>launchd</code> user LaunchAgents per Project
+(<code>com.summerhammer.yellowhammer.&lt;project&gt;.&lt;act&gt;.plist</code>)
+invoking <code>yh &lt;act&gt; --project &lt;id&gt;</code>, with
+staggered calendar intervals across Projects.</li>
+<li><code>--install-jobs</code> installs and loads them.
+<code>--export-jobs</code> writes plists or cron lines without
+installing.</li>
+<li>Confirm the invocation works under <code>launchd</code>’s bare
+environment (PATH to <code>git</code>, the CLIs and Orca ADE).</li>
+</ul></li>
+<li><strong>Spec</strong> — <code>shift-scheduling/overview</code>;
+risks.md OQ13, OQ44, OQ53.</li>
+<li><strong>Gate</strong> — G-7.</li>
+<li><strong>Done when</strong> — Installed jobs fire <code>yh</code> on
+a developer machine at the scheduled times, and the event log shows each
+Act.</li>
+</ul>
+<h3 id="p13.3-yh-doctor-yh-validate">[ ] P13.3 <code>yh doctor</code> /
+<code>yh validate</code></h3>
+<ul>
+<li><strong>Work</strong> — Validate configuration, run probes, check
+git repositories, verify Linear credentials, inspect
+<code>launchd</code> job status, detect orphaned LaunchAgents
+(<code>--fix</code> unloads and removes them after confirmation), and
+warn on routing entries with no fallback.</li>
+<li><strong>Spec</strong> — risks.md OQ13, OQ52 Face 1.</li>
+<li><strong>Done when</strong> — Each check has a passing and a failing
+fixture. An orphaned agent is found and removed.</li>
+</ul>
+<h3 id="p13.4-yh-status">[ ] P13.4 <code>yh status</code></h3>
+<ul>
+<li><strong>Work</strong> — Per Project, on demand: last Journal run,
+<code>launchd</code> job state, sleep and wake history, and a diagnosis
+of a missed Night (sleep, missing or disabled job, pre-initialization
+crash). No cross-Project verdict.</li>
+<li><strong>Spec</strong> — risks.md OQ12 Surface 3.</li>
+<li><strong>Done when</strong> — Each diagnosis is produced from a
+staged scenario.</li>
+</ul>
+<h3 id="p13.5-yh-project-remove-id">[ ] P13.5
+<code>yh project remove &lt;id&gt;</code></h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Refuse while an Act of that Project holds an active lease.</li>
+<li>Unload and delete the three LaunchAgents.</li>
+<li>Post a release comment on an in-flight Feature Issue. Never delete
+Linear issues.</li>
+<li>WIP-commit and push dirty Worktrees, then remove Worktrees through
+Orca ADE.</li>
+<li>Close any open Night in the Journal with reason
+<code>project_removed</code>. Keep the Journal file.</li>
+</ul></li>
+<li><strong>Spec</strong> — risks.md OQ52 Face 1.</li>
+<li><strong>Done when</strong> — A rehearsal Project is removed with
+every listed effect, and removal during a running Act is refused.</li>
+</ul>
+<hr />
+<h2 id="phase-14-yellowhammer-app">Phase 14 — Yellowhammer app</h2>
+<blockquote>
+<p>The app is a shell, never a host. A Night must run correctly with the
+app never opened or quit mid-Shift. It writes no Journal, holds no
+state, queue or triage step, and has no cross-Project view. Gates
+<strong>G-5</strong> and <strong>G-6</strong> must be closed before
+P14.4–P14.8.</p>
+</blockquote>
+<h3 id="p14.1-app-shell-and-project-scope">[ ] P14.1 App shell and
+Project scope</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>The app structure chosen in G-5.</li>
+<li>Project Selector showing configured Project names only (no badges,
+roll-up words or counts).</li>
+<li>Optional per-Project windows.</li>
+<li><code>yellowhammer://project/&lt;id&gt;</code> URL scheme.</li>
+</ul></li>
+<li><strong>Spec</strong> — risks.md OQ52 Face 2; ooux/nav-flow.md →
+Multi-Project Navigation.</li>
+<li><strong>Done when</strong> — The selector and deep link open the
+named Project. A UI test confirms no status is shown in the
+selector.</li>
+</ul>
+<h3 id="p14.2-setup-wizard">[ ] P14.2 Setup wizard</h3>
+<ul>
+<li><strong>Work</strong> — The app-side path for everything
+<code>yh setup</code> does (P13.1–P13.2), including notification
+permission status stated once, without nagging.</li>
+<li><strong>Spec</strong> — risks.md OQ13; system-overview →
+Notification behaviour.</li>
+<li><strong>Done when</strong> — A clean account is fully set up through
+the app alone.</li>
+</ul>
+<h3 id="p14.3-configuration-editing">[ ] P14.3 Configuration
+editing</h3>
+<ul>
+<li><strong>Work</strong> — Edit Projects, Repos, Spec Source (shown
+read-only as “read — this Project never writes it”), Bounds, base
+Routing Table and per-Project overrides, as TOML file edits that keep
+the file valid under P2.3. Direct TOML editing stays supported.</li>
+<li><strong>Spec</strong> — system-overview → Integration Map (app edits
+Routing Table); ooux/nav-flow.md → Setup; risks.md OQ51.</li>
+<li><strong>Done when</strong> — Edits made in the app round-trip
+through the loader. Invalid edits are refused with the loader’s
+message.</li>
+</ul>
+<h3 id="p14.4-agent-cli-detail-and-probe-trigger">[ ] P14.4 Agent CLI
+detail and Probe trigger</h3>
+<ul>
+<li><strong>Work</strong> — List declared CLIs with their latest Probe
+Result from the Ledger, and run a Probe on demand.</li>
+<li><strong>Spec</strong> — system-overview → Yellowhammer app;
+<code>routing/add-an-agent-cli</code>.</li>
+<li><strong>Done when</strong> — A Probe started from the app writes a
+Ledger row shown in the list.</li>
+</ul>
+<h3 id="p14.5-journal-reading-account-behind-a-card">[ ] P14.5 Journal
+reading (account behind a Card)</h3>
+<ul>
+<li><strong>Work</strong> — Read-only display of a Card’s account from
+its Project’s Journal (Attempts, Rounds, routes, Check output). Opening
+the Journal read-only is enforced.</li>
+<li><strong>Spec</strong> — system-overview → Yellowhammer app;
+<code>CLAUDE.md</code> → Read-only on every Journal.</li>
+<li><strong>Gate</strong> — G-6.</li>
+<li><strong>Done when</strong> — Opening a Journal in the app while an
+Act writes it causes no write conflict and no modification.</li>
+</ul>
+<h3 id="p14.6-status-view">[ ] P14.6 Status view</h3>
+<ul>
+<li><strong>Work</strong> — The app equivalent of <code>yh status</code>
+(P13.4) and <code>yh doctor</code> findings, per Project.</li>
+<li><strong>Spec</strong> — risks.md OQ12 Surface 3.</li>
+<li><strong>Done when</strong> — Staged scenarios give the same
+diagnoses as the CLI.</li>
+</ul>
+<h3 id="p14.7-recalibrate">[ ] P14.7 Recalibrate</h3>
+<ul>
+<li><strong>Work</strong> — For the active Project: view Bounds and this
+Night’s proximity, re-set Bounds, and start a rehearsal Night.</li>
+<li><strong>Spec</strong> — ooux/nav-flow.md → Global nav; risks.md OQ52
+Face 2.</li>
+<li><strong>Gate</strong> — G-6.</li>
+<li><strong>Done when</strong> — A rehearsal Night started from the app
+runs as a normal invocation that survives quitting the app.</li>
+</ul>
+<h3 id="p14.8-nav-flow-screens-the-app-owns">[ ] P14.8 Nav Flow screens
+the app owns</h3>
+<ul>
+<li><strong>Work</strong> — Build whichever of Night Card, Feature
+detail and Card detail G-6 assigns to the app, without making the app
+where a decision is recorded.</li>
+<li><strong>Spec</strong> — ooux/nav-flow.md; ooux/sketch-sheets.md;
+ooux/cta-matrix.md.</li>
+<li><strong>Gate</strong> — G-6.</li>
+<li><strong>Done when</strong> — Scope defined by G-6.</li>
+</ul>
+<h3 id="p14.9-shell-not-host-verification">[ ] P14.9 Shell-not-host
+verification</h3>
+<ul>
+<li><strong>Work</strong> — An automated check that runs a rehearsal
+Night with the app never launched, and another that quits the app
+mid-Act. Both Nights complete identically.</li>
+<li><strong>Spec</strong> — system-overview → Yellowhammer app (hard
+constraint).</li>
+<li><strong>Done when</strong> — Both runs produce equivalent Journals
+and Night Cards.</li>
+</ul>
+<hr />
+<h2 id="phase-15-rehearsal-environment-end-to-end-rehearsal">Phase 15 —
+Rehearsal environment &amp; end-to-end rehearsal</h2>
+<h3 id="p15.1-devops-scratch-linear-environment">[ ] P15.1
+<code>[DevOps]</code> Scratch Linear environment</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>One scratch Linear team shared by all rehearsing Projects, one
+scratch Linear project each.</li>
+<li>Provisioning run against it (P5.3).</li>
+<li>A cleanup procedure that archives scratch issues between rehearsal
+runs without touching provisioning.</li>
+<li>Scratch credentials stored per P5.1.</li>
+</ul></li>
+<li><strong>Spec</strong> — system-overview → Environments.</li>
+<li><strong>Done when</strong> — A rehearsal Project can run against the
+scratch team repeatedly and be reset.</li>
+</ul>
+<h3 id="p15.2-devops-throwaway-repositories-and-fixtures">[ ] P15.2
+<code>[DevOps]</code> Throwaway repositories and fixtures</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Scripted creation of throwaway local repositories (with local bare
+remotes) for a multi-repo Project, including a spec repository with
+addressable stories and goals.</li>
+<li>Fixture result files for architect, worker (success, failure,
+question), reviewer (approve, request changes) and verification.</li>
+<li>Scenario fixtures: predecessor merged or not, mainline moved or not,
+Transcription Block path touched, protected path, conflicting
+branch.</li>
+</ul></li>
+<li><strong>Spec</strong> — system-overview → What a story may assert
+against a rehearsal Night.</li>
+<li><strong>Done when</strong> — One command builds the full fixture set
+from nothing.</li>
+</ul>
+<h3 id="p15.3-rehearsal-scenario-suite">[ ] P15.3 Rehearsal scenario
+suite</h3>
+<ul>
+<li><strong>Work</strong> — Scripted end-to-end rehearsal Nights, each
+asserting only rehearsal-assertable properties:
+<ol type="1">
+<li>Idle first Night (no actionable spec).</li>
+<li>First Night authoring Feature 1 across three repos, build, land up
+to the rehearsal boundaries.</li>
+<li>Quiet Night: predecessor not merged; then merged; then partially
+merged.</li>
+<li>Mid-lane block with a Partial Landing announcement rendered.</li>
+<li>Waiting on You answered before landing; answered after landing
+(banked).</li>
+<li><code>unanswered_nights_max</code> firing with a value of 1.</li>
+<li>Engine invocation killed mid-Card, then reclaimed.</li>
+<li>Outbox replay after a killed run.</li>
+<li>Protected Path refusal.</li>
+<li>Divergence at dispatch; Adoption success and refusal.</li>
+<li>Cancelled Card and reopen.</li>
+<li>Two Projects concurrently on one Mac sharing the scratch team,
+showing no cross-Project reads or writes.</li>
+<li>Configuration with two conflicting Projects plus one valid
+Project.</li>
+</ol></li>
+<li><strong>Spec</strong> — system-overview → Environment Differences;
+every epic listed above.</li>
+<li><strong>Done when</strong> — The suite runs from a single command
+and passes on a developer machine.</li>
+</ul>
+<h3 id="p15.4-devops-rehearsal-suite-in-automation">[ ] P15.4
+<code>[DevOps]</code> Rehearsal suite in automation</h3>
+<ul>
+<li><strong>Work</strong> — Run P15.3 on a schedule on a self-hosted
+Apple Silicon runner with Orca ADE installed and scratch credentials
+available, or add it as a required manual release-checklist step when no
+such runner exists. Publish Journals and Night Card links as
+artifacts.</li>
+<li><strong>Done when</strong> — A failed scenario blocks the release
+checklist.</li>
+</ul>
+<hr />
+<h2 id="phase-16-release-engineering-first-production-night">Phase 16 —
+Release engineering &amp; first production Night</h2>
+<h3 id="p16.1-devops-signing-identity-and-secrets">[ ] P16.1
+<code>[DevOps]</code> Signing identity and secrets</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Provision the Developer ID Application certificate and a
+notarization credential (App Store Connect API key or equivalent) in the
+release machine’s keychain and in CI secrets.</li>
+<li>Document ownership, expiry dates and renewal.</li>
+</ul></li>
+<li><strong>Spec</strong> — stack.md → Distribution; feasibility probes
+→ Build and packaging.</li>
+<li><strong>Done when</strong> — The release job can sign and
+authenticate for notarization without manual input.</li>
+</ul>
+<h3 id="p16.2-devops-release-build-configuration">[ ] P16.2
+<code>[DevOps]</code> Release build configuration</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Release configuration of both targets: hardened runtime, Developer
+ID signing, <code>yh</code> embedded in <code>Contents/MacOS</code> with
+Code Sign On Copy, <code>yh</code> Info.plist embedded so codesign uses
+its bundle identifier.</li>
+<li>Final deployment target from G-2, applied equally to the project and
+the package.</li>
+<li>Versioning scheme: marketing version and build number set from the
+release tag in CI.</li>
+</ul></li>
+<li><strong>Spec</strong> — <code>CLAUDE.md</code> → Local choices
+(Build); stack.md → Platform Targets.</li>
+<li><strong>Gate</strong> — G-2.</li>
+<li><strong>Done when</strong> — A Release build from a tag carries the
+tag’s version in both the app and <code>yh</code>.</li>
+</ul>
+<h3 id="p16.3-devops-notarization-stapling-and-verification">[ ] P16.3
+<code>[DevOps]</code> Notarization, stapling and verification</h3>
+<ul>
+<li><strong>Work</strong> — A release job that: builds Release, signs,
+packages, submits for notarization, waits for the result, staples the
+ticket, and verifies with
+<code>codesign --verify --deep --strict</code>,
+<code>spctl --assess</code>, and <code>stapler validate</code>. It fails
+on any rejection and archives the notarization log.</li>
+<li><strong>Spec</strong> — stack.md → Distribution.</li>
+<li><strong>Done when</strong> — A tagged build produces a notarized,
+stapled artifact that passes all three checks.</li>
+</ul>
+<h3 id="p16.4-devops-packaging-and-distribution">[ ] P16.4
+<code>[DevOps]</code> Packaging and distribution</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Package the notarized <code>.app</code> for direct download (disk
+image or archive), with checksums.</li>
+<li>Publish release notes that list the spec commit the release was
+built against and the story IDs it covers.</li>
+<li>Host the download on the chosen direct-distribution channel.</li>
+</ul></li>
+<li><strong>Spec</strong> — stack.md → Distribution (direct, not Mac App
+Store).</li>
+<li><strong>Done when</strong> — A downloaded artifact installs on a
+clean Apple Silicon Mac with no Gatekeeper warning.</li>
+</ul>
+<h3 id="p16.5-devops-update-channel">[ ] P16.5 <code>[DevOps]</code>
+Update channel</h3>
+<ul>
+<li><strong>Work</strong> — Implement the update channel decided in
+G-14.</li>
+<li><strong>Gate</strong> — G-14.</li>
+<li><strong>Done when</strong> — Defined by G-14.</li>
+</ul>
+<h3 id="p16.6-devops-installed-product-verification">[ ] P16.6
+<code>[DevOps]</code> Installed-product verification</h3>
+<ul>
+<li><strong>Work</strong> — On a clean Apple Silicon Mac with the
+release artifact:
+<ol type="1">
+<li><code>Contents/MacOS/yh</code> runs under a bare environment.</li>
+<li>The headless notification post works from the installed bundle
+identity.</li>
+<li><code>launchd</code> jobs generated by
+<code>yh setup --install-jobs</code> fire the installed
+<code>yh</code>.</li>
+<li><code>yh doctor</code> passes with Orca ADE, at least one CLI and
+the production Linear identity.</li>
+<li>Quitting and never opening the app does not affect a scheduled
+Act.</li>
+</ol></li>
+<li><strong>Spec</strong> — feasibility probes → Build and packaging;
+risks.md OQ9, OQ53.</li>
+<li><strong>Done when</strong> — The checklist is completed and recorded
+for the release.</li>
+</ul>
+<h3 id="p16.7-release-checklist">[ ] P16.7 Release checklist</h3>
+<ul>
+<li><strong>Work</strong> — A written checklist run for every release:
+CI green; probe drift check (P7.5) green; rehearsal suite (P15.3/P15.4)
+green; notarization verified; installed-product verification (P16.6)
+done; release notes with spec commit and story IDs; spec conflicts from
+P1.1 checked for new answers.</li>
+<li><strong>Done when</strong> — The checklist is committed and used for
+the first release.</li>
+</ul>
+<h3 id="p16.8-first-production-night">[ ] P16.8 First production
+Night</h3>
+<ul>
+<li><strong>Work</strong>
+<ul>
+<li>Configure one real Project with its real repositories, real Linear
+project and real subscriptions.</li>
+<li>Confirm Bounds are set explicitly, with defaults treated as
+illustrative values.</li>
+<li>Install scheduled jobs. Let one full Night run unattended.</li>
+<li>In the morning, triage entirely from Linear. Record whether any
+terminal had to be opened: the one hard number in DR1 is zero.</li>
+<li>Record observations for the open threshold questions (G-13, G-15)
+without changing values in the same step.</li>
+</ul></li>
+<li><strong>Spec</strong> — DR1;
+<code>morning-report/triage-the-morning</code>; goals.md.</li>
+<li><strong>Done when</strong> — One production Night has run and been
+triaged from the board, and the observations are filed.</li>
+</ul>
+<hr />
+<h2 id="traceability-story-steps">Traceability: story → steps</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Story ID</th>
+<th>Steps</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>shift-scheduling/fire-an-act-on-schedule</code></td>
+<td>P4.1, P4.3, P3.2, P13.2, P8.1</td>
+</tr>
+<tr>
+<td><code>shift-scheduling/open-and-close-the-night-card</code></td>
+<td>P4.4, P5.7, P12.1</td>
+</tr>
+<tr>
+<td><code>shift-scheduling/do-one-acts-work-and-exit</code></td>
+<td>P4.2, P3.3</td>
+</tr>
+<tr>
+<td><code>loop-state/claim-and-heartbeat-a-run-lease</code></td>
+<td>P3.4, P8.4</td>
+</tr>
+<tr>
+<td><code>loop-state/reclaim-an-expired-lease</code></td>
+<td>P8.10, P6.8</td>
+</tr>
+<tr>
+<td><code>loop-state/reconcile-worktrees-at-act-start</code></td>
+<td>P6.8, P6.9, P6.6</td>
+</tr>
+<tr>
+<td><code>loop-state/record-failure-cause-recurrence</code></td>
+<td>P8.8</td>
+</tr>
+<tr>
+<td><code>board-projection/write-board-updates-through-the-outbox</code></td>
+<td>P5.4</td>
+</tr>
+<tr>
+<td><code>board-projection/read-board-changes-by-delta</code></td>
+<td>P5.5, P11.2, P11.3</td>
+</tr>
+<tr>
+<td><code>board-projection/maintain-the-managed-block</code></td>
+<td>P5.6, P12.3, P11.3</td>
+</tr>
+<tr>
+<td><code>board-projection/check-card-readiness-at-dispatch</code></td>
+<td>P8.2, P6.4</td>
+</tr>
+<tr>
+<td><code>routing/resolve-a-route-for-a-card</code></td>
+<td>P2.4, P7.6</td>
+</tr>
+<tr>
+<td><code>routing/exclude-tried-routes-on-retry</code></td>
+<td>P7.7</td>
+</tr>
+<tr>
+<td><code>routing/add-an-agent-cli</code></td>
+<td>P2.3, P7.2, P7.3, P7.4, P7.5</td>
+</tr>
+<tr>
+<td><code>feature-authoring/select-the-next-feature</code></td>
+<td>P9.1, P9.2, P9.3, P11.5, P11.6</td>
+</tr>
+<tr>
+<td><code>feature-authoring/author-the-cycle-and-card-dag</code></td>
+<td>P9.4, P11.5</td>
+</tr>
+<tr>
+<td><code>feature-authoring/author-citable-definitions-of-done</code></td>
+<td>P9.5, P9.7, P8.2</td>
+</tr>
+<tr>
+<td><code>feature-authoring/author-an-architectural-brief</code></td>
+<td>P9.6, P6.5, P8.2</td>
+</tr>
+<tr>
+<td><code>graph-execution/allocate-a-worktree-per-graph-and-repo</code></td>
+<td>P6.7</td>
+</tr>
+<tr>
+<td><code>graph-execution/run-a-card</code></td>
+<td>P7.1, P7.2, P8.4, P8.6, P8.7, P8.9</td>
+</tr>
+<tr>
+<td><code>graph-execution/gate-a-card-on-the-repository-check</code></td>
+<td>P2.3, P8.5</td>
+</tr>
+<tr>
+<td><code>graph-execution/handle-a-block-mid-graph</code></td>
+<td>P8.9, P10.4</td>
+</tr>
+<tr>
+<td><code>bounds/bound-review-rounds-and-attempts</code></td>
+<td>P8.6, P8.7</td>
+</tr>
+<tr>
+<td><code>bounds/bound-unanswered-nights</code></td>
+<td>P11.4, P2.3</td>
+</tr>
+<tr>
+<td><code>bounds/escalate-a-question-to-the-operator</code></td>
+<td>P11.1, P11.2, P5.8</td>
+</tr>
+<tr>
+<td><code>bounds/refuse-protected-paths-before-dispatch</code></td>
+<td>P8.3</td>
+</tr>
+<tr>
+<td><code>landing/open-one-pull-request-per-repository</code></td>
+<td>P10.1, P10.2, P10.3, P10.4</td>
+</tr>
+<tr>
+<td><code>landing/announce-a-partial-landing</code></td>
+<td>P10.4, P10.8, P6.2</td>
+</tr>
+<tr>
+<td><code>verification/verify-a-feature-clause-by-clause</code></td>
+<td>P10.5</td>
+</tr>
+<tr>
+<td><code>verification/return-a-feature-with-unmet-clauses</code></td>
+<td>P10.6</td>
+</tr>
+<tr>
+<td><code>verification/archive-the-cycle-on-a-verified-feature</code></td>
+<td>P10.7</td>
+</tr>
+<tr>
+<td><code>morning-report/write-the-night-summary</code></td>
+<td>P12.1</td>
+</tr>
+<tr>
+<td><code>morning-report/report-the-instrumented-rates</code></td>
+<td>P12.2</td>
+</tr>
+<tr>
+<td><code>morning-report/notify-the-operator-of-exceptions</code></td>
+<td>P12.4, P12.5</td>
+</tr>
+<tr>
+<td><code>morning-report/triage-the-morning</code></td>
+<td>P10.8, P10.9, P12.3, P16.8</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>

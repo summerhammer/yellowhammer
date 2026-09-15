@@ -4,9 +4,9 @@ import PackageDescription
 let package = Package(
     name: "YellowhammerKit",
     platforms: [
-        // Provisional floor, must match the Xcode project's MACOSX_DEPLOYMENT_TARGET;
-        // the real rule is "the higher of Orca ADE's minimum and the SwiftUI APIs used".
-        .macOS("26.5")
+        // Must match the Xcode project's MACOSX_DEPLOYMENT_TARGET. macOS 26.0 is the higher of
+        // Orca ADE's 12.0 minimum and the APIs the app may use: spec Decision Gates Ruling, G-2.
+        .macOS("26.0")
     ],
     products: [
         .library(name: "Domain", targets: ["Domain"]),

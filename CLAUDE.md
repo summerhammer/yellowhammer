@@ -12,7 +12,8 @@ Linux surface, now or planned.
 
 - **App** — the GUI. Machine-wide scope. A bounded local control surface.
 - **Engine** — short-lived `author | build | land` invocations, each scoped to exactly
-  one Project and fired by an Orca ADE Automation. Not a daemon.
+  one Project and fired by a `launchd` LaunchAgent (or cron) that setup generates. Not a
+  daemon.
 
 Yellowhammer never writes a line of code, and it never merges to main.
 
@@ -58,7 +59,8 @@ gap in the spec, so raise it.
   spelling is load-bearing.
 - `Card`, `Cycle` and `Worktree` are borrowed words whose Yellowhammer meanings are
   deliberately **narrower** than the tools they come from — read those three glossary
-  entries first. A `Cycle` is a Linear **milestone**, not a Linear cycle.
+  entries first. A `Cycle` is neither a Linear cycle nor a milestone: its Cards are native
+  sub-issues (`parentId`) of the Feature Issue.
 - **Round is not Attempt.** A review asking for changes is a new *Round* (same worker,
   same worktree). An *Attempt* ends only on hard failure and re-dispatches on a
   different route. Conflating them makes "3 attempts, 2 rounds" incoherent.
@@ -80,7 +82,7 @@ These are rulings, not preferences. Violating one is a defect.
 - **Nothing resident.** No daemon, no background service, no timer, no in-memory cache,
   no background watcher. Anything that must outlive a tick is written to the Journal or
   it does not exist.
-- **Never schedules.** Orca ADE owns all scheduling.
+- **Never schedules.** `launchd` (or cron) owns all scheduling; Orca ADE owns Worktrees only.
 - **Notifications are fire-and-forget.** No acknowledgement, no retry, no state. Never
   branch behavior on whether one was delivered; never nag, and never treat a revoked
   setting as a fault.
@@ -95,11 +97,12 @@ Four Ports, named exactly: **Board** (Linear), **Workspace** (Orca ADE), **Dispa
 - Vendor identifiers may cross a Port as opaque values. Vendor types, error shapes and
   query languages may not.
 - **Do not protocol-wrap everything** — "Ports everywhere" was explicitly rejected.
-  Apple frameworks (macOS Notification Center included) and the Journal are used
-  directly, in Apple's idiom.
+  Apple frameworks (macOS Notification Center included), the Journal, the Ledger and
+  local git are used directly. Local git is the `git` executable run from a concrete
+  Yellowhammer-owned module and tested against fixture repositories, not behind a Port.
 
-State ownership, no overlap: Linear owns intent; Orca ADE owns workspaces and
-scheduling; the local SQLite **Journal** owns loop state, one per Project; the
+State ownership, no overlap: Linear owns intent; Orca ADE owns Worktrees; `launchd`
+owns scheduling; the local SQLite **Journal** owns loop state, one per Project; the
 **Ledger** owns machine-scoped state, one per machine. Nothing a single Project owns
 moves into the Ledger. An engine invocation is scoped to one Project and has no handle
 on its siblings. A Repo belongs to exactly one Project; declaring it twice is invalid
@@ -115,11 +118,11 @@ Attempt is Crashed-Unknown, is consumed, and does not exclude its route.
 Swift Testing (`@Test` / `#expect`), not XCTest. Repo-local choice; the spec names neither.
 
 `../yellowhammer-spec/docs/tech/system-overview.md` constrains what may be asserted.
-Read it before writing tests for engine behavior. **Do not write tests asserting** the
-two machine-wide Bounds' arithmetic, anything model-authored (diffs, review verdicts,
+Read it before writing tests for engine behavior. (There are no machine-wide Bounds;
+the per-Project Bounds' arithmetic *is* assertable.) **Do not write tests asserting**
+anything model-authored (diffs, review verdicts,
 Architectural Briefs, authored DoD, conflict resolution), the engine-run Check, push,
-PR creation or body, Cost Source provenance, or attempt-completion behavior on crash
-and kill. A fixture green is not a green.
+PR creation or body, or attempt-completion behavior on crash and kill. A fixture green is not a green.
 
 Three environments only — Development, Rehearsal, Production. There is no staging or
 sandbox environment. A rehearsal Night stops at exactly three boundaries: it never
@@ -147,8 +150,8 @@ optimisation.
     `xcodebuild -project Yellowhammer.xcodeproj -scheme Yellowhammer build`.
   - Edit `.pbxproj` only for build settings. Adding targets, package products or
     capabilities is done in Xcode by a human.
-- **Names.** The command is `yh` — its subcommands are the Acts, and they get typed
-  into Orca Automations by hand, so they are a contract. A module is named after the
+- **Names.** The command is `yh` — its subcommands are the Acts, and they are written
+  into every generated LaunchAgent, so they are a contract. A module is named after the
   glossary term it holds, and vendor code is named `<Vendor>Adapter` (`LinearAdapter`,
   `OrcaADEAdapter`, `GitHubAdapter`, `CLIAdapters`). No module is named after a Port
   (Apple already has a `Dispatch` module), and no type shares its module's name. TOML
@@ -158,22 +161,34 @@ optimisation.
   `EngineCommand` wires adapters in. The app never links `Engine` (shell, not host).
   `Journal` and `Ledger` are separate modules (ADR-003).
 
-## Open decisions — raise them, do not invent them
+## Decided — read the ruling, do not re-open
 
-- **Minimum macOS version** is a rule, not a digit: the higher of Orca ADE's own
-  minimum and the SwiftUI APIs actually used. `26.5` is **provisional**. It appears in
-  two places, which must stay equal: `MACOSX_DEPLOYMENT_TARGET` in the project and
-  `platforms` in `Package.swift`.
-- **How an Orca Automation invokes an executable inside a signed `.app` bundle** is
-  `TBD`, to be closed by an empirical probe. `Contents/MacOS/yh` is provisional. The
-  same probe should settle whether `yh` can post to Notification Centre as it stands
-  or needs a helper `.app` — and whether `yh` must go on `PATH`, where it would clash
-  with Homebrew's `yh` formula.
-- **Whether local git sits behind a Port** is `TBD` (ADR-001). Do not force it either way.
-- Also unspecified: on-disk paths for the Journal, Ledger and Routing Table TOML;
-  SQLite DDL and migrations; window versus menu-bar app; and which Nav Flow screens the
-  app owns versus Linear. The spec's glossary has no entry for *Engine* or
-  *Yellowhammer app*.
+The spec's Decision Gates Ruling (`../yellowhammer-spec/docs/requirements/vision/risks.md`,
+`#decision-gates-ruling-2026-09-15`) closed the decisions this section used to list. Read it
+there; the repo-local consequences are:
+
+- **Minimum macOS is 26.0.** It appears in two places, which must stay equal:
+  `MACOSX_DEPLOYMENT_TARGET` in the project and `platforms` in `Package.swift` (CI checks).
+- **Scheduling is `launchd`**, and `yh` runs from `Contents/MacOS`. `yh` does not post
+  notifications itself: it launches `Yellowhammer.app` headless with
+  `--post-notification`.
+- **Local git is not behind a Port** (see Architecture). Needs `git` 2.38 or later.
+- **Schema migrations are GRDB `DatabaseMigrator`s, forward-only, owned by the engine.**
+  The Journal and the Ledger each have their own migrator in their own module. A
+  migration, once shipped, is never edited or reordered. The engine migrates on open;
+  the app opens every store read-only, never migrates, and refuses to read a store whose
+  schema is newer than it knows. Never use `eraseDatabaseOnSchemaChange` outside tests.
+- **The app is a window app**: no `MenuBarExtra`, no login item, no background updater.
+  Its screens are Setup, Recalibrate, the read-only Journal account behind a Card, and
+  Status; every decision screen is Linear's. Updates are Sparkle 2, user-initiated.
+- On-disk paths, the `[schedule]` and `[limits]` keys and their defaults are in the
+  spec's ruling and `docs/tech/stack.md` — read them there, do not restate them here.
+
+## Still open — raise them, do not invent them
+
+- **Probes owed before the code that depends on them:** Linear exposing a threaded
+  reply's parent comment to the Delta Read (G-8), and the settle workflow-state group's
+  names, collisions and interaction with the Feature Issue's other states (G-6).
 - **Brand is entirely unfilled.** `../yellowhammer-spec/docs/brand/*.md` are
   unpopulated templates — the hex values are `#000000` placeholders and no fonts are
   chosen. The one real artifact is the semantic text-style table, which maps 1:1 onto
