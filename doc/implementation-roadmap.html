@@ -56,6 +56,13 @@ marked <em>(parallel with …)</em>.</li>
 define it.</li>
 <li><strong>Done when</strong> — how you can check the step is
 complete.</li>
+<li><strong>Agent</strong> — recommended Claude Code implementor model
+and effort (<code>Fable 5.1 High</code>, <code>Fable 5.1 Medium</code>,
+<code>Opus 5 Medium</code>, <code>Sonnet 5 Medium</code>). Open steps
+only. Fable for steps where lease, transaction, ancestry or
+state-machine correctness is the work; Opus for bounded adapters, CLI
+surfaces and app screens; Sonnet for scripted <code>[DevOps]</code>
+steps.</li>
 </ul></li>
 <li><strong>Every acceptance criterion in a cited story is part of
 “done”.</strong> A “Done when” line picks out the key checks. It does
@@ -530,7 +537,7 @@ by OQ8/OQ10/OQ19, and Linear’s request budget (the app identity’s is
 </ul>
 <hr />
 <h2 id="phase-2-configuration">Phase 2 — Configuration</h2>
-<h3 id="p2.1-machine-wide-configuration-file">[ ] P2.1 Machine-wide
+<h3 id="x-p2.1-machine-wide-configuration-file">[x] P2.1 Machine-wide
 configuration file</h3>
 <ul>
 <li><strong>Work</strong>
@@ -549,10 +556,11 @@ default GitHub credentials.</li>
 <code>routing/overview</code>; system-overview → CLI Adapters and the
 Routing Table.</li>
 <li><strong>Gate</strong> — G-3.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Valid fixture files load into typed
 configuration. Each malformed fixture gives a precise error.</li>
 </ul>
-<h3 id="p2.2-per-project-configuration-files">[ ] P2.2 Per-Project
+<h3 id="x-p2.2-per-project-configuration-files">[x] P2.2 Per-Project
 configuration files</h3>
 <ul>
 <li><strong>Work</strong>
@@ -577,6 +585,7 @@ recognised.</li>
 <code>graph-execution/gate-a-card-on-the-repository-check</code>.</li>
 <li><strong>Gates</strong> — G-13 (default value only), G-16 (key names
 for the three unnamed bounds).</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Fixture Projects load with defaults
 applied where keys are absent and allowed.</li>
 </ul>
@@ -606,6 +615,7 @@ paths).</li>
 <code>routing/add-an-agent-cli</code>;
 <code>feature-authoring/overview</code> → Business Rules;
 <code>graph-execution/gate-a-card-on-the-repository-check</code>.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — A fixture matrix covers every rule,
 including “two conflicting Projects refused, third Project loads”.</li>
 </ul>
@@ -622,6 +632,7 @@ fallbacks included.</li>
 <li><strong>Spec</strong> — <code>routing/overview</code>;
 <code>routing/resolve-a-route-for-a-card</code>; Machine Scope Ruling
 (risks.md).</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Fixtures prove that an override
 replaces the base entry and its fallbacks, and that non-overridden
 entries pass through.</li>
@@ -640,6 +651,7 @@ an Act.</li>
 </ul></li>
 <li><strong>Spec</strong> — risks.md OQ13 Facet 2; OQ52 Face 1 (orphaned
 LaunchAgents fail fast).</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Both cases are covered by CLI tests
 that assert exit code and message.</li>
 </ul>
@@ -675,6 +687,7 @@ from each Card’s repository label.</li>
 <code>feature-authoring/author-citable-definitions-of-done</code>;
 risks.md OQ52 (Journal path, never deleted by the product).</li>
 <li><strong>Gates</strong> — G-3, G-4.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — A Journal is created for a fixture
 Project. Migrations run from an empty file to the current version. A
 second Project gets a separate file.</li>
@@ -692,6 +705,7 @@ corrupt state (single writer plus leases).</li>
 <li><strong>Spec</strong> —
 <code>shift-scheduling/fire-an-act-on-schedule</code>;
 <code>loop-state/claim-and-heartbeat-a-run-lease</code>; ADR-002.</li>
+<li><strong>Agent</strong> — Fable 5.1 High.</li>
 <li><strong>Done when</strong> — Tests run two overlapping same-Project
 invocations and show no corruption. The engine has no API that addresses
 a second Project’s Journal.</li>
@@ -712,6 +726,7 @@ reclaims.</li>
 <li><strong>Spec</strong> —
 <code>shift-scheduling/do-one-acts-work-and-exit</code>; risks.md OQ12,
 OQ13; system-overview → Integration Map.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Each named event type is appended by at
 least one code path under test. The table refuses updates and
 deletes.</li>
@@ -734,6 +749,7 @@ Project.</li>
 <code>loop-state/claim-and-heartbeat-a-run-lease</code>; system-overview
 → Sleep hazard.</li>
 <li><strong>Gate</strong> — G-15 (values).</li>
+<li><strong>Agent</strong> — Fable 5.1 High.</li>
 <li><strong>Done when</strong> — Rehearsal-assertable tests show claim,
 heartbeat, expiry, and refusal of a second claim while unexpired.</li>
 </ul>
@@ -750,6 +766,7 @@ column.</li>
 <li><strong>Spec</strong> — ADR-003;
 <code>routing/add-an-agent-cli</code>; risks.md OQ47, OQ48.</li>
 <li><strong>Gates</strong> — G-3, G-4.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Two concurrent invocations for
 different Projects write Probe Results without conflict. The schema has
 no table beyond Probe Result history.</li>
@@ -777,6 +794,7 @@ never a build configuration or scheme).</li>
 authoring); risks.md OQ52 Face 2 (gestures); <code>CLAUDE.md</code> →
 Names.</li>
 <li><strong>Gate</strong> — G-12 (term naming).</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Each subcommand parses, loads
 configuration for exactly one Project, and exits.</li>
 </ul>
@@ -795,6 +813,7 @@ Worktree paths from the Journal alone.</li>
 <code>shift-scheduling/do-one-acts-work-and-exit</code>;
 <code>CLAUDE.md</code> → What the app must not do (Nothing
 resident).</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Tests kill an invocation mid-Act and
 show that the next invocation reconstructs state from the Journal
 only.</li>
@@ -815,6 +834,7 @@ unfinished Cards. Cancelled Cards do not count as unfinished.</li>
 <li><strong>Spec</strong> —
 <code>shift-scheduling/fire-an-act-on-schedule</code>; risks.md OQ13
 Facet 2.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Journal fixtures cover each predicate
 in both directions.</li>
 </ul>
@@ -832,6 +852,7 @@ Project’s next Night.</li>
 <li><strong>Spec</strong> —
 <code>shift-scheduling/open-and-close-the-night-card</code>; risks.md
 OQ52 Face 2 (Night carries <code>project_id</code>).</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Journal tests cover open, close, and
 “opened and died” detection.</li>
 </ul>
@@ -851,6 +872,7 @@ and never auto-Block for them.</li>
 <code>bounds/bound-unanswered-nights</code>.</li>
 <li><strong>Depends on</strong> — the schedule representation from
 P13.2.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Fixtures with missed intervals produce
 the event and no bound change.</li>
 </ul>
@@ -873,6 +895,7 @@ keychain token reference only.</li>
 is its own subsystem concern</em>; feasibility probes → Linear (Identity
 &amp; notifications); risks.md OQ13 (keychain token reference),
 OQ49.</li>
+<li><strong>Agent</strong> — Sonnet 5 Medium.</li>
 <li><strong>Done when</strong> — A token for the app identity can be
 obtained from each workspace, and a comment it writes triggers the
 Operator’s inbox notification.</li>
@@ -893,6 +916,7 @@ Port.</li>
 </ul></li>
 <li><strong>Spec</strong> — ADR-001; stack.md → Board access;
 feasibility probes → Linear.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Adapter tests against the scratch
 workspace read a Linear project’s issues. Nothing outside the adapter
 refers to a Linear type.</li>
@@ -916,6 +940,7 @@ changed.</li>
 </ul></li>
 <li><strong>Spec</strong> — risks.md OQ2, OQ13 Facet 1;
 board-projection/overview; feasibility probes → Linear (A16, A17).</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Running provisioning twice against the
 scratch team changes nothing the second time. A label-name collision is
 reported and not overwritten.</li>
@@ -959,6 +984,7 @@ board.</li>
 <code>board-projection/write-board-updates-through-the-outbox</code>;
 <code>board-projection/maintain-the-managed-block</code>; risks.md
 OQ56.</li>
+<li><strong>Agent</strong> — Fable 5.1 High.</li>
 <li><strong>Done when</strong> — Rehearsal-assertable tests: replay
 after a killed run creates no duplicate issue or comment; a stale-lease
 write never reaches Linear; broken delimiters abort safely; a forced
@@ -986,6 +1012,7 @@ reads, and record a workspace-wide degradation event.</li>
 <li><strong>Spec</strong> —
 <code>board-projection/read-board-changes-by-delta</code>; risks.md
 OQ55.</li>
+<li><strong>Agent</strong> — Fable 5.1 High.</li>
 <li><strong>Done when</strong> — Scratch-team tests show a human comment
 and a state change picked up by one request. A sibling Project’s Card in
 the same team is never selected.</li>
@@ -1013,6 +1040,7 @@ where cancellation is read.</li>
 <li><strong>Spec</strong> —
 <code>board-projection/maintain-the-managed-block</code> (first
 story).</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal tests show hash-skip,
 label-group exclusivity, and no writes to a Cancelled Card.</li>
 </ul>
@@ -1036,6 +1064,7 @@ verdict.</li>
 <li><strong>Spec</strong> —
 <code>shift-scheduling/open-and-close-the-night-card</code>; DR7;
 risks.md OQ13 Facet 2.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal Night against the scratch
 team: one Night Card opens and closes; a killed-and-resumed Act leaves
 exactly one.</li>
@@ -1057,6 +1086,7 @@ anomaly on the Night Card, and never dispatch it.</li>
 <li><strong>Spec</strong> — board-projection/overview;
 <code>bounds/escalate-a-question-to-the-operator</code>; glossary →
 Cancelled.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal tests cover each transition
 and the anomaly case.</li>
 </ul>
@@ -1082,6 +1112,7 @@ record <code>MainlineFetchFailed</code>.</li>
 </ul></li>
 <li><strong>Spec</strong> — system-overview → Integration Map (Engine →
 Configured repositories); risks.md OQ19.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Fixture repos cover fetch success,
 fetch failure with fallback, and a Spec Source that is never
 fetched.</li>
@@ -1096,6 +1127,7 @@ repositories.</li>
 <code>feature-authoring/select-the-next-feature</code>
 (predecessor-ancestry story);
 <code>landing/announce-a-partial-landing</code>.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Fixture repositories with and without
 the branch merged give the right verdict, with no network access.</li>
 </ul>
@@ -1108,6 +1140,7 @@ GitHub. Return clean, or conflicting with the conflicting paths.</li>
 <li><strong>Spec</strong> —
 <code>landing/open-one-pull-request-per-repository</code>; glossary →
 Mainline Conflict.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Fixture repos where mainline has and
 has not moved give the right verdict. The working tree and refs are
 unchanged afterwards.</li>
@@ -1122,6 +1155,7 @@ path-scoped diff per Card per foreign repository.</li>
 <li><strong>Spec</strong> —
 <code>board-projection/check-card-readiness-at-dispatch</code>; risks.md
 OQ24.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Fixture repos cover touched, untouched
 and renamed-path cases, with no network.</li>
 </ul>
@@ -1144,6 +1178,7 @@ configuration.</li>
 <code>feature-authoring/author-an-architectural-brief</code>;
 <code>feature-authoring/author-citable-definitions-of-done</code>;
 risks.md OQ51.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Fixture spec repos resolve valid IDs,
 reject missing ones, and a path in another Project’s repo is
 refused.</li>
@@ -1166,6 +1201,7 @@ otherwise the machine default.</li>
 <code>loop-state/reconcile-worktrees-at-act-start</code>;
 <code>landing/open-one-pull-request-per-repository</code>;
 system-overview → Engine → GitHub; risks.md OQ45.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Fixture repos cover WIP commit
 idempotency, reset, and each push outcome (push itself is not asserted
 in rehearsal).</li>
@@ -1189,6 +1225,7 @@ new allocation.</li>
 <li><strong>Spec</strong> —
 <code>graph-execution/allocate-a-worktree-per-graph-and-repo</code>;
 feasibility probes → Orca ADE; risks.md OQ57.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal-assertable: a three-repo
 fixture Feature holds three Worktrees whose names match their Feature
 Branches.</li>
@@ -1202,6 +1239,7 @@ inspects, commits or resets the Worktree.</li>
 <li><strong>Spec</strong> —
 <code>loop-state/reconcile-worktrees-at-act-start</code>;
 <code>loop-state/reclaim-an-expired-lease</code>.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — A test process left with its cwd in a
 fixture Worktree is terminated, and reconciliation waits for
 quiescence.</li>
@@ -1228,6 +1266,7 @@ may be a sibling Project’s.</li>
 </ul></li>
 <li><strong>Spec</strong> —
 <code>loop-state/reconcile-worktrees-at-act-start</code>; TD2.</li>
+<li><strong>Agent</strong> — Fable 5.1 High.</li>
 <li><strong>Done when</strong> — Rehearsal tests cover a ghost path, a
 dirty worktree, a sibling Project’s worktree, and idempotency.</li>
 </ul>
@@ -1252,6 +1291,7 @@ feedback).</li>
 <code>bounds/escalate-a-question-to-the-operator</code>;
 <code>feature-authoring/author-the-cycle-and-card-dag</code> (adoption
 payload); routing/overview (the CLI owns execution).</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Schemas validate the fixture files. An
 empty or malformed file fails validation.</li>
 </ul>
@@ -1275,6 +1315,7 @@ files.</li>
 <li><strong>Spec</strong> — <code>graph-execution/run-a-card</code>;
 <code>routing/add-an-agent-cli</code>; risks.md OQ57; system-overview →
 Integration Map (CLI Adapters → Agent CLIs).</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Tests with a stub executable cover
 clean exit, exit 0 with empty file, <code>SIGTERM</code> and
 <code>SIGKILL</code> with orphaned children, and rehearsal fixtures.
@@ -1295,6 +1336,7 @@ permission mode or sandbox flags as each CLI requires);</li>
 </ul></li>
 <li><strong>Spec</strong> — <code>routing/add-an-agent-cli</code>;
 feasibility probes → Agent CLIs.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Each adapter passes its Probe (P7.4) on
 a developer machine.</li>
 </ul>
@@ -1320,6 +1362,7 @@ exists.</li>
 </ul></li>
 <li><strong>Spec</strong> — <code>routing/add-an-agent-cli</code>;
 ADR-003; risks.md OQ48.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Probes run on the developer machine for
 <code>claude</code> and <code>codex</code> and write Ledger rows. A
 deliberately broken adapter stub is excluded from routing with a
@@ -1337,6 +1380,7 @@ pinned and the latest CLI versions and fails loudly on drift.</li>
 </ul></li>
 <li><strong>Spec</strong> — R11; <code>routing/add-an-agent-cli</code>
 (re-running the probe detects drift).</li>
+<li><strong>Agent</strong> — Sonnet 5 Medium.</li>
 <li><strong>Done when</strong> — Drift in a CLI’s output format turns
 the job red before a release ships.</li>
 </ul>
@@ -1362,6 +1406,7 @@ inferred.</li>
 <code>routing/resolve-a-route-for-a-card</code>; risks.md OQ13 Facet
 3.</li>
 <li><strong>Gate</strong> — G-17.</li>
+<li><strong>Agent</strong> — Fable 5.1 High.</li>
 <li><strong>Done when</strong> — Rehearsal-assertable tests cover each
 precedence rule, fallback walk, probe exclusion and the zero-candidate
 block.</li>
@@ -1387,6 +1432,7 @@ P12.2).</li>
 <li><strong>Spec</strong> —
 <code>routing/exclude-tried-routes-on-retry</code>; risks.md OQ13 Facet
 3.</li>
+<li><strong>Agent</strong> — Fable 5.1 High.</li>
 <li><strong>Done when</strong> — Rehearsal-assertable tests cover each
 classification.</li>
 </ul>
@@ -1409,6 +1455,7 @@ authored order.</li>
 </ol></li>
 <li><strong>Spec</strong> — <code>graph-execution/overview</code>;
 <code>shift-scheduling/fire-an-act-on-schedule</code>.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — A rehearsal build Act over a fixture
 Feature performs the steps in order, as recorded in the event log.</li>
 </ul>
@@ -1440,6 +1487,7 @@ failure is reported on the Card, and the lane moves on.</li>
 <code>feature-authoring/author-citable-definitions-of-done</code>
 (second story);
 <code>feature-authoring/author-an-architectural-brief</code>.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal tests cover each failure
 kind, the Divergence route, the voided stamp, and untagged clause
 minting.</li>
@@ -1459,6 +1507,7 @@ and not a sandbox.</li>
 </ul></li>
 <li><strong>Spec</strong> —
 <code>bounds/refuse-protected-paths-before-dispatch</code>; R3.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal tests show refusal with no
 dispatch. The limitation text appears in user-facing copy.</li>
 </ul>
@@ -1479,6 +1528,7 @@ ends successfully.</li>
 <li><strong>Spec</strong> — <code>graph-execution/run-a-card</code>
 (first story); <code>graph-execution/overview</code> (roles are
 internals of a run, not actors).</li>
+<li><strong>Agent</strong> — Fable 5.1 High.</li>
 <li><strong>Done when</strong> — A rehearsal run over fixture result
 files takes a Card from Ready to done, with every step recorded. Model
 output and the Check result are not asserted.</li>
@@ -1501,6 +1551,7 @@ documented.</li>
 <li><strong>Spec</strong> —
 <code>graph-execution/gate-a-card-on-the-repository-check</code>;
 DR5.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Wiring tests show the Check runs
 between worker and reviewer and a failure opens a <code>check</code>
 Round. The Check result itself is not asserted in rehearsal.</li>
@@ -1522,6 +1573,7 @@ blocked by check from blocked by reviewer.</li>
 <li><strong>Spec</strong> — <code>graph-execution/run-a-card</code>
 (second story);
 <code>bounds/bound-review-rounds-and-attempts</code>.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal-assertable bound arithmetic
 with small configured values.</li>
 </ul>
@@ -1540,6 +1592,7 @@ failed routes from two reboots.</li>
 <li><strong>Spec</strong> — <code>graph-execution/run-a-card</code>
 (third story); <code>bounds/bound-review-rounds-and-attempts</code>;
 system-overview → Interruption.</li>
+<li><strong>Agent</strong> — Fable 5.1 High.</li>
 <li><strong>Done when</strong> — Rehearsal-assertable tests cover
 both-budgets rule and consumption accounting.</li>
 </ul>
@@ -1557,6 +1610,7 @@ correlate across Projects.</li>
 </ul></li>
 <li><strong>Spec</strong> —
 <code>loop-state/record-failure-cause-recurrence</code>.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal tests over multiple Nights
 promote on recurrence, not on first occurrence.</li>
 </ul>
@@ -1578,6 +1632,7 @@ Reopening restores it with no budget reset.</li>
 <li><strong>Spec</strong> —
 <code>graph-execution/handle-a-block-mid-graph</code>;
 <code>graph-execution/run-a-card</code> (fourth story).</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal tests: a lane continues past
 a block; cancel and reopen round-trips with counters unchanged.</li>
 </ul>
@@ -1599,6 +1654,7 @@ Outbox.</li>
 <li><strong>Spec</strong> —
 <code>loop-state/reclaim-an-expired-lease</code>.</li>
 <li><strong>Gate</strong> — G-15 (values only).</li>
+<li><strong>Agent</strong> — Fable 5.1 High.</li>
 <li><strong>Done when</strong> — A rehearsal kills a real engine
 invocation mid-Card; the next build Act reclaims within the TTL, with
 the right classification.</li>
@@ -1612,6 +1668,7 @@ opens a pull request. It still writes to Linear, allocates real
 Worktrees, uses the real Ledger, and never commits into a Worktree.</li>
 <li><strong>Spec</strong> — system-overview → Environment
 Differences.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — A rehearsal build Act leaves no process
 spawn of any agent CLI and no push in its event log.</li>
 </ul>
@@ -1634,6 +1691,7 @@ naming the Feature.</li>
 <li><strong>Spec</strong> —
 <code>feature-authoring/select-the-next-feature</code>; risks.md OQ13
 Facet 2.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal tests cover each quiet-Night
 reason, each recorded on the Night Card.</li>
 </ul>
@@ -1659,6 +1717,7 @@ post-merge closure (P10.8).</li>
 <li><strong>Spec</strong> —
 <code>feature-authoring/select-the-next-feature</code> (third story);
 <code>landing/overview</code>.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Fixture repositories with and without
 the predecessor merged give the right result. Pure local git, no model,
 no network.</li>
@@ -1685,6 +1744,7 @@ contract from a repository outside this Project.</li>
 <li><strong>Spec</strong> —
 <code>feature-authoring/select-the-next-feature</code> (first, second
 and fourth stories).</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Wiring tests show selection results are
 recorded and refusals produce Waiting on You with no dispatch. The
 quality of the selection itself is not asserted.</li>
@@ -1711,6 +1771,7 @@ failure, record it on the Night Card.</li>
 <li><strong>Spec</strong> —
 <code>feature-authoring/author-the-cycle-and-card-dag</code> (first
 story); risks.md OQ54.</li>
+<li><strong>Agent</strong> — Fable 5.1 High.</li>
 <li><strong>Done when</strong> — Rehearsal tests: a forced failure
 mid-transaction leaves no issues; a resumed author Act creates no
 duplicates; Cards appear nested under the Feature Issue.</li>
@@ -1735,6 +1796,7 @@ roll-up reads <code>needs you</code>.</li>
 <li><strong>Spec</strong> —
 <code>feature-authoring/author-citable-definitions-of-done</code>; DR4;
 risks.md TD8, OQ18.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal tests check the clause line
 format, the Journal rows, and the thin-spec refusal path. Clause content
 is not asserted.</li>
@@ -1755,6 +1817,7 @@ on You, naming the repository.</li>
 </ul></li>
 <li><strong>Spec</strong> —
 <code>feature-authoring/author-an-architectural-brief</code>.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal tests check the block format
 and provenance fields. Brief content is not asserted.</li>
 </ul>
@@ -1774,6 +1837,7 @@ with Block Reason <code>unanswered</code>; the roll-up follows to
 <li><strong>Spec</strong> —
 <code>feature-authoring/author-citable-definitions-of-done</code>
 (second story); glossary → Refusal.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal bound arithmetic with a small
 configured value.</li>
 </ul>
@@ -1789,6 +1853,7 @@ Verification (P10.5); return (P10.6) or archive (P10.7); write back. The
 land Act fires once per Cycle, and no lane reopens after it.</li>
 <li><strong>Spec</strong> — <code>landing/overview</code>; risks.md
 OQ8.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — A rehearsal land Act runs each step up
 to the rehearsal boundaries.</li>
 </ul>
@@ -1807,6 +1872,7 @@ recorded and reported on the Feature card, naming the repository.</li>
 </ul></li>
 <li><strong>Spec</strong> —
 <code>landing/open-one-pull-request-per-repository</code>.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Wiring tests on local bare remotes
 cover each outcome. GitHub push is not asserted in rehearsal.</li>
 </ul>
@@ -1819,6 +1885,7 @@ resolved, and the landing still proceeds. A clean verdict is never
 described as “safe to merge”.</li>
 <li><strong>Spec</strong> —
 <code>landing/open-one-pull-request-per-repository</code>.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Fixture repos produce a conflict
 verdict with paths. Landing continues.</li>
 </ul>
@@ -1849,6 +1916,7 @@ reopened.</li>
 <code>landing/announce-a-partial-landing</code>; risks.md OQ31,
 OQ26.</li>
 <li><strong>Gate</strong> — P1.1 item 6 (cost in the body).</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Body rendering is tested against
 fixtures (copy only, not model content). A production-only smoke test on
 a sandbox GitHub repository opens one pull request.</li>
@@ -1873,6 +1941,7 @@ bodies. State the “auditable, not sound” limitation beside it.</li>
 <li><strong>Spec</strong> —
 <code>verification/verify-a-feature-clause-by-clause</code>; DR4.</li>
 <li><strong>Gate</strong> — G-11.</li>
+<li><strong>Agent</strong> — Fable 5.1 High.</li>
 <li><strong>Done when</strong> — Report rendering and different-agent
 routing are tested. Verdicts are not asserted.</li>
 </ul>
@@ -1885,6 +1954,7 @@ requests stay open and linked. Not Done, not archived. That Project’s
 author Act authors nothing while it is returned.</li>
 <li><strong>Spec</strong> —
 <code>verification/return-a-feature-with-unmet-clauses</code>.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal state-transition tests.</li>
 </ul>
 <h3 id="p10.7-archive-the-cycle-on-a-verified-feature">[ ] P10.7 Archive
@@ -1902,6 +1972,7 @@ next Feature.</li>
 <li><strong>Spec</strong> —
 <code>verification/archive-the-cycle-on-a-verified-feature</code>;
 risks.md OQ54.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal tests for the verification
 route.</li>
 </ul>
@@ -1921,6 +1992,7 @@ receipt.</li>
 <li><strong>Spec</strong> —
 <code>landing/announce-a-partial-landing</code>;
 <code>morning-report/triage-the-morning</code>; R17, R18.</li>
+<li><strong>Agent</strong> — Fable 5.1 High.</li>
 <li><strong>Done when</strong> — Fixture repositories with k = 0, k &lt;
 N and k = N produce exactly the specified writes.</li>
 </ul>
@@ -1939,6 +2011,7 @@ and salvages unfinished Cards exactly as the merge does.</li>
 2).</li>
 <li><strong>Gate</strong> — G-6 (where the gesture lives: Linear or the
 app).</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal tests of both settle
 outcomes.</li>
 </ul>
@@ -1955,6 +2028,7 @@ Attempt. Hold the Worktree. The lane continues.</li>
 <li><strong>Spec</strong> —
 <code>bounds/escalate-a-question-to-the-operator</code> (first
 story).</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal tests with a fixture
 “question” result file.</li>
 </ul>
@@ -1977,6 +2051,7 @@ No resume, nothing carried forward.</li>
 <code>board-projection/read-board-changes-by-delta</code> (OQ37
 copy).</li>
 <li><strong>Gate</strong> — G-8.</li>
+<li><strong>Agent</strong> — Fable 5.1 High.</li>
 <li><strong>Done when</strong> — Rehearsal tests against real comments
 in the scratch team, for each branch.</li>
 </ul>
@@ -1999,6 +2074,7 @@ time. No roll-up change.</li>
 <code>board-projection/read-board-changes-by-delta</code>;
 <code>board-projection/maintain-the-managed-block</code> (second story);
 risks.md OQ8.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal tests cover first and
 repeated banked replies.</li>
 </ul>
@@ -2021,6 +2097,7 @@ counters preserved.</li>
 </ul></li>
 <li><strong>Spec</strong> — <code>bounds/bound-unanswered-nights</code>;
 DR8; risks.md OQ14, OQ47.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal-assertable bound arithmetic
 with <code>unanswered_nights_max = 1</code>, including the
 stopped-Project case (no Acts, no change).</li>
@@ -2046,6 +2123,7 @@ accumulates them.</li>
 <li><strong>Spec</strong> —
 <code>feature-authoring/author-the-cycle-and-card-dag</code> (second
 story); <code>feature-authoring/select-the-next-feature</code>.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal tests of adopt and
 refuse-to-adopt, with counters verified.</li>
 </ul>
@@ -2066,6 +2144,7 @@ Night.</li>
 <code>feature-authoring/select-the-next-feature</code>; risks.md OQ14
 (4).</li>
 <li><strong>Gate</strong> — G-16.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal bound arithmetic with small
 values.</li>
 </ul>
@@ -2099,6 +2178,7 @@ detected, local-notification failures, anomalies.</li>
 <li><strong>Spec</strong> —
 <code>morning-report/write-the-night-summary</code>;
 <code>loop-state/*</code>; risks.md OQ12.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal Nights of each kind (idle,
 quiet, crashed, partial) render the specified lines.</li>
 </ul>
@@ -2115,6 +2195,7 @@ every retry landed on a different route;
 <code>morning-report/report-the-instrumented-rates</code>; DR1; risks.md
 TD8.</li>
 <li><strong>Gate</strong> — G-9 (first rate only).</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Rates computed from multi-Night
 rehearsal Journals match hand-computed values.</li>
 </ul>
@@ -2137,6 +2218,7 @@ banked-answer and Cancelled markers; Cancelled at the bottom.</li>
 <li><strong>Spec</strong> —
 <code>board-projection/maintain-the-managed-block</code> (second story);
 glossary → Roll-up; risks.md OQ31.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Rehearsal tests cover each lattice
 word, each template, and reposting when only lane completion, merged
 fraction, conflict, live set or Feature state changes.</li>
@@ -2155,6 +2237,7 @@ available.</li>
 <li><strong>Spec</strong> —
 <code>morning-report/notify-the-operator-of-exceptions</code>; risks.md
 OQ9.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Launching the app headlessly with post
 arguments shows a notification and the process exits.</li>
 </ul>
@@ -2174,6 +2257,7 @@ notification.</li>
 <code>morning-report/notify-the-operator-of-exceptions</code>;
 system-overview → Notification behaviour.</li>
 <li><strong>Gate</strong> — G-10.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — With notifications disabled or the app
 missing, an Act completes and logs the failure.</li>
 </ul>
@@ -2195,6 +2279,7 @@ creation.</li>
 </ul></li>
 <li><strong>Spec</strong> — risks.md OQ13 Facet 1 and Facet 3;
 <code>bounds/bound-unanswered-nights</code> (defaults).</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — On a clean user account,
 <code>yh setup --init</code> produces a configuration that passes
 validation, and provisioning is idempotent.</li>
@@ -2217,6 +2302,7 @@ environment (PATH to <code>git</code>, the CLIs and Orca ADE).</li>
 <li><strong>Spec</strong> — <code>shift-scheduling/overview</code>;
 risks.md OQ13, OQ44, OQ53.</li>
 <li><strong>Gate</strong> — G-7.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Installed jobs fire <code>yh</code> on
 a developer machine at the scheduled times, and the event log shows each
 Act.</li>
@@ -2230,6 +2316,7 @@ git repositories, verify Linear credentials, inspect
 (<code>--fix</code> unloads and removes them after confirmation), and
 warn on routing entries with no fallback.</li>
 <li><strong>Spec</strong> — risks.md OQ13, OQ52 Face 1.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Each check has a passing and a failing
 fixture. An orphaned agent is found and removed.</li>
 </ul>
@@ -2240,6 +2327,7 @@ fixture. An orphaned agent is found and removed.</li>
 of a missed Night (sleep, missing or disabled job, pre-initialization
 crash). No cross-Project verdict.</li>
 <li><strong>Spec</strong> — risks.md OQ12 Surface 3.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Each diagnosis is produced from a
 staged scenario.</li>
 </ul>
@@ -2258,6 +2346,7 @@ Orca ADE.</li>
 <code>project_removed</code>. Keep the Journal file.</li>
 </ul></li>
 <li><strong>Spec</strong> — risks.md OQ52 Face 1.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — A rehearsal Project is removed with
 every listed effect, and removal during a running Act is refused.</li>
 </ul>
@@ -2283,6 +2372,7 @@ roll-up words or counts).</li>
 </ul></li>
 <li><strong>Spec</strong> — risks.md OQ52 Face 2; ooux/nav-flow.md →
 Multi-Project Navigation.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — The selector and deep link open the
 named Project. A UI test confirms no status is shown in the
 selector.</li>
@@ -2294,6 +2384,7 @@ selector.</li>
 permission status stated once, without nagging.</li>
 <li><strong>Spec</strong> — risks.md OQ13; system-overview →
 Notification behaviour.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — A clean account is fully set up through
 the app alone.</li>
 </ul>
@@ -2306,6 +2397,7 @@ Routing Table and per-Project overrides, as TOML file edits that keep
 the file valid under P2.3. Direct TOML editing stays supported.</li>
 <li><strong>Spec</strong> — system-overview → Integration Map (app edits
 Routing Table); ooux/nav-flow.md → Setup; risks.md OQ51.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Edits made in the app round-trip
 through the loader. Invalid edits are refused with the loader’s
 message.</li>
@@ -2317,6 +2409,7 @@ detail and Probe trigger</h3>
 Result from the Ledger, and run a Probe on demand.</li>
 <li><strong>Spec</strong> — system-overview → Yellowhammer app;
 <code>routing/add-an-agent-cli</code>.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — A Probe started from the app writes a
 Ledger row shown in the list.</li>
 </ul>
@@ -2329,6 +2422,7 @@ the Journal read-only is enforced.</li>
 <li><strong>Spec</strong> — system-overview → Yellowhammer app;
 <code>CLAUDE.md</code> → Read-only on every Journal.</li>
 <li><strong>Gate</strong> — G-6.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Opening a Journal in the app while an
 Act writes it causes no write conflict and no modification.</li>
 </ul>
@@ -2337,6 +2431,7 @@ Act writes it causes no write conflict and no modification.</li>
 <li><strong>Work</strong> — The app equivalent of <code>yh status</code>
 (P13.4) and <code>yh doctor</code> findings, per Project.</li>
 <li><strong>Spec</strong> — risks.md OQ12 Surface 3.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Staged scenarios give the same
 diagnoses as the CLI.</li>
 </ul>
@@ -2347,6 +2442,7 @@ Night’s proximity, re-set Bounds, and start a rehearsal Night.</li>
 <li><strong>Spec</strong> — ooux/nav-flow.md → Global nav; risks.md OQ52
 Face 2.</li>
 <li><strong>Gate</strong> — G-6.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — A rehearsal Night started from the app
 runs as a normal invocation that survives quitting the app.</li>
 </ul>
@@ -2359,6 +2455,7 @@ where a decision is recorded.</li>
 <li><strong>Spec</strong> — ooux/nav-flow.md; ooux/sketch-sheets.md;
 ooux/cta-matrix.md.</li>
 <li><strong>Gate</strong> — G-6.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — Scope defined by G-6.</li>
 </ul>
 <h3 id="p14.9-shell-not-host-verification">[ ] P14.9 Shell-not-host
@@ -2369,6 +2466,7 @@ Night with the app never launched, and another that quits the app
 mid-Act. Both Nights complete identically.</li>
 <li><strong>Spec</strong> — system-overview → Yellowhammer app (hard
 constraint).</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — Both runs produce equivalent Journals
 and Night Cards.</li>
 </ul>
@@ -2388,6 +2486,7 @@ runs without touching provisioning.</li>
 <li>Scratch credentials stored per P5.1.</li>
 </ul></li>
 <li><strong>Spec</strong> — system-overview → Environments.</li>
+<li><strong>Agent</strong> — Sonnet 5 Medium.</li>
 <li><strong>Done when</strong> — A rehearsal Project can run against the
 scratch team repeatedly and be reset.</li>
 </ul>
@@ -2407,6 +2506,7 @@ branch.</li>
 </ul></li>
 <li><strong>Spec</strong> — system-overview → What a story may assert
 against a rehearsal Night.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — One command builds the full fixture set
 from nothing.</li>
 </ul>
@@ -2437,6 +2537,7 @@ Project.</li>
 </ol></li>
 <li><strong>Spec</strong> — system-overview → Environment Differences;
 every epic listed above.</li>
+<li><strong>Agent</strong> — Fable 5.1 High.</li>
 <li><strong>Done when</strong> — The suite runs from a single command
 and passes on a developer machine.</li>
 </ul>
@@ -2448,6 +2549,7 @@ Apple Silicon runner with Orca ADE installed and scratch credentials
 available, or add it as a required manual release-checklist step when no
 such runner exists. Publish Journals and Night Card links as
 artifacts.</li>
+<li><strong>Agent</strong> — Sonnet 5 Medium.</li>
 <li><strong>Done when</strong> — A failed scenario blocks the release
 checklist.</li>
 </ul>
@@ -2466,6 +2568,7 @@ release machine’s keychain and in CI secrets.</li>
 </ul></li>
 <li><strong>Spec</strong> — stack.md → Distribution; feasibility probes
 → Build and packaging.</li>
+<li><strong>Agent</strong> — Sonnet 5 Medium.</li>
 <li><strong>Done when</strong> — The release job can sign and
 authenticate for notarization without manual input.</li>
 </ul>
@@ -2486,6 +2589,7 @@ release tag in CI.</li>
 <li><strong>Spec</strong> — <code>CLAUDE.md</code> → Local choices
 (Build); stack.md → Platform Targets.</li>
 <li><strong>Gate</strong> — G-2.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — A Release build from a tag carries the
 tag’s version in both the app and <code>yh</code>.</li>
 </ul>
@@ -2499,6 +2603,7 @@ ticket, and verifies with
 <code>spctl --assess</code>, and <code>stapler validate</code>. It fails
 on any rejection and archives the notarization log.</li>
 <li><strong>Spec</strong> — stack.md → Distribution.</li>
+<li><strong>Agent</strong> — Fable 5.1 Medium.</li>
 <li><strong>Done when</strong> — A tagged build produces a notarized,
 stapled artifact that passes all three checks.</li>
 </ul>
@@ -2515,6 +2620,7 @@ built against and the story IDs it covers.</li>
 </ul></li>
 <li><strong>Spec</strong> — stack.md → Distribution (direct, not Mac App
 Store).</li>
+<li><strong>Agent</strong> — Sonnet 5 Medium.</li>
 <li><strong>Done when</strong> — A downloaded artifact installs on a
 clean Apple Silicon Mac with no Gatekeeper warning.</li>
 </ul>
@@ -2524,6 +2630,7 @@ Update channel</h3>
 <li><strong>Work</strong> — Implement the update channel decided in
 G-14.</li>
 <li><strong>Gate</strong> — G-14.</li>
+<li><strong>Agent</strong> — Sonnet 5 Medium.</li>
 <li><strong>Done when</strong> — Defined by G-14.</li>
 </ul>
 <h3 id="p16.6-devops-installed-product-verification">[ ] P16.6
@@ -2545,6 +2652,7 @@ Act.</li>
 </ol></li>
 <li><strong>Spec</strong> — feasibility probes → Build and packaging;
 risks.md OQ9, OQ53.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — The checklist is completed and recorded
 for the release.</li>
 </ul>
@@ -2555,6 +2663,7 @@ CI green; probe drift check (P7.5) green; rehearsal suite (P15.3/P15.4)
 green; notarization verified; installed-product verification (P16.6)
 done; release notes with spec commit and story IDs; spec conflicts from
 P1.1 checked for new answers.</li>
+<li><strong>Agent</strong> — Opus 5 Medium.</li>
 <li><strong>Done when</strong> — The checklist is committed and used for
 the first release.</li>
 </ul>
@@ -2575,6 +2684,7 @@ without changing values in the same step.</li>
 </ul></li>
 <li><strong>Spec</strong> — DR1;
 <code>morning-report/triage-the-morning</code>; goals.md.</li>
+<li><strong>Agent</strong> — Fable 5.1 High.</li>
 <li><strong>Done when</strong> — One production Night has run and been
 triaged from the board, and the observations are filed.</li>
 </ul>
