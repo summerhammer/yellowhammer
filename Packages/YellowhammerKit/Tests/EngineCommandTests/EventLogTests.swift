@@ -222,7 +222,9 @@ func lostActLeaseCancelsWork() async throws {
     try directory.writeValidProjectFile(id: "alpha")
     let projectID = try #require(ProjectID(rawValue: "alpha"))
     let journal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
-    let shortPolicy = LeasePolicy(heartbeatInterval: 0.05, timeToLive: 1)
+    // TTL must be >= 2s under whole-second timestamps, or a beat that lands in the next wall-clock
+    // second finds the run's own lease expired and the loss is its own, not the takeover's.
+    let shortPolicy = LeasePolicy(heartbeatInterval: 0.05, timeToLive: 2)
     let runID = RunID()
     let takerRunID = RunID()
 
@@ -239,7 +241,7 @@ func lostActLeaseCancelsWork() async throws {
             let takeover = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
             _ = try takeover.claimActLease(
                 act: .author, runID: takerRunID, mode: .real, policy: shortPolicy,
-                now: Date().addingTimeInterval(3)
+                now: Date().addingTimeInterval(4)
             )
 
             // Loop until we lose the lease or timeout
@@ -254,11 +256,13 @@ func lostActLeaseCancelsWork() async throws {
         try await invocation.run()
         Issue.record("Invocation did not throw actLeaseLost")
     } catch let error as JournalError {
-        guard case .actLeaseLost(let errorRunID, _) = error else {
+        guard case .actLeaseLost(let errorRunID, let holder) = error else {
             Issue.record("Error is not actLeaseLost")
             return
         }
         #expect(errorRunID == runID)
+        // The loss must be the takeover, not the run's own lease expiring under it.
+        #expect(holder?.runID == takerRunID)
     }
 
     let events = try journal.events()
