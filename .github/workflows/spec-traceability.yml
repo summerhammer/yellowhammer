@@ -1,0 +1,24 @@
+name: Spec traceability
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+jobs:
+  spec-line:
+    name: Spec line
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+
+      - name: Run unit tests
+        run: python3 -m unittest discover -s scripts/ci/tests -p 'test_check_spec_line.py' -v
+
+      - name: Check spec traceability
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: python3 scripts/ci/check_spec_line.py
