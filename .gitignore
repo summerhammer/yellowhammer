@@ -11,3 +11,50 @@ xcuserdata/
 .worktrees/
 
 .DS_Store
+
+# Credentials
+.env
+.env.*
+!.env.example
+*.p12
+*.p8
+*.pem
+*.key
+*.mobileprovision
+*.provisionprofile
+*.keychain
+*.keychain-db
+credentials.json
+*.secret*
+
+# Journals and Ledgers (SQLite)
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+
+# Local Yellowhammer TOML configuration
+/config.toml
+/projects/
+/journals/
+/ledger*
+*.local.toml
+
+# Scratch fixtures
+/scratch/
+.scratch/
+*.scratch.*
+/tmp/
+
+# CI/local build outputs
+/build/
+*.xcresult
+gitleaks.sarif
+
+# Python bytecode from scripts/ci
+__pycache__/
+*.pyc
