@@ -1,0 +1,159 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+# An explicit `shell: bash` runs steps with `-eo pipefail`, so `cmd | tee log` fails when `cmd` fails.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download SwiftLint
+        env:
+          SWIFTLINT_VERSION: "0.65.0"
+          SWIFTLINT_SHA256: "79306a34e5c7cc55a220cd108cbb861dcad5f10138dcdf261e2624ae8b0a486b"
+        run: |
+          dir="$RUNNER_TEMP/swiftlint"
+          mkdir -p "$dir"
+          curl -fsSL "https://github.com/realm/SwiftLint/releases/download/${SWIFTLINT_VERSION}/swiftlint_linux_amd64.zip" \
+            -o "$dir/swiftlint.zip"
+          echo "${SWIFTLINT_SHA256}  $dir/swiftlint.zip" | sha256sum --check
+          unzip -q "$dir/swiftlint.zip" -d "$dir"
+          echo "$dir" >> "$GITHUB_PATH"
+          "$dir/swiftlint" version
+
+      - name: Run SwiftLint
+        run: swiftlint lint --strict --reporter github-actions-logging
+
+      - name: Generate lint report
+        if: always()
+        run: |
+          mkdir -p /tmp/lint-reports
+          swiftlint lint --reporter json > /tmp/lint-reports/swiftlint.json || true
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lint-report
+          path: /tmp/lint-reports/swiftlint.json
+
+  test:
+    name: Test
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      XCODE_VERSION: "26.6"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+
+      - name: Print versions
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Cache SwiftPM
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            Packages/YellowhammerKit/.build
+            ~/Library/Caches/org.swift.swiftpm
+          key: swiftpm-${{ hashFiles('Packages/YellowhammerKit/Package.resolved') }}
+          restore-keys: |
+            swiftpm-
+
+      - name: Resolve dependencies
+        run: swift package --package-path Packages/YellowhammerKit resolve
+
+      - name: Run tests
+        run: |
+          mkdir -p build/test-results
+          swift test --package-path Packages/YellowhammerKit --parallel --xunit-output build/test-results/tests.xml 2>&1 | tee build/test-results/test.log
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-results
+          path: build/test-results/
+
+  build:
+    name: Build
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      XCODE_VERSION: "26.6"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+
+      - name: Print versions
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Cache source packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: build/SourcePackages
+          key: sourcepackages-${{ hashFiles('Yellowhammer.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            sourcepackages-
+
+      - name: Build app
+        run: |
+          set -o pipefail
+          mkdir -p build
+          xcodebuild \
+            -project Yellowhammer.xcodeproj \
+            -scheme Yellowhammer \
+            -configuration Debug \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath build/DerivedData \
+            -resultBundlePath build/Yellowhammer.xcresult \
+            -clonedSourcePackagesDirPath build/SourcePackages \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM= \
+            build | tee build/xcodebuild.log
+
+      - name: Verify app bundle
+        run: scripts/ci/verify_app_bundle.sh build/DerivedData/Build/Products/Debug/Yellowhammer.app
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: build-artifacts
+          path: |
+            build/xcodebuild.log
+            build/Yellowhammer.xcresult/
