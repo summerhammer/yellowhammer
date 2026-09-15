@@ -46,7 +46,8 @@ extension JournalStore {
     /// One write transaction, so two overlapping invocations of the same Project serialise on SQLite's
     /// lock and exactly one of them sees the row first. An expired lease is taken over without ceremony:
     /// that run is dead, or asleep past its TTL, and either way it no longer holds the Project. A run
-    /// that already holds the lease keeps it and refreshes the heartbeat.
+    /// that already holds the lease keeps it and refreshes the heartbeat. When a dead predecessor's
+    /// lease is reclaimed, the event is recorded in the same transaction.
     public func claimActLease(
         act: Act,
         runID: RunID,
@@ -54,7 +55,7 @@ extension JournalStore {
         policy: LeasePolicy = .ruled,
         now: Date = Date()
     ) throws -> ActLeaseClaim {
-        let now = Self.stored(now)
+        let now = JournalStore.stored(now)
         return try write { db in
             let holder = try Self.fetchActLease(db)
             if let holder, holder.runID != runID, holder.isHeld(at: now) {
@@ -76,9 +77,19 @@ extension JournalStore {
                 """,
                 arguments: [
                     lease.act.rawValue, lease.runID.rawValue, lease.mode.rawValue,
-                    Self.timestamp(lease.claimedAt), Self.timestamp(lease.heartbeatAt), Self.timestamp(lease.expiresAt)
+                    JournalStore.timestamp(lease.claimedAt),
+                    JournalStore.timestamp(lease.heartbeatAt),
+                    JournalStore.timestamp(lease.expiresAt)
                 ]
             )
+            // Record a crash reclaim if a different run's expired lease was taken over
+            if let holder, holder.runID != runID, !holder.isHeld(at: now) {
+                let stamp = EventStamp(act: act, runID: runID, nightID: nil, now: now)
+                let event = JournalEvent.leaseReclaimed(
+                    previousRunID: holder.runID, previousAct: holder.act, expiredAt: holder.expiresAt
+                )
+                _ = try JournalStore.insertEvent(db, event, stamp: stamp)
+            }
             return .claimed(lease)
         }
     }
@@ -94,7 +105,7 @@ extension JournalStore {
         policy: LeasePolicy = .ruled,
         now: Date = Date()
     ) throws -> ActLease {
-        let now = Self.stored(now)
+        let now = JournalStore.stored(now)
         return try write { db in
             let holder = try Self.fetchActLease(db)
             guard let holder, holder.runID == runID, holder.isHeld(at: now) else {
@@ -110,7 +121,11 @@ extension JournalStore {
             )
             try db.execute(
                 sql: "UPDATE act_lease SET heartbeat_at = ?, expires_at = ? WHERE id = 1 AND run_id = ?",
-                arguments: [Self.timestamp(refreshed.heartbeatAt), Self.timestamp(refreshed.expiresAt), runID.rawValue]
+                arguments: [
+                    JournalStore.timestamp(refreshed.heartbeatAt),
+                    JournalStore.timestamp(refreshed.expiresAt),
+                    runID.rawValue
+                ]
             )
             return refreshed
         }
@@ -147,32 +162,9 @@ extension JournalStore {
             act: act,
             runID: runID,
             mode: mode,
-            claimedAt: try date(row["claimed_at"]),
-            heartbeatAt: try date(row["heartbeat_at"]),
-            expiresAt: try date(row["expires_at"])
+            claimedAt: try JournalStore.date(row["claimed_at"]) { JournalError.actLeaseUnreadable },
+            heartbeatAt: try JournalStore.date(row["heartbeat_at"]) { JournalError.actLeaseUnreadable },
+            expiresAt: try JournalStore.date(row["expires_at"]) { JournalError.actLeaseUnreadable }
         )
-    }
-
-    // Timestamps are stored as ISO 8601 text in UTC to the second, like every other timestamp in the
-    // Journal, so they compare correctly as text too. Whole seconds are exact in a `Date`, so an
-    // instant survives the round trip through text unchanged; a 60-second heartbeat needs no more.
-    private static let timestampStyle = Date.ISO8601FormatStyle()
-
-    static func timestamp(_ date: Date) -> String {
-        date.formatted(timestampStyle)
-    }
-
-    /// The instant as the Journal will record it, so that a lease handed to its claimant is equal to
-    /// the same lease read back later.
-    private static func stored(_ date: Date) -> Date {
-        Date(timeIntervalSince1970: date.timeIntervalSince1970.rounded(.down))
-    }
-
-    private static func date(_ text: String) throws -> Date {
-        do {
-            return try Date(text, strategy: timestampStyle)
-        } catch {
-            throw JournalError.actLeaseUnreadable
-        }
     }
 }

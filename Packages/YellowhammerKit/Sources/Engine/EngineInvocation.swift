@@ -9,11 +9,14 @@ import Journal
 /// the same Project must not run at once, so the invocation claims the Project's Act-scoped lease
 /// before doing anything and stands down, out loud, when another run holds it.
 public struct EngineInvocation: Sendable {
+    public typealias ActWork = @Sendable () async throws -> Void
+
     public let act: Act
     public let mode: NightMode
     public let runID: RunID
     public let leasePolicy: LeasePolicy
     private let journal: JournalStore
+    private let work: ActWork
 
     public init(
         act: Act,
@@ -27,32 +30,54 @@ public struct EngineInvocation: Sendable {
         self.journal = journal
         self.runID = runID
         self.leasePolicy = leasePolicy
+        self.work = { throw EngineInvocationError.notImplemented(act) }
+    }
+
+    /// The Act's work under the lease is injectable so a test can drive an Act that completes;
+    /// the real Acts arrive in later phases, and until then the public initializer's work throws
+    /// `notImplemented`.
+    internal init(
+        act: Act,
+        mode: NightMode,
+        journal: JournalStore,
+        runID: RunID = RunID(),
+        leasePolicy: LeasePolicy = .ruled,
+        work: @escaping ActWork
+    ) {
+        self.act = act
+        self.mode = mode
+        self.journal = journal
+        self.runID = runID
+        self.leasePolicy = leasePolicy
+        self.work = work
     }
 
     /// The Project this invocation is scoped to: the one whose Journal it was given.
     public var projectID: ProjectID { journal.projectID }
 
     public func run() async throws {
+        // Every step of the Act's life is appended to the Project's event log, so the Night Summary
+        // can be computed from it. The records are written under the lease, before it is released,
+        // and best-effort: failing to write one must not fail the Act, or stop it standing down.
         switch try journal.claimActLease(act: act, runID: runID, mode: mode, policy: leasePolicy) {
         case .held(let holder):
+            _ = try? journal.append(.actStoodDown(holder: holder), act: act, runID: runID)
             throw EngineInvocationError.actLeaseHeld(act: act, projectID: projectID, by: holder)
         case .claimed:
-            break
+            _ = try? journal.append(.actStarted, act: act, runID: runID)
         }
         do {
-            try await perform()
+            try await work()
+            _ = try? journal.append(.actEnded, act: act, runID: runID)
         } catch {
-            // The Act's failure is the error worth reporting. If the release fails too, the lease
-            // frees by its TTL, exactly as it would after a crash.
+            // An Act that cannot complete records why, where it can, before exiting. The Act's failure
+            // is the error worth reporting: if the release fails too, the lease frees by its TTL,
+            // exactly as it would after a crash.
+            _ = try? journal.append(.actIncomplete(reason: String(describing: error)), act: act, runID: runID)
             _ = try? journal.releaseActLease(runID: runID)
             throw error
         }
         try journal.releaseActLease(runID: runID)
-    }
-
-    /// The Act's work, under the lease. Nothing yet: the Acts arrive in later phases.
-    private func perform() async throws {
-        throw EngineInvocationError.notImplemented(act)
     }
 }
 

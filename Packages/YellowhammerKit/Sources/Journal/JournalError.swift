@@ -8,6 +8,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     case actLeaseLost(runID: RunID, holder: ActLease?)
     /// The `act_lease` row does not decode; the Journal was written by something other than the engine.
     case actLeaseUnreadable
+    /// The event row does not decode; the Journal was written by something other than the engine.
+    case eventUnreadable(id: Int64)
 
     public var description: String {
         switch self {
@@ -26,6 +28,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
             }
         case .actLeaseUnreadable:
             "The Journal's act_lease row cannot be read"
+        case .eventUnreadable(let id):
+            "The Journal's event row \(id) cannot be read"
         }
     }
 }
