@@ -1,0 +1,14 @@
+[extend]
+useDefault = true
+
+[[rules]]
+id = "linear-api-key"
+description = "Linear API key"
+regex = '''lin_api_[a-zA-Z0-9]{40,}'''
+tags = ["linear", "api-key"]
+
+[[rules]]
+id = "linear-oauth-token"
+description = "Linear OAuth token"
+regex = '''lin_oauth_[a-zA-Z0-9]{40,}'''
+tags = ["linear", "oauth"]
