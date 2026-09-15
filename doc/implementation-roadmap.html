@@ -4,670 +4,29 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>Implementation Roadmap</title>
+  <title>implementation-roadmap</title>
   <style>
-
-span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
-div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
-
-ul.task-list[class]{list-style: none;}
-ul.task-list li input[type="checkbox"] {
-font-size: inherit;
-width: 0.8em;
-margin: 0 0.8em 0.2em -1.6em;
-vertical-align: middle;
-}
-.display.math{display: block; text-align: center; margin: 0.5rem auto;}
-</style>
-  <style type="text/css">
-
-
-
-:root {
-color-scheme: light dark;
---font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue",
-"Inter", Roboto, Arial, sans-serif;
---font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
-"Liberation Mono", monospace;
---measure: 46rem;
---radius: 6px;
-
---bg: #ffffff;
---bg-subtle: #f6f7f9;
---bg-code: #f3f4f6;
---fg: #1d2127;
---fg-muted: #5b6370;
---fg-faint: #8a919c;
---border: #e2e5ea;
---border-strong: #cdd2d9;
---accent: #0b62c4;
---accent-soft: #e8f1fc;
---mark: #fff3b0;
---note: #0b62c4;
---tip: #1a7f4b;
---warning: #a86200;
---danger: #c0392b;
-
---syn-keyword: #a626a4;
---syn-type: #b25e00;
---syn-string: #1a7f4b;
---syn-number: #b25e00;
---syn-comment: #8a919c;
---syn-function: #0b62c4;
---syn-variable: #c0392b;
---syn-builtin: #0e7c86;
---syn-error: #c0392b;
-}
-@media screen and (prefers-color-scheme: dark) {
-:root {
---bg: #15171b;
---bg-subtle: #1c1f24;
---bg-code: #22262c;
---fg: #e3e6eb;
---fg-muted: #a0a7b2;
---fg-faint: #6f7783;
---border: #2c3139;
---border-strong: #3a4049;
---accent: #6cb0ff;
---accent-soft: #1b2a3d;
---mark: #5c4d12;
---note: #6cb0ff;
---tip: #5fcf94;
---warning: #e6a54a;
---danger: #f07a6c;
---syn-keyword: #d38ee0;
---syn-type: #e6a54a;
---syn-string: #8fd6a6;
---syn-number: #e6a54a;
---syn-comment: #6f7783;
---syn-function: #6cb0ff;
---syn-variable: #f07a6c;
---syn-builtin: #62c7cf;
---syn-error: #f07a6c;
-}
-}
-
-
-
-*,
-*::before,
-*::after {
-box-sizing: border-box;
-}
-html {
-font-size: 100%;
--webkit-text-size-adjust: 100%;
-text-size-adjust: 100%;
-scroll-padding-top: 1.5rem;
-background: var(--bg);
-}
-body {
-margin: 0 auto;
-max-width: var(--measure);
-padding: 4rem 1.5rem 6rem;
-background: var(--bg);
-color: var(--fg);
-font-family: var(--font-body);
-font-size: 1rem;
-line-height: 1.65;
-font-kerning: normal;
-font-variant-ligatures: common-ligatures;
--webkit-font-smoothing: antialiased;
--moz-osx-font-smoothing: grayscale;
-overflow-wrap: break-word;
-hyphens: auto;
-}
-::selection {
-background: var(--accent-soft);
-}
-
-
-
-#title-block-header {
-margin-bottom: 3rem;
-padding-bottom: 1.5rem;
-border-bottom: 1px solid var(--border);
-}
-#title-block-header .title {
-margin: 0 0 0.5rem;
-font-size: 2.4rem;
-line-height: 1.15;
-letter-spacing: -0.025em;
-}
-#title-block-header .subtitle {
-margin: 0 0 1rem;
-color: var(--fg-muted);
-font-size: 1.25rem;
-font-weight: 400;
-}
-#title-block-header .author,
-#title-block-header .date {
-margin: 0;
-color: var(--fg-muted);
-font-size: 0.9rem;
-}
-#title-block-header .abstract {
-margin-top: 1.5rem;
-color: var(--fg-muted);
-}
-#title-block-header .abstract-title {
-font-weight: 600;
-text-transform: uppercase;
-letter-spacing: 0.06em;
-font-size: 0.75rem;
-}
-
-
-
-h1, h2, h3, h4, h5, h6 {
-margin: 2.4em 0 0.6em;
-color: var(--fg);
-font-weight: 650;
-line-height: 1.25;
-letter-spacing: -0.012em;
-hyphens: manual;
-text-wrap: balance;
-}
-h1 { font-size: 2rem; letter-spacing: -0.022em; }
-h2 {
-font-size: 1.5rem;
-padding-bottom: 0.3em;
-border-bottom: 1px solid var(--border);
-}
-h3 { font-size: 1.2rem; }
-h4 { font-size: 1.05rem; }
-h5, h6 {
-font-size: 0.8rem;
-text-transform: uppercase;
-letter-spacing: 0.06em;
-color: var(--fg-muted);
-}
-body > h1:first-child,
-body > h2:first-child,
-#title-block-header + h1,
-#title-block-header + h2,
-#TOC + h1,
-#TOC + h2 {
-margin-top: 0;
-}
-h1 code, h2 code, h3 code, h4 code {
-font-size: 0.9em;
-}
-
-
-
-p, ul, ol, dl, blockquote, pre, table, figure, .callout {
-margin: 0 0 1.1rem;
-}
-a {
-color: var(--accent);
-text-decoration: underline;
-text-decoration-thickness: 1px;
-text-underline-offset: 0.18em;
-text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
-}
-a:hover {
-text-decoration-color: currentColor;
-}
-strong, b { font-weight: 650; }
-small { font-size: 0.85em; }
-mark {
-background: var(--mark);
-color: inherit;
-padding: 0 0.15em;
-border-radius: 2px;
-}
-abbr[title] {
-text-decoration: underline dotted;
-cursor: help;
-}
-kbd {
-font-family: var(--font-mono);
-font-size: 0.8em;
-padding: 0.1em 0.4em;
-border: 1px solid var(--border-strong);
-border-bottom-width: 2px;
-border-radius: 4px;
-background: var(--bg-subtle);
-}
-sup, sub {
-font-size: 0.75em;
-line-height: 0;
-}
-hr {
-margin: 3rem 0;
-border: 0;
-border-top: 1px solid var(--border);
-}
-span.smallcaps { font-variant: small-caps; }
-span.underline { text-decoration: underline; }
-
-
-
-ul, ol {
-padding-left: 1.5rem;
-}
-li {
-margin: 0.25rem 0;
-}
-li > ul,
-li > ol {
-margin: 0.25rem 0 0.4rem;
-}
-li > p {
-margin-bottom: 0.5rem;
-}
-ul li::marker {
-color: var(--fg-faint);
-}
-ol li::marker {
-color: var(--fg-muted);
-font-variant-numeric: tabular-nums;
-}
-ul.task-list,
-ul.task-list[class] {
-list-style: none;
-padding-left: 0.25rem;
-}
-ul.task-list li input[type="checkbox"] {
-margin: 0 0.5em 0.2em -1.4em;
-vertical-align: middle;
-accent-color: var(--accent);
-}
-ul.task-list li {
-padding-left: 1.4em;
-}
-ul.task-list li > ul:not(.task-list) {
-padding-left: 1.1rem;
-}
-dt {
-font-weight: 650;
-margin-top: 0.8rem;
-}
-dd {
-margin: 0.2rem 0 0 1.5rem;
-color: var(--fg-muted);
-}
-
-
-
-blockquote {
-padding: 0.2rem 0 0.2rem 1.1rem;
-margin-left: 0;
-margin-right: 0;
-border-left: 3px solid var(--border-strong);
-color: var(--fg-muted);
-}
-blockquote > :last-child {
-margin-bottom: 0;
-}
-
-.note, .tip, .warning, .danger, .important, .caution, .callout {
---c: var(--note);
-padding: 0.85rem 1.1rem;
-margin: 0 0 1.1rem;
-border: 1px solid color-mix(in srgb, var(--c) 30%, var(--border));
-border-left: 4px solid var(--c);
-border-radius: var(--radius);
-background: color-mix(in srgb, var(--c) 6%, var(--bg));
-}
-.tip { --c: var(--tip); }
-.warning, .important { --c: var(--warning); }
-.danger, .caution { --c: var(--danger); }
-.note > :first-child, .tip > :first-child, .warning > :first-child,
-.danger > :first-child, .important > :first-child, .caution > :first-child,
-.callout > :first-child {
-margin-top: 0;
-}
-.note > :last-child, .tip > :last-child, .warning > :last-child,
-.danger > :last-child, .important > :last-child, .caution > :last-child,
-.callout > :last-child {
-margin-bottom: 0;
-}
-.title {
-font-weight: 650;
-}
-.note > .title, .tip > .title, .warning > .title,
-.danger > .title, .important > .title, .caution > .title {
-margin-bottom: 0.3rem;
-color: var(--c);
-font-size: 0.8rem;
-text-transform: uppercase;
-letter-spacing: 0.06em;
-}
-
-
-
-code, pre, samp {
-font-family: var(--font-mono);
-font-size: 0.875em;
-font-variant-ligatures: none;
-hyphens: none;
-}
-:not(pre) > code {
-padding: 0.12em 0.36em;
-border-radius: 4px;
-background: var(--bg-code);
-color: var(--fg);
-white-space: break-spaces;
-overflow-wrap: anywhere;
-}
-a > code {
-color: inherit;
-}
-pre {
-padding: 0.9rem 1.1rem;
-overflow-x: auto;
-border: 1px solid var(--border);
-border-radius: var(--radius);
-background: var(--bg-subtle);
-line-height: 1.5;
-tab-size: 4;
-}
-pre > code {
-font-size: 0.85rem;
-padding: 0;
-background: none;
-white-space: pre;
-}
-div.sourceCode {
-margin: 0 0 1.1rem;
-background: none;
-overflow: visible;
-}
-div.sourceCode > pre {
-margin: 0;
-}
-
-pre.numberSource code > span > a:first-child::before {
-color: var(--fg-faint);
-}
-pre.numberSource {
-border-left: 1px solid var(--border);
-}
-
-code span.al { color: var(--syn-error); font-weight: 600; } 
-code span.an { color: var(--syn-comment); font-style: italic; } 
-code span.at { color: var(--syn-variable); } 
-code span.bn { color: var(--syn-number); } 
-code span.bu { color: var(--syn-builtin); } 
-code span.cf { color: var(--syn-keyword); font-weight: 500; } 
-code span.ch { color: var(--syn-string); } 
-code span.cn { color: var(--syn-number); } 
-code span.co { color: var(--syn-comment); font-style: italic; } 
-code span.cv { color: var(--syn-comment); font-style: italic; } 
-code span.do { color: var(--syn-comment); font-style: italic; } 
-code span.dt { color: var(--syn-type); } 
-code span.dv { color: var(--syn-number); } 
-code span.er { color: var(--syn-error); font-weight: 600; } 
-code span.ex { color: var(--syn-builtin); } 
-code span.fl { color: var(--syn-number); } 
-code span.fu { color: var(--syn-function); } 
-code span.im { color: var(--syn-keyword); } 
-code span.in { color: var(--syn-comment); font-style: italic; } 
-code span.kw { color: var(--syn-keyword); font-weight: 500; } 
-code span.op { color: var(--fg-muted); } 
-code span.ot { color: var(--syn-builtin); } 
-code span.pp { color: var(--syn-keyword); } 
-code span.sc { color: var(--syn-string); } 
-code span.ss { color: var(--syn-string); } 
-code span.st { color: var(--syn-string); } 
-code span.va { color: var(--syn-variable); } 
-code span.vs { color: var(--syn-string); } 
-code span.wa { color: var(--syn-comment); font-style: italic; font-weight: 600; } 
-
-
-
-table {
-width: 100%;
-border-collapse: collapse;
-border-spacing: 0;
-font-size: 0.9rem;
-line-height: 1.5;
-font-variant-numeric: tabular-nums;
-hyphens: manual;
-}
-caption {
-caption-side: top;
-padding-bottom: 0.5rem;
-color: var(--fg-muted);
-font-size: 0.85rem;
-text-align: left;
-}
-th, td {
-padding: 0.55rem 0.75rem;
-border-bottom: 1px solid var(--border);
-vertical-align: top;
-text-align: left;
-}
-thead th {
-border-bottom: 2px solid var(--border-strong);
-color: var(--fg-muted);
-font-size: 0.78rem;
-font-weight: 600;
-text-transform: uppercase;
-letter-spacing: 0.04em;
-white-space: nowrap;
-}
-tbody tr:last-child td {
-border-bottom-color: var(--border-strong);
-}
-tbody tr:hover td {
-background: var(--bg-subtle);
-}
-th:first-child, td:first-child { padding-left: 0.25rem; }
-th:last-child, td:last-child { padding-right: 0.25rem; }
-td > :last-child { margin-bottom: 0; }
-td code {
-font-size: 0.82em;
-}
-
-
-
-img, svg, video {
-max-width: 100%;
-height: auto;
-}
-figure {
-margin-left: 0;
-margin-right: 0;
-text-align: center;
-}
-figure img {
-border-radius: var(--radius);
-}
-figcaption {
-margin-top: 0.5rem;
-color: var(--fg-muted);
-font-size: 0.85rem;
-}
-
-
-
-nav#TOC {
-margin: 0 0 3rem;
-padding: 1.1rem 1.4rem;
-border: 1px solid var(--border);
-border-radius: var(--radius);
-background: var(--bg-subtle);
-font-size: 0.92rem;
-}
-nav#TOC::before {
-content: "Contents";
-display: block;
-margin-bottom: 0.5rem;
-color: var(--fg-muted);
-font-size: 0.75rem;
-font-weight: 600;
-text-transform: uppercase;
-letter-spacing: 0.06em;
-}
-nav#TOC ul {
-margin: 0;
-padding-left: 0;
-list-style: none;
-}
-nav#TOC ul ul {
-padding-left: 1.1rem;
-}
-nav#TOC li {
-margin: 0.15rem 0;
-}
-nav#TOC a {
-color: var(--fg);
-text-decoration: none;
-}
-nav#TOC a:hover {
-color: var(--accent);
-}
-
-
-
-a.footnote-ref {
-text-decoration: none;
-}
-a.footnote-ref sup {
-padding: 0 0.1em;
-font-weight: 600;
-}
-section.footnotes,
-aside#footnotes {
-margin-top: 3.5rem;
-color: var(--fg-muted);
-font-size: 0.875rem;
-}
-section.footnotes hr,
-aside#footnotes hr {
-margin: 0 0 1.25rem;
-width: 6rem;
-}
-a.footnote-back {
-text-decoration: none;
-}
-
-div.csl-entry {
-margin-bottom: 0.5rem;
-}
-div.hanging-indent {
-margin-left: 1.5em;
-text-indent: -1.5em;
-}
-
-math[display="block"],
-.math.display {
-display: block;
-overflow-x: auto;
-margin: 1rem 0;
-}
-
-
-
-@media screen and (max-width: 640px) {
-body {
-padding: 2rem 1rem 4rem;
-font-size: 0.97rem;
-}
-#title-block-header .title { font-size: 1.9rem; }
-h1 { font-size: 1.7rem; }
-h2 { font-size: 1.35rem; }
-table {
-display: block;
-overflow-x: auto;
-}
-}
-
-
-
-@page {
-margin: 18mm 16mm 20mm;
-}
-@media print {
-:root {
-color-scheme: light;
---bg: #ffffff;
---bg-subtle: #f7f7f8;
---bg-code: #f2f2f4;
---fg: #000000;
---fg-muted: #444a52;
---border: #d9dce1;
---border-strong: #b9bec6;
---accent: #0a4f9e;
-}
-html, body {
-background: #fff;
-}
-body {
-max-width: none;
-padding: 0;
-font-size: 10.5pt;
-line-height: 1.5;
--webkit-print-color-adjust: exact;
-print-color-adjust: exact;
-}
-#title-block-header .title { font-size: 22pt; }
-h1 { font-size: 18pt; }
-h2 { font-size: 14pt; }
-h3 { font-size: 12pt; }
-h4 { font-size: 11pt; }
-h1, h2, h3, h4, h5, h6 {
-break-after: avoid;
-page-break-after: avoid;
-}
-p, li, dd, blockquote {
-orphans: 3;
-widows: 3;
-}
-pre, blockquote, figure, tr, img, .callout,
-.note, .tip, .warning, .danger, .important, .caution {
-break-inside: avoid;
-page-break-inside: avoid;
-}
-pre, pre > code {
-white-space: pre-wrap;
-overflow-wrap: anywhere;
-}
-thead {
-display: table-header-group;
-}
-table {
-display: table;
-font-size: 9pt;
-}
-tbody tr:hover td {
-background: none;
-}
-a {
-color: var(--fg);
-text-decoration-color: var(--border-strong);
-}
-
-a[href^="http"]:not(:has(code, img))::after {
-content: " (" attr(href) ")";
-color: var(--fg-muted);
-font-size: 0.8em;
-overflow-wrap: anywhere;
-}
-nav#TOC {
-break-after: page;
-border: 0;
-background: none;
-padding: 0;
-}
-nav#TOC a::after {
-content: none !important;
-}
-hr {
-margin: 1.5rem 0;
-}
-}
-</style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="pandoc.css" />
 </head>
 <body>
-<header id="title-block-header">
-<h1 class="title">Implementation Roadmap</h1>
-</header>
 <h1 id="yellowhammer-implementation-roadmap">Yellowhammer —
 Implementation Roadmap</h1>
 <p>Built against <code>../yellowhammer-spec</code> @
@@ -823,7 +182,7 @@ notifications</td>
 <hr />
 <h2 id="phase-0-foundations-delivery-pipeline">Phase 0 — Foundations
 &amp; delivery pipeline</h2>
-<h3 id="p0.1-devops-remote-repository-and-branch-policy">[ ] P0.1
+<h3 id="x-p0.1-devops-remote-repository-and-branch-policy">[x] P0.1
 <code>[DevOps]</code> Remote repository and branch policy</h3>
 <ul>
 <li><strong>Work</strong>
@@ -842,7 +201,7 @@ repo</em>.</li>
 <li><strong>Done when</strong> — <code>main</code> is protected on the
 remote. A direct push to <code>main</code> is refused.</li>
 </ul>
-<h3 id="p0.2-devops-pull-request-template-with-spec-traceability">[ ]
+<h3 id="x-p0.2-devops-pull-request-template-with-spec-traceability">[x]
 P0.2 <code>[DevOps]</code> Pull request template with spec
 traceability</h3>
 <ul>
@@ -862,7 +221,7 @@ spec</em>; <code>CLAUDE.md</code> → Git.</li>
 <li><strong>Done when</strong> — A pull request with no
 <code>Spec:</code> line and no exemption fails CI.</li>
 </ul>
-<h3 id="p0.3-devops-continuous-integration-pipeline">[ ] P0.3
+<h3 id="x-p0.3-devops-continuous-integration-pipeline">[x] P0.3
 <code>[DevOps]</code> Continuous integration pipeline</h3>
 <ul>
 <li><strong>Work</strong>
@@ -893,7 +252,7 @@ Build and packaging.</li>
 build as separate required checks. A lint violation, a failing test or a
 missing <code>yh</code> each fail the pipeline.</li>
 </ul>
-<h3 id="p0.4-devops-deployment-target-consistency-check">[ ] P0.4
+<h3 id="x-p0.4-devops-deployment-target-consistency-check">[x] P0.4
 <code>[DevOps]</code> Deployment-target consistency check</h3>
 <ul>
 <li><strong>Work</strong>
@@ -908,7 +267,7 @@ Targets.</li>
 <li><strong>Done when</strong> — Changing one of the two values without
 the other fails CI.</li>
 </ul>
-<h3 id="p0.5-devops-module-boundary-enforcement">[ ] P0.5
+<h3 id="x-p0.5-devops-module-boundary-enforcement">[x] P0.5
 <code>[DevOps]</code> Module boundary enforcement</h3>
 <ul>
 <li><strong>Work</strong>
@@ -923,7 +282,7 @@ Local choices (Modules).</li>
 <li><strong>Done when</strong> — A test commit that breaks each rule
 fails CI with a message that names the rule.</li>
 </ul>
-<h3 id="p0.6-devops-dependency-and-supply-chain-hygiene">[ ] P0.6
+<h3 id="x-p0.6-devops-dependency-and-supply-chain-hygiene">[x] P0.6
 <code>[DevOps]</code> Dependency and supply-chain hygiene</h3>
 <ul>
 <li><strong>Work</strong>
@@ -937,7 +296,7 @@ Journals, Ledgers, local TOML or scratch fixtures can be committed.</li>
 <li><strong>Done when</strong> — Dependency-update PRs arrive. A test
 secret pushed on a branch is flagged.</li>
 </ul>
-<h3 id="p0.7-devops-developer-workstation-prerequisites">[ ] P0.7
+<h3 id="x-p0.7-devops-developer-workstation-prerequisites">[x] P0.7
 <code>[DevOps]</code> Developer workstation prerequisites</h3>
 <ul>
 <li><strong>Work</strong> — Write a <code>CONTRIBUTING.md</code> section
@@ -959,7 +318,7 @@ Distribution (four prerequisites); feasibility probes → Method.</li>
 <li><strong>Done when</strong> — A new developer runs the check script
 and gets a pass/fail per prerequisite.</li>
 </ul>
-<h3 id="p0.8-glossary-term-conformance-tooling">[ ] P0.8 Glossary-term
+<h3 id="x-p0.8-glossary-term-conformance-tooling">[x] P0.8 Glossary-term
 conformance tooling</h3>
 <ul>
 <li><strong>Work</strong>
@@ -1116,7 +475,8 @@ OQ13 mentions an Override label)</td>
 </tr>
 </tbody>
 </table>
-<h3 id="x-p1.1-raise-spec-conflicts-found-while-building-this-roadmap">[x]
+<h3
+id="x-p1.1-raise-spec-conflicts-found-while-building-this-roadmap">[x]
 P1.1 Raise spec conflicts found while building this roadmap</h3>
 <ul>
 <li><strong>Work</strong> — Propose these corrections to the spec
@@ -1202,7 +562,7 @@ configuration files</h3>
 <code>path</code>, <code>role</code>, required <code>check</code>,
 <code>protected_paths</code>), the single specification source
 (<code>spec_source</code> path, or a working repo with
-<code>role = &quot;spec&quot;</code>), <code>[limits]</code>
+<code>role = "spec"</code>), <code>[limits]</code>
 (<code>review_rounds_max</code> default 2,
 <code>attempts_per_card</code> default 3,
 <code>unanswered_nights_max</code> default 3, the three promotion and

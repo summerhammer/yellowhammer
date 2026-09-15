@@ -56,7 +56,7 @@ disagreement is a defect in this file.
 
 ## Phase 0 — Foundations & delivery pipeline
 
-### [ ] P0.1 `[DevOps]` Remote repository and branch policy
+### [x] P0.1 `[DevOps]` Remote repository and branch policy
 - **Work**
   - Create the remote repository for `yellowhammer` under the source-control org. The repo has no
     remote yet (see `CLAUDE.md` → Git).
@@ -66,7 +66,7 @@ disagreement is a defect in this file.
 - **Spec** — `CLAUDE.md` → Git; `skill.md` → *The spec is read-only from a consumer repo*.
 - **Done when** — `main` is protected on the remote. A direct push to `main` is refused.
 
-### [ ] P0.2 `[DevOps]` Pull request template with spec traceability
+### [x] P0.2 `[DevOps]` Pull request template with spec traceability
 - **Work**
   - Add a pull request template with a required `Spec: <epic>/<story> @ <spec commit sha>` line.
   - Add a checklist: every acceptance criterion of the cited story is covered, or listed as not
@@ -76,7 +76,7 @@ disagreement is a defect in this file.
 - **Spec** — `skill.md` → *Citing the spec*; `CLAUDE.md` → Git.
 - **Done when** — A pull request with no `Spec:` line and no exemption fails CI.
 
-### [ ] P0.3 `[DevOps]` Continuous integration pipeline
+### [x] P0.3 `[DevOps]` Continuous integration pipeline
 - **Work**
   - A CI workflow on Apple Silicon macOS runners, on every pull request and on `main`:
     1. Resolve and cache package dependencies.
@@ -92,7 +92,7 @@ disagreement is a defect in this file.
 - **Done when** — A pull request shows lint, test and build as separate required checks. A lint
   violation, a failing test or a missing `yh` each fail the pipeline.
 
-### [ ] P0.4 `[DevOps]` Deployment-target consistency check
+### [x] P0.4 `[DevOps]` Deployment-target consistency check
 - **Work**
   - Add a CI check that `MACOSX_DEPLOYMENT_TARGET` in the Xcode project and `platforms` in
     `Package.swift` are equal. It fails the build when they differ.
@@ -100,7 +100,7 @@ disagreement is a defect in this file.
   Targets.
 - **Done when** — Changing one of the two values without the other fails CI.
 
-### [ ] P0.5 `[DevOps]` Module boundary enforcement
+### [x] P0.5 `[DevOps]` Module boundary enforcement
 - **Work**
   - Add CI checks for the binding import rules: the engine logic never imports an adapter, only
     the engine command wiring imports adapters, the app never links the engine, and the Journal and
@@ -108,7 +108,7 @@ disagreement is a defect in this file.
 - **Spec** — ADR-001, ADR-003; `CLAUDE.md` → Local choices (Modules).
 - **Done when** — A test commit that breaks each rule fails CI with a message that names the rule.
 
-### [ ] P0.6 `[DevOps]` Dependency and supply-chain hygiene
+### [x] P0.6 `[DevOps]` Dependency and supply-chain hygiene
 - **Work**
   - Commit resolved package versions. Enable automated dependency-update pull requests for Swift
     packages and CI actions.
@@ -117,7 +117,7 @@ disagreement is a defect in this file.
     fixtures can be committed.
 - **Done when** — Dependency-update PRs arrive. A test secret pushed on a branch is flagged.
 
-### [ ] P0.7 `[DevOps]` Developer workstation prerequisites
+### [x] P0.7 `[DevOps]` Developer workstation prerequisites
 - **Work** — Write a `CONTRIBUTING.md` section listing, and a check script verifying:
   - Apple Silicon Mac, Xcode toolchain, SwiftLint.
   - Orca ADE installed (the version recorded in the feasibility probes, or later).
@@ -128,7 +128,7 @@ disagreement is a defect in this file.
 - **Spec** — `docs/tech/stack.md` → Distribution (four prerequisites); feasibility probes → Method.
 - **Done when** — A new developer runs the check script and gets a pass/fail per prerequisite.
 
-### [ ] P0.8 Glossary-term conformance tooling
+### [x] P0.8 Glossary-term conformance tooling
 - **Work**
   - A lightweight lint (CI job, warning level) that flags known forbidden synonyms in identifiers,
     UI copy and commit messages. Examples: lowercase `project` for our Project in type names,
