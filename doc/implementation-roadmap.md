@@ -258,7 +258,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — A fixture matrix covers every rule, including "two conflicting Projects refused,
   third Project loads".
 
-### [ ] P2.4 Routing Table merge
+### [x] P2.4 Routing Table merge
 - **Work**
   - Merge the machine-wide base table with each Project's optional override table **once, at load**,
     keyed by (Kind, Repo Role). A per-Project entry replaces its base counterpart outright,
