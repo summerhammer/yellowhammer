@@ -1,0 +1,12 @@
+id = "limit-not-integer"
+name = "Limit Not Integer"
+linear_project = "LNI"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"
+
+[limits]
+review_rounds_max = "2"

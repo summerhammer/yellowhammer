@@ -1,0 +1,8 @@
+id = "missing-check"
+name = "No Check"
+linear_project = "NC"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"

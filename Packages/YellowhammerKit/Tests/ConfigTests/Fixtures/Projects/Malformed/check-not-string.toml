@@ -1,0 +1,9 @@
+id = "check-not-string"
+name = "Check Not String"
+linear_project = "CNS"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = 123

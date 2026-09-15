@@ -1,0 +1,10 @@
+id = "unknown-repo-key"
+name = "Unknown Repo"
+linear_project = "UR"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"
+unknown_field = "value"

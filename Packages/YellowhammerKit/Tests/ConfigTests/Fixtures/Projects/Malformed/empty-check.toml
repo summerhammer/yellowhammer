@@ -1,0 +1,9 @@
+id = "empty-check"
+name = "Empty Check"
+linear_project = "EC"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = ""

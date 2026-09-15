@@ -13,6 +13,12 @@ public struct ConfigurationError: Error, Equatable, Sendable {
         case invalidKind(String)
         case invalidRoute(String)
         case duplicateRoutingEntry(firstLine: Int)
+        case invalidProjectID(String)
+        case projectIDMismatch(fileStem: String)
+        case emptyArray
+        case duplicateRepo(firstLine: Int)
+        case notPositive(Int64)
+        case invalidTimeOfDay(String)
     }
 
     public let file: String
@@ -65,6 +71,18 @@ extension ConfigurationError.Reason: CustomStringConvertible {
             return "expected \"cli/model\" or \"cli/model/effort\", got \"\(value)\""
         case .duplicateRoutingEntry(let firstLine):
             return "a Routing Entry for the same Kind and Repo Role is already defined on line \(firstLine)"
+        case .invalidProjectID(let value):
+            return "Project ID must contain only letters, digits, underscores, and hyphens, got \"\(value)\""
+        case .projectIDMismatch(let fileStem):
+            return "Project ID does not match filename; file stem is \"\(fileStem)\""
+        case .emptyArray:
+            return "array must not be empty"
+        case .duplicateRepo(let firstLine):
+            return "repo name is already defined on line \(firstLine)"
+        case .notPositive(let value):
+            return "must be an integer >= 1, got \(value)"
+        case .invalidTimeOfDay(let value):
+            return "must be in HH:MM format with hours 00-23 and minutes 00-59, got \"\(value)\""
         }
     }
 }

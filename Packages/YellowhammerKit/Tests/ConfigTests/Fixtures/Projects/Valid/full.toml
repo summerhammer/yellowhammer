@@ -1,0 +1,49 @@
+# A Project whose specification source is a Repo of Repo Role "spec".
+id = "full"
+name = "Full Project"
+linear_project = "FULL"
+
+[[repos]]
+name = "backend"
+path = "~/dev/full-backend"
+role = "backend"
+check = "swift test"
+protected_paths = ["Secrets/", "Private/"]
+
+[[repos]]
+name = "spec-repo"
+path = "~/dev/full-spec"
+role = "spec"
+check = "none"
+
+[[repos]]
+name = "custom-role"
+path = "~/dev/full-custom"
+role = "data-pipeline"
+check = "python -m pytest"
+
+[limits]
+review_rounds_max = 3
+attempts_per_card = 5
+unanswered_nights_max = 4
+reselections_max = 3
+consecutive_refusals_max = 5
+failed_adoptions_max = 3
+
+[schedule]
+night_start = "23:00"
+night_end = "07:00"
+build_every_minutes = 20
+
+[github]
+credential = "keychain:github-full"
+
+[[routing]]
+kind = "impl.boilerplate"
+repo_role = "backend"
+route = "claude/sonnet/low"
+
+[[routing]]
+kind = "review"
+route = "claude/opus"
+fallbacks = ["codex/gpt-5.4/high"]

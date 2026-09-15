@@ -1,0 +1,12 @@
+id = "invalid-time-format"
+name = "Bad Time Format"
+linear_project = "BTF"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"
+
+[schedule]
+night_end = "9:00"

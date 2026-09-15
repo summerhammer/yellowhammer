@@ -1,0 +1,10 @@
+id = "protected-path-not-string"
+name = "Protected Path Not String"
+linear_project = "PPNS"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"
+protected_paths = ["Secrets/", 7]

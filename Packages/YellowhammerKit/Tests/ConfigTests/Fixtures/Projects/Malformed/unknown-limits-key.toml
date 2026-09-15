@@ -1,0 +1,12 @@
+id = "unknown-limits-key"
+name = "Unknown Limits"
+linear_project = "UL"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"
+
+[limits]
+unknown_bound = 5

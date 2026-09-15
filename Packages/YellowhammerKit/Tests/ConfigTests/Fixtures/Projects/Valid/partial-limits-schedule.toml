@@ -1,0 +1,16 @@
+id = "partial-limits-schedule"
+name = "Partial Project"
+linear_project = "PARTIAL"
+spec_source = "~/dev/partial-spec"
+
+[[repos]]
+name = "main"
+path = "~/dev/partial"
+role = "backend"
+check = "echo test"
+
+[limits]
+review_rounds_max = 4
+
+[schedule]
+build_every_minutes = 30
