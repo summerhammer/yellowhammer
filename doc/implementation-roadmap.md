@@ -284,7 +284,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 
 ## Phase 3 — Local stores
 
-### [ ] P3.1 Journal store: creation and schema
+### [x] P3.1 Journal store: creation and schema
 - **Work**
   - One Journal per Project, created on first use at the Project's Journal path. The engine
     invocation for that Project is its only writer.
