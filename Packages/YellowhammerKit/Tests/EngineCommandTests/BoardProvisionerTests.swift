@@ -26,8 +26,8 @@ actor FakeProvisioningBoard: BoardProvisioning {
         teamLabels[team, default: []].append(label)
     }
 
-    func seed(state name: String, team: BoardObjectID) {
-        states[team, default: []].append(BoardWorkflowState(id: mint(), name: name))
+    func seed(state name: String, team: BoardObjectID, category: BoardWorkflowStateCategory? = nil) {
+        states[team, default: []].append(BoardWorkflowState(id: mint(), name: name, category: category))
     }
 
     func linearProject() async throws(BoardError) -> BoardProjectScope {

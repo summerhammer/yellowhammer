@@ -121,7 +121,7 @@ enum LinearGraphQL {
         query YellowhammerWorkflowStates($teamId: ID!, $first: Int!, $after: String) {
           workflowStates(filter: { team: { id: { eq: $teamId } } }, first: $first, after: $after) {
             pageInfo { hasNextPage endCursor }
-            nodes { id name }
+            nodes { id name type }
           }
         }
         """
@@ -130,7 +130,7 @@ enum LinearGraphQL {
         mutation YellowhammerCreateWorkflowState($teamId: String!, $name: String!, $color: String!) {
           workflowStateCreate(input: { teamId: $teamId, name: $name, type: "started", color: $color }) {
             success
-            workflowState { id name }
+            workflowState { id name type }
           }
         }
         """

@@ -25,7 +25,8 @@ private func runAct(
     }
     let parsed = try RootCommand.parseAsRoot(args)
     let command = try #require(parsed as? any ActCommand)
-    try await command.run(configurationDirectory: directory.url)
+    // No Board bound: this suite is about lease/Journal mechanics, not the Night Card (NightCardTests).
+    try await command.makeInvocation(configurationDirectory: directory.url, now: Date(), bindBoard: nil).run()
 }
 
 private func journalFiles(in directory: borrowing ConfigurationDirectory) throws -> [String] {

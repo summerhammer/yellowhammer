@@ -27,11 +27,12 @@ private struct JournalFixture: ~Copyable {
 private let epoch = Date(timeIntervalSince1970: 1_800_000_000)
 private let nightStart = NightStart(rawValue: "2026-09-15")!
 
-@Test("Migration identifiers end at v5-delta-read")
-func migrationIdentifiersIncludeV5() throws {
+@Test("Migration identifiers end at v6-night-verdict")
+func migrationIdentifiersIncludeV6() throws {
     #expect(
         JournalStore.migrationIdentifiers == [
-            "v1-initial-schema", "v2-act-lease", "v3-night-close-reason", "v4-outbox-delivery", "v5-delta-read"
+            "v1-initial-schema", "v2-act-lease", "v3-night-close-reason", "v4-outbox-delivery",
+            "v5-delta-read", "v6-night-verdict"
         ]
     )
 }
@@ -305,6 +306,9 @@ func nightStartWithComponents() throws {
     #expect(NightStart(year: 2026, month: 13, day: 15) == nil)
     #expect(NightStart(year: 2026, month: 9, day: 32) == nil)
 }
+
+// recordNightCard, recordAuthoringNoWorkAvailable and the fresh-Night verdict are covered in
+// NightCardJournalTests.swift, split out to keep this file under the length limit.
 
 @Test("Schema refuses close_reason outside the allowed set")
 func schemaRefusesBadCloseReason() async throws {

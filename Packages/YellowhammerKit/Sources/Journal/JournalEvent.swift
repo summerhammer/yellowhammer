@@ -38,6 +38,10 @@ public enum JournalEvent: Equatable, Sendable {
     /// The SHA-256 of the human prose outside the delimiters, recorded for provenance on every
     /// description write.
     case managedBlockWritten(issueID: String, preservedProseHash: String, renderedHash: String)
+    /// The first Act of the Night created that Project's Night Card, before any work (DR7).
+    case nightCardOpened(issueID: String)
+    /// The land firing at `night_end` completed the Night Card with the Night Summary.
+    case nightCardCompleted(issueID: String)
     /// A permanent board write failure, surfaced in the Night Summary because a silent projection
     /// failure makes every other guarantee unreadable.
     case boardWriteFailed(clientID: UUID, operation: String, issueID: String?, reason: String)
@@ -99,6 +103,10 @@ public enum JournalEvent: Equatable, Sendable {
             .nightOpenedAndDied
         case .managedBlockWritten:
             .managedBlockWritten
+        case .nightCardOpened:
+            .nightCardOpened
+        case .nightCardCompleted:
+            .nightCardCompleted
         case .boardWriteFailed:
             .boardWriteFailed
         case .outboxGroupRolledBack:
@@ -138,6 +146,8 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case nightClosed = "NightClosed"
     case nightOpenedAndDied = "NightOpenedAndDied"
     case managedBlockWritten = "ManagedBlockWritten"
+    case nightCardOpened = "NightCardOpened"
+    case nightCardCompleted = "NightCardCompleted"
     case boardWriteFailed = "BoardWriteFailed"
     case outboxGroupRolledBack = "OutboxGroupRolledBack"
     case cardCancelled = "CardCancelled"

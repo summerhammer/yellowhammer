@@ -50,7 +50,9 @@ extension LinearAdapter: BoardProvisioning {
                 LinearGraphQL.workflowStatesQuery, variables: variables
             )
             allStates.append(contentsOf: payload.workflowStates.nodes.map { node in
-                BoardWorkflowState(id: BoardObjectID(rawValue: node.id), name: node.name)
+                BoardWorkflowState(
+                    id: BoardObjectID(rawValue: node.id), name: node.name, category: Self.category(of: node.type)
+                )
             })
             if !payload.workflowStates.pageInfo.hasNextPage {
                 break
@@ -80,7 +82,17 @@ extension LinearAdapter: BoardProvisioning {
         guard let stateNode = createData.workflowState else {
             throw .refused("Linear created the workflow state but returned no state data")
         }
-        return BoardWorkflowState(id: BoardObjectID(rawValue: stateNode.id), name: stateNode.name)
+        return BoardWorkflowState(
+            id: BoardObjectID(rawValue: stateNode.id), name: stateNode.name, category: Self.category(of: stateNode.type)
+        )
+    }
+
+    /// Translates Linear's vendor `type` string into Yellowhammer's vocabulary. Linear spells its
+    /// cancelled type `canceled`; an unrecognized string maps to nil rather than guessing.
+    private static func category(of type: String?) -> BoardWorkflowStateCategory? {
+        guard let type else { return nil }
+        if type == "canceled" { return .cancelled }
+        return BoardWorkflowStateCategory(rawValue: type)
     }
 
     public func labels(team: BoardObjectID) async throws(BoardError) -> [BoardLabel] {

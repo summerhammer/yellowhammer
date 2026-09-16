@@ -22,7 +22,8 @@ private func runAct(
     }
     let parsed = try RootCommand.parseAsRoot(args)
     let command = try #require(parsed as? any ActCommand)
-    try await command.run(configurationDirectory: directory.url)
+    // No Board bound: this suite is about the event log, not the Night Card (NightCardTests).
+    try await command.makeInvocation(configurationDirectory: directory.url, now: Date(), bindBoard: nil).run()
 }
 
 @Test("Running an Act through the engine records ActStarted, then ActIncomplete on notImplemented")

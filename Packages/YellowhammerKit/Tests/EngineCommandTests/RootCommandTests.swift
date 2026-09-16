@@ -2,6 +2,7 @@ import ArgumentParser
 import Domain
 import Engine
 @testable import EngineCommand
+import Foundation
 import Testing
 
 @Test("The command is named yh")
@@ -30,8 +31,9 @@ func subcommandRunsItsAct(_ act: Act) async throws {
     }
     let parsed = try RootCommand.parseAsRoot(args)
     let command = try #require(parsed as? any ActCommand)
+    // No Board bound: this test is about CLI dispatch, not the Night Card (NightCardTests).
     await #expect(throws: EngineInvocationError.notImplemented(act)) {
-        try await command.run(configurationDirectory: directory.url)
+        try await command.makeInvocation(configurationDirectory: directory.url, now: Date(), bindBoard: nil).run()
     }
 }
 

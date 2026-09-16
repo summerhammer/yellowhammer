@@ -54,6 +54,10 @@ struct LinearPageInfo: Decodable {
 struct LinearWorkflowStateNode: Decodable {
     let id: String
     let name: String
+    /// Linear's vendor type string ("triage", "backlog", "unstarted", "started", "completed",
+    /// "canceled"); translated to ``BoardWorkflowStateCategory`` at the Port boundary, never crossed
+    /// as-is (an adapter translates, never decides).
+    let type: String?
 }
 
 struct LinearWorkflowStateCreatePayload: Decodable {

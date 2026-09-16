@@ -45,6 +45,9 @@ enum JournalMigrations {
         migrator.registerMigration("v5-delta-read") { db in
             try addDeltaReadTracking(db)
         }
+        migrator.registerMigration("v6-night-verdict") { db in
+            try addNightVerdictColumn(db)
+        }
         return migrator
     }
 }

@@ -1,5 +1,6 @@
 import Config
 import Domain
+import Engine
 import LinearAdapter
 
 /// Builds the Board Port for one resolved Project. The only place a board adapter is wired (MB2).
@@ -21,6 +22,16 @@ enum BoardBinding {
         credentials store: KeychainCredentialStore = KeychainCredentialStore()
     ) throws(BoardBindingError) -> any BoardProvisioning {
         try makeLinearAdapter(machine: machine, project: project, credentials: store)
+    }
+
+    /// The Board Port as one Act holds it (writing and provisioning together), from the same adapter.
+    static func actBoard(
+        machine: MachineConfiguration,
+        project: ProjectConfiguration,
+        credentials store: KeychainCredentialStore = KeychainCredentialStore()
+    ) throws(BoardBindingError) -> ActBoard {
+        let adapter = try makeLinearAdapter(machine: machine, project: project, credentials: store)
+        return ActBoard(writing: adapter, provisioning: adapter)
     }
 
     private static func makeLinearAdapter(

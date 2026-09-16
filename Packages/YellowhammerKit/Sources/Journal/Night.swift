@@ -16,6 +16,9 @@ public struct NightRecord: Equatable, Sendable {
     /// When the Night was closed in the Journal; `closeReason` says how. Nil while it is open.
     public let completedAt: Date?
     public let closeReason: NightCloseReason?
+    /// The Night Summary's constant-time verdict line (OQ13); nil until something writes one.
+    /// `idle` is the only value this phase writes — the author Act finding nothing selectable.
+    public let verdict: NightVerdict?
 
     public var isOpen: Bool { state == .opened }
 }
@@ -80,7 +83,8 @@ extension JournalStore {
             )
             let night = NightRecord(
                 id: db.lastInsertedRowID, projectID: projectID, nightStart: nightStart, mode: mode,
-                state: .opened, nightCardIssueID: nil, openedAt: now, completedAt: nil, closeReason: nil
+                state: .opened, nightCardIssueID: nil, openedAt: now, completedAt: nil, closeReason: nil,
+                verdict: nil
             )
             let stamp = EventStamp(act: act, runID: runID, nightID: night.id, now: now)
             _ = try Self.insertEvent(db, .nightOpened, stamp: stamp)
@@ -144,6 +148,94 @@ extension JournalStore {
         try read { db in try Self.fetchNight(db, id: id) }
     }
 
+    /// Records the Night Card's issue id, the first Act of the Night creating it before any work
+    /// (DR7). One write transaction under the Act-scoped lease. A repeat of the same issue id is a
+    /// no-op — the Outbox's replay after a crash resolves to the same create — and a different id
+    /// throws ``JournalError/nightCardAlreadyRecorded(id:issueID:)``, because one Night gets one card.
+    @discardableResult
+    public func recordNightCard(
+        id: Int64,
+        issueID: String,
+        act: Act,
+        runID: RunID,
+        now: Date = Date()
+    ) throws -> NightRecord {
+        let now = JournalStore.stored(now)
+        return try write { db in
+            _ = try Self.revalidateActLease(db, runID: runID, now: now)
+            guard let night = try Self.fetchNight(db, id: id) else {
+                throw JournalError.nightUnknown(id: id)
+            }
+            if let existing = night.nightCardIssueID {
+                guard existing == issueID else {
+                    throw JournalError.nightCardAlreadyRecorded(id: id, issueID: existing)
+                }
+                return night
+            }
+            try db.execute(
+                sql: "UPDATE night SET night_card_issue_id = ? WHERE id = ?",
+                arguments: [issueID, id]
+            )
+            let updated = NightRecord(
+                id: night.id,
+                projectID: night.projectID,
+                nightStart: night.nightStart,
+                mode: night.mode,
+                state: night.state,
+                nightCardIssueID: issueID,
+                openedAt: night.openedAt,
+                completedAt: night.completedAt,
+                closeReason: night.closeReason,
+                verdict: night.verdict
+            )
+            let stamp = EventStamp(act: act, runID: runID, nightID: id, now: now)
+            _ = try Self.insertEvent(db, .nightCardOpened(issueID: issueID), stamp: stamp)
+            return updated
+        }
+    }
+
+    /// Records the author Act's finding nothing selectable to author (`AuthoringNoWorkAvailable`,
+    /// OQ13): the one place the Night's idle verdict is written. Refuses a closed Night — the verdict
+    /// belongs to the Night that is still open when authoring runs. One write transaction under the
+    /// Act-scoped lease.
+    @discardableResult
+    public func recordAuthoringNoWorkAvailable(
+        nightID: Int64,
+        act: Act,
+        runID: RunID,
+        now: Date = Date()
+    ) throws -> NightRecord {
+        let now = JournalStore.stored(now)
+        return try write { db in
+            _ = try Self.revalidateActLease(db, runID: runID, now: now)
+            guard let night = try Self.fetchNight(db, id: nightID) else {
+                throw JournalError.nightUnknown(id: nightID)
+            }
+            guard night.isOpen else {
+                throw JournalError.nightAlreadyClosed(id: nightID)
+            }
+            try db.execute(
+                sql: "UPDATE night SET verdict = ? WHERE id = ?",
+                arguments: [NightVerdict.idle.rawValue, nightID]
+            )
+            let updated = NightRecord(
+                id: night.id,
+                projectID: night.projectID,
+                nightStart: night.nightStart,
+                mode: night.mode,
+                state: night.state,
+                nightCardIssueID: night.nightCardIssueID,
+                openedAt: night.openedAt,
+                completedAt: night.completedAt,
+                closeReason: night.closeReason,
+                verdict: .idle
+            )
+            let stamp = EventStamp(act: act, runID: runID, nightID: nightID, now: now)
+            _ = try Self.insertEvent(db, .authoringNoWorkAvailable, stamp: stamp)
+            return updated
+        }
+    }
+
     /// Every Night of this Project, oldest first.
     public func nights() throws -> [NightRecord] {
         try read { db in
@@ -187,7 +279,8 @@ extension JournalStore {
             nightCardIssueID: night.nightCardIssueID,
             openedAt: night.openedAt,
             completedAt: now,
-            closeReason: reason
+            closeReason: reason,
+            verdict: night.verdict
         )
     }
 
@@ -255,6 +348,12 @@ extension JournalStore {
         let completedAt = try (row["completed_at"] as String?).map { text in
             try JournalStore.date(text) { JournalError.nightUnreadable(id: id) }
         }
+        let verdict = try (row["verdict"] as String?).map { text in
+            guard let verdict = NightVerdict(rawValue: text) else {
+                throw JournalError.nightUnreadable(id: id)
+            }
+            return verdict
+        }
         return NightRecord(
             id: id,
             projectID: projectID,
@@ -264,7 +363,8 @@ extension JournalStore {
             nightCardIssueID: row["night_card_issue_id"],
             openedAt: openedAt,
             completedAt: completedAt,
-            closeReason: closeReason
+            closeReason: closeReason,
+            verdict: verdict
         )
     }
 }
