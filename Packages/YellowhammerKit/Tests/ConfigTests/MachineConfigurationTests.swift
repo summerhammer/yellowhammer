@@ -30,6 +30,7 @@ func defaultFileURL() {
 func minimalFileLoads() throws {
     let configuration = try MachineConfiguration.load(contentsOf: fixture("minimal", in: "Valid"))
     #expect(configuration == MachineConfiguration(
+        linearClientID: "yellowhammer-client-id",
         linearCredential: try credential("keychain:linear"),
         gitHubCredential: try credential("keychain:github"),
         cliAdapters: [],
@@ -41,6 +42,7 @@ func minimalFileLoads() throws {
 func fullFileLoads() throws {
     let configuration = try MachineConfiguration.load(contentsOf: fixture("full", in: "Valid"))
     let expected = MachineConfiguration(
+        linearClientID: "yellowhammer-client-id",
         linearCredential: try credential("keychain:linear"),
         gitHubCredential: try credential("keychain:github"),
         cliAdapters: [
@@ -81,11 +83,13 @@ func fullFileLoads() throws {
 func alternativeTableSpellings() throws {
     let text = """
     linear.credential = "keychain:linear"
+    linear.client_id = "yellowhammer-client-id"
     github = { credential = "keychain:github" }
     cli.claude = {}
     routing = [{ route = "claude/opus/high" }]
     """
     let configuration = try MachineConfiguration.parse(text, file: "config.toml")
+    #expect(configuration.linearClientID == "yellowhammer-client-id")
     #expect(configuration.linearCredential == (try credential("keychain:linear")))
     #expect(configuration.gitHubCredential == (try credential("keychain:github")))
     #expect(configuration.routingTable == [RoutingEntry(route: try route("claude", "opus", "high"))])
@@ -118,4 +122,43 @@ func errorDescription() {
         """)
     let keyless = ConfigurationError(file: "config.toml", line: 2, key: nil, reason: .syntax("expected a key"))
     #expect(keyless.description == "config.toml:2: expected a key")
+}
+
+@Test("[linear] requires a non-empty string client_id", arguments: [
+    ("credential = \"keychain:linear\"", 1, ConfigurationError.Reason.missingKey),
+    ("credential = \"keychain:linear\"\nclient_id = \"\"", 3, .emptyString),
+    ("credential = \"keychain:linear\"\nclient_id = 42", 3, .typeMismatch(expected: "string", found: "integer"))
+])
+func linearClientIDIsRequired(body: String, line: Int, reason: ConfigurationError.Reason) {
+    let text = "[linear]\n\(body)\n\n[github]\ncredential = \"keychain:github\"\n"
+    do {
+        _ = try MachineConfiguration.parse(text, file: "config.toml")
+        Issue.record("expected the parse to fail")
+    } catch {
+        #expect(error.file == "config.toml")
+        #expect(error.line == line, "\(error)")
+        #expect(error.key == "linear.client_id", "\(error)")
+        #expect(error.reason == reason, "\(error)")
+    }
+}
+
+@Test("[github] still refuses a client_id key")
+func gitHubRefusesClientID() {
+    let text = """
+    [linear]
+    credential = "keychain:linear"
+    client_id = "yellowhammer-client-id"
+
+    [github]
+    credential = "keychain:github"
+    client_id = "yellowhammer-client-id"
+    """
+    do {
+        _ = try MachineConfiguration.parse(text, file: "config.toml")
+        Issue.record("expected the parse to fail")
+    } catch {
+        #expect(error.line == 7, "\(error)")
+        #expect(error.key == "github.client_id", "\(error)")
+        #expect(error.reason == .unknownKey, "\(error)")
+    }
 }

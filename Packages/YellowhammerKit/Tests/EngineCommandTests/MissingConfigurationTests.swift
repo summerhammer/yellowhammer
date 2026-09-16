@@ -69,7 +69,9 @@ func missingMachineFile(_ act: Act) async throws {
 @Test("A malformed config.toml refuses the Act and names the error", arguments: Act.allCases)
 func malformedMachineFile(_ act: Act) async throws {
     let directory = ConfigurationDirectory()
-    try directory.writeMachineFile("[linear]\ncredential = \"keychain:linear\"\n")
+    try directory.writeMachineFile(
+        "[linear]\ncredential = \"keychain:linear\"\nclient_id = \"yellowhammer-client-id\"\n"
+    )
     try directory.writeValidProjectFile(id: "yellowhammer")
 
     let (error, message) = try await refusal(act, project: "yellowhammer", in: directory)

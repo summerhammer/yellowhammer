@@ -29,13 +29,20 @@ its own workspace.
 
 ## Storing credentials
 
-Client credentials never enter the repo or a config file. The config file
-(`~/.config/yellowhammer/config.toml`) holds only a reference:
+The client secret never enters the repo or a config file. The machine-wide config file
+(`~/.config/yellowhammer/config.toml`) holds the application's client id and only a reference to
+the secret:
 
 ```toml
 [linear]
 credential = "keychain:linear"
+client_id = "<client-id>"
 ```
+
+`client_id` is required: the `client_credentials` grant needs it alongside the secret. It is not a
+secret — it identifies the registered application, and a scratch machine and a production machine
+carry their own workspace's client id. Both keys are machine-wide; a Project file never overrides the
+Linear identity.
 
 `Config.KeychainCredentialStore` resolves that reference to the login keychain item
 `service = "dev.yellowhammer"`, `account = "linear"`. To provision a machine by hand (until
@@ -52,7 +59,8 @@ security add-generic-password -U -s dev.yellowhammer -a linear -w '<client-secre
   scratch workspace — from P5.2 onward) get the **scratch** app's secret. CI has no persistent
   Keychain across runs, so a workflow step provisions it at job start from a `LINEAR_SCRATCH_CLIENT_SECRET`
   repository secret, using the command above against the runner's already-unlocked default
-  keychain. No such workflow step exists yet — add it when P5.2 lands adapter tests that need it.
+  keychain. No such workflow step exists yet: P5.2's adapter tests are hermetic, and the one live
+  test (below) is opt-in, so CI does not need the secret until a live test runs there.
 - **The Operator's real daily-use machine** — wherever Yellowhammer actually manages real
   Projects, as opposed to a throwaway dev/test run — gets the **production** app's secret. This
   is not a hosted service; "production" here means "the machine actually doing the work," which
@@ -80,10 +88,27 @@ A successful response returns an access token. Post one comment on a test issue 
 confirm the comment triggers an Inbox notification (`issueNewComment`) for the Operator — the
 concrete acceptance check for this story.
 
+## Running the live adapter test
+
+The Linear adapter's tests run offline against a stub transport. One test, `LinearScratchTests`,
+talks to the real **scratch** workspace: it obtains a token, checks that `viewer` resolves to the
+registered application rather than an Operator, and reads one page of the scratch Linear project's
+issues. It is opt-in and skips cleanly when its inputs are absent:
+
+```sh
+YH_LINEAR_SCRATCH_TESTS=1 \
+YH_LINEAR_CLIENT_ID=<scratch-client-id> \
+YH_LINEAR_PROJECT_ID=<scratch-linear-project-id> \
+swift test --package-path Packages/YellowhammerKit --filter LinearScratchTests
+```
+
+The client secret is read from the `keychain:linear` item provisioned above, never from the
+environment. Run it on a developer machine holding the scratch secret, never on one holding production's.
+
 ## Rotation
 
 1. In the Linear workspace's OAuth application settings, reset the client secret. The client ID
-   does not change.
+   does not change, so `client_id` in `config.toml` stays as it is.
 2. Update every machine's Keychain item for that workspace with the new secret:
    `security add-generic-password -U -s dev.yellowhammer -a linear -w '<new-client-secret>'`.
 3. Re-run the verification `curl` above against the workspace to confirm the new secret works
@@ -99,6 +124,7 @@ whatever cadence the Operator sets — the spec does not mandate a schedule.
    secret and discard the new one without distributing it, if the app must keep functioning for a
    grace period at first).
 2. Remove the Keychain item from every machine that held it:
-   `security delete-generic-password -s dev.yellowhammer -a linear`.
+   `security delete-generic-password -s dev.yellowhammer -a linear`. If the application was deleted,
+   its `client_id` in `config.toml` is dead too; replace it when a new application is registered.
 3. Deleting the application immediately invalidates every token issued under it — no separate
    token-revocation step is needed for the `client_credentials` grant.

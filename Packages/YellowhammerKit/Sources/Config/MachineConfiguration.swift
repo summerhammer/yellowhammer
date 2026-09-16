@@ -1,9 +1,12 @@
 import Domain
 import Foundation
 
-/// The machine-wide configuration file: Linear authorization, the machine default GitHub credential,
+/// The machine-wide configuration file: Linear authorization (client id and credential), the machine default GitHub credential,
 /// the declared CLI Adapters and the base Routing Table.
 public struct MachineConfiguration: Equatable, Sendable {
+    /// The registered Linear OAuth application's client id. Not a secret: the client secret stays
+    /// behind ``linearCredential``.
+    public var linearClientID: String
     public var linearCredential: CredentialReference
     public var gitHubCredential: CredentialReference
     /// In file order.
@@ -12,11 +15,13 @@ public struct MachineConfiguration: Equatable, Sendable {
     public var routingTable: [RoutingEntry]
 
     public init(
+        linearClientID: String,
         linearCredential: CredentialReference,
         gitHubCredential: CredentialReference,
         cliAdapters: [CLIAdapterDeclaration],
         routingTable: [RoutingEntry]
     ) {
+        self.linearClientID = linearClientID
         self.linearCredential = linearCredential
         self.gitHubCredential = gitHubCredential
         self.cliAdapters = cliAdapters
