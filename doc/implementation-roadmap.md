@@ -446,7 +446,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Adapter tests against the scratch workspace read a Linear project's issues.
   Nothing outside the adapter refers to a Linear type.
 
-### [ ] P5.3 Linear provisioning (setup-time)
+### [x] P5.3 Linear provisioning (setup-time)
 - **Work**
   - Provision the team's `Waiting on You` workflow state if missing (once per team, shared by
     Projects in that team).
