@@ -12,6 +12,7 @@ let package = Package(
         .library(name: "Domain", targets: ["Domain"]),
         .library(name: "Config", targets: ["Config"]),
         .library(name: "Journal", targets: ["Journal"]),
+        .library(name: "Ledger", targets: ["Ledger"]),
         .library(name: "Engine", targets: ["Engine"]),
         .library(name: "EngineCommand", targets: ["EngineCommand"])
     ],
@@ -35,6 +36,13 @@ let package = Package(
         ),
         .target(
             name: "Journal",
+            dependencies: [
+                "Domain",
+                .product(name: "GRDB", package: "GRDB.swift")
+            ]
+        ),
+        .target(
+            name: "Ledger",
             dependencies: [
                 "Domain",
                 .product(name: "GRDB", package: "GRDB.swift")
@@ -66,6 +74,13 @@ let package = Package(
             name: "JournalTests",
             dependencies: [
                 "Journal",
+                "Domain"
+            ]
+        ),
+        .testTarget(
+            name: "LedgerTests",
+            dependencies: [
+                "Ledger",
                 "Domain"
             ]
         ),
