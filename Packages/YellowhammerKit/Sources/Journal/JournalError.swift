@@ -66,6 +66,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     case cardNotCancelled(cardID: Int64)
     /// The `board_sync` row does not decode; the Journal was written by something other than the engine.
     case boardSyncUnreadable
+    /// The `clause` row does not decode; the Journal was written by something other than the engine.
+    case clauseUnreadable(issueID: String, cid: String)
 
     public var description: String {
         return switch self {
@@ -144,6 +146,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
             "Card \(cardID) is not cancelled and cannot be reopened"
         case .boardSyncUnreadable:
             "The Journal's board_sync row cannot be read"
+        case .clauseUnreadable(let issueID, let cid):
+            "The Journal's clause row (issue_id=\(issueID), cid=\(cid)) cannot be read"
         }
     }
 }

@@ -16,13 +16,7 @@ public struct BoardProvisioner {
 
     /// Block Reason label group and its children.
     static let blockReasonGroup = "Block Reason"
-    static let blockReasonChildren = [
-        "blocked by reviewer",
-        "blocked by check",
-        "hard failure",
-        "unanswered",
-        "undecided"
-    ]
+    static let blockReasonChildren = BlockReason.allCases.map(\.rawValue)
 
     /// A label group to be provisioned.
     private struct LabelGroupDeclaration {

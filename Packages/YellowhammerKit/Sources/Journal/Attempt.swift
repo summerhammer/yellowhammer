@@ -25,6 +25,7 @@ public struct AttemptRecord: Equatable, Sendable {
     public let classification: String?
     public let result: String?
     public let consumedHow: String?
+    public let checkDeclaredNone: Bool
     public let startedAt: Date
     public let endedAt: Date?
     public let rounds: [RoundRecord]
@@ -71,6 +72,7 @@ extension JournalStore {
     public func recordAttempt(
         cardID: Int64,
         route: Route,
+        checkDeclaredNone: Bool = false,
         runID: RunID,
         now: Date = Date()
     ) throws -> AttemptRecord {
@@ -92,11 +94,13 @@ extension JournalStore {
             let startedAt = JournalStore.stored(now)
             try db.execute(
                 sql: """
-                INSERT INTO attempt (card_id, budget_epoch, route_cli, route_model, route_effort, started_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO attempt (card_id, budget_epoch, route_cli, route_model, route_effort, \
+                check_declared_none, started_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 arguments: [
-                    cardID, budgetEpoch, route.cli, route.model, route.effort, JournalStore.timestamp(startedAt)
+                    cardID, budgetEpoch, route.cli, route.model, route.effort, checkDeclaredNone ? 1 : 0,
+                    JournalStore.timestamp(startedAt)
                 ]
             )
             let attemptID = db.lastInsertedRowID
@@ -109,6 +113,7 @@ extension JournalStore {
                 classification: nil,
                 result: nil,
                 consumedHow: nil,
+                checkDeclaredNone: checkDeclaredNone,
                 startedAt: startedAt,
                 endedAt: nil,
                 rounds: []
@@ -285,6 +290,7 @@ extension JournalStore {
             classification: row["classification"],
             result: row["result"],
             consumedHow: row["consumed_how"],
+            checkDeclaredNone: ((row["check_declared_none"] as Int?) ?? 0) != 0,
             startedAt: try JournalStore.date(row["started_at"], onError: onError),
             endedAt: endedAt,
             rounds: rounds

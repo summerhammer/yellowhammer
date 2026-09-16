@@ -70,6 +70,11 @@ actor FakeWritingBoard: BoardWriting {
         return issueID
     }
 
+    /// The Operator puts a label on the issue by hand.
+    func label(_ issue: BoardObjectID, add label: BoardObjectID) {
+        issues[issue]?.labels.insert(label)
+    }
+
     /// The Operator edits the description between the Outbox accepting a write and delivering it.
     func edit(_ issue: BoardObjectID, description: String?) {
         issues[issue]?.description = description
