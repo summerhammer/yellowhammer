@@ -591,7 +591,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Fixture repos where mainline has and has not moved give the right verdict. The
   working tree and refs are unchanged afterwards.
 
-### [ ] P6.4 Path-scoped provenance diff
+### [x] P6.4 Path-scoped provenance diff
 - **Work** — For a recorded (repo, paths, commit), resolve mainline head and report whether any
   recorded path changed between the commit and head. One `rev-parse` and one path-scoped diff per
   Card per foreign repository.
