@@ -52,6 +52,9 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     case nightUnreadable(id: Int64)
     /// The Journal has more than one open Night, but there should be at most one.
     case multipleOpenNights
+    /// The Night's `night_card_issue_id` already names a different issue: two Night Cards for one
+    /// Night, which the Outbox's idempotency is meant to make impossible.
+    case nightCardAlreadyRecorded(id: Int64, issueID: String)
     /// The Journal has no Outbox entry with this id.
     case outboxEntryUnknown(id: Int64)
     /// The Outbox entry exists but is not in pending state; state machine leaves pending only once.
@@ -132,6 +135,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
             "The Journal's night row \(id) cannot be read"
         case .multipleOpenNights:
             "The Journal has more than one open Night, but there should be at most one"
+        case .nightCardAlreadyRecorded(let id, let issueID):
+            "Night \(id) already has a Night Card recorded, which is not \(issueID)"
         case .outboxEntryUnknown(let id):
             "The Journal has no Outbox entry with id \(id)"
         case .outboxEntryNotPending(let id, let state):

@@ -33,7 +33,7 @@ func eventTypeRawValues() {
         "MainlineFetchFailed", "AbsentNightDetected", "AuthoringNoWorkAvailable",
         "ManagedBlockDelimiterBroken", "NotificationDeliveryFailed", "RateBudgetExhausted",
         "LeaseReclaimed", "CardLeaseReclaimed", "NightOpened", "NightClosed", "NightOpenedAndDied",
-        "ManagedBlockWritten", "BoardWriteFailed", "OutboxGroupRolledBack",
+        "ManagedBlockWritten", "NightCardOpened", "NightCardCompleted", "BoardWriteFailed", "OutboxGroupRolledBack",
         "CardCancelled", "CardReopened", "CardRestated", "CardRemovedFromBoard",
         "AuthoringInvariantBroken", "DeltaReadCompleted"
     ]
@@ -390,6 +390,9 @@ func managedBlockWrittenRoundTrips() throws {
     #expect(readProseHash == proseHash)
     #expect(readRenderedHash == renderedHash)
 }
+
+// nightCardOpened and nightCardCompleted round-trips are covered in NightCardJournalTests.swift,
+// split out to keep this file under the length limit.
 
 @Test("boardWriteFailed event round-trips with required fields and optional issueID")
 func boardWriteFailedRoundTrips() throws {

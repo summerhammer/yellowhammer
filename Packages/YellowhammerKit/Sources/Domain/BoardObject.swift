@@ -59,9 +59,26 @@ public struct BoardObject: Equatable, Sendable {
 public struct BoardWorkflowState: Hashable, Sendable {
     public var id: BoardObjectID
     public var name: String
+    /// Yellowhammer's vocabulary for what the vendor's state `type` means; nil when the vendor
+    /// reported a type this build does not know. An adapter translates the vendor's string into this
+    /// enum so nothing above the Board Port ever reads a vendor type directly.
+    public var category: BoardWorkflowStateCategory?
 
-    public init(id: BoardObjectID, name: String) {
+    public init(id: BoardObjectID, name: String, category: BoardWorkflowStateCategory? = nil) {
         self.id = id
         self.name = name
+        self.category = category
     }
+}
+
+/// Yellowhammer's vocabulary for a workflow state's category, translated from the board's own by an
+/// adapter (an adapter translates, never decides). Linear spells its cancelled type `canceled`; this
+/// enum keeps Yellowhammer's own spelling.
+public enum BoardWorkflowStateCategory: String, Sendable, CaseIterable {
+    case triage
+    case backlog
+    case unstarted
+    case started
+    case completed
+    case cancelled
 }

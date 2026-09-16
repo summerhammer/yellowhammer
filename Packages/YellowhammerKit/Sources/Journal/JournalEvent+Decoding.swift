@@ -58,6 +58,10 @@ extension JournalEvent {
             try Self.decodeNightOpenedAndDied(reader)
         case .managedBlockWritten:
             try Self.decodeManagedBlockWritten(reader)
+        case .nightCardOpened:
+            .nightCardOpened(issueID: try reader.require("issue_id"))
+        case .nightCardCompleted:
+            .nightCardCompleted(issueID: try reader.require("issue_id"))
         case .boardWriteFailed:
             try Self.decodeBoardWriteFailed(reader)
         case .outboxGroupRolledBack:

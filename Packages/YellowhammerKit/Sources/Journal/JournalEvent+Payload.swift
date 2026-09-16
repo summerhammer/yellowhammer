@@ -53,6 +53,10 @@ extension JournalEvent {
         case .managedBlockWritten(let issueID, let preservedProseHash, let renderedHash):
             ["issue_id": issueID, "preserved_prose_hash": preservedProseHash,
              "rendered_hash": renderedHash]
+        case .nightCardOpened(let issueID):
+            ["issue_id": issueID]
+        case .nightCardCompleted(let issueID):
+            ["issue_id": issueID]
         case .boardWriteFailed(let clientID, let operation, let issueID, let reason):
             {
                 var dict: [String: String] = [

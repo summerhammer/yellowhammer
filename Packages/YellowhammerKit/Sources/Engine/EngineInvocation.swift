@@ -11,8 +11,13 @@ public struct ActContext: Sendable {
     public let trigger: ActTrigger
     public let runID: RunID
     public let journal: JournalStore
-    /// The Night this Act belongs to.
+    /// The Night this Act belongs to. Once a Board is given, this carries the Night Card's issue id,
+    /// re-read after `open` recorded it.
     public let night: NightRecord
+    /// The single write path to the board, when this invocation was given one.
+    public let outbox: Outbox?
+    /// This Act's Night Card, when this invocation was given a Board.
+    public let nightCard: NightCardMaintenance?
 }
 
 /// One Act's work for one Project, then exit.
@@ -37,6 +42,9 @@ public struct EngineInvocation: Sendable {
     /// landed. Decided by `EngineCommand` from the clock against the Project's `[schedule]`.
     public let closesNight: Bool
     public let leasePolicy: LeasePolicy
+    /// The Board Port, when this invocation maintains a Night Card. The Engine never opens a Journal
+    /// or imports an adapter (MB1/MB5); `EngineCommand` is the one place this is wired.
+    public let board: ActBoard?
     private let journal: JournalStore
     private let work: ActWork
 
@@ -48,7 +56,8 @@ public struct EngineInvocation: Sendable {
         trigger: ActTrigger = .scheduled,
         runID: RunID = RunID(),
         closesNight: Bool = false,
-        leasePolicy: LeasePolicy = .ruled
+        leasePolicy: LeasePolicy = .ruled,
+        board: ActBoard? = nil
     ) {
         self.act = act
         self.mode = mode
@@ -58,6 +67,7 @@ public struct EngineInvocation: Sendable {
         self.runID = runID
         self.closesNight = closesNight
         self.leasePolicy = leasePolicy
+        self.board = board
         self.work = { _ in throw EngineInvocationError.notImplemented(act) }
     }
 
@@ -73,6 +83,7 @@ public struct EngineInvocation: Sendable {
         runID: RunID = RunID(),
         closesNight: Bool = false,
         leasePolicy: LeasePolicy = .ruled,
+        board: ActBoard? = nil,
         work: @escaping ActWork
     ) {
         self.act = act
@@ -83,6 +94,7 @@ public struct EngineInvocation: Sendable {
         self.runID = runID
         self.closesNight = closesNight
         self.leasePolicy = leasePolicy
+        self.board = board
         self.work = work
     }
 
@@ -130,13 +142,30 @@ public struct EngineInvocation: Sendable {
         }
         _ = try? journal.append(.actStarted, act: act, runID: runID, nightID: night.id)
         do {
+            // The Night Card is created before the trigger is even evaluated (DR7): an idle Night
+            // still opens one. An `open` failure propagates and is recorded as `ActIncomplete` by the
+            // catch below, and no work runs.
+            var night = night
+            var outbox: Outbox?
+            var nightCard: NightCardMaintenance?
+            if let board {
+                let boxed = Outbox(journal: journal, board: board.writing, runID: runID, act: act, nightID: night.id)
+                let maintenance = NightCardMaintenance(
+                    journal: journal, outbox: boxed, provisioning: board.provisioning
+                )
+                _ = try await maintenance.open(night: night)
+                night = try journal.night(id: night.id) ?? night
+                outbox = boxed
+                nightCard = maintenance
+            }
             // Evaluate the trigger predicate under the lease.
             switch try ActTriggerPredicate.evaluate(act: act, trigger: trigger, journal: journal) {
             case .notMet(let reason):
                 _ = try? journal.append(.actIdle(reason: reason), act: act, runID: runID, nightID: night.id)
             case .met:
                 let context = ActContext(
-                    act: act, mode: mode, trigger: trigger, runID: runID, journal: journal, night: night
+                    act: act, mode: mode, trigger: trigger, runID: runID, journal: journal, night: night,
+                    outbox: outbox, nightCard: nightCard
                 )
                 try await withLeaseHeartbeat(
                     every: leasePolicy.heartbeatDuration,
@@ -149,6 +178,15 @@ public struct EngineInvocation: Sendable {
             // Project's lease since it was opened, and only the engine writes the Journal.
             if closesNight, night.isOpen {
                 try journal.closeNight(id: night.id, reason: .nightEnd, act: act, runID: runID)
+                // The completion block needs `completedAt` and the verdict, which exist only once the
+                // Night is closed, so completion is accepted and delivered after `closeNight`, from the
+                // re-read record. A crash between `closeNight` and here leaves the card uncompleted:
+                // the next Night's first Act sees a closed Night, not this one — a later phase may
+                // repair it (spec: opened-and-died narrows to "opened and died", not every gap).
+                if let nightCard, let closed = try journal.night(id: night.id) {
+                    _ = try await nightCard.acceptCompletion(night: closed)
+                    _ = try await nightCard.deliverCompletion(night: closed)
+                }
             }
             _ = try? journal.append(.actEnded, act: act, runID: runID, nightID: night.id)
         } catch {

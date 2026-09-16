@@ -22,7 +22,8 @@ private func runAct(
     }
     let parsed = try RootCommand.parseAsRoot(args)
     let command = try #require(parsed as? any ActCommand)
-    try await command.run(configurationDirectory: directory.url)
+    // No Board bound: this suite is about configuration resolution, not the Night Card (NightCardTests).
+    try await command.makeInvocation(configurationDirectory: directory.url, now: Date(), bindBoard: nil).run()
 }
 
 /// Runs the Act, requires it to be refused before it ran, and requires `yh` to exit with code 1.

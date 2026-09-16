@@ -27,7 +27,11 @@ protocol ActCommand: AsyncParsableCommand {
     var force: Bool { get }
     var rehearsal: Bool { get }
     func makeTrigger() throws -> ActTrigger
-    func makeInvocation(configurationDirectory: URL, now: Date) throws -> EngineInvocation
+    func makeInvocation(
+        configurationDirectory: URL,
+        now: Date,
+        bindBoard: ((Configuration, ProjectConfiguration) throws -> ActBoard)?
+    ) throws -> EngineInvocation
 }
 
 extension ActCommand {
@@ -35,8 +39,12 @@ extension ActCommand {
         force ? .forced : .scheduled
     }
 
-    func makeInvocation(configurationDirectory: URL, now: Date = Date()) throws -> EngineInvocation {
-        let (_, project) = try ProjectResolution.resolve(
+    func makeInvocation(
+        configurationDirectory: URL,
+        now: Date = Date(),
+        bindBoard: ((Configuration, ProjectConfiguration) throws -> ActBoard)? = nil
+    ) throws -> EngineInvocation {
+        let (configuration, project) = try ProjectResolution.resolve(
             projectArgument: project, configurationDirectory: configurationDirectory
         )
         // The invocation is scoped to the resolved Project: this is the one Journal it is given.
@@ -50,13 +58,16 @@ extension ActCommand {
         let window = project.schedule.nightWindow(at: now)
         let closesNight = Self.act == .land && now >= window.end
 
+        let board = try bindBoard?(configuration, project)
+
         return EngineInvocation(
             act: Self.act,
             mode: mode,
             nightStart: window.nightStart,
             journal: journal,
             trigger: trigger,
-            closesNight: closesNight
+            closesNight: closesNight,
+            board: board
         )
     }
 
@@ -66,7 +77,13 @@ extension ActCommand {
     }
 
     func run(configurationDirectory: URL) async throws {
-        let invocation = try makeInvocation(configurationDirectory: configurationDirectory, now: Date())
+        let invocation = try makeInvocation(
+            configurationDirectory: configurationDirectory,
+            now: Date(),
+            bindBoard: { configuration, project in
+                try BoardBinding.actBoard(machine: configuration.machine, project: project)
+            }
+        )
         try await invocation.run()
     }
 }
