@@ -16,6 +16,27 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     case cardLeaseUnreadable(cardID: Int64)
     /// The event row does not decode; the Journal was written by something other than the engine.
     case eventUnreadable(id: Int64)
+    /// The Card already has an open Attempt; a Card is dispatched once at a time.
+    case attemptStillOpen(cardID: Int64, attemptID: Int64)
+    /// The Journal has no Attempt with this id.
+    case attemptUnknown(attemptID: Int64)
+    /// The Attempt already ended; no more Rounds can be recorded on it, and it cannot be ended again.
+    case attemptEnded(attemptID: Int64)
+    /// The `attempt` row does not decode; the Journal was written by something other than the engine.
+    case attemptUnreadable(id: Int64)
+    /// The `round` row does not decode; the Journal was written by something other than the engine.
+    case roundUnreadable(id: Int64)
+    /// A `route_exclusion` row for this Card does not decode; the Journal was written by something other
+    /// than the engine.
+    case routeExclusionUnreadable(cardID: Int64)
+    /// The Journal has no Feature with this id.
+    case featureUnknown(featureID: Int64)
+    /// The Journal has no Worktree with this id.
+    case worktreeUnknown(id: Int64)
+    /// The Worktree was already released.
+    case worktreeReleased(id: Int64)
+    /// The `worktree` row does not decode; the Journal was written by something other than the engine.
+    case worktreeUnreadable(id: Int64)
 
     public var description: String {
         return switch self {
@@ -48,6 +69,26 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
             "The Journal's lease row for Card \(cardID) cannot be read"
         case .eventUnreadable(let id):
             "The Journal's event row \(id) cannot be read"
+        case .attemptStillOpen(let cardID, let attemptID):
+            "Card \(cardID) already has an open Attempt (\(attemptID)): a Card is dispatched once at a time"
+        case .attemptUnknown(let attemptID):
+            "The Journal has no Attempt with id \(attemptID)"
+        case .attemptEnded(let attemptID):
+            "Attempt \(attemptID) has already ended"
+        case .attemptUnreadable(let id):
+            "The Journal's attempt row \(id) cannot be read"
+        case .roundUnreadable(let id):
+            "The Journal's round row \(id) cannot be read"
+        case .routeExclusionUnreadable(let cardID):
+            "A route_exclusion row for Card \(cardID) cannot be read"
+        case .featureUnknown(let featureID):
+            "The Journal has no Feature with id \(featureID)"
+        case .worktreeUnknown(let id):
+            "The Journal has no Worktree with id \(id)"
+        case .worktreeReleased(let id):
+            "Worktree \(id) was already released"
+        case .worktreeUnreadable(let id):
+            "The Journal's worktree row \(id) cannot be read"
         }
     }
 }

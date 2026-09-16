@@ -2,14 +2,27 @@ import Domain
 import Foundation
 import Journal
 
+/// Everything an Act's work is handed: the one Project's Journal and this run's identity. There is
+/// nothing else to hand it — a resumed Act rebuilds Attempt and Round counts, routes tried and
+/// Worktree paths from the Journal, and an invocation holds nothing in memory between Acts.
+public struct ActContext: Sendable {
+    public let act: Act
+    public let mode: NightMode
+    public let trigger: ActTrigger
+    public let runID: RunID
+    public let journal: JournalStore
+}
+
 /// One Act's work for one Project, then exit.
 ///
 /// An invocation is handed exactly one Project's Journal and holds no other: the Engine never opens
 /// a Journal (module boundary rule MB5), so nothing in it can name a sibling Project's. Two Acts of
 /// the same Project must not run at once, so the invocation claims the Project's Act-scoped lease
-/// before doing anything and stands down, out loud, when another run holds it.
+/// before doing anything and stands down, out loud, when another run holds it. `run()` returns only
+/// after the heartbeat task has ended (the task group is structured), so nothing — no timer, no task,
+/// no cache — outlives the invocation; the process exits after `run()` returns.
 public struct EngineInvocation: Sendable {
-    public typealias ActWork = @Sendable () async throws -> Void
+    public typealias ActWork = @Sendable (ActContext) async throws -> Void
 
     public let act: Act
     public let mode: NightMode
@@ -33,7 +46,7 @@ public struct EngineInvocation: Sendable {
         self.journal = journal
         self.runID = runID
         self.leasePolicy = leasePolicy
-        self.work = { throw EngineInvocationError.notImplemented(act) }
+        self.work = { _ in throw EngineInvocationError.notImplemented(act) }
     }
 
     /// The Act's work under the lease is injectable so a test can drive an Act that completes;
@@ -75,11 +88,12 @@ public struct EngineInvocation: Sendable {
         case .claimed:
             _ = try? journal.append(.actStarted, act: act, runID: runID)
         }
+        let context = ActContext(act: act, mode: mode, trigger: trigger, runID: runID, journal: journal)
         do {
             try await withLeaseHeartbeat(
                 every: leasePolicy.heartbeatDuration,
                 beat: { try journal.heartbeatActLease(runID: runID, policy: leasePolicy) },
-                body: { try await work() }
+                body: { try await work(context) }
             )
             _ = try? journal.append(.actEnded, act: act, runID: runID)
         } catch {

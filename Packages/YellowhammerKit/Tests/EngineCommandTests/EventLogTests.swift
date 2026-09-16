@@ -110,7 +110,7 @@ func successfulWorkRecordsEndedEvent() async throws {
         act: .build,
         mode: .real,
         journal: journal,
-        work: { }
+        work: { _ in }
     )
     try await invocation.run()
 
@@ -137,7 +137,7 @@ func failingWorkRecordsIncompleteEvent() async throws {
         act: .land,
         mode: .real,
         journal: journal,
-        work: { throw CustomError.testError }
+        work: { _ in throw CustomError.testError }
     )
 
     await #expect(throws: CustomError.testError) {
@@ -201,7 +201,7 @@ func actLeaseIsHeartbeatDuringWork() async throws {
         journal: journal,
         runID: runID,
         leasePolicy: shortPolicy,
-        work: {
+        work: { _ in
             try await Task.sleep(for: Duration.milliseconds(3000))
             // Revalidating 3 s in, past a 2 s TTL, succeeds only because heartbeats kept the lease alive.
             _ = try journal.revalidateActLease(runID: runID)
@@ -234,7 +234,7 @@ func lostActLeaseCancelsWork() async throws {
         journal: journal,
         runID: runID,
         leasePolicy: shortPolicy,
-        work: {
+        work: { _ in
             try await Task.sleep(for: Duration.milliseconds(100))
 
             // Have a second store "steal" the lease by claiming at a far-future time
