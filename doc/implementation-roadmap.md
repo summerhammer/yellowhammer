@@ -525,7 +525,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Rehearsal tests show hash-skip, label-group exclusivity, and no writes to a
   Cancelled Card.
 
-### [ ] P5.7 Night Card open and close
+### [x] P5.7 Night Card open and close
 - **Work**
   - The first Act of a Project's Night creates that Project's Night Card through the Outbox,
     **before** any work is dispatched. It is an ordinary issue with the Night Card label, in the
