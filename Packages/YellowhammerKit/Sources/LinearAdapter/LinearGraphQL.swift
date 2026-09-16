@@ -54,6 +54,76 @@ enum LinearGraphQL {
           }
         }
         """
+
+    // MARK: - Provisioning Queries
+
+    static let projectQuery = """
+        query YellowhammerProject($id: String!) {
+          project(id: $id) {
+            id name
+            teams { nodes { id key name } }
+          }
+        }
+        """
+
+    static let projectCreateQuery = """
+        mutation YellowhammerCreateProject($name: String!, $teamId: String!) {
+          projectCreate(input: { name: $name, teamIds: [$teamId] }) {
+            success
+            project {
+              id name
+              teams { nodes { id key name } }
+            }
+          }
+        }
+        """
+
+    static let workflowStatesQuery = """
+        query YellowhammerWorkflowStates($teamId: ID!, $first: Int!, $after: String) {
+          workflowStates(filter: { team: { id: { eq: $teamId } } }, first: $first, after: $after) {
+            pageInfo { hasNextPage endCursor }
+            nodes { id name }
+          }
+        }
+        """
+
+    static let workflowStateCreateQuery = """
+        mutation YellowhammerCreateWorkflowState($teamId: String!, $name: String!, $color: String!) {
+          workflowStateCreate(input: { teamId: $teamId, name: $name, type: "started", color: $color }) {
+            success
+            workflowState { id name }
+          }
+        }
+        """
+
+    static let labelsQuery = """
+        query YellowhammerLabels($teamId: ID!, $first: Int!, $after: String) {
+          issueLabels(filter: { or: [
+            { team: { id: { eq: $teamId } } },
+            { team: { null: true } }
+          ] }, first: $first, after: $after) {
+            pageInfo { hasNextPage endCursor }
+            nodes {
+              id name isGroup
+              parent { id }
+              team { id }
+            }
+          }
+        }
+        """
+
+    static let labelCreateQuery = """
+        mutation YellowhammerCreateLabel($teamId: String!, $name: String!, $isGroup: Boolean!, $parentId: String) {
+          issueLabelCreate(input: { teamId: $teamId, name: $name, isGroup: $isGroup, parentId: $parentId }) {
+            success
+            issueLabel {
+              id name isGroup
+              parent { id }
+              team { id }
+            }
+          }
+        }
+        """
 }
 
 /// The `{ data, errors }` envelope of every GraphQL response.
