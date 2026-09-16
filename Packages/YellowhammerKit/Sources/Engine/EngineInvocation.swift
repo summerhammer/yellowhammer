@@ -13,6 +13,7 @@ public struct EngineInvocation: Sendable {
 
     public let act: Act
     public let mode: NightMode
+    public let trigger: ActTrigger
     public let runID: RunID
     public let leasePolicy: LeasePolicy
     private let journal: JournalStore
@@ -22,11 +23,13 @@ public struct EngineInvocation: Sendable {
         act: Act,
         mode: NightMode,
         journal: JournalStore,
+        trigger: ActTrigger = .scheduled,
         runID: RunID = RunID(),
         leasePolicy: LeasePolicy = .ruled
     ) {
         self.act = act
         self.mode = mode
+        self.trigger = trigger
         self.journal = journal
         self.runID = runID
         self.leasePolicy = leasePolicy
@@ -40,12 +43,14 @@ public struct EngineInvocation: Sendable {
         act: Act,
         mode: NightMode,
         journal: JournalStore,
+        trigger: ActTrigger = .scheduled,
         runID: RunID = RunID(),
         leasePolicy: LeasePolicy = .ruled,
         work: @escaping ActWork
     ) {
         self.act = act
         self.mode = mode
+        self.trigger = trigger
         self.journal = journal
         self.runID = runID
         self.leasePolicy = leasePolicy
@@ -56,6 +61,10 @@ public struct EngineInvocation: Sendable {
     public var projectID: ProjectID { journal.projectID }
 
     public func run() async throws {
+        // A Feature name is only meaningful for the author Act.
+        if case .forcedForFeature = trigger, act != .author {
+            throw EngineInvocationError.featureNamedForNonAuthoringAct(act)
+        }
         // Every step of the Act's life is appended to the Project's event log, so the Night Summary
         // can be computed from it. The records are written under the lease, before it is released,
         // and best-effort: failing to write one must not fail the Act, or stop it standing down.
@@ -89,6 +98,8 @@ public enum EngineInvocationError: Error, Sendable, Equatable {
     case notImplemented(Act)
     /// Another run of the same Project holds its Act-scoped lease. This Act stood down and ran nothing.
     case actLeaseHeld(act: Act, projectID: ProjectID, by: ActLease)
+    /// A Feature name was provided for a non-authoring Act. No lease is taken.
+    case featureNamedForNonAuthoringAct(Act)
 }
 
 extension EngineInvocationError: CustomStringConvertible {
@@ -103,6 +114,8 @@ extension EngineInvocationError: CustomStringConvertible {
                 (last heartbeat \(Self.timestamp(holder.heartbeatAt)); the lease expires at \
                 \(Self.timestamp(holder.expiresAt)) unless heartbeated). No Act was run.
                 """
+        case .featureNamedForNonAuthoringAct(let act):
+            return "A Feature name can only be provided for the author Act, not \(act.rawValue). No Act was run."
         }
     }
 
