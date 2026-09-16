@@ -599,7 +599,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Opus 5 Medium, or Gemini Flash 3.8 Medium.
 - **Done when** — Fixture repos cover touched, untouched and renamed-path cases, with no network.
 
-### [ ] P6.5 Mainline read for transcription and specification
+### [x] P6.5 Mainline read for transcription and specification
 - **Work**
   - Read file content at a mainline commit, for a working Repo or the Project's Spec Source, and
     return it with the commit it was read at.
