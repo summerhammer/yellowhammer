@@ -406,7 +406,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Fable 5.1 Medium.
 - **Done when** — Journal tests cover open, close, and "opened and died" detection.
 
-### [ ] P4.5 Resumption self-audit (absent Nights)
+### [x] P4.5 Resumption self-audit (absent Nights)
 - **Work**
   - At the first Act of a run, compare the Journal's Night and event timestamps against the
     Project's configured schedule. Log `AbsentNightDetected` with the missed intervals.
