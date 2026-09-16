@@ -344,7 +344,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Rehearsal-assertable tests show claim, heartbeat, expiry, and refusal of a second
   claim while unexpired.
 
-### [ ] P3.5 Ledger store
+### [x] P3.5 Ledger store
 - **Work**
   - One Ledger per machine, outside every Project, written by any Project's invocation under its own
     transaction.
