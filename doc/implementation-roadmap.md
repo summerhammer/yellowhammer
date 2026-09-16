@@ -574,7 +574,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Fixture repos cover fetch success, fetch failure with fallback, and a Spec Source
   that is never fetched.
 
-### [ ] P6.2 Ancestry test
+### [x] P6.2 Ancestry test
 - **Work** — Given a Feature Branch and a repository, decide whether the branch is an ancestor of
   that repository's mainline. Report the `k of N` merged fraction across a Feature's repositories.
 - **Spec** — `feature-authoring/select-the-next-feature` (predecessor-ancestry story);
