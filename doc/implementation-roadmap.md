@@ -434,7 +434,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — A token for the app identity can be obtained from each workspace, and a comment
   it writes triggers the Operator's inbox notification.
 
-### [ ] P5.2 Board adapter: authenticated GraphQL access
+### [x] P5.2 Board adapter: authenticated GraphQL access
 - **Work**
   - Authenticate as the registered identity, never as a personal API key.
   - Scope every read and write to one Project's Linear project.
