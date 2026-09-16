@@ -7,7 +7,7 @@ import Foundation
 /// records the budget every response reports, and translates every failure into ``BoardError``. It
 /// translates and never decides: no retry, no Outbox, no Lease.
 public actor LinearAdapter: Board {
-    private let linearProjectID: String
+    let linearProjectID: String
     private let transport: any HTTPTransport
     private let tokens: LinearTokenSource
 
@@ -66,7 +66,7 @@ public actor LinearAdapter: Board {
 
     /// One authenticated GraphQL request. The budget is recorded before the outcome is judged, because a
     /// refusal is exactly when it matters.
-    private func perform<Payload: Decodable>(
+    func perform<Payload: Decodable>(
         _ query: String, variables: [String: any Sendable]
     ) async throws(BoardError) -> Payload {
         let token = try await tokens.token()

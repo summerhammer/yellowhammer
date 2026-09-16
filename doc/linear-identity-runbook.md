@@ -128,3 +128,41 @@ whatever cadence the Operator sets — the spec does not mandate a schedule.
    its `client_id` in `config.toml` is dead too; replace it when a new application is registered.
 3. Deleting the application immediately invalidates every token issued under it — no separate
    token-revocation step is needed for the `client_credentials` grant.
+
+## Provisioning (P5.3)
+
+`Engine.BoardProvisioner` provisions what the board projection depends on. It is run by setup
+(`yh setup`, P13.1) through `EngineCommand.BoardBinding.provisioning`. It only ever **creates**: it
+never renames, moves, re-parents, archives or deletes anything already on the board.
+
+For the Project's Linear project it verifies the Linear project exists. When it does not, it is
+created only if setup names a team to create it in; otherwise it is reported `missing` and nothing
+else is touched. The new Linear project's id must then be written to `linear_project`.
+
+Then, **once per team** the Linear project belongs to (Projects sharing a team share the result):
+
+- the `Waiting on You` workflow state (type `started`), matched by name, case-insensitively;
+- the label group `Object Type` with `Feature`, `Card`, `Night Card`;
+- the label group `Block Reason` with `blocked by reviewer`, `blocked by check`, `hard failure`,
+  `unanswered`, `undecided`.
+
+Every item is reported `present`, `created`, `collision` or `blocked`. A label of the same name
+anywhere the team can see it — a workspace label, a team label, or a label in another group — is a
+**collision**: reported, never overwritten, and that one label is not created. (The feasibility
+probe's workspace already had a workspace-level `Feature`.) A non-group label holding a group's name
+blocks the whole group. Resolve a collision by hand in Linear, then run provisioning again.
+
+Not provisioned here: the settle workflow-state group (gate G-6, probe owed) and the Override label
+groups (gate G-17, P7.6).
+
+### Running provisioning against the scratch workspace
+
+Opt-in. It provisions the scratch Linear project's teams twice and asserts that the second run
+changes nothing and reports the same collisions:
+
+```sh
+YH_LINEAR_SCRATCH_TESTS=1 \
+YH_LINEAR_CLIENT_ID=<scratch-client-id> \
+YH_LINEAR_PROJECT_ID=<scratch-linear-project-id> \
+swift test --package-path Packages/YellowhammerKit --filter BoardProvisionerScratchTests
+```

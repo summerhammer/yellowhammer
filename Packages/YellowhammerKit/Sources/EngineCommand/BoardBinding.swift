@@ -12,6 +12,22 @@ enum BoardBinding {
         project: ProjectConfiguration,
         credentials store: KeychainCredentialStore = KeychainCredentialStore()
     ) throws(BoardBindingError) -> any Board {
+        try makeLinearAdapter(machine: machine, project: project, credentials: store)
+    }
+
+    static func provisioning(
+        machine: MachineConfiguration,
+        project: ProjectConfiguration,
+        credentials store: KeychainCredentialStore = KeychainCredentialStore()
+    ) throws(BoardBindingError) -> any BoardProvisioning {
+        try makeLinearAdapter(machine: machine, project: project, credentials: store)
+    }
+
+    private static func makeLinearAdapter(
+        machine: MachineConfiguration,
+        project: ProjectConfiguration,
+        credentials store: KeychainCredentialStore
+    ) throws(BoardBindingError) -> LinearAdapter {
         let secret: String
         do {
             secret = try store.read(machine.linearCredential)
