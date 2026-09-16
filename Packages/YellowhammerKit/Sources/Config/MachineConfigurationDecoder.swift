@@ -14,12 +14,13 @@ struct MachineConfigurationDecoder {
     /// must name a declared CLI Adapter.
     func decode(_ root: TOMLTable) throws(ConfigurationError) -> MachineConfiguration {
         try decoding.rejectUnknownKeys(in: root, path: nil, allowed: ["linear", "github", "cli", "routing"])
-        let linearCredential = try decoding.credential(in: root, table: "linear")
+        let (linearClientID, linearCredential) = try linear(in: root)
         let gitHubCredential = try decoding.credential(in: root, table: "github")
         let cliAdapters = try cliAdapters(in: root)
         var routingDecoding = decoding
         routingDecoding.declaredCLIAdapters = Set(cliAdapters.map(\.name))
         return MachineConfiguration(
+            linearClientID: linearClientID,
             linearCredential: linearCredential,
             gitHubCredential: gitHubCredential,
             cliAdapters: cliAdapters,
@@ -28,6 +29,25 @@ struct MachineConfigurationDecoder {
     }
 
     // MARK: - Sections
+
+    /// `[linear]`: the credential, then the registered application's non-empty `client_id`.
+    ///
+    /// Decoded here rather than through ``ConfigurationDecoding/credential(in:table:)``, which must keep
+    /// refusing every key but `credential` in `[github]`.
+    private func linear(in root: TOMLTable) throws(ConfigurationError) -> (String, CredentialReference) {
+        guard let value = root["linear"] else {
+            throw decoding.error(line: 1, key: "linear", .missingTable)
+        }
+        let table = try decoding.table(value, key: "linear")
+        try decoding.rejectUnknownKeys(in: table, path: "linear", allowed: ["client_id", "credential"])
+        let credentialString = try decoding.requiredString("credential", in: table, path: "linear")
+        guard let credential = CredentialReference(credentialString) else {
+            let line = table["credential"]?.line ?? table.line
+            throw decoding.error(line: line, key: "linear.credential", .emptyString)
+        }
+        let clientID = try decoding.requiredString("client_id", in: table, path: "linear")
+        return (clientID, credential)
+    }
 
     private func cliAdapters(in root: TOMLTable) throws(ConfigurationError) -> [CLIAdapterDeclaration] {
         guard let value = root["cli"] else { return [] }

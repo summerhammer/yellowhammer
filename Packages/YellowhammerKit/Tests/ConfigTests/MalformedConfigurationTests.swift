@@ -34,6 +34,7 @@ private let syntaxFixtures: [MalformedFixture] = [
 private let shapeFixtures: [MalformedFixture] = [
     MalformedFixture("missing-linear", line: 1, key: "linear", .missingTable),
     MalformedFixture("missing-linear-credential", line: 2, key: "linear.credential", .missingKey),
+    MalformedFixture("missing-linear-client-id", line: 1, key: "linear.client_id", .missingKey),
     MalformedFixture("missing-github-credential", line: 4, key: "github.credential", .missingKey),
     MalformedFixture("empty-credential", line: 5, key: "github.credential", .emptyString),
     MalformedFixture(
