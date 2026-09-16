@@ -509,7 +509,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Scratch-team tests show a human comment and a state change picked up by one
   request. A sibling Project's Card in the same team is never selected.
 
-### [ ] P5.6 Managed Block rendering and hash-skip (Cards)
+### [x] P5.6 Managed Block rendering and hash-skip (Cards)
 - **Work**
   - Render the Card Managed Block: Kind, repository, Architectural Brief (with Transcription
     Blocks), Definition of Done with clause markers and Spec Citations, position in its Repo Lane's
