@@ -491,7 +491,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   or comment; a stale-lease write never reaches Linear; broken delimiters abort safely; a forced
   mid-transaction failure leaves no partial board.
 
-### [ ] P5.5 Delta Read
+### [x] P5.5 Delta Read
 - **Work**
   - One batched compound query per Act, per Project: issues updated since the last sync plus
     comments created since the last sync, both scoped to the Project's Linear project.
