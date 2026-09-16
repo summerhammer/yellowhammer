@@ -1,0 +1,109 @@
+import Domain
+import Foundation
+import Journal
+
+/// Maintains a Card's Managed Block: renders from the Journal, hashes, and conditionally posts.
+public struct ManagedBlockMaintenance: Sendable {
+    public let journal: JournalStore
+    public let outbox: Outbox
+    public let labels: DispositionLabels?  // nil → labels not maintained
+
+    public init(journal: JournalStore, outbox: Outbox, labels: DispositionLabels? = nil) {
+        self.journal = journal
+        self.outbox = outbox
+        self.labels = labels
+    }
+
+    public enum Outcome: Equatable, Sendable {
+        case notMaintained(NotMaintained)
+        case skipped(hash: String)  // rendered hash == last posted hash
+        case posted(hash: String, block: OutboxDelivery, labels: OutboxDelivery?)
+    }
+
+    public enum NotMaintained: Equatable, Sendable {
+        case cancelled
+    }
+
+    /// Renders the Card's block from the Journal and hashes the rendered output. Compares the hash to the
+    /// last hash the Outbox recorded when a fenced rewrite was applied.
+    ///
+    /// When the hash matches, returns `.skipped` without touching the Outbox or board.
+    ///
+    /// When the hash differs, accepts two OutboxWrites keyed on the rendered hash — one for the block
+    /// rewrite, and one (when labels != nil) for the label change — and calls `deliverPending()`.
+    /// Both deliveries are returned. The Outbox records the hash when the rewrite is applied.
+    ///
+    /// Keying both writes on the rendered hash makes replay safe and makes the label write skip
+    /// together with the block: the block renders the state and block reason, so an unchanged block
+    /// means an unchanged disposition.
+    ///
+    /// When the Card is Cancelled, renders nothing and reads nothing from the board. Instead, aborts
+    /// every pending outbox entry for this issue and returns `.notMaintained(.cancelled)`.
+    public func maintain(card: CardRecord, brief: ArchitecturalBrief) async throws -> Outcome {
+        // Cancelled: abort pending entries and return early
+        if card.state == .cancelled {
+            let pending = try journal.pendingOutboxEntries()
+            for entry in pending where entry.issueID == card.issueID {
+                _ = try journal.markOutboxAborted(
+                    id: entry.id,
+                    reason: "the Card is Cancelled; nothing is posted to it"
+                )
+            }
+            return .notMaintained(.cancelled)
+        }
+
+        // Build the Card's Managed Block
+        let history = try journal.attemptHistory(cardID: card.id)
+        let attempts = history.attempts.enumerated().map { AttemptAccount(ordinal: $0.offset + 1, record: $0.element) }
+        let doDClauses = try journal.clauses(issueID: card.issueID).map { DoDClause($0) }
+        let laneLength = try journal.repoLaneLength(cycleID: card.cycleID, repository: card.repository)
+
+        let managedBlock = CardManagedBlock(
+            kind: card.kind,
+            repository: card.repository,
+            state: card.state,
+            blockReason: card.blockReason,
+            lanePosition: card.authoredOrder,
+            laneLength: laneLength,
+            brief: brief,
+            definitionOfDone: doDClauses,
+            attempts: attempts
+        )
+
+        let rendered = managedBlock.render()
+        let hash = ManagedBlockFence.sha256(rendered)
+
+        // Check if unchanged
+        if let lastHash = try journal.managedBlockLastPostedHash(issueID: card.issueID), lastHash == hash {
+            return .skipped(hash: hash)
+        }
+
+        // Accept the block write
+        let blockKey = "block:\(card.issueID):\(hash)"
+        let issueID = BoardObjectID(rawValue: card.issueID)
+        let blockWrite = BoardWrite.rewriteManagedBlock(issue: issueID, rendered: rendered)
+        let blockOutboxWrite = OutboxWrite(key: blockKey, write: blockWrite, cardID: card.id)
+
+        let blockDelivery = try await outbox.post(blockOutboxWrite)
+
+        var labelDelivery: OutboxDelivery?
+
+        // Accept the labels write (if labels are being maintained)
+        if let labels = labels {
+            let blockReasonEnum = card.blockReason.flatMap { BlockReason(rawValue: $0) }
+            let labelChange = labels.change(for: card.state, blockReason: blockReasonEnum)
+
+            let labelKey = "labels:\(card.issueID):\(hash)"
+            let labelWrite = BoardWrite.updateIssue(
+                issue: BoardObjectID(rawValue: card.issueID),
+                change: labelChange,
+                undo: nil
+            )
+            let labelOutboxWrite = OutboxWrite(key: labelKey, write: labelWrite, cardID: card.id)
+
+            labelDelivery = try await outbox.post(labelOutboxWrite)
+        }
+
+        return .posted(hash: hash, block: blockDelivery, labels: labelDelivery)
+    }
+}

@@ -337,3 +337,34 @@ func excludedRoutesReadBack() throws {
     let history = try journal.attemptHistory(cardID: cardID)
     #expect(history.excludedRoutes == [routeB, routeA])
 }
+
+@Test("checkDeclaredNone is recorded and read back")
+func checkDeclaredNoneRoundTrip() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let (_, cardID) = try insertFixtureCard(journal, issueID: "CARD-1", repository: "main")
+    let runID = RunID()
+    try claimLease(journal, runID: runID)
+
+    // Record attempt with checkDeclaredNone = true
+    let attemptTrue = try journal.recordAttempt(
+        cardID: cardID, route: routeA, checkDeclaredNone: true, runID: runID, now: epoch
+    )
+    #expect(attemptTrue.checkDeclaredNone == true)
+
+    // End it and start a new one with checkDeclaredNone = false
+    try journal.endAttempt(
+        attemptID: attemptTrue.id, result: "succeeded", runID: runID, now: epoch.addingTimeInterval(10)
+    )
+
+    let attemptFalse = try journal.recordAttempt(
+        cardID: cardID, route: routeB, checkDeclaredNone: false, runID: runID, now: epoch.addingTimeInterval(20)
+    )
+    #expect(attemptFalse.checkDeclaredNone == false)
+
+    // Read back and verify
+    let history = try journal.attemptHistory(cardID: cardID)
+    #expect(history.attempts.count == 2)
+    #expect(history.attempts[0].checkDeclaredNone == true)
+    #expect(history.attempts[1].checkDeclaredNone == false)
+}
