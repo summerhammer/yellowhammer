@@ -385,7 +385,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Tests kill an invocation mid-Act and show that the next invocation reconstructs
   state from the Journal only.
 
-### [ ] P4.3 Act trigger predicates
+### [x] P4.3 Act trigger predicates
 - **Work**
   - The author Act does work when the Project has no ready Cards, or when forced.
   - The build Act does work repeatedly through the Night.
