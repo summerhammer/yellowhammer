@@ -540,7 +540,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Rehearsal Night against the scratch team: one Night Card opens and closes; a
   killed-and-resumed Act leaves exactly one.
 
-### [ ] P5.8 Board state writes for Cards and Features
+### [x] P5.8 Board state writes for Cards and Features
 - **Work**
   - Workflow-state transitions Yellowhammer owns: Ready, in progress, Blocked (with Block Reason),
     Waiting on You (with assignment to the Operator as delivery), Done.
