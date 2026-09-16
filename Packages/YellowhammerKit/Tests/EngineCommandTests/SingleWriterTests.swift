@@ -10,6 +10,8 @@ import Testing
 // an Act firing while another Act of the same Project runs does not corrupt state. ADR-002: an invocation
 // holds no handle on sibling Projects.
 
+private let nightStart = NightStart(rawValue: "2026-09-15")!
+
 /// Parses `yh <act> --project <id>` and runs it against the given configuration directory.
 private func runAct(
     _ act: Act,
@@ -140,9 +142,11 @@ func invocationIsScopedToItsJournal() throws {
     let projectID = try #require(ProjectID(rawValue: "alpha"))
     let journal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
 
-    let invocation = EngineInvocation(act: .build, mode: .rehearsal, journal: journal)
+    let invocation = EngineInvocation(act: .build, mode: .rehearsal, nightStart: nightStart, journal: journal)
 
     #expect(invocation.projectID == projectID)
     #expect(invocation.mode == .rehearsal)
     #expect(invocation.leasePolicy == .ruled)
+    #expect(invocation.nightStart == nightStart)
+    #expect(!invocation.closesNight)
 }

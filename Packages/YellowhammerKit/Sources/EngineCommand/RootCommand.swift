@@ -27,7 +27,7 @@ protocol ActCommand: AsyncParsableCommand {
     var force: Bool { get }
     var rehearsal: Bool { get }
     func makeTrigger() throws -> ActTrigger
-    func makeInvocation(configurationDirectory: URL) throws -> EngineInvocation
+    func makeInvocation(configurationDirectory: URL, now: Date) throws -> EngineInvocation
 }
 
 extension ActCommand {
@@ -35,7 +35,7 @@ extension ActCommand {
         force ? .forced : .scheduled
     }
 
-    func makeInvocation(configurationDirectory: URL) throws -> EngineInvocation {
+    func makeInvocation(configurationDirectory: URL, now: Date = Date()) throws -> EngineInvocation {
         let (_, project) = try ProjectResolution.resolve(
             projectArgument: project, configurationDirectory: configurationDirectory
         )
@@ -43,7 +43,21 @@ extension ActCommand {
         let journal = try JournalStore.open(configurationDirectory: configurationDirectory, projectID: project.id)
         let mode: NightMode = rehearsal ? .rehearsal : .real
         let trigger = try makeTrigger()
-        return EngineInvocation(act: Self.act, mode: mode, journal: journal, trigger: trigger)
+
+        // The land firing at night_end completes the Night; before P13.2 generates the LaunchAgents
+        // this is decided from the clock against the Project's [schedule], and a forced land after
+        // night_end closes the Night the same way.
+        let window = project.schedule.nightWindow(at: now)
+        let closesNight = Self.act == .land && now >= window.end
+
+        return EngineInvocation(
+            act: Self.act,
+            mode: mode,
+            nightStart: window.nightStart,
+            journal: journal,
+            trigger: trigger,
+            closesNight: closesNight
+        )
     }
 
     public func run() async throws {
@@ -52,7 +66,7 @@ extension ActCommand {
     }
 
     func run(configurationDirectory: URL) async throws {
-        let invocation = try makeInvocation(configurationDirectory: configurationDirectory)
+        let invocation = try makeInvocation(configurationDirectory: configurationDirectory, now: Date())
         try await invocation.run()
     }
 }

@@ -6,6 +6,8 @@ import Testing
 @testable import Engine
 @testable import Journal
 
+private let nightStart = NightStart(rawValue: "2026-09-15")!
+
 private struct JournalFixture: ~Copyable {
     let directory: URL
     let projectID: ProjectID
@@ -72,6 +74,7 @@ func invocationFalsePredicateReturnsNormally() async throws {
     let invocation = EngineInvocation(
         act: .author,
         mode: .real,
+        nightStart: nightStart,
         journal: journal,
         trigger: .scheduled,
         runID: runID,
@@ -84,24 +87,25 @@ func invocationFalsePredicateReturnsNormally() async throws {
     // Should return normally without throwing
     try await invocation.run()
 
-    // Verify the event log contains actStarted, actIdle, actEnded
+    // Verify the event log contains nightOpened, actStarted, actIdle, actEnded
     let events = try journal.events()
-    #expect(events.count == 3)
-    #expect(events[0].event == .actStarted)
-    #expect(events[0].act == .author)
-    #expect(events[0].runID == runID)
-
-    guard case .actIdle(let reason) = events[1].event else {
-        Issue.record("Second event should be actIdle")
-        return
-    }
-    #expect(reason == .unfinishedCardsPresent)
+    #expect(events.count == 4)
+    #expect(events[0].event == .nightOpened)
+    #expect(events[1].event == .actStarted)
     #expect(events[1].act == .author)
     #expect(events[1].runID == runID)
 
-    #expect(events[2].event == .actEnded)
+    guard case .actIdle(let reason) = events[2].event else {
+        Issue.record("Third event should be actIdle")
+        return
+    }
+    #expect(reason == .unfinishedCardsPresent)
     #expect(events[2].act == .author)
     #expect(events[2].runID == runID)
+
+    #expect(events[3].event == .actEnded)
+    #expect(events[3].act == .author)
+    #expect(events[3].runID == runID)
 
     // Verify the Act lease was released
     let leaseHeld = try journal.claimActLease(act: .author, runID: RunID(), mode: .real)

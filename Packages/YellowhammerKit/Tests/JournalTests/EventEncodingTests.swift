@@ -32,7 +32,7 @@ func eventTypeRawValues() {
         "ActStarted", "ActEnded", "ActIdle", "ActIncomplete", "ActStoodDown",
         "MainlineFetchFailed", "AbsentNightDetected", "AuthoringNoWorkAvailable",
         "ManagedBlockDelimiterBroken", "NotificationDeliveryFailed", "RateBudgetExhausted",
-        "LeaseReclaimed", "CardLeaseReclaimed"
+        "LeaseReclaimed", "CardLeaseReclaimed", "NightOpened", "NightClosed", "NightOpenedAndDied"
     ]
     let actual = JournalEventType.allCases.map { $0.rawValue }.sorted()
     #expect(actual == expected.sorted())
@@ -284,4 +284,49 @@ func cardLeaseReclaimedRoundTrips() throws {
     #expect(readCardID == cardID)
     #expect(readRunID == previousRun)
     #expect(readExpiredAt == expiredAt)
+}
+
+@Test("nightClosed event with its reason round-trips", arguments: NightCloseReason.allCases)
+func nightClosedRoundTrips(_ reason: NightCloseReason) throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+
+    _ = try journal.append(.nightClosed(reason: reason), act: .land, runID: RunID(), nightID: nil, now: epoch)
+    let records = try journal.events()
+
+    #expect(records.count == 1)
+    #expect(records[0].event == .nightClosed(reason: reason))
+    #expect(records[0].act == .land)
+}
+
+@Test("nightOpenedAndDied event names the dead Night by id and night_start")
+func nightOpenedAndDiedRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let dead = try #require(NightStart(rawValue: "2026-09-14"))
+
+    _ = try journal.append(.nightOpenedAndDied(nightID: 7, nightStart: dead), act: .author, runID: RunID(), now: epoch)
+    let records = try journal.events()
+
+    #expect(records.count == 1)
+    #expect(records[0].event == .nightOpenedAndDied(nightID: 7, nightStart: dead))
+    let payload = try journal.read { try String.fetchOne($0, sql: "SELECT payload FROM event WHERE id = 1") }
+    #expect(payload == #"{"night_id":"7","night_start":"2026-09-14"}"#)
+}
+
+@Test("A NightClosed event with a reason outside the closed set is unreadable")
+func nightClosedWithUnknownReasonIsUnreadable() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+
+    try journal.write { db in
+        try db.execute(
+            sql: "INSERT INTO event (type, occurred_at, payload) VALUES (?, ?, ?)",
+            arguments: ["NightClosed", JournalStore.timestamp(epoch), #"{"reason":"lunch"}"#]
+        )
+    }
+
+    #expect(throws: JournalError.eventUnreadable(id: 1)) {
+        try journal.events()
+    }
 }

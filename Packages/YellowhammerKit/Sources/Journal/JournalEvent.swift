@@ -26,6 +26,13 @@ public enum JournalEvent: Equatable, Sendable {
     case leaseReclaimed(previousRunID: RunID, previousAct: Act, expiredAt: Date)
     /// An expired Card-scoped lease was taken over by a new run: the previous run crashed or slept past its TTL.
     case cardLeaseReclaimed(cardID: Int64, previousRunID: RunID, expiredAt: Date)
+    /// The first Act of the Night recorded it, before any work.
+    case nightOpened
+    /// The Night closed, with the reason it closed.
+    case nightClosed(reason: NightCloseReason)
+    /// This Project's previous Night was left open with no completion: it opened and died. Recorded
+    /// on the next Night, by its first Act, which is the only thing alive to draw the conclusion.
+    case nightOpenedAndDied(nightID: Int64, nightStart: NightStart)
 
     /// The type of this event.
     public var type: JournalEventType {
@@ -56,6 +63,12 @@ public enum JournalEvent: Equatable, Sendable {
             .leaseReclaimed
         case .cardLeaseReclaimed:
             .cardLeaseReclaimed
+        case .nightOpened:
+            .nightOpened
+        case .nightClosed:
+            .nightClosed
+        case .nightOpenedAndDied:
+            .nightOpenedAndDied
         }
     }
 
@@ -101,6 +114,12 @@ public enum JournalEvent: Equatable, Sendable {
                 "expired_at": JournalStore.timestamp(expiredAt),
                 "previous_run_id": previousRunID.rawValue
             ]
+        case .nightOpened:
+            nil
+        case .nightClosed(let reason):
+            ["reason": reason.rawValue]
+        case .nightOpenedAndDied(let nightID, let nightStart):
+            ["night_id": String(nightID), "night_start": nightStart.rawValue]
         }
     }
 
@@ -148,6 +167,12 @@ public enum JournalEvent: Equatable, Sendable {
             try Self.decodeLeaseReclaimed(reader)
         case .cardLeaseReclaimed:
             try Self.decodeCardLeaseReclaimed(reader)
+        case .nightOpened:
+            .nightOpened
+        case .nightClosed:
+            try Self.decodeNightClosed(reader)
+        case .nightOpenedAndDied:
+            try Self.decodeNightOpenedAndDied(reader)
         }
     }
 
@@ -186,6 +211,14 @@ public enum JournalEvent: Equatable, Sendable {
         let runID = try reader.runID("previous_run_id")
         let expiredAt = try reader.date("expired_at")
         return .cardLeaseReclaimed(cardID: cardID, previousRunID: runID, expiredAt: expiredAt)
+    }
+
+    private static func decodeNightClosed(_ reader: PayloadReader) throws -> JournalEvent {
+        .nightClosed(reason: try reader.closeReason("reason"))
+    }
+
+    private static func decodeNightOpenedAndDied(_ reader: PayloadReader) throws -> JournalEvent {
+        .nightOpenedAndDied(nightID: try reader.int64("night_id"), nightStart: try reader.nightStart("night_start"))
     }
 }
 
@@ -240,6 +273,22 @@ private struct PayloadReader: Sendable {
         }
         return value
     }
+
+    func closeReason(_ key: String) throws -> NightCloseReason {
+        let text = try require(key)
+        guard let reason = NightCloseReason(rawValue: text) else {
+            throw JournalError.eventUnreadable(id: rowID)
+        }
+        return reason
+    }
+
+    func nightStart(_ key: String) throws -> NightStart {
+        let text = try require(key)
+        guard let nightStart = NightStart(rawValue: text) else {
+            throw JournalError.eventUnreadable(id: rowID)
+        }
+        return nightStart
+    }
 }
 
 /// The type of a JournalEvent, with raw values matching the spec's PascalCase names.
@@ -257,4 +306,7 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case rateBudgetExhausted = "RateBudgetExhausted"
     case leaseReclaimed = "LeaseReclaimed"
     case cardLeaseReclaimed = "CardLeaseReclaimed"
+    case nightOpened = "NightOpened"
+    case nightClosed = "NightClosed"
+    case nightOpenedAndDied = "NightOpenedAndDied"
 }
