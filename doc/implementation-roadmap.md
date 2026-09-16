@@ -462,7 +462,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Running provisioning twice against the scratch team changes nothing the second
   time. A label-name collision is reported and not overwritten.
 
-### [ ] P5.4 Outbox
+### [x] P5.4 Outbox
 - **Work**
   - Every board write goes through the Outbox: issue creation, Managed Block rewrites, comments,
     labels, workflow state, assignment, attachments, `parentId` changes, `issueArchive`, Night Card
