@@ -55,7 +55,7 @@ public actor LinearAdapter: Board {
         )
     }
 
-    private static func boardObject(_ issue: LinearIssuesPayload.Issue) -> BoardObject {
+    static func boardObject(_ issue: LinearIssuesPayload.Issue) -> BoardObject {
         BoardObject(
             id: BoardObjectID(rawValue: issue.id),
             key: issue.identifier,
@@ -64,9 +64,12 @@ public actor LinearAdapter: Board {
             workflowState: BoardWorkflowState(id: BoardObjectID(rawValue: issue.state.id), name: issue.state.name),
             labels: issue.labels.nodes.map(\.name),
             parent: issue.parent.map { BoardObjectID(rawValue: $0.id) },
+            assignee: issue.assignee.map { BoardObjectID(rawValue: $0.id) },
             url: issue.url,
             createdAt: issue.createdAt,
-            updatedAt: issue.updatedAt
+            updatedAt: issue.updatedAt,
+            archivedAt: issue.archivedAt,
+            isTrashed: issue.trashed ?? false
         )
     }
 

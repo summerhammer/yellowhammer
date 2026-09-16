@@ -59,6 +59,39 @@ public enum ManagedBlockFence {
         ))
     }
 
+    /// A description taken apart at its delimiters, as the Delta Read reads it back.
+    public struct Parts: Equatable, Sendable {
+        /// The text between the delimiters, less the one newline on each side that a rewrite adds —
+        /// so a block read back hashes to the same value as the block that was rendered.
+        public let block: String
+        /// Everything outside the delimiters, with the delimiters themselves; the same text a rewrite
+        /// preserves, so it hashes to the same value as the audit record of the last write.
+        public let preservedProse: String
+
+        public var blockHash: String { ManagedBlockFence.sha256(block) }
+        public var preservedProseHash: String { ManagedBlockFence.sha256(preservedProse) }
+    }
+
+    /// Takes a description apart at its delimiters, with the same failures as ``replace(in:rendered:)``.
+    public static func parts(of description: String?) -> Result<Parts, Failure> {
+        guard let description else { return .failure(.noDescription) }
+        let starts = description.ranges(of: start)
+        let ends = description.ranges(of: end)
+        guard let startRange = starts.first else { return .failure(.startMissing) }
+        guard let endRange = ends.first else { return .failure(.endMissing) }
+        guard starts.count == 1 else { return .failure(.startDuplicated) }
+        guard ends.count == 1 else { return .failure(.endDuplicated) }
+        guard startRange.upperBound <= endRange.lowerBound else { return .failure(.endBeforeStart) }
+
+        var block = description[startRange.upperBound..<endRange.lowerBound]
+        if block.first == "\n" { block = block.dropFirst() }
+        if block.last == "\n" { block = block.dropLast() }
+        return .success(Parts(
+            block: String(block),
+            preservedProse: String(description[..<startRange.upperBound]) + String(description[endRange.lowerBound...])
+        ))
+    }
+
     /// A fresh description for an issue Yellowhammer creates: the block on its own, fenced, so every
     /// later rewrite finds the delimiters it needs.
     public static func initialDescription(rendered: String) -> String {

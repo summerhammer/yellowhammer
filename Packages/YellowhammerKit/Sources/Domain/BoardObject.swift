@@ -14,9 +14,15 @@ public struct BoardObject: Equatable, Sendable {
     public var labels: [String]
     /// The Feature Issue a Card is a native sub-issue of; nil for an object with no parent.
     public var parent: BoardObjectID?
+    /// Who the object is assigned to; nil when unassigned.
+    public var assignee: BoardObjectID?
     public var url: String
     public var createdAt: Date
     public var updatedAt: Date
+    /// When the object was archived on the board; nil while it is live. An object the Operator
+    /// deleted is archived and `isTrashed`.
+    public var archivedAt: Date?
+    public var isTrashed: Bool
 
     public init(
         id: BoardObjectID,
@@ -26,9 +32,12 @@ public struct BoardObject: Equatable, Sendable {
         workflowState: BoardWorkflowState,
         labels: [String],
         parent: BoardObjectID?,
+        assignee: BoardObjectID? = nil,
         url: String,
         createdAt: Date,
-        updatedAt: Date
+        updatedAt: Date,
+        archivedAt: Date? = nil,
+        isTrashed: Bool = false
     ) {
         self.id = id
         self.key = key
@@ -37,9 +46,12 @@ public struct BoardObject: Equatable, Sendable {
         self.workflowState = workflowState
         self.labels = labels
         self.parent = parent
+        self.assignee = assignee
         self.url = url
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.archivedAt = archivedAt
+        self.isTrashed = isTrashed
     }
 }
 

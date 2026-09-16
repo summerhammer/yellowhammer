@@ -42,6 +42,9 @@ enum JournalMigrations {
         migrator.registerMigration("v4-outbox-delivery") { db in
             try addOutboxDeliveryColumns(db)
         }
+        migrator.registerMigration("v5-delta-read") { db in
+            try addDeltaReadTracking(db)
+        }
         return migrator
     }
 }

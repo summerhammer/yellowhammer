@@ -46,10 +46,49 @@ enum LinearGraphQL {
           issues(filter: $filter, first: $first, after: $after, orderBy: updatedAt) {
             pageInfo { hasNextPage endCursor }
             nodes {
-              id identifier title description url createdAt updatedAt
+              id identifier title description url createdAt updatedAt archivedAt trashed
               state { id name }
               labels { nodes { name } }
               parent { id }
+              assignee { id }
+            }
+          }
+        }
+        """
+
+    static let deltaReadQuery = """
+        query YellowhammerDeltaRead(
+          $projectId: String!,
+          $issueFilter: IssueFilter!,
+          $commentFilter: CommentFilter!,
+          $first: Int!,
+          $issuesAfter: String,
+          $commentsAfter: String
+        ) {
+          project(id: $projectId) { id }
+          viewer { id name }
+          updatedIssues: issues(
+            filter: $issueFilter, first: $first, after: $issuesAfter, orderBy: updatedAt, includeArchived: true
+          ) {
+            pageInfo { hasNextPage endCursor }
+            nodes {
+              id identifier title description url createdAt updatedAt archivedAt trashed
+              state { id name }
+              labels { nodes { name } }
+              parent { id }
+              assignee { id }
+            }
+          }
+          newComments: comments(
+            filter: $commentFilter, first: $first, after: $commentsAfter, orderBy: createdAt
+          ) {
+            pageInfo { hasNextPage endCursor }
+            nodes {
+              id createdAt body
+              parent { id }
+              user { id name isMe }
+              botActor { id name }
+              issue { id identifier state { id name } }
             }
           }
         }

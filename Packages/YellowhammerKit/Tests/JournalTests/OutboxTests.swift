@@ -64,14 +64,14 @@ private func insertFixtureCard(
     }
 }
 
-@Test("A fresh Journal has v4-outbox-delivery applied last")
-func v4MigrationApplied() throws {
+@Test("A fresh Journal has v5-delta-read applied last")
+func v5MigrationApplied() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
 
     let migrations = try journal.appliedMigrations()
     #expect(migrations.contains("v4-outbox-delivery"))
-    #expect(migrations.last == "v4-outbox-delivery")
+    #expect(migrations.last == "v5-delta-read")
 }
 
 @Test("Outbox table has new columns from v4 migration")

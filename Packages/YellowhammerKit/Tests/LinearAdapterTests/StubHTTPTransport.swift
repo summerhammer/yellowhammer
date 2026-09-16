@@ -114,4 +114,23 @@ enum Fixture {
     static func variables(_ request: URLRequest) throws -> [String: Any] {
         try #require(try body(request)["variables"] as? [String: Any])
     }
+
+    static func delta(
+        issueNodes: String = "",
+        issueHasNextPage: Bool = false,
+        issueEndCursor: String? = nil,
+        commentNodes: String = "",
+        commentHasNextPage: Bool = false,
+        commentEndCursor: String? = nil
+    ) -> StubHTTPTransport.Reply {
+        let issueCursor = issueEndCursor.map { "\"\($0)\"" } ?? "null"
+        let commentCursor = commentEndCursor.map { "\"\($0)\"" } ?? "null"
+        return json("""
+            {"data":{"viewer":{"id":"app-user-id","name":"Yellowhammer"},
+              "updatedIssues":{"pageInfo":{"hasNextPage":\(issueHasNextPage),"endCursor":\(issueCursor)},
+              "nodes":[\(issueNodes)]},
+              "newComments":{"pageInfo":{"hasNextPage":\(commentHasNextPage),"endCursor":\(commentCursor)},
+              "nodes":[\(commentNodes)]}}}
+            """)
+    }
 }
