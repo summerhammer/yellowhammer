@@ -44,10 +44,10 @@ private func insertFixtureCard(
 
         try db.execute(
             sql: """
-            INSERT INTO card (cycle_id, issue_id, repository, kind, authored_order, state, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO card (cycle_id, issue_id, repository, kind, authored_order, state, budget_epoch, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            arguments: [cycleID, issueID, repository, "card", 1, "pending", now]
+            arguments: [cycleID, issueID, repository, "card", 1, CardState.todo.rawValue, 0, now]
         )
         return (featureID, db.lastInsertedRowID)
     }

@@ -37,6 +37,13 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     case worktreeReleased(id: Int64)
     /// The `worktree` row does not decode; the Journal was written by something other than the engine.
     case worktreeUnreadable(id: Int64)
+    /// More than one Cycle is open. A Project has one in-flight Feature, so it has one open Cycle;
+    /// two means the Journal is inconsistent and no Act's trigger can be evaluated against it.
+    case multipleOpenCycles
+    /// A `card` row's state is outside the `CardState` vocabulary. Since only the engine writes it,
+    /// the Journal is inconsistent, and a Card nothing can classify must not be silently counted
+    /// as finished.
+    case unknownCardState(cardID: Int64, state: String)
 
     public var description: String {
         return switch self {
@@ -89,6 +96,10 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
             "Worktree \(id) was already released"
         case .worktreeUnreadable(let id):
             "The Journal's worktree row \(id) cannot be read"
+        case .multipleOpenCycles:
+            "The Journal has more than one open Cycle, but a Project has one in-flight Feature"
+        case .unknownCardState(let cardID, let state):
+            "The Journal's card row \(cardID) has state '\(state)', which is not a Card state"
         }
     }
 }

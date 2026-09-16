@@ -21,7 +21,14 @@ func subcommandRunsItsAct(_ act: Act) async throws {
     let directory = ConfigurationDirectory()
     try directory.writeMachineFile()
     try directory.writeValidProjectFile(id: "yellowhammer")
-    let parsed = try RootCommand.parseAsRoot([act.rawValue, "--project", "yellowhammer"])
+    var args = [act.rawValue, "--project", "yellowhammer"]
+    // This test is about CLI parsing and dispatch, not the trigger predicate. On an empty Journal
+    // the author trigger is met on its own; build and land need the Operator's force gesture to
+    // reach the Act's work at all.
+    if act != .author {
+        args.append("--force")
+    }
+    let parsed = try RootCommand.parseAsRoot(args)
     let command = try #require(parsed as? any ActCommand)
     await #expect(throws: EngineInvocationError.notImplemented(act)) {
         try await command.run(configurationDirectory: directory.url)

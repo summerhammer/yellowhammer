@@ -51,11 +51,11 @@ private func insertFixtureCard(
         // Insert card
         try db.execute(
             sql: """
-            INSERT INTO card (cycle_id, issue_id, repository, kind, authored_order, state, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO card (cycle_id, issue_id, repository, kind, authored_order, state, budget_epoch, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             arguments: [
-                cycleID, issueID, repository, "card", authoredOrder, "pending",
+                cycleID, issueID, repository, "card", authoredOrder, CardState.todo.rawValue, 0,
                 JournalStore.timestamp(epoch)
             ]
         )

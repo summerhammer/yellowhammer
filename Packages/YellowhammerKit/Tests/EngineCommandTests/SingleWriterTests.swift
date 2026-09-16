@@ -11,8 +11,17 @@ import Testing
 // holds no handle on sibling Projects.
 
 /// Parses `yh <act> --project <id>` and runs it against the given configuration directory.
-private func runAct(_ act: Act, project: String, in directory: borrowing ConfigurationDirectory) async throws {
-    let parsed = try RootCommand.parseAsRoot([act.rawValue, "--project", project])
+private func runAct(
+    _ act: Act,
+    project: String,
+    in directory: borrowing ConfigurationDirectory,
+    force: Bool = false
+) async throws {
+    var args = [act.rawValue, "--project", project]
+    if force {
+        args.append("--force")
+    }
+    let parsed = try RootCommand.parseAsRoot(args)
     let command = try #require(parsed as? any ActCommand)
     try await command.run(configurationDirectory: directory.url)
 }
@@ -31,7 +40,8 @@ func actOpensOnlyItsOwnJournal(_ act: Act) async throws {
     try directory.writeValidProjectFile(id: "beta")
 
     await #expect(throws: EngineInvocationError.notImplemented(act)) {
-        try await runAct(act, project: "alpha", in: directory)
+        // Force build and land Acts because this test is about Journal scoping, not trigger predicates
+        try await runAct(act, project: "alpha", in: directory, force: act != .author)
     }
 
     #expect(try journalFiles(in: directory) == ["alpha.db"])
@@ -95,7 +105,8 @@ func deadPredecessorIsReclaimed() async throws {
     _ = try dead.claimActLease(act: .build, runID: RunID(), mode: .real, now: Date().addingTimeInterval(-660))
 
     await #expect(throws: EngineInvocationError.notImplemented(.build)) {
-        try await runAct(.build, project: "alpha", in: directory)
+        // Force the Act because this test is about lease reclaim and takeover, not the trigger predicate
+        try await runAct(.build, project: "alpha", in: directory, force: true)
     }
 
     // The new run claimed the Project and released it on exit.
@@ -110,14 +121,16 @@ func invocationReleasesOnExit(_ act: Act) async throws {
     let projectID = try #require(ProjectID(rawValue: "alpha"))
 
     await #expect(throws: EngineInvocationError.notImplemented(act)) {
-        try await runAct(act, project: "alpha", in: directory)
+        // Force build and land Acts because this test is about lease release, not trigger predicates
+        try await runAct(act, project: "alpha", in: directory, force: act != .author)
     }
 
     let journal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
     #expect(try journal.currentActLease() == nil)
     // And so the next firing of the same Project is not held off.
     await #expect(throws: EngineInvocationError.notImplemented(act)) {
-        try await runAct(act, project: "alpha", in: directory)
+        // Force build and land Acts because this test is about lease release, not trigger predicates
+        try await runAct(act, project: "alpha", in: directory, force: act != .author)
     }
 }
 

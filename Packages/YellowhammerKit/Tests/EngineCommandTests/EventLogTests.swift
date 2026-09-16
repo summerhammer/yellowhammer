@@ -8,8 +8,17 @@ import Testing
 
 // Event recording: engine invocations record their Acts' lifecycle and state changes to the Journal.
 
-private func runAct(_ act: Act, project: String, in directory: borrowing ConfigurationDirectory) async throws {
-    let parsed = try RootCommand.parseAsRoot([act.rawValue, "--project", project])
+private func runAct(
+    _ act: Act,
+    project: String,
+    in directory: borrowing ConfigurationDirectory,
+    force: Bool = false
+) async throws {
+    var args = [act.rawValue, "--project", project]
+    if force {
+        args.append("--force")
+    }
+    let parsed = try RootCommand.parseAsRoot(args)
     let command = try #require(parsed as? any ActCommand)
     try await command.run(configurationDirectory: directory.url)
 }
@@ -110,6 +119,7 @@ func successfulWorkRecordsEndedEvent() async throws {
         act: .build,
         mode: .real,
         journal: journal,
+        trigger: .forced,  // This test is about work execution and event recording, not predicates
         work: { _ in }
     )
     try await invocation.run()
@@ -137,6 +147,7 @@ func failingWorkRecordsIncompleteEvent() async throws {
         act: .land,
         mode: .real,
         journal: journal,
+        trigger: .forced,  // This test is about work execution and error handling, not predicates
         work: { _ in throw CustomError.testError }
     )
 
@@ -167,7 +178,8 @@ func deadPredecessorReclaimIsRecordedInOrder() async throws {
     _ = try dead.claimActLease(act: .author, runID: deadRun, mode: .real, now: Date().addingTimeInterval(-660))
 
     await #expect(throws: EngineInvocationError.notImplemented(.build)) {
-        try await runAct(.build, project: "alpha", in: directory)
+        // Force the Act because this test is about lease reclaim and event ordering, not the trigger predicate
+        try await runAct(.build, project: "alpha", in: directory, force: true)
     }
 
     let events = try dead.events()
@@ -232,6 +244,8 @@ func lostActLeaseCancelsWork() async throws {
         act: .build,
         mode: .real,
         journal: journal,
+        // Forced because this test is about lease loss and cancellation, not the trigger predicate.
+        trigger: .forced,
         runID: runID,
         leasePolicy: shortPolicy,
         work: { _ in
