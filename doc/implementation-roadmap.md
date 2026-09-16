@@ -583,7 +583,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Fixture repositories with and without the branch merged give the right verdict,
   with no network access.
 
-### [ ] P6.3 Merge test (Mainline Conflict detection)
+### [x] P6.3 Merge test (Mainline Conflict detection)
 - **Work** — Test-merge a Feature Branch against mainline without touching any working tree,
   writing any commit or contacting GitHub. Return clean, or conflicting with the conflicting paths.
 - **Spec** — `landing/open-one-pull-request-per-repository`; glossary → Mainline Conflict.
