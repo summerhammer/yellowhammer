@@ -27,9 +27,6 @@
   <link rel="stylesheet" href="pandoc.css" />
 </head>
 <body>
-<header id="title-block-header">
-<h1 class="title">implementation-roadmap</h1>
-</header>
 <h1 id="yellowhammer-implementation-roadmap">Yellowhammer —
 Implementation Roadmap</h1>
 <p>Built against <code>../yellowhammer-spec</code> @
@@ -65,7 +62,9 @@ and effort (<code>Fable 5.1 High</code>, <code>Fable 5.1 Medium</code>,
 only. Fable for steps where lease, transaction, ancestry or
 state-machine correctness is the work; Opus for bounded adapters, CLI
 surfaces and app screens; Sonnet for scripted <code>[DevOps]</code>
-steps.</li>
+steps. Where a step lists <code>Gemini Flash 3.8 Medium</code> as an
+alternative, the work is scripted, templated or a thin wrapper over a
+documented tool, and a cheap model is acceptable.</li>
 </ul></li>
 <li><strong>Every acceptance criterion in a cited story is part of
 “done”.</strong> A “Done when” line picks out the key checks. It does
@@ -904,8 +903,8 @@ OQ49.</li>
 obtained from each workspace, and a comment it writes triggers the
 Operator’s inbox notification.</li>
 </ul>
-<h3 id="p5.2-board-adapter-authenticated-graphql-access">[ ] P5.2 Board
-adapter: authenticated GraphQL access</h3>
+<h3 id="x-p5.2-board-adapter-authenticated-graphql-access">[x] P5.2
+Board adapter: authenticated GraphQL access</h3>
 <ul>
 <li><strong>Work</strong>
 <ul>
@@ -925,7 +924,7 @@ feasibility probes → Linear.</li>
 workspace read a Linear project’s issues. Nothing outside the adapter
 refers to a Linear type.</li>
 </ul>
-<h3 id="p5.3-linear-provisioning-setup-time">[ ] P5.3 Linear
+<h3 id="x-p5.3-linear-provisioning-setup-time">[x] P5.3 Linear
 provisioning (setup-time)</h3>
 <ul>
 <li><strong>Work</strong>
@@ -949,7 +948,7 @@ board-projection/overview; feasibility probes → Linear (A16, A17).</li>
 scratch team changes nothing the second time. A label-name collision is
 reported and not overwritten.</li>
 </ul>
-<h3 id="p5.4-outbox">[ ] P5.4 Outbox</h3>
+<h3 id="x-p5.4-outbox">[x] P5.4 Outbox</h3>
 <ul>
 <li><strong>Work</strong>
 <ul>
@@ -994,7 +993,7 @@ after a killed run creates no duplicate issue or comment; a stale-lease
 write never reaches Linear; broken delimiters abort safely; a forced
 mid-transaction failure leaves no partial board.</li>
 </ul>
-<h3 id="p5.5-delta-read">[ ] P5.5 Delta Read</h3>
+<h3 id="x-p5.5-delta-read">[x] P5.5 Delta Read</h3>
 <ul>
 <li><strong>Work</strong>
 <ul>
@@ -1021,7 +1020,7 @@ OQ55.</li>
 and a state change picked up by one request. A sibling Project’s Card in
 the same team is never selected.</li>
 </ul>
-<h3 id="p5.6-managed-block-rendering-and-hash-skip-cards">[ ] P5.6
+<h3 id="x-p5.6-managed-block-rendering-and-hash-skip-cards">[x] P5.6
 Managed Block rendering and hash-skip (Cards)</h3>
 <ul>
 <li><strong>Work</strong>
@@ -1048,7 +1047,7 @@ story).</li>
 <li><strong>Done when</strong> — Rehearsal tests show hash-skip,
 label-group exclusivity, and no writes to a Cancelled Card.</li>
 </ul>
-<h3 id="p5.7-night-card-open-and-close">[ ] P5.7 Night Card open and
+<h3 id="x-p5.7-night-card-open-and-close">[x] P5.7 Night Card open and
 close</h3>
 <ul>
 <li><strong>Work</strong>
@@ -1073,7 +1072,7 @@ risks.md OQ13 Facet 2.</li>
 team: one Night Card opens and closes; a killed-and-resumed Act leaves
 exactly one.</li>
 </ul>
-<h3 id="p5.8-board-state-writes-for-cards-and-features">[ ] P5.8 Board
+<h3 id="x-p5.8-board-state-writes-for-cards-and-features">[x] P5.8 Board
 state writes for Cards and Features</h3>
 <ul>
 <li><strong>Work</strong>
@@ -1116,7 +1115,8 @@ record <code>MainlineFetchFailed</code>.</li>
 </ul></li>
 <li><strong>Spec</strong> — system-overview → Integration Map (Engine →
 Configured repositories); risks.md OQ19.</li>
-<li><strong>Agent</strong> — Opus 5 Medium.</li>
+<li><strong>Agent</strong> — Opus 5 Medium, or Gemini Flash 3.8
+Medium.</li>
 <li><strong>Done when</strong> — Fixture repos cover fetch success,
 fetch failure with fallback, and a Spec Source that is never
 fetched.</li>
@@ -1131,7 +1131,8 @@ repositories.</li>
 <code>feature-authoring/select-the-next-feature</code>
 (predecessor-ancestry story);
 <code>landing/announce-a-partial-landing</code>.</li>
-<li><strong>Agent</strong> — Opus 5 Medium.</li>
+<li><strong>Agent</strong> — Opus 5 Medium, or Gemini Flash 3.8
+Medium.</li>
 <li><strong>Done when</strong> — Fixture repositories with and without
 the branch merged give the right verdict, with no network access.</li>
 </ul>
@@ -1159,7 +1160,8 @@ path-scoped diff per Card per foreign repository.</li>
 <li><strong>Spec</strong> —
 <code>board-projection/check-card-readiness-at-dispatch</code>; risks.md
 OQ24.</li>
-<li><strong>Agent</strong> — Opus 5 Medium.</li>
+<li><strong>Agent</strong> — Opus 5 Medium, or Gemini Flash 3.8
+Medium.</li>
 <li><strong>Done when</strong> — Fixture repos cover touched, untouched
 and renamed-path cases, with no network.</li>
 </ul>
@@ -1182,7 +1184,8 @@ configuration.</li>
 <code>feature-authoring/author-an-architectural-brief</code>;
 <code>feature-authoring/author-citable-definitions-of-done</code>;
 risks.md OQ51.</li>
-<li><strong>Agent</strong> — Opus 5 Medium.</li>
+<li><strong>Agent</strong> — Opus 5 Medium, or Gemini Flash 3.8
+Medium.</li>
 <li><strong>Done when</strong> — Fixture spec repos resolve valid IDs,
 reject missing ones, and a path in another Project’s repo is
 refused.</li>
@@ -1384,7 +1387,8 @@ pinned and the latest CLI versions and fails loudly on drift.</li>
 </ul></li>
 <li><strong>Spec</strong> — R11; <code>routing/add-an-agent-cli</code>
 (re-running the probe detects drift).</li>
-<li><strong>Agent</strong> — Sonnet 5 Medium.</li>
+<li><strong>Agent</strong> — Sonnet 5 Medium, or Gemini Flash 3.8
+Medium.</li>
 <li><strong>Done when</strong> — Drift in a CLI’s output format turns
 the job red before a release ships.</li>
 </ul>
@@ -2320,7 +2324,8 @@ git repositories, verify Linear credentials, inspect
 (<code>--fix</code> unloads and removes them after confirmation), and
 warn on routing entries with no fallback.</li>
 <li><strong>Spec</strong> — risks.md OQ13, OQ52 Face 1.</li>
-<li><strong>Agent</strong> — Opus 5 Medium.</li>
+<li><strong>Agent</strong> — Opus 5 Medium, or Gemini Flash 3.8
+Medium.</li>
 <li><strong>Done when</strong> — Each check has a passing and a failing
 fixture. An orphaned agent is found and removed.</li>
 </ul>
@@ -2331,7 +2336,8 @@ fixture. An orphaned agent is found and removed.</li>
 of a missed Night (sleep, missing or disabled job, pre-initialization
 crash). No cross-Project verdict.</li>
 <li><strong>Spec</strong> — risks.md OQ12 Surface 3.</li>
-<li><strong>Agent</strong> — Opus 5 Medium.</li>
+<li><strong>Agent</strong> — Opus 5 Medium, or Gemini Flash 3.8
+Medium.</li>
 <li><strong>Done when</strong> — Each diagnosis is produced from a
 staged scenario.</li>
 </ul>
@@ -2401,7 +2407,8 @@ Routing Table and per-Project overrides, as TOML file edits that keep
 the file valid under P2.3. Direct TOML editing stays supported.</li>
 <li><strong>Spec</strong> — system-overview → Integration Map (app edits
 Routing Table); ooux/nav-flow.md → Setup; risks.md OQ51.</li>
-<li><strong>Agent</strong> — Opus 5 Medium.</li>
+<li><strong>Agent</strong> — Opus 5 Medium, or Gemini Flash 3.8
+Medium.</li>
 <li><strong>Done when</strong> — Edits made in the app round-trip
 through the loader. Invalid edits are refused with the loader’s
 message.</li>
@@ -2413,7 +2420,8 @@ detail and Probe trigger</h3>
 Result from the Ledger, and run a Probe on demand.</li>
 <li><strong>Spec</strong> — system-overview → Yellowhammer app;
 <code>routing/add-an-agent-cli</code>.</li>
-<li><strong>Agent</strong> — Opus 5 Medium.</li>
+<li><strong>Agent</strong> — Opus 5 Medium, or Gemini Flash 3.8
+Medium.</li>
 <li><strong>Done when</strong> — A Probe started from the app writes a
 Ledger row shown in the list.</li>
 </ul>
@@ -2435,7 +2443,8 @@ Act writes it causes no write conflict and no modification.</li>
 <li><strong>Work</strong> — The app equivalent of <code>yh status</code>
 (P13.4) and <code>yh doctor</code> findings, per Project.</li>
 <li><strong>Spec</strong> — risks.md OQ12 Surface 3.</li>
-<li><strong>Agent</strong> — Opus 5 Medium.</li>
+<li><strong>Agent</strong> — Opus 5 Medium, or Gemini Flash 3.8
+Medium.</li>
 <li><strong>Done when</strong> — Staged scenarios give the same
 diagnoses as the CLI.</li>
 </ul>
@@ -2490,7 +2499,8 @@ runs without touching provisioning.</li>
 <li>Scratch credentials stored per P5.1.</li>
 </ul></li>
 <li><strong>Spec</strong> — system-overview → Environments.</li>
-<li><strong>Agent</strong> — Sonnet 5 Medium.</li>
+<li><strong>Agent</strong> — Sonnet 5 Medium, or Gemini Flash 3.8
+Medium.</li>
 <li><strong>Done when</strong> — A rehearsal Project can run against the
 scratch team repeatedly and be reset.</li>
 </ul>
@@ -2510,7 +2520,8 @@ branch.</li>
 </ul></li>
 <li><strong>Spec</strong> — system-overview → What a story may assert
 against a rehearsal Night.</li>
-<li><strong>Agent</strong> — Opus 5 Medium.</li>
+<li><strong>Agent</strong> — Opus 5 Medium, or Gemini Flash 3.8
+Medium.</li>
 <li><strong>Done when</strong> — One command builds the full fixture set
 from nothing.</li>
 </ul>
@@ -2553,7 +2564,8 @@ Apple Silicon runner with Orca ADE installed and scratch credentials
 available, or add it as a required manual release-checklist step when no
 such runner exists. Publish Journals and Night Card links as
 artifacts.</li>
-<li><strong>Agent</strong> — Sonnet 5 Medium.</li>
+<li><strong>Agent</strong> — Sonnet 5 Medium, or Gemini Flash 3.8
+Medium.</li>
 <li><strong>Done when</strong> — A failed scenario blocks the release
 checklist.</li>
 </ul>
@@ -2572,7 +2584,8 @@ release machine’s keychain and in CI secrets.</li>
 </ul></li>
 <li><strong>Spec</strong> — stack.md → Distribution; feasibility probes
 → Build and packaging.</li>
-<li><strong>Agent</strong> — Sonnet 5 Medium.</li>
+<li><strong>Agent</strong> — Sonnet 5 Medium, or Gemini Flash 3.8
+Medium.</li>
 <li><strong>Done when</strong> — The release job can sign and
 authenticate for notarization without manual input.</li>
 </ul>
@@ -2624,7 +2637,8 @@ built against and the story IDs it covers.</li>
 </ul></li>
 <li><strong>Spec</strong> — stack.md → Distribution (direct, not Mac App
 Store).</li>
-<li><strong>Agent</strong> — Sonnet 5 Medium.</li>
+<li><strong>Agent</strong> — Sonnet 5 Medium, or Gemini Flash 3.8
+Medium.</li>
 <li><strong>Done when</strong> — A downloaded artifact installs on a
 clean Apple Silicon Mac with no Gatekeeper warning.</li>
 </ul>
@@ -2634,7 +2648,8 @@ Update channel</h3>
 <li><strong>Work</strong> — Implement the update channel decided in
 G-14.</li>
 <li><strong>Gate</strong> — G-14.</li>
-<li><strong>Agent</strong> — Sonnet 5 Medium.</li>
+<li><strong>Agent</strong> — Sonnet 5 Medium, or Gemini Flash 3.8
+Medium.</li>
 <li><strong>Done when</strong> — Defined by G-14.</li>
 </ul>
 <h3 id="p16.6-devops-installed-product-verification">[ ] P16.6
@@ -2656,7 +2671,8 @@ Act.</li>
 </ol></li>
 <li><strong>Spec</strong> — feasibility probes → Build and packaging;
 risks.md OQ9, OQ53.</li>
-<li><strong>Agent</strong> — Opus 5 Medium.</li>
+<li><strong>Agent</strong> — Opus 5 Medium, or Gemini Flash 3.8
+Medium.</li>
 <li><strong>Done when</strong> — The checklist is completed and recorded
 for the release.</li>
 </ul>
@@ -2667,7 +2683,8 @@ CI green; probe drift check (P7.5) green; rehearsal suite (P15.3/P15.4)
 green; notarization verified; installed-product verification (P16.6)
 done; release notes with spec commit and story IDs; spec conflicts from
 P1.1 checked for new answers.</li>
-<li><strong>Agent</strong> — Opus 5 Medium.</li>
+<li><strong>Agent</strong> — Opus 5 Medium, or Gemini Flash 3.8
+Medium.</li>
 <li><strong>Done when</strong> — The checklist is committed and used for
 the first release.</li>
 </ul>

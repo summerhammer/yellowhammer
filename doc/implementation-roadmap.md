@@ -24,7 +24,9 @@ disagreement is a defect in this file.
   - **Agent** — recommended Claude Code implementor model and effort (`Fable 5.1 High`,
     `Fable 5.1 Medium`, `Opus 5 Medium`, `Sonnet 5 Medium`). Open steps only. Fable for steps
     where lease, transaction, ancestry or state-machine correctness is the work; Opus for
-    bounded adapters, CLI surfaces and app screens; Sonnet for scripted `[DevOps]` steps.
+    bounded adapters, CLI surfaces and app screens; Sonnet for scripted `[DevOps]` steps. Where a
+    step lists `Gemini Flash 3.8 Medium` as an alternative, the work is scripted, templated or a
+    thin wrapper over a documented tool, and a cheap model is acceptable.
 - **Every acceptance criterion in a cited story is part of "done".** A "Done when" line picks out
   the key checks. It does not replace the story's criteria.
 - **DevOps** steps are marked `[DevOps]`. They sit where they are needed in the order, not in a
@@ -568,7 +570,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     `MainlineFetchFailed`.
   - Never fetch a Spec Source. Read its local default branch or `HEAD`.
 - **Spec** — system-overview → Integration Map (Engine → Configured repositories); risks.md OQ19.
-- **Agent** — Opus 5 Medium.
+- **Agent** — Opus 5 Medium, or Gemini Flash 3.8 Medium.
 - **Done when** — Fixture repos cover fetch success, fetch failure with fallback, and a Spec Source
   that is never fetched.
 
@@ -577,7 +579,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   that repository's mainline. Report the `k of N` merged fraction across a Feature's repositories.
 - **Spec** — `feature-authoring/select-the-next-feature` (predecessor-ancestry story);
   `landing/announce-a-partial-landing`.
-- **Agent** — Opus 5 Medium.
+- **Agent** — Opus 5 Medium, or Gemini Flash 3.8 Medium.
 - **Done when** — Fixture repositories with and without the branch merged give the right verdict,
   with no network access.
 
@@ -594,7 +596,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   recorded path changed between the commit and head. One `rev-parse` and one path-scoped diff per
   Card per foreign repository.
 - **Spec** — `board-projection/check-card-readiness-at-dispatch`; risks.md OQ24.
-- **Agent** — Opus 5 Medium.
+- **Agent** — Opus 5 Medium, or Gemini Flash 3.8 Medium.
 - **Done when** — Fixture repos cover touched, untouched and renamed-path cases, with no network.
 
 ### [ ] P6.5 Mainline read for transcription and specification
@@ -606,7 +608,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Refuse any read of a repository outside the Project's configuration.
 - **Spec** — `feature-authoring/author-an-architectural-brief`;
   `feature-authoring/author-citable-definitions-of-done`; risks.md OQ51.
-- **Agent** — Opus 5 Medium.
+- **Agent** — Opus 5 Medium, or Gemini Flash 3.8 Medium.
 - **Done when** — Fixture spec repos resolve valid IDs, reject missing ones, and a path in another
   Project's repo is refused.
 
@@ -729,7 +731,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     documented manual release-checklist step if no such runner exists) that re-runs every Probe
     against the pinned and the latest CLI versions and fails loudly on drift.
 - **Spec** — R11; `routing/add-an-agent-cli` (re-running the probe detects drift).
-- **Agent** — Sonnet 5 Medium.
+- **Agent** — Sonnet 5 Medium, or Gemini Flash 3.8 Medium.
 - **Done when** — Drift in a CLI's output format turns the job red before a release ships.
 
 ### [ ] P7.6 Route resolution
@@ -1316,7 +1318,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   inspect `launchd` job status, detect orphaned LaunchAgents (`--fix` unloads and removes them after
   confirmation), and warn on routing entries with no fallback.
 - **Spec** — risks.md OQ13, OQ52 Face 1.
-- **Agent** — Opus 5 Medium.
+- **Agent** — Opus 5 Medium, or Gemini Flash 3.8 Medium.
 - **Done when** — Each check has a passing and a failing fixture. An orphaned agent is found and
   removed.
 
@@ -1325,7 +1327,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   and a diagnosis of a missed Night (sleep, missing or disabled job, pre-initialization crash). No
   cross-Project verdict.
 - **Spec** — risks.md OQ12 Surface 3.
-- **Agent** — Opus 5 Medium.
+- **Agent** — Opus 5 Medium, or Gemini Flash 3.8 Medium.
 - **Done when** — Each diagnosis is produced from a staged scenario.
 
 ### [ ] P13.5 `yh project remove <id>`
@@ -1372,7 +1374,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   valid under P2.3. Direct TOML editing stays supported.
 - **Spec** — system-overview → Integration Map (app edits Routing Table); ooux/nav-flow.md →
   Setup; risks.md OQ51.
-- **Agent** — Opus 5 Medium.
+- **Agent** — Opus 5 Medium, or Gemini Flash 3.8 Medium.
 - **Done when** — Edits made in the app round-trip through the loader. Invalid edits are refused
   with the loader's message.
 
@@ -1380,7 +1382,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Work** — List declared CLIs with their latest Probe Result from the Ledger, and run a Probe on
   demand.
 - **Spec** — system-overview → Yellowhammer app; `routing/add-an-agent-cli`.
-- **Agent** — Opus 5 Medium.
+- **Agent** — Opus 5 Medium, or Gemini Flash 3.8 Medium.
 - **Done when** — A Probe started from the app writes a Ledger row shown in the list.
 
 ### [ ] P14.5 Journal reading (account behind a Card)
@@ -1395,7 +1397,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 ### [ ] P14.6 Status view
 - **Work** — The app equivalent of `yh status` (P13.4) and `yh doctor` findings, per Project.
 - **Spec** — risks.md OQ12 Surface 3.
-- **Agent** — Opus 5 Medium.
+- **Agent** — Opus 5 Medium, or Gemini Flash 3.8 Medium.
 - **Done when** — Staged scenarios give the same diagnoses as the CLI.
 
 ### [ ] P14.7 Recalibrate
@@ -1434,7 +1436,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     provisioning.
   - Scratch credentials stored per P5.1.
 - **Spec** — system-overview → Environments.
-- **Agent** — Sonnet 5 Medium.
+- **Agent** — Sonnet 5 Medium, or Gemini Flash 3.8 Medium.
 - **Done when** — A rehearsal Project can run against the scratch team repeatedly and be reset.
 
 ### [ ] P15.2 `[DevOps]` Throwaway repositories and fixtures
@@ -1446,7 +1448,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Scenario fixtures: predecessor merged or not, mainline moved or not, Transcription Block path
     touched, protected path, conflicting branch.
 - **Spec** — system-overview → What a story may assert against a rehearsal Night.
-- **Agent** — Opus 5 Medium.
+- **Agent** — Opus 5 Medium, or Gemini Flash 3.8 Medium.
 - **Done when** — One command builds the full fixture set from nothing.
 
 ### [ ] P15.3 Rehearsal scenario suite
@@ -1474,7 +1476,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Work** — Run P15.3 on a schedule on a self-hosted Apple Silicon runner with Orca ADE installed
   and scratch credentials available, or add it as a required manual release-checklist step when no
   such runner exists. Publish Journals and Night Card links as artifacts.
-- **Agent** — Sonnet 5 Medium.
+- **Agent** — Sonnet 5 Medium, or Gemini Flash 3.8 Medium.
 - **Done when** — A failed scenario blocks the release checklist.
 
 ---
@@ -1487,7 +1489,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     Connect API key or equivalent) in the release machine's keychain and in CI secrets.
   - Document ownership, expiry dates and renewal.
 - **Spec** — stack.md → Distribution; feasibility probes → Build and packaging.
-- **Agent** — Sonnet 5 Medium.
+- **Agent** — Sonnet 5 Medium, or Gemini Flash 3.8 Medium.
 - **Done when** — The release job can sign and authenticate for notarization without manual input.
 
 ### [ ] P16.2 `[DevOps]` Release build configuration
@@ -1517,14 +1519,14 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     it covers.
   - Host the download on the chosen direct-distribution channel.
 - **Spec** — stack.md → Distribution (direct, not Mac App Store).
-- **Agent** — Sonnet 5 Medium.
+- **Agent** — Sonnet 5 Medium, or Gemini Flash 3.8 Medium.
 - **Done when** — A downloaded artifact installs on a clean Apple Silicon Mac with no Gatekeeper
   warning.
 
 ### [ ] P16.5 `[DevOps]` Update channel
 - **Work** — Implement the update channel decided in G-14.
 - **Gate** — G-14.
-- **Agent** — Sonnet 5 Medium.
+- **Agent** — Sonnet 5 Medium, or Gemini Flash 3.8 Medium.
 - **Done when** — Defined by G-14.
 
 ### [ ] P16.6 `[DevOps]` Installed-product verification
@@ -1535,7 +1537,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   4. `yh doctor` passes with Orca ADE, at least one CLI and the production Linear identity.
   5. Quitting and never opening the app does not affect a scheduled Act.
 - **Spec** — feasibility probes → Build and packaging; risks.md OQ9, OQ53.
-- **Agent** — Opus 5 Medium.
+- **Agent** — Opus 5 Medium, or Gemini Flash 3.8 Medium.
 - **Done when** — The checklist is completed and recorded for the release.
 
 ### [ ] P16.7 Release checklist
@@ -1543,7 +1545,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   rehearsal suite (P15.3/P15.4) green; notarization verified; installed-product verification (P16.6)
   done; release notes with spec commit and story IDs; spec conflicts from P1.1 checked for new
   answers.
-- **Agent** — Opus 5 Medium.
+- **Agent** — Opus 5 Medium, or Gemini Flash 3.8 Medium.
 - **Done when** — The checklist is committed and used for the first release.
 
 ### [ ] P16.8 First production Night
