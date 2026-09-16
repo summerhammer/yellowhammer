@@ -67,7 +67,8 @@ extension ActCommand {
             journal: journal,
             trigger: trigger,
             closesNight: closesNight,
-            board: board
+            board: board,
+            repositories: project.repositories
         )
     }
 
