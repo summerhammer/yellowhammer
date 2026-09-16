@@ -10,8 +10,17 @@ import Testing
 // Each refusal is asserted through ArgumentParser's own mapping, which is what `yh` exits with and prints.
 
 /// Parses `yh <act> --project <id>` and runs it against the given configuration directory.
-private func runAct(_ act: Act, project: String, in directory: borrowing ConfigurationDirectory) async throws {
-    let parsed = try RootCommand.parseAsRoot([act.rawValue, "--project", project])
+private func runAct(
+    _ act: Act,
+    project: String,
+    in directory: borrowing ConfigurationDirectory,
+    force: Bool = false
+) async throws {
+    var args = [act.rawValue, "--project", project]
+    if force {
+        args.append("--force")
+    }
+    let parsed = try RootCommand.parseAsRoot(args)
     let command = try #require(parsed as? any ActCommand)
     try await command.run(configurationDirectory: directory.url)
 }
@@ -200,6 +209,7 @@ func workingRepoConflict() async throws {
         #expect(message.contains("working Repo"))
     }
     await #expect(throws: EngineInvocationError.notImplemented(.build)) {
-        try await runAct(.build, project: "gamma", in: directory)
+        // Force the Act because this test is about Repo conflict detection, not the trigger predicate
+        try await runAct(.build, project: "gamma", in: directory, force: true)
     }
 }

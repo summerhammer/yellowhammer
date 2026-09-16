@@ -29,7 +29,7 @@ private let epoch = Date(timeIntervalSince1970: 1_800_000_000)
 @Test("All JournalEventType raw values match spec names")
 func eventTypeRawValues() {
     let expected = [
-        "ActStarted", "ActEnded", "ActIncomplete", "ActStoodDown",
+        "ActStarted", "ActEnded", "ActIdle", "ActIncomplete", "ActStoodDown",
         "MainlineFetchFailed", "AbsentNightDetected", "AuthoringNoWorkAvailable",
         "ManagedBlockDelimiterBroken", "NotificationDeliveryFailed", "RateBudgetExhausted",
         "LeaseReclaimed", "CardLeaseReclaimed"

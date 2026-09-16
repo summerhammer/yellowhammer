@@ -57,7 +57,7 @@ private func insertFixtureCard(
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             arguments: [
-                cycleID, issueID, repository, "card", authoredOrder, "pending", budgetEpoch,
+                cycleID, issueID, repository, "card", authoredOrder, CardState.todo.rawValue, budgetEpoch,
                 JournalStore.timestamp(epoch)
             ]
         )

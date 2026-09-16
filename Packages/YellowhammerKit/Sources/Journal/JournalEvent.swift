@@ -5,6 +5,8 @@ import Foundation
 public enum JournalEvent: Equatable, Sendable {
     case actStarted
     case actEnded
+    /// The Act's trigger predicate was false; it recorded an idle tick and exited normally.
+    case actIdle(reason: ActIdleReason)
     /// The Act could not complete; `reason` is what it knew when it gave up.
     case actIncomplete(reason: String)
     /// Another run of the same Project held the Act-scoped lease; this Act ran nothing.
@@ -32,6 +34,8 @@ public enum JournalEvent: Equatable, Sendable {
             .actStarted
         case .actEnded:
             .actEnded
+        case .actIdle:
+            .actIdle
         case .actIncomplete:
             .actIncomplete
         case .actStoodDown:
@@ -60,6 +64,8 @@ public enum JournalEvent: Equatable, Sendable {
         switch self {
         case .actStarted, .actEnded:
             nil
+        case .actIdle(let reason):
+            ["reason": reason.rawValue]
         case .actIncomplete(let reason):
             ["reason": reason]
         case .actStoodDown(let holder):
@@ -114,6 +120,8 @@ public enum JournalEvent: Equatable, Sendable {
             .actStarted
         case .actEnded:
             .actEnded
+        case .actIdle:
+            try Self.decodeActIdle(reader)
         case .actIncomplete:
             .actIncomplete(reason: try reader.require("reason"))
         case .actStoodDown:
@@ -141,6 +149,14 @@ public enum JournalEvent: Equatable, Sendable {
         case .cardLeaseReclaimed:
             try Self.decodeCardLeaseReclaimed(reader)
         }
+    }
+
+    private static func decodeActIdle(_ reader: PayloadReader) throws -> JournalEvent {
+        let reasonText = try reader.require("reason")
+        guard let reason = ActIdleReason(rawValue: reasonText) else {
+            throw JournalError.eventUnreadable(id: reader.rowID)
+        }
+        return .actIdle(reason: reason)
     }
 
     private static func decodeStoodDown(_ reader: PayloadReader) throws -> JournalEvent {
@@ -230,6 +246,7 @@ private struct PayloadReader: Sendable {
 public enum JournalEventType: String, CaseIterable, Sendable {
     case actStarted = "ActStarted"
     case actEnded = "ActEnded"
+    case actIdle = "ActIdle"
     case actIncomplete = "ActIncomplete"
     case actStoodDown = "ActStoodDown"
     case mainlineFetchFailed = "MainlineFetchFailed"

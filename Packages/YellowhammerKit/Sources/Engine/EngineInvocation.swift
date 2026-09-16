@@ -88,6 +88,15 @@ public struct EngineInvocation: Sendable {
         case .claimed:
             _ = try? journal.append(.actStarted, act: act, runID: runID)
         }
+        // Evaluate the trigger predicate under the lease.
+        let predicateOutcome = try ActTriggerPredicate.evaluate(act: act, trigger: trigger, journal: journal)
+        if case .notMet(let reason) = predicateOutcome {
+            _ = try? journal.append(.actIdle(reason: reason), act: act, runID: runID)
+            _ = try? journal.append(.actEnded, act: act, runID: runID)
+            try journal.releaseActLease(runID: runID)
+            return
+        }
+
         let context = ActContext(act: act, mode: mode, trigger: trigger, runID: runID, journal: journal)
         do {
             try await withLeaseHeartbeat(
