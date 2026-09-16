@@ -3,7 +3,7 @@ import Foundation
 /// The identity of a Night: the calendar date of its `night_start` (Decision Gates Ruling, G-7),
 /// written `YYYY-MM-DD`. Two Acts of one Project that compute the same date are Acts of the same
 /// Night, which is how a later Act finds the Night its first Act recorded.
-public struct NightStart: RawRepresentable, Hashable, Sendable, CustomStringConvertible {
+public struct NightStart: RawRepresentable, Hashable, Sendable, CustomStringConvertible, Comparable {
     public let rawValue: String
     public let year: Int
     public let month: Int
@@ -40,6 +40,35 @@ public struct NightStart: RawRepresentable, Hashable, Sendable, CustomStringConv
     }
 
     public var description: String { rawValue }
+
+    /// Written `YYYY-MM-DD`, so the raw values order as the dates do.
+    public static func < (lhs: NightStart, rhs: NightStart) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+
+    /// Every calendar date after `earlier` and before `later`, ascending: empty when they are the
+    /// same day, consecutive, or reversed. The `[schedule]` fires every calendar day, so each of
+    /// these is a Night that should have opened and did not. Pure date arithmetic, so the calendar's
+    /// time zone is immaterial and UTC keeps it so.
+    public static func dates(strictlyBetween earlier: NightStart, and later: NightStart) -> [NightStart] {
+        guard earlier < later else { return [] }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        guard
+            let start = calendar.date(from: DateComponents(year: earlier.year, month: earlier.month, day: earlier.day)),
+            let end = calendar.date(from: DateComponents(year: later.year, month: later.month, day: later.day))
+        else { return [] }
+        var absent: [NightStart] = []
+        var current = start
+        while let next = calendar.date(byAdding: .day, value: 1, to: current), next < end {
+            let parts = calendar.dateComponents([.year, .month, .day], from: next)
+            if let day = NightStart(year: parts.year ?? 0, month: parts.month ?? 0, day: parts.day ?? 0) {
+                absent.append(day)
+            }
+            current = next
+        }
+        return absent
+    }
 }
 
 /// Where a Night is in its life: `opened → closed`. Halting is an event, not a state, and `opened`
