@@ -360,7 +360,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 
 ## Phase 4 — Engine invocation shell
 
-### [ ] P4.1 Command surface for the Acts
+### [x] P4.1 Command surface for the Acts
 - **Work**
   - `yh author --project <id>`, `yh build --project <id>`, `yh land --project <id>` as the Act
     contract (typed into scheduled jobs by hand, so it is stable).
