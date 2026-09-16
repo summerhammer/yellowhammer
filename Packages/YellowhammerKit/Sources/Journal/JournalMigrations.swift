@@ -39,6 +39,9 @@ enum JournalMigrations {
         migrator.registerMigration("v3-night-close-reason") { db in
             try addNightCloseReasonColumn(db)
         }
+        migrator.registerMigration("v4-outbox-delivery") { db in
+            try addOutboxDeliveryColumns(db)
+        }
         return migrator
     }
 }

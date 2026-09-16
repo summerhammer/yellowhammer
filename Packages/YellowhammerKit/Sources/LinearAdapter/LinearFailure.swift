@@ -100,6 +100,19 @@ struct LinearFailure {
         return bounded
     }
 
+    func insertConflict(_ data: Data) -> Bool {
+        guard let envelope = try? JSONDecoder().decode(LinearGraphQLEnvelope<Empty>.self, from: data),
+              let errors = envelope.errors, !errors.isEmpty else {
+            return false
+        }
+        return errors.contains { error in
+            let text = [error.message, error.extensions?.userPresentableMessage]
+                .compactMap { $0?.lowercased() }
+                .joined(separator: " ")
+            return text.contains("conflict on insert")
+        }
+    }
+
     private func scrub(_ message: String) -> String {
         secrets.filter { !$0.isEmpty }.reduce(message) { $0.replacingOccurrences(of: $1, with: "<redacted>") }
     }
