@@ -44,6 +44,16 @@ struct LinearScratchTests {
             #expect(!object.workflowState.name.isEmpty)
         }
         #expect(await adapter.latestBudget?.requestsLimit != nil)
+
+        let delta = try await adapter.deltaRead(since: nil)
+        #expect(!delta.identity.id.rawValue.isEmpty)
+        for comment in delta.newComments {
+            #expect(!comment.issueKey.isEmpty)
+        }
+        // If a comment was authored by the identity, verify isYellowhammer
+        if let yellowhammerComment = delta.newComments.first(where: { $0.author.id == delta.identity.id }) {
+            #expect(yellowhammerComment.author.isYellowhammer)
+        }
     }
 
     @Test("A create replays as already applied, a comment posts, a description rewrites, and the issue archives")

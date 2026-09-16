@@ -13,6 +13,13 @@ public protocol Board: Sendable {
     /// `updatedSince` when it is given.
     func objects(updatedSince: Date?, after: BoardCursor?, pageSize: Int) async throws(BoardError) -> BoardPage
 
+    /// The Delta Read: board objects updated and comments created after `since`, in this Project's
+    /// Linear project, from **one** request. `since` nil reads everything. Each page of either list is
+    /// resumed from its own cursor; the identity rides along in the same request.
+    func deltaRead(
+        since: Date?, objectsAfter: BoardCursor?, commentsAfter: BoardCursor?, pageSize: Int
+    ) async throws(BoardError) -> BoardDelta
+
     /// The identity the board resolves Yellowhammer's calls to — the registered application, never an Operator.
     func identity() async throws(BoardError) -> BoardIdentity
 
@@ -28,6 +35,17 @@ extension Board {
         updatedSince: Date?, after: BoardCursor? = nil
     ) async throws(BoardError) -> BoardPage {
         try await objects(updatedSince: updatedSince, after: after, pageSize: Self.defaultPageSize)
+    }
+
+    /// The page size the spec's compound document names: `first: 50` on each root.
+    public static var deltaPageSize: Int { 50 }
+
+    public func deltaRead(
+        since: Date?, objectsAfter: BoardCursor? = nil, commentsAfter: BoardCursor? = nil
+    ) async throws(BoardError) -> BoardDelta {
+        try await deltaRead(
+            since: since, objectsAfter: objectsAfter, commentsAfter: commentsAfter, pageSize: Self.deltaPageSize
+        )
     }
 }
 

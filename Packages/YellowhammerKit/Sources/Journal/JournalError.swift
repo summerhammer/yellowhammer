@@ -58,6 +58,14 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     case outboxEntryNotPending(id: Int64, state: OutboxEntryState)
     /// The `outbox` row does not decode; the Journal was written by something other than the engine.
     case outboxEntryUnreadable(id: Int64)
+    /// The `card` row does not decode; the Journal was written by something other than the engine.
+    case cardUnreadable(id: Int64)
+    /// The Card is already in cancelled state and cannot be cancelled again.
+    case cardAlreadyCancelled(cardID: Int64)
+    /// The Card is not in cancelled state and cannot be reopened.
+    case cardNotCancelled(cardID: Int64)
+    /// The `board_sync` row does not decode; the Journal was written by something other than the engine.
+    case boardSyncUnreadable
 
     public var description: String {
         return switch self {
@@ -128,6 +136,14 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
             "Outbox entry \(id) is in state \(state.rawValue), not pending"
         case .outboxEntryUnreadable(let id):
             "The Journal's outbox row \(id) cannot be read"
+        case .cardUnreadable(let id):
+            "The Journal's card row \(id) cannot be read"
+        case .cardAlreadyCancelled(let cardID):
+            "Card \(cardID) is already cancelled and cannot be cancelled again"
+        case .cardNotCancelled(let cardID):
+            "Card \(cardID) is not cancelled and cannot be reopened"
+        case .boardSyncUnreadable:
+            "The Journal's board_sync row cannot be read"
         }
     }
 }

@@ -37,7 +37,8 @@ private let epoch = Date(timeIntervalSince1970: 1_800_000_000)
 func actLeaseMigrationIsSecond() throws {
     #expect(
         JournalStore.migrationIdentifiers == [
-            "v1-initial-schema", "v2-act-lease", "v3-night-close-reason", "v4-outbox-delivery"
+            "v1-initial-schema", "v2-act-lease", "v3-night-close-reason", "v4-outbox-delivery",
+            "v5-delta-read"
         ]
     )
 }
@@ -54,7 +55,8 @@ func v1JournalMigratesForwardToActLease() throws {
     let journal = try fixture.open()
 
     #expect(try journal.appliedMigrations() == [
-        "v1-initial-schema", "v2-act-lease", "v3-night-close-reason", "v4-outbox-delivery"
+        "v1-initial-schema", "v2-act-lease", "v3-night-close-reason", "v4-outbox-delivery",
+        "v5-delta-read"
     ])
     #expect(try journal.tableNames().contains("act_lease"))
 }

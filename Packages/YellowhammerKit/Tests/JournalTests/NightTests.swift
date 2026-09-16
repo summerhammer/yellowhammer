@@ -27,11 +27,11 @@ private struct JournalFixture: ~Copyable {
 private let epoch = Date(timeIntervalSince1970: 1_800_000_000)
 private let nightStart = NightStart(rawValue: "2026-09-15")!
 
-@Test("Migration identifiers end at v4-outbox-delivery")
-func migrationIdentifiersIncludeV3() throws {
+@Test("Migration identifiers end at v5-delta-read")
+func migrationIdentifiersIncludeV5() throws {
     #expect(
         JournalStore.migrationIdentifiers == [
-            "v1-initial-schema", "v2-act-lease", "v3-night-close-reason", "v4-outbox-delivery"
+            "v1-initial-schema", "v2-act-lease", "v3-night-close-reason", "v4-outbox-delivery", "v5-delta-read"
         ]
     )
 }

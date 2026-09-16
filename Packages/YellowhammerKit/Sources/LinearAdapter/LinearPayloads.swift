@@ -31,9 +31,12 @@ struct LinearIssuesPayload: Decodable {
         let url: String
         let createdAt: Date
         let updatedAt: Date
+        let archivedAt: Date?
+        let trashed: Bool?
         let state: Node
         let labels: Labels
         let parent: Reference?
+        let assignee: Reference?
     }
 
     struct Node: Decodable {
@@ -51,5 +54,62 @@ struct LinearIssuesPayload: Decodable {
 
     struct Reference: Decodable {
         let id: String
+    }
+}
+
+struct LinearDeltaPayload: Decodable {
+    let viewer: DeltaViewerPayload
+    let updatedIssues: LinearIssuesPayload.Issues
+    let newComments: DeltaComments
+
+    struct DeltaViewerPayload: Decodable {
+        let id: String
+        let name: String
+    }
+
+    struct DeltaComments: Decodable {
+        let pageInfo: DeltaPageInfo
+        let nodes: [DeltaComment]
+    }
+
+    struct DeltaPageInfo: Decodable {
+        let hasNextPage: Bool
+        let endCursor: String?
+    }
+
+    struct DeltaComment: Decodable {
+        let id: String
+        let createdAt: Date
+        let body: String
+        let parent: DeltaCommentReference?
+        let user: DeltaCommentUser?
+        let botActor: DeltaCommentBot?
+        let issue: DeltaCommentIssue
+    }
+
+    struct DeltaCommentReference: Decodable {
+        let id: String
+    }
+
+    struct DeltaCommentUser: Decodable {
+        let id: String
+        let name: String
+        let isMe: Bool
+    }
+
+    struct DeltaCommentBot: Decodable {
+        let id: String?
+        let name: String?
+    }
+
+    struct DeltaCommentIssue: Decodable {
+        let id: String
+        let identifier: String
+        let state: DeltaCommentState
+    }
+
+    struct DeltaCommentState: Decodable {
+        let id: String
+        let name: String
     }
 }

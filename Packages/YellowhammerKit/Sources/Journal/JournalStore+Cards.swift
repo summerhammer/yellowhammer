@@ -2,6 +2,25 @@ import Domain
 import Foundation
 import GRDB
 
+// MARK: - Card Record
+
+public enum WaitingReason: String, Sendable { case question, divergence }
+
+public struct CardRecord: Equatable, Sendable {
+    public let id: Int64
+    public let cycleID: Int64
+    public let issueID: String
+    public let repository: String
+    public let kind: String
+    public let authoredOrder: Int
+    public let state: CardState
+    public let waitingReason: WaitingReason?
+    public let blockReason: String?
+    /// The state the Card held before the board said Cancelled; nil unless state is cancelled.
+    public let cancelledFromState: CardState?
+    public let createdAt: Date
+}
+
 // The reads the Act trigger predicates are evaluated from. They answer two questions and no others:
 // has this Project any Card left to work, and is there a Feature in flight whose Cycle is finished.
 extension JournalStore {
@@ -62,5 +81,202 @@ extension JournalStore {
                 count += 1
             }
         }
+    }
+
+    // MARK: - Card reads
+
+    /// Every Card of this Project, ordered by id.
+    public func cards() throws -> [CardRecord] {
+        try read { db in
+            let rows = try Row.fetchAll(db, sql: "SELECT * FROM card ORDER BY id ASC")
+            return try rows.map { row in
+                try Self.cardRecord(from: row)
+            }
+        }
+    }
+
+    /// A Card by its issue id, or nil if not found.
+    public func card(issueID: String) throws -> CardRecord? {
+        try read { db in
+            let row = try Row.fetchOne(
+                db,
+                sql: "SELECT * FROM card WHERE issue_id = ?",
+                arguments: [issueID]
+            )
+            guard let row else { return nil }
+            return try Self.cardRecord(from: row)
+        }
+    }
+
+    /// A Card by its Journal id. Throws JournalError.cardUnknown if not found.
+    public func card(id: Int64) throws -> CardRecord {
+        try read { db in
+            guard let row = try Row.fetchOne(db, sql: "SELECT * FROM card WHERE id = ?", arguments: [id]) else {
+                throw JournalError.cardUnknown(cardID: id)
+            }
+            return try Self.cardRecord(from: row)
+        }
+    }
+
+    private static func cardRecord(from row: Row) throws -> CardRecord {
+        let id: Int64 = row["id"]
+        let rawState: String = row["state"]
+        guard let state = CardState(rawValue: rawState) else {
+            throw JournalError.unknownCardState(cardID: id, state: rawState)
+        }
+
+        let rawWaitingReason: String? = row["waiting_reason"]
+        let waitingReason = rawWaitingReason.flatMap { WaitingReason(rawValue: $0) }
+
+        let rawCancelledFromState: String? = row["cancelled_from_state"]
+        let cancelledFromState: CardState?
+        if let rawCancelledFromState {
+            guard let state = CardState(rawValue: rawCancelledFromState) else {
+                throw JournalError.unknownCardState(cardID: id, state: rawCancelledFromState)
+            }
+            cancelledFromState = state
+        } else {
+            cancelledFromState = nil
+        }
+
+        let createdAtText: String = row["created_at"]
+        let createdAt = try Self.date(createdAtText) { JournalError.cardUnreadable(id: id) }
+
+        return CardRecord(
+            id: id,
+            cycleID: row["cycle_id"],
+            issueID: row["issue_id"],
+            repository: row["repository"],
+            kind: row["kind"],
+            authoredOrder: row["authored_order"],
+            state: state,
+            waitingReason: waitingReason,
+            blockReason: row["block_reason"],
+            cancelledFromState: cancelledFromState,
+            createdAt: createdAt
+        )
+    }
+
+    // MARK: - Card state changes
+
+    /// The board read the Card as Cancelled. Sets state = Cancelled,
+    /// cancelled_from_state = the previous state, appends `.cardCancelled` in the same
+    /// write transaction, under the Act-scoped lease.
+    /// Throws JournalError.cardAlreadyCancelled(cardID:) when it already is.
+    @discardableResult
+    public func markCardCancelled(
+        cardID: Int64,
+        runID: RunID,
+        act: Act?,
+        nightID: Int64?,
+        now: Date = Date()
+    ) throws -> CardRecord {
+        try write { db in
+            // Revalidate Act lease
+            _ = try Self.revalidateActLease(db, runID: runID, now: now)
+
+            // Fetch the Card
+            guard let row = try Row.fetchOne(db, sql: "SELECT * FROM card WHERE id = ?", arguments: [cardID]) else {
+                throw JournalError.cardUnknown(cardID: cardID)
+            }
+
+            let record = try Self.cardRecord(from: row)
+
+            // Check if already cancelled
+            guard record.state != .cancelled else {
+                throw JournalError.cardAlreadyCancelled(cardID: cardID)
+            }
+
+            // Update card: set state to Cancelled and cancelled_from_state to previous state
+            try db.execute(
+                sql: "UPDATE card SET state = ?, cancelled_from_state = ? WHERE id = ?",
+                arguments: [CardState.cancelled.rawValue, record.state.rawValue, cardID]
+            )
+
+            // Append event
+            let stamp = EventStamp(act: act, runID: runID, nightID: nightID, now: now)
+            let event = JournalEvent.cardCancelled(
+                cardID: cardID,
+                issueID: record.issueID,
+                previousState: record.state
+            )
+            _ = try Self.insertEvent(db, event, stamp: stamp)
+
+            // Return updated record
+            return try Self.cardRecord(from: row)
+                .with(state: .cancelled, cancelledFromState: record.state)
+        }
+    }
+
+    /// The board read a Journal-cancelled Card as reopened. Restores state from
+    /// cancelled_from_state (or `todo` if that column is null), clears the column,
+    /// appends `.cardReopened` in the same transaction, under the Act lease.
+    /// Throws JournalError.cardNotCancelled(cardID:) when it is not cancelled.
+    @discardableResult
+    public func restoreCancelledCard(
+        cardID: Int64,
+        runID: RunID,
+        act: Act?,
+        nightID: Int64?,
+        now: Date = Date()
+    ) throws -> CardRecord {
+        try write { db in
+            // Revalidate Act lease
+            _ = try Self.revalidateActLease(db, runID: runID, now: now)
+
+            // Fetch the Card
+            guard let row = try Row.fetchOne(db, sql: "SELECT * FROM card WHERE id = ?", arguments: [cardID]) else {
+                throw JournalError.cardUnknown(cardID: cardID)
+            }
+
+            let record = try Self.cardRecord(from: row)
+
+            // Check if not cancelled
+            guard record.state == .cancelled else {
+                throw JournalError.cardNotCancelled(cardID: cardID)
+            }
+
+            // Determine restored state: use cancelled_from_state or default to todo
+            let restoredState = record.cancelledFromState ?? .todo
+
+            // Update card: set state to restored state and clear cancelled_from_state
+            try db.execute(
+                sql: "UPDATE card SET state = ?, cancelled_from_state = NULL WHERE id = ?",
+                arguments: [restoredState.rawValue, cardID]
+            )
+
+            // Append event
+            let stamp = EventStamp(act: act, runID: runID, nightID: nightID, now: now)
+            let event = JournalEvent.cardReopened(
+                cardID: cardID,
+                issueID: record.issueID,
+                restoredState: restoredState
+            )
+            _ = try Self.insertEvent(db, event, stamp: stamp)
+
+            // Return updated record
+            return try Self.cardRecord(from: row)
+                .with(state: restoredState, cancelledFromState: nil)
+        }
+    }
+}
+
+// MARK: - CardRecord helpers
+
+extension CardRecord {
+    fileprivate func with(state: CardState, cancelledFromState: CardState?) -> CardRecord {
+        CardRecord(
+            id: id,
+            cycleID: cycleID,
+            issueID: issueID,
+            repository: repository,
+            kind: kind,
+            authoredOrder: authoredOrder,
+            state: state,
+            waitingReason: waitingReason,
+            blockReason: blockReason,
+            cancelledFromState: cancelledFromState,
+            createdAt: createdAt
+        )
     }
 }
