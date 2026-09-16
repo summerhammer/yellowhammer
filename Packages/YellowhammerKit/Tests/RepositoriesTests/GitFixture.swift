@@ -42,7 +42,11 @@ struct GitFixture: ~Copyable {
         content: String = "content",
         message: String = "commit"
     ) throws -> String {
-        let fileURL = url.appending(component: filename)
+        let fileURL = url.appendingPathComponent(filename)
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
         try content.write(to: fileURL, atomically: true, encoding: .utf8)
         _ = run(["add", "."])
         _ = run(["commit", "-m", message])
