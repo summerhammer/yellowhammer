@@ -199,8 +199,14 @@ there; the repo-local consequences are:
 
 ## Git
 
-This repo has no remote yet. The umbrella at `..` and `../yellowhammer-spec` are
-separate git repos — work only in this one unless asked.
+`origin` is `summerhammer/yellowhammer`; `main` is the trunk. The umbrella at `..` and
+`../yellowhammer-spec` are separate git repos — work only in this one unless asked.
+
+Roadmap work ships as **stacked PRs via `gh stack`** — `gh stack init <branch>` for the
+first layer, `gh stack add <branch>` for each one above it, then
+`gh stack submit --auto --open`. Never hand-set a PR base. One roadmap item is one
+layer; mark the item `[x]` in `doc/implementation-roadmap.md` in its own commit on that
+layer.
 
 Every pull request implementing spec'd behavior carries the traceability line:
 
