@@ -65,6 +65,16 @@ public enum JournalEvent: Equatable, Sendable {
         objects: Int, comments: Int, ownComments: Int, requests: Int,
         since: Date?, syncPoint: Date?
     )
+    /// A Journal-side Card state transition (roadmap P5.8): the state, waiting reason and block reason
+    /// the Card holds after it, bumping `card.state_version` in the same write.
+    case cardStateTransitioned(
+        cardID: Int64, issueID: String, from: CardState, to: CardState,
+        waitingReason: WaitingReason?, blockReason: BlockReason?
+    )
+    /// The Delta Read found a Card in Waiting on You with no Journal record behind it: an unknown
+    /// object labelled Card, or a known Card whose Journal state is Waiting on You with no waiting
+    /// reason recorded. Never dispatched.
+    case waitingOnYouUnbacked(issueID: String, cardID: Int64?, reason: String)
 
     /// The type of this event.
     public var type: JournalEventType {
@@ -123,6 +133,10 @@ public enum JournalEvent: Equatable, Sendable {
             .authoringInvariantBroken
         case .deltaReadCompleted:
             .deltaReadCompleted
+        case .cardStateTransitioned:
+            .cardStateTransitioned
+        case .waitingOnYouUnbacked:
+            .waitingOnYouUnbacked
         }
     }
 }
@@ -156,4 +170,6 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case cardRemovedFromBoard = "CardRemovedFromBoard"
     case authoringInvariantBroken = "AuthoringInvariantBroken"
     case deltaReadCompleted = "DeltaReadCompleted"
+    case cardStateTransitioned = "CardStateTransitioned"
+    case waitingOnYouUnbacked = "WaitingOnYouUnbacked"
 }

@@ -113,6 +113,28 @@ extension JournalEvent {
                 }
                 return dict
             }()
+        case .cardStateTransitioned(let cardID, let issueID, let from, let to, let waitingReason, let blockReason):
+            {
+                var dict: [String: String] = [
+                    "card_id": String(cardID), "from_state": from.rawValue,
+                    "issue_id": issueID, "to_state": to.rawValue
+                ]
+                if let waitingReason {
+                    dict["waiting_reason"] = waitingReason.rawValue
+                }
+                if let blockReason {
+                    dict["block_reason"] = blockReason.rawValue
+                }
+                return dict
+            }()
+        case .waitingOnYouUnbacked(let issueID, let cardID, let reason):
+            {
+                var dict: [String: String] = ["issue_id": issueID, "reason": reason]
+                if let cardID {
+                    dict["card_id"] = String(cardID)
+                }
+                return dict
+            }()
         }
     }
 }

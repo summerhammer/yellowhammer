@@ -20,10 +20,10 @@ public enum NightCardBlock {
         return lines.joined(separator: "\n")
     }
 
-    /// The block a Night Card is completed with: the same header, when it was completed, and the
-    /// Night's verdict — the idle finding this phase can carry, or a placeholder until the Night
-    /// Summary lands (P12.1).
-    public static func completed(night: NightRecord, projectID: ProjectID) -> String {
+    /// The block a Night Card is completed with: the same header, when it was completed, the Night's
+    /// verdict — the idle finding this phase can carry, or a placeholder until the Night Summary lands
+    /// (P12.1) — and, when the Delta Read found any, the Waiting on You anomalies this Night.
+    public static func completed(night: NightRecord, projectID: ProjectID, anomalies: [String] = []) -> String {
         var lines = header(night: night, projectID: projectID)
         if let completedAt = night.completedAt {
             lines.append("**Completed:** \(iso8601(completedAt)) at `night_end`")
@@ -40,6 +40,13 @@ public enum NightCardBlock {
                 "**Verdict:** not yet computed — this build completes the Night Card with a placeholder; " +
                 "the Night Summary lands with the morning report."
             )
+        }
+        if !anomalies.isEmpty {
+            lines.append("")
+            lines.append("**Anomalies:**")
+            for anomaly in anomalies {
+                lines.append("- \(anomaly)")
+            }
         }
         lines.append("")
         lines.append(CardManagedBlock.footer)

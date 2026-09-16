@@ -19,6 +19,10 @@ public struct CardRecord: Equatable, Sendable {
     /// The state the Card held before the board said Cancelled; nil unless state is cancelled.
     public let cancelledFromState: CardState?
     public let createdAt: Date
+    /// Bumped by every Journal-side state transition (``JournalStore/transitionCard(cardID:to:waitingReason:blockReason:runID:act:nightID:now:)``).
+    public let stateVersion: Int
+    /// The version of `stateVersion` last confirmed applied on the board; nil until the first confirmed write.
+    public let boardStateVersion: Int?
 }
 
 // The reads the Act trigger predicates are evaluated from. They answer two questions and no others:
@@ -118,7 +122,7 @@ extension JournalStore {
         }
     }
 
-    private static func cardRecord(from row: Row) throws -> CardRecord {
+    static func cardRecord(from row: Row) throws -> CardRecord {
         let id: Int64 = row["id"]
         let rawState: String = row["state"]
         guard let state = CardState(rawValue: rawState) else {
@@ -153,7 +157,9 @@ extension JournalStore {
             waitingReason: waitingReason,
             blockReason: row["block_reason"],
             cancelledFromState: cancelledFromState,
-            createdAt: createdAt
+            createdAt: createdAt,
+            stateVersion: row["state_version"],
+            boardStateVersion: row["board_state_version"]
         )
     }
 
@@ -276,7 +282,9 @@ extension CardRecord {
             waitingReason: waitingReason,
             blockReason: blockReason,
             cancelledFromState: cancelledFromState,
-            createdAt: createdAt
+            createdAt: createdAt,
+            stateVersion: stateVersion,
+            boardStateVersion: boardStateVersion
         )
     }
 }

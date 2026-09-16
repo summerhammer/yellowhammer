@@ -91,7 +91,8 @@ public struct NightCardMaintenance: Sendable {
         }
         let scope = try await NightCardScope.resolve(using: provisioning)
         let issue = BoardObjectID(rawValue: issueID)
-        let rendered = NightCardBlock.completed(night: night, projectID: journal.projectID)
+        let anomalies = try anomalyLines(night: night)
+        let rendered = NightCardBlock.completed(night: night, projectID: journal.projectID, anomalies: anomalies)
         let hash = ManagedBlockFence.sha256(rendered)
         let summary = OutboxWrite(
             key: Self.summaryKey(nightStart: night.nightStart, hash: hash),
@@ -117,6 +118,21 @@ public struct NightCardMaintenance: Sendable {
             )
         }
         return report
+    }
+
+    /// The Waiting on You anomalies (`WaitingOnYouUnbacked`) this Night's Delta Reads found, one line
+    /// each, deduplicated by issue id in the order they were first recorded.
+    private func anomalyLines(night: NightRecord) throws -> [String] {
+        var seen: Set<String> = []
+        var lines: [String] = []
+        for record in try journal.events(ofType: .waitingOnYouUnbacked) where record.nightID == night.id {
+            guard case .waitingOnYouUnbacked(let issueID, _, _) = record.event else { continue }
+            guard seen.insert(issueID).inserted else { continue }
+            lines.append(
+                "`\(issueID)` was read in Waiting on You with no Journal record behind it; it was not dispatched."
+            )
+        }
+        return lines
     }
 }
 
