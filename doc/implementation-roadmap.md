@@ -421,7 +421,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 
 ## Phase 5 — Board: Linear
 
-### [ ] P5.1 `[DevOps]` Linear board identity registration
+### [x] P5.1 `[DevOps]` Linear board identity registration
 - **Work**
   - Register Yellowhammer's own Linear OAuth 2.0 application (client credentials, `actor=app`),
     one for the scratch workspace and one for production.
