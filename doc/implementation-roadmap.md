@@ -396,7 +396,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Opus 5 Medium.
 - **Done when** — Journal fixtures cover each predicate in both directions.
 
-### [ ] P4.4 Night lifecycle in the Journal
+### [x] P4.4 Night lifecycle in the Journal
 - **Work**
   - Record the Night (per Project, `project_id` first-class) at the first Act of the Night.
   - Record Night close with a status and a reason.
