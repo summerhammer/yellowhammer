@@ -1,0 +1,121 @@
+import Domain
+import Foundation
+import GRDB
+
+/// A Worktree held for one Feature's repository. Orca ADE creates, places and cleans up the worktree;
+/// Yellowhammer holds only its id and path, here in the Journal and never in memory, so a resumed Act
+/// finds the path again.
+public struct WorktreeRecord: Equatable, Sendable {
+    public let id: Int64
+    public let featureID: Int64
+    public let repository: String
+    public let worktreeID: String
+    public let path: String
+    public let createdAt: Date
+    public let releasedAt: Date?
+
+    /// Whether this Worktree has not yet been released.
+    public var isHeld: Bool { releasedAt == nil }
+}
+
+extension JournalStore {
+    /// Records a Worktree held for `featureID`'s `repository`. One write transaction, revalidating the
+    /// Act-scoped lease before writing.
+    @discardableResult
+    public func recordWorktree(
+        featureID: Int64,
+        repository: String,
+        worktreeID: String,
+        path: String,
+        runID: RunID,
+        now: Date = Date()
+    ) throws -> WorktreeRecord {
+        try write { db in
+            _ = try Self.revalidateActLease(db, runID: runID, now: now)
+
+            guard try Int.fetchOne(db, sql: "SELECT 1 FROM feature WHERE id = ?", arguments: [featureID]) != nil else {
+                throw JournalError.featureUnknown(featureID: featureID)
+            }
+
+            let createdAt = JournalStore.stored(now)
+            try db.execute(
+                sql: """
+                INSERT INTO worktree (feature_id, repository, worktree_id, path, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                arguments: [featureID, repository, worktreeID, path, JournalStore.timestamp(createdAt)]
+            )
+            let id = db.lastInsertedRowID
+
+            return WorktreeRecord(
+                id: id,
+                featureID: featureID,
+                repository: repository,
+                worktreeID: worktreeID,
+                path: path,
+                createdAt: createdAt,
+                releasedAt: nil
+            )
+        }
+    }
+
+    /// Releases a held Worktree. One write transaction, revalidating the Act-scoped lease before writing.
+    @discardableResult
+    public func releaseWorktree(id: Int64, runID: RunID, now: Date = Date()) throws -> WorktreeRecord {
+        try write { db in
+            _ = try Self.revalidateActLease(db, runID: runID, now: now)
+
+            guard let existing = try Self.fetchWorktree(db, id: id) else {
+                throw JournalError.worktreeUnknown(id: id)
+            }
+            guard existing.releasedAt == nil else {
+                throw JournalError.worktreeReleased(id: id)
+            }
+
+            let releasedAt = JournalStore.stored(now)
+            try db.execute(
+                sql: "UPDATE worktree SET released_at = ? WHERE id = ?",
+                arguments: [JournalStore.timestamp(releasedAt), id]
+            )
+
+            guard let record = try Self.fetchWorktree(db, id: id) else {
+                throw JournalError.worktreeUnknown(id: id)
+            }
+            return record
+        }
+    }
+
+    /// All Worktrees recorded for `featureID`, in id order, released ones included: callers filter on
+    /// `isHeld`.
+    public func worktrees(featureID: Int64) throws -> [WorktreeRecord] {
+        try read { db in
+            let rows = try Row.fetchAll(
+                db, sql: "SELECT id FROM worktree WHERE feature_id = ? ORDER BY id ASC", arguments: [featureID]
+            )
+            return try rows.map { row in
+                let id: Int64 = row["id"]
+                guard let record = try Self.fetchWorktree(db, id: id) else {
+                    throw JournalError.worktreeUnreadable(id: id)
+                }
+                return record
+            }
+        }
+    }
+
+    private static func fetchWorktree(_ db: Database, id: Int64) throws -> WorktreeRecord? {
+        guard let row = try Row.fetchOne(db, sql: "SELECT * FROM worktree WHERE id = ?", arguments: [id]) else {
+            return nil
+        }
+        let onError = { JournalError.worktreeUnreadable(id: id) }
+        let releasedAtText: String? = row["released_at"]
+        return WorktreeRecord(
+            id: id,
+            featureID: row["feature_id"],
+            repository: row["repository"],
+            worktreeID: row["worktree_id"],
+            path: row["path"],
+            createdAt: try JournalStore.date(row["created_at"], onError: onError),
+            releasedAt: try releasedAtText.map { try JournalStore.date($0, onError: onError) }
+        )
+    }
+}
