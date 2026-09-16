@@ -48,6 +48,9 @@ enum JournalMigrations {
         migrator.registerMigration("v6-night-verdict") { db in
             try addNightVerdictColumn(db)
         }
+        migrator.registerMigration("v7-card-state-version") { db in
+            try addCardStateVersions(db)
+        }
         return migrator
     }
 }

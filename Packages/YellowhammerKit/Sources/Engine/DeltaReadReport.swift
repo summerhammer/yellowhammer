@@ -39,6 +39,10 @@ public struct DeltaReadReport: Equatable, Sendable {
     public var invariantBreaks: [InvariantBreak]
     /// Updated objects the Journal has no Card for: Feature Issues, Night Cards, the Operator's own issues.
     public var unknownObjects: [BoardObject]
+    /// A Card read in Waiting on You with no Journal record behind it: an unknown object labelled Card,
+    /// or a known Card whose Journal state is Waiting on You with no waiting reason recorded (glossary
+    /// → Waiting on You; bounds/escalate-a-question-to-the-operator).
+    public var anomalies: [WaitingOnYouAnomaly]
 
     public init(
         since: Date?,
@@ -52,7 +56,8 @@ public struct DeltaReadReport: Equatable, Sendable {
         restated: [RestatedCard] = [],
         removed: [RemovedCard] = [],
         invariantBreaks: [InvariantBreak] = [],
-        unknownObjects: [BoardObject] = []
+        unknownObjects: [BoardObject] = [],
+        anomalies: [WaitingOnYouAnomaly] = []
     ) {
         self.since = since
         self.syncPoint = syncPoint
@@ -66,12 +71,36 @@ public struct DeltaReadReport: Equatable, Sendable {
         self.removed = removed
         self.invariantBreaks = invariantBreaks
         self.unknownObjects = unknownObjects
+        self.anomalies = anomalies
     }
 
     /// The Card changes that carry a signal Yellowhammer did not write itself: an Operator's edit to
     /// the block, the prose, the state, or the delimiters. Surfaced before any dispatch decision.
     public var operatorEdits: [CardChange] {
         cardChanges.filter(\.hasOperatorSignal)
+    }
+
+    /// The issue ids `anomalies` named: never dispatched — dispatch (a later phase) must exclude these.
+    public var anomalousIssueIDs: Set<String> {
+        Set(anomalies.map(\.issueID))
+    }
+}
+
+/// A Waiting on You Card with no Journal record behind it, as the Delta Read found it.
+public struct WaitingOnYouAnomaly: Equatable, Sendable {
+    /// The board object's id.
+    public var issueID: String
+    /// The board's human identifier, such as `ENG-123`.
+    public var key: String
+    /// The Journal's Card id, when the anomaly is a known Card; nil for an unknown object.
+    public var cardID: Int64?
+    public var reason: String
+
+    public init(issueID: String, key: String, cardID: Int64?, reason: String) {
+        self.issueID = issueID
+        self.key = key
+        self.cardID = cardID
+        self.reason = reason
     }
 }
 

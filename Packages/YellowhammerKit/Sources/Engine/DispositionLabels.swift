@@ -67,33 +67,40 @@ public struct DispositionLabels: Equatable, Sendable {
         self.blockReason = blockReasonMap
     }
 
-    /// The change that puts exactly the right labels on a Card: adds "Card" and removes the other
-    /// object-type children; adds the one Block Reason label when the Card is Blocked with a known
-    /// reason, and removes every other Block Reason label.
-    public func change(for state: CardState, blockReason: BlockReason?) -> BoardIssueChange {
+    /// The change that puts exactly the right labels on an issue: adds `objectType`'s child label and
+    /// removes the other object-type children; adds the one Block Reason label when `state` is Blocked
+    /// with a known reason, and removes every other Block Reason label (the Block Reason group is only
+    /// ever non-empty on a Blocked issue).
+    public func change(objectType: String, state: CardState, blockReason: BlockReason?) -> BoardIssueChange {
         var change = BoardIssueChange()
 
-        // Object type: add "Card", remove others
-        if let cardID = objectType["Card"] {
-            change.addLabels.append(cardID)
+        // Object type: add the named child, remove the others.
+        if let id = self.objectType[objectType] {
+            change.addLabels.append(id)
         }
-        for child in BoardProvisioner.objectTypeChildren where child != "Card" {
-            if let id = objectType[child] {
+        for child in BoardProvisioner.objectTypeChildren where child != objectType {
+            if let id = self.objectType[child] {
                 change.removeLabels.append(id)
             }
         }
 
-        // Block Reason: add the one if present, remove others
-        if let knownReason = blockReason, let reasonID = self.blockReason[knownReason] {
+        // Block Reason: add the one if the issue is Blocked with a known reason, remove every other.
+        let effectiveReason = state == .blocked ? blockReason : nil
+        if let effectiveReason, let reasonID = self.blockReason[effectiveReason] {
             change.addLabels.append(reasonID)
         }
         for reason in BlockReason.allCases {
-            if reason != blockReason, let reasonID = self.blockReason[reason] {
+            if reason != effectiveReason, let reasonID = self.blockReason[reason] {
                 change.removeLabels.append(reasonID)
             }
         }
 
         return change
+    }
+
+    /// `change(objectType:state:blockReason:)` for a Card.
+    public func change(for state: CardState, blockReason: BlockReason?) -> BoardIssueChange {
+        change(objectType: "Card", state: state, blockReason: blockReason)
     }
 }
 

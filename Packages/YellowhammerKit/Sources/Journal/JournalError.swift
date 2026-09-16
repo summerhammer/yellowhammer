@@ -71,6 +71,12 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     case boardSyncUnreadable
     /// The `clause` row does not decode; the Journal was written by something other than the engine.
     case clauseUnreadable(issueID: String, cid: String)
+    /// Cancelled is the one Card state Yellowhammer reads and never writes; the Journal refuses it too.
+    case cancelledIsNeverWritten(cardID: Int64)
+    /// A transition to Waiting on You without a waiting reason: the Journal record is what backs the state.
+    case waitingOnYouUnbacked(cardID: Int64)
+    /// A transition to Blocked without a Block Reason.
+    case blockReasonRequired(cardID: Int64)
 
     public var description: String {
         return switch self {
@@ -153,6 +159,12 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
             "The Journal's board_sync row cannot be read"
         case .clauseUnreadable(let issueID, let cid):
             "The Journal's clause row (issue_id=\(issueID), cid=\(cid)) cannot be read"
+        case .cancelledIsNeverWritten(let cardID):
+            "Card \(cardID) cannot be transitioned to Cancelled: Yellowhammer reads it and never writes it"
+        case .waitingOnYouUnbacked(let cardID):
+            "Card \(cardID) cannot transition to Waiting on You without a waiting reason"
+        case .blockReasonRequired(let cardID):
+            "Card \(cardID) cannot transition to Blocked without a Block Reason"
         }
     }
 }

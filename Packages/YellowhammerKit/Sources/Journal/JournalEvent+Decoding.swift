@@ -78,6 +78,10 @@ extension JournalEvent {
             try Self.decodeAuthoringInvariantBroken(reader)
         case .deltaReadCompleted:
             try Self.decodeDeltaReadCompleted(reader)
+        case .cardStateTransitioned:
+            try Self.decodeCardStateTransitioned(reader)
+        case .waitingOnYouUnbacked:
+            try Self.decodeWaitingOnYouUnbacked(reader)
         }
     }
 
@@ -202,6 +206,25 @@ extension JournalEvent {
             requests: try reader.int("requests"),
             since: try reader.optionalDate("since"),
             syncPoint: try reader.optionalDate("sync_point")
+        )
+    }
+
+    private static func decodeCardStateTransitioned(_ reader: PayloadReader) throws -> JournalEvent {
+        .cardStateTransitioned(
+            cardID: try reader.int64("card_id"),
+            issueID: try reader.require("issue_id"),
+            from: try reader.cardState("from_state"),
+            to: try reader.cardState("to_state"),
+            waitingReason: reader.payload?["waiting_reason"].flatMap { WaitingReason(rawValue: $0) },
+            blockReason: reader.payload?["block_reason"].flatMap { BlockReason(rawValue: $0) }
+        )
+    }
+
+    private static func decodeWaitingOnYouUnbacked(_ reader: PayloadReader) throws -> JournalEvent {
+        .waitingOnYouUnbacked(
+            issueID: try reader.require("issue_id"),
+            cardID: reader.payload?["card_id"].flatMap { Int64($0) },
+            reason: try reader.require("reason")
         )
     }
 }

@@ -124,9 +124,11 @@ public struct DeltaRead: Sendable {
         let preservedProseHashes = try lastPreservedProseHashes()
         for object in objects {
             guard let card = try journal.card(issueID: object.id.rawValue) else {
+                try reportUnbackedWaitingOnYou(object: object, into: &report)
                 report.unknownObjects.append(object)
                 continue
             }
+            try reportUnansweredWaitingOnYou(card: card, object: object, into: &report)
             try reconcile(card: card, object: object, pendingWrites: pendingWrites,
                           preservedProseHashes: preservedProseHashes, into: &report)
         }
@@ -220,6 +222,31 @@ public struct DeltaRead: Sendable {
             ))
             return true
         }
+    }
+
+    /// An unknown board object labelled Card, read in Waiting on You: the Journal has no Card behind
+    /// it at all.
+    private func reportUnbackedWaitingOnYou(object: BoardObject, into report: inout DeltaReadReport) throws {
+        guard object.workflowState.name == CardState.waitingOnYou.rawValue else { return }
+        guard object.labels.contains(where: { $0.lowercased() == "card" }) else { return }
+        let reason = "\(object.key) was read in Waiting on You with no Journal record behind it"
+        report.anomalies.append(
+            WaitingOnYouAnomaly(issueID: object.id.rawValue, key: object.key, cardID: nil, reason: reason)
+        )
+        try append(.waitingOnYouUnbacked(issueID: object.id.rawValue, cardID: nil, reason: reason))
+    }
+
+    /// A known Card whose Journal state is Waiting on You with no waiting reason recorded: the Journal
+    /// record that is supposed to back the state is itself incomplete.
+    private func reportUnansweredWaitingOnYou(
+        card: CardRecord, object: BoardObject, into report: inout DeltaReadReport
+    ) throws {
+        guard card.state == .waitingOnYou, card.waitingReason == nil else { return }
+        let reason = "\(object.key) is Waiting on You in the Journal with no waiting reason recorded"
+        report.anomalies.append(
+            WaitingOnYouAnomaly(issueID: card.issueID, key: object.key, cardID: card.id, reason: reason)
+        )
+        try append(.waitingOnYouUnbacked(issueID: card.issueID, cardID: card.id, reason: reason))
     }
 
     private func invariantBreakReason(card: CardRecord, named: String) -> String? {
