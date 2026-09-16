@@ -562,7 +562,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 
 > **Gate G-1** (git behind a Port or not) must be closed before this phase starts.
 
-### [ ] P6.1 Mainline refresh at Act start
+### [x] P6.1 Mainline refresh at Act start
 - **Work**
   - At the start of each author, build and land Act, refresh each working repo's remote-tracking
     mainline with a non-destructive fetch of its default branch.
