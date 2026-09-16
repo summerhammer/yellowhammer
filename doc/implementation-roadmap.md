@@ -373,7 +373,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Opus 5 Medium.
 - **Done when** — Each subcommand parses, loads configuration for exactly one Project, and exits.
 
-### [ ] P4.2 One Act's work, then exit
+### [x] P4.2 One Act's work, then exit
 - **Work**
   - An invocation does exactly one Act's work and exits. It keeps no state in memory between Acts,
     holds no timer, and starts no background process that outlives it.
