@@ -44,6 +44,14 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     /// the Journal is inconsistent, and a Card nothing can classify must not be silently counted
     /// as finished.
     case unknownCardState(cardID: Int64, state: String)
+    /// The Journal has no Night with this id.
+    case nightUnknown(id: Int64)
+    /// The Night is already closed and cannot be closed again.
+    case nightAlreadyClosed(id: Int64)
+    /// The `night` row does not decode; the Journal was written by something other than the engine.
+    case nightUnreadable(id: Int64)
+    /// The Journal has more than one open Night, but there should be at most one.
+    case multipleOpenNights
 
     public var description: String {
         return switch self {
@@ -100,6 +108,14 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
             "The Journal has more than one open Cycle, but a Project has one in-flight Feature"
         case .unknownCardState(let cardID, let state):
             "The Journal's card row \(cardID) has state '\(state)', which is not a Card state"
+        case .nightUnknown(let id):
+            "The Journal has no Night with id \(id)"
+        case .nightAlreadyClosed(let id):
+            "Night \(id) is already closed and cannot be closed again"
+        case .nightUnreadable(let id):
+            "The Journal's night row \(id) cannot be read"
+        case .multipleOpenNights:
+            "The Journal has more than one open Night, but there should be at most one"
         }
     }
 }

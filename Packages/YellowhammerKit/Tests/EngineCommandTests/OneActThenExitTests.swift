@@ -21,6 +21,7 @@ private final class ResultBox<Value: Sendable>: Sendable {
 }
 
 private let route = Route(cli: "claude", model: "opus", effort: "high")!
+private let nightStart = NightStart(rawValue: "2026-09-15")!
 
 /// Inserts a fixture feature → cycle → card chain and returns their ids.
 private func insertFixtureCard(
@@ -68,6 +69,7 @@ private func recordThenKillInvocation(
     let invocation = EngineInvocation(
         act: .build,
         mode: .real,
+        nightStart: nightStart,
         journal: journal,
         runID: runID,
         work: { context in
@@ -114,7 +116,7 @@ func killedInvocationIsRebuiltFromTheJournal() async throws {
     )
 
     let eventsAfterKill = try firstJournal.events()
-    #expect(eventsAfterKill.map(\.type) == [.actStarted, .actIncomplete])
+    #expect(eventsAfterKill.map(\.type) == [.nightOpened, .actStarted, .actIncomplete])
     #expect(try firstJournal.currentActLease() == nil)
 
     // Invocation 2 shares nothing with invocation 1 but the row ids just inserted.
@@ -126,6 +128,7 @@ func killedInvocationIsRebuiltFromTheJournal() async throws {
     let secondInvocation = EngineInvocation(
         act: .build,
         mode: .real,
+        nightStart: nightStart,
         journal: secondJournal,
         runID: secondRunID,
         work: { context in
@@ -147,7 +150,9 @@ func killedInvocationIsRebuiltFromTheJournal() async throws {
     #expect(worktrees[0].isHeld)
 
     let eventsAfterSecondRun = try secondJournal.events()
-    #expect(eventsAfterSecondRun.map(\.type) == [.actStarted, .actIncomplete, .actStarted, .actEnded])
+    #expect(
+        eventsAfterSecondRun.map(\.type) == [.nightOpened, .actStarted, .actIncomplete, .actStarted, .actEnded]
+    )
 }
 
 @Test("A dead run's lease is reclaimed, and the open Attempt it left is visible to the next invocation")
@@ -175,6 +180,7 @@ func reclaimedRunsOpenAttemptIsVisible() async throws {
     let invocation = EngineInvocation(
         act: .build,
         mode: .real,
+        nightStart: nightStart,
         journal: secondJournal,
         runID: secondRunID,
         work: { context in
@@ -184,7 +190,7 @@ func reclaimedRunsOpenAttemptIsVisible() async throws {
     try await invocation.run()
 
     let events = try secondJournal.events()
-    #expect(events.map(\.type) == [.leaseReclaimed, .actStarted, .actEnded])
+    #expect(events.map(\.type) == [.leaseReclaimed, .nightOpened, .actStarted, .actEnded])
 
     let history = try #require(historyBox.value)
     #expect(history.openAttempt?.id == deadAttempt.id)
@@ -202,6 +208,7 @@ func runLeavesNothingResident() async throws {
     let invocation = EngineInvocation(
         act: .build,
         mode: .real,
+        nightStart: nightStart,
         journal: journal,
         leasePolicy: shortPolicy,
         work: { _ in try await Task.sleep(for: .milliseconds(200)) }
@@ -231,6 +238,7 @@ func workReceivesTheInvocationsOwnContext() async throws {
     let invocation = EngineInvocation(
         act: .land,
         mode: .rehearsal,
+        nightStart: nightStart,
         journal: journal,
         trigger: .forced,
         runID: runID,

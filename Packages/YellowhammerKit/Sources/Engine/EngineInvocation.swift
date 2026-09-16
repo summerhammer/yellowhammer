@@ -11,6 +11,8 @@ public struct ActContext: Sendable {
     public let trigger: ActTrigger
     public let runID: RunID
     public let journal: JournalStore
+    /// The Night this Act belongs to.
+    public let night: NightRecord
 }
 
 /// One Act's work for one Project, then exit.
@@ -28,6 +30,12 @@ public struct EngineInvocation: Sendable {
     public let mode: NightMode
     public let trigger: ActTrigger
     public let runID: RunID
+    /// The Night this Act belongs to: the date of its `night_start`, decided by `EngineCommand` from
+    /// the Project's `[schedule]`. The Engine never reads configuration.
+    public let nightStart: NightStart
+    /// True for the land firing at `night_end`, which completes the Night whether or not the Cycle
+    /// landed. Decided by `EngineCommand` from the clock against the Project's `[schedule]`.
+    public let closesNight: Bool
     public let leasePolicy: LeasePolicy
     private let journal: JournalStore
     private let work: ActWork
@@ -35,16 +43,20 @@ public struct EngineInvocation: Sendable {
     public init(
         act: Act,
         mode: NightMode,
+        nightStart: NightStart,
         journal: JournalStore,
         trigger: ActTrigger = .scheduled,
         runID: RunID = RunID(),
+        closesNight: Bool = false,
         leasePolicy: LeasePolicy = .ruled
     ) {
         self.act = act
         self.mode = mode
         self.trigger = trigger
+        self.nightStart = nightStart
         self.journal = journal
         self.runID = runID
+        self.closesNight = closesNight
         self.leasePolicy = leasePolicy
         self.work = { _ in throw EngineInvocationError.notImplemented(act) }
     }
@@ -55,17 +67,21 @@ public struct EngineInvocation: Sendable {
     internal init(
         act: Act,
         mode: NightMode,
+        nightStart: NightStart,
         journal: JournalStore,
         trigger: ActTrigger = .scheduled,
         runID: RunID = RunID(),
+        closesNight: Bool = false,
         leasePolicy: LeasePolicy = .ruled,
         work: @escaping ActWork
     ) {
         self.act = act
         self.mode = mode
         self.trigger = trigger
+        self.nightStart = nightStart
         self.journal = journal
         self.runID = runID
+        self.closesNight = closesNight
         self.leasePolicy = leasePolicy
         self.work = work
     }
@@ -86,34 +102,61 @@ public struct EngineInvocation: Sendable {
             _ = try? journal.append(.actStoodDown(holder: holder), act: act, runID: runID)
             throw EngineInvocationError.actLeaseHeld(act: act, projectID: projectID, by: holder)
         case .claimed:
-            _ = try? journal.append(.actStarted, act: act, runID: runID)
+            break
         }
-        // Evaluate the trigger predicate under the lease.
-        let predicateOutcome = try ActTriggerPredicate.evaluate(act: act, trigger: trigger, journal: journal)
-        if case .notMet(let reason) = predicateOutcome {
-            _ = try? journal.append(.actIdle(reason: reason), act: act, runID: runID)
-            _ = try? journal.append(.actEnded, act: act, runID: runID)
-            try journal.releaseActLease(runID: runID)
-            return
-        }
-
-        let context = ActContext(act: act, mode: mode, trigger: trigger, runID: runID, journal: journal)
         do {
-            try await withLeaseHeartbeat(
-                every: leasePolicy.heartbeatDuration,
-                beat: { try journal.heartbeatActLease(runID: runID, policy: leasePolicy) },
-                body: { try await work(context) }
-            )
-            _ = try? journal.append(.actEnded, act: act, runID: runID)
+            try await runUnderLease()
         } catch {
-            // An Act that cannot complete records why, where it can, before exiting. The Act's failure
-            // is the error worth reporting: if the release fails too, the lease frees by its TTL,
-            // exactly as it would after a crash.
-            _ = try? journal.append(.actIncomplete(reason: String(describing: error)), act: act, runID: runID)
+            // An Act that cannot complete exits with the lease released where it can. The Act's
+            // failure is the error worth reporting: if the release fails too, the lease frees by its
+            // TTL, exactly as it would after a crash.
             _ = try? journal.releaseActLease(runID: runID)
             throw error
         }
         try journal.releaseActLease(runID: runID)
+    }
+
+    /// The Act's life between claiming and releasing the Project. Any error thrown here is recorded
+    /// as `ActIncomplete` on the way out, stamped with the Night where one was opened.
+    private func runUnderLease() async throws {
+        // The Night is recorded before anything else — before the trigger is even evaluated — so a
+        // Night with nothing to do, or one whose first Act dies on the next line, still says it opened.
+        let night: NightRecord
+        do {
+            night = try journal.openNight(nightStart: nightStart, mode: mode, act: act, runID: runID).night
+        } catch {
+            _ = try? journal.append(.actIncomplete(reason: String(describing: error)), act: act, runID: runID)
+            throw error
+        }
+        _ = try? journal.append(.actStarted, act: act, runID: runID, nightID: night.id)
+        do {
+            // Evaluate the trigger predicate under the lease.
+            switch try ActTriggerPredicate.evaluate(act: act, trigger: trigger, journal: journal) {
+            case .notMet(let reason):
+                _ = try? journal.append(.actIdle(reason: reason), act: act, runID: runID, nightID: night.id)
+            case .met:
+                let context = ActContext(
+                    act: act, mode: mode, trigger: trigger, runID: runID, journal: journal, night: night
+                )
+                try await withLeaseHeartbeat(
+                    every: leasePolicy.heartbeatDuration,
+                    beat: { try journal.heartbeatActLease(runID: runID, policy: leasePolicy) },
+                    body: { try await work(context) }
+                )
+            }
+            // The land firing at `night_end` completes the Night whether or not the Cycle landed, and
+            // whether or not its trigger was met. `night` is still current: this run has held the
+            // Project's lease since it was opened, and only the engine writes the Journal.
+            if closesNight, night.isOpen {
+                try journal.closeNight(id: night.id, reason: .nightEnd, act: act, runID: runID)
+            }
+            _ = try? journal.append(.actEnded, act: act, runID: runID, nightID: night.id)
+        } catch {
+            _ = try? journal.append(
+                .actIncomplete(reason: String(describing: error)), act: act, runID: runID, nightID: night.id
+            )
+            throw error
+        }
     }
 }
 

@@ -35,7 +35,9 @@ private let epoch = Date(timeIntervalSince1970: 1_800_000_000)
 
 @Test("The act_lease table arrives in migration v2, after the shipped v1")
 func actLeaseMigrationIsSecond() throws {
-    #expect(JournalStore.migrationIdentifiers == ["v1-initial-schema", "v2-act-lease"])
+    #expect(
+        JournalStore.migrationIdentifiers == ["v1-initial-schema", "v2-act-lease", "v3-night-close-reason"]
+    )
 }
 
 @Test("A Journal created at v1 gains act_lease when the engine opens it")
@@ -49,7 +51,7 @@ func v1JournalMigratesForwardToActLease() throws {
 
     let journal = try fixture.open()
 
-    #expect(try journal.appliedMigrations() == ["v1-initial-schema", "v2-act-lease"])
+    #expect(try journal.appliedMigrations() == ["v1-initial-schema", "v2-act-lease", "v3-night-close-reason"])
     #expect(try journal.tableNames().contains("act_lease"))
 }
 

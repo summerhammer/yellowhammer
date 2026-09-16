@@ -36,6 +36,9 @@ enum JournalMigrations {
         migrator.registerMigration("v2-act-lease") { db in
             try createActLeaseTable(db)
         }
+        migrator.registerMigration("v3-night-close-reason") { db in
+            try addNightCloseReasonColumn(db)
+        }
         return migrator
     }
 }

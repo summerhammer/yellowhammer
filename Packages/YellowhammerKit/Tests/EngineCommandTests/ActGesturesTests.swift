@@ -6,6 +6,8 @@ import Foundation
 import Journal
 import Testing
 
+private let nightStart = NightStart(rawValue: "2026-09-15")!
+
 // P4.1: Command surface for the Acts
 // Three Operator gestures: Force an Act, Force authoring, Run a rehearsal Night.
 
@@ -188,6 +190,7 @@ func featureNamedForNonAuthoringActBuild() async throws {
     let invocation = EngineInvocation(
         act: .build,
         mode: .real,
+        nightStart: nightStart,
         journal: journal,
         trigger: .forcedForFeature(try #require(FeatureName(rawValue: "test")))
     )
@@ -211,6 +214,7 @@ func featureNamedForNonAuthoringActLand() async throws {
     let invocation = EngineInvocation(
         act: .land,
         mode: .real,
+        nightStart: nightStart,
         journal: journal,
         trigger: .forcedForFeature(try #require(FeatureName(rawValue: "test")))
     )

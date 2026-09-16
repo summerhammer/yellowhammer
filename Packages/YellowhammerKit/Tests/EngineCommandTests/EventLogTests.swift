@@ -8,6 +8,8 @@ import Testing
 
 // Event recording: engine invocations record their Acts' lifecycle and state changes to the Journal.
 
+private let nightStart = NightStart(rawValue: "2026-09-15")!
+
 private func runAct(
     _ act: Act,
     project: String,
@@ -37,14 +39,14 @@ func actNotImplementedRecordsEvents() async throws {
     let journal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
     let events = try journal.events()
 
-    #expect(events.count == 2)
-    #expect(events[0].event == .actStarted)
-    #expect(events[0].act == .author)
-    #expect(events[1].type == .actIncomplete)
-    #expect(events[1].act == .author)
+    // The Night is recorded first, so an Act that dies on its first line still says it opened.
+    #expect(events.map(\.type) == [.nightOpened, .actStarted, .actIncomplete])
+    #expect(events.map(\.act) == [.author, .author, .author])
+    #expect(events.map(\.nightID) == [events[0].nightID, events[0].nightID, events[0].nightID])
+    #expect(events[0].nightID != nil)
 
-    guard case .actIncomplete(let reason) = events[1].event else {
-        Issue.record("Second event is not ActIncomplete")
+    guard case .actIncomplete(let reason) = events[2].event else {
+        Issue.record("Third event is not ActIncomplete")
         return
     }
     #expect(reason.contains("Act 'author' is not implemented"))
@@ -100,7 +102,7 @@ func actOnlyWritesOwnJournal() async throws {
     // Alpha should have events
     let alphaJournal = try JournalStore.open(configurationDirectory: directory.url, projectID: alphaID)
     let alphaEvents = try alphaJournal.events()
-    #expect(alphaEvents.count == 2)
+    #expect(alphaEvents.map(\.type) == [.nightOpened, .actStarted, .actIncomplete])
 
     // Beta's Journal should not even exist (because the engine never opened it)
     let betaJournalPath = JournalStore.defaultFileURL(configurationDirectory: directory.url, id: betaID)
@@ -118,6 +120,7 @@ func successfulWorkRecordsEndedEvent() async throws {
     let invocation = EngineInvocation(
         act: .build,
         mode: .real,
+        nightStart: nightStart,
         journal: journal,
         trigger: .forced,  // This test is about work execution and event recording, not predicates
         work: { _ in }
@@ -125,9 +128,9 @@ func successfulWorkRecordsEndedEvent() async throws {
     try await invocation.run()
 
     let events = try journal.events()
-    #expect(events.count == 2)
-    #expect(events[0].event == .actStarted)
-    #expect(events[1].event == .actEnded)
+    #expect(events.map(\.type) == [.nightOpened, .actStarted, .actEnded])
+    #expect(events.map(\.act) == [.build, .build, .build])
+    #expect(events.map(\.runID) == [invocation.runID, invocation.runID, invocation.runID])
     #expect(try journal.currentActLease() == nil)
 }
 
@@ -146,6 +149,7 @@ func failingWorkRecordsIncompleteEvent() async throws {
     let invocation = EngineInvocation(
         act: .land,
         mode: .real,
+        nightStart: nightStart,
         journal: journal,
         trigger: .forced,  // This test is about work execution and error handling, not predicates
         work: { _ in throw CustomError.testError }
@@ -156,10 +160,9 @@ func failingWorkRecordsIncompleteEvent() async throws {
     }
 
     let events = try journal.events()
-    #expect(events.count == 2)
-    #expect(events[0].event == .actStarted)
-    guard case .actIncomplete(let reason) = events[1].event else {
-        Issue.record("Second event is not ActIncomplete")
+    #expect(events.map(\.type) == [.nightOpened, .actStarted, .actIncomplete])
+    guard case .actIncomplete(let reason) = events[2].event else {
+        Issue.record("Third event is not ActIncomplete")
         return
     }
     #expect(reason.contains("testError"))
@@ -183,7 +186,7 @@ func deadPredecessorReclaimIsRecordedInOrder() async throws {
     }
 
     let events = try dead.events()
-    #expect(events.map(\.type) == [.leaseReclaimed, .actStarted, .actIncomplete])
+    #expect(events.map(\.type) == [.leaseReclaimed, .nightOpened, .actStarted, .actIncomplete])
     #expect(events.allSatisfy { $0.act == .build })
     let runIDs = Set(events.compactMap(\.runID))
     #expect(runIDs.count == 1)
@@ -210,6 +213,7 @@ func actLeaseIsHeartbeatDuringWork() async throws {
     let invocation = EngineInvocation(
         act: .build,
         mode: .real,
+        nightStart: nightStart,
         journal: journal,
         runID: runID,
         leasePolicy: shortPolicy,
@@ -243,6 +247,7 @@ func lostActLeaseCancelsWork() async throws {
     let invocation = EngineInvocation(
         act: .build,
         mode: .real,
+        nightStart: nightStart,
         journal: journal,
         // Forced because this test is about lease loss and cancellation, not the trigger predicate.
         trigger: .forced,
