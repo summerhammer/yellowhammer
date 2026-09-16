@@ -254,6 +254,66 @@ func openedAndDiedEndToEnd() async throws {
     #expect(night1Closed?.closeReason == .openedAndDied)
 }
 
+@Test("Absent Nights end-to-end: two author invocations with gap records AbsentNightDetected events")
+func absentNightsEndToEnd() async throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run1 = RunID()
+    let run2 = RunID()
+
+    let night1Start = NightStart(rawValue: "2026-09-13")!
+    let invocation1 = EngineInvocation(
+        act: .author,
+        mode: .real,
+        nightStart: night1Start,
+        journal: journal,
+        trigger: .forced,
+        runID: run1,
+        work: { _ in }
+    )
+    try await invocation1.run()
+
+    let night2Start = NightStart(rawValue: "2026-09-16")!
+    let invocation2 = EngineInvocation(
+        act: .author,
+        mode: .real,
+        nightStart: night2Start,
+        journal: journal,
+        trigger: .forced,
+        runID: run2,
+        work: { _ in }
+    )
+    try await invocation2.run()
+
+    let events = try journal.events()
+    let absents = events.filter { $0.type == .absentNightDetected }
+    #expect(absents.count == 2)
+
+    // Verify event content
+    guard case .absentNightDetected(let ns1) = absents[0].event else {
+        Issue.record("First absent event is not absentNightDetected")
+        return
+    }
+    guard case .absentNightDetected(let ns2) = absents[1].event else {
+        Issue.record("Second absent event is not absentNightDetected")
+        return
+    }
+
+    #expect(ns1 == NightStart(rawValue: "2026-09-14"))
+    #expect(ns2 == NightStart(rawValue: "2026-09-15"))
+
+    // Verify all absent events are stamped with the second Night's id
+    let night2 = try journal.currentNight()
+    #expect(absents.allSatisfy { $0.nightID == night2?.id })
+
+    // Verify absentNights(nightID:) returns the same Nights
+    let absentNights = try journal.absentNights(nightID: night2!.id)
+    #expect(absentNights == [
+        NightStart(rawValue: "2026-09-14")!,
+        NightStart(rawValue: "2026-09-15")!
+    ])
+}
+
 /// `now` at a wall-clock time on a given day of the current calendar, so the test is time-zone
 /// independent: the command decides against `Calendar.current`, and so does the test.
 private func localDate(year: Int, month: Int, day: Int, hour: Int) throws -> Date {

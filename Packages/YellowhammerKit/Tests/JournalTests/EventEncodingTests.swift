@@ -76,7 +76,7 @@ func actIncompleteRoundTrips() throws {
     let run = RunID()
     let reason = "Something failed"
 
-    let id = try journal.append(.actIncomplete(reason: reason), act: .author, runID: run, now: epoch)
+    _ = try journal.append(.actIncomplete(reason: reason), act: .author, runID: run, now: epoch)
     let records = try journal.events()
 
     #expect(records.count == 1)
@@ -139,16 +139,40 @@ func absentNightDetectedRoundTrips() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
     let run = RunID()
+    let nightStart = NightStart(rawValue: "2026-01-01")!
 
-    try journal.append(.absentNightDetected(nightStart: "2026-01-01T00:00:00Z"), act: .author, runID: run, now: epoch)
+    try journal.append(.absentNightDetected(nightStart: nightStart), act: .author, runID: run, now: epoch)
     let records = try journal.events()
 
     #expect(records.count == 1)
-    guard case .absentNightDetected(let nightStart) = records[0].event else {
+    guard case .absentNightDetected(let readNightStart) = records[0].event else {
         Issue.record("Event is not absentNightDetected")
         return
     }
-    #expect(nightStart == "2026-01-01T00:00:00Z")
+    #expect(readNightStart == nightStart)
+}
+
+@Test("absentNightDetected with unreadable payload throws eventUnreadable")
+func absentNightDetectedUnreadablePayload() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+
+    #expect(throws: JournalError.eventUnreadable(id: 1)) {
+        try journal.write { db in
+            let payload = "{\"night_start\": \"not-a-date\"}"
+            try db.execute(
+                sql: """
+                INSERT INTO event (night_id, act, run_id, type, occurred_at, payload)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                arguments: [
+                    nil, nil, nil, JournalEventType.absentNightDetected.rawValue,
+                    JournalStore.timestamp(epoch), payload
+                ]
+            )
+        }
+        _ = try journal.events()
+    }
 }
 
 @Test("authoringNoWorkAvailable event round-trips")

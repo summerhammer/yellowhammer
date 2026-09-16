@@ -12,8 +12,10 @@ public enum JournalEvent: Equatable, Sendable {
     /// Another run of the same Project held the Act-scoped lease; this Act ran nothing.
     case actStoodDown(holder: ActLease)
     case mainlineFetchFailed(repository: String, reason: String)
-    /// The resumption self-audit found a Night that never opened (OQ12).
-    case absentNightDetected(nightStart: String)
+    /// The resumption self-audit found a Night that never opened (OQ12): a calendar date
+    /// between two recorded Nights with no Night row. Recorded on the Night that resumed, by its
+    /// first Act. Reported, never acted on — `unanswered_nights_max` is spent only by Nights that ran.
+    case absentNightDetected(nightStart: NightStart)
     case authoringNoWorkAvailable
     case managedBlockDelimiterBroken(issueID: String)
     /// Fire-and-forget: the failure is recorded, never acted on.
@@ -93,7 +95,7 @@ public enum JournalEvent: Equatable, Sendable {
         case .mainlineFetchFailed(let repository, let reason):
             ["reason": reason, "repository": repository]
         case .absentNightDetected(let nightStart):
-            ["night_start": nightStart]
+            ["night_start": nightStart.rawValue]
         case .authoringNoWorkAvailable:
             nil
         case .managedBlockDelimiterBroken(let issueID):
@@ -151,7 +153,7 @@ public enum JournalEvent: Equatable, Sendable {
                 reason: try reader.require("reason")
             )
         case .absentNightDetected:
-            .absentNightDetected(nightStart: try reader.require("night_start"))
+            .absentNightDetected(nightStart: try reader.nightStart("night_start"))
         case .authoringNoWorkAvailable:
             .authoringNoWorkAvailable
         case .managedBlockDelimiterBroken:

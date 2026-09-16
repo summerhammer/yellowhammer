@@ -28,6 +28,8 @@ public struct NightOpening: Equatable, Sendable {
     public let isFirstAct: Bool
     /// Nights this Project left open with no completion, closed by this call as opened-and-died.
     public let openedAndDied: [NightRecord]
+    /// The Nights the audit found missing, ascending; empty on a repeat open.
+    public let absentNights: [NightStart]
 }
 
 extension JournalStore {
@@ -39,8 +41,14 @@ extension JournalStore {
     /// nothing reopens it. When no row exists, this run is the first Act of a new Night, and it first
     /// sweeps: every Night of this Project still `opened` is one that opened and died — nothing else
     /// could have left it open, since a Night that ended through the front door is closed — so each
-    /// is closed as such and the observation is recorded as an event of the *new* Night. A sibling
-    /// Project's Night is in a different Journal, so it is neither seen nor reported here.
+    /// is closed as such and the observation is recorded as an event of the *new* Night.
+    ///
+    /// The resumption self-audit runs on the new-Night path: the first Act of a new Night finds the
+    /// latest recorded Night of this Project (whatever its state); if it exists and is earlier than
+    /// the new Night, each calendar date between them is a Night that should have opened and did not.
+    /// Each absent Night is recorded as an event of the new Night. The audit reports and never acts on
+    /// these Nights: `unanswered_nights_max` is spent only by Nights that ran. A sibling Project's
+    /// Night is in a different Journal, so it is neither seen nor reported here.
     public func openNight(
         nightStart: NightStart,
         mode: NightMode,
@@ -51,19 +59,15 @@ extension JournalStore {
         let now = JournalStore.stored(now)
         return try write { db in
             _ = try Self.revalidateActLease(db, runID: runID, now: now)
-
             if let existing = try Self.fetchNight(db, projectID: projectID, nightStart: nightStart) {
-                return NightOpening(night: existing, isFirstAct: false, openedAndDied: [])
+                return NightOpening(night: existing, isFirstAct: false, openedAndDied: [], absentNights: [])
             }
-
             let leftOpen = try Self.fetchOpenNights(db, projectID: projectID)
             var openedAndDied: [NightRecord] = []
             for night in leftOpen {
-                openedAndDied.append(
-                    try Self.close(db, night: night, reason: .openedAndDied, now: now)
-                )
+                openedAndDied.append(try Self.close(db, night: night, reason: .openedAndDied, now: now))
             }
-
+            let absentNights = try Self.absentNights(db, projectID: projectID, before: nightStart)
             try db.execute(
                 sql: """
                 INSERT INTO night (project_id, night_start, mode, state, opened_at)
@@ -75,25 +79,22 @@ extension JournalStore {
                 ]
             )
             let night = NightRecord(
-                id: db.lastInsertedRowID,
-                projectID: projectID,
-                nightStart: nightStart,
-                mode: mode,
-                state: .opened,
-                nightCardIssueID: nil,
-                openedAt: now,
-                completedAt: nil,
-                closeReason: nil
+                id: db.lastInsertedRowID, projectID: projectID, nightStart: nightStart, mode: mode,
+                state: .opened, nightCardIssueID: nil, openedAt: now, completedAt: nil, closeReason: nil
             )
-
             let stamp = EventStamp(act: act, runID: runID, nightID: night.id, now: now)
             _ = try Self.insertEvent(db, .nightOpened, stamp: stamp)
             for dead in openedAndDied {
                 let event = JournalEvent.nightOpenedAndDied(nightID: dead.id, nightStart: dead.nightStart)
                 _ = try Self.insertEvent(db, event, stamp: stamp)
             }
-
-            return NightOpening(night: night, isFirstAct: true, openedAndDied: openedAndDied)
+            for absentNightStart in absentNights {
+                let event = JournalEvent.absentNightDetected(nightStart: absentNightStart)
+                _ = try Self.insertEvent(db, event, stamp: stamp)
+            }
+            return NightOpening(
+                night: night, isFirstAct: true, openedAndDied: openedAndDied, absentNights: absentNights
+            )
         }
     }
 
@@ -155,6 +156,16 @@ extension JournalStore {
         }
     }
 
+    /// The absent Nights this Night's first Act found, in the order they were recorded. What the
+    /// Night Summary reads to report the gap.
+    public func absentNights(nightID: Int64) throws -> [NightStart] {
+        try events(ofType: .absentNightDetected)
+            .filter { $0.nightID == nightID }
+            .compactMap { record in
+                if case .absentNightDetected(let nightStart) = record.event { nightStart } else { nil }
+            }
+    }
+
     // MARK: - Rows
 
     private static func close(
@@ -203,6 +214,23 @@ extension JournalStore {
             arguments: [projectID.rawValue, NightState.opened.rawValue]
         )
         return try rows.map(decodeNight)
+    }
+
+    /// The Nights the schedule fired for between the last recorded Night and this one. The baseline
+    /// is the latest Night whatever its state: one that opened and died still ran. With no baseline
+    /// — the Project's first Night ever — nothing can be called absent.
+    private static func absentNights(
+        _ db: Database,
+        projectID: ProjectID,
+        before nightStart: NightStart
+    ) throws -> [NightStart] {
+        let latest = try Row.fetchOne(
+            db,
+            sql: "SELECT * FROM night WHERE project_id = ? ORDER BY night_start DESC LIMIT 1",
+            arguments: [projectID.rawValue]
+        ).map(decodeNight)
+        guard let latest else { return [] }
+        return NightStart.dates(strictlyBetween: latest.nightStart, and: nightStart)
     }
 
     private static func decodeNight(_ row: Row) throws -> NightRecord {
