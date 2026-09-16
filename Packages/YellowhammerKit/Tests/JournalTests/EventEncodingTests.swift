@@ -32,7 +32,8 @@ func eventTypeRawValues() {
         "ActStarted", "ActEnded", "ActIdle", "ActIncomplete", "ActStoodDown",
         "MainlineFetchFailed", "AbsentNightDetected", "AuthoringNoWorkAvailable",
         "ManagedBlockDelimiterBroken", "NotificationDeliveryFailed", "RateBudgetExhausted",
-        "LeaseReclaimed", "CardLeaseReclaimed", "NightOpened", "NightClosed", "NightOpenedAndDied"
+        "LeaseReclaimed", "CardLeaseReclaimed", "NightOpened", "NightClosed", "NightOpenedAndDied",
+        "ManagedBlockWritten", "BoardWriteFailed", "OutboxGroupRolledBack"
     ]
     let actual = JournalEventType.allCases.map { $0.rawValue }.sorted()
     #expect(actual == expected.sorted())
@@ -353,4 +354,132 @@ func nightClosedWithUnknownReasonIsUnreadable() throws {
     #expect(throws: JournalError.eventUnreadable(id: 1)) {
         try journal.events()
     }
+}
+
+@Test("managedBlockWritten event round-trips with prose and rendered hashes")
+func managedBlockWrittenRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+
+    let proseHash = "sha256_prose"
+    let renderedHash = "sha256_rendered"
+
+    _ = try journal.append(
+        .managedBlockWritten(
+            issueID: "ISSUE-1",
+            preservedProseHash: proseHash,
+            renderedHash: renderedHash
+        ),
+        act: .author,
+        runID: run,
+        now: epoch
+    )
+    let records = try journal.events()
+
+    #expect(records.count == 1)
+    guard case .managedBlockWritten(let readIssueID, let readProseHash, let readRenderedHash) =
+        records[0].event
+    else {
+        Issue.record("Event is not managedBlockWritten")
+        return
+    }
+    #expect(readIssueID == "ISSUE-1")
+    #expect(readProseHash == proseHash)
+    #expect(readRenderedHash == renderedHash)
+}
+
+@Test("boardWriteFailed event round-trips with required fields and optional issueID")
+func boardWriteFailedRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+    let clientID = UUID()
+
+    _ = try journal.append(
+        .boardWriteFailed(
+            clientID: clientID,
+            operation: "create_comment",
+            issueID: "ISSUE-1",
+            reason: "rate limited"
+        ),
+        act: .build,
+        runID: run,
+        now: epoch
+    )
+    let records = try journal.events()
+
+    #expect(records.count == 1)
+    guard case .boardWriteFailed(let readClientID, let readOp, let readIssueID, let readReason) =
+        records[0].event
+    else {
+        Issue.record("Event is not boardWriteFailed")
+        return
+    }
+    #expect(readClientID == clientID)
+    #expect(readOp == "create_comment")
+    #expect(readIssueID == "ISSUE-1")
+    #expect(readReason == "rate limited")
+}
+
+@Test("boardWriteFailed without issueID omits the key and round-trips")
+func boardWriteFailedWithoutIssueIDRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+    let clientID = UUID()
+
+    _ = try journal.append(
+        .boardWriteFailed(
+            clientID: clientID,
+            operation: "delete_comment",
+            issueID: nil,
+            reason: "not found"
+        ),
+        act: .build,
+        runID: run,
+        now: epoch
+    )
+    let records = try journal.events()
+
+    #expect(records.count == 1)
+    guard case .boardWriteFailed(let readClientID, let readOp, let readIssueID, let readReason) =
+        records[0].event
+    else {
+        Issue.record("Event is not boardWriteFailed")
+        return
+    }
+    #expect(readClientID == clientID)
+    #expect(readOp == "delete_comment")
+    #expect(readIssueID == nil)
+    #expect(readReason == "not found")
+
+    // Verify the payload doesn't include issue_id key
+    let payload = try journal.read {
+        try String.fetchOne($0, sql: "SELECT payload FROM event WHERE id = 1")
+    }
+    #expect(payload?.contains("issue_id") == false)
+}
+
+@Test("outboxGroupRolledBack event round-trips with group_id and reason")
+func outboxGroupRolledBackRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+
+    _ = try journal.append(
+        .outboxGroupRolledBack(groupID: "group-1", reason: "insufficient budget"),
+        act: .land,
+        runID: run,
+        now: epoch
+    )
+    let records = try journal.events()
+
+    #expect(records.count == 1)
+    guard case .outboxGroupRolledBack(let readGroupID, let readReason) = records[0].event else {
+        Issue.record("Event is not outboxGroupRolledBack")
+        return
+    }
+    #expect(readGroupID == "group-1")
+    #expect(readReason == "insufficient budget")
 }

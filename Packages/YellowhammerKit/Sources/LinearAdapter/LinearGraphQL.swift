@@ -124,6 +124,61 @@ enum LinearGraphQL {
           }
         }
         """
+
+    // MARK: - Writing Queries
+
+    static let issueDescriptionQuery = """
+        query YellowhammerIssueDescription($id: String!) {
+          issue(id: $id) {
+            id description updatedAt
+            project { id }
+          }
+        }
+        """
+
+    static let createIssueQuery = """
+        mutation YellowhammerCreateIssue($input: IssueCreateInput!) {
+          issueCreate(input: $input) {
+            success
+            issue { id }
+          }
+        }
+        """
+
+    static let createCommentQuery = """
+        mutation YellowhammerCreateComment($input: CommentCreateInput!) {
+          commentCreate(input: $input) {
+            success
+            comment { id }
+          }
+        }
+        """
+
+    static let attachLinkQuery = """
+        mutation YellowhammerAttachLink($id: String!, $issueId: String!, $url: String!, $title: String) {
+          attachmentLinkURL(id: $id, issueId: $issueId, url: $url, title: $title) {
+            success
+            attachment { id }
+          }
+        }
+        """
+
+    static let updateIssueQuery = """
+        mutation YellowhammerUpdateIssue($id: String!, $input: IssueUpdateInput!) {
+          issueUpdate(id: $id, input: $input) {
+            success
+            issue { id description updatedAt }
+          }
+        }
+        """
+
+    static let archiveIssueQuery = """
+        mutation YellowhammerArchiveIssue($id: String!) {
+          issueArchive(id: $id) {
+            success
+          }
+        }
+        """
 }
 
 /// The `{ data, errors }` envelope of every GraphQL response.

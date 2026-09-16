@@ -52,6 +52,12 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     case nightUnreadable(id: Int64)
     /// The Journal has more than one open Night, but there should be at most one.
     case multipleOpenNights
+    /// The Journal has no Outbox entry with this id.
+    case outboxEntryUnknown(id: Int64)
+    /// The Outbox entry exists but is not in pending state; state machine leaves pending only once.
+    case outboxEntryNotPending(id: Int64, state: OutboxEntryState)
+    /// The `outbox` row does not decode; the Journal was written by something other than the engine.
+    case outboxEntryUnreadable(id: Int64)
 
     public var description: String {
         return switch self {
@@ -116,6 +122,12 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
             "The Journal's night row \(id) cannot be read"
         case .multipleOpenNights:
             "The Journal has more than one open Night, but there should be at most one"
+        case .outboxEntryUnknown(let id):
+            "The Journal has no Outbox entry with id \(id)"
+        case .outboxEntryNotPending(let id, let state):
+            "Outbox entry \(id) is in state \(state.rawValue), not pending"
+        case .outboxEntryUnreadable(let id):
+            "The Journal's outbox row \(id) cannot be read"
         }
     }
 }

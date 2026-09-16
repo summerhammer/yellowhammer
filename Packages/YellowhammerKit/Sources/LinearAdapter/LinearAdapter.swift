@@ -24,6 +24,12 @@ public actor LinearAdapter: Board {
         tokens = LinearTokenSource(credentials: credentials, transport: transport, clock: clock)
     }
 
+    /// The outcome of a GraphQL request that may succeed, fail, or encounter a conflict on insert.
+    enum LinearOutcome<Payload> {
+        case payload(Payload)
+        case insertConflict
+    }
+
     public func identity() async throws(BoardError) -> BoardIdentity {
         let payload: LinearViewerPayload = try await perform(LinearGraphQL.viewerQuery, variables: [:])
         return BoardIdentity(id: BoardObjectID(rawValue: payload.viewer.id), name: payload.viewer.name)
@@ -64,11 +70,11 @@ public actor LinearAdapter: Board {
         )
     }
 
-    /// One authenticated GraphQL request. The budget is recorded before the outcome is judged, because a
-    /// refusal is exactly when it matters.
-    func perform<Payload: Decodable>(
+    /// One authenticated GraphQL request that may encounter a conflict on insert. The budget is recorded
+    /// before the outcome is judged, because a refusal is exactly when it matters.
+    func send<Payload: Decodable>(
         _ query: String, variables: [String: any Sendable]
-    ) async throws(BoardError) -> Payload {
+    ) async throws(BoardError) -> LinearOutcome<Payload> {
         let token = try await tokens.token()
         let failure = LinearFailure(secrets: await tokens.secrets)
 
@@ -88,6 +94,10 @@ public actor LinearAdapter: Board {
         if let budget = LinearBudget.parse(response) {
             latestBudget = budget
         }
+        // Check for conflict before other judgements, since conflict may come with 200 or 400.
+        if failure.insertConflict(data) {
+            return .insertConflict
+        }
         // GraphQL errors are judged before the payload: a failed query may carry a `data` too partial to decode.
         if let refusal = failure.status(data, response) ?? failure.graphQL(data, response) {
             if case .notAuthenticated = refusal {
@@ -104,6 +114,20 @@ public actor LinearAdapter: Board {
         guard let payload = envelope.data else {
             throw .unreadableResponse("Linear's response carried neither data nor errors")
         }
-        return payload
+        return .payload(payload)
+    }
+
+    /// One authenticated GraphQL request. The budget is recorded before the outcome is judged, because a
+    /// refusal is exactly when it matters. A conflict on insert is reported as refused.
+    func perform<Payload: Decodable>(
+        _ query: String, variables: [String: any Sendable]
+    ) async throws(BoardError) -> Payload {
+        let outcome: LinearOutcome<Payload> = try await send(query, variables: variables)
+        switch outcome {
+        case .payload(let payload):
+            return payload
+        case .insertConflict:
+            throw .refused("Linear has already processed this write")
+        }
     }
 }

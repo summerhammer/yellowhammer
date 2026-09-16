@@ -35,6 +35,15 @@ public enum JournalEvent: Equatable, Sendable {
     /// This Project's previous Night was left open with no completion: it opened and died. Recorded
     /// on the next Night, by its first Act, which is the only thing alive to draw the conclusion.
     case nightOpenedAndDied(nightID: Int64, nightStart: NightStart)
+    /// The SHA-256 of the human prose outside the delimiters, recorded for provenance on every
+    /// description write.
+    case managedBlockWritten(issueID: String, preservedProseHash: String, renderedHash: String)
+    /// A permanent board write failure, surfaced in the Night Summary because a silent projection
+    /// failure makes every other guarantee unreadable.
+    case boardWriteFailed(clientID: UUID, operation: String, issueID: String?, reason: String)
+    /// An all-or-nothing group of writes (the authoring transaction) failed part-way and its applied
+    /// creates were archived.
+    case outboxGroupRolledBack(groupID: String, reason: String)
 
     /// The type of this event.
     public var type: JournalEventType {
@@ -71,6 +80,12 @@ public enum JournalEvent: Equatable, Sendable {
             .nightClosed
         case .nightOpenedAndDied:
             .nightOpenedAndDied
+        case .managedBlockWritten:
+            .managedBlockWritten
+        case .boardWriteFailed:
+            .boardWriteFailed
+        case .outboxGroupRolledBack:
+            .outboxGroupRolledBack
         }
     }
 
@@ -122,6 +137,23 @@ public enum JournalEvent: Equatable, Sendable {
             ["reason": reason.rawValue]
         case .nightOpenedAndDied(let nightID, let nightStart):
             ["night_id": String(nightID), "night_start": nightStart.rawValue]
+        case .managedBlockWritten(let issueID, let preservedProseHash, let renderedHash):
+            ["issue_id": issueID, "preserved_prose_hash": preservedProseHash,
+             "rendered_hash": renderedHash]
+        case .boardWriteFailed(let clientID, let operation, let issueID, let reason):
+            {
+                var dict: [String: String] = [
+                    "client_id": clientID.uuidString.lowercased(),
+                    "operation": operation,
+                    "reason": reason
+                ]
+                if let issueID {
+                    dict["issue_id"] = issueID
+                }
+                return dict
+            }()
+        case .outboxGroupRolledBack(let groupID, let reason):
+            ["group_id": groupID, "reason": reason]
         }
     }
 
@@ -175,6 +207,12 @@ public enum JournalEvent: Equatable, Sendable {
             try Self.decodeNightClosed(reader)
         case .nightOpenedAndDied:
             try Self.decodeNightOpenedAndDied(reader)
+        case .managedBlockWritten:
+            try Self.decodeManagedBlockWritten(reader)
+        case .boardWriteFailed:
+            try Self.decodeBoardWriteFailed(reader)
+        case .outboxGroupRolledBack:
+            try Self.decodeOutboxGroupRolledBack(reader)
         }
     }
 
@@ -221,6 +259,30 @@ public enum JournalEvent: Equatable, Sendable {
 
     private static func decodeNightOpenedAndDied(_ reader: PayloadReader) throws -> JournalEvent {
         .nightOpenedAndDied(nightID: try reader.int64("night_id"), nightStart: try reader.nightStart("night_start"))
+    }
+
+    private static func decodeManagedBlockWritten(_ reader: PayloadReader) throws -> JournalEvent {
+        .managedBlockWritten(
+            issueID: try reader.require("issue_id"),
+            preservedProseHash: try reader.require("preserved_prose_hash"),
+            renderedHash: try reader.require("rendered_hash")
+        )
+    }
+
+    private static func decodeBoardWriteFailed(_ reader: PayloadReader) throws -> JournalEvent {
+        .boardWriteFailed(
+            clientID: try reader.uuid("client_id"),
+            operation: try reader.require("operation"),
+            issueID: reader.payload?["issue_id"],
+            reason: try reader.require("reason")
+        )
+    }
+
+    private static func decodeOutboxGroupRolledBack(_ reader: PayloadReader) throws -> JournalEvent {
+        .outboxGroupRolledBack(
+            groupID: try reader.require("group_id"),
+            reason: try reader.require("reason")
+        )
     }
 }
 
@@ -291,6 +353,14 @@ private struct PayloadReader: Sendable {
         }
         return nightStart
     }
+
+    func uuid(_ key: String) throws -> UUID {
+        let text = try require(key)
+        guard let uuid = UUID(uuidString: text) else {
+            throw JournalError.eventUnreadable(id: rowID)
+        }
+        return uuid
+    }
 }
 
 /// The type of a JournalEvent, with raw values matching the spec's PascalCase names.
@@ -311,4 +381,7 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case nightOpened = "NightOpened"
     case nightClosed = "NightClosed"
     case nightOpenedAndDied = "NightOpenedAndDied"
+    case managedBlockWritten = "ManagedBlockWritten"
+    case boardWriteFailed = "BoardWriteFailed"
+    case outboxGroupRolledBack = "OutboxGroupRolledBack"
 }
