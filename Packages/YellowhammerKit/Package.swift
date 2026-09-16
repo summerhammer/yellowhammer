@@ -15,6 +15,7 @@ let package = Package(
         .library(name: "Ledger", targets: ["Ledger"]),
         .library(name: "Engine", targets: ["Engine"]),
         .library(name: "LinearAdapter", targets: ["LinearAdapter"]),
+        .library(name: "Repositories", targets: ["Repositories"]),
         .library(name: "EngineCommand", targets: ["EngineCommand"])
     ],
     dependencies: [
@@ -50,8 +51,12 @@ let package = Package(
             ]
         ),
         .target(
+            name: "Repositories",
+            dependencies: ["Domain"]
+        ),
+        .target(
             name: "Engine",
-            dependencies: ["Domain", "Journal"]
+            dependencies: ["Domain", "Journal", "Repositories"]
         ),
         .target(
             name: "LinearAdapter",
@@ -65,6 +70,7 @@ let package = Package(
                 "Config",
                 "Journal",
                 "LinearAdapter",
+                "Repositories",
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
             ]
         ),
@@ -98,13 +104,22 @@ let package = Package(
             ]
         ),
         .testTarget(
+            name: "RepositoriesTests",
+            dependencies: [
+                "Repositories",
+                "Domain",
+                "Journal"
+            ]
+        ),
+        .testTarget(
             name: "EngineCommandTests",
             dependencies: [
                 "EngineCommand",
                 "Config",
                 "Engine",
                 "Domain",
-                "Journal"
+                "Journal",
+                "Repositories"
             ]
         )
     ]

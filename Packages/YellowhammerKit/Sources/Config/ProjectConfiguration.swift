@@ -47,6 +47,18 @@ public struct ProjectConfiguration: Sendable {
         self.gitHubCredential = gitHubCredential
         self.routingOverrides = routingOverrides
     }
+
+    /// The Project's repositories expressed in Domain vocabulary.
+    public var projectRepositories: ProjectRepositories {
+        let workingRepos = repos.map { Repo(name: $0.name, path: $0.path, role: $0.role) }
+        let spec = specSource.map { SpecSource(path: $0) }
+        return ProjectRepositories(workingRepos: workingRepos, specSource: spec)
+    }
+
+    /// Alias for ``projectRepositories``.
+    public var repositories: ProjectRepositories {
+        projectRepositories
+    }
 }
 
 extension ProjectConfiguration: Equatable {

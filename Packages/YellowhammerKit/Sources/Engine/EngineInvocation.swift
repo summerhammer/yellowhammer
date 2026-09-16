@@ -1,6 +1,7 @@
 import Domain
 import Foundation
 import Journal
+import Repositories
 
 /// Everything an Act's work is handed: the one Project's Journal and this run's identity. There is
 /// nothing else to hand it — a resumed Act rebuilds Attempt and Round counts, routes tried and
@@ -18,6 +19,30 @@ public struct ActContext: Sendable {
     public let outbox: Outbox?
     /// This Act's Night Card, when this invocation was given a Board.
     public let nightCard: NightCardMaintenance?
+    /// Resolved mainlines for this Project's repositories.
+    public let mainlines: ResolvedMainlines
+
+    public init(
+        act: Act,
+        mode: NightMode,
+        trigger: ActTrigger,
+        runID: RunID,
+        journal: JournalStore,
+        night: NightRecord,
+        outbox: Outbox? = nil,
+        nightCard: NightCardMaintenance? = nil,
+        mainlines: ResolvedMainlines = ResolvedMainlines()
+    ) {
+        self.act = act
+        self.mode = mode
+        self.trigger = trigger
+        self.runID = runID
+        self.journal = journal
+        self.night = night
+        self.outbox = outbox
+        self.nightCard = nightCard
+        self.mainlines = mainlines
+    }
 }
 
 /// One Act's work for one Project, then exit.
@@ -45,6 +70,9 @@ public struct EngineInvocation: Sendable {
     /// The Board Port, when this invocation maintains a Night Card. The Engine never opens a Journal
     /// or imports an adapter (MB1/MB5); `EngineCommand` is the one place this is wired.
     public let board: ActBoard?
+    /// The Project's configured repositories, when provided.
+    public let repositories: ProjectRepositories?
+    public let mainlineRefresher: MainlineRefresher
     private let journal: JournalStore
     private let work: ActWork
 
@@ -57,7 +85,9 @@ public struct EngineInvocation: Sendable {
         runID: RunID = RunID(),
         closesNight: Bool = false,
         leasePolicy: LeasePolicy = .ruled,
-        board: ActBoard? = nil
+        board: ActBoard? = nil,
+        repositories: ProjectRepositories? = nil,
+        mainlineRefresher: MainlineRefresher = MainlineRefresher()
     ) {
         self.act = act
         self.mode = mode
@@ -68,6 +98,8 @@ public struct EngineInvocation: Sendable {
         self.closesNight = closesNight
         self.leasePolicy = leasePolicy
         self.board = board
+        self.repositories = repositories
+        self.mainlineRefresher = mainlineRefresher
         self.work = { _ in throw EngineInvocationError.notImplemented(act) }
     }
 
@@ -84,6 +116,8 @@ public struct EngineInvocation: Sendable {
         closesNight: Bool = false,
         leasePolicy: LeasePolicy = .ruled,
         board: ActBoard? = nil,
+        repositories: ProjectRepositories? = nil,
+        mainlineRefresher: MainlineRefresher = MainlineRefresher(),
         work: @escaping ActWork
     ) {
         self.act = act
@@ -95,6 +129,8 @@ public struct EngineInvocation: Sendable {
         self.closesNight = closesNight
         self.leasePolicy = leasePolicy
         self.board = board
+        self.repositories = repositories
+        self.mainlineRefresher = mainlineRefresher
         self.work = work
     }
 
@@ -158,6 +194,22 @@ public struct EngineInvocation: Sendable {
                 outbox = boxed
                 nightCard = maintenance
             }
+
+            // Mainline refresh at Act start (after opening the Night/Night Card).
+            var resolvedMainlines = ResolvedMainlines()
+            if let repositories {
+                let refreshResult = await mainlineRefresher.refresh(repositories: repositories)
+                resolvedMainlines = refreshResult.mainlines
+                for failure in refreshResult.failures {
+                    _ = try? journal.append(
+                        .mainlineFetchFailed(repository: failure.repository, reason: failure.reason),
+                        act: act,
+                        runID: runID,
+                        nightID: night.id
+                    )
+                }
+            }
+
             // Evaluate the trigger predicate under the lease.
             switch try ActTriggerPredicate.evaluate(act: act, trigger: trigger, journal: journal) {
             case .notMet(let reason):
@@ -165,7 +217,7 @@ public struct EngineInvocation: Sendable {
             case .met:
                 let context = ActContext(
                     act: act, mode: mode, trigger: trigger, runID: runID, journal: journal, night: night,
-                    outbox: outbox, nightCard: nightCard
+                    outbox: outbox, nightCard: nightCard, mainlines: resolvedMainlines
                 )
                 try await withLeaseHeartbeat(
                     every: leasePolicy.heartbeatDuration,
