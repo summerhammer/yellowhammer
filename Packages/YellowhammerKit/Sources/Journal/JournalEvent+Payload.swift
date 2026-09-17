@@ -166,6 +166,9 @@ extension JournalEvent {
                 "feature_id": String(featureID), "path": path,
                 "reason": reason, "repository": repository
             ]
+        case .routeExhausted(let cardID, let issueID, let reason),
+             .overrideRefused(let cardID, let issueID, let reason):
+            ["card_id": String(cardID), "issue_id": issueID, "reason": reason]
         }
     }
 }

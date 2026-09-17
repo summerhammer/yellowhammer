@@ -37,7 +37,7 @@ func eventTypeRawValues() {
         "CardCancelled", "CardReopened", "CardRestated", "CardRemovedFromBoard",
         "AuthoringInvariantBroken", "DeltaReadCompleted", "CardStateTransitioned", "WaitingOnYouUnbacked",
         "WorktreeLost", "WorktreeFenced", "WorktreeNotQuiescent", "WorktreeWIPCommitted",
-        "WorktreeReconciliationFailed"
+        "WorktreeReconciliationFailed", "RouteExhausted", "OverrideRefused"
     ]
     let actual = JournalEventType.allCases.map { $0.rawValue }.sorted()
     #expect(actual == expected.sorted())
@@ -493,4 +493,34 @@ func outboxGroupRolledBackRoundTrips() throws {
     }
     #expect(readGroupID == "group-1")
     #expect(readReason == "insufficient budget")
+}
+
+@Test("routeExhausted event round-trips")
+func routeExhaustedRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+    let reason = "fallbacks exhausted for the Routing Entry (kind `impl`, any Repo Role): `claude/opus/high` excluded"
+
+    let event = JournalEvent.routeExhausted(cardID: 7, issueID: "ENG-7", reason: reason)
+    try journal.append(event, act: .build, runID: run, now: epoch)
+    let records = try journal.events(ofType: .routeExhausted)
+
+    #expect(records.count == 1)
+    #expect(records[0].event == .routeExhausted(cardID: 7, issueID: "ENG-7", reason: reason))
+}
+
+@Test("overrideRefused event round-trips")
+func overrideRefusedRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+    let reason = "Override `codex/-/-` pins `codex`, which is not offered by its Probe: never probed"
+
+    let event = JournalEvent.overrideRefused(cardID: 7, issueID: "ENG-7", reason: reason)
+    try journal.append(event, act: .build, runID: run, now: epoch)
+    let records = try journal.events(ofType: .overrideRefused)
+
+    #expect(records.count == 1)
+    #expect(records[0].event == .overrideRefused(cardID: 7, issueID: "ENG-7", reason: reason))
 }

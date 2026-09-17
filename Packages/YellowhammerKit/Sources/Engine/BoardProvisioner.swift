@@ -4,8 +4,10 @@ import Foundation
 /// The declared provisioning scope for a Linear project.
 ///
 /// These constants define the state name and label groups that Yellowhammer provisions
-/// at setup time. The settle workflow-state group (gate G-6, probe owed) and Override label
-/// groups (gate G-17, roadmap P7.6) are deliberately not provisioned here.
+/// at setup time. The three Override label groups (G-17, roadmap P7.6) are provisioned from the
+/// merged Routing Table's values when one is given, and refreshed by re-running provisioning after
+/// the table changes: a value it no longer names is never removed, because nothing ever clears an
+/// Override. The settle workflow-state group (gate G-6, probe owed) is deliberately not provisioned.
 public struct BoardProvisioner {
     /// The exact name of the workflow state Yellowhammer depends on, glossary-verbatim.
     static let waitingOnYouState = "Waiting on You"
@@ -24,11 +26,21 @@ public struct BoardProvisioner {
         let children: [String]
     }
 
-    /// All label groups to provision.
+    /// The label groups provisioned for every Project.
     private static let labelGroups = [
         LabelGroupDeclaration(name: objectTypeGroup, children: objectTypeChildren),
         LabelGroupDeclaration(name: blockReasonGroup, children: blockReasonChildren)
     ]
+
+    /// The Override label groups, with the merged Routing Table's values as their children (G-17).
+    private static func overrideGroups(for table: RoutingTable) -> [LabelGroupDeclaration] {
+        let values = OverrideLabelValues(table: table)
+        return [
+            LabelGroupDeclaration(name: overrideCLIGroup, children: values.clis),
+            LabelGroupDeclaration(name: overrideModelGroup, children: values.models),
+            LabelGroupDeclaration(name: overrideEffortGroup, children: values.efforts)
+        ]
+    }
 
     /// Provision the Linear project for one Project.
     ///
@@ -36,12 +48,17 @@ public struct BoardProvisioner {
     /// provisioning twice changes nothing on the second run. Reports each subject's outcome:
     /// created, present, collision, blocked, or missing. Board errors propagate; a partial
     /// run is fine and re-running is safe.
+    ///
+    /// With `routingTable`, the Project's merged Routing Table, the three Override label groups are
+    /// provisioned too, one child per distinct value the table names on each axis.
     public static func provision(
         using board: any BoardProvisioning,
         projectName: String,
-        createIn team: BoardObjectID?
+        createIn team: BoardObjectID?,
+        routingTable: RoutingTable? = nil
     ) async throws(BoardError) -> ProvisioningReport {
         var entries: [ProvisioningEntry] = []
+        let groups = Self.labelGroups + (routingTable.map(Self.overrideGroups(for:)) ?? [])
 
         // Step 1: Verify or create the Linear project.
         let project: BoardProjectScope
@@ -69,7 +86,7 @@ public struct BoardProvisioner {
 
         // Step 2: For each team, provision workflow state and label groups.
         for team in project.teams {
-            try await provisionTeam(board: board, team: team, into: &entries)
+            try await provisionTeam(board: board, team: team, groups: groups, into: &entries)
         }
 
         return ProvisioningReport(entries: entries)
@@ -78,6 +95,7 @@ public struct BoardProvisioner {
     private static func provisionTeam(
         board: any BoardProvisioning,
         team: BoardTeam,
+        groups: [LabelGroupDeclaration],
         into entries: inout [ProvisioningEntry]
     ) async throws(BoardError) {
         let existingStates = try await board.workflowStates(team: team.id)
@@ -87,7 +105,7 @@ public struct BoardProvisioner {
             board: board, team: team, existingStates: existingStates, into: &entries
         )
 
-        for groupSpec in Self.labelGroups {
+        for groupSpec in groups {
             try await provisionGroup(
                 board: board, group: groupSpec, team: team, existingLabels: existingLabels, into: &entries
             )

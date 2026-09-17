@@ -1,6 +1,3 @@
-import Domain
-import Foundation
-
 /// The table an Act reads: the machine-wide base merged with one Project's overrides, once, at load.
 ///
 /// Resolution never sees the two halves separately; the merge happens at configuration load (Machine Scope Ruling,

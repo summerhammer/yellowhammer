@@ -92,6 +92,14 @@ public enum JournalEvent: Equatable, Sendable {
     )
     /// A git step of reconciliation refused or failed; nothing was destroyed. `reason` says what.
     case worktreeReconciliationFailed(featureID: Int64, repository: String, path: String, reason: String)
+    /// Route resolution left zero candidates for the Card — fallbacks exhausted
+    /// (routing/resolve-a-route-for-a-card, OQ13): the Card moved to Blocked with Block Reason
+    /// `hard failure`, no Attempt was recorded, and `reason` names every candidate and what dropped it.
+    case routeExhausted(cardID: Int64, issueID: String, reason: String)
+    /// The Operator's Override could not resolve, or pinned a CLI that failed its Probe: a Readiness
+    /// Check failure (G-17). Nothing was dispatched, no Attempt was recorded and the Card's state was
+    /// not touched.
+    case overrideRefused(cardID: Int64, issueID: String, reason: String)
 
     /// The type of this event.
     public var type: JournalEventType {
@@ -164,6 +172,10 @@ public enum JournalEvent: Equatable, Sendable {
             .worktreeWIPCommitted
         case .worktreeReconciliationFailed:
             .worktreeReconciliationFailed
+        case .routeExhausted:
+            .routeExhausted
+        case .overrideRefused:
+            .overrideRefused
         }
     }
 }
@@ -204,4 +216,6 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case worktreeNotQuiescent = "WorktreeNotQuiescent"
     case worktreeWIPCommitted = "WorktreeWIPCommitted"
     case worktreeReconciliationFailed = "WorktreeReconciliationFailed"
+    case routeExhausted = "RouteExhausted"
+    case overrideRefused = "OverrideRefused"
 }
