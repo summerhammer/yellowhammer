@@ -81,6 +81,11 @@ public struct WorktreeAllocator: Sendable {
     /// is asked for a Worktree named after `branch`. A returned branch other than `branch.name` is a
     /// collision Orca ADE could not honor: the Worktree it made is removed and
     /// ``WorktreeAllocationError/nameCollision(repository:requested:created:)`` is thrown.
+    ///
+    /// The Worktree's HEAD is resolved and recorded as its last known-good commit (object-guide:
+    /// Worktree.last_known_good_commit, set "at allocation") — best-effort: a Worktree the Workspace
+    /// Port did not check out to a real commit (a fake in a test) resolves to nil rather than failing
+    /// allocation.
     public func allocate(
         featureID: Int64, branch: FeatureBranch, repos: [Repo]
     ) async throws -> FeatureWorktrees {
@@ -111,12 +116,14 @@ public struct WorktreeAllocator: Sendable {
                 )
             }
 
+            let lastKnownGoodCommit = await Self.resolveHead(git: git, path: worktree.path)
             let record = try journal.recordWorktree(
                 featureID: featureID,
                 repository: repo.name,
                 worktreeID: worktree.id.rawValue,
                 path: worktree.path,
-                runID: runID
+                runID: runID,
+                lastKnownGoodCommit: lastKnownGoodCommit
             )
             byRepository[repo.name] = record
         }
@@ -150,5 +157,14 @@ public struct WorktreeAllocator: Sendable {
 
     private static func expandedPath(_ path: String) -> String {
         (path as NSString).expandingTildeInPath
+    }
+
+    /// Resolves `path`'s HEAD commit, nil if it does not resolve (e.g. a fake Workspace's plain
+    /// directory in a test) rather than failing allocation over it.
+    private static func resolveHead(git: GitRunner, path: String) async -> String? {
+        let result = await git.run(["-C", path, "rev-parse", "--verify", "--quiet", "HEAD^{commit}"])
+        guard result.isSuccess else { return nil }
+        let sha = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        return sha.isEmpty ? nil : sha
     }
 }

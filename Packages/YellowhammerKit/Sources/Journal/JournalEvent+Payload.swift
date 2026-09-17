@@ -135,6 +135,37 @@ extension JournalEvent {
                 }
                 return dict
             }()
+        case .worktreeLost(let featureID, let repository, let worktreeID, let path):
+            [
+                "feature_id": String(featureID), "path": path,
+                "repository": repository, "worktree_id": worktreeID
+            ]
+        case .worktreeFenced(let featureID, let repository, let path, let killed):
+            [
+                "feature_id": String(featureID), "killed": String(killed),
+                "path": path, "repository": repository
+            ]
+        case .worktreeNotQuiescent(let featureID, let repository, let path, let remaining):
+            [
+                "feature_id": String(featureID), "path": path,
+                "remaining": String(remaining), "repository": repository
+            ]
+        case .worktreeWIPCommitted(let featureID, let repository, let wipCommit, let wipRef, let resetTo):
+            {
+                var dict: [String: String] = [
+                    "feature_id": String(featureID), "repository": repository,
+                    "wip_commit": wipCommit, "wip_ref": wipRef
+                ]
+                if let resetTo {
+                    dict["reset_to"] = resetTo
+                }
+                return dict
+            }()
+        case .worktreeReconciliationFailed(let featureID, let repository, let path, let reason):
+            [
+                "feature_id": String(featureID), "path": path,
+                "reason": reason, "repository": repository
+            ]
         }
     }
 }
