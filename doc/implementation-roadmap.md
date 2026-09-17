@@ -669,7 +669,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 
 ## Phase 7 — Dispatch & Routing
 
-### [ ] P7.1 Result schema and instruction contract
+### [x] P7.1 Result schema and instruction contract
 - **Work**
   - Define the forced JSON result schema(s) for architect, worker and reviewer outcomes, including
     the worker's "question for the Operator" outcome and the reviewer's verdict with requested
