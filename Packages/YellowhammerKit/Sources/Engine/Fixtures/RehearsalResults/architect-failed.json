@@ -1,0 +1,6 @@
+{
+  "schema": "yellowhammer.result.architect",
+  "version": 1,
+  "outcome": "failed",
+  "reason": "The Architectural Brief cites a repository that is not configured on this Project."
+}
