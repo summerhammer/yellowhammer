@@ -14,24 +14,28 @@ enum ProcessGroup {
 
     /// Spawns `executable` (by absolute path — `posix_spawn`, not `posix_spawnp`) with `arguments`
     /// and `environment`, chdir'd to `worktreePath`, as the leader of a new process group whose
-    /// pgid equals its own pid. Stdin is `/dev/null` (closed to input); stdout and stderr each
-    /// append to `outputPath`, or `/dev/null` when `outputPath` is `nil`.
+    /// pgid equals its own pid. Stdin is `/dev/null` (closed to input). Stderr always appends to
+    /// `outputPath` (or `/dev/null` when `nil`). Stdout appends to `standardOutputPath` when given
+    /// (P7.3: a CLI Adapter reads its CLI's structured stdout separately from diagnostic stderr);
+    /// otherwise stdout shares `outputPath`, unchanged from before P7.3.
     static func spawn(
         executable: String,
         arguments: [String],
         environment: [String: String],
         worktreePath: String,
-        outputPath: String?
+        outputPath: String?,
+        standardOutputPath: String? = nil
     ) -> SpawnOutcome {
         var fileActions: posix_spawn_file_actions_t?
         posix_spawn_file_actions_init(&fileActions)
         defer { posix_spawn_file_actions_destroy(&fileActions) }
 
-        let output = outputPath ?? "/dev/null"
+        let stderrOutput = outputPath ?? "/dev/null"
+        let stdoutOutput = standardOutputPath ?? stderrOutput
         posix_spawn_file_actions_addchdir(&fileActions, worktreePath)
         posix_spawn_file_actions_addopen(&fileActions, 0, "/dev/null", O_RDONLY, 0)
-        posix_spawn_file_actions_addopen(&fileActions, 1, output, O_WRONLY | O_CREAT | O_APPEND, 0o644)
-        posix_spawn_file_actions_addopen(&fileActions, 2, output, O_WRONLY | O_CREAT | O_APPEND, 0o644)
+        posix_spawn_file_actions_addopen(&fileActions, 1, stdoutOutput, O_WRONLY | O_CREAT | O_APPEND, 0o644)
+        posix_spawn_file_actions_addopen(&fileActions, 2, stderrOutput, O_WRONLY | O_CREAT | O_APPEND, 0o644)
 
         var attr: posix_spawnattr_t?
         posix_spawnattr_init(&attr)

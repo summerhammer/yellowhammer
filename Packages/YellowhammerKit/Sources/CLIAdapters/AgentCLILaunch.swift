@@ -16,8 +16,13 @@ public struct AgentCLILaunch: Sendable {
     public var pass: RunPass
     /// SIGTERM-to-the-group deadline. Escalates to SIGKILL after the runner's grace period.
     public var timeout: Duration
-    /// Stdout and stderr are appended here. `nil` discards both to `/dev/null`.
+    /// Stderr is appended here (and stdout too, when ``standardOutput`` is `nil`). `nil` discards to
+    /// `/dev/null`.
     public var outputLog: URL?
+    /// When set, stdout is appended here instead of ``outputLog`` (P7.3: a CLI Adapter reads its
+    /// CLI's structured stdout separately from its diagnostic stderr). `nil` keeps the original
+    /// behavior — both streams share ``outputLog``.
+    public var standardOutput: URL?
 
     public init(
         executable: String,
@@ -27,7 +32,8 @@ public struct AgentCLILaunch: Sendable {
         resultFile: URL,
         pass: RunPass,
         timeout: Duration,
-        outputLog: URL? = nil
+        outputLog: URL? = nil,
+        standardOutput: URL? = nil
     ) {
         self.executable = executable
         self.arguments = arguments
@@ -37,5 +43,6 @@ public struct AgentCLILaunch: Sendable {
         self.pass = pass
         self.timeout = timeout
         self.outputLog = outputLog
+        self.standardOutput = standardOutput
     }
 }

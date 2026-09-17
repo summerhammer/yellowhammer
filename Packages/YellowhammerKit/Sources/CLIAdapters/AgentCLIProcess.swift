@@ -12,6 +12,16 @@ public struct AgentCLIRunReport: Equatable, Sendable {
     public let outcome: RunOutcome
 }
 
+/// The process identity and ending of one run, before the dual-key completion verdict is applied.
+/// A CLI Adapter (P7.3) needs this gap — it reads and materializes structured output, and resolves
+/// which session to resume next, between the process ending and the dual-key check.
+public struct AgentCLIExecution: Equatable, Sendable {
+    public let pid: pid_t
+    /// Equal to `pid`: the CLI leads its own process group.
+    public let processGroup: pid_t
+    public let end: RunEnd
+}
+
 /// Why ``AgentCLIProcess/run(_:)`` could not even start a run.
 public enum AgentCLILaunchError: Error, Equatable, Sendable, CustomStringConvertible {
     case worktreeMissing(String)
@@ -42,6 +52,17 @@ public struct AgentCLIProcess: Sendable {
     }
 
     public func run(_ launch: AgentCLILaunch) async throws(AgentCLILaunchError) -> AgentCLIRunReport {
+        let execution = try await execute(launch)
+        let outcome = RunOutcome.classify(end: execution.end, resultFileAt: launch.resultFile, pass: launch.pass)
+        return AgentCLIRunReport(
+            pid: execution.pid, processGroup: execution.processGroup, end: execution.end, outcome: outcome
+        )
+    }
+
+    /// Spawns and waits for `launch`, stopping short of the dual-key verdict. A CLI Adapter calls
+    /// this directly so it can read and materialize structured output, and resolve which session to
+    /// resume next, before ``RunOutcome/classify(end:resultFileAt:pass:)`` runs.
+    public func execute(_ launch: AgentCLILaunch) async throws(AgentCLILaunchError) -> AgentCLIExecution {
         var isDirectory: ObjCBool = false
         let exists = FileManager.default.fileExists(atPath: launch.worktreePath, isDirectory: &isDirectory)
         guard exists, isDirectory.boolValue else {
@@ -53,7 +74,8 @@ public struct AgentCLIProcess: Sendable {
             arguments: launch.arguments,
             environment: launch.environment,
             worktreePath: launch.worktreePath,
-            outputPath: launch.outputLog?.path
+            outputPath: launch.outputLog?.path,
+            standardOutputPath: launch.standardOutput?.path
         )
         let pid: pid_t
         switch spawnOutcome {
@@ -64,8 +86,7 @@ public struct AgentCLIProcess: Sendable {
         }
 
         let end = await wait(pid: pid, timeout: launch.timeout)
-        let outcome = RunOutcome.classify(end: end, resultFileAt: launch.resultFile, pass: launch.pass)
-        return AgentCLIRunReport(pid: pid, processGroup: pid, end: end, outcome: outcome)
+        return AgentCLIExecution(pid: pid, processGroup: pid, end: end)
     }
 
     // MARK: - Waiting
