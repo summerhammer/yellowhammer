@@ -97,7 +97,7 @@ struct NightCardTests {
         let provisioning = boards.provisioning
         let writing = boards.writing
         let ids = boards.ids
-        let board = ActBoard(writing: writing, provisioning: provisioning)
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: writing, provisioning: provisioning)
 
         let invocation = EngineInvocation(
             act: .author, mode: .real, nightStart: nightCardNightStart, journal: journal,
@@ -130,7 +130,7 @@ struct NightCardTests {
         let boards = try await makeBoards()
         let provisioning = boards.provisioning
         let writing = boards.writing
-        let board = ActBoard(writing: writing, provisioning: provisioning)
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: writing, provisioning: provisioning)
 
         try await EngineInvocation(
             act: .author, mode: .real, nightStart: nightCardNightStart, journal: journal,
@@ -152,7 +152,7 @@ struct NightCardTests {
         let boards = try await makeBoards()
         let provisioning = boards.provisioning
         let writing = boards.writing
-        let board = ActBoard(writing: writing, provisioning: provisioning)
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: writing, provisioning: provisioning)
 
         try await EngineInvocation(
             act: .author, mode: .real, nightStart: nightCardNightStart, journal: journal,
@@ -180,7 +180,7 @@ struct NightCardTests {
         let boards = try await makeBoards()
         let provisioning = boards.provisioning
         let writing = boards.writing
-        let board = ActBoard(writing: writing, provisioning: provisioning)
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: writing, provisioning: provisioning)
         let run = RunID()
 
         // A todo Card makes the author trigger unmet: there is already dispatchable work.
@@ -223,7 +223,7 @@ struct NightCardTests {
         let boards = try await makeBoards()
         let provisioning = boards.provisioning
         let writing = boards.writing
-        let board = ActBoard(writing: writing, provisioning: provisioning)
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: writing, provisioning: provisioning)
 
         let invocation = EngineInvocation(
             act: .land, mode: .real, nightStart: nightCardNightStart, journal: journal,
@@ -252,7 +252,7 @@ struct NightCardTests {
         let boards = try await makeBoards()
         let provisioning = boards.provisioning
         let writing = boards.writing
-        let board = ActBoard(writing: writing, provisioning: provisioning)
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: writing, provisioning: provisioning)
 
         let invocation = EngineInvocation(
             act: .land, mode: .real, nightStart: nightCardNightStart, journal: journal,
@@ -279,7 +279,7 @@ struct NightCardTests {
         let boards = try await makeBoards()
         let provisioning = boards.provisioning
         let writing = boards.writing
-        let board = ActBoard(writing: writing, provisioning: provisioning)
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: writing, provisioning: provisioning)
 
         try await EngineInvocation(
             act: .land, mode: .real, nightStart: nightCardNightStart, journal: journal,
@@ -322,7 +322,7 @@ struct NightCardTests {
         let boards = try await makeBoards()
         let provisioning = boards.provisioning
         let writing = boards.writing
-        let board = ActBoard(writing: writing, provisioning: provisioning)
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: writing, provisioning: provisioning)
         await writing.refuseNext(.refused("no"))
 
         let invocation = EngineInvocation(

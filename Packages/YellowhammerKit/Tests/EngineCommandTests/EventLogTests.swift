@@ -181,13 +181,12 @@ func deadPredecessorReclaimIsRecordedInOrder() async throws {
     // Claimed eleven minutes ago and never heartbeated: crashed, or asleep past the TTL.
     _ = try dead.claimActLease(act: .author, runID: deadRun, mode: .real, now: Date().addingTimeInterval(-660))
 
-    await #expect(throws: EngineInvocationError.notImplemented(.build)) {
-        // Force the Act because this test is about lease reclaim and event ordering, not the trigger predicate
-        try await runAct(.build, project: "alpha", in: directory, force: true)
-    }
+    // Force the Act because this test is about lease reclaim and event ordering, not the trigger
+    // predicate. The build Act's work has landed (P8.1): with no Feature in flight it completes idle.
+    try await runAct(.build, project: "alpha", in: directory, force: true)
 
     let events = try dead.events()
-    #expect(events.map(\.type) == [.leaseReclaimed, .nightOpened, .actStarted, .actIncomplete])
+    #expect(events.map(\.type) == [.leaseReclaimed, .nightOpened, .actStarted, .actIdle, .actEnded])
     #expect(events.allSatisfy { $0.act == .build })
     let runIDs = Set(events.compactMap(\.runID))
     #expect(runIDs.count == 1)

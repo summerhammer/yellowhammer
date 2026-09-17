@@ -31,7 +31,7 @@ enum BoardBinding {
         credentials store: KeychainCredentialStore = KeychainCredentialStore()
     ) throws(BoardBindingError) -> ActBoard {
         let adapter = try makeLinearAdapter(machine: machine, project: project, credentials: store)
-        return ActBoard(writing: adapter, provisioning: adapter)
+        return ActBoard(reading: adapter, writing: adapter, provisioning: adapter)
     }
 
     private static func makeLinearAdapter(

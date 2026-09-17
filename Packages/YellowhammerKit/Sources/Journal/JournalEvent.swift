@@ -111,6 +111,18 @@ public enum JournalEvent: Equatable, Sendable {
     /// An Override pinned in triage reset the Card's budget epoch, so a Route excluded in an earlier
     /// epoch no longer excludes (routing/exclude-tried-routes-on-retry, P7.7).
     case budgetEpochReset(cardID: Int64, issueID: String, from: Int, to: Int, reason: String)
+    /// The build Act's lease sweep (the Journal half of loop-state/reclaim-an-expired-lease, P8.10)
+    /// reclaimed every Card whose lease a dead run left expired, before Worktree reconciliation.
+    case expiredCardLeasesSwept(cycleID: Int64, reclaimedCardIDs: [Int64])
+    /// The build Act reposted every Card whose board projection had not caught up with its Journal
+    /// state.
+    case boardStateReposted(cards: Int)
+    /// The build Act derived this Cycle's Repo Lanes from its Cards, read fresh after the Delta Read.
+    case repoLanesDerived(cycleID: Int64, lanes: [String])
+    /// A Repo Lane started running its Cards, one at a time in authored order.
+    case repoLaneStarted(repository: String, cards: Int)
+    /// A Repo Lane finished — every runnable Card ran, or one of them threw and stopped the lane.
+    case repoLaneEnded(repository: String, cardsRun: Int, failure: String?)
 
     /// The type of this event.
     public var type: JournalEventType {
@@ -193,6 +205,16 @@ public enum JournalEvent: Equatable, Sendable {
             .routeRetried
         case .budgetEpochReset:
             .budgetEpochReset
+        case .expiredCardLeasesSwept:
+            .expiredCardLeasesSwept
+        case .boardStateReposted:
+            .boardStateReposted
+        case .repoLanesDerived:
+            .repoLanesDerived
+        case .repoLaneStarted:
+            .repoLaneStarted
+        case .repoLaneEnded:
+            .repoLaneEnded
         }
     }
 }
@@ -238,4 +260,9 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case attemptEnded = "AttemptEnded"
     case routeRetried = "RouteRetried"
     case budgetEpochReset = "BudgetEpochReset"
+    case expiredCardLeasesSwept = "ExpiredCardLeasesSwept"
+    case boardStateReposted = "BoardStateReposted"
+    case repoLanesDerived = "RepoLanesDerived"
+    case repoLaneStarted = "RepoLaneStarted"
+    case repoLaneEnded = "RepoLaneEnded"
 }

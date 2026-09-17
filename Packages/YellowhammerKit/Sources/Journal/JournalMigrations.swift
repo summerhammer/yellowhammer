@@ -60,6 +60,9 @@ enum JournalMigrations {
         migrator.registerMigration("v10-attempt-route-provenance") { db in
             try addAttemptRouteProvenance(db)
         }
+        migrator.registerMigration("v11-feature-branch") { db in
+            try addFeatureBranchColumn(db)
+        }
         return migrator
     }
 }

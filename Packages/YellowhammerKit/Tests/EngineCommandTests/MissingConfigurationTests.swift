@@ -211,8 +211,7 @@ func workingRepoConflict() async throws {
         #expect(id.rawValue == project)
         #expect(message.contains("working Repo"))
     }
-    await #expect(throws: EngineInvocationError.notImplemented(.build)) {
-        // Force the Act because this test is about Repo conflict detection, not the trigger predicate
-        try await runAct(.build, project: "gamma", in: directory, force: true)
-    }
+    // Force the Act because this test is about Repo conflict detection, not the trigger predicate. The
+    // build Act now completes (no Feature in flight, so it does nothing) rather than throwing.
+    try await runAct(.build, project: "gamma", in: directory, force: true)
 }

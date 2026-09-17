@@ -110,6 +110,16 @@ extension JournalEvent {
             try Self.decodeRouteRetried(reader)
         case .budgetEpochReset:
             try Self.decodeBudgetEpochReset(reader)
+        case .expiredCardLeasesSwept:
+            try Self.decodeExpiredCardLeasesSwept(reader)
+        case .boardStateReposted:
+            .boardStateReposted(cards: try reader.int("cards"))
+        case .repoLanesDerived:
+            try Self.decodeRepoLanesDerived(reader)
+        case .repoLaneStarted:
+            .repoLaneStarted(repository: try reader.require("repository"), cards: try reader.int("cards"))
+        case .repoLaneEnded:
+            try Self.decodeRepoLaneEnded(reader)
         }
     }
 
@@ -258,7 +268,9 @@ extension JournalEvent {
 
     // The five worktree reconciliation decode helpers (decodeWorktreeLost through
     // decodeWorktreeReconciliationFailed) live in JournalEvent+WorktreeDecoding.swift, split out to
-    // keep this file under the file length limit.
+    // keep this file under the file length limit. The build Act's own decode helpers
+    // (decodeExpiredCardLeasesSwept through decodeRepoLaneEnded) live in
+    // JournalEvent+BuildActDecoding.swift for the same reason.
 }
 
 // MARK: - PayloadReader
