@@ -92,6 +92,10 @@ public enum CLIAdapterError: Error, Equatable, Sendable, CustomStringConvertible
 public protocol CLIAdapter: Sendable {
     /// The Routing Table's `cli` name, e.g. `"claude"`.
     var cli: String { get }
+    /// This adapter's own version, independent of the CLI it drives — bumped when its argv shape,
+    /// session handling or output-format assumptions change (P7.4: the Probe reports it alongside
+    /// the CLI version, so drift is attributable to either side).
+    var adapterVersion: String { get }
     /// Efforts this CLI accepts; a Route with another effort is refused at launch build time.
     var supportedEfforts: [String] { get }
     /// Builds the process launch for `dispatch`. Deletes any stale result file in `runDirectory`

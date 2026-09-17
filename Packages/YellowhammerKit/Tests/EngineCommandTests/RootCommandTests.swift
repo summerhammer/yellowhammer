@@ -11,10 +11,10 @@ func rootCommandIsNamedYh() {
 }
 
 // These words are typed into Orca ADE Automations by hand, so their spelling and order are a contract.
-@Test("Subcommands are exactly the Acts, in Act order")
+@Test("Subcommands are exactly the Acts, in Act order, followed by the Operator-invoked probe")
 func subcommandsAreTheActsInOrder() {
     let names = RootCommand.configuration.subcommands.map { $0.configuration.commandName }
-    #expect(names == Act.allCases.map(\.rawValue))
+    #expect(names == Act.allCases.map(\.rawValue) + ["probe"])
 }
 
 @Test("Each subcommand parses and runs its own Act for a configured Project", arguments: Act.allCases)

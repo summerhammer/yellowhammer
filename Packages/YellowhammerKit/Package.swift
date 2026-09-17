@@ -80,9 +80,11 @@ let package = Package(
                 "Domain",
                 "Config",
                 "Journal",
+                "Ledger",
                 "LinearAdapter",
                 "OrcaADEAdapter",
                 "Repositories",
+                "CLIAdapters",
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
             ]
         ),
@@ -145,6 +147,7 @@ let package = Package(
                 "Engine",
                 "Domain",
                 "Journal",
+                "Ledger",
                 "Repositories"
             ]
         )
