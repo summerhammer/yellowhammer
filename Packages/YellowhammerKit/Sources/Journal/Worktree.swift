@@ -13,6 +13,9 @@ public struct WorktreeRecord: Equatable, Sendable {
     public let path: String
     public let createdAt: Date
     public let releasedAt: Date?
+    /// The commit the Feature Branch was at when it was pushed, nil until then. Releasing (and so
+    /// removing) the Worktree is refused while this is nil.
+    public let pushedCommit: String?
 
     /// Whether this Worktree has not yet been released.
     public var isHeld: Bool { releasedAt == nil }
@@ -54,12 +57,44 @@ extension JournalStore {
                 worktreeID: worktreeID,
                 path: path,
                 createdAt: createdAt,
-                releasedAt: nil
+                releasedAt: nil,
+                pushedCommit: nil
             )
         }
     }
 
+    /// Records that the Feature Branch held in this Worktree was pushed at `commit`. One write
+    /// transaction, revalidating the Act-scoped lease before writing. This is the release gate:
+    /// `releaseWorktree` refuses a Worktree that has not been recorded pushed.
+    @discardableResult
+    public func recordWorktreePush(
+        id: Int64, commit: String, runID: RunID, now: Date = Date()
+    ) throws -> WorktreeRecord {
+        try write { db in
+            _ = try Self.revalidateActLease(db, runID: runID, now: now)
+
+            guard let existing = try Self.fetchWorktree(db, id: id) else {
+                throw JournalError.worktreeUnknown(id: id)
+            }
+            guard existing.releasedAt == nil else {
+                throw JournalError.worktreeReleased(id: id)
+            }
+
+            try db.execute(
+                sql: "UPDATE worktree SET pushed_commit = ? WHERE id = ?",
+                arguments: [commit, id]
+            )
+
+            guard let record = try Self.fetchWorktree(db, id: id) else {
+                throw JournalError.worktreeUnknown(id: id)
+            }
+            return record
+        }
+    }
+
     /// Releases a held Worktree. One write transaction, revalidating the Act-scoped lease before writing.
+    /// Refuses with `worktreeNotPushed` when the Feature Branch has not been recorded pushed: releasing
+    /// a Worktree is what lets Orca ADE remove it, and removal must never discard unpushed work.
     @discardableResult
     public func releaseWorktree(id: Int64, runID: RunID, now: Date = Date()) throws -> WorktreeRecord {
         try write { db in
@@ -70,6 +105,9 @@ extension JournalStore {
             }
             guard existing.releasedAt == nil else {
                 throw JournalError.worktreeReleased(id: id)
+            }
+            guard existing.pushedCommit != nil else {
+                throw JournalError.worktreeNotPushed(id: id)
             }
 
             let releasedAt = JournalStore.stored(now)
@@ -82,6 +120,28 @@ extension JournalStore {
                 throw JournalError.worktreeUnknown(id: id)
             }
             return record
+        }
+    }
+
+    /// The unreleased Worktree recorded for `featureID`'s `repository`, nil when none is held. This is
+    /// how allocation decides whether to reuse a Worktree rather than ask Orca ADE for a new one.
+    public func heldWorktree(featureID: Int64, repository: String) throws -> WorktreeRecord? {
+        try read { db in
+            guard
+                let row = try Row.fetchOne(
+                    db,
+                    sql: """
+                    SELECT id FROM worktree
+                    WHERE feature_id = ? AND repository = ? AND released_at IS NULL
+                    ORDER BY id ASC LIMIT 1
+                    """,
+                    arguments: [featureID, repository]
+                )
+            else {
+                return nil
+            }
+            let id: Int64 = row["id"]
+            return try Self.fetchWorktree(db, id: id)
         }
     }
 
@@ -115,7 +175,8 @@ extension JournalStore {
             worktreeID: row["worktree_id"],
             path: row["path"],
             createdAt: try JournalStore.date(row["created_at"], onError: onError),
-            releasedAt: try releasedAtText.map { try JournalStore.date($0, onError: onError) }
+            releasedAt: try releasedAtText.map { try JournalStore.date($0, onError: onError) },
+            pushedCommit: row["pushed_commit"]
         )
     }
 }

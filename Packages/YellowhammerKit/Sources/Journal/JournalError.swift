@@ -35,6 +35,9 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     case worktreeUnknown(id: Int64)
     /// The Worktree was already released.
     case worktreeReleased(id: Int64)
+    /// The Worktree cannot be released because its Feature Branch has not been pushed and that push
+    /// recorded: releasing (and so removing) it earlier would ask Orca ADE to discard unpushed work.
+    case worktreeNotPushed(id: Int64)
     /// The `worktree` row does not decode; the Journal was written by something other than the engine.
     case worktreeUnreadable(id: Int64)
     /// More than one Cycle is open. A Project has one in-flight Feature, so it has one open Cycle;
@@ -127,6 +130,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
             "The Journal has no Worktree with id \(id)"
         case .worktreeReleased(let id):
             "Worktree \(id) was already released"
+        case .worktreeNotPushed(let id):
+            "Worktree \(id) cannot be released: its Feature Branch has not been pushed"
         case .worktreeUnreadable(let id):
             "The Journal's worktree row \(id) cannot be read"
         case .multipleOpenCycles:

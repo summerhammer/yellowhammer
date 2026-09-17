@@ -30,7 +30,8 @@ protocol ActCommand: AsyncParsableCommand {
     func makeInvocation(
         configurationDirectory: URL,
         now: Date,
-        bindBoard: ((Configuration, ProjectConfiguration) throws -> ActBoard)?
+        bindBoard: ((Configuration, ProjectConfiguration) throws -> ActBoard)?,
+        bindWorkspace: (() -> any Workspace)?
     ) throws -> EngineInvocation
 }
 
@@ -42,7 +43,8 @@ extension ActCommand {
     func makeInvocation(
         configurationDirectory: URL,
         now: Date = Date(),
-        bindBoard: ((Configuration, ProjectConfiguration) throws -> ActBoard)? = nil
+        bindBoard: ((Configuration, ProjectConfiguration) throws -> ActBoard)? = nil,
+        bindWorkspace: (() -> any Workspace)? = nil
     ) throws -> EngineInvocation {
         let (configuration, project) = try ProjectResolution.resolve(
             projectArgument: project, configurationDirectory: configurationDirectory
@@ -59,6 +61,7 @@ extension ActCommand {
         let closesNight = Self.act == .land && now >= window.end
 
         let board = try bindBoard?(configuration, project)
+        let workspace = bindWorkspace?()
 
         return EngineInvocation(
             act: Self.act,
@@ -68,7 +71,8 @@ extension ActCommand {
             trigger: trigger,
             closesNight: closesNight,
             board: board,
-            repositories: project.repositories
+            repositories: project.repositories,
+            workspace: workspace
         )
     }
 
@@ -83,7 +87,8 @@ extension ActCommand {
             now: Date(),
             bindBoard: { configuration, project in
                 try BoardBinding.actBoard(machine: configuration.machine, project: project)
-            }
+            },
+            bindWorkspace: { WorkspaceBinding.workspace() }
         )
         try await invocation.run()
     }

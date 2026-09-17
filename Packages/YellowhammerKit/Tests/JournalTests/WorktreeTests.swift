@@ -142,9 +142,10 @@ func twoWorktreesReadBackAndOneReleases() throws {
     #expect(all.map(\.id) == [first.id, second.id])
     #expect(all.allSatisfy { $0.isHeld })
 
-    let released = try journal.releaseWorktree(id: first.id, runID: runID, now: epoch.addingTimeInterval(2))
+    _ = try journal.recordWorktreePush(id: first.id, commit: "abc123", runID: runID, now: epoch.addingTimeInterval(2))
+    let released = try journal.releaseWorktree(id: first.id, runID: runID, now: epoch.addingTimeInterval(3))
     #expect(!released.isHeld)
-    #expect(released.releasedAt == JournalStore.stored(epoch.addingTimeInterval(2)))
+    #expect(released.releasedAt == JournalStore.stored(epoch.addingTimeInterval(3)))
 
     let afterRelease = try journal.worktrees(featureID: featureID)
     #expect(afterRelease.first { $0.id == first.id }?.isHeld == false)
@@ -162,11 +163,105 @@ func releasingReleasedWorktreeThrows() throws {
         featureID: featureID, repository: "backend", worktreeID: "wt-1", path: "/tmp/wt-1",
         runID: runID, now: epoch
     )
-    _ = try journal.releaseWorktree(id: worktree.id, runID: runID, now: epoch.addingTimeInterval(1))
+    _ = try journal.recordWorktreePush(
+        id: worktree.id, commit: "abc123", runID: runID, now: epoch.addingTimeInterval(1)
+    )
+    _ = try journal.releaseWorktree(id: worktree.id, runID: runID, now: epoch.addingTimeInterval(2))
 
     #expect(throws: JournalError.worktreeReleased(id: worktree.id)) {
-        try journal.releaseWorktree(id: worktree.id, runID: runID, now: epoch.addingTimeInterval(2))
+        try journal.releaseWorktree(id: worktree.id, runID: runID, now: epoch.addingTimeInterval(3))
     }
+}
+
+@Test("Releasing an unpushed Worktree throws worktreeNotPushed and leaves it held")
+func releasingUnpushedWorktreeThrows() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let featureID = try insertFixtureFeature(journal, issueID: "FEAT-1")
+    let runID = RunID()
+    try claimLease(journal, runID: runID)
+    let worktree = try journal.recordWorktree(
+        featureID: featureID, repository: "backend", worktreeID: "wt-1", path: "/tmp/wt-1",
+        runID: runID, now: epoch
+    )
+
+    #expect(throws: JournalError.worktreeNotPushed(id: worktree.id)) {
+        try journal.releaseWorktree(id: worktree.id, runID: runID, now: epoch.addingTimeInterval(1))
+    }
+
+    let all = try journal.worktrees(featureID: featureID)
+    #expect(all.first { $0.id == worktree.id }?.isHeld == true)
+}
+
+@Test("recordWorktreePush sets pushedCommit, and releasing after it succeeds")
+func recordWorktreePushThenRelease() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let featureID = try insertFixtureFeature(journal, issueID: "FEAT-1")
+    let runID = RunID()
+    try claimLease(journal, runID: runID)
+    let worktree = try journal.recordWorktree(
+        featureID: featureID, repository: "backend", worktreeID: "wt-1", path: "/tmp/wt-1",
+        runID: runID, now: epoch
+    )
+    #expect(worktree.pushedCommit == nil)
+
+    let pushed = try journal.recordWorktreePush(
+        id: worktree.id, commit: "deadbeef", runID: runID, now: epoch.addingTimeInterval(1)
+    )
+    #expect(pushed.pushedCommit == "deadbeef")
+    #expect(pushed.isHeld)
+
+    let released = try journal.releaseWorktree(id: worktree.id, runID: runID, now: epoch.addingTimeInterval(2))
+    #expect(!released.isHeld)
+    #expect(released.pushedCommit == "deadbeef")
+}
+
+@Test("heldWorktree returns the held Worktree for a Feature's repository, and nil after release")
+func heldWorktreeLookup() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let featureID = try insertFixtureFeature(journal, issueID: "FEAT-1")
+    let runID = RunID()
+    try claimLease(journal, runID: runID)
+
+    #expect(try journal.heldWorktree(featureID: featureID, repository: "backend") == nil)
+
+    let worktree = try journal.recordWorktree(
+        featureID: featureID, repository: "backend", worktreeID: "wt-1", path: "/tmp/wt-1",
+        runID: runID, now: epoch
+    )
+    #expect(try journal.heldWorktree(featureID: featureID, repository: "backend")?.id == worktree.id)
+    #expect(try journal.heldWorktree(featureID: featureID, repository: "spec") == nil)
+
+    _ = try journal.recordWorktreePush(
+        id: worktree.id, commit: "abc123", runID: runID, now: epoch.addingTimeInterval(1)
+    )
+    _ = try journal.releaseWorktree(id: worktree.id, runID: runID, now: epoch.addingTimeInterval(2))
+
+    #expect(try journal.heldWorktree(featureID: featureID, repository: "backend") == nil)
+}
+
+@Test("A v7 database gains pushed_commit when the engine opens it")
+func v7DatabaseGainsPushedCommitColumn() throws {
+    let fixture = try JournalFixture()
+    let fileURL = JournalStore.defaultFileURL(configurationDirectory: fixture.directory, id: fixture.projectID)
+    try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let v7 = try DatabaseQueue(path: fileURL.path)
+    try JournalMigrations.migrator.migrate(v7, upTo: "v7-card-state-version")
+    #expect(try v7.read { try $0.columns(in: "worktree") }.map(\.name).contains("pushed_commit") == false)
+
+    let journal = try fixture.open()
+
+    #expect(try journal.appliedMigrations().last == "v8-worktree-pushed-commit")
+    let featureID = try insertFixtureFeature(journal, issueID: "FEAT-1")
+    let runID = RunID()
+    try claimLease(journal, runID: runID)
+    let worktree = try journal.recordWorktree(
+        featureID: featureID, repository: "backend", worktreeID: "wt-1", path: "/tmp/wt-1",
+        runID: runID, now: epoch
+    )
+    #expect(worktree.pushedCommit == nil)
 }
 
 @Test("An unknown Feature id throws featureUnknown; an unknown Worktree id throws worktreeUnknown")
