@@ -67,4 +67,26 @@ struct GitFixture: ~Copyable {
         let sha = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         return sha.isEmpty ? nil : sha
     }
+
+    /// Writes a file without staging or committing it, for exercising dirty-worktree behavior.
+    func writeFile(filename: String, content: String) throws {
+        let fileURL = url.appendingPathComponent(filename)
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try content.write(to: fileURL, atomically: true, encoding: .utf8)
+    }
+
+    /// Installs an executable `hooks/<name>` script in a bare repository, such as `pre-receive`,
+    /// to exercise a rejected push.
+    func installHook(named name: String, script: String) throws {
+        let hookURL = url.appendingPathComponent("hooks").appendingPathComponent(name)
+        try FileManager.default.createDirectory(
+            at: hookURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try script.write(to: hookURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: hookURL.path)
+    }
 }
