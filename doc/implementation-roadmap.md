@@ -725,7 +725,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Probes run on the developer machine for `claude` and `codex` and write Ledger rows.
   A deliberately broken adapter stub is excluded from routing with a reason.
 
-### [ ] P7.5 `[DevOps]` Scheduled probe drift check
+### [x] P7.5 `[DevOps]` Scheduled probe drift check
 - **Work**
   - A CI job (on a self-hosted Apple Silicon runner with the CLIs installed and authenticated, or a
     documented manual release-checklist step if no such runner exists) that re-runs every Probe

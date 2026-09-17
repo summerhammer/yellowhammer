@@ -1136,8 +1136,8 @@ Medium.</li>
 <li><strong>Done when</strong> — Fixture repositories with and without
 the branch merged give the right verdict, with no network access.</li>
 </ul>
-<h3 id="p6.3-merge-test-mainline-conflict-detection">[ ] P6.3 Merge test
-(Mainline Conflict detection)</h3>
+<h3 id="x-p6.3-merge-test-mainline-conflict-detection">[x] P6.3 Merge
+test (Mainline Conflict detection)</h3>
 <ul>
 <li><strong>Work</strong> — Test-merge a Feature Branch against mainline
 without touching any working tree, writing any commit or contacting
@@ -1150,7 +1150,7 @@ Mainline Conflict.</li>
 has not moved give the right verdict. The working tree and refs are
 unchanged afterwards.</li>
 </ul>
-<h3 id="p6.4-path-scoped-provenance-diff">[ ] P6.4 Path-scoped
+<h3 id="x-p6.4-path-scoped-provenance-diff">[x] P6.4 Path-scoped
 provenance diff</h3>
 <ul>
 <li><strong>Work</strong> — For a recorded (repo, paths, commit),
@@ -1165,8 +1165,8 @@ Medium.</li>
 <li><strong>Done when</strong> — Fixture repos cover touched, untouched
 and renamed-path cases, with no network.</li>
 </ul>
-<h3 id="x-p6.5-mainline-read-for-transcription-and-specification">[x] P6.5
-Mainline read for transcription and specification</h3>
+<h3 id="x-p6.5-mainline-read-for-transcription-and-specification">[x]
+P6.5 Mainline read for transcription and specification</h3>
 <ul>
 <li><strong>Work</strong>
 <ul>
@@ -1190,7 +1190,7 @@ Medium.</li>
 reject missing ones, and a path in another Project’s repo is
 refused.</li>
 </ul>
-<h3 id="p6.6-local-commit-wip-and-push-operations">[ ] P6.6 Local
+<h3 id="x-p6.6-local-commit-wip-and-push-operations">[x] P6.6 Local
 commit, WIP and push operations</h3>
 <ul>
 <li><strong>Work</strong>
@@ -1213,7 +1213,7 @@ system-overview → Engine → GitHub; risks.md OQ45.</li>
 idempotency, reset, and each push outcome (push itself is not asserted
 in rehearsal).</li>
 </ul>
-<h3 id="p6.7-workspace-adapter-orca-ade-worktrees">[ ] P6.7 Workspace
+<h3 id="x-p6.7-workspace-adapter-orca-ade-worktrees">[x] P6.7 Workspace
 adapter: Orca ADE worktrees</h3>
 <ul>
 <li><strong>Work</strong>
@@ -1237,7 +1237,8 @@ feasibility probes → Orca ADE; risks.md OQ57.</li>
 fixture Feature holds three Worktrees whose names match their Feature
 Branches.</li>
 </ul>
-<h3 id="p6.8-process-fencing-sweep">[ ] P6.8 Process fencing sweep</h3>
+<h3 id="x-p6.8-process-fencing-sweep">[x] P6.8 Process fencing
+sweep</h3>
 <ul>
 <li><strong>Work</strong> — Find every process holding an open file or a
 working directory inside a Worktree path. Kill each one with
@@ -1251,7 +1252,7 @@ inspects, commits or resets the Worktree.</li>
 fixture Worktree is terminated, and reconciliation waits for
 quiescence.</li>
 </ul>
-<h3 id="p6.9-worktree-reconciliation-at-build-act-start">[ ] P6.9
+<h3 id="x-p6.9-worktree-reconciliation-at-build-act-start">[x] P6.9
 Worktree reconciliation at build Act start</h3>
 <ul>
 <li><strong>Work</strong> — In order, for <strong>every</strong> path in
@@ -1279,7 +1280,7 @@ dirty worktree, a sibling Project’s worktree, and idempotency.</li>
 </ul>
 <hr />
 <h2 id="phase-7-dispatch-routing">Phase 7 — Dispatch &amp; Routing</h2>
-<h3 id="p7.1-result-schema-and-instruction-contract">[ ] P7.1 Result
+<h3 id="x-p7.1-result-schema-and-instruction-contract">[x] P7.1 Result
 schema and instruction contract</h3>
 <ul>
 <li><strong>Work</strong>
@@ -1302,7 +1303,7 @@ payload); routing/overview (the CLI owns execution).</li>
 <li><strong>Done when</strong> — Schemas validate the fixture files. An
 empty or malformed file fails validation.</li>
 </ul>
-<h3 id="p7.2-process-lifecycle-for-agent-cli-runs">[ ] P7.2 Process
+<h3 id="x-p7.2-process-lifecycle-for-agent-cli-runs">[x] P7.2 Process
 lifecycle for agent CLI runs</h3>
 <ul>
 <li><strong>Work</strong>
@@ -1329,7 +1330,7 @@ clean exit, exit 0 with empty file, <code>SIGTERM</code> and
 Crash/kill behaviour of a real CLI is exercised by the Probe (P7.4), not
 asserted in rehearsal.</li>
 </ul>
-<h3 id="p7.3-cli-adapters-claude-and-codex">[ ] P7.3 CLI Adapters:
+<h3 id="x-p7.3-cli-adapters-claude-and-codex">[x] P7.3 CLI Adapters:
 <code>claude</code> and <code>codex</code></h3>
 <ul>
 <li><strong>Work</strong> — One adapter per CLI, each defining:
@@ -1347,7 +1348,7 @@ feasibility probes → Agent CLIs.</li>
 <li><strong>Done when</strong> — Each adapter passes its Probe (P7.4) on
 a developer machine.</li>
 </ul>
-<h3 id="p7.4-probes-and-probe-results">[ ] P7.4 Probes and Probe
+<h3 id="x-p7.4-probes-and-probe-results">[x] P7.4 Probes and Probe
 Results</h3>
 <ul>
 <li><strong>Work</strong> — A Probe per adapter that checks, and records
@@ -1375,7 +1376,7 @@ ADR-003; risks.md OQ48.</li>
 deliberately broken adapter stub is excluded from routing with a
 reason.</li>
 </ul>
-<h3 id="p7.5-devops-scheduled-probe-drift-check">[ ] P7.5
+<h3 id="x-p7.5-devops-scheduled-probe-drift-check">[x] P7.5
 <code>[DevOps]</code> Scheduled probe drift check</h3>
 <ul>
 <li><strong>Work</strong>
