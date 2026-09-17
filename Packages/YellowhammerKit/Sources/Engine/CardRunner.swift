@@ -5,7 +5,10 @@ import Journal
 /// P8.4, a later phase). A throw is an engine fault that stops the lane; Card-level outcomes (Blocked,
 /// Waiting on You, Rounds, Attempts) are the runner's to record in the Journal and never thrown.
 public protocol CardRunner: Sendable {
-    func run(card: CardRecord, in lane: RepoLane, context: BuildActContext) async throws
+    /// `readiness` is what the Readiness Check (P8.2) found Ready for this Card: its brief and its
+    /// Definition of Done. A `BuildAct` given no `readiness: ReadinessCheck?` (the unchecked path used
+    /// only by tests that predate P8.2) passes an empty `CardReadiness` here instead of running the check.
+    func run(card: CardRecord, in lane: RepoLane, context: BuildActContext, readiness: CardReadiness) async throws
 }
 
 /// Everything a ``CardRunner`` needs for one Card: the Act it is running under, the in-flight Feature

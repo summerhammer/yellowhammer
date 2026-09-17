@@ -63,6 +63,9 @@ enum JournalMigrations {
         migrator.registerMigration("v11-feature-branch") { db in
             try addFeatureBranchColumn(db)
         }
+        migrator.registerMigration("v12-readiness-check") { db in
+            try addReadinessCheckTables(db)
+        }
         return migrator
     }
 }

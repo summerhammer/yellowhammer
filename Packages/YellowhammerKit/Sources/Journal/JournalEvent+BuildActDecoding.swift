@@ -24,7 +24,8 @@ extension JournalEvent {
         .repoLaneEnded(
             repository: try reader.require("repository"),
             cardsRun: try reader.int("cards_run"),
-            failure: reader.payload?["failure"]
+            failure: reader.payload?["failure"],
+            cardsSkipped: reader.payload?["cards_skipped"].flatMap(Int.init) ?? 0
         )
     }
 }

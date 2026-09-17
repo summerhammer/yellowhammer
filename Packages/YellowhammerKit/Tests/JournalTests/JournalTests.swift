@@ -144,6 +144,7 @@ let project2 = try #require(ProjectID(rawValue: "project-2"))
         let tables = try journal.tableNames()
         let expected = [
             "act_lease",
+            "architectural_brief",
             "attempt",
             "banked_reply",
             "banked_reply_mainline",

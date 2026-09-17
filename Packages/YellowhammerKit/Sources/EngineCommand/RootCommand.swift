@@ -4,6 +4,7 @@ import Domain
 import Engine
 import Foundation
 import Journal
+import Repositories
 
 public struct RootCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
@@ -89,7 +90,14 @@ extension ActCommand {
             board: board,
             repositories: project.repositories,
             workspace: workspace,
-            work: BuildAct(cardRunner: DispatchPendingCardRunner()).work
+            work: BuildAct(
+                cardRunner: DispatchPendingCardRunner(),
+                // Open until P11: the Operator's board identity is not wired anywhere yet; Waiting on
+                // You assignment on a Divergence needs it.
+                readiness: ReadinessCheck(
+                    provenance: ProvenanceDiffTester(), citations: MainlineReader(), operator: nil
+                )
+            ).work
         )
     }
 

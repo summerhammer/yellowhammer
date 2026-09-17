@@ -39,7 +39,8 @@ func actLeaseMigrationIsSecond() throws {
         JournalStore.migrationIdentifiers == [
             "v1-initial-schema", "v2-act-lease", "v3-night-close-reason", "v4-outbox-delivery",
             "v5-delta-read", "v6-night-verdict", "v7-card-state-version", "v8-worktree-pushed-commit",
-            "v9-worktree-reconciliation", "v10-attempt-route-provenance", "v11-feature-branch"
+            "v9-worktree-reconciliation", "v10-attempt-route-provenance", "v11-feature-branch",
+            "v12-readiness-check"
         ]
     )
 }
@@ -58,7 +59,8 @@ func v1JournalMigratesForwardToActLease() throws {
     #expect(try journal.appliedMigrations() == [
         "v1-initial-schema", "v2-act-lease", "v3-night-close-reason", "v4-outbox-delivery",
         "v5-delta-read", "v6-night-verdict", "v7-card-state-version", "v8-worktree-pushed-commit",
-        "v9-worktree-reconciliation", "v10-attempt-route-provenance", "v11-feature-branch"
+        "v9-worktree-reconciliation", "v10-attempt-route-provenance", "v11-feature-branch",
+            "v12-readiness-check"
     ])
     #expect(try journal.tableNames().contains("act_lease"))
 }

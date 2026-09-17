@@ -27,6 +27,9 @@ public struct ActContext: Sendable {
     /// The Workspace Port, when this invocation was given one. The Engine never imports an adapter
     /// (MB1); `EngineCommand` is the one place this is wired.
     public let workspace: (any Workspace)?
+    /// The Project's configured repositories, when provided — the Readiness Check's provenance and
+    /// citation resolution need these to test a Transcription Block or resolve a Spec Citation.
+    public let repositories: ProjectRepositories?
 
     public init(
         act: Act,
@@ -39,7 +42,8 @@ public struct ActContext: Sendable {
         nightCard: NightCardMaintenance? = nil,
         board: ActBoard? = nil,
         mainlines: ResolvedMainlines = ResolvedMainlines(),
-        workspace: (any Workspace)? = nil
+        workspace: (any Workspace)? = nil,
+        repositories: ProjectRepositories? = nil
     ) {
         self.act = act
         self.mode = mode
@@ -52,6 +56,7 @@ public struct ActContext: Sendable {
         self.board = board
         self.mainlines = mainlines
         self.workspace = workspace
+        self.repositories = repositories
     }
 }
 
@@ -236,7 +241,7 @@ public struct EngineInvocation: Sendable {
                 let context = ActContext(
                     act: act, mode: mode, trigger: trigger, runID: runID, journal: journal, night: night,
                     outbox: outbox, nightCard: nightCard, board: board, mainlines: resolvedMainlines,
-                    workspace: workspace
+                    workspace: workspace, repositories: repositories
                 )
                 try await withLeaseHeartbeat(
                     every: leasePolicy.heartbeatDuration,

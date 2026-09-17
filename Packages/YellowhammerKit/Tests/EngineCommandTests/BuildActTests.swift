@@ -43,7 +43,7 @@ final class RecordingCardRunner: CardRunner, Sendable {
 
     var seen: [(repository: String, issueID: String)] { state.withLock { $0.seen } }
 
-    func run(card: CardRecord, in lane: RepoLane, context: BuildActContext) async throws {
+    func run(card: CardRecord, in lane: RepoLane, context: BuildActContext, readiness: CardReadiness) async throws {
         state.withLock { $0.seen.append((lane.repository, card.issueID)) }
         if state.withLock({ $0.throwing.contains(lane.repository) }) {
             throw BuildActTestRunnerError()
@@ -174,9 +174,9 @@ struct BuildActTests {
         #expect(recorder.seen.map(\.issueID) == ["BACK-1", "BACK-2"])
 
         guard let mobileEnded = events.first(where: {
-            if case .repoLaneEnded(let repository, _, _) = $0.event { return repository == "mobile" }
+            if case .repoLaneEnded(let repository, _, _, _) = $0.event { return repository == "mobile" }
             return false
-        })?.event, case .repoLaneEnded(_, let mobileCardsRun, _) = mobileEnded else {
+        })?.event, case .repoLaneEnded(_, let mobileCardsRun, _, _) = mobileEnded else {
             Issue.record("expected repoLaneEnded for mobile")
             return
         }
@@ -264,11 +264,11 @@ struct BuildActTests {
 
         #expect(recorder.seen.contains { $0.issueID == "BACK-1" })
         let mobileEndedEvents = try journal.events(ofType: .repoLaneEnded).filter {
-            if case .repoLaneEnded(let repository, _, _) = $0.event { return repository == "mobile" }
+            if case .repoLaneEnded(let repository, _, _, _) = $0.event { return repository == "mobile" }
             return false
         }
         #expect(mobileEndedEvents.count == 1)
-        guard case .repoLaneEnded(_, let cardsRun, let failure) = mobileEndedEvents[0].event else {
+        guard case .repoLaneEnded(_, let cardsRun, let failure, _) = mobileEndedEvents[0].event else {
             Issue.record("expected repoLaneEnded")
             return
         }

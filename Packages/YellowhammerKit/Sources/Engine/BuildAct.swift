@@ -21,9 +21,14 @@ import Journal
 /// because `EngineInvocation` only guards this when the trigger is not forced.
 public struct BuildAct: Sendable {
     public let cardRunner: any CardRunner
+    /// The Readiness Check run before each Card is dispatched (P8.2); nil keeps the lane's pre-P8.2
+    /// behaviour of dispatching every runnable Card unchecked, which is what tests that predate P8.2
+    /// still exercise.
+    public let readiness: ReadinessCheck?
 
-    public init(cardRunner: any CardRunner) {
+    public init(cardRunner: any CardRunner, readiness: ReadinessCheck? = nil) {
         self.cardRunner = cardRunner
+        self.readiness = readiness
     }
 
     public var work: EngineInvocation.ActWork {
@@ -161,10 +166,23 @@ public struct BuildAct: Sendable {
         )
 
         var cardsRun = 0
+        var cardsSkipped = 0
         var failure: String?
         for card in runnable {
             do {
-                try await cardRunner.run(card: card, in: lane, context: context)
+                let cardReadiness: CardReadiness
+                if let readiness {
+                    switch try await readiness.evaluate(card: card, context: context) {
+                    case .ready(let ready):
+                        cardReadiness = ready
+                    case .notReady, .diverged:
+                        cardsSkipped += 1
+                        continue
+                    }
+                } else {
+                    cardReadiness = CardReadiness(brief: ArchitecturalBrief(prose: "", transcriptions: []), clauses: [])
+                }
+                try await cardRunner.run(card: card, in: lane, context: context, readiness: cardReadiness)
                 cardsRun += 1
             } catch {
                 failure = String(describing: error)
@@ -173,7 +191,9 @@ public struct BuildAct: Sendable {
         }
 
         _ = try? actContext.journal.append(
-            .repoLaneEnded(repository: lane.repository, cardsRun: cardsRun, failure: failure),
+            .repoLaneEnded(
+                repository: lane.repository, cardsRun: cardsRun, failure: failure, cardsSkipped: cardsSkipped
+            ),
             act: actContext.act, runID: actContext.runID, nightID: actContext.night.id
         )
         return (lane.repository, failure)
