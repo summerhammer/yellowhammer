@@ -247,6 +247,23 @@ struct AgentCLIProcessTests {
         #expect(logContents.contains("err"))
     }
 
+    @Test("standardOutput, when set, receives stdout only; outputLog receives stderr only")
+    func standardOutputSplitsStdoutFromStderr() async throws {
+        let fixture = try StubAgentCLI.makeFixture(script: StubAgentCLI.writesStdoutAndStderr)
+        defer { fixture.cleanUp() }
+        let outputLog = fixture.tempDir.appendingPathComponent("stderr.log")
+        let standardOutput = fixture.tempDir.appendingPathComponent("stdout.log")
+
+        _ = try await AgentCLIProcess().run(fixture.launch(outputLog: outputLog, standardOutput: standardOutput))
+
+        let stdoutContents = try String(contentsOf: standardOutput, encoding: .utf8)
+        let stderrContents = try String(contentsOf: outputLog, encoding: .utf8)
+        #expect(stdoutContents.contains("out"))
+        #expect(!stdoutContents.contains("err"))
+        #expect(stderrContents.contains("err"))
+        #expect(!stderrContents.contains("out"))
+    }
+
     // MARK: - Helpers
 
     private static func realResolve(_ path: String) -> String {

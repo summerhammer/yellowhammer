@@ -135,7 +135,12 @@ enum StubAgentCLI {
         let resultFile: URL
         let scriptPath: URL
 
-        func launch(timeout: Duration = .seconds(5), outputLog: URL? = nil, pass: RunPass = .worker) -> AgentCLILaunch {
+        func launch(
+            timeout: Duration = .seconds(5),
+            outputLog: URL? = nil,
+            standardOutput: URL? = nil,
+            pass: RunPass = .worker
+        ) -> AgentCLILaunch {
             AgentCLILaunch(
                 executable: scriptPath.path,
                 arguments: [resultFile.path, scratch.path],
@@ -144,7 +149,8 @@ enum StubAgentCLI {
                 resultFile: resultFile,
                 pass: pass,
                 timeout: timeout,
-                outputLog: outputLog
+                outputLog: outputLog,
+                standardOutput: standardOutput
             )
         }
 
