@@ -750,7 +750,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Rehearsal-assertable tests cover each precedence rule, fallback walk, probe
   exclusion and the zero-candidate block.
 
-### [ ] P7.7 Route exclusion on retry
+### [x] P7.7 Route exclusion on retry
 - **Work**
   - After a capability failure, exclude every route already tried for the Card in its budget epoch.
     The set is held in the Journal.
