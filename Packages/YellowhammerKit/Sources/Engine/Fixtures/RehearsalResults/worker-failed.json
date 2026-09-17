@@ -1,0 +1,6 @@
+{
+  "schema": "yellowhammer.result.worker",
+  "version": 1,
+  "outcome": "failed",
+  "reason": "The Check command failed three times in a row and no further edit made it pass."
+}

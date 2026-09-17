@@ -57,7 +57,8 @@ let package = Package(
         ),
         .target(
             name: "Engine",
-            dependencies: ["Domain", "Journal", "Repositories"]
+            dependencies: ["Domain", "Journal", "Repositories"],
+            resources: [.copy("Fixtures")]
         ),
         .target(
             name: "LinearAdapter",

@@ -1,0 +1,10 @@
+{
+  "schema": "yellowhammer.result.architect",
+  "version": 1,
+  "outcome": "planned",
+  "plan": "Add a `RunPass`-tagged result envelope and decode it against the forced JSON schema.",
+  "affected_paths": [
+    "Sources/Domain/DispatchResult.swift",
+    "Sources/Domain/ResultFile.swift"
+  ]
+}
