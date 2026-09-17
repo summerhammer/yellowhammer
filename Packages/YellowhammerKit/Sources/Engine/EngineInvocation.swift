@@ -21,6 +21,9 @@ public struct ActContext: Sendable {
     public let nightCard: NightCardMaintenance?
     /// Resolved mainlines for this Project's repositories.
     public let mainlines: ResolvedMainlines
+    /// The Workspace Port, when this invocation was given one. The Engine never imports an adapter
+    /// (MB1); `EngineCommand` is the one place this is wired.
+    public let workspace: (any Workspace)?
 
     public init(
         act: Act,
@@ -31,7 +34,8 @@ public struct ActContext: Sendable {
         night: NightRecord,
         outbox: Outbox? = nil,
         nightCard: NightCardMaintenance? = nil,
-        mainlines: ResolvedMainlines = ResolvedMainlines()
+        mainlines: ResolvedMainlines = ResolvedMainlines(),
+        workspace: (any Workspace)? = nil
     ) {
         self.act = act
         self.mode = mode
@@ -42,6 +46,7 @@ public struct ActContext: Sendable {
         self.outbox = outbox
         self.nightCard = nightCard
         self.mainlines = mainlines
+        self.workspace = workspace
     }
 }
 
@@ -73,6 +78,9 @@ public struct EngineInvocation: Sendable {
     /// The Project's configured repositories, when provided.
     public let repositories: ProjectRepositories?
     public let mainlineRefresher: MainlineRefresher
+    /// The Workspace Port, when this invocation maintains Worktrees. The Engine never imports an
+    /// adapter (MB1/MB5); `EngineCommand` is the one place this is wired.
+    public let workspace: (any Workspace)?
     private let journal: JournalStore
     private let work: ActWork
 
@@ -87,7 +95,8 @@ public struct EngineInvocation: Sendable {
         leasePolicy: LeasePolicy = .ruled,
         board: ActBoard? = nil,
         repositories: ProjectRepositories? = nil,
-        mainlineRefresher: MainlineRefresher = MainlineRefresher()
+        mainlineRefresher: MainlineRefresher = MainlineRefresher(),
+        workspace: (any Workspace)? = nil
     ) {
         self.act = act
         self.mode = mode
@@ -100,6 +109,7 @@ public struct EngineInvocation: Sendable {
         self.board = board
         self.repositories = repositories
         self.mainlineRefresher = mainlineRefresher
+        self.workspace = workspace
         self.work = { _ in throw EngineInvocationError.notImplemented(act) }
     }
 
@@ -118,6 +128,7 @@ public struct EngineInvocation: Sendable {
         board: ActBoard? = nil,
         repositories: ProjectRepositories? = nil,
         mainlineRefresher: MainlineRefresher = MainlineRefresher(),
+        workspace: (any Workspace)? = nil,
         work: @escaping ActWork
     ) {
         self.act = act
@@ -131,6 +142,7 @@ public struct EngineInvocation: Sendable {
         self.board = board
         self.repositories = repositories
         self.mainlineRefresher = mainlineRefresher
+        self.workspace = workspace
         self.work = work
     }
 
@@ -217,7 +229,7 @@ public struct EngineInvocation: Sendable {
             case .met:
                 let context = ActContext(
                     act: act, mode: mode, trigger: trigger, runID: runID, journal: journal, night: night,
-                    outbox: outbox, nightCard: nightCard, mainlines: resolvedMainlines
+                    outbox: outbox, nightCard: nightCard, mainlines: resolvedMainlines, workspace: workspace
                 )
                 try await withLeaseHeartbeat(
                     every: leasePolicy.heartbeatDuration,

@@ -51,6 +51,9 @@ enum JournalMigrations {
         migrator.registerMigration("v7-card-state-version") { db in
             try addCardStateVersions(db)
         }
+        migrator.registerMigration("v8-worktree-pushed-commit") { db in
+            try addWorktreePushedCommit(db)
+        }
         return migrator
     }
 }
