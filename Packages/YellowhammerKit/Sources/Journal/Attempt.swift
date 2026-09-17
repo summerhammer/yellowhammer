@@ -26,6 +26,12 @@ public struct AttemptRecord: Equatable, Sendable {
     public let result: String?
     public let consumedHow: String?
     public let checkDeclaredNone: Bool
+    /// How this Attempt's Route was selected: `entry`, `fallback:<n>` or `override`; nil for an
+    /// Attempt recorded before P7.7, or through the untyped ``JournalStore/recordAttempt`` overload.
+    public let routeSource: String?
+    /// The Override pinned in triage at the moment this Attempt was recorded (`Override.description`),
+    /// or nil when none was pinned (routing/exclude-tried-routes-on-retry, P7.7).
+    public let overridePin: String?
     public let startedAt: Date
     public let endedAt: Date?
     public let rounds: [RoundRecord]
@@ -62,48 +68,86 @@ public struct AttemptHistory: Equatable, Sendable {
     public var openAttempt: AttemptRecord? {
         attempts.first { $0.isOpen }
     }
+
+    /// One Attempt after another in the same budget epoch, and whether it landed on a Route no
+    /// earlier Attempt in that epoch had tried (routing/exclude-tried-routes-on-retry; reported by
+    /// the Night Summary).
+    public struct Retry: Equatable, Sendable {
+        public let attemptID: Int64
+        public let route: Route
+        public let differentRoute: Bool
+    }
+
+    /// Every Attempt after the first of its budget epoch, in `attempt.id` order.
+    public var retries: [Retry] {
+        var seenByEpoch: [Int: Set<Route>] = [:]
+        var retries: [Retry] = []
+        for attempt in attempts {
+            var seen = seenByEpoch[attempt.budgetEpoch] ?? []
+            if !seen.isEmpty {
+                retries.append(
+                    Retry(attemptID: attempt.id, route: attempt.route, differentRoute: !seen.contains(attempt.route))
+                )
+            }
+            seen.insert(attempt.route)
+            seenByEpoch[attempt.budgetEpoch] = seen
+        }
+        return retries
+    }
 }
 
 extension JournalStore {
     /// Records a new Attempt: one dispatch of `cardID` to `route`. One write transaction, revalidating
     /// the Act-scoped lease before writing, exactly as every Journal write does. The Card's current
     /// `budget_epoch` is copied onto the Attempt at the moment it starts.
+    ///
+    /// When the Card already has at least one Attempt in the same budget epoch, this Attempt is a
+    /// retry: `.routeRetried` is appended in the same transaction, `differentRoute` true iff `route`
+    /// differs from every Route of the epoch's earlier Attempts (routing/exclude-tried-routes-on-retry,
+    /// P7.7). The first Attempt of an epoch appends nothing.
     @discardableResult
     public func recordAttempt(
         cardID: Int64,
         route: Route,
         checkDeclaredNone: Bool = false,
+        routeSource: String? = nil,
+        override: Override = .none,
         runID: RunID,
+        act: Act? = nil,
+        nightID: Int64? = nil,
         now: Date = Date()
     ) throws -> AttemptRecord {
-        try write { db in
+        let overridePin = override.isEmpty ? nil : override.description
+        return try write { db in
             _ = try Self.revalidateActLease(db, runID: runID, now: now)
 
-            guard let budgetEpoch = try Int.fetchOne(
-                db, sql: "SELECT budget_epoch FROM card WHERE id = ?", arguments: [cardID]
-            ) else {
-                throw JournalError.cardUnknown(cardID: cardID)
-            }
-
-            if let openRow = try Row.fetchOne(
-                db, sql: "SELECT id FROM attempt WHERE card_id = ? AND ended_at IS NULL", arguments: [cardID]
-            ) {
-                throw JournalError.attemptStillOpen(cardID: cardID, attemptID: openRow["id"])
-            }
+            let (budgetEpoch, issueID) = try Self.beginAttempt(db, cardID: cardID)
+            let priorRoutes = try Self.routesTried(db, cardID: cardID, budgetEpoch: budgetEpoch)
 
             let startedAt = JournalStore.stored(now)
             try db.execute(
                 sql: """
-                INSERT INTO attempt (card_id, budget_epoch, route_cli, route_model, route_effort, \
-                check_declared_none, started_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO attempt (
+                    card_id, budget_epoch, route_cli, route_model, route_effort, check_declared_none,
+                    route_source, override_pin, started_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 arguments: [
                     cardID, budgetEpoch, route.cli, route.model, route.effort, checkDeclaredNone ? 1 : 0,
-                    JournalStore.timestamp(startedAt)
+                    routeSource, overridePin, JournalStore.timestamp(startedAt)
                 ]
             )
             let attemptID = db.lastInsertedRowID
+
+            if !priorRoutes.isEmpty {
+                let stamp = EventStamp(act: act, runID: runID, nightID: nightID, now: now)
+                let event = JournalEvent.routeRetried(
+                    cardID: cardID, issueID: issueID, attemptID: attemptID, route: route,
+                    differentRoute: !priorRoutes.contains(route)
+                )
+                _ = try Self.insertEvent(db, event, stamp: stamp)
+            }
 
             return AttemptRecord(
                 id: attemptID,
@@ -114,11 +158,44 @@ extension JournalStore {
                 result: nil,
                 consumedHow: nil,
                 checkDeclaredNone: checkDeclaredNone,
+                routeSource: routeSource,
+                overridePin: overridePin,
                 startedAt: startedAt,
                 endedAt: nil,
                 rounds: []
             )
         }
+    }
+
+    /// The Card's current budget epoch and issue id, read fresh inside the caller's write transaction.
+    /// Throws `cardUnknown` when the Card does not exist, `attemptStillOpen` when it already has an
+    /// open Attempt — a Card is dispatched once at a time.
+    private static func beginAttempt(_ db: Database, cardID: Int64) throws -> (budgetEpoch: Int, issueID: String) {
+        guard let cardRow = try Row.fetchOne(
+            db, sql: "SELECT budget_epoch, issue_id FROM card WHERE id = ?", arguments: [cardID]
+        ) else {
+            throw JournalError.cardUnknown(cardID: cardID)
+        }
+        if let openRow = try Row.fetchOne(
+            db, sql: "SELECT id FROM attempt WHERE card_id = ? AND ended_at IS NULL", arguments: [cardID]
+        ) {
+            throw JournalError.attemptStillOpen(cardID: cardID, attemptID: openRow["id"])
+        }
+        return (cardRow["budget_epoch"], cardRow["issue_id"])
+    }
+
+    /// Every Route an Attempt of `cardID` has already run on in `budgetEpoch`, read fresh inside the
+    /// caller's write transaction.
+    private static func routesTried(_ db: Database, cardID: Int64, budgetEpoch: Int) throws -> Set<Route> {
+        try Set(
+            Row.fetchAll(
+                db,
+                sql: "SELECT route_cli, route_model, route_effort FROM attempt WHERE card_id = ? AND budget_epoch = ?",
+                arguments: [cardID, budgetEpoch]
+            ).compactMap { row in
+                Route(cli: row["route_cli"], model: row["route_model"], effort: row["route_effort"])
+            }
+        )
     }
 
     /// Records a Round of judgement over `attemptID`'s work. One write transaction, revalidating the
@@ -164,6 +241,8 @@ extension JournalStore {
 
     /// Ends `attemptID` with a `result`. `result`, `classification` and `consumedHow` stay plain
     /// strings here: their vocabularies belong to a later phase, so this only stores what it is given.
+    /// ``JournalStore/endAttempt(attemptID:ending:runID:act:nightID:now:)`` is the engine's path: it
+    /// carries the typed vocabulary and writes the route-exclusion consequence this overload does not.
     @discardableResult
     public func endAttempt(
         attemptID: Int64,
@@ -233,7 +312,7 @@ extension JournalStore {
     }
 
     /// Throws unless `attemptID` exists and is open.
-    private static func requireOpenAttempt(_ db: Database, attemptID: Int64) throws {
+    static func requireOpenAttempt(_ db: Database, attemptID: Int64) throws {
         guard let row = try Row.fetchOne(
             db, sql: "SELECT ended_at FROM attempt WHERE id = ?", arguments: [attemptID]
         ) else {
@@ -246,7 +325,7 @@ extension JournalStore {
     }
 
     /// Fetches one Attempt with its Rounds, in `round.id` order. `nil` if it does not exist.
-    private static func fetchAttempt(_ db: Database, attemptID: Int64) throws -> AttemptRecord? {
+    static func fetchAttempt(_ db: Database, attemptID: Int64) throws -> AttemptRecord? {
         guard let row = try Row.fetchOne(db, sql: "SELECT * FROM attempt WHERE id = ?", arguments: [attemptID])
         else {
             return nil
@@ -291,6 +370,8 @@ extension JournalStore {
             result: row["result"],
             consumedHow: row["consumed_how"],
             checkDeclaredNone: ((row["check_declared_none"] as Int?) ?? 0) != 0,
+            routeSource: row["route_source"],
+            overridePin: row["override_pin"],
             startedAt: try JournalStore.date(row["started_at"], onError: onError),
             endedAt: endedAt,
             rounds: rounds

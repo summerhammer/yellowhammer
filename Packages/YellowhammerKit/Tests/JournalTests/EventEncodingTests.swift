@@ -37,7 +37,8 @@ func eventTypeRawValues() {
         "CardCancelled", "CardReopened", "CardRestated", "CardRemovedFromBoard",
         "AuthoringInvariantBroken", "DeltaReadCompleted", "CardStateTransitioned", "WaitingOnYouUnbacked",
         "WorktreeLost", "WorktreeFenced", "WorktreeNotQuiescent", "WorktreeWIPCommitted",
-        "WorktreeReconciliationFailed", "RouteExhausted", "OverrideRefused"
+        "WorktreeReconciliationFailed", "RouteExhausted", "OverrideRefused",
+        "AttemptEnded", "RouteRetried", "BudgetEpochReset"
     ]
     let actual = JournalEventType.allCases.map { $0.rawValue }.sorted()
     #expect(actual == expected.sorted())
@@ -524,3 +525,6 @@ func overrideRefusedRoundTrips() throws {
     #expect(records.count == 1)
     #expect(records[0].event == .overrideRefused(cardID: 7, issueID: "ENG-7", reason: reason))
 }
+
+// attemptEnded, routeRetried and budgetEpochReset round-trips are covered in
+// RouteRetryEventEncodingTests.swift, split out to keep this file under the length limit.

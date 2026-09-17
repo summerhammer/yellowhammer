@@ -27,13 +27,13 @@ private struct JournalFixture: ~Copyable {
 private let epoch = Date(timeIntervalSince1970: 1_800_000_000)
 private let nightStart = NightStart(rawValue: "2026-09-15")!
 
-@Test("Migration identifiers end at v9-worktree-reconciliation")
+@Test("Migration identifiers end at v10-attempt-route-provenance")
 func migrationIdentifiersIncludeV6() throws {
     #expect(
         JournalStore.migrationIdentifiers == [
             "v1-initial-schema", "v2-act-lease", "v3-night-close-reason", "v4-outbox-delivery",
             "v5-delta-read", "v6-night-verdict", "v7-card-state-version", "v8-worktree-pushed-commit",
-            "v9-worktree-reconciliation"
+            "v9-worktree-reconciliation", "v10-attempt-route-provenance"
         ]
     )
 }

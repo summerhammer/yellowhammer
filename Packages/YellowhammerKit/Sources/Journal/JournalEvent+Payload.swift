@@ -169,6 +169,23 @@ extension JournalEvent {
         case .routeExhausted(let cardID, let issueID, let reason),
              .overrideRefused(let cardID, let issueID, let reason):
             ["card_id": String(cardID), "issue_id": issueID, "reason": reason]
+        case .attemptEnded(let cardID, let issueID, let attemptID, let route, let outcome, let routeExcluded):
+            [
+                "attempt_id": String(attemptID), "card_id": String(cardID), "issue_id": issueID,
+                "outcome": outcome, "route_cli": route.cli, "route_effort": route.effort,
+                "route_excluded": routeExcluded ? "true" : "false", "route_model": route.model
+            ]
+        case .routeRetried(let cardID, let issueID, let attemptID, let route, let differentRoute):
+            [
+                "attempt_id": String(attemptID), "card_id": String(cardID),
+                "different_route": differentRoute ? "true" : "false", "issue_id": issueID,
+                "route_cli": route.cli, "route_effort": route.effort, "route_model": route.model
+            ]
+        case .budgetEpochReset(let cardID, let issueID, let from, let to, let reason):
+            [
+                "card_id": String(cardID), "from_epoch": String(from), "issue_id": issueID,
+                "reason": reason, "to_epoch": String(to)
+            ]
         }
     }
 }
