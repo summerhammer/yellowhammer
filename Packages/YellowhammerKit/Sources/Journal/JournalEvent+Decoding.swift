@@ -82,6 +82,16 @@ extension JournalEvent {
             try Self.decodeCardStateTransitioned(reader)
         case .waitingOnYouUnbacked:
             try Self.decodeWaitingOnYouUnbacked(reader)
+        case .worktreeLost:
+            try Self.decodeWorktreeLost(reader)
+        case .worktreeFenced:
+            try Self.decodeWorktreeFenced(reader)
+        case .worktreeNotQuiescent:
+            try Self.decodeWorktreeNotQuiescent(reader)
+        case .worktreeWIPCommitted:
+            try Self.decodeWorktreeWIPCommitted(reader)
+        case .worktreeReconciliationFailed:
+            try Self.decodeWorktreeReconciliationFailed(reader)
         }
     }
 
@@ -224,6 +234,52 @@ extension JournalEvent {
         .waitingOnYouUnbacked(
             issueID: try reader.require("issue_id"),
             cardID: reader.payload?["card_id"].flatMap { Int64($0) },
+            reason: try reader.require("reason")
+        )
+    }
+
+    private static func decodeWorktreeLost(_ reader: PayloadReader) throws -> JournalEvent {
+        .worktreeLost(
+            featureID: try reader.int64("feature_id"),
+            repository: try reader.require("repository"),
+            worktreeID: try reader.require("worktree_id"),
+            path: try reader.require("path")
+        )
+    }
+
+    private static func decodeWorktreeFenced(_ reader: PayloadReader) throws -> JournalEvent {
+        .worktreeFenced(
+            featureID: try reader.int64("feature_id"),
+            repository: try reader.require("repository"),
+            path: try reader.require("path"),
+            killed: try reader.int("killed")
+        )
+    }
+
+    private static func decodeWorktreeNotQuiescent(_ reader: PayloadReader) throws -> JournalEvent {
+        .worktreeNotQuiescent(
+            featureID: try reader.int64("feature_id"),
+            repository: try reader.require("repository"),
+            path: try reader.require("path"),
+            remaining: try reader.int("remaining")
+        )
+    }
+
+    private static func decodeWorktreeWIPCommitted(_ reader: PayloadReader) throws -> JournalEvent {
+        .worktreeWIPCommitted(
+            featureID: try reader.int64("feature_id"),
+            repository: try reader.require("repository"),
+            wipCommit: try reader.require("wip_commit"),
+            wipRef: try reader.require("wip_ref"),
+            resetTo: reader.payload?["reset_to"]
+        )
+    }
+
+    private static func decodeWorktreeReconciliationFailed(_ reader: PayloadReader) throws -> JournalEvent {
+        .worktreeReconciliationFailed(
+            featureID: try reader.int64("feature_id"),
+            repository: try reader.require("repository"),
+            path: try reader.require("path"),
             reason: try reader.require("reason")
         )
     }

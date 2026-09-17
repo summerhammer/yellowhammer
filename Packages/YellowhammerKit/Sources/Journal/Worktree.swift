@@ -16,9 +16,19 @@ public struct WorktreeRecord: Equatable, Sendable {
     /// The commit the Feature Branch was at when it was pushed, nil until then. Releasing (and so
     /// removing) the Worktree is refused while this is nil.
     public let pushedCommit: String?
+    /// What a reconciliation reset returns to (object-guide: Worktree.last_known_good_commit): set at
+    /// allocation, and advanced by ``JournalStore/recordWorktreeKnownGood(id:commit:runID:now:)`` once a
+    /// Card's work is judged good, so a reset never rewinds accepted work.
+    public let lastKnownGoodCommit: String?
+    /// The WIP commit reconciliation wrote in this Worktree, if any, handed to the retry as context.
+    public let wipCommit: String?
+    /// When reconciliation found this Worktree's recorded path gone — a ghost Worktree. Nil unless lost.
+    public let lostAt: Date?
 
     /// Whether this Worktree has not yet been released.
     public var isHeld: Bool { releasedAt == nil }
+    /// Whether reconciliation found this Worktree's recorded path gone.
+    public var isLost: Bool { lostAt != nil }
 }
 
 extension JournalStore {
@@ -31,6 +41,7 @@ extension JournalStore {
         worktreeID: String,
         path: String,
         runID: RunID,
+        lastKnownGoodCommit: String? = nil,
         now: Date = Date()
     ) throws -> WorktreeRecord {
         try write { db in
@@ -43,10 +54,12 @@ extension JournalStore {
             let createdAt = JournalStore.stored(now)
             try db.execute(
                 sql: """
-                INSERT INTO worktree (feature_id, repository, worktree_id, path, created_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO worktree (feature_id, repository, worktree_id, path, created_at, last_known_good_commit)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                arguments: [featureID, repository, worktreeID, path, JournalStore.timestamp(createdAt)]
+                arguments: [
+                    featureID, repository, worktreeID, path, JournalStore.timestamp(createdAt), lastKnownGoodCommit
+                ]
             )
             let id = db.lastInsertedRowID
 
@@ -58,7 +71,10 @@ extension JournalStore {
                 path: path,
                 createdAt: createdAt,
                 releasedAt: nil,
-                pushedCommit: nil
+                pushedCommit: nil,
+                lastKnownGoodCommit: lastKnownGoodCommit,
+                wipCommit: nil,
+                lostAt: nil
             )
         }
     }
@@ -162,12 +178,13 @@ extension JournalStore {
         }
     }
 
-    private static func fetchWorktree(_ db: Database, id: Int64) throws -> WorktreeRecord? {
+    static func fetchWorktree(_ db: Database, id: Int64) throws -> WorktreeRecord? {
         guard let row = try Row.fetchOne(db, sql: "SELECT * FROM worktree WHERE id = ?", arguments: [id]) else {
             return nil
         }
         let onError = { JournalError.worktreeUnreadable(id: id) }
         let releasedAtText: String? = row["released_at"]
+        let lostAtText: String? = row["lost_at"]
         return WorktreeRecord(
             id: id,
             featureID: row["feature_id"],
@@ -176,7 +193,10 @@ extension JournalStore {
             path: row["path"],
             createdAt: try JournalStore.date(row["created_at"], onError: onError),
             releasedAt: try releasedAtText.map { try JournalStore.date($0, onError: onError) },
-            pushedCommit: row["pushed_commit"]
+            pushedCommit: row["pushed_commit"],
+            lastKnownGoodCommit: row["last_known_good_commit"],
+            wipCommit: row["wip_commit"],
+            lostAt: try lostAtText.map { try JournalStore.date($0, onError: onError) }
         )
     }
 }

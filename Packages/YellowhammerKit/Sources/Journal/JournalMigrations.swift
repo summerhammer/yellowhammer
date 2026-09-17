@@ -54,6 +54,9 @@ enum JournalMigrations {
         migrator.registerMigration("v8-worktree-pushed-commit") { db in
             try addWorktreePushedCommit(db)
         }
+        migrator.registerMigration("v9-worktree-reconciliation") { db in
+            try addWorktreeReconciliationColumns(db)
+        }
         return migrator
     }
 }

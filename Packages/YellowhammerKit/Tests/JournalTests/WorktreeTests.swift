@@ -253,7 +253,7 @@ func v7DatabaseGainsPushedCommitColumn() throws {
 
     let journal = try fixture.open()
 
-    #expect(try journal.appliedMigrations().last == "v8-worktree-pushed-commit")
+    #expect(try journal.appliedMigrations().last == "v9-worktree-reconciliation")
     let featureID = try insertFixtureFeature(journal, issueID: "FEAT-1")
     let runID = RunID()
     try claimLease(journal, runID: runID)
@@ -262,6 +262,112 @@ func v7DatabaseGainsPushedCommitColumn() throws {
         runID: runID, now: epoch
     )
     #expect(worktree.pushedCommit == nil)
+}
+
+@Test("A v8 database gains the three reconciliation columns when the engine opens it")
+func v8DatabaseGainsReconciliationColumns() throws {
+    let fixture = try JournalFixture()
+    let fileURL = JournalStore.defaultFileURL(configurationDirectory: fixture.directory, id: fixture.projectID)
+    try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let v8 = try DatabaseQueue(path: fileURL.path)
+    try JournalMigrations.migrator.migrate(v8, upTo: "v8-worktree-pushed-commit")
+    let v8Columns = try v8.read { try $0.columns(in: "worktree") }.map(\.name)
+    #expect(!v8Columns.contains("last_known_good_commit"))
+    #expect(!v8Columns.contains("wip_commit"))
+    #expect(!v8Columns.contains("lost_at"))
+
+    let journal = try fixture.open()
+
+    #expect(try journal.appliedMigrations().last == "v9-worktree-reconciliation")
+    let columns = try journal.read { try $0.columns(in: "worktree") }.map(\.name)
+    #expect(columns.contains("last_known_good_commit"))
+    #expect(columns.contains("wip_commit"))
+    #expect(columns.contains("lost_at"))
+}
+
+@Test("recordWorktree stores lastKnownGoodCommit")
+func recordWorktreeStoresLastKnownGoodCommit() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let featureID = try insertFixtureFeature(journal, issueID: "FEAT-1")
+    let runID = RunID()
+    try claimLease(journal, runID: runID)
+
+    let recorded = try journal.recordWorktree(
+        featureID: featureID, repository: "backend", worktreeID: "wt-1", path: "/tmp/wt-1",
+        runID: runID, lastKnownGoodCommit: "deadbeef", now: epoch
+    )
+    #expect(recorded.lastKnownGoodCommit == "deadbeef")
+    #expect(recorded.wipCommit == nil)
+    #expect(recorded.lostAt == nil)
+    #expect(!recorded.isLost)
+}
+
+@Test("recordWorktreeKnownGood advances lastKnownGoodCommit and round-trips")
+func recordWorktreeKnownGoodRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let featureID = try insertFixtureFeature(journal, issueID: "FEAT-1")
+    let runID = RunID()
+    try claimLease(journal, runID: runID)
+    let worktree = try journal.recordWorktree(
+        featureID: featureID, repository: "backend", worktreeID: "wt-1", path: "/tmp/wt-1",
+        runID: runID, now: epoch
+    )
+    #expect(worktree.lastKnownGoodCommit == nil)
+
+    let advanced = try journal.recordWorktreeKnownGood(
+        id: worktree.id, commit: "cafef00d", runID: runID, now: epoch.addingTimeInterval(1)
+    )
+    #expect(advanced.lastKnownGoodCommit == "cafef00d")
+
+    let again = try journal.recordWorktreeKnownGood(
+        id: worktree.id, commit: "0ddba11", runID: runID, now: epoch.addingTimeInterval(2)
+    )
+    #expect(again.lastKnownGoodCommit == "0ddba11")
+}
+
+@Test("recordWorktreeWIP sets wipCommit and round-trips")
+func recordWorktreeWIPRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let featureID = try insertFixtureFeature(journal, issueID: "FEAT-1")
+    let runID = RunID()
+    try claimLease(journal, runID: runID)
+    let worktree = try journal.recordWorktree(
+        featureID: featureID, repository: "backend", worktreeID: "wt-1", path: "/tmp/wt-1",
+        runID: runID, now: epoch
+    )
+    #expect(worktree.wipCommit == nil)
+
+    let recorded = try journal.recordWorktreeWIP(
+        id: worktree.id, commit: "deadbeef", runID: runID, now: epoch.addingTimeInterval(1)
+    )
+    #expect(recorded.wipCommit == "deadbeef")
+}
+
+@Test("recordWorktreeLost clears held-ness, sets lostAt and releasedAt, and throws worktreeReleased on a second call")
+func recordWorktreeLostClearsHeldness() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let featureID = try insertFixtureFeature(journal, issueID: "FEAT-1")
+    let runID = RunID()
+    try claimLease(journal, runID: runID)
+    let worktree = try journal.recordWorktree(
+        featureID: featureID, repository: "backend", worktreeID: "wt-1", path: "/tmp/wt-1",
+        runID: runID, now: epoch
+    )
+
+    let lost = try journal.recordWorktreeLost(id: worktree.id, runID: runID, now: epoch.addingTimeInterval(1))
+    #expect(lost.isLost)
+    #expect(!lost.isHeld)
+    #expect(lost.lostAt == JournalStore.stored(epoch.addingTimeInterval(1)))
+    #expect(lost.releasedAt == JournalStore.stored(epoch.addingTimeInterval(1)))
+    #expect(try journal.heldWorktree(featureID: featureID, repository: "backend") == nil)
+
+    #expect(throws: JournalError.worktreeReleased(id: worktree.id)) {
+        try journal.recordWorktreeLost(id: worktree.id, runID: runID, now: epoch.addingTimeInterval(2))
+    }
 }
 
 @Test("An unknown Feature id throws featureUnknown; an unknown Worktree id throws worktreeUnknown")

@@ -75,6 +75,23 @@ public enum JournalEvent: Equatable, Sendable {
     /// object labelled Card, or a known Card whose Journal state is Waiting on You with no waiting
     /// reason recorded. Never dispatched.
     case waitingOnYouUnbacked(issueID: String, cardID: Int64?, reason: String)
+    /// A build Act's reconciliation (loop-state/reconcile-worktrees-at-act-start) found a held
+    /// Worktree's recorded path gone: a ghost Worktree. The loss of build state is noted in the
+    /// Journal so the morning understands why it started cold.
+    case worktreeLost(featureID: Int64, repository: String, worktreeID: String, path: String)
+    /// Reconciliation's process fencing killed at least one process still holding a Worktree before
+    /// reconciliation inspected or touched it.
+    case worktreeFenced(featureID: Int64, repository: String, path: String, killed: Int)
+    /// Processes still held a Worktree after the fencing timeout; reconciliation did not proceed past
+    /// it — nothing was inspected, committed or reset.
+    case worktreeNotQuiescent(featureID: Int64, repository: String, path: String, remaining: Int)
+    /// Reconciliation committed uncommitted work in a Worktree as a WIP commit on the Feature Branch.
+    /// `resetTo` is the last known-good commit the Worktree was reset to, nil when none is recorded.
+    case worktreeWIPCommitted(
+        featureID: Int64, repository: String, wipCommit: String, wipRef: String, resetTo: String?
+    )
+    /// A git step of reconciliation refused or failed; nothing was destroyed. `reason` says what.
+    case worktreeReconciliationFailed(featureID: Int64, repository: String, path: String, reason: String)
 
     /// The type of this event.
     public var type: JournalEventType {
@@ -137,6 +154,16 @@ public enum JournalEvent: Equatable, Sendable {
             .cardStateTransitioned
         case .waitingOnYouUnbacked:
             .waitingOnYouUnbacked
+        case .worktreeLost:
+            .worktreeLost
+        case .worktreeFenced:
+            .worktreeFenced
+        case .worktreeNotQuiescent:
+            .worktreeNotQuiescent
+        case .worktreeWIPCommitted:
+            .worktreeWIPCommitted
+        case .worktreeReconciliationFailed:
+            .worktreeReconciliationFailed
         }
     }
 }
@@ -172,4 +199,9 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case deltaReadCompleted = "DeltaReadCompleted"
     case cardStateTransitioned = "CardStateTransitioned"
     case waitingOnYouUnbacked = "WaitingOnYouUnbacked"
+    case worktreeLost = "WorktreeLost"
+    case worktreeFenced = "WorktreeFenced"
+    case worktreeNotQuiescent = "WorktreeNotQuiescent"
+    case worktreeWIPCommitted = "WorktreeWIPCommitted"
+    case worktreeReconciliationFailed = "WorktreeReconciliationFailed"
 }

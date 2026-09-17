@@ -123,6 +123,21 @@ private func claimLease(_ journal: JournalStore, runID: RunID, now: Date = epoch
     }
 }
 
+/// Initializes a git repository at `directory` with one commit, returning the commit's SHA.
+@discardableResult
+private func initGitRepo(at directory: URL, git: GitRunner) throws -> String {
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    _ = git.runSync(["init", "--initial-branch=main"], workingDirectory: directory.path)
+    _ = git.runSync(["config", "user.name", "Test"], workingDirectory: directory.path)
+    _ = git.runSync(["config", "user.email", "test@example.com"], workingDirectory: directory.path)
+    _ = git.runSync(["config", "commit.gpgsign", "false"], workingDirectory: directory.path)
+    try "content".write(to: directory.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+    _ = git.runSync(["add", "."], workingDirectory: directory.path)
+    _ = git.runSync(["commit", "-m", "initial"], workingDirectory: directory.path)
+    return git.runSync(["rev-parse", "HEAD"], workingDirectory: directory.path)
+        .stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
 @Suite("WorktreeAllocator")
 struct WorktreeAllocatorTests {
     private static let projectID = ProjectID(rawValue: "proj")!
@@ -225,18 +240,9 @@ struct WorktreeAllocatorTests {
 
         let repoDirectory = FileManager.default.temporaryDirectory
             .appending(component: "yh-allocator-repo-\(UUID().uuidString)", directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: repoDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: repoDirectory) }
         let git = GitRunner()
-        _ = git.runSync(["init", "--initial-branch=main"], workingDirectory: repoDirectory.path)
-        _ = git.runSync(["config", "user.name", "Test"], workingDirectory: repoDirectory.path)
-        _ = git.runSync(["config", "user.email", "test@example.com"], workingDirectory: repoDirectory.path)
-        _ = git.runSync(["config", "commit.gpgsign", "false"], workingDirectory: repoDirectory.path)
-        try "content".write(
-            to: repoDirectory.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8
-        )
-        _ = git.runSync(["add", "."], workingDirectory: repoDirectory.path)
-        _ = git.runSync(["commit", "-m", "initial"], workingDirectory: repoDirectory.path)
+        try initGitRepo(at: repoDirectory, git: git)
 
         let stray = FileManager.default.temporaryDirectory
             .appending(component: "yh-allocator-stray-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -363,3 +369,6 @@ struct WorktreeAllocatorTests {
         }
     }
 }
+
+// The last-known-good-commit test lives in WorktreeAllocatorLastKnownGoodTests.swift, split out to
+// keep this file under the length limit.

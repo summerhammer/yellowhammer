@@ -35,7 +35,9 @@ func eventTypeRawValues() {
         "LeaseReclaimed", "CardLeaseReclaimed", "NightOpened", "NightClosed", "NightOpenedAndDied",
         "ManagedBlockWritten", "NightCardOpened", "NightCardCompleted", "BoardWriteFailed", "OutboxGroupRolledBack",
         "CardCancelled", "CardReopened", "CardRestated", "CardRemovedFromBoard",
-        "AuthoringInvariantBroken", "DeltaReadCompleted", "CardStateTransitioned", "WaitingOnYouUnbacked"
+        "AuthoringInvariantBroken", "DeltaReadCompleted", "CardStateTransitioned", "WaitingOnYouUnbacked",
+        "WorktreeLost", "WorktreeFenced", "WorktreeNotQuiescent", "WorktreeWIPCommitted",
+        "WorktreeReconciliationFailed"
     ]
     let actual = JournalEventType.allCases.map { $0.rawValue }.sorted()
     #expect(actual == expected.sorted())
@@ -465,6 +467,10 @@ func boardWriteFailedWithoutIssueIDRoundTrips() throws {
     }
     #expect(payload?.contains("issue_id") == false)
 }
+
+// The five reconciliation events (WorktreeLost, WorktreeFenced, WorktreeNotQuiescent,
+// WorktreeWIPCommitted, WorktreeReconciliationFailed) round-trip in WorktreeEventEncodingTests.swift,
+// split out to keep this file under the length limit.
 
 @Test("outboxGroupRolledBack event round-trips with group_id and reason")
 func outboxGroupRolledBackRoundTrips() throws {
