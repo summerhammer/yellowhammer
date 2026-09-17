@@ -612,7 +612,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Fixture spec repos resolve valid IDs, reject missing ones, and a path in another
   Project's repo is refused.
 
-### [ ] P6.6 Local commit, WIP and push operations
+### [x] P6.6 Local commit, WIP and push operations
 - **Work**
   - Commit uncommitted Worktree content as a WIP commit on the Feature Branch.
   - Reset a Worktree to the last known-good commit.
