@@ -625,7 +625,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Fixture repos cover WIP commit idempotency, reset, and each push outcome (push
   itself is not asserted in rehearsal).
 
-### [ ] P6.7 Workspace adapter: Orca ADE worktrees
+### [x] P6.7 Workspace adapter: Orca ADE worktrees
 - **Work**
   - Request one Worktree per (Feature, repo) from Orca ADE, with the worktree name equal to the
     Feature Branch name `yh-<project>-<feature>` (no slashes).
