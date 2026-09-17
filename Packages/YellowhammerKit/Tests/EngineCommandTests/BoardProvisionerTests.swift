@@ -254,4 +254,96 @@ struct BoardProvisionerTests {
         #expect(states.map(\.1) == [.present, .created])
         #expect(await board.creates == 21)
     }
+
+    // MARK: - Override label groups (G-17, P7.6)
+
+    private static func route(_ cli: String, _ model: String, _ effort: String) -> Route {
+        Route(cli: cli, model: model, effort: effort)!
+    }
+
+    private static let table = RoutingTable(entries: [
+        RoutingEntry(route: route("claude", "sonnet", "medium"), fallbacks: [route("codex", "gpt-5.4", "medium")]),
+        RoutingEntry(kind: Kind("impl")!, route: route("claude", "opus", "high"))
+    ])
+
+    @Test("With a Routing Table, the three Override groups are provisioned with the table's values as children")
+    func overrideGroupsAreProvisionedFromTheTable() async throws {
+        let board = board()
+        let report = try await BoardProvisioner.provision(
+            using: board, projectName: "Yellowhammer", createIn: nil, routingTable: Self.table
+        )
+
+        // 11 as before, plus three groups and 2 + 3 + 2 children.
+        #expect(await board.creates == 21)
+        for group in ["Override CLI", "Override Model", "Override Effort"] {
+            #expect(outcome(of: report) { if case .labelGroup(group, _) = $0 { true } else { false } } == .created)
+        }
+        for name in ["claude", "codex"] {
+            #expect(outcome(of: report, label(name, in: "Override CLI")) == .created)
+        }
+        for name in ["gpt-5.4", "opus", "sonnet"] {
+            #expect(outcome(of: report, label(name, in: "Override Model")) == .created)
+        }
+        for name in ["high", "medium"] {
+            #expect(outcome(of: report, label(name, in: "Override Effort")) == .created)
+        }
+        let labels = OverrideLabels(labels: try await board.labels(team: engineering.id))
+        #expect(labels.cli.keys.sorted() == ["claude", "codex"])
+        #expect(labels.model.keys.sorted() == ["gpt-5.4", "opus", "sonnet"])
+        #expect(labels.effort.keys.sorted() == ["high", "medium"])
+    }
+
+    @Test("Provisioning the same table twice creates nothing the second time")
+    func overrideGroupsAreIdempotent() async throws {
+        let board = board()
+        _ = try await BoardProvisioner.provision(
+            using: board, projectName: "Yellowhammer", createIn: nil, routingTable: Self.table
+        )
+        let createsAfterFirstRun = await board.creates
+
+        let second = try await BoardProvisioner.provision(
+            using: board, projectName: "Yellowhammer", createIn: nil, routingTable: Self.table
+        )
+
+        #expect(await board.creates == createsAfterFirstRun)
+        #expect(!second.isChanged)
+    }
+
+    @Test("A table that gains a value is refreshed by creating exactly that child; nothing is removed")
+    func overrideGroupsRefreshWhenTheTableChanges() async throws {
+        let board = board()
+        _ = try await BoardProvisioner.provision(
+            using: board, projectName: "Yellowhammer", createIn: nil, routingTable: Self.table
+        )
+        let createsAfterFirstRun = await board.creates
+
+        var grown = Self.table
+        grown.entries.append(RoutingEntry(kind: Kind("review")!, route: Self.route("codex", "o3", "high")))
+        let report = try await BoardProvisioner.provision(
+            using: board, projectName: "Yellowhammer", createIn: nil, routingTable: grown
+        )
+
+        #expect(await board.creates == createsAfterFirstRun + 1)
+        #expect(report.changes.map(\.subject) == [.label("o3", group: "Override Model", team: engineering)])
+
+        // A shrunken table removes nothing: the Operator's pins are never cleared.
+        let shrunk = RoutingTable(entries: [Self.table.entries[1]])
+        let after = try await BoardProvisioner.provision(
+            using: board, projectName: "Yellowhammer", createIn: nil, routingTable: shrunk
+        )
+        #expect(!after.isChanged)
+        #expect(try await board.labels(team: engineering.id).contains { $0.name == "o3" })
+    }
+
+    @Test("Without a Routing Table the Override groups are not touched")
+    func noTableProvisionsNoOverrideGroups() async throws {
+        let board = board()
+        let report = try await provision(board)
+
+        #expect(await board.creates == 11)
+        #expect(report.entries.allSatisfy { subject in
+            if case .labelGroup(let name, _) = subject.subject { return !name.hasPrefix("Override") }
+            return true
+        })
+    }
 }

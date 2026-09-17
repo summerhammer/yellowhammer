@@ -23,6 +23,16 @@ public struct Kind: Hashable, Sendable {
         guard valid else { return nil }
         self.init(segments: segments)
     }
+
+    /// How specific this Kind is: its segment count. `*` has none.
+    public var specificity: Int { segments.count }
+
+    /// True when this Kind's segments lead `other`'s, so a Routing Entry for this Kind applies to a
+    /// Card of `other`. `*` is a prefix of every Kind, and every Kind is a prefix of itself. Resolution
+    /// picks the longest such prefix (routing/resolve-a-route-for-a-card).
+    public func isPrefix(of other: Kind) -> Bool {
+        other.segments.starts(with: segments)
+    }
 }
 
 extension Kind: CustomStringConvertible {

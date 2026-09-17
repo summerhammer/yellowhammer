@@ -92,6 +92,18 @@ extension JournalEvent {
             try Self.decodeWorktreeWIPCommitted(reader)
         case .worktreeReconciliationFailed:
             try Self.decodeWorktreeReconciliationFailed(reader)
+        case .routeExhausted:
+            .routeExhausted(
+                cardID: try reader.int64("card_id"),
+                issueID: try reader.require("issue_id"),
+                reason: try reader.require("reason")
+            )
+        case .overrideRefused:
+            .overrideRefused(
+                cardID: try reader.int64("card_id"),
+                issueID: try reader.require("issue_id"),
+                reason: try reader.require("reason")
+            )
         }
     }
 
