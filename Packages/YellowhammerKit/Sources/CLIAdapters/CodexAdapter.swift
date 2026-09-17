@@ -12,6 +12,7 @@ import Foundation
 /// `-c sandbox_workspace_write.writable_roots=[…]`; cwd is already the Worktree, set by `posix_spawn`.
 public struct CodexAdapter: CLIAdapter {
     public let cli = "codex"
+    public let adapterVersion = "1"
     /// `codex exec --help`'s `-c model_reasoning_effort` values.
     public let supportedEfforts = ["minimal", "low", "medium", "high", "xhigh"]
 

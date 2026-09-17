@@ -9,7 +9,7 @@ public struct RootCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "yh",
         abstract: "Yellowhammer Engine: runs one Act for one Project, then exits.",
-        subcommands: [AuthorCommand.self, BuildCommand.self, LandCommand.self],
+        subcommands: [AuthorCommand.self, BuildCommand.self, LandCommand.self, ProbeCommand.self],
         defaultSubcommand: nil
     )
 

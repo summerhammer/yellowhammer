@@ -10,6 +10,7 @@ import Foundation
 /// id survives even a run whose stdout ``collect(end:dispatch:)`` cannot parse).
 public struct ClaudeCodeAdapter: CLIAdapter {
     public let cli = "claude"
+    public let adapterVersion = "1"
     /// `claude --help`'s `--effort` choices.
     public let supportedEfforts = ["low", "medium", "high", "xhigh", "max"]
 

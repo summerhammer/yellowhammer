@@ -1,3 +1,4 @@
+import Domain
 import Foundation
 import Testing
 
@@ -19,6 +20,7 @@ private func createPassedProbeResult(
         findingResultFileOnCleanExit: .passed,
         findingUnattendedDispatch: .passed,
         findingProcessContainment: .passed,
+        findingSessionResumption: .notRun,
         reason: nil
     )
 }
@@ -39,6 +41,7 @@ private func createFailedProbeResult(
         findingResultFileOnCleanExit: failingFinding == .failed ? .failed : .passed,
         findingUnattendedDispatch: failingFinding == .failed ? .failed : .passed,
         findingProcessContainment: failingFinding == .failed ? .failed : .passed,
+        findingSessionResumption: .notRun,
         reason: reason
     )
 }
@@ -91,6 +94,7 @@ func recordAndReadBackTimestampFlooring() async throws {
         findingResultFileOnCleanExit: .passed,
         findingUnattendedDispatch: .passed,
         findingProcessContainment: .passed,
+        findingSessionResumption: .notRun,
         reason: nil
     )
 
@@ -117,6 +121,7 @@ func recordMultipleCLIs() async throws {
         findingResultFileOnCleanExit: .passed,
         findingUnattendedDispatch: .passed,
         findingProcessContainment: .passed,
+        findingSessionResumption: .notRun,
         reason: nil
     )
     let cli2Result1 = createPassedProbeResult(cli: "cli-2", adapterVersion: "2.0.0", cliVersion: "2.0.0")
@@ -147,6 +152,7 @@ func latestIsUnaffectedByOtherCLI() async throws {
         findingResultFileOnCleanExit: .passed,
         findingUnattendedDispatch: .passed,
         findingProcessContainment: .passed,
+        findingSessionResumption: .notRun,
         reason: nil
     )
 
@@ -175,6 +181,7 @@ func historyIsNewestFirst() async throws {
         findingResultFileOnCleanExit: .passed,
         findingUnattendedDispatch: .passed,
         findingProcessContainment: .passed,
+        findingSessionResumption: .notRun,
         reason: nil
     )
     let result3 = ProbeResult(
@@ -185,6 +192,7 @@ func historyIsNewestFirst() async throws {
         findingResultFileOnCleanExit: .passed,
         findingUnattendedDispatch: .passed,
         findingProcessContainment: .passed,
+        findingSessionResumption: .notRun,
         reason: nil
     )
 
@@ -212,6 +220,7 @@ func failingProbeRoundTrips() async throws {
         findingResultFileOnCleanExit: .failed,
         findingUnattendedDispatch: .passed,
         findingProcessContainment: .passed,
+        findingSessionResumption: .notRun,
         reason: "CLI does not generate result files on clean exit"
     )
 
@@ -236,6 +245,7 @@ func failedVsPassingDistinguishable() async throws {
         findingResultFileOnCleanExit: .failed,
         findingUnattendedDispatch: .failed,
         findingProcessContainment: .failed,
+        findingSessionResumption: .notRun,
         reason: "Multiple probe targets failed"
     )
 
@@ -264,6 +274,7 @@ func concurrentWritersNoConflict() async throws {
         findingResultFileOnCleanExit: .passed,
         findingUnattendedDispatch: .passed,
         findingProcessContainment: .passed,
+        findingSessionResumption: .notRun,
         reason: nil
     )
 

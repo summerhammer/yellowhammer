@@ -1,3 +1,5 @@
+import Darwin
+import Domain
 import Foundation
 import GRDB
 
@@ -49,18 +51,49 @@ public final class LedgerStore: Sendable {
         let directory = fileURL.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
-        var config = Configuration()
-        config.foreignKeysEnabled = true
-        config.busyMode = .timeout(busyTimeout)
-        // Enable WAL journal mode for concurrent writers. Multiple Projects' invocations write
-        // concurrently; WAL lets them serialise on SQLite's lock instead of failing with SQLITE_BUSY.
-        config.prepareDatabase { try $0.execute(sql: "PRAGMA journal_mode = WAL") }
+        // Many invocations, from different processes, may reach a fresh (or behind) file at once
+        // (spec G-3). Each opens its own connection, so nothing before this lock is safe to race:
+        // two openers can both hit SQLite's own lock while switching a brand-new file to WAL
+        // ("database is locked"), and even past that, GRDB's migrator does not serialise DDL
+        // across processes — two openers can both see no `grdb_migrations` table and both try
+        // `CREATE TABLE probe_result`, and the loser fails with "table already exists" instead of
+        // completing migrated. An exclusive flock on a sibling lock file, held for the connection's
+        // WAL switch and its migration together, serialises every process through both: the first
+        // one through does the real work, and everyone after finds nothing left to do.
+        let queue = try withMigrationLock(for: fileURL) {
+            var config = Configuration()
+            config.foreignKeysEnabled = true
+            config.busyMode = .timeout(busyTimeout)
+            // Enable WAL journal mode for concurrent writers. Multiple Projects' invocations write
+            // concurrently; WAL lets them serialise on SQLite's lock instead of failing with SQLITE_BUSY.
+            config.prepareDatabase { try $0.execute(sql: "PRAGMA journal_mode = WAL") }
 
-        let queue = try DatabaseQueue(path: fileURL.path, configuration: config)
-
-        try LedgerMigrations.migrator.migrate(queue)
+            let queue = try DatabaseQueue(path: fileURL.path, configuration: config)
+            try LedgerMigrations.migrator.migrate(queue)
+            return queue
+        }
 
         return LedgerStore(fileURL: fileURL, queue: queue)
+    }
+
+    /// Runs `body` (opening the connection and migrating it) while holding an exclusive `flock` on
+    /// `<fileURL>.lock`, so concurrent openers from different processes — each with their own
+    /// connection — serialise on both the WAL switch and the migration instead of racing SQLite's
+    /// own locking and schema DDL. If the lock file cannot be created or locked, `body` still runs
+    /// directly: a single process's own open remains safe on its own, just not against a sibling
+    /// process racing it.
+    private static func withMigrationLock<T>(for fileURL: URL, _ body: () throws -> T) throws -> T {
+        let lockPath = fileURL.path + ".lock"
+        let descriptor = Darwin.open(lockPath, O_CREAT | O_RDWR, 0o644)
+        guard descriptor >= 0 else {
+            return try body()
+        }
+        defer { close(descriptor) }
+        guard flock(descriptor, LOCK_EX) == 0 else {
+            return try body()
+        }
+        defer { flock(descriptor, LOCK_UN) }
+        return try body()
     }
 
     /// The app's open: read-only, never migrates. Throws LedgerError.schemaNewerThanKnown if the store has
@@ -150,6 +183,7 @@ public final class LedgerStore: Sendable {
             findingResultFileOnCleanExit: probeResult.findingResultFileOnCleanExit,
             findingUnattendedDispatch: probeResult.findingUnattendedDispatch,
             findingProcessContainment: probeResult.findingProcessContainment,
+            findingSessionResumption: probeResult.findingSessionResumption,
             reason: probeResult.reason
         )
 
@@ -159,8 +193,8 @@ public final class LedgerStore: Sendable {
                 INSERT INTO probe_result
                 (cli, probed_at, adapter_version, cli_version,
                  finding_result_file_on_clean_exit, finding_unattended_dispatch,
-                 finding_process_containment, verdict, reason)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 finding_process_containment, finding_session_resumption, verdict, reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 arguments: [
                     storedResult.cli,
@@ -170,6 +204,7 @@ public final class LedgerStore: Sendable {
                     storedResult.findingResultFileOnCleanExit.rawValue,
                     storedResult.findingUnattendedDispatch.rawValue,
                     storedResult.findingProcessContainment.rawValue,
+                    storedResult.findingSessionResumption.rawValue,
                     // Verdict is computed from findings; this materializes it for query efficiency.
                     storedResult.verdict.rawValue,
                     storedResult.reason
@@ -190,7 +225,7 @@ public final class LedgerStore: Sendable {
                 sql: """
                 SELECT cli, probed_at, adapter_version, cli_version,
                        finding_result_file_on_clean_exit, finding_unattended_dispatch,
-                       finding_process_containment, verdict, reason
+                       finding_process_containment, finding_session_resumption, verdict, reason
                 FROM probe_result
                 WHERE cli = ?
                 ORDER BY probed_at DESC, id DESC
@@ -213,7 +248,7 @@ public final class LedgerStore: Sendable {
                 sql: """
                 SELECT cli, probed_at, adapter_version, cli_version,
                        finding_result_file_on_clean_exit, finding_unattended_dispatch,
-                       finding_process_containment, verdict, reason
+                       finding_process_containment, finding_session_resumption, verdict, reason
                 FROM probe_result
                 WHERE cli = ?
                 ORDER BY probed_at DESC, id DESC
@@ -248,10 +283,12 @@ public final class LedgerStore: Sendable {
             let findingResultFileRawValue = row["finding_result_file_on_clean_exit"] as? String,
             let findingUnattendedRawValue = row["finding_unattended_dispatch"] as? String,
             let findingProcessRawValue = row["finding_process_containment"] as? String,
+            let findingSessionResumptionRawValue = row["finding_session_resumption"] as? String,
             let storedVerdictRawValue = row["verdict"] as? String,
             let findingResultFile = ProbeFinding(rawValue: findingResultFileRawValue),
             let findingUnattended = ProbeFinding(rawValue: findingUnattendedRawValue),
             let findingProcess = ProbeFinding(rawValue: findingProcessRawValue),
+            let findingSessionResumption = ProbeFinding(rawValue: findingSessionResumptionRawValue),
             let storedVerdict = ProbeVerdict(rawValue: storedVerdictRawValue)
         else {
             throw LedgerError.probeResultUnreadable
@@ -271,6 +308,7 @@ public final class LedgerStore: Sendable {
             findingResultFileOnCleanExit: findingResultFile,
             findingUnattendedDispatch: findingUnattended,
             findingProcessContainment: findingProcess,
+            findingSessionResumption: findingSessionResumption,
             reason: reason
         )
 
@@ -281,5 +319,23 @@ public final class LedgerStore: Sendable {
         }
 
         return result
+    }
+}
+
+extension LedgerStore {
+    /// Whether a CLI's latest Probe Result offers it as a route target (spec: a CLI that fails the
+    /// unattended dispatch or process containment probe, or never produces a result file on clean
+    /// exit, is not offered — P7.6 owns probe-age/health, not this).
+    public func routeTargetEligibility(cli: String) throws -> RouteTargetEligibility {
+        guard let latest = try latestProbeResult(cli: cli) else {
+            return .excluded(reason: "`\(cli)` has never been probed; run `yh probe \(cli)`")
+        }
+        switch latest.verdict {
+        case .failed:
+            // The store's invariant guarantees a failed verdict always carries a reason.
+            return .excluded(reason: latest.reason ?? "probe failed")
+        case .passed:
+            return .offered
+        }
     }
 }

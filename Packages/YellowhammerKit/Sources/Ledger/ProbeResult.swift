@@ -1,22 +1,5 @@
+import Domain
 import Foundation
-
-/// A finding from one probe target within a single Probe Result.
-public enum ProbeFinding: String, Sendable {
-    /// The probe target passed.
-    case passed
-    /// The probe target failed.
-    case failed
-    /// The probe run did not exercise this target.
-    case notRun = "not_run"
-}
-
-/// The verdict of a probe run.
-public enum ProbeVerdict: String, Sendable {
-    /// All probed targets passed.
-    case passed
-    /// One or more probed targets failed.
-    case failed
-}
 
 /// A Ledger row: the result of probing one agent CLI adapter against its probe targets.
 /// Probe Results accumulate as a history per agent CLI; adapter health is derived at read time
@@ -36,12 +19,19 @@ public struct ProbeResult: Equatable, Sendable {
     public let findingUnattendedDispatch: ProbeFinding
     /// Whether the CLI containment under SIGTERM and SIGKILL prevents orphaned processes.
     public let findingProcessContainment: ProbeFinding
-    /// If the verdict is failed, the Operator-facing reason a failed CLI is not offered as a route target.
-    /// Nullable: passed verdicts have nil. A failed verdict must carry a reason.
+    /// Whether a Round on the same worker can resume its session. Recorded for visibility but does
+    /// not gate ``verdict``: it is not one of the three targets a route offering depends on.
+    public let findingSessionResumption: ProbeFinding
+    /// The Operator-facing reason a failed CLI is not offered as a route target. Required when
+    /// ``verdict`` is failed. May also be non-nil on a passed verdict, to explain a non-gating
+    /// finding (``findingSessionResumption``) that failed even though the verdict passed — the DB
+    /// check constraint already allows that combination.
     public let reason: String?
 
-    /// The verdict: passed if all findings are passed, failed if any are not.
-    /// Computed from findings so the invariant is unrepresentable in the wrong state.
+    /// The verdict: passed if the three gating findings are passed, failed if any of them is not.
+    /// ``findingSessionResumption`` does not gate this — session resumption is recorded but never
+    /// excludes a CLI from routing. Computed from findings so the invariant is unrepresentable in
+    /// the wrong state.
     public var verdict: ProbeVerdict {
         if findingResultFileOnCleanExit == .passed &&
            findingUnattendedDispatch == .passed &&
@@ -60,6 +50,7 @@ public struct ProbeResult: Equatable, Sendable {
         findingResultFileOnCleanExit: ProbeFinding,
         findingUnattendedDispatch: ProbeFinding,
         findingProcessContainment: ProbeFinding,
+        findingSessionResumption: ProbeFinding,
         reason: String?
     ) {
         self.cli = cli
@@ -69,6 +60,7 @@ public struct ProbeResult: Equatable, Sendable {
         self.findingResultFileOnCleanExit = findingResultFileOnCleanExit
         self.findingUnattendedDispatch = findingUnattendedDispatch
         self.findingProcessContainment = findingProcessContainment
+        self.findingSessionResumption = findingSessionResumption
         self.reason = reason
     }
 }
