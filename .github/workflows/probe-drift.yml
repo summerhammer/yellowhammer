@@ -1,0 +1,65 @@
+name: Scheduled probe drift check
+
+on:
+  schedule:
+    - cron: "0 2 * * *" # Daily at 02:00 UTC
+  workflow_dispatch:
+    inputs:
+      clis:
+        description: "Comma-separated list of agent CLIs to probe"
+        required: false
+        default: "claude,codex"
+  pull_request:
+    paths:
+      - "Packages/YellowhammerKit/Sources/CLIAdapters/**"
+      - "Packages/YellowhammerKit/Sources/EngineCommand/Probe*"
+      - "scripts/ci/check_probe_drift.py"
+      - "scripts/ci/tests/test_check_probe_drift.py"
+      - ".github/workflows/probe-drift.yml"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  unit-tests:
+    name: Probe drift unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run unit tests
+        run: python3 -m unittest discover -s scripts/ci/tests -p 'test_check_probe_drift.py' -v
+
+  probe-drift:
+    name: Probe drift check
+    runs-on: macos-26
+    timeout-minutes: 20
+    env:
+      XCODE_VERSION: "26.6"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+
+      - name: Print environment and CLI versions
+        run: |
+          swift --version
+          which claude 2>/dev/null && claude --version || echo "claude CLI not installed in path"
+          which codex 2>/dev/null && codex --version || echo "codex CLI not installed in path"
+
+      - name: Run probe drift check
+        env:
+          CLIS: ${{ github.event.inputs.clis || 'claude,codex' }}
+        run: |
+          python3 scripts/ci/check_probe_drift.py \
+            --clis "$CLIS" \
+            --summary-file "$GITHUB_STEP_SUMMARY"

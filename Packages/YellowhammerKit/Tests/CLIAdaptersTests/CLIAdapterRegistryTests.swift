@@ -17,6 +17,11 @@ struct CLIAdapterRegistryTests {
         #expect(adapter is CodexAdapter)
     }
 
+    @Test("allNames lists all registered adapter names")
+    func allNamesListsRegisteredAdapters() {
+        #expect(CLIAdapterRegistry.allNames == ["claude", "codex"])
+    }
+
     @Test("An unknown name resolves to nil")
     func unknownNameResolvesToNil() {
         #expect(CLIAdapterRegistry.adapter(named: "gemini") == nil)
