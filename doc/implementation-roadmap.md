@@ -684,7 +684,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Fable 5.1 Medium.
 - **Done when** — Schemas validate the fixture files. An empty or malformed file fails validation.
 
-### [ ] P7.2 Process lifecycle for agent CLI runs
+### [x] P7.2 Process lifecycle for agent CLI runs
 - **Work**
   - Spawn the agent CLI directly inside the Worktree path, in its own process group.
   - On timeout or engine abort: `SIGTERM` to the group, a 3-second grace window, then `SIGKILL`.
