@@ -649,7 +649,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — A test process left with its cwd in a fixture Worktree is terminated, and
   reconciliation waits for quiescence.
 
-### [ ] P6.9 Worktree reconciliation at build Act start
+### [x] P6.9 Worktree reconciliation at build Act start
 - **Work** — In order, for **every** path in this Project's in-flight Feature set, and only that set:
   1. Check the recorded path with `stat`. Never trust Orca ADE's list alone.
   2. Missing path: purge Orca's stale record (`orca worktree rm --force <id>`), note the lost build
