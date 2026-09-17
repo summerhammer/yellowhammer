@@ -5,6 +5,7 @@
 excluded:
   - .build
   - "**/.build"
+  - "build"
   - .worktrees
   - DerivedData
   - "**/*.generated.swift"
