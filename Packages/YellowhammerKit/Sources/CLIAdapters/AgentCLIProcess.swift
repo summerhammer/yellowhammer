@@ -1,0 +1,150 @@
+import Darwin
+import Domain
+import Foundation
+
+/// One completed agent CLI run: the process identity the lifecycle observed, how it ended, and the
+/// dual-key completion verdict derived from that ending plus the result file.
+public struct AgentCLIRunReport: Equatable, Sendable {
+    public let pid: pid_t
+    /// Equal to `pid`: the CLI leads its own process group.
+    public let processGroup: pid_t
+    public let end: RunEnd
+    public let outcome: RunOutcome
+}
+
+/// Why ``AgentCLIProcess/run(_:)`` could not even start a run.
+public enum AgentCLILaunchError: Error, Equatable, Sendable, CustomStringConvertible {
+    case worktreeMissing(String)
+    case spawnFailed(errno: Int32, executable: String)
+
+    public var description: String {
+        switch self {
+        case .worktreeMissing(let path):
+            "worktree missing: \(path)"
+        case .spawnFailed(let errno, let executable):
+            "posix_spawn failed for \(executable): errno \(errno)"
+        }
+    }
+}
+
+/// Runs one agent CLI in its own process group inside the Worktree and applies the dual-key
+/// completion contract (spec: the CLI Adapter spawns via `posix_spawn` +
+/// `POSIX_SPAWN_SETPGROUP`; on timeout or engine-initiated abort it sends `SIGTERM` to the group,
+/// grants a grace window, then `SIGKILL`s the group).
+public struct AgentCLIProcess: Sendable {
+    /// Spec-mandated 3 s. Configurable only so tests can shorten it.
+    public let gracePeriod: Duration
+    public let pollInterval: Duration
+
+    public init(gracePeriod: Duration = .seconds(3), pollInterval: Duration = .milliseconds(20)) {
+        self.gracePeriod = gracePeriod
+        self.pollInterval = pollInterval
+    }
+
+    public func run(_ launch: AgentCLILaunch) async throws(AgentCLILaunchError) -> AgentCLIRunReport {
+        var isDirectory: ObjCBool = false
+        let exists = FileManager.default.fileExists(atPath: launch.worktreePath, isDirectory: &isDirectory)
+        guard exists, isDirectory.boolValue else {
+            throw .worktreeMissing(launch.worktreePath)
+        }
+
+        let spawnOutcome = ProcessGroup.spawn(
+            executable: launch.executable,
+            arguments: launch.arguments,
+            environment: launch.environment,
+            worktreePath: launch.worktreePath,
+            outputPath: launch.outputLog?.path
+        )
+        let pid: pid_t
+        switch spawnOutcome {
+        case .success(let spawnedPID):
+            pid = spawnedPID
+        case .failure(let errorCode):
+            throw .spawnFailed(errno: errorCode, executable: launch.executable)
+        }
+
+        let end = await wait(pid: pid, timeout: launch.timeout)
+        let outcome = RunOutcome.classify(end: end, resultFileAt: launch.resultFile, pass: launch.pass)
+        return AgentCLIRunReport(pid: pid, processGroup: pid, end: end, outcome: outcome)
+    }
+
+    // MARK: - Waiting
+
+    /// Polls `waitpid(WNOHANG)` in the calling task (never a detached one) so `Task.isCancelled`
+    /// stays observable, until the leader exits, the engine cancels, or `timeout` elapses.
+    private func wait(pid: pid_t, timeout: Duration) async -> RunEnd {
+        let clock = ContinuousClock()
+        let start = clock.now
+
+        while true {
+            if let end = ProcessGroup.reapNonBlocking(pid: pid) {
+                return end
+            }
+            if Task.isCancelled {
+                return await terminate(pid: pid, reason: .aborted)
+            }
+            if clock.now - start >= timeout {
+                return await terminate(pid: pid, reason: .timedOut(after: timeout))
+            }
+            try? await Task.sleep(for: pollInterval)
+        }
+    }
+
+    private enum TerminationReason {
+        case timedOut(after: Duration)
+        case aborted
+    }
+
+    /// SIGTERM to the group, then up to `gracePeriod` waiting for both the leader to be reaped and
+    /// the group to vanish (`kill(-pgid, 0)` → ESRCH). Escalates to SIGKILL, reaps the leader if it
+    /// has not been already, and polls briefly for the group to vanish. The leader is reaped
+    /// exactly once on every path — no zombies.
+    private func terminate(pid: pid_t, reason: TerminationReason) async -> RunEnd {
+        ProcessGroup.signal(group: pid, SIGTERM)
+
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: gracePeriod)
+        var reaped = false
+
+        while clock.now < deadline {
+            if groupIsGone(pid: pid, reaped: &reaped) {
+                return end(for: reason, forcedKill: false)
+            }
+            try? await Task.sleep(for: pollInterval)
+        }
+        if groupIsGone(pid: pid, reaped: &reaped) {
+            return end(for: reason, forcedKill: false)
+        }
+
+        ProcessGroup.signal(group: pid, SIGKILL)
+        if !reaped {
+            ProcessGroup.reapBlocking(pid: pid)
+            reaped = true
+        }
+
+        let killDeadline = clock.now.advanced(by: .seconds(1))
+        while clock.now < killDeadline, ProcessGroup.isAlive(group: pid) {
+            try? await Task.sleep(for: pollInterval)
+        }
+
+        return end(for: reason, forcedKill: true)
+    }
+
+    /// Reaps the leader (once) if it has not been already, then reports whether the whole group —
+    /// leader included — is gone.
+    private func groupIsGone(pid: pid_t, reaped: inout Bool) -> Bool {
+        if !reaped, ProcessGroup.reapNonBlocking(pid: pid) != nil {
+            reaped = true
+        }
+        return reaped && !ProcessGroup.isAlive(group: pid)
+    }
+
+    private func end(for reason: TerminationReason, forcedKill: Bool) -> RunEnd {
+        switch reason {
+        case .timedOut(let after):
+            .timedOut(after: after, forcedKill: forcedKill)
+        case .aborted:
+            .aborted(forcedKill: forcedKill)
+        }
+    }
+}
