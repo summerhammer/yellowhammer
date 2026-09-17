@@ -31,9 +31,14 @@ func subcommandRunsItsAct(_ act: Act) async throws {
     }
     let parsed = try RootCommand.parseAsRoot(args)
     let command = try #require(parsed as? any ActCommand)
-    // No Board bound: this test is about CLI dispatch, not the Night Card (NightCardTests).
-    await #expect(throws: EngineInvocationError.notImplemented(act)) {
+    // No Board bound: this test is about CLI dispatch, not the Night Card (NightCardTests). The build
+    // Act's work has landed (P8.1): on an empty Journal it completes doing nothing rather than throwing.
+    if act == .build {
         try await command.makeInvocation(configurationDirectory: directory.url, now: Date(), bindBoard: nil).run()
+    } else {
+        await #expect(throws: EngineInvocationError.notImplemented(act)) {
+            try await command.makeInvocation(configurationDirectory: directory.url, now: Date(), bindBoard: nil).run()
+        }
     }
 }
 

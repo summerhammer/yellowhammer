@@ -31,6 +31,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     case routeExclusionUnreadable(cardID: Int64)
     /// The Journal has no Feature with this id.
     case featureUnknown(featureID: Int64)
+    /// The Journal has no Cycle with this id.
+    case cycleUnknown(cycleID: Int64)
     /// The Journal has no Worktree with this id.
     case worktreeUnknown(id: Int64)
     /// The Worktree was already released.
@@ -126,6 +128,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
             "A route_exclusion row for Card \(cardID) cannot be read"
         case .featureUnknown(let featureID):
             "The Journal has no Feature with id \(featureID)"
+        case .cycleUnknown(let cycleID):
+            "The Journal has no Cycle with id \(cycleID)"
         case .worktreeUnknown(let id):
             "The Journal has no Worktree with id \(id)"
         case .worktreeReleased(let id):

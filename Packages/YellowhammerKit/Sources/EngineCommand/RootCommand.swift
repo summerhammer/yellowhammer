@@ -63,6 +63,22 @@ extension ActCommand {
         let board = try bindBoard?(configuration, project)
         let workspace = bindWorkspace?()
 
+        guard Self.act == .build else {
+            return EngineInvocation(
+                act: Self.act,
+                mode: mode,
+                nightStart: window.nightStart,
+                journal: journal,
+                trigger: trigger,
+                closesNight: closesNight,
+                board: board,
+                repositories: project.repositories,
+                workspace: workspace
+            )
+        }
+
+        // The build Act's work is wired here, the one place an adapter (and so its CardRunner stand-in)
+        // is constructed; author and land keep no-work invocations until their own phases land.
         return EngineInvocation(
             act: Self.act,
             mode: mode,
@@ -72,7 +88,8 @@ extension ActCommand {
             closesNight: closesNight,
             board: board,
             repositories: project.repositories,
-            workspace: workspace
+            workspace: workspace,
+            work: BuildAct(cardRunner: DispatchPendingCardRunner()).work
         )
     }
 

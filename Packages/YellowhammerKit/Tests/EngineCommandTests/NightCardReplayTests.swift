@@ -64,7 +64,7 @@ struct NightCardReplayTests {
         let boards = try await makeBoards()
         let provisioning = boards.provisioning
         let writing = boards.writing
-        let board = ActBoard(writing: writing, provisioning: provisioning)
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: writing, provisioning: provisioning)
 
         try await EngineInvocation(
             act: .author, mode: .real, nightStart: nightCardNightStart, journal: journalAlpha,

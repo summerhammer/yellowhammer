@@ -42,9 +42,14 @@ func actOpensOnlyItsOwnJournal(_ act: Act) async throws {
     try directory.writeValidProjectFile(id: "alpha")
     try directory.writeValidProjectFile(id: "beta")
 
-    await #expect(throws: EngineInvocationError.notImplemented(act)) {
-        // Force build and land Acts because this test is about Journal scoping, not trigger predicates
-        try await runAct(act, project: "alpha", in: directory, force: act != .author)
+    // Force build and land Acts because this test is about Journal scoping, not trigger predicates.
+    // The build Act's work has landed (P8.1): on an empty Journal it completes doing nothing.
+    if act == .build {
+        try await runAct(act, project: "alpha", in: directory, force: true)
+    } else {
+        await #expect(throws: EngineInvocationError.notImplemented(act)) {
+            try await runAct(act, project: "alpha", in: directory, force: act != .author)
+        }
     }
 
     #expect(try journalFiles(in: directory) == ["alpha.db"])
@@ -107,10 +112,9 @@ func deadPredecessorIsReclaimed() async throws {
     // Claimed eleven minutes ago and never heartbeated: crashed, or asleep past the TTL.
     _ = try dead.claimActLease(act: .build, runID: RunID(), mode: .real, now: Date().addingTimeInterval(-660))
 
-    await #expect(throws: EngineInvocationError.notImplemented(.build)) {
-        // Force the Act because this test is about lease reclaim and takeover, not the trigger predicate
-        try await runAct(.build, project: "alpha", in: directory, force: true)
-    }
+    // Force the Act because this test is about lease reclaim and takeover, not the trigger predicate.
+    // The build Act's work has landed (P8.1): on an empty Journal it completes doing nothing.
+    try await runAct(.build, project: "alpha", in: directory, force: true)
 
     // The new run claimed the Project and released it on exit.
     #expect(try dead.currentActLease() == nil)
@@ -123,17 +127,25 @@ func invocationReleasesOnExit(_ act: Act) async throws {
     try directory.writeValidProjectFile(id: "alpha")
     let projectID = try #require(ProjectID(rawValue: "alpha"))
 
-    await #expect(throws: EngineInvocationError.notImplemented(act)) {
-        // Force build and land Acts because this test is about lease release, not trigger predicates
-        try await runAct(act, project: "alpha", in: directory, force: act != .author)
+    // Force build and land Acts because this test is about lease release, not trigger predicates. The
+    // build Act's work has landed (P8.1): on an empty Journal it completes doing nothing.
+    if act == .build {
+        try await runAct(act, project: "alpha", in: directory, force: true)
+    } else {
+        await #expect(throws: EngineInvocationError.notImplemented(act)) {
+            try await runAct(act, project: "alpha", in: directory, force: act != .author)
+        }
     }
 
     let journal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
     #expect(try journal.currentActLease() == nil)
     // And so the next firing of the same Project is not held off.
-    await #expect(throws: EngineInvocationError.notImplemented(act)) {
-        // Force build and land Acts because this test is about lease release, not trigger predicates
-        try await runAct(act, project: "alpha", in: directory, force: act != .author)
+    if act == .build {
+        try await runAct(act, project: "alpha", in: directory, force: true)
+    } else {
+        await #expect(throws: EngineInvocationError.notImplemented(act)) {
+            try await runAct(act, project: "alpha", in: directory, force: act != .author)
+        }
     }
 }
 

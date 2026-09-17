@@ -19,6 +19,9 @@ public struct ActContext: Sendable {
     public let outbox: Outbox?
     /// This Act's Night Card, when this invocation was given a Board.
     public let nightCard: NightCardMaintenance?
+    /// The Board Port, when this invocation was given one. The Engine never imports an adapter (MB1);
+    /// `EngineCommand` is the one place this is wired.
+    public let board: ActBoard?
     /// Resolved mainlines for this Project's repositories.
     public let mainlines: ResolvedMainlines
     /// The Workspace Port, when this invocation was given one. The Engine never imports an adapter
@@ -34,6 +37,7 @@ public struct ActContext: Sendable {
         night: NightRecord,
         outbox: Outbox? = nil,
         nightCard: NightCardMaintenance? = nil,
+        board: ActBoard? = nil,
         mainlines: ResolvedMainlines = ResolvedMainlines(),
         workspace: (any Workspace)? = nil
     ) {
@@ -45,6 +49,7 @@ public struct ActContext: Sendable {
         self.night = night
         self.outbox = outbox
         self.nightCard = nightCard
+        self.board = board
         self.mainlines = mainlines
         self.workspace = workspace
     }
@@ -113,10 +118,11 @@ public struct EngineInvocation: Sendable {
         self.work = { _ in throw EngineInvocationError.notImplemented(act) }
     }
 
-    /// The Act's work under the lease is injectable so a test can drive an Act that completes;
-    /// the real Acts arrive in later phases, and until then the public initializer's work throws
-    /// `notImplemented`.
-    internal init(
+    /// The Act's work under the lease is injectable: `EngineCommand` wires in the real work an Act's
+    /// own phase has landed (the build Act's is `BuildAct.work`, P8.1), and a test drives an Act that
+    /// completes the same way. An Act whose phase has not landed yet keeps the public initializer's
+    /// work, which throws `notImplemented`.
+    public init(
         act: Act,
         mode: NightMode,
         nightStart: NightStart,
@@ -229,7 +235,8 @@ public struct EngineInvocation: Sendable {
             case .met:
                 let context = ActContext(
                     act: act, mode: mode, trigger: trigger, runID: runID, journal: journal, night: night,
-                    outbox: outbox, nightCard: nightCard, mainlines: resolvedMainlines, workspace: workspace
+                    outbox: outbox, nightCard: nightCard, board: board, mainlines: resolvedMainlines,
+                    workspace: workspace
                 )
                 try await withLeaseHeartbeat(
                     every: leasePolicy.heartbeatDuration,

@@ -186,6 +186,25 @@ extension JournalEvent {
                 "card_id": String(cardID), "from_epoch": String(from), "issue_id": issueID,
                 "reason": reason, "to_epoch": String(to)
             ]
+        case .expiredCardLeasesSwept(let cycleID, let reclaimedCardIDs):
+            [
+                "cycle_id": String(cycleID),
+                "reclaimed_card_ids": reclaimedCardIDs.map(String.init).joined(separator: ",")
+            ]
+        case .boardStateReposted(let cards):
+            ["cards": String(cards)]
+        case .repoLanesDerived(let cycleID, let lanes):
+            ["cycle_id": String(cycleID), "lanes": lanes.joined(separator: ",")]
+        case .repoLaneStarted(let repository, let cards):
+            ["cards": String(cards), "repository": repository]
+        case .repoLaneEnded(let repository, let cardsRun, let failure):
+            {
+                var dict: [String: String] = ["cards_run": String(cardsRun), "repository": repository]
+                if let failure {
+                    dict["failure"] = failure
+                }
+                return dict
+            }()
         }
     }
 }
