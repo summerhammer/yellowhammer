@@ -734,7 +734,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Sonnet 5 Medium, or Gemini Flash 3.8 Medium.
 - **Done when** — Drift in a CLI's output format turns the job red before a release ships.
 
-### [ ] P7.6 Route resolution
+### [x] P7.6 Route resolution
 - **Work**
   - Resolve per Card at dispatch: select by per-Card Override, then Kind (longest prefix), then
     Repo Role; then filter by attempt-history exclusion and probe failure.
