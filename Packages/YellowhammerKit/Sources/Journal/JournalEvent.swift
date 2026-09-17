@@ -122,7 +122,23 @@ public enum JournalEvent: Equatable, Sendable {
     /// A Repo Lane started running its Cards, one at a time in authored order.
     case repoLaneStarted(repository: String, cards: Int)
     /// A Repo Lane finished — every runnable Card ran, or one of them threw and stopped the lane.
-    case repoLaneEnded(repository: String, cardsRun: Int, failure: String?)
+    /// `cardsSkipped` is how many the Readiness Check (P8.2) found not Ready and moved past; 0 on a row
+    /// recorded before that check existed.
+    case repoLaneEnded(repository: String, cardsRun: Int, failure: String?, cardsSkipped: Int = 0)
+    /// The Readiness Check found a Card Ready to dispatch (board-projection/check-card-readiness-at-dispatch, P8.2).
+    case readinessCheckPassed(cardID: Int64, issueID: String)
+    /// The Readiness Check found a Card not Ready: it was not dispatched, consuming no Attempt.
+    case readinessCheckFailed(cardID: Int64, issueID: String, failures: [String])
+    /// A Transcription Block's provenance test returned `.stale`: the Card is a Divergence.
+    case cardDiverged(cardID: Int64, issueID: String, repository: String, changedPaths: [String])
+    /// An Operator edit inside a Transcription Block voided its stamp: it is now Operator-supplied.
+    case transcriptionStampVoided(cardID: Int64, issueID: String, repository: String)
+    /// An untagged Definition of Done line on the board was minted a synthetic clause id.
+    case clauseMinted(issueID: String, cid: String)
+    /// A tagged clause's text or citation changed on the board; its identity (`cid`) is preserved.
+    case clauseInvalidated(issueID: String, cid: String, cause: String)
+    /// A tagged clause present in the Journal is absent from the board.
+    case clauseDeleted(issueID: String, cid: String)
 
     /// The type of this event.
     public var type: JournalEventType {
@@ -215,6 +231,20 @@ public enum JournalEvent: Equatable, Sendable {
             .repoLaneStarted
         case .repoLaneEnded:
             .repoLaneEnded
+        case .readinessCheckPassed:
+            .readinessCheckPassed
+        case .readinessCheckFailed:
+            .readinessCheckFailed
+        case .cardDiverged:
+            .cardDiverged
+        case .transcriptionStampVoided:
+            .transcriptionStampVoided
+        case .clauseMinted:
+            .clauseMinted
+        case .clauseInvalidated:
+            .clauseInvalidated
+        case .clauseDeleted:
+            .clauseDeleted
         }
     }
 }
@@ -265,4 +295,11 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case repoLanesDerived = "RepoLanesDerived"
     case repoLaneStarted = "RepoLaneStarted"
     case repoLaneEnded = "RepoLaneEnded"
+    case readinessCheckPassed = "ReadinessCheckPassed"
+    case readinessCheckFailed = "ReadinessCheckFailed"
+    case cardDiverged = "CardDiverged"
+    case transcriptionStampVoided = "TranscriptionStampVoided"
+    case clauseMinted = "ClauseMinted"
+    case clauseInvalidated = "ClauseInvalidated"
+    case clauseDeleted = "ClauseDeleted"
 }

@@ -4,7 +4,7 @@ import Journal
 /// The build Act's `CardRunner` until running a Card is implemented (roadmap P8.4): every lane stops
 /// on its first runnable Card rather than dispatching nothing silently.
 struct DispatchPendingCardRunner: CardRunner {
-    func run(card: CardRecord, in lane: RepoLane, context: BuildActContext) async throws {
+    func run(card: CardRecord, in lane: RepoLane, context: BuildActContext, readiness: CardReadiness) async throws {
         throw CardRunPendingError(issueID: card.issueID)
     }
 }

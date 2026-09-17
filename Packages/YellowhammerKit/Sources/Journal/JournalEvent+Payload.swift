@@ -197,14 +197,36 @@ extension JournalEvent {
             ["cycle_id": String(cycleID), "lanes": lanes.joined(separator: ",")]
         case .repoLaneStarted(let repository, let cards):
             ["cards": String(cards), "repository": repository]
-        case .repoLaneEnded(let repository, let cardsRun, let failure):
+        case .repoLaneEnded(let repository, let cardsRun, let failure, let cardsSkipped):
             {
-                var dict: [String: String] = ["cards_run": String(cardsRun), "repository": repository]
+                var dict: [String: String] = [
+                    "cards_run": String(cardsRun), "cards_skipped": String(cardsSkipped), "repository": repository
+                ]
                 if let failure {
                     dict["failure"] = failure
                 }
                 return dict
             }()
+        case .readinessCheckPassed(let cardID, let issueID):
+            ["card_id": String(cardID), "issue_id": issueID]
+        case .readinessCheckFailed(let cardID, let issueID, let failures):
+            [
+                "card_id": String(cardID), "issue_id": issueID,
+                "failures": failures.joined(separator: "\u{1F}")
+            ]
+        case .cardDiverged(let cardID, let issueID, let repository, let changedPaths):
+            [
+                "card_id": String(cardID), "issue_id": issueID, "repository": repository,
+                "changed_paths": changedPaths.joined(separator: "\u{1F}")
+            ]
+        case .transcriptionStampVoided(let cardID, let issueID, let repository):
+            ["card_id": String(cardID), "issue_id": issueID, "repository": repository]
+        case .clauseMinted(let issueID, let cid):
+            ["issue_id": issueID, "cid": cid]
+        case .clauseInvalidated(let issueID, let cid, let cause):
+            ["issue_id": issueID, "cid": cid, "cause": cause]
+        case .clauseDeleted(let issueID, let cid):
+            ["issue_id": issueID, "cid": cid]
         }
     }
 }

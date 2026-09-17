@@ -64,14 +64,14 @@ private func insertFixtureCard(
     }
 }
 
-@Test("A fresh Journal has v11-feature-branch applied last")
+@Test("A fresh Journal has v12-readiness-check applied last")
 func v5MigrationApplied() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
 
     let migrations = try journal.appliedMigrations()
     #expect(migrations.contains("v4-outbox-delivery"))
-    #expect(migrations.last == "v11-feature-branch")
+    #expect(migrations.last == "v12-readiness-check")
 }
 
 @Test("Outbox table has new columns from v4 migration")
