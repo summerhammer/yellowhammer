@@ -1,0 +1,196 @@
+import Darwin
+import Foundation
+import Repositories
+import Testing
+
+@Suite("Process fencing tests")
+struct ProcessFencerTests {
+
+    @Test("A process with cwd inside the Worktree is a holder and is killed by fence")
+    func cwdHolderIsFencedAndKilled() async throws {
+        let worktree = try Self.makeTempDir(name: "cwd-holder-1")
+        defer { try? FileManager.default.removeItem(at: worktree) }
+
+        let process = try Self.launchSleep(currentDirectory: worktree)
+        defer { if process.isRunning { process.terminate() } }
+        try await Task.sleep(for: .milliseconds(150))
+
+        let fencer = ProcessFencer()
+        let found = fencer.holders(of: worktree.path)
+        let holder = try #require(found.first { $0.pid == process.processIdentifier })
+        guard case .workingDirectory = holder.reason else {
+            Issue.record("expected .workingDirectory, got \(holder.reason)")
+            return
+        }
+
+        let outcome = await fencer.fence(worktreePath: worktree.path)
+        guard case .quiescent(let killed) = outcome else {
+            Issue.record("expected .quiescent, got \(outcome)")
+            return
+        }
+        #expect(killed.contains { $0.pid == process.processIdentifier })
+
+        process.waitUntilExit()
+        #expect(process.terminationReason == .uncaughtSignal)
+        #expect(process.terminationStatus == SIGKILL)
+
+        #expect(fencer.holders(of: worktree.path).isEmpty)
+    }
+
+    @Test("A process with an open file inside the Worktree, but cwd elsewhere, is a holder killed by fence")
+    func openFileHolderIsFencedAndKilled() async throws {
+        let worktree = try Self.makeTempDir(name: "openfile-holder-2")
+        defer { try? FileManager.default.removeItem(at: worktree) }
+
+        let watchedFile = worktree.appendingPathComponent("watched.log")
+        #expect(FileManager.default.createFile(atPath: watchedFile.path, contents: Data()))
+        let resolvedFile = Self.realResolve(watchedFile.path)
+
+        let process = try Self.launchTailF(file: watchedFile, currentDirectory: FileManager.default.temporaryDirectory)
+        defer { if process.isRunning { process.terminate() } }
+        try await Task.sleep(for: .milliseconds(150))
+
+        let fencer = ProcessFencer()
+        let found = fencer.holders(of: worktree.path)
+        let holder = try #require(found.first { $0.pid == process.processIdentifier })
+        guard case .openFile(let path) = holder.reason else {
+            Issue.record("expected .openFile, got \(holder.reason)")
+            return
+        }
+        #expect(path == resolvedFile)
+
+        let outcome = await fencer.fence(worktreePath: worktree.path)
+        guard case .quiescent(let killed) = outcome else {
+            Issue.record("expected .quiescent, got \(outcome)")
+            return
+        }
+        #expect(killed.contains { $0.pid == process.processIdentifier })
+
+        process.waitUntilExit()
+        #expect(process.terminationReason == .uncaughtSignal)
+        #expect(process.terminationStatus == SIGKILL)
+
+        #expect(fencer.holders(of: worktree.path).isEmpty)
+    }
+
+    @Test("A process whose cwd is a sibling directory sharing a name prefix is not a holder")
+    func siblingWithSharedPrefixIsNotAHolder() async throws {
+        let worktree = try Self.makeTempDir(name: "prefix-3")
+        defer { try? FileManager.default.removeItem(at: worktree) }
+        let sibling = URL(fileURLWithPath: worktree.path + "2")
+        try FileManager.default.createDirectory(at: sibling, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: sibling) }
+
+        let process = try Self.launchSleep(currentDirectory: sibling)
+        defer {
+            if process.isRunning {
+                process.terminate()
+                process.waitUntilExit()
+            }
+        }
+        try await Task.sleep(for: .milliseconds(150))
+
+        let fencer = ProcessFencer()
+        let found = fencer.holders(of: worktree.path)
+        #expect(found.contains { $0.pid == process.processIdentifier } == false)
+        #expect(process.isRunning)
+    }
+
+    @Test("fence on a clean Worktree returns .quiescent immediately with nothing killed")
+    func cleanWorktreeIsImmediatelyQuiescent() async throws {
+        let worktree = try Self.makeTempDir(name: "clean-4")
+        defer { try? FileManager.default.removeItem(at: worktree) }
+
+        let fencer = ProcessFencer()
+        let clock = ContinuousClock()
+        let start = clock.now
+        let outcome = await fencer.fence(worktreePath: worktree.path)
+        let elapsed = clock.now - start
+
+        guard case .quiescent(let killed) = outcome else {
+            Issue.record("expected .quiescent, got \(outcome)")
+            return
+        }
+        #expect(killed.isEmpty)
+        // Well under the default quiescenceTimeout (10s), proving fence() did not wait it out.
+        // Not a tighter bound: under `swift test --parallel` for the whole package, unrelated
+        // suites' concurrent process spawns can starve Swift concurrency's cooperative thread
+        // pool, delaying even a single 50ms poll well past a sub-second bound.
+        #expect(elapsed < .seconds(5))
+    }
+
+    @Test("fence on a nonexistent path returns .pathMissing without touching the process table")
+    func nonexistentPathIsPathMissing() async throws {
+        let missing = FileManager.default.temporaryDirectory
+            .appendingPathComponent("yh-missing-\(UUID().uuidString)")
+
+        let fencer = ProcessFencer()
+        let outcome = await fencer.fence(worktreePath: missing.path)
+
+        guard case .pathMissing = outcome else {
+            Issue.record("expected .pathMissing, got \(outcome)")
+            return
+        }
+    }
+
+    @Test("fence returns only once the Worktree is quiescent, not before")
+    func fenceReturnsOnlyOnceQuiescent() async throws {
+        let worktree = try Self.makeTempDir(name: "quiescence-6")
+        defer { try? FileManager.default.removeItem(at: worktree) }
+
+        let process = try Self.launchSleep(currentDirectory: worktree)
+        defer { if process.isRunning { process.terminate() } }
+        try await Task.sleep(for: .milliseconds(150))
+
+        let fencer = ProcessFencer(pollInterval: .milliseconds(50), quiescenceTimeout: .seconds(2))
+        let outcome = await fencer.fence(worktreePath: worktree.path)
+
+        guard case .quiescent = outcome else {
+            Issue.record("expected .quiescent, got \(outcome)")
+            return
+        }
+        #expect(fencer.holders(of: worktree.path).isEmpty)
+
+        process.waitUntilExit()
+        #expect(process.terminationReason == .uncaughtSignal)
+    }
+
+    // MARK: - Fixtures
+
+    private static func makeTempDir(name: String) throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("yh-fencer-\(name)-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private static func realResolve(_ path: String) -> String {
+        var buffer = [Int8](repeating: 0, count: Int(PATH_MAX))
+        guard let resolved = realpath(path, &buffer) else { return path }
+        return String(cString: resolved)
+    }
+
+    private static func launchSleep(currentDirectory: URL, seconds: Int = 300) throws -> Process {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        process.arguments = ["\(seconds)"]
+        process.currentDirectoryURL = currentDirectory
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        process.standardInput = FileHandle.nullDevice
+        try process.run()
+        return process
+    }
+
+    private static func launchTailF(file: URL, currentDirectory: URL) throws -> Process {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/tail")
+        process.arguments = ["-f", file.path]
+        process.currentDirectoryURL = currentDirectory
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        process.standardInput = FileHandle.nullDevice
+        try process.run()
+        return process
+    }
+}
