@@ -53,4 +53,12 @@ public enum RehearsalResultFixture: String, CaseIterable, Sendable {
     public func decode() throws -> DispatchResult {
         try ResultFile.decode(try data(), expecting: pass)
     }
+
+    /// What a rehearsal run of this fixture yields. A rehearsal Night never spawns a CLI: the
+    /// fixture stands in for the result file of a run that exited 0, and the same dual-key
+    /// contract applies, so `workerEmpty` and `workerMalformed` are Crashed-Unknown exactly as a
+    /// live run would be.
+    public func outcome() -> RunOutcome {
+        RunOutcome.classify(end: .exited(status: 0), resultFileAt: url, pass: pass)
+    }
 }

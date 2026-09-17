@@ -17,6 +17,7 @@ let package = Package(
         .library(name: "LinearAdapter", targets: ["LinearAdapter"]),
         .library(name: "OrcaADEAdapter", targets: ["OrcaADEAdapter"]),
         .library(name: "Repositories", targets: ["Repositories"]),
+        .library(name: "CLIAdapters", targets: ["CLIAdapters"]),
         .library(name: "EngineCommand", targets: ["EngineCommand"])
     ],
     dependencies: [
@@ -66,6 +67,10 @@ let package = Package(
         ),
         .target(
             name: "OrcaADEAdapter",
+            dependencies: ["Domain"]
+        ),
+        .target(
+            name: "CLIAdapters",
             dependencies: ["Domain"]
         ),
         .target(
@@ -123,6 +128,13 @@ let package = Package(
                 "Repositories",
                 "Domain",
                 "Journal"
+            ]
+        ),
+        .testTarget(
+            name: "CLIAdaptersTests",
+            dependencies: [
+                "CLIAdapters",
+                "Domain"
             ]
         ),
         .testTarget(
