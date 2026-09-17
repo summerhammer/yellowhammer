@@ -11,6 +11,11 @@ import Journal
 ///
 /// The resolved Route reaches the Card through the Attempt: the Card's Managed Block renders every
 /// Attempt with its Route, so the morning can see which route produced the work.
+///
+/// Route exclusion on retry (routing/exclude-tried-routes-on-retry, roadmap P7.7): an Override pinned
+/// in triage beats attempt-history exclusion, so an Operator pin that differs from the last Attempt's
+/// pin in the Card's current budget epoch resets that epoch before resolution — the earlier epoch's
+/// exclusions stop applying, and the Attempt records which pin produced it.
 public struct CardRouting: Sendable {
     public let resolver: RouteResolver
     public let journal: JournalStore
@@ -49,8 +54,9 @@ public struct CardRouting: Sendable {
     /// Resolves and records for one Card. `repoRole` is the role of the Card's Repo and `override`
     /// the Operator's pins read from the board; both are the caller's, because the Engine holds no
     /// configuration and reads the board only through the Delta Read. `checkDeclaredNone` is copied
-    /// onto the Attempt exactly as ``JournalStore/recordAttempt(cardID:route:checkDeclaredNone:runID:now:)``
-    /// takes it.
+    /// onto the Attempt exactly as
+    /// ``JournalStore/recordAttempt(cardID:route:checkDeclaredNone:routeSource:override:runID:act:nightID:now:)``
+    /// takes it, along with the resolved Route's ``ResolvedRoute/source`` and the Operator's Override.
     public func route(
         card: CardRecord,
         repoRole: RepoRole?,
@@ -60,6 +66,9 @@ public struct CardRouting: Sendable {
         guard let kind = Kind(card.kind) else {
             throw CardRoutingError.kindUnparseable(cardID: card.id, kind: card.kind)
         }
+
+        let card = try resetEpochIfOverridePinChanged(card: card, override: override)
+
         let request = RouteRequest(
             kind: kind,
             repoRole: repoRole,
@@ -69,7 +78,8 @@ public struct CardRouting: Sendable {
         switch try resolver.resolve(request) {
         case .resolved(let resolved):
             let attempt = try journal.recordAttempt(
-                cardID: card.id, route: resolved.route, checkDeclaredNone: checkDeclaredNone, runID: runID
+                cardID: card.id, route: resolved.route, checkDeclaredNone: checkDeclaredNone,
+                routeSource: resolved.source, override: override, runID: runID, act: act, nightID: nightID
             )
             return .attempt(attempt, resolved)
         case .exhausted(let exhaustion):
@@ -85,6 +95,24 @@ public struct CardRouting: Sendable {
             )
             return .readinessFailure(card, refusal)
         }
+    }
+
+    /// The triage-Override rule (routing/exclude-tried-routes-on-retry, P7.7): an Override beats
+    /// attempt-history exclusion, so pinning one in triage that differs from the pin the Card's last
+    /// Attempt in its current budget epoch ran under resets that epoch — the exclusions it recorded
+    /// stop applying. Never resets when the epoch has no Attempt yet, and never when the last Attempt
+    /// already ran under this same pin.
+    private func resetEpochIfOverridePinChanged(card: CardRecord, override: Override) throws -> CardRecord {
+        guard !override.isEmpty else { return card }
+        let history = try journal.attemptHistory(cardID: card.id)
+        let current = history.attempts.filter { $0.budgetEpoch == card.budgetEpoch }
+        guard let last = current.last, last.overridePin != override.description else {
+            return card
+        }
+        return try journal.resetBudgetEpoch(
+            cardID: card.id, reason: "Override `\(override)` pinned in triage",
+            runID: runID, act: act, nightID: nightID
+        )
     }
 
     /// Blocked with Block Reason `hard failure`, through the projection when there is one.

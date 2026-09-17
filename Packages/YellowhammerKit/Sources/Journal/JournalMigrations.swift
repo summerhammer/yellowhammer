@@ -57,6 +57,9 @@ enum JournalMigrations {
         migrator.registerMigration("v9-worktree-reconciliation") { db in
             try addWorktreeReconciliationColumns(db)
         }
+        migrator.registerMigration("v10-attempt-route-provenance") { db in
+            try addAttemptRouteProvenance(db)
+        }
         return migrator
     }
 }

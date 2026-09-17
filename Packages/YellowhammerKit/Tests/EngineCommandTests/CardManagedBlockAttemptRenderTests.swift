@@ -18,6 +18,8 @@ func renderAttemptWithCheckRound() {
         result: "succeeded",
         consumedHow: nil,
         checkDeclaredNone: false,
+        routeSource: nil,
+        overridePin: nil,
         startedAt: Date(),
         endedAt: Date(),
         rounds: [
@@ -59,6 +61,8 @@ func renderCheckDeclaredNone() {
         result: "succeeded",
         consumedHow: nil,
         checkDeclaredNone: true,
+        routeSource: nil,
+        overridePin: nil,
         startedAt: Date(),
         endedAt: Date(),
         rounds: []
@@ -93,6 +97,8 @@ func renderOpenAttempt() {
         result: nil,
         consumedHow: nil,
         checkDeclaredNone: false,
+        routeSource: nil,
+        overridePin: nil,
         startedAt: Date(),
         endedAt: nil,
         rounds: []
@@ -126,6 +132,8 @@ func renderConsumed() {
         result: "succeeded",
         consumedHow: "some reason",
         checkDeclaredNone: false,
+        routeSource: nil,
+        overridePin: nil,
         startedAt: Date(),
         endedAt: Date(),
         rounds: []
@@ -159,6 +167,8 @@ func renderMultipleRounds() {
         result: "succeeded",
         consumedHow: nil,
         checkDeclaredNone: false,
+        routeSource: nil,
+        overridePin: nil,
         startedAt: Date(),
         endedAt: Date(),
         rounds: [

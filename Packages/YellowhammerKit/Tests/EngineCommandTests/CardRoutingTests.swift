@@ -260,3 +260,7 @@ struct CardRoutingTests {
         #expect(resolved.skipped.isEmpty)
     }
 }
+
+// Route exclusion on retry (routing/exclude-tried-routes-on-retry, P7.7) is covered in
+// CardRoutingRetryTests.swift, which extends this suite — split out to keep this file under the
+// length limit.

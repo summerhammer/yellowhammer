@@ -104,6 +104,12 @@ extension JournalEvent {
                 issueID: try reader.require("issue_id"),
                 reason: try reader.require("reason")
             )
+        case .attemptEnded:
+            try Self.decodeAttemptEnded(reader)
+        case .routeRetried:
+            try Self.decodeRouteRetried(reader)
+        case .budgetEpochReset:
+            try Self.decodeBudgetEpochReset(reader)
         }
     }
 
@@ -250,56 +256,14 @@ extension JournalEvent {
         )
     }
 
-    private static func decodeWorktreeLost(_ reader: PayloadReader) throws -> JournalEvent {
-        .worktreeLost(
-            featureID: try reader.int64("feature_id"),
-            repository: try reader.require("repository"),
-            worktreeID: try reader.require("worktree_id"),
-            path: try reader.require("path")
-        )
-    }
-
-    private static func decodeWorktreeFenced(_ reader: PayloadReader) throws -> JournalEvent {
-        .worktreeFenced(
-            featureID: try reader.int64("feature_id"),
-            repository: try reader.require("repository"),
-            path: try reader.require("path"),
-            killed: try reader.int("killed")
-        )
-    }
-
-    private static func decodeWorktreeNotQuiescent(_ reader: PayloadReader) throws -> JournalEvent {
-        .worktreeNotQuiescent(
-            featureID: try reader.int64("feature_id"),
-            repository: try reader.require("repository"),
-            path: try reader.require("path"),
-            remaining: try reader.int("remaining")
-        )
-    }
-
-    private static func decodeWorktreeWIPCommitted(_ reader: PayloadReader) throws -> JournalEvent {
-        .worktreeWIPCommitted(
-            featureID: try reader.int64("feature_id"),
-            repository: try reader.require("repository"),
-            wipCommit: try reader.require("wip_commit"),
-            wipRef: try reader.require("wip_ref"),
-            resetTo: reader.payload?["reset_to"]
-        )
-    }
-
-    private static func decodeWorktreeReconciliationFailed(_ reader: PayloadReader) throws -> JournalEvent {
-        .worktreeReconciliationFailed(
-            featureID: try reader.int64("feature_id"),
-            repository: try reader.require("repository"),
-            path: try reader.require("path"),
-            reason: try reader.require("reason")
-        )
-    }
+    // The five worktree reconciliation decode helpers (decodeWorktreeLost through
+    // decodeWorktreeReconciliationFailed) live in JournalEvent+WorktreeDecoding.swift, split out to
+    // keep this file under the file length limit.
 }
 
 // MARK: - PayloadReader
 
-private struct PayloadReader: Sendable {
+struct PayloadReader: Sendable {
     let payload: [String: String]?
     let rowID: Int64
 
@@ -396,5 +360,22 @@ private struct PayloadReader: Sendable {
         return try JournalStore.date(text) {
             JournalError.eventUnreadable(id: rowID)
         }
+    }
+
+    func bool(_ key: String) throws -> Bool {
+        switch try require(key) {
+        case "true": return true
+        case "false": return false
+        default: throw JournalError.eventUnreadable(id: rowID)
+        }
+    }
+
+    func route() throws -> Route {
+        guard let route = Route(
+            cli: try require("route_cli"), model: try require("route_model"), effort: try require("route_effort")
+        ) else {
+            throw JournalError.eventUnreadable(id: rowID)
+        }
+        return route
     }
 }

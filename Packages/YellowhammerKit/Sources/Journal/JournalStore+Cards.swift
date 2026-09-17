@@ -18,6 +18,10 @@ public struct CardRecord: Equatable, Sendable {
     public let blockReason: String?
     /// The state the Card held before the board said Cancelled; nil unless state is cancelled.
     public let cancelledFromState: CardState?
+    /// Bumped by ``JournalStore/resetBudgetEpoch(cardID:reason:runID:act:nightID:now:)`` when an
+    /// Override pinned in triage supersedes the exclusions an earlier epoch recorded
+    /// (routing/exclude-tried-routes-on-retry, P7.7).
+    public let budgetEpoch: Int
     public let createdAt: Date
     /// Bumped by every Journal-side state transition (``JournalStore/transitionCard(cardID:to:waitingReason:blockReason:runID:act:nightID:now:)``).
     public let stateVersion: Int
@@ -157,6 +161,7 @@ extension JournalStore {
             waitingReason: waitingReason,
             blockReason: row["block_reason"],
             cancelledFromState: cancelledFromState,
+            budgetEpoch: row["budget_epoch"],
             createdAt: createdAt,
             stateVersion: row["state_version"],
             boardStateVersion: row["board_state_version"]
@@ -282,6 +287,7 @@ extension CardRecord {
             waitingReason: waitingReason,
             blockReason: blockReason,
             cancelledFromState: cancelledFromState,
+            budgetEpoch: budgetEpoch,
             createdAt: createdAt,
             stateVersion: stateVersion,
             boardStateVersion: boardStateVersion

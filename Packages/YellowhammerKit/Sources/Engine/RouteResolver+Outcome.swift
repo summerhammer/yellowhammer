@@ -36,6 +36,21 @@ public struct ResolvedRoute: Equatable, Sendable {
         self.selectedBy = selectedBy
         self.skipped = skipped
     }
+
+    /// How this Route was selected, for the Attempt's `route_source` (object guide: `route_source`
+    /// enum `{entry, fallback, override}` plus fallback position; routing/exclude-tried-routes-on-retry,
+    /// P7.7): `override` under the Operator's pin; otherwise `entry` when the Routing Entry's primary
+    /// route survived the filters (position 0, so `skipped` is empty), else `fallback:<n>` where `n` is
+    /// the 1-based position among the entry's fallbacks — equal to `skipped.count`, since every
+    /// candidate ahead of this one was filtered out.
+    public var source: String {
+        switch selectedBy {
+        case .override:
+            "override"
+        case .entry:
+            skipped.isEmpty ? "entry" : "fallback:\(skipped.count)"
+        }
+    }
 }
 
 /// One of a Routing Entry's candidates a filter dropped, and which filter.

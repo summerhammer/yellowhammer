@@ -100,6 +100,17 @@ public enum JournalEvent: Equatable, Sendable {
     /// Check failure (G-17). Nothing was dispatched, no Attempt was recorded and the Card's state was
     /// not touched.
     case overrideRefused(cardID: Int64, issueID: String, reason: String)
+    /// An Attempt ended, with its outcome and whether it excluded the Route it ran on
+    /// (routing/exclude-tried-routes-on-retry, P7.7).
+    case attemptEnded(
+        cardID: Int64, issueID: String, attemptID: Int64, route: Route, outcome: String, routeExcluded: Bool
+    )
+    /// A second (or later) Attempt in the same budget epoch was recorded, and whether it landed on a
+    /// Route no earlier Attempt in that epoch had tried (routing/exclude-tried-routes-on-retry, P7.7).
+    case routeRetried(cardID: Int64, issueID: String, attemptID: Int64, route: Route, differentRoute: Bool)
+    /// An Override pinned in triage reset the Card's budget epoch, so a Route excluded in an earlier
+    /// epoch no longer excludes (routing/exclude-tried-routes-on-retry, P7.7).
+    case budgetEpochReset(cardID: Int64, issueID: String, from: Int, to: Int, reason: String)
 
     /// The type of this event.
     public var type: JournalEventType {
@@ -176,6 +187,12 @@ public enum JournalEvent: Equatable, Sendable {
             .routeExhausted
         case .overrideRefused:
             .overrideRefused
+        case .attemptEnded:
+            .attemptEnded
+        case .routeRetried:
+            .routeRetried
+        case .budgetEpochReset:
+            .budgetEpochReset
         }
     }
 }
@@ -218,4 +235,7 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case worktreeReconciliationFailed = "WorktreeReconciliationFailed"
     case routeExhausted = "RouteExhausted"
     case overrideRefused = "OverrideRefused"
+    case attemptEnded = "AttemptEnded"
+    case routeRetried = "RouteRetried"
+    case budgetEpochReset = "BudgetEpochReset"
 }
