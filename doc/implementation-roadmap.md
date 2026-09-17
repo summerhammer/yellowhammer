@@ -640,7 +640,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Rehearsal-assertable: a three-repo fixture Feature holds three Worktrees whose
   names match their Feature Branches.
 
-### [ ] P6.8 Process fencing sweep
+### [x] P6.8 Process fencing sweep
 - **Work** — Find every process holding an open file or a working directory inside a Worktree path.
   Kill each one with `SIGKILL`. Wait until the count is zero before anything inspects, commits or
   resets the Worktree.
