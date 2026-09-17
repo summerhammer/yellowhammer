@@ -782,7 +782,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — A rehearsal build Act over a fixture Feature performs the steps in order, as
   recorded in the event log.
 
-### [ ] P8.2 Readiness Check at dispatch
+### [x] P8.2 Readiness Check at dispatch
 - **Work** — On every build Act, for each Card about to dispatch:
   - An Architectural Brief and a Definition of Done are present.
   - Every Spec Citation still resolves.
