@@ -699,7 +699,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   and `SIGKILL` with orphaned children, and rehearsal fixtures. Crash/kill behaviour of a real CLI
   is exercised by the Probe (P7.4), not asserted in rehearsal.
 
-### [ ] P7.3 CLI Adapters: `claude` and `codex`
+### [x] P7.3 CLI Adapters: `claude` and `codex`
 - **Work** — One adapter per CLI, each defining:
   - argv shape for unattended dispatch with no prompt (closed stdin, permission mode or sandbox
     flags as each CLI requires);
