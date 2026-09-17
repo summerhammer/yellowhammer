@@ -767,7 +767,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 
 ## Phase 8 — Build Act
 
-### [ ] P8.1 Build Act sequence
+### [x] P8.1 Build Act sequence
 - **Work** — In order, each build Act:
   1. Opens or joins the Night (P5.7).
   2. Refreshes mainlines (P6.1).
