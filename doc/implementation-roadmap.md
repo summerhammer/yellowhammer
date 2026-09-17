@@ -711,7 +711,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Opus 5 Medium.
 - **Done when** — Each adapter passes its Probe (P7.4) on a developer machine.
 
-### [ ] P7.4 Probes and Probe Results
+### [x] P7.4 Probes and Probe Results
 - **Work** — A Probe per adapter that checks, and records in the Ledger:
   1. unattended dispatch with no interactive auth or permission prompt;
   2. schema-conforming result file on clean exit;
