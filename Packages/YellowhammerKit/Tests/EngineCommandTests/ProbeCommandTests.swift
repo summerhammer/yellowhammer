@@ -105,3 +105,16 @@ func rootCommandParsesProbeKeep() throws {
     let probe = try #require(parsed as? ProbeCommand)
     #expect(probe.keep == true)
 }
+
+@Test("RootCommand parses `probe --all` and `probe -a`")
+func rootCommandParsesProbeAll() throws {
+    let parsedLong = try RootCommand.parseAsRoot(["probe", "--all"])
+    let probeLong = try #require(parsedLong as? ProbeCommand)
+    #expect(probeLong.cli == nil)
+    #expect(probeLong.all == true)
+
+    let parsedShort = try RootCommand.parseAsRoot(["probe", "-a"])
+    let probeShort = try #require(parsedShort as? ProbeCommand)
+    #expect(probeShort.cli == nil)
+    #expect(probeShort.all == true)
+}

@@ -14,14 +14,19 @@ public struct ProbeCommand: AsyncParsableCommand {
         abstract: "Probe an agent CLI's adapter and record the Probe Result in the Ledger."
     )
 
-    @Argument(help: "The agent CLI to probe, e.g. `claude` or `codex`.")
-    public var cli: String
+    @Argument(
+        help: "The agent CLI to probe (e.g. `claude`, `codex`). When omitted with `--all`, probes every registered CLI."
+    )
+    public var cli: String?
 
     @Option(help: "The model to probe with. Every declared CLI Adapter has a default when omitted.")
     public var model: String?
 
     @Option(help: "The effort to probe with. Every declared CLI Adapter has a default when omitted.")
     public var effort: String?
+
+    @Flag(name: [.customShort("a"), .long], help: "Probe every registered agent CLI adapter.")
+    public var all: Bool = false
 
     @Flag(help: "Keep the probe's scratch work directory even when every finding passed.")
     public var keep: Bool = false
@@ -34,6 +39,43 @@ public struct ProbeCommand: AsyncParsableCommand {
     }
 
     func run(configurationDirectory: URL) async throws {
+        let targets: [String]
+        if all {
+            targets = CLIAdapterRegistry.allNames
+        } else if let cli {
+            targets = [cli]
+        } else {
+            throw ValidationError("specify a CLI to probe (e.g. `claude`, `codex`) or pass `--all`")
+        }
+
+        var anyFailedOrDrifted = false
+        for (index, target) in targets.enumerated() {
+            if targets.count > 1 {
+                if index > 0 { print("") }
+                print("=== Probing `\(target)` ===")
+            }
+            let (verdict, drift) = try await probeTarget(
+                cli: target,
+                model: (target == self.cli ? self.model : nil),
+                effort: (target == self.cli ? self.effort : nil),
+                configurationDirectory: configurationDirectory
+            )
+            if verdict == .failed || drift != nil {
+                anyFailedOrDrifted = true
+            }
+        }
+
+        if anyFailedOrDrifted {
+            throw ExitCode(1)
+        }
+    }
+
+    private func probeTarget(
+        cli: String,
+        model: String?,
+        effort: String?,
+        configurationDirectory: URL
+    ) async throws -> (verdict: ProbeVerdict, drift: ProbeDrift?) {
         guard let adapter = CLIAdapterRegistry.adapter(named: cli) else {
             throw ValidationError("no CLI Adapter for `\(cli)`")
         }
@@ -89,9 +131,7 @@ public struct ProbeCommand: AsyncParsableCommand {
             print("excluded from routing: \(reason)")
         }
 
-        if recorded.verdict == .failed || drift != nil {
-            throw ExitCode(1)
-        }
+        return (recorded.verdict, drift)
     }
 
     // MARK: - Reporting
