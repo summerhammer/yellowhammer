@@ -804,7 +804,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Rehearsal tests cover each failure kind, the Divergence route, the voided stamp,
   and untagged clause minting.
 
-### [ ] P8.3 Protected Paths refusal
+### [x] P8.3 Protected Paths refusal
 - **Work**
   - Before dispatch, check the Card's declared scope against the repository's protected paths.
   - A match is not dispatched, moves to Blocked or Waiting on You carrying the protected path, and
