@@ -17,4 +17,18 @@ extension JournalEvent {
             detail: reader.payload?["detail"]
         )
     }
+
+    static func decodeCheckRan(_ reader: PayloadReader) throws -> JournalEvent {
+        guard let result = CheckRunResult(rawValue: try reader.require("result")) else {
+            throw JournalError.eventUnreadable(id: reader.rowID)
+        }
+        return .checkRan(
+            cardID: try reader.int64("card_id"),
+            issueID: try reader.require("issue_id"),
+            attemptID: try reader.int64("attempt_id"),
+            result: result,
+            exitStatus: reader.payload?["exit_status"].flatMap { Int32($0) },
+            output: reader.payload?["output"]
+        )
+    }
 }

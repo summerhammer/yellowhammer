@@ -240,6 +240,20 @@ extension JournalEvent {
                 }
                 return dict
             }()
+        case .checkRan(let cardID, let issueID, let attemptID, let result, let exitStatus, let output):
+            {
+                var dict: [String: String] = [
+                    "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
+                    "result": result.rawValue
+                ]
+                if let exitStatus {
+                    dict["exit_status"] = String(exitStatus)
+                }
+                if let output {
+                    dict["output"] = output
+                }
+                return dict
+            }()
         }
     }
 }
