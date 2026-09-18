@@ -142,6 +142,8 @@ extension JournalEvent {
             .clauseDeleted(issueID: try reader.require("issue_id"), cid: try reader.require("cid"))
         case .protectedPathRefused:
             try Self.decodeProtectedPathRefused(reader)
+        case .cardRunStep:
+            try Self.decodeCardRunStep(reader)
         }
     }
 

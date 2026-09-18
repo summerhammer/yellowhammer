@@ -78,8 +78,11 @@ extension ActCommand {
             )
         }
 
-        // The build Act's work is wired here, the one place an adapter (and so its CardRunner stand-in)
-        // is constructed; author and land keep no-work invocations until their own phases land.
+        // The build Act's work is wired here, the one place an adapter (and so the Dispatch seam's real
+        // implementation) is constructed; author and land keep no-work invocations until their own phases land.
+        let cardRunner = try CardRunBinding.cardRunner(
+            mode: mode, configuration: configuration, project: project, configurationDirectory: configurationDirectory
+        )
         return EngineInvocation(
             act: Self.act,
             mode: mode,
@@ -91,7 +94,7 @@ extension ActCommand {
             repositories: project.repositories,
             workspace: workspace,
             work: BuildAct(
-                cardRunner: DispatchPendingCardRunner(),
+                cardRunner: cardRunner,
                 // Open until P11: the Operator's board identity is not wired anywhere yet; Waiting on
                 // You assignment on a Divergence needs it.
                 readiness: ReadinessCheck(

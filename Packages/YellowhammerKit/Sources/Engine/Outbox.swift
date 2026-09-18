@@ -27,6 +27,10 @@ public struct Outbox: Sendable {
     public var attemptLimit = 3
 
     let clock: @Sendable () -> Date
+    /// Serialises deliveries: the build Act's Repo Lanes run concurrently and each posts board state
+    /// through this one Outbox, and two overlapping `deliverPending` calls would both read the same
+    /// pending entry and deliver it twice. Shared by every copy of this value.
+    let deliveryGate = OutboxDeliveryGate()
     /// Runs after the board applied a write and before the Journal records it: the instant a crash
     /// would lose the record. Tests throw here to simulate one.
     private let interrupt: @Sendable (OutboxEntry) throws -> Void
@@ -119,7 +123,7 @@ public struct Outbox: Sendable {
     /// Stops at a rate-limit refusal or an unreachable board, because acting on a budget that is gone
     /// does less than waiting; a Card whose Lease this run does not hold is skipped and stays pending.
     /// Throws ``OutboxError/staleRun(_:)`` the moment the run's Act-scoped Lease is found lost.
-    public func deliverPending() async throws -> OutboxDeliveryReport {
+    func deliverPendingExclusively() async throws -> OutboxDeliveryReport {
         var deliveries: [OutboxDelivery] = []
         var rolledBackGroups: Set<String> = []
 

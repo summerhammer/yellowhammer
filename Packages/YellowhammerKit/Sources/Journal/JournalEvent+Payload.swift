@@ -232,6 +232,14 @@ extension JournalEvent {
                 "card_id": String(cardID), "issue_id": issueID, "repository": repository,
                 "declared_path": declaredPath, "protected_path": protectedPath
             ]
+        case .cardRunStep(let cardID, let issueID, let step, let detail):
+            {
+                var dict: [String: String] = ["card_id": String(cardID), "issue_id": issueID, "step": step.rawValue]
+                if let detail {
+                    dict["detail"] = detail
+                }
+                return dict
+            }()
         }
     }
 }
