@@ -815,7 +815,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Rehearsal tests show refusal with no dispatch. The limitation text appears in
   user-facing copy.
 
-### [ ] P8.4 Card run: architect → worker → Check → reviewer
+### [x] P8.4 Card run: architect → worker → Check → reviewer
 - **Work**
   - Claim the lease (P3.4) and heartbeat throughout.
   - Resolve the route (P7.6). Compose the instruction (P7.1). Dispatch architect, then worker, in
