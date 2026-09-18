@@ -144,6 +144,10 @@ public enum JournalEvent: Equatable, Sendable {
     case protectedPathRefused(
         cardID: Int64, issueID: String, repository: String, declaredPath: String, protectedPath: String
     )
+    /// One step of running a Card to completion (graph-execution/run-a-card, P8.4): the Lease claimed,
+    /// the Attempt started, each pass and the Check, the Lease released. `detail` is what the step
+    /// yielded, when it yielded anything worth naming.
+    case cardRunStep(cardID: Int64, issueID: String, step: CardRunStep, detail: String?)
 
     /// The type of this event.
     public var type: JournalEventType {
@@ -252,6 +256,8 @@ public enum JournalEvent: Equatable, Sendable {
             .clauseDeleted
         case .protectedPathRefused:
             .protectedPathRefused
+        case .cardRunStep:
+            .cardRunStep
         }
     }
 }
@@ -310,4 +316,5 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case clauseInvalidated = "ClauseInvalidated"
     case clauseDeleted = "ClauseDeleted"
     case protectedPathRefused = "ProtectedPathRefused"
+    case cardRunStep = "CardRunStep"
 }
