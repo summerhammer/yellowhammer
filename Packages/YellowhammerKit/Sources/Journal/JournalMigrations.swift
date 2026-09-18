@@ -66,6 +66,9 @@ enum JournalMigrations {
         migrator.registerMigration("v12-readiness-check") { db in
             try addReadinessCheckTables(db)
         }
+        migrator.registerMigration("v13-card-scope") { db in
+            try addCardScopeTable(db)
+        }
         return migrator
     }
 }

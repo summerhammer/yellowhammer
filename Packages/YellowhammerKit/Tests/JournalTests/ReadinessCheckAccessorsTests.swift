@@ -148,6 +148,34 @@ func nextClauseIDConsidersDeleted() throws {
     #expect(try journal.nextClauseID(issueID: "issue-1") == "c6")
 }
 
+@Test("A Card's declared scope is recorded, read back in order, and overwritten")
+func declaredScopeRecordsReadsAndOverwrites() throws {
+    let fixture = try ReadinessFixture()
+    let journal = try fixture.open()
+    let cardID = try fixture.insertCard(journal: journal)
+
+    #expect(try journal.declaredScope(cardID: cardID).isEmpty)
+
+    try journal.recordDeclaredScope(cardID: cardID, paths: ["Sources/App/", "Secrets/keys.env"])
+    #expect(try journal.declaredScope(cardID: cardID) == ["Sources/App/", "Secrets/keys.env"])
+
+    try journal.recordDeclaredScope(cardID: cardID, paths: ["Sources/Other/"])
+    #expect(try journal.declaredScope(cardID: cardID) == ["Sources/Other/"])
+}
+
+@Test("Recording an empty declared scope clears it")
+func declaredScopeCanBeCleared() throws {
+    let fixture = try ReadinessFixture()
+    let journal = try fixture.open()
+    let cardID = try fixture.insertCard(journal: journal)
+
+    try journal.recordDeclaredScope(cardID: cardID, paths: ["Sources/App/"])
+    #expect(try journal.declaredScope(cardID: cardID) == ["Sources/App/"])
+
+    try journal.recordDeclaredScope(cardID: cardID, paths: [])
+    #expect(try journal.declaredScope(cardID: cardID).isEmpty)
+}
+
 @Test("Consecutive Divergences increment and reset")
 func consecutiveDivergencesLifecycle() throws {
     let fixture = try ReadinessFixture()

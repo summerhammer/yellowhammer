@@ -140,3 +140,28 @@ func clauseDeletedRoundTrips() throws {
     #expect(records.count == 1)
     #expect(records[0].event == .clauseDeleted(issueID: "issue-1", cid: "c1"))
 }
+
+@Test("protectedPathRefused event round-trips")
+func protectedPathRefusedRoundTrips() throws {
+    let fixture = try ReadinessEventFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+
+    try journal.append(
+        .protectedPathRefused(
+            cardID: 1, issueID: "issue-1", repository: "backend",
+            declaredPath: "Secrets/keys.env", protectedPath: "Secrets/"
+        ),
+        act: .build, runID: run, now: readinessEpoch
+    )
+    let records = try journal.events(ofType: .protectedPathRefused)
+
+    #expect(records.count == 1)
+    #expect(
+        records[0].event ==
+            .protectedPathRefused(
+                cardID: 1, issueID: "issue-1", repository: "backend",
+                declaredPath: "Secrets/keys.env", protectedPath: "Secrets/"
+            )
+    )
+}

@@ -139,6 +139,11 @@ public enum JournalEvent: Equatable, Sendable {
     case clauseInvalidated(issueID: String, cid: String, cause: String)
     /// A tagged clause present in the Journal is absent from the board.
     case clauseDeleted(issueID: String, cid: String)
+    /// A Card scoped onto a protected path was refused before dispatch: not dispatched, no Attempt
+    /// consumed (bounds/refuse-protected-paths-before-dispatch, P8.3).
+    case protectedPathRefused(
+        cardID: Int64, issueID: String, repository: String, declaredPath: String, protectedPath: String
+    )
 
     /// The type of this event.
     public var type: JournalEventType {
@@ -245,6 +250,8 @@ public enum JournalEvent: Equatable, Sendable {
             .clauseInvalidated
         case .clauseDeleted:
             .clauseDeleted
+        case .protectedPathRefused:
+            .protectedPathRefused
         }
     }
 }
@@ -302,4 +309,5 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case clauseMinted = "ClauseMinted"
     case clauseInvalidated = "ClauseInvalidated"
     case clauseDeleted = "ClauseDeleted"
+    case protectedPathRefused = "ProtectedPathRefused"
 }

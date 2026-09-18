@@ -24,14 +24,15 @@ func parserRoundTripsRenderedBlock() throws {
         DoDClause(cid: "c3", text: "Third clause", citation: "epic/other", citationProvenance: "Author-supplied")
     ]
     let block = CardManagedBlock(
-        kind: "card", repository: "backend", state: .todo, lanePosition: 1, laneLength: 3,
-        brief: brief, definitionOfDone: clauses, attempts: []
+        kind: "card", repository: "backend", scope: ["Sources/App/", "Secrets/key.env"], state: .todo,
+        lanePosition: 1, laneLength: 3, brief: brief, definitionOfDone: clauses, attempts: []
     )
 
     let rendered = block.render()
     let parsed = CardManagedBlockParser.parse(block: rendered)
 
     #expect(parsed.briefProse == "This Card wires the new endpoint.")
+    #expect(parsed.scope == ["Sources/App/", "Secrets/key.env"])
 
     #expect(parsed.transcriptions.count == 2)
     #expect(parsed.transcriptions[0].repository == "backend")
@@ -95,4 +96,27 @@ func parserHandlesEmptyBrief() throws {
 
     let parsed = CardManagedBlockParser.parse(block: block)
     #expect(parsed.briefProse == nil)
+}
+
+@Test("No Scope line parses to nil")
+func parserHandlesMissingScopeLine() throws {
+    let block = """
+    **Kind:** `card`
+    **Repository:** `backend`
+    """
+
+    let parsed = CardManagedBlockParser.parse(block: block)
+    #expect(parsed.scope == nil)
+}
+
+@Test("A none-declared Scope line parses to an empty array")
+func parserHandlesScopeNoneDeclared() throws {
+    let block = """
+    **Kind:** `card`
+    **Repository:** `backend`
+    **Scope:** _none declared_
+    """
+
+    let parsed = CardManagedBlockParser.parse(block: block)
+    #expect(parsed.scope == [])
 }

@@ -265,3 +265,29 @@ func renderNoAttempts() {
     #expect(rendered.contains("### Attempts"))
     #expect(rendered.contains("_No Attempt yet._"))
 }
+
+@Test("A non-empty scope renders as backticked, comma-separated paths")
+func renderScopeNonEmpty() {
+    let brief = ArchitecturalBrief(prose: "Brief", transcriptions: [])
+    let block = CardManagedBlock(
+        kind: "impl.boilerplate", repository: "backend", scope: ["Sources/App/", "Secrets/key.env"],
+        state: .todo, lanePosition: 1, laneLength: 1, brief: brief, definitionOfDone: [], attempts: []
+    )
+
+    let rendered = block.render()
+
+    #expect(rendered.contains("**Scope:** `Sources/App/`, `Secrets/key.env`"))
+}
+
+@Test("An empty scope renders as none declared")
+func renderScopeEmpty() {
+    let brief = ArchitecturalBrief(prose: "Brief", transcriptions: [])
+    let block = CardManagedBlock(
+        kind: "impl.boilerplate", repository: "backend", state: .todo, lanePosition: 1, laneLength: 1,
+        brief: brief, definitionOfDone: [], attempts: []
+    )
+
+    let rendered = block.render()
+
+    #expect(rendered.contains("**Scope:** _none declared_"))
+}

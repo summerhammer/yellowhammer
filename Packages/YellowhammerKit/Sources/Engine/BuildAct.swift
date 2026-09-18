@@ -175,7 +175,7 @@ public struct BuildAct: Sendable {
                     switch try await readiness.evaluate(card: card, context: context) {
                     case .ready(let ready):
                         cardReadiness = ready
-                    case .notReady, .diverged:
+                    case .notReady, .diverged, .refused:
                         cardsSkipped += 1
                         continue
                     }

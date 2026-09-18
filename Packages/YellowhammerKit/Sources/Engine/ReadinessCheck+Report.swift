@@ -13,7 +13,7 @@ extension ReadinessCheck {
         let first = staleResults[0]
         let count = try journal.incrementConsecutiveDivergences(cardID: card.id)
 
-        let record = try await transitionToWaitingOnDivergence(card: card, context: context)
+        let record = try await transitionToWaitingOnYou(reason: .divergence, card: card, context: context)
 
         let allChangedPaths = Array(Set(staleResults.flatMap(\.changedPaths))).sorted()
         try journal.append(
@@ -35,22 +35,60 @@ extension ReadinessCheck {
         ))
     }
 
-    private func transitionToWaitingOnDivergence(
-        card: CardRecord, context: BuildActContext
+    /// Transitions the Card to Waiting on You under the given reason, through the board projection when
+    /// an Operator, Outbox and board are wired, and directly on the Journal otherwise.
+    private func transitionToWaitingOnYou(
+        reason: WaitingReason, card: CardRecord, context: BuildActContext
     ) async throws -> CardRecord {
         let journal = context.act.journal
         if let operatorID = self.operator, let outbox = context.act.outbox, let board = context.act.board {
             let scope = try await BoardStateScope.resolve(using: board.provisioning)
             let projection = BoardStateProjection(journal: journal, outbox: outbox, scope: scope)
-            switch try await projection.transition(card: card, to: .waitingOnYou(.divergence, operator: operatorID)) {
+            switch try await projection.transition(card: card, to: .waitingOnYou(reason, operator: operatorID)) {
             case .unchanged(let record), .posted(let record, _), .deferred(let record, _), .failed(let record, _):
                 return record
             }
         }
         return try journal.transitionCard(
-            cardID: card.id, to: .waitingOnYou, waitingReason: .divergence,
+            cardID: card.id, to: .waitingOnYou, waitingReason: reason,
             runID: context.act.runID, act: context.act.act, nightID: context.act.night.id
         )
+    }
+
+    /// A Card scoped onto a protected path is refused before dispatch: moved to Waiting on You,
+    /// carrying the protected path as its reason, with no Attempt recorded (P8.3).
+    func recordRefusal(
+        match: ProtectedPathRefusal, card: CardRecord, context: BuildActContext
+    ) async throws -> ReadinessVerdict {
+        let journal = context.act.journal
+        let record = try await transitionToWaitingOnYou(reason: .question, card: card, context: context)
+
+        try journal.append(
+            .protectedPathRefused(
+                cardID: card.id, issueID: card.issueID, repository: match.repository,
+                declaredPath: match.declaredPath, protectedPath: match.protectedPath
+            ),
+            act: context.act.act, runID: context.act.runID, nightID: context.act.night.id
+        )
+
+        if let outbox = context.act.outbox {
+            let body = refusalCommentBody(match: match)
+            let key = "protected-path:\(card.issueID):\(record.stateVersion)"
+            let write = BoardWrite.createComment(issue: BoardObjectID(rawValue: card.issueID), body: body)
+            _ = try await outbox.post(OutboxWrite(key: key, write: write, cardID: card.id))
+        }
+
+        return .refused(match)
+    }
+
+    private func refusalCommentBody(match: ProtectedPathRefusal) -> String {
+        [
+            "This Card was not dispatched and consumed no Attempt: its declared scope " +
+                "`\(match.declaredPath)` falls under the protected path `\(match.protectedPath)` of " +
+                "repository `\(match.repository)`. It was moved to Waiting on You — change the Card's " +
+                "scope or the repository's `protected_paths` to run it.",
+            ProtectedPaths.limitation
+        ].joined(separator: "\n")
     }
 
     private func divergenceCommentBody(staleResults: [RepoProvenanceResult], consecutiveDivergences: Int) -> String {

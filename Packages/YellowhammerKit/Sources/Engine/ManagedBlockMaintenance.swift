@@ -52,25 +52,7 @@ public struct ManagedBlockMaintenance: Sendable {
             return .notMaintained(.cancelled)
         }
 
-        // Build the Card's Managed Block
-        let history = try journal.attemptHistory(cardID: card.id)
-        let attempts = history.attempts.enumerated().map { AttemptAccount(ordinal: $0.offset + 1, record: $0.element) }
-        let doDClauses = try journal.clauses(issueID: card.issueID).map { DoDClause($0) }
-        let laneLength = try journal.repoLaneLength(cycleID: card.cycleID, repository: card.repository)
-
-        let managedBlock = CardManagedBlock(
-            kind: card.kind,
-            repository: card.repository,
-            state: card.state,
-            blockReason: card.blockReason,
-            lanePosition: card.authoredOrder,
-            laneLength: laneLength,
-            brief: brief,
-            definitionOfDone: doDClauses,
-            attempts: attempts
-        )
-
-        let rendered = managedBlock.render()
+        let rendered = try renderManagedBlock(card: card, brief: brief)
         let hash = ManagedBlockFence.sha256(rendered)
 
         // Check if unchanged
@@ -105,5 +87,28 @@ public struct ManagedBlockMaintenance: Sendable {
         }
 
         return .posted(hash: hash, block: blockDelivery, labels: labelDelivery)
+    }
+
+    /// Builds the Card's Managed Block from the Journal and renders it.
+    private func renderManagedBlock(card: CardRecord, brief: ArchitecturalBrief) throws -> String {
+        let history = try journal.attemptHistory(cardID: card.id)
+        let attempts = history.attempts.enumerated().map { AttemptAccount(ordinal: $0.offset + 1, record: $0.element) }
+        let doDClauses = try journal.clauses(issueID: card.issueID).map { DoDClause($0) }
+        let laneLength = try journal.repoLaneLength(cycleID: card.cycleID, repository: card.repository)
+        let scope = try journal.declaredScope(cardID: card.id)
+
+        let managedBlock = CardManagedBlock(
+            kind: card.kind,
+            repository: card.repository,
+            scope: scope,
+            state: card.state,
+            blockReason: card.blockReason,
+            lanePosition: card.authoredOrder,
+            laneLength: laneLength,
+            brief: brief,
+            definitionOfDone: doDClauses,
+            attempts: attempts
+        )
+        return managedBlock.render()
     }
 }

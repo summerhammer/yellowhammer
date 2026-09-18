@@ -46,11 +46,18 @@ public struct ParsedCardBlock: Equatable, Sendable {
     public var briefProse: String?
     public var transcriptions: [ParsedTranscription]
     public var clauses: [ParsedClause]
+    /// The board's copy of the Card's declared scope: nil when no `**Scope:**` line was found, and
+    /// `[]` when it read `_none declared_`.
+    public var scope: [String]?
 
-    public init(briefProse: String?, transcriptions: [ParsedTranscription], clauses: [ParsedClause]) {
+    public init(
+        briefProse: String?, transcriptions: [ParsedTranscription], clauses: [ParsedClause],
+        scope: [String]? = nil
+    ) {
         self.briefProse = briefProse
         self.transcriptions = transcriptions
         self.clauses = clauses
+        self.scope = scope
     }
 }
 
@@ -68,7 +75,28 @@ public enum CardManagedBlockParser {
         let briefProse = parseBriefProse(lines: lines)
         let transcriptions = parseTranscriptions(lines: lines)
         let clauses = parseClauses(lines: lines)
-        return ParsedCardBlock(briefProse: briefProse, transcriptions: transcriptions, clauses: clauses)
+        let scope = parseScope(lines: lines)
+        return ParsedCardBlock(briefProse: briefProse, transcriptions: transcriptions, clauses: clauses, scope: scope)
+    }
+
+    // MARK: - Scope
+
+    private static let scopeNoneLine = "**Scope:** _none declared_"
+    private static let scopePrefix = "**Scope:** "
+
+    private static func parseScope(lines: [String]) -> [String]? {
+        guard let line = lines.first(where: { $0.trimmingCharacters(in: .whitespaces).hasPrefix(scopePrefix) })
+        else {
+            return nil
+        }
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        if trimmed == scopeNoneLine {
+            return []
+        }
+        let rest = trimmed.dropFirst(scopePrefix.count)
+        return rest.split(separator: ",").map {
+            $0.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "`"))
+        }
     }
 
     // MARK: - Brief prose

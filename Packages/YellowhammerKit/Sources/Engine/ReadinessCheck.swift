@@ -84,11 +84,31 @@ public struct DivergenceFinding: Equatable, Sendable {
     }
 }
 
+/// A Card refused before dispatch because its declared scope falls under a repository's protected path
+/// (bounds/refuse-protected-paths-before-dispatch, roadmap P8.3).
+///
+/// This is a scoping check, not a sandbox: the refusal happens before dispatch, and nothing prevents a
+/// dispatched agent from touching a protected path during its run.
+public struct ProtectedPathRefusal: Equatable, Sendable {
+    public var repository: String
+    public var declaredPath: String
+    public var protectedPath: String
+
+    public init(repository: String, declaredPath: String, protectedPath: String) {
+        self.repository = repository
+        self.declaredPath = declaredPath
+        self.protectedPath = protectedPath
+    }
+}
+
 /// The Readiness Check's outcome for one Card.
 public enum ReadinessVerdict: Equatable, Sendable {
     case ready(CardReadiness)
     case notReady([ReadinessFailure])
     case diverged(DivergenceFinding)
+    /// The Card's declared scope falls under a protected path; it was not dispatched and consumed no
+    /// Attempt. This is a scoping check, not a sandbox — see ``ProtectedPathRefusal``.
+    case refused(ProtectedPathRefusal)
 }
 
 /// Runs at dispatch, for each Card the lane is about to run (board-projection/check-card-readiness-at-dispatch,
@@ -120,6 +140,10 @@ public struct ReadinessCheck: Sendable {
 
         try await reconcileBoardCopy(card: card, context: context)
 
+        if let match = try protectedPathMatch(card: card, context: context) {
+            return try await recordRefusal(match: match, card: card, context: context)
+        }
+
         let prose = try journal.architecturalBriefProse(cardID: card.id)
         let blocks = try journal.transcriptionBlocks(cardID: card.id)
         let clauses = try journal.clauses(issueID: card.issueID)
@@ -148,6 +172,22 @@ public struct ReadinessCheck: Sendable {
         )
         let brief = ArchitecturalBrief(prose: prose ?? "", transcriptions: blocks.map(\.block))
         return .ready(CardReadiness(brief: brief, clauses: clauses))
+    }
+
+    /// Tests the Card's declared scope against its repository's configured protected paths, after the
+    /// board copy is reconciled and before any other readiness work (P8.3).
+    private func protectedPathMatch(card: CardRecord, context: BuildActContext) throws -> ProtectedPathRefusal? {
+        let declaredScope = try context.act.journal.declaredScope(cardID: card.id)
+        guard !declaredScope.isEmpty else { return nil }
+        let protectedPaths = context.act.repositories?.workingRepo(named: card.repository)?.protectedPaths ?? []
+        guard !protectedPaths.isEmpty,
+              let match = ProtectedPaths.match(declaredScope: declaredScope, protectedPaths: protectedPaths)
+        else {
+            return nil
+        }
+        return ProtectedPathRefusal(
+            repository: card.repository, declaredPath: match.declaredPath, protectedPath: match.protectedPath
+        )
     }
 
     /// Parses the board's current copy of the Card's Managed Block (from the Delta Read) and folds any

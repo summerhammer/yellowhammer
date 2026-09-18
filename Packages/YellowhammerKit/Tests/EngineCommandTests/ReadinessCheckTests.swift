@@ -82,7 +82,8 @@ func makeReadinessScenario() async throws -> ReadinessScenario {
 /// Runs the build Act with a given readiness check and an optional Delta Read page of board objects
 /// (for reconciliation scenarios). Returns after the invocation completes.
 func runReadinessAct(
-    _ scenario: ReadinessScenario, readiness: ReadinessCheck, updatedObjects: [BoardObject] = []
+    _ scenario: ReadinessScenario, readiness: ReadinessCheck, updatedObjects: [BoardObject] = [],
+    repositories: ProjectRepositories = readinessRepositories
 ) async throws {
     let reading = FakeReadingBoard([page(objects: updatedObjects)])
     let board = ActBoard(
@@ -90,7 +91,7 @@ func runReadinessAct(
     )
     let invocation = EngineInvocation(
         act: .build, mode: .rehearsal, nightStart: readinessNightStart, journal: scenario.journal,
-        trigger: .scheduled, runID: RunID(), board: board, repositories: readinessRepositories,
+        trigger: .scheduled, runID: RunID(), board: board, repositories: repositories,
         work: BuildAct(cardRunner: scenario.recorder, readiness: readiness).work
     )
     try await invocation.run()
@@ -100,7 +101,8 @@ func runReadinessAct(
 /// Act lease and a fresh Night — for re-checking a Card that a lane would no longer consider runnable
 /// (Waiting on You, Blocked), the way a later Act's pass over it would.
 func directEvaluate(
-    _ scenario: ReadinessScenario, cardID: Int64, readiness: ReadinessCheck
+    _ scenario: ReadinessScenario, cardID: Int64, readiness: ReadinessCheck,
+    repositories: ProjectRepositories = readinessRepositories
 ) async throws -> ReadinessVerdict {
     let runID = RunID()
     guard case .claimed = try scenario.journal.claimActLease(act: .build, runID: runID, mode: .rehearsal) else {
@@ -115,7 +117,7 @@ func directEvaluate(
 
     let act = ActContext(
         act: .build, mode: .rehearsal, trigger: .scheduled, runID: runID, journal: scenario.journal,
-        night: opening.night, repositories: readinessRepositories
+        night: opening.night, repositories: repositories
     )
     let context = BuildActContext(
         act: act, feature: feature, cycleID: cycleID, reconciliation: WorktreeReconciliation(), deltaRead: nil
