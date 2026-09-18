@@ -132,6 +132,8 @@ public struct RepoDeclaration: Equatable, Sendable {
     /// As written.
     public var path: String
     public var role: RepoRole
+    /// The repository's `check` key, required. Accepted cost (risk R6): a flaky Check blocks a Card that
+    /// nothing was wrong with, and with a round budget of two it does so quickly.
     public var check: Check
     public var protectedPaths: [String]
 

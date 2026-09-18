@@ -26,10 +26,10 @@ extension CardRun {
             try await frame.transition(.ready)
 
         case .round(let request):
-            // The Round is recorded and the Attempt left open, the Card In Progress, its Lease released: the
-            // state a killed run leaves, which a later Act can pick up. Re-dispatching the worker with the
-            // feedback is the Round loop (P8.5 for the Check, P8.6 for the review), not this item. Ending the
-            // Attempt here instead would misname a Round as an Attempt's end.
+            // The review's Round is recorded and the Attempt left open, the Card In Progress, its Lease
+            // released: the state a killed run leaves, which a later Act can pick up. Re-dispatching the
+            // worker with the feedback is the review's Round loop (P8.6); the Check's loop already ran in the
+            // passes. Ending the Attempt here instead would misname a Round as an Attempt's end.
             try frame.revalidateLease()
             guard let attempt = frame.attempt else { return }
             try frame.journal.recordRound(
@@ -37,6 +37,14 @@ extension CardRun {
                 requestedChanges: request.requestedChanges, judgedCommit: request.judgedCommit,
                 runID: frame.context.act.runID
             )
+
+        case .roundsExhausted(let lens):
+            // The Round was recorded as it happened. The Attempt stays open and the Card In Progress, as a
+            // `.round` ending leaves them. Moving the Card to Blocked, with a Block Reason telling "blocked by
+            // check" from "blocked by reviewer", is roadmap P8.6/P8.7: a Card blocks only when both budgets
+            // are exhausted.
+            try frame.revalidateLease()
+            try frame.record(.roundsExhausted, detail: lens.rawValue)
         }
     }
 

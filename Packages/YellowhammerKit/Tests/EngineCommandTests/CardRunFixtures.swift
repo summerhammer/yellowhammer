@@ -118,15 +118,26 @@ final class CallLog: Sendable {
     var all: [String] { entries.withLock { $0 } }
 }
 
+/// The dispatch requests a fake saw, shared by reference between the copies of the struct that holds it.
+final class RequestLog: Sendable {
+    private let entries = Mutex<[AgentDispatchRequest]>([])
+    func add(_ entry: AgentDispatchRequest) { entries.withLock { $0.append(entry) } }
+    var all: [AgentDispatchRequest] { entries.withLock { $0 } }
+    func passes(_ pass: RunPass) -> [AgentDispatchRequest] { all.filter { $0.pass == pass } }
+}
+
 /// A Dispatch seam that answers from ``RehearsalDispatch`` and records each pass; `during` runs inside a
 /// pass, so a test can hold it open or interfere with the Card's Lease mid-run.
 struct LoggingDispatch: AgentDispatch {
     let log: CallLog
     var script: [RunPass: RehearsalResultFixture] = [:]
     var during: (@Sendable (RunPass) async throws -> Void)?
+    /// Every request seen, in order, so a test can inspect the instruction, Route, Worktree and Attempt.
+    let requests = RequestLog()
 
     func dispatch(_ request: AgentDispatchRequest) async throws -> AgentDispatchReport {
         log.add("dispatch \(request.pass.rawValue)")
+        requests.add(request)
         try await during?(request.pass)
         return try await RehearsalDispatch(script: script).dispatch(request)
     }
@@ -142,12 +153,27 @@ struct RefusingDispatch: AgentDispatch {
     }
 }
 
-struct RecordingCheck: RepositoryCheckRunning {
+/// A Check that answers from a scripted sequence of results, repeating the last one once it runs out.
+final class RecordingCheck: RepositoryCheckRunning, Sendable {
     let log: CallLog
-    var result: RepositoryCheckResult = .declaredNone
+    private let results: [RepositoryCheckResult]
+    private let calls = Mutex(0)
+
+    convenience init(log: CallLog, result: RepositoryCheckResult = .declaredNone) {
+        self.init(log: log, results: [result])
+    }
+
+    init(log: CallLog, results: [RepositoryCheckResult]) {
+        self.log = log
+        self.results = results
+    }
 
     func run(repository: String, check: Check, worktreePath: String) async throws -> RepositoryCheckResult {
         log.add("check")
-        return result
+        let index = calls.withLock { calls in
+            defer { calls += 1 }
+            return calls
+        }
+        return results[min(index, results.count - 1)]
     }
 }

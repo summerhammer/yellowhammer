@@ -14,8 +14,12 @@ import Journal
 ///    Worktree, then runs the Check, then dispatches the reviewer.
 /// 4. Ends the Attempt from what the passes yielded (see `CardRun+Outcome.swift`).
 ///
-/// Architect, worker and reviewer are internals of this run, not actors. Retrying inside the Act, the
-/// Round loop, the Attempt budget and the Check itself are later roadmap items (P8.5, P8.6, P8.7).
+/// Between the worker and the reviewer the engine runs the repository's Check (P8.5). A failed Check is a
+/// Round on the same Attempt: the worker is dispatched again, on the same Route and in the same Worktree,
+/// carrying every Round so far, until the round budget is spent, and the reviewer never sees red code.
+///
+/// Architect, worker and reviewer are internals of this run, not actors. The review's Round loop, blocking
+/// a Card whose budgets are spent, and the Attempt budget are later roadmap items (P8.6, P8.7).
 public struct CardRun: CardRunner {
     public let resolver: RouteResolver
     public let dispatch: any AgentDispatch
@@ -24,18 +28,23 @@ public struct CardRun: CardRunner {
     /// `EngineCommand` hands it what it needs.
     public let checks: [String: Check]
     public let leasePolicy: LeasePolicy
+    /// The most Rounds one Attempt may record, both Lenses together (`review_rounds_max`). Required: the ruled
+    /// default lives in `Config`, and the Engine holds no configuration.
+    public let reviewRoundsMax: Int
 
     public init(
         resolver: RouteResolver,
         dispatch: any AgentDispatch,
         check: any RepositoryCheckRunning,
         checks: [String: Check],
+        reviewRoundsMax: Int,
         leasePolicy: LeasePolicy = .ruled
     ) {
         self.resolver = resolver
         self.dispatch = dispatch
         self.check = check
         self.checks = checks
+        self.reviewRoundsMax = reviewRoundsMax
         self.leasePolicy = leasePolicy
     }
 

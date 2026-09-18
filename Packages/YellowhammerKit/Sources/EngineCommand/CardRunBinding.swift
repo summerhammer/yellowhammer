@@ -5,28 +5,6 @@ import Foundation
 import Journal
 import Ledger
 
-/// The Check seam's stand-in until the engine-run Check lands (roadmap P8.5): a repository that declared
-/// `check = "none"` reports it, and any other Check throws rather than reporting a green it did not run.
-struct PendingRepositoryCheck: RepositoryCheckRunning {
-    func run(repository: String, check: Check, worktreePath: String) async throws -> RepositoryCheckResult {
-        switch check {
-        case .none:
-            return .declaredNone
-        case .command:
-            throw RepositoryCheckPendingError(repository: repository)
-        }
-    }
-}
-
-struct RepositoryCheckPendingError: Error, Equatable, Sendable, CustomStringConvertible {
-    let repository: String
-
-    var description: String {
-        "Running the Check for repository '\(repository)' is not implemented yet (roadmap P8.5); "
-            + "the Card run stopped before reporting a pass it did not earn"
-    }
-}
-
 /// Wires the build Act's Card run, the one place an adapter (and so the Dispatch seam's real
 /// implementation) is constructed: a Rehearsal Night never dispatches an agent CLI, so it gets
 /// ``RehearsalDispatch``; a real Night gets ``CLIAdapterDispatch``.
@@ -59,6 +37,11 @@ enum CardRunBinding {
         for repo in project.repos {
             checks[repo.name] = repo.check
         }
-        return CardRun(resolver: resolver, dispatch: dispatch, check: PendingRepositoryCheck(), checks: checks)
+        // The real Check in both modes: a rehearsal Night stops at exactly three boundaries (agent CLI
+        // dispatch, push, pull request), and the Check is not one of them.
+        return CardRun(
+            resolver: resolver, dispatch: dispatch, check: WorktreeCheck(), checks: checks,
+            reviewRoundsMax: project.bounds.reviewRoundsMax
+        )
     }
 }

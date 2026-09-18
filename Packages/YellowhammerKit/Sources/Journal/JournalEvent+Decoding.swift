@@ -144,6 +144,8 @@ extension JournalEvent {
             try Self.decodeProtectedPathRefused(reader)
         case .cardRunStep:
             try Self.decodeCardRunStep(reader)
+        case .checkRan:
+            try Self.decodeCheckRan(reader)
         }
     }
 

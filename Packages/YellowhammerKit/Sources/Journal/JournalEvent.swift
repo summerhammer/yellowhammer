@@ -149,6 +149,12 @@ public enum JournalEvent: Equatable, Sendable {
     /// yielded, when it yielded anything worth naming.
     case cardRunStep(cardID: Int64, issueID: String, step: CardRunStep, detail: String?)
 
+    /// The engine-run Check ran over an Attempt's work (P8.5), pass or fail or declared none. `output` is
+    /// what it printed, already capped by the runner; it is empty or nil when nothing ran.
+    case checkRan(
+        cardID: Int64, issueID: String, attemptID: Int64, result: CheckRunResult, exitStatus: Int32?, output: String?
+    )
+
     /// The type of this event.
     public var type: JournalEventType {
         switch self {
@@ -258,6 +264,8 @@ public enum JournalEvent: Equatable, Sendable {
             .protectedPathRefused
         case .cardRunStep:
             .cardRunStep
+        case .checkRan:
+            .checkRan
         }
     }
 }
@@ -317,4 +325,5 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case clauseDeleted = "ClauseDeleted"
     case protectedPathRefused = "ProtectedPathRefused"
     case cardRunStep = "CardRunStep"
+    case checkRan = "CheckRan"
 }

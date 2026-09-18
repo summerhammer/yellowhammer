@@ -8,8 +8,12 @@ enum CardRunEnd: Sendable {
     case approved(commit: String)
     /// An Attempt-ending outcome: a failed run, a reported failure, or the worker's question.
     case ending(AttemptEnding)
-    /// A Round is owed: the Check failed or the reviewer asked for changes.
+    /// A Round is owed: the reviewer asked for changes. (A failed Check's Round is recorded as it happens, in
+    /// the Check's own loop; the review's loop is P8.6.)
     case round(RoundRequest)
+    /// The Round budget ran out with the work still red, and the Round was already recorded: the Attempt
+    /// stays open and the reviewer never saw the code. Blocking the Card is P8.6/P8.7.
+    case roundsExhausted(lens: Lens)
 }
 
 /// A Round the run owes, with what the next Round on the same worker needs (Rounds are P8.6).
@@ -47,33 +51,47 @@ extension CardRun {
             return .ending(.hardFailure(.reported(reason: reason)))
         }
 
-        let worker = try await runPass(.worker, frame: frame)
+        guard let attempt = frame.attempt else {
+            preconditionFailure("a pass is dispatched only after the Attempt is recorded")
+        }
+        var worked = try await work(frame: frame, payloads: .none, resumeSession: nil)
+        while true {
+            let checked = try await runCheck(frame: frame, attemptID: attempt.id)
+            guard case .failed(let output, let exitStatus) = checked else { break }
+
+            // A failed Check is a Round of this Attempt, never a new Attempt: same worker, Route, Worktree.
+            let (rounds, budget) = try await recordCheckRound(
+                frame: frame, attemptID: attempt.id, commit: worked.commit, output: output, exitStatus: exitStatus
+            )
+            guard budget.allowsAnotherRound else {
+                // A reviewer never sees red code.
+                return .roundsExhausted(lens: .check)
+            }
+            worked = try await work(
+                frame: frame, payloads: InstructionPayloads(roundFeedback: Self.feedback(of: rounds)),
+                resumeSession: worked.session
+            )
+        }
+
+        return try await review(frame: frame, commit: worked.commit, workerSession: worked.session)
+    }
+
+    /// One worker pass; a question or a reported failure ends the Attempt (thrown as a `PassStop`).
+    private func work(
+        frame: CardRunFrame, payloads: InstructionPayloads, resumeSession: String?
+    ) async throws -> (commit: String, session: String?) {
+        let worker = try await runPass(.worker, frame: frame, payloads: payloads, resumeSession: resumeSession)
         guard case .worker(let work) = worker.result else {
             throw CardRunError.unexpectedResult(expected: .worker, found: worker.result.pass)
         }
-        let commit: String
         switch work.outcome {
-        case .completed(let workerCommit, _):
-            commit = workerCommit
+        case .completed(let commit, _):
+            return (commit, worker.session)
         case .question:
-            return .ending(.question)
+            throw PassStop(ending: .question)
         case .failed(let reason):
-            return .ending(.hardFailure(.reported(reason: reason)))
+            throw PassStop(ending: .hardFailure(.reported(reason: reason)))
         }
-
-        try frame.revalidateLease()
-        let checked = try await check.run(
-            repository: frame.card.repository, check: frame.check, worktreePath: frame.worktree.path
-        )
-        try frame.record(.check, detail: Self.describe(checked))
-        if case .failed(let output) = checked {
-            return .round(RoundRequest(
-                lens: .check, verdict: "failed", requestedChanges: output, judgedCommit: commit,
-                workerSession: worker.session
-            ))
-        }
-
-        return try await review(frame: frame, commit: commit, workerSession: worker.session)
     }
 
     private func review(frame: CardRunFrame, commit: String, workerSession: String?) async throws -> CardRunEnd {
@@ -96,7 +114,7 @@ extension CardRun {
     /// One pass: composes its instruction, dispatches it in the lane's Worktree and records the step. A
     /// failed run, or a route the machine cannot run at all, ends the Attempt (thrown as a `PassStop`).
     private func runPass(
-        _ pass: RunPass, frame: CardRunFrame
+        _ pass: RunPass, frame: CardRunFrame, payloads: InstructionPayloads = .none, resumeSession: String? = nil
     ) async throws -> (result: DispatchResult, session: String?) {
         guard let attempt = frame.attempt, let route = frame.route else {
             preconditionFailure("a pass is dispatched only after the Route is resolved and the Attempt recorded")
@@ -104,8 +122,8 @@ extension CardRun {
         try frame.revalidateLease()
         let request = AgentDispatchRequest(
             runID: frame.context.act.runID, issueID: frame.card.issueID, attemptID: attempt.id, route: route,
-            pass: pass, instruction: instruction(for: pass, route: route, frame: frame),
-            worktreePath: frame.worktree.path
+            pass: pass, instruction: instruction(for: pass, route: route, frame: frame, payloads: payloads),
+            worktreePath: frame.worktree.path, resumeSession: resumeSession
         )
         let report: AgentDispatchReport
         do {
@@ -127,7 +145,9 @@ extension CardRun {
 
     /// The instruction for one pass, from the Card, its Brief and Definition of Done, its repository and
     /// the Route. The result file path is the Dispatch seam's to stamp: it owns the run directory.
-    private func instruction(for pass: RunPass, route: Route, frame: CardRunFrame) -> Instruction {
+    private func instruction(
+        for pass: RunPass, route: Route, frame: CardRunFrame, payloads: InstructionPayloads
+    ) -> Instruction {
         // `Engine` has its own DoDClause (the Managed Block's); the Instruction takes Domain's.
         let clauses = frame.readiness.clauses.map { clause in
             Domain.DoDClause(
@@ -144,7 +164,7 @@ extension CardRun {
                 repo: repo, worktreePath: frame.worktree.path, featureBranch: frame.branch.name,
                 check: frame.check
             ),
-            route: route, payloads: .none, resultFilePath: ""
+            route: route, payloads: payloads, resultFilePath: ""
         )
     }
 
@@ -165,7 +185,7 @@ extension CardRun {
         }
     }
 
-    private static func describe(_ result: RepositoryCheckResult) -> String {
+    static func describe(_ result: RepositoryCheckResult) -> String {
         switch result {
         case .passed: "passed"
         case .failed: "failed"

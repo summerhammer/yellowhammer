@@ -20,4 +20,15 @@ public enum CardRunStep: String, CaseIterable, Sendable {
     case leaseReleased = "lease-released"
     /// This run lost the Card's Lease mid-run; nothing was written as if it were complete.
     case leaseLost = "lease-lost"
+    /// The Round budget ran out with the work still red: the run stopped without dispatching the reviewer.
+    /// The detail is the raw value of the Lens whose Round was the last. Blocking the Card is P8.6/P8.7.
+    case roundsExhausted = "rounds-exhausted"
+}
+
+/// What one engine-run Check yielded, as the `checkRan` event records it.
+public enum CheckRunResult: String, CaseIterable, Sendable {
+    case passed
+    case failed
+    /// The repository declared `check = "none"`: nothing was run.
+    case declaredNone = "declared-none"
 }

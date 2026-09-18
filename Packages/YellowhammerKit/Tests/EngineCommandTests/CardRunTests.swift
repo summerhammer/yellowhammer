@@ -7,7 +7,7 @@ import Testing
 // graph-execution/run-a-card, "Running a ready Card to completion" (roadmap P8.4), asserted against the
 // in-memory Linear stand-in and rehearsal result fixtures: which steps ran, in what order, and what the
 // Journal and the board were left holding. Nothing model-authored is asserted, and the Check's own result
-// is a fake's: the engine-run Check is roadmap P8.5.
+// is a fake's; the Check's Round loop is in CardRunCheckRoundTests.swift.
 
 @Suite("Card run")
 struct CardRunTests {
@@ -19,7 +19,8 @@ struct CardRunTests {
     ) -> CardRun {
         CardRun(
             resolver: resolver, dispatch: LoggingDispatch(log: log, script: script, during: during),
-            check: RecordingCheck(log: log, result: check), checks: checks, leasePolicy: leasePolicy
+            check: RecordingCheck(log: log, result: check), checks: checks, reviewRoundsMax: 2,
+            leasePolicy: leasePolicy
         )
     }
 
@@ -60,7 +61,7 @@ struct CardRunTests {
         let log = CallLog()
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: rehearsal, check: RecordingCheck(log: log),
-            checks: ["backend": .none]
+            checks: ["backend": .none], reviewRoundsMax: 2
         )
 
         try await run.run("BACK-1", in: world)
@@ -69,26 +70,6 @@ struct CardRunTests {
         #expect(Set(rehearsal.answered.map(\.worktreePath)) == ["/tmp/wt-backend"])
         #expect(rehearsal.answered.allSatisfy { $0.route == cardRunOpus })
         #expect(log.all == ["check"])
-    }
-
-    @Test("A failing Check stops the run before the reviewer, and owes a Round rather than ending the Attempt")
-    func failingCheckSkipsTheReviewer() async throws {
-        let fixture = try OutboxJournalFixture()
-        let world = try await makeCardRunWorld(journal: try fixture.open())
-        let log = CallLog()
-
-        try await makeRun(log: log, check: .failed(output: "1 test failed"), checks: ["backend": .command("make test")])
-            .run("BACK-1", in: world)
-
-        #expect(log.all == ["dispatch architect", "dispatch worker", "check"])
-        let attempt = try #require(try world.attempts("BACK-1").first)
-        #expect(attempt.isOpen)
-        #expect(attempt.rounds.map(\.lens) == [.check])
-        #expect(!attempt.checkDeclaredNone)
-        // The Card stays In Progress with its Lease released: the state a killed run leaves.
-        #expect(try world.card("BACK-1").state == .inProgress)
-        #expect(try world.journal.currentCardLease(cardID: try #require(world.cardIDs["BACK-1"])) == nil)
-        #expect(try cardRunLog(world.journal).contains("attempt ended: success") == false)
     }
 
     @Test("A reviewer asking for changes is a review Round, not an ended Attempt")

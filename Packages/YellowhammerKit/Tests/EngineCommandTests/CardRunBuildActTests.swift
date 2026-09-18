@@ -28,7 +28,7 @@ struct CardRunBuildActTests {
         let log = CallLog()
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: rehearsal, check: RecordingCheck(log: log),
-            checks: ["backend": .none, "mobile": .none]
+            checks: ["backend": .none, "mobile": .none], reviewRoundsMax: 2
         )
         let board = try #require(world.context.act.board)
         let invocation = EngineInvocation(

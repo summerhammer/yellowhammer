@@ -144,25 +144,6 @@ struct CLIAdapterDispatchTests {
     }
 }
 
-@Suite("Check seam stand-in")
-struct PendingRepositoryCheckTests {
-    @Test("A repository that declared check none reports it")
-    func declaredNoneIsReported() async throws {
-        let result = try await PendingRepositoryCheck().run(repository: "backend", check: .none, worktreePath: "/wt")
-
-        #expect(result == .declaredNone)
-    }
-
-    @Test("Any other Check throws until the engine-run Check lands (P8.5): never a fake green")
-    func commandCheckThrows() async throws {
-        await #expect(throws: RepositoryCheckPendingError(repository: "backend")) {
-            try await PendingRepositoryCheck().run(
-                repository: "backend", check: .command("make test"), worktreePath: "/wt"
-            )
-        }
-    }
-}
-
 @Suite("Card run binding")
 struct CardRunBindingTests {
     private func configuration(projectID: ProjectID) throws -> (Configuration, ProjectConfiguration) {

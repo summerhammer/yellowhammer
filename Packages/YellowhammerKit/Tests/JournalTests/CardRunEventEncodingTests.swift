@@ -33,3 +33,34 @@ func cardRunStepRoundTrips() throws {
         #expect(records[index].event == .cardRunStep(cardID: 7, issueID: "BACK-1", step: step, detail: detail))
     }
 }
+
+@Test("checkRan event round-trips for every result, with and without a status and output")
+func checkRanRoundTrips() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appending(component: "yh-journal-checkran-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let journal = try JournalStore.open(
+        configurationDirectory: directory, projectID: try #require(ProjectID(rawValue: "fixture"))
+    )
+    let run = RunID()
+    let epoch = Date(timeIntervalSince1970: 1_800_000_000)
+    let events: [JournalEvent] = [
+        .checkRan(
+            cardID: 7, issueID: "BACK-1", attemptID: 3, result: .passed, exitStatus: 0, output: "ok\n"
+        ),
+        .checkRan(
+            cardID: 7, issueID: "BACK-1", attemptID: 3, result: .failed, exitStatus: 127, output: "line\n\"quoted\"\n"
+        ),
+        .checkRan(cardID: 7, issueID: "BACK-1", attemptID: 3, result: .declaredNone, exitStatus: nil, output: nil)
+    ]
+
+    for event in events {
+        try journal.append(event, act: .build, runID: run, now: epoch)
+    }
+    let records = try journal.events(ofType: .checkRan)
+
+    #expect(records.map(\.event) == events)
+    #expect(Set(events.compactMap { event -> CheckRunResult? in
+        if case .checkRan(_, _, _, let result, _, _) = event { result } else { nil }
+    }) == Set(CheckRunResult.allCases))
+}
