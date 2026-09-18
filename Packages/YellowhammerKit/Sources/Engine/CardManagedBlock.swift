@@ -71,6 +71,7 @@ public struct AttemptAccount: Equatable, Sendable {
 public struct CardManagedBlock: Equatable, Sendable {
     public var kind: String
     public var repository: String
+    public var scope: [String]
     public var state: CardState
     public var blockReason: String?
     public var lanePosition: Int
@@ -85,6 +86,7 @@ public struct CardManagedBlock: Equatable, Sendable {
     public init(
         kind: String,
         repository: String,
+        scope: [String] = [],
         state: CardState,
         blockReason: String? = nil,
         lanePosition: Int,
@@ -95,6 +97,7 @@ public struct CardManagedBlock: Equatable, Sendable {
     ) {
         self.kind = kind
         self.repository = repository
+        self.scope = scope
         self.state = state
         self.blockReason = blockReason
         self.lanePosition = lanePosition
@@ -112,6 +115,13 @@ public struct CardManagedBlock: Equatable, Sendable {
 
         // Repository line
         lines.append("**Repository:** `\(repository)`")
+
+        // Scope line
+        if scope.isEmpty {
+            lines.append("**Scope:** _none declared_")
+        } else {
+            lines.append("**Scope:** \(scope.map { "`\($0)`" }.joined(separator: ", "))")
+        }
 
         // State line
         let stateLine: String

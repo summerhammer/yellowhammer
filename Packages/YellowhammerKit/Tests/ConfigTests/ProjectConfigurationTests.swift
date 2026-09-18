@@ -122,6 +122,16 @@ func projectFullFileLoads() throws {
     #expect(configuration == expected)
 }
 
+@Test("projectRepositories carries each Repo's protected paths through to Domain")
+func projectRepositoriesCarriesProtectedPaths() throws {
+    let configuration = try ProjectConfiguration.load(contentsOf: fixture("full", in: "Valid"))
+    let backend = try #require(configuration.repositories.workingRepo(named: "backend"))
+    #expect(backend.protectedPaths == ["Secrets/", "Private/"])
+
+    let specRepo = try #require(configuration.repositories.workingRepo(named: "spec-repo"))
+    #expect(specRepo.protectedPaths == [])
+}
+
 @Test("Absent limits and schedule keys take their defaults")
 func projectPartialLimitsScheduleLoads() throws {
     let configuration = try ProjectConfiguration.load(contentsOf: fixture("partial-limits-schedule", in: "Valid"))

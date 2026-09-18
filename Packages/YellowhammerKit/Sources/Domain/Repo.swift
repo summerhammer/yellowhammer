@@ -4,17 +4,22 @@ public struct Repo: Equatable, Hashable, Sendable {
     public let path: String
     public let role: RepoRole
     public let defaultBranch: String?
+    /// A pre-dispatch scoping check, not a sandbox: the refusal happens before an agent CLI is invoked,
+    /// and nothing stops an already-dispatched agent touching a protected path mid-run.
+    public let protectedPaths: [String]
 
     public init(
         name: String,
         path: String,
         role: RepoRole,
-        defaultBranch: String? = nil
+        defaultBranch: String? = nil,
+        protectedPaths: [String] = []
     ) {
         self.name = name
         self.path = path
         self.role = role
         self.defaultBranch = defaultBranch
+        self.protectedPaths = protectedPaths
     }
 }
 

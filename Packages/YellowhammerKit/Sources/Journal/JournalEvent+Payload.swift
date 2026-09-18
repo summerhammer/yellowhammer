@@ -227,6 +227,11 @@ extension JournalEvent {
             ["issue_id": issueID, "cid": cid, "cause": cause]
         case .clauseDeleted(let issueID, let cid):
             ["issue_id": issueID, "cid": cid]
+        case .protectedPathRefused(let cardID, let issueID, let repository, let declaredPath, let protectedPath):
+            [
+                "card_id": String(cardID), "issue_id": issueID, "repository": repository,
+                "declared_path": declaredPath, "protected_path": protectedPath
+            ]
         }
     }
 }

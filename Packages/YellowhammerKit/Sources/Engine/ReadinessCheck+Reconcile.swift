@@ -32,6 +32,13 @@ extension ReadinessCheck {
 
         try reconcileTranscriptions(parsed: parsed, card: card, stamp: stamp)
 
+        if let scope = parsed.scope {
+            let existingScope = try journal.declaredScope(cardID: card.id)
+            if existingScope != scope {
+                try journal.recordDeclaredScope(cardID: card.id, paths: scope)
+            }
+        }
+
         if let prose = parsed.briefProse {
             let existing = try journal.architecturalBriefProse(cardID: card.id)
             if existing != prose {
