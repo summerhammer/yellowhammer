@@ -829,7 +829,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — A rehearsal run over fixture result files takes a Card from Ready to done, with
   every step recorded. Model output and the Check result are not asserted.
 
-### [ ] P8.5 Engine-run Check
+### [x] P8.5 Engine-run Check
 - **Work**
   - Run the repository's declared `check` command in the Worktree, and record its output.
   - `check = none`: record that the green came from a model alone.
