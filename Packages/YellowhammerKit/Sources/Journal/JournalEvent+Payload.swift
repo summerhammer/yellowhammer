@@ -269,6 +269,25 @@ extension JournalEvent {
                 "card_id": String(cardID), "issue_id": issueID,
                 "repository": repository, "state": state.rawValue
             ]
+        case .cardReclaimed(let cardID, let issueID, let previousRunID, let attemptID, let outcome, let routeExcluded):
+            {
+                var dict: [String: String] = [
+                    "card_id": String(cardID), "issue_id": issueID, "previous_run_id": previousRunID.rawValue,
+                    "route_excluded": routeExcluded ? "true" : "false"
+                ]
+                if let attemptID {
+                    dict["attempt_id"] = String(attemptID)
+                }
+                if let outcome {
+                    dict["outcome"] = outcome
+                }
+                return dict
+            }()
+        case .cardReclaimDeferred(let cardID, let issueID, let previousRunID, let remaining):
+            [
+                "card_id": String(cardID), "issue_id": issueID, "previous_run_id": previousRunID.rawValue,
+                "remaining": String(remaining)
+            ]
         }
     }
 }

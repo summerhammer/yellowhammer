@@ -68,12 +68,24 @@ struct CLIAdapterDispatch: AgentDispatch {
         }
     }
 
+    /// The run directory for one pass of one Attempt, under `runsDirectory`:
+    /// `<runID>/<issueID>/<attemptID>-<pass>`. The one place this layout is spelled out; the lease-
+    /// reclaim sweep's ``RunResultReading`` seam (P8.10) reuses this rather than restating it.
+    static func runDirectory(
+        runsDirectory: URL, runID: RunID, issueID: String, attemptID: Int64, pass: RunPass
+    ) -> URL {
+        runsDirectory
+            .appending(component: runID.rawValue, directoryHint: .isDirectory)
+            .appending(component: issueID, directoryHint: .isDirectory)
+            .appending(component: "\(attemptID)-\(pass.rawValue)", directoryHint: .isDirectory)
+    }
+
     /// The run directory for one pass of one Attempt.
     func runDirectory(for request: AgentDispatchRequest) -> URL {
-        runsDirectory
-            .appending(component: request.runID.rawValue, directoryHint: .isDirectory)
-            .appending(component: request.issueID, directoryHint: .isDirectory)
-            .appending(component: "\(request.attemptID)-\(request.pass.rawValue)", directoryHint: .isDirectory)
+        Self.runDirectory(
+            runsDirectory: runsDirectory, runID: request.runID, issueID: request.issueID,
+            attemptID: request.attemptID, pass: request.pass
+        )
     }
 
     /// The request as a ``CLIDispatch``. The Instruction's result file is the `result.json` the adapter

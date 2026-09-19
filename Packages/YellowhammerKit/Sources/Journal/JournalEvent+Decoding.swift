@@ -152,6 +152,10 @@ extension JournalEvent {
             try Self.decodeFailureCauseRecorded(reader)
         case .laneHoleRecorded:
             try Self.decodeLaneHoleRecorded(reader)
+        case .cardReclaimed:
+            try Self.decodeCardReclaimed(reader)
+        case .cardReclaimDeferred:
+            try Self.decodeCardReclaimDeferred(reader)
         }
     }
 

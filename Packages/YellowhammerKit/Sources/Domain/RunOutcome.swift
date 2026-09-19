@@ -38,6 +38,11 @@ public enum CrashedUnknownCause: Equatable, Sendable {
     case terminated(RunEnd)
     /// A signal Yellowhammer did not send ended the process.
     case signaled(Int32)
+    /// A later Act reclaimed a dead run's expired Card Lease and found no way to read the real
+    /// outcome — no schema-valid result file of the dead run's last pass, and no `failed(exit status)`
+    /// step recorded either (loop-state/reclaim-an-expired-lease, P8.10). `String` is a short,
+    /// Operator-facing account of what was missing, e.g. "no result file for the worker pass".
+    case reclaimed(String)
 }
 
 /// The dual-key completion verdict of one CLI run: an Attempt completes only with exit status
