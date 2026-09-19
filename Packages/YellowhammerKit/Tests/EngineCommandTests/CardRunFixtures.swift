@@ -189,6 +189,33 @@ struct RefusingDispatch: AgentDispatch {
     }
 }
 
+/// A fake ``AttemptResetting`` that logs "reset" into the shared CallLog and, by default, reports a
+/// preserved ref for every Attempt id it is handed; scriptable to fail (`.refused` or `.failed`) or to
+/// report nothing preserved, so a test can drive every branch of the reset sequence (OQ60) without a
+/// real Worktree.
+final class RecordingAttemptResetting: AttemptResetting, Sendable {
+    let log: CallLog?
+    private let scripted: AttemptResetOutcome?
+    private let preserves: Bool
+
+    init(log: CallLog? = nil, scripted: AttemptResetOutcome? = nil, preserves: Bool = true) {
+        self.log = log
+        self.scripted = scripted
+        self.preserves = preserves
+    }
+
+    func reset(
+        worktreePath: String, branch: FeatureBranch, attemptID: Int64?, knownGood: String?
+    ) async -> AttemptResetOutcome {
+        log?.add("reset")
+        if let scripted { return scripted }
+        guard preserves, let attemptID else { return .reset(preserved: nil) }
+        return .reset(preserved: PreservedAttemptWork(
+            ref: "refs/yellowhammer/attempts/test-branch/\(attemptID)", commit: "preserved-\(attemptID)"
+        ))
+    }
+}
+
 /// A Check that answers from a scripted sequence of results, repeating the last one once it runs out.
 final class RecordingCheck: RepositoryCheckRunning, Sendable {
     let log: CallLog

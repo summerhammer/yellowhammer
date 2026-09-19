@@ -155,6 +155,13 @@ public enum JournalEvent: Equatable, Sendable {
         cardID: Int64, issueID: String, attemptID: Int64, result: CheckRunResult, exitStatus: Int32?, output: String?
     )
 
+    /// The fence → WIP-commit → preserve → reset sequence preserved an Attempt's work under a git ref
+    /// before resetting the Worktree and the Feature Branch tip to `resetTo`, the last known-good
+    /// commit (Attempt, Block and Reset Ruling 2026-09-19, OQ60).
+    case attemptWorkPreserved(
+        cardID: Int64, issueID: String, attemptID: Int64, ref: String, commit: String, resetTo: String
+    )
+
     /// The type of this event.
     public var type: JournalEventType {
         switch self {
@@ -266,6 +273,8 @@ public enum JournalEvent: Equatable, Sendable {
             .cardRunStep
         case .checkRan:
             .checkRan
+        case .attemptWorkPreserved:
+            .attemptWorkPreserved
         }
     }
 }
@@ -326,4 +335,5 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case protectedPathRefused = "ProtectedPathRefused"
     case cardRunStep = "CardRunStep"
     case checkRan = "CheckRan"
+    case attemptWorkPreserved = "AttemptWorkPreserved"
 }

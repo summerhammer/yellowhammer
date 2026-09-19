@@ -37,11 +37,12 @@ enum CardRunBinding {
         for repo in project.repos {
             checks[repo.name] = repo.check
         }
-        // The real Check in both modes: a rehearsal Night stops at exactly three boundaries (agent CLI
-        // dispatch, push, pull request), and the Check is not one of them.
+        // The real Check and the real reset seam in both modes: a rehearsal Night stops at exactly
+        // three boundaries (agent CLI dispatch, push, pull request), and local git is not one of them.
         return CardRun(
             resolver: resolver, dispatch: dispatch, check: WorktreeCheck(), checks: checks,
-            reviewRoundsMax: project.bounds.reviewRoundsMax, attemptsPerCard: project.bounds.attemptsPerCard
+            reviewRoundsMax: project.bounds.reviewRoundsMax, attemptsPerCard: project.bounds.attemptsPerCard,
+            resetting: AttemptWorktreeReset()
         )
     }
 }

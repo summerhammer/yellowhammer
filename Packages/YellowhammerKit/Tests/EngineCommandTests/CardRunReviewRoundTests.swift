@@ -40,7 +40,8 @@ struct CardRunReviewRoundTests {
         let check = RecordingCheck(log: log, results: checkResults)
         let card = CardRun(
             resolver: resolver, dispatch: dispatch, check: check, checks: checks,
-            reviewRoundsMax: reviewRoundsMax, attemptsPerCard: attemptsPerCard
+            reviewRoundsMax: reviewRoundsMax, attemptsPerCard: attemptsPerCard,
+            resetting: RecordingAttemptResetting()
         )
         return Run(card: card, dispatch: dispatch, check: check, log: log)
     }
@@ -168,7 +169,9 @@ struct CardRunReviewRoundTests {
         #expect(attempts[0].result == "rounds-exhausted")
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.hardFailure.rawValue)
+        // Blocked by the last Attempt's own ending — rounds-exhausted on the review Lens — not
+        // `hard failure`: the Block Reason follows the final Attempt's termination (OQ58).
+        #expect(card.blockReason == BlockReason.blockedByReviewer.rawValue)
         #expect(try world.journal.excludedRoutes(cardID: try #require(world.cardIDs["BACK-1"])) == [cardRunOpus])
         // Blocked because routing found no candidate, not because the Attempt budget (1 of 2) was spent.
         #expect(!(try cardRunLog(world.journal).contains(CardRunStep.attemptsExhausted.rawValue)))

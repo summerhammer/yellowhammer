@@ -27,7 +27,9 @@ func renderAttemptWithCheckRound() {
                 id: 1, attemptID: 1, lens: .check, verdict: "failed",
                 requestedChanges: nil, judgedCommit: nil, createdAt: Date()
             )
-        ]
+        ],
+        preservedRef: nil,
+        preservedCommit: nil
     )
     let account = AttemptAccount(ordinal: 1, record: record)
     let brief = ArchitecturalBrief(prose: "Brief", transcriptions: [])
@@ -65,7 +67,9 @@ func renderCheckDeclaredNone() {
         overridePin: nil,
         startedAt: Date(),
         endedAt: Date(),
-        rounds: []
+        rounds: [],
+        preservedRef: nil,
+        preservedCommit: nil
     )
     let account = AttemptAccount(ordinal: 1, record: record)
     let brief = ArchitecturalBrief(prose: "Brief", transcriptions: [])
@@ -101,7 +105,9 @@ func renderOpenAttempt() {
         overridePin: nil,
         startedAt: Date(),
         endedAt: nil,
-        rounds: []
+        rounds: [],
+        preservedRef: nil,
+        preservedCommit: nil
     )
     let account = AttemptAccount(ordinal: 1, record: record)
     let brief = ArchitecturalBrief(prose: "Brief", transcriptions: [])
@@ -136,7 +142,9 @@ func renderConsumed() {
         overridePin: nil,
         startedAt: Date(),
         endedAt: Date(),
-        rounds: []
+        rounds: [],
+        preservedRef: nil,
+        preservedCommit: nil
     )
     let account = AttemptAccount(ordinal: 1, record: record)
     let brief = ArchitecturalBrief(prose: "Brief", transcriptions: [])
@@ -180,7 +188,9 @@ func renderMultipleRounds() {
                 id: 2, attemptID: 1, lens: .check, verdict: "failed",
                 requestedChanges: nil, judgedCommit: nil, createdAt: Date()
             )
-        ]
+        ],
+        preservedRef: nil,
+        preservedCommit: nil
     )
     let account = AttemptAccount(ordinal: 1, record: record)
     let brief = ArchitecturalBrief(prose: "Brief", transcriptions: [])

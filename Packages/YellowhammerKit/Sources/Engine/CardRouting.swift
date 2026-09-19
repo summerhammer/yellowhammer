@@ -135,14 +135,18 @@ public struct CardRouting: Sendable {
         )
     }
 
-    /// Blocked with Block Reason `hard failure`, through the projection when there is one.
+    /// Blocked, through the projection when there is one, with the Block Reason the single derivation
+    /// gives for the epoch's last ended Attempt (``AttemptHistory/blockReason(inEpoch:)``): `hard
+    /// failure` when nothing was ever dispatched, and otherwise whatever that Attempt's own ending
+    /// says (Attempt, Block and Reset Ruling 2026-09-19, OQ58).
     private func block(_ card: CardRecord) async throws -> CardRecord {
+        let reason = try journal.attemptHistory(cardID: card.id).blockReason(inEpoch: card.budgetEpoch)
         guard let projection else {
             return try journal.transitionCard(
-                cardID: card.id, to: .blocked, blockReason: .hardFailure, runID: runID, act: act, nightID: nightID
+                cardID: card.id, to: .blocked, blockReason: reason, runID: runID, act: act, nightID: nightID
             )
         }
-        switch try await projection.transition(card: card, to: .blocked(.hardFailure)) {
+        switch try await projection.transition(card: card, to: .blocked(reason)) {
         case .unchanged(let record), .posted(let record, _), .deferred(let record, _), .failed(let record, _):
             return record
         }

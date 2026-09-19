@@ -18,7 +18,8 @@ struct CardRunFailureTests {
     ) -> CardRun {
         CardRun(
             resolver: resolver, dispatch: LoggingDispatch(log: log, script: script),
-            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3
+            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+            resetting: RecordingAttemptResetting()
         )
     }
 
@@ -40,7 +41,9 @@ struct CardRunFailureTests {
         #expect(try world.journal.excludedRoutes(cardID: try #require(world.cardIDs["BACK-1"])).isEmpty)
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.hardFailure.rawValue)
+        // The final Attempt of the epoch ended Crashed-Unknown: a dying host, not the model's fault
+        // (Attempt, Block and Reset Ruling 2026-09-19, OQ58/59).
+        #expect(card.blockReason == BlockReason.hostCrash.rawValue)
     }
 
     @Test("A worker that reports failure is a hard failure: the Route is excluded, and with none left the Card Blocks")
@@ -104,7 +107,8 @@ struct CardRunFailureTests {
         let log = CallLog()
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: RefusingDispatch(log: log), check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+            resetting: RecordingAttemptResetting()
         )
 
         try await run.run("BACK-1", in: world)

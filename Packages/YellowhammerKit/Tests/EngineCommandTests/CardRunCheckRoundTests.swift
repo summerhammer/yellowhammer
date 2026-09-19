@@ -29,7 +29,8 @@ struct CardRunCheckRoundTests {
         let check = RecordingCheck(log: log, results: results)
         let card = CardRun(
             resolver: cardRunResolver(), dispatch: dispatch, check: check, checks: checks,
-            reviewRoundsMax: roundsMax, attemptsPerCard: attemptsPerCard
+            reviewRoundsMax: roundsMax, attemptsPerCard: attemptsPerCard,
+            resetting: RecordingAttemptResetting()
         )
         return Run(card: card, dispatch: dispatch, check: check, log: log)
     }
@@ -129,7 +130,9 @@ struct CardRunCheckRoundTests {
         #expect(attempt.result == "rounds-exhausted")
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.hardFailure.rawValue)
+        // Blocked by the last (and only) Attempt's own ending — rounds-exhausted on the check Lens —
+        // not `hard failure`: the Block Reason follows the final Attempt's termination (OQ58).
+        #expect(card.blockReason == BlockReason.blockedByCheck.rawValue)
         // Blocked because routing found no candidate, not because the Attempt budget (1 of 2) was spent.
         let steps = try cardRunLog(world.journal)
         #expect(!steps.contains(CardRunStep.attemptsExhausted.rawValue))
@@ -261,7 +264,8 @@ struct CardRunCheckRoundTests {
         let log = CallLog()
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log), check: WorktreeCheck(),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+            resetting: RecordingAttemptResetting()
         )
 
         try await run.run("BACK-1", in: world)

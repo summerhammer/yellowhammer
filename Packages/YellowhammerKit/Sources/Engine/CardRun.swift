@@ -48,6 +48,10 @@ public struct CardRun: CardRunner {
     /// The most Attempts a Card may consume in one budget epoch (`attempts_per_card`). Required: the ruled
     /// default lives in `Config`, and the Engine holds no configuration.
     public let attemptsPerCard: Int
+    /// The fence → WIP-commit → preserve → reset seam (Attempt, Block and Reset Ruling 2026-09-19,
+    /// OQ60): required, with no default, so production can never forget to wire the real
+    /// ``AttemptWorktreeReset`` in.
+    public let resetting: any AttemptResetting
 
     public init(
         resolver: RouteResolver,
@@ -56,7 +60,8 @@ public struct CardRun: CardRunner {
         checks: [String: Check],
         reviewRoundsMax: Int,
         attemptsPerCard: Int,
-        leasePolicy: LeasePolicy = .ruled
+        leasePolicy: LeasePolicy = .ruled,
+        resetting: any AttemptResetting
     ) {
         self.resolver = resolver
         self.dispatch = dispatch
@@ -65,6 +70,7 @@ public struct CardRun: CardRunner {
         self.reviewRoundsMax = reviewRoundsMax
         self.attemptsPerCard = attemptsPerCard
         self.leasePolicy = leasePolicy
+        self.resetting = resetting
     }
 
     public func run(
@@ -139,13 +145,29 @@ public struct CardRun: CardRunner {
                 switch try await conclude(end, frame: frame) {
                 case .stop:
                     return
-                case .retry:
-                    continue
+                case .retry(let endedAttempt):
+                    // A new Attempt starts fresh, never as a rescue (OQ60): before dispatching it, the
+                    // prior Attempt's work is preserved and the Worktree reset to known-good. A failed
+                    // reset never dispatches the new Attempt: the Card returns to Ready instead.
+                    switch try await attemptReset(priorAttemptID: endedAttempt.id, frame: frame) {
+                    case .success(let wip):
+                        frame.wipContext = wip
+                        continue
+                    case .failure:
+                        try await frame.transition(.ready)
+                        return
+                    }
                 }
 
-            case .blocked, .readinessFailure:
-                // Routing already wrote the whole consequence: Blocked with no Attempt, or the refusal to
-                // report with the Card untouched. Either way nothing is dispatched.
+            case .blocked(let blockedCard, _):
+                // Routing already wrote the Blocked transition; the reset still runs, so a Card that
+                // Blocks never leaves half-finished edits sitting in its Worktree (OQ60).
+                try await attemptResetBeforeBlock(card: blockedCard, frame: frame)
+                return
+
+            case .readinessFailure:
+                // The refusal to report, with the Card untouched: no Attempt, nothing dispatched, and
+                // no Block — the reset sequence runs only on a Block path.
                 return
 
             case .attemptBudgetSpent(let spentCard):

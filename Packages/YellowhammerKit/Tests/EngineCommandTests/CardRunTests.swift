@@ -20,7 +20,8 @@ struct CardRunTests {
         CardRun(
             resolver: resolver, dispatch: LoggingDispatch(log: log, script: script, during: during),
             check: RecordingCheck(log: log, result: check), checks: checks, reviewRoundsMax: reviewRoundsMax,
-            attemptsPerCard: attemptsPerCard, leasePolicy: leasePolicy
+            attemptsPerCard: attemptsPerCard, leasePolicy: leasePolicy,
+            resetting: RecordingAttemptResetting()
         )
     }
 
@@ -61,7 +62,8 @@ struct CardRunTests {
         let log = CallLog()
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: rehearsal, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+            resetting: RecordingAttemptResetting()
         )
 
         try await run.run("BACK-1", in: world)
@@ -91,7 +93,9 @@ struct CardRunTests {
         #expect(attempt.rounds.map(\.lens) == [.review])
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.hardFailure.rawValue)
+        // Blocked by the last Attempt's own ending — rounds-exhausted on the review Lens — not
+        // `hard failure`: the Block Reason follows the final Attempt's termination (OQ58).
+        #expect(card.blockReason == BlockReason.blockedByReviewer.rawValue)
     }
 
     @Test("A failed architect skips the worker; a single-Route table leaves the retry no candidate, Card Blocks")

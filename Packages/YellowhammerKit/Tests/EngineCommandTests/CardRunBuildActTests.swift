@@ -28,7 +28,8 @@ struct CardRunBuildActTests {
         let log = CallLog()
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: rehearsal, check: RecordingCheck(log: log),
-            checks: ["backend": .none, "mobile": .none], reviewRoundsMax: 2, attemptsPerCard: 3
+            checks: ["backend": .none, "mobile": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+            resetting: RecordingAttemptResetting()
         )
         let board = try #require(world.context.act.board)
         let invocation = EngineInvocation(

@@ -57,6 +57,30 @@ public struct AttemptHistory: Equatable, Sendable {
         return retries
     }
 
+    /// The Block Reason for `epoch`, derived from a single source (Attempt, Block and Reset Ruling
+    /// 2026-09-19, OQ58): the epoch's last ENDED, consuming Attempt — a `question` ending is skipped,
+    /// and so is any still-open Attempt. `rounds-exhausted` blocks by that Attempt's last Round's
+    /// Lens; a hard failure blocks `hard failure`; a Crashed-Unknown blocks `host crash`; no such
+    /// Attempt at all (nothing in this epoch was ever dispatched) blocks `hard failure`. Every Block
+    /// path — the Attempt budget spent, mid-run or found already spent, and a Route exclusion leaving
+    /// none to resolve — reads this one derivation.
+    public func blockReason(inEpoch epoch: Int) -> BlockReason {
+        guard let last = attempts.last(where: {
+            $0.budgetEpoch == epoch && $0.endedAt != nil && $0.result != AttemptOutcome.question.rawValue
+        }) else {
+            return .hardFailure
+        }
+        switch last.result {
+        case AttemptOutcome.roundsExhausted.rawValue:
+            guard let lens = last.rounds.last?.lens else { return .hardFailure }
+            return lens == .check ? .blockedByCheck : .blockedByReviewer
+        case AttemptOutcome.crashedUnknown.rawValue:
+            return .hostCrash
+        default:
+            return .hardFailure
+        }
+    }
+
     /// How many of one budget epoch's Attempts consumed the Attempt budget, and by what — the single
     /// source both the Attempt budget arithmetic (``CardRun``) and the Attempt budget guard (P8.7) read,
     /// so "how many are consumed" and "why" are never counted two different ways. Split into
@@ -146,7 +170,9 @@ extension JournalStore {
                 overridePin: overridePin,
                 startedAt: startedAt,
                 endedAt: nil,
-                rounds: []
+                rounds: [],
+                preservedRef: nil,
+                preservedCommit: nil
             )
         }
     }
@@ -358,7 +384,9 @@ extension JournalStore {
             overridePin: row["override_pin"],
             startedAt: try JournalStore.date(row["started_at"], onError: onError),
             endedAt: endedAt,
-            rounds: rounds
+            rounds: rounds,
+            preservedRef: row["preserved_ref"],
+            preservedCommit: row["preserved_commit"]
         )
     }
 }
