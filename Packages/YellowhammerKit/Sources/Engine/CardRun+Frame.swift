@@ -8,6 +8,12 @@ struct CardRunFrame: Sendable {
     var card: CardRecord
     let context: BuildActContext
     let readiness: CardReadiness
+    /// This Card's Repo Lane, as derived for this build Act (authored order, all states, possibly
+    /// stale by the time a later pass reads it — the Journal is re-read for current state when a
+    /// hole is named). Threaded through so the authoring-invariant violation report (graph-execution/
+    /// handle-a-block-mid-graph, P8.9) can name an earlier Blocked or Waiting-on-You Card in the same
+    /// lane as the likely hole.
+    let lane: RepoLane
     let repository: Repo?
     let check: Check
     let worktree: WorktreeRecord
@@ -72,7 +78,9 @@ struct CardRunFrame: Sendable {
 extension CardRun {
     /// Gathers what the run needs before anything is spent: an Attempt is never recorded for a Card that
     /// cannot be dispatched for want of a Worktree, a Feature Branch or a declared Check.
-    func prepare(card: CardRecord, context: BuildActContext, readiness: CardReadiness) async throws -> CardRunFrame {
+    func prepare(
+        card: CardRecord, in lane: RepoLane, context: BuildActContext, readiness: CardReadiness
+    ) async throws -> CardRunFrame {
         let journal = context.act.journal
         guard let worktree = try journal.heldWorktree(featureID: context.feature.id, repository: card.repository) else {
             throw CardRunError.worktreeMissing(featureID: context.feature.id, repository: card.repository)
@@ -94,7 +102,7 @@ extension CardRun {
         // changed since the last read, so an unchanged Card is titled by its issue id: a known gap.
         let object = context.deltaRead?.cardChanges.first { $0.card.id == card.id }?.object
         return CardRunFrame(
-            card: card, context: context, readiness: readiness,
+            card: card, context: context, readiness: readiness, lane: lane,
             repository: context.act.repositories?.workingRepo(named: card.repository), check: check,
             worktree: worktree, branch: branch, projection: projection,
             instructionCard: InstructionCard(

@@ -184,6 +184,7 @@ public struct BuildAct: Sendable {
                 }
                 try await cardRunner.run(card: card, in: lane, context: context, readiness: cardReadiness)
                 cardsRun += 1
+                try recordLaneHoleIfNeeded(cardID: card.id, repository: lane.repository, actContext: actContext)
             } catch {
                 failure = String(describing: error)
                 break
@@ -197,6 +198,25 @@ public struct BuildAct: Sendable {
             act: actContext.act, runID: actContext.runID, nightID: actContext.night.id
         )
         return (lane.repository, failure)
+    }
+
+    /// Re-reads a Card just run and, when it is now Blocked or Waiting on You, appends
+    /// `.laneHoleRecorded` (graph-execution/handle-a-block-mid-graph, P8.9): the lane already moved on
+    /// to its next Card, so this only names the hole for the Partial Landing announcement (P10.4) to
+    /// read later, via ``JournalStore/laneHoles(cycleID:)``.
+    private func recordLaneHoleIfNeeded(cardID: Int64, repository: String, actContext: ActContext) throws {
+        let current = try actContext.journal.card(id: cardID)
+        switch current.state {
+        case .blocked, .waitingOnYou:
+            try actContext.journal.append(
+                .laneHoleRecorded(
+                    cardID: current.id, issueID: current.issueID, repository: repository, state: current.state
+                ),
+                act: actContext.act, runID: actContext.runID, nightID: actContext.night.id
+            )
+        default:
+            break
+        }
     }
 
     // MARK: - Write back

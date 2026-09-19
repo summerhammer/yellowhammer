@@ -111,3 +111,27 @@ func repoLaneEndedRoundTrips() throws {
     #expect(records[0].event == .repoLaneEnded(repository: "backend", cardsRun: 2, failure: nil))
     #expect(records[1].event == .repoLaneEnded(repository: "mobile", cardsRun: 0, failure: "engine fault"))
 }
+
+@Test("laneHoleRecorded event round-trips, for both hole states (P8.9)")
+func laneHoleRecordedRoundTrips() throws {
+    let fixture = try BuildActEventFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+
+    try journal.append(
+        .laneHoleRecorded(cardID: 7, issueID: "BACK-1", repository: "backend", state: .blocked),
+        act: .build, runID: run, now: buildActEpoch
+    )
+    try journal.append(
+        .laneHoleRecorded(cardID: 8, issueID: "BACK-2", repository: "backend", state: .waitingOnYou),
+        act: .build, runID: run, now: buildActEpoch
+    )
+    let records = try journal.events(ofType: .laneHoleRecorded)
+
+    #expect(records.count == 2)
+    #expect(records[0].event == .laneHoleRecorded(cardID: 7, issueID: "BACK-1", repository: "backend", state: .blocked))
+    #expect(
+        records[1].event
+            == .laneHoleRecorded(cardID: 8, issueID: "BACK-2", repository: "backend", state: .waitingOnYou)
+    )
+}

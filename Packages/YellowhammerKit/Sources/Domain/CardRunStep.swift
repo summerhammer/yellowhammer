@@ -44,6 +44,10 @@ public enum CardRunStep: String, CaseIterable, Sendable {
     /// Before a retry, the new Attempt is never dispatched and the Card returns to Ready instead; on
     /// a Block path the Card Blocks regardless. The detail is the reason.
     case attemptResetFailed = "attempt-reset-failed"
+    /// An architect or worker result reported `failed` carrying `authoring_invariant_violation`
+    /// (graph-execution/handle-a-block-mid-graph, P8.9): the Feature was mis-authored, not the Card
+    /// misordered. The detail is the reason recorded alongside `.authoringInvariantBroken`.
+    case authoringInvariantViolated = "authoring-invariant-violated"
 }
 
 /// What one engine-run Check yielded, as the `checkRan` event records it.

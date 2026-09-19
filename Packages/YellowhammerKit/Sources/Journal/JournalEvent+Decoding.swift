@@ -150,6 +150,8 @@ extension JournalEvent {
             try Self.decodeAttemptWorkPreserved(reader)
         case .failureCauseRecorded:
             try Self.decodeFailureCauseRecorded(reader)
+        case .laneHoleRecorded:
+            try Self.decodeLaneHoleRecorded(reader)
         }
     }
 

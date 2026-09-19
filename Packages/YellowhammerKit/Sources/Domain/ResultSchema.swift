@@ -33,7 +33,8 @@ public enum ResultSchema {
             "outcome": { "enum": ["planned", "failed"] },
             "plan": { "type": "string", "minLength": 1 },
             "affected_paths": { "type": "array", "items": { "type": "string" } },
-            "reason": { "type": "string", "minLength": 1 }
+            "reason": { "type": "string", "minLength": 1 },
+            "authoring_invariant_violation": { "type": "string", "minLength": 1 }
           },
           "oneOf": [
             {
@@ -61,7 +62,8 @@ public enum ResultSchema {
             "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
             "summary": { "type": "string", "minLength": 1 },
             "question": { "type": "string", "minLength": 1 },
-            "reason": { "type": "string", "minLength": 1 }
+            "reason": { "type": "string", "minLength": 1 },
+            "authoring_invariant_violation": { "type": "string", "minLength": 1 }
           },
           "oneOf": [
             {

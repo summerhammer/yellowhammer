@@ -18,7 +18,8 @@ public struct AttemptConsumption: Equatable, Sendable {
     public let crashedUnknown: Int
     /// Attempts that ended `success`.
     public let succeeded: Int
-    /// Attempts that ended `question` — the one ending that consumes nothing.
+    /// Attempts that ended `question` or `cancelled` — the two endings that consume nothing: asking
+    /// has no resumable state to protect a budget for, and neither does a Card cancelled mid-run.
     public let notConsumed: Int
 
     public init(

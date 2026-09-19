@@ -36,7 +36,8 @@ func failedRunCompletedMapsToNil() {
         (AttemptEnding.hardFailure(.exitStatus(1)), true),
         (AttemptEnding.roundsExhausted(rounds: 3), true),
         (AttemptEnding.crashedUnknown(.signaled(9)), false),
-        (AttemptEnding.question, false)
+        (AttemptEnding.question, false),
+        (AttemptEnding.cancelled, false)
     ]
 )
 func excludesRouteTruthTable(_ ending: AttemptEnding, _ expected: Bool) {
@@ -44,13 +45,14 @@ func excludesRouteTruthTable(_ ending: AttemptEnding, _ expected: Bool) {
 }
 
 @Test(
-    "consumesAttempt is true for every ending but a question",
+    "consumesAttempt is true for every ending but a question or a cancellation",
     arguments: [
         (AttemptEnding.success, true),
         (AttemptEnding.hardFailure(.exitStatus(1)), true),
         (AttemptEnding.roundsExhausted(rounds: 3), true),
         (AttemptEnding.crashedUnknown(.signaled(9)), true),
-        (AttemptEnding.question, false)
+        (AttemptEnding.question, false),
+        (AttemptEnding.cancelled, false)
     ]
 )
 func consumesAttemptTruthTable(_ ending: AttemptEnding, _ expected: Bool) {
@@ -64,6 +66,7 @@ func outcomeRawValueSpellings() {
     #expect(AttemptOutcome.roundsExhausted.rawValue == "rounds-exhausted")
     #expect(AttemptOutcome.crashedUnknown.rawValue == "Crashed-Unknown")
     #expect(AttemptOutcome.question.rawValue == "question")
+    #expect(AttemptOutcome.cancelled.rawValue == "cancelled")
 }
 
 @Test("exclusionReason is set only for the two capability failures")
@@ -73,4 +76,10 @@ func exclusionReasonOnlyForCapabilityFailures() {
     #expect(AttemptEnding.success.exclusionReason == nil)
     #expect(AttemptEnding.crashedUnknown(.signaled(9)).exclusionReason == nil)
     #expect(AttemptEnding.question.exclusionReason == nil)
+    #expect(AttemptEnding.cancelled.exclusionReason == nil)
+}
+
+@Test("A cancellation never yields a FailureCause, like a question or a success")
+func cancelledYieldsNoFailureCause() {
+    #expect(FailureCause(ending: .cancelled) == nil)
 }

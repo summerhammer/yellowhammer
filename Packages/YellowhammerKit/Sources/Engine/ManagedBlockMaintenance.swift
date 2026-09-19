@@ -42,13 +42,9 @@ public struct ManagedBlockMaintenance: Sendable {
     public func maintain(card: CardRecord, brief: ArchitecturalBrief) async throws -> Outcome {
         // Cancelled: abort pending entries and return early
         if card.state == .cancelled {
-            let pending = try journal.pendingOutboxEntries()
-            for entry in pending where entry.issueID == card.issueID {
-                _ = try journal.markOutboxAborted(
-                    id: entry.id,
-                    reason: "the Card is Cancelled; nothing is posted to it"
-                )
-            }
+            try journal.abortPendingOutboxEntries(
+                issueID: card.issueID, reason: "the Card is Cancelled; nothing is posted to it"
+            )
             return .notMaintained(.cancelled)
         }
 

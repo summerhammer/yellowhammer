@@ -216,6 +216,32 @@ func questionDoesNotConsumeOrExclude() throws {
     #expect(routeExcluded == false)
 }
 
+@Test("A cancellation is not consumed and excludes nothing")
+func cancelledDoesNotConsumeOrExclude() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let cardID = try insertFixtureCard(journal)
+    let runID = RunID()
+    try claimLease(journal, runID: runID)
+    let attempt = try journal.recordAttempt(cardID: cardID, route: routeA, runID: runID, now: epoch)
+
+    let ended = try journal.endAttempt(
+        attemptID: attempt.id, ending: .cancelled, runID: runID, act: .build, now: epoch.addingTimeInterval(10)
+    )
+
+    #expect(ended.result == "cancelled")
+    #expect(ended.classification == "Card cancelled")
+    #expect(ended.consumedHow == "not consumed (Card cancelled)")
+    #expect(try journal.excludedRoutes(cardID: cardID).isEmpty)
+
+    let events = try journal.events(ofType: .attemptEnded)
+    guard case .attemptEnded(_, _, _, _, _, let routeExcluded) = try #require(events.first?.event) else {
+        Issue.record("expected attemptEnded")
+        return
+    }
+    #expect(routeExcluded == false)
+}
+
 @Test("Success is consumed and excludes nothing")
 func successDoesNotExclude() throws {
     let fixture = try JournalFixture()
