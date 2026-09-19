@@ -58,3 +58,5 @@ gitleaks.sarif
 # Python bytecode from scripts/ci
 __pycache__/
 *.pyc
+
+doc/implementation-roadmap.html
