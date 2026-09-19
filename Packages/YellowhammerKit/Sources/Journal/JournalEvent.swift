@@ -17,6 +17,12 @@ public enum JournalEvent: Equatable, Sendable {
     /// first Act. Reported, never acted on — `unanswered_nights_max` is spent only by Nights that ran.
     case absentNightDetected(nightStart: NightStart)
     case authoringNoWorkAvailable
+    /// The author Act found a Feature already in flight for this Project (an open Cycle) and authored
+    /// nothing: never more than one Feature in flight per Project, even forced. A quiet Night, not a failure.
+    case authoringSkippedFeatureInFlight(featureIssueID: String)
+    /// The predecessor-ancestry gate (P9.2) found the named predecessor Feature not yet landed in one
+    /// or more repositories: the author Act authored nothing, dispatched nothing. A quiet Night, not a failure.
+    case authoringPredecessorNotLanded(featureIssueID: String, repositories: [String])
     case managedBlockDelimiterBroken(issueID: String)
     /// Fire-and-forget: the failure is recorded, never acted on.
     case notificationDeliveryFailed(notification: String, reason: String)
@@ -211,6 +217,10 @@ public enum JournalEvent: Equatable, Sendable {
             .absentNightDetected
         case .authoringNoWorkAvailable:
             .authoringNoWorkAvailable
+        case .authoringSkippedFeatureInFlight:
+            .authoringSkippedFeatureInFlight
+        case .authoringPredecessorNotLanded:
+            .authoringPredecessorNotLanded
         case .managedBlockDelimiterBroken:
             .managedBlockDelimiterBroken
         case .notificationDeliveryFailed:
@@ -331,6 +341,8 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case mainlineFetchFailed = "MainlineFetchFailed"
     case absentNightDetected = "AbsentNightDetected"
     case authoringNoWorkAvailable = "AuthoringNoWorkAvailable"
+    case authoringSkippedFeatureInFlight = "AuthoringSkippedFeatureInFlight"
+    case authoringPredecessorNotLanded = "AuthoringPredecessorNotLanded"
     case managedBlockDelimiterBroken = "ManagedBlockDelimiterBroken"
     case notificationDeliveryFailed = "NotificationDeliveryFailed"
     case rateBudgetExhausted = "RateBudgetExhausted"

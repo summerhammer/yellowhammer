@@ -26,6 +26,13 @@ extension JournalEvent {
             ["night_start": nightStart.rawValue]
         case .authoringNoWorkAvailable:
             nil
+        case .authoringSkippedFeatureInFlight(let featureIssueID):
+            ["feature_issue_id": featureIssueID]
+        case .authoringPredecessorNotLanded(let featureIssueID, let repositories):
+            [
+                "feature_issue_id": featureIssueID,
+                "repositories": repositories.joined(separator: "\u{1F}")
+            ]
         case .managedBlockDelimiterBroken(let issueID):
             ["issue_id": issueID]
         case .notificationDeliveryFailed(let notification, let reason):

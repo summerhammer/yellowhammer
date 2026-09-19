@@ -7,14 +7,17 @@ import Journal
 /// comes from the Journal's own recorded dates, formatted ISO-8601 UTC.
 public enum NightCardBlock {
     /// The block a Night Card is created with: the Night is open, and the summary is written when
-    /// the land firing at `night_end` completes it.
-    public static func opened(night: NightRecord, projectID: ProjectID) -> String {
+    /// the land firing at `night_end` completes it. `authoringFindings` is one line per quiet
+    /// authoring reason this Night has recorded so far (P9.1) — empty for every Night Card this Act
+    /// created before authoring existed, so existing rendered output is unchanged.
+    public static func opened(night: NightRecord, projectID: ProjectID, authoringFindings: [String] = []) -> String {
         var lines = header(night: night, projectID: projectID)
         lines.append("")
         lines.append(
             "**Night Summary:** the Night is open. The summary is written when the land firing at " +
             "`night_end` completes this Night Card."
         )
+        appendAuthoringFindings(authoringFindings, to: &lines)
         lines.append("")
         lines.append(CardManagedBlock.footer)
         return lines.joined(separator: "\n")
@@ -22,8 +25,11 @@ public enum NightCardBlock {
 
     /// The block a Night Card is completed with: the same header, when it was completed, the Night's
     /// verdict — the idle finding this phase can carry, or a placeholder until the Night Summary lands
-    /// (P12.1) — and, when the Delta Read found any, the Waiting on You anomalies this Night.
-    public static func completed(night: NightRecord, projectID: ProjectID, anomalies: [String] = []) -> String {
+    /// (P12.1) — the quiet authoring findings this Night recorded (P9.1), and, when the Delta Read
+    /// found any, the Waiting on You anomalies this Night.
+    public static func completed(
+        night: NightRecord, projectID: ProjectID, authoringFindings: [String] = [], anomalies: [String] = []
+    ) -> String {
         var lines = header(night: night, projectID: projectID)
         if let completedAt = night.completedAt {
             lines.append("**Completed:** \(iso8601(completedAt)) at `night_end`")
@@ -41,6 +47,7 @@ public enum NightCardBlock {
                 "the Night Summary lands with the morning report."
             )
         }
+        appendAuthoringFindings(authoringFindings, to: &lines)
         if !anomalies.isEmpty {
             lines.append("")
             lines.append("**Anomalies:**")
@@ -51,6 +58,17 @@ public enum NightCardBlock {
         lines.append("")
         lines.append(CardManagedBlock.footer)
         return lines.joined(separator: "\n")
+    }
+
+    /// Appends the authoring section when there is anything to say. Called with an empty array by
+    /// every pre-P9.1 render path, so existing rendered output is untouched.
+    private static func appendAuthoringFindings(_ findings: [String], to lines: inout [String]) {
+        guard !findings.isEmpty else { return }
+        lines.append("")
+        lines.append("**Authoring:**")
+        for finding in findings {
+            lines.append("- \(finding)")
+        }
     }
 
     private static func header(night: NightRecord, projectID: ProjectID) -> [String] {

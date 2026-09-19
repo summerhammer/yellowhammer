@@ -64,7 +64,17 @@ extension ActCommand {
         let board = try bindBoard?(configuration, project)
         let workspace = bindWorkspace?()
 
-        guard Self.act == .build else {
+        // land keeps a no-work invocation until its own phase lands; build and author each wire their
+        // own Act's work here, the one place an adapter is constructed for either (ADR-001): Engine
+        // itself never imports one.
+        guard
+            let work = try Self.work(
+                mode: mode, configuration: configuration, project: project,
+                configurationDirectory: configurationDirectory
+            )
+        else {
+            // land: no phase has landed to wire in yet; this keeps EngineInvocation's own
+            // `notImplemented` default.
             return EngineInvocation(
                 act: Self.act,
                 mode: mode,
@@ -77,12 +87,6 @@ extension ActCommand {
                 workspace: workspace
             )
         }
-
-        // The build Act's work is wired here, the one place an adapter (and so the Dispatch seam's real
-        // implementation) is constructed; author and land keep no-work invocations until their own phases land.
-        let cardRunner = try CardRunBinding.cardRunner(
-            mode: mode, configuration: configuration, project: project, configurationDirectory: configurationDirectory
-        )
         return EngineInvocation(
             act: Self.act,
             mode: mode,
@@ -93,7 +97,29 @@ extension ActCommand {
             board: board,
             repositories: project.repositories,
             workspace: workspace,
-            work: BuildAct(
+            work: work
+        )
+    }
+
+    /// This Act's own work, when its phase has landed — nil for land, whose own phase has not landed
+    /// yet, and for any other Act EngineInvocation's own default already covers with `notImplemented`.
+    /// Split out of `makeInvocation` to keep that function within its length limit.
+    private static func work(
+        mode: NightMode, configuration: Configuration, project: ProjectConfiguration, configurationDirectory: URL
+    ) throws -> EngineInvocation.ActWork? {
+        switch Self.act {
+        case .land:
+            return nil
+        case .author:
+            // The predecessor gate (P9.2) and Feature selection (P9.3–P9.7) are later phases; this Act
+            // still records every quiet Night's reason (P9.1).
+            return AuthorAct(predecessorGate: nil, authoring: nil).work
+        case .build:
+            let cardRunner = try CardRunBinding.cardRunner(
+                mode: mode, configuration: configuration, project: project,
+                configurationDirectory: configurationDirectory
+            )
+            return BuildAct(
                 cardRunner: cardRunner,
                 // Open until P11: the Operator's board identity is not wired anywhere yet; Waiting on
                 // You assignment on a Divergence needs it.
@@ -108,7 +134,7 @@ extension ActCommand {
                     )
                 )
             ).work
-        )
+        }
     }
 
     public func run() async throws {

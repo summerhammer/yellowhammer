@@ -31,6 +31,7 @@ func eventTypeRawValues() {
     let expected = [
         "ActStarted", "ActEnded", "ActIdle", "ActIncomplete", "ActStoodDown",
         "MainlineFetchFailed", "AbsentNightDetected", "AuthoringNoWorkAvailable",
+        "AuthoringSkippedFeatureInFlight", "AuthoringPredecessorNotLanded",
         "ManagedBlockDelimiterBroken", "NotificationDeliveryFailed", "RateBudgetExhausted",
         "LeaseReclaimed", "CardLeaseReclaimed", "NightOpened", "NightClosed", "NightOpenedAndDied",
         "ManagedBlockWritten", "NightCardOpened", "NightCardCompleted", "BoardWriteFailed", "OutboxGroupRolledBack",
@@ -198,6 +199,9 @@ func authoringNoWorkAvailableRoundTrips() throws {
     #expect(records.count == 1)
     #expect(records[0].event == .authoringNoWorkAvailable)
 }
+
+// authoringSkippedFeatureInFlight and authoringPredecessorNotLanded (P9.1) round-trip in
+// AuthorActEventEncodingTests.swift, split out to keep this file under the file length limit.
 
 @Test("managedBlockDelimiterBroken event round-trips")
 func managedBlockDelimiterBrokenRoundTrips() throws {

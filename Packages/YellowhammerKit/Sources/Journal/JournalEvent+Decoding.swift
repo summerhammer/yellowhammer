@@ -37,6 +37,10 @@ extension JournalEvent {
             .absentNightDetected(nightStart: try reader.nightStart("night_start"))
         case .authoringNoWorkAvailable:
             .authoringNoWorkAvailable
+        case .authoringSkippedFeatureInFlight:
+            .authoringSkippedFeatureInFlight(featureIssueID: try reader.require("feature_issue_id"))
+        case .authoringPredecessorNotLanded:
+            try Self.decodeAuthoringPredecessorNotLanded(reader)
         case .managedBlockDelimiterBroken:
             .managedBlockDelimiterBroken(issueID: try reader.require("issue_id"))
         case .notificationDeliveryFailed:
