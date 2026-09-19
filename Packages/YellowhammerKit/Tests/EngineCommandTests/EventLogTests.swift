@@ -238,9 +238,9 @@ func lostActLeaseCancelsWork() async throws {
     try directory.writeValidProjectFile(id: "alpha")
     let projectID = try #require(ProjectID(rawValue: "alpha"))
     let journal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
-    // TTL must be >= 2s under whole-second timestamps, or a beat that lands in the next wall-clock
-    // second finds the run's own lease expired and the loss is its own, not the takeover's.
-    let shortPolicy = LeasePolicy(heartbeatInterval: 0.05, timeToLive: 2)
+    // A fast beat on the ruled 600 s TTL: the run's own lease cannot expire under it however long the
+    // parallel suite stalls a hop, so the only way to lose it is the takeover, injected through `now:`.
+    let policy = LeasePolicy(heartbeatInterval: 0.05, timeToLive: 600)
     let runID = RunID()
     let takerRunID = RunID()
 
@@ -252,19 +252,19 @@ func lostActLeaseCancelsWork() async throws {
         // Forced because this test is about lease loss and cancellation, not the trigger predicate.
         trigger: .forced,
         runID: runID,
-        leasePolicy: shortPolicy,
+        leasePolicy: policy,
         work: { _ in
             try await Task.sleep(for: Duration.milliseconds(100))
 
-            // Have a second store "steal" the lease by claiming at a far-future time
+            // Have a second store "steal" the lease by claiming at a time past the run's expiry
             let takeover = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
             _ = try takeover.claimActLease(
-                act: .author, runID: takerRunID, mode: .real, policy: shortPolicy,
-                now: Date().addingTimeInterval(4)
+                act: .author, runID: takerRunID, mode: .real, policy: policy,
+                now: Date().addingTimeInterval(policy.timeToLive + 60)
             )
 
-            // Loop until we lose the lease or timeout
-            for _ in 0..<300 {
+            // Wait for the next beat to find the takeover and cancel us; the bound only stops a hang.
+            for _ in 0..<3000 {
                 try await Task.sleep(for: Duration.milliseconds(10))
                 if Task.isCancelled { break }
             }
