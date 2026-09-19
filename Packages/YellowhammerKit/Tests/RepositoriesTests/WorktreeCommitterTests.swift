@@ -127,6 +127,81 @@ struct WorktreeCommitterTests {
     }
 }
 
+// roadmap P8.11: a rehearsal Night never commits into a Worktree (system-overview, Environment
+// Differences).
+@Suite("Rehearsal WIP commit boundary tests")
+struct WorktreeCommitterRehearsalTests {
+
+    @Test("A dirty Worktree in rehearsal mode is refused, writing nothing and leaving changes in place")
+    func dirtyWorktreeInRehearsalIsRefused() async throws {
+        let fixture = GitFixture(name: "wip-rehearsal-dirty-1")
+        fixture.initRepo(defaultBranch: "main")
+        let headSHA = try fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
+        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
+        try fixture.writeFile(filename: "tracked.txt", content: "changed")
+        try fixture.writeFile(filename: "untracked.txt", content: "new file")
+
+        let branch = FeatureBranch(name: "yh-project-feature")
+        let committer = WorktreeCommitter(mode: .rehearsal)
+        let outcome = await committer.commitWIP(worktreePath: fixture.path, branch: branch)
+
+        guard case .refused = outcome else {
+            Issue.record("expected .refused, got \(outcome)")
+            return
+        }
+        #expect(fixture.revParse("HEAD") == headSHA)
+        #expect(fixture.revParse("refs/yellowhammer/wip/yh-project-feature") == nil)
+        let status = fixture.run(["status", "--porcelain"]).stdout
+        #expect(status.contains("tracked.txt"))
+        #expect(status.contains("untracked.txt"))
+    }
+
+    @Test("A clean Worktree in rehearsal mode is still a no-op, exactly as in real mode")
+    func cleanWorktreeInRehearsalIsNoOp() async throws {
+        let fixture = GitFixture(name: "wip-rehearsal-clean-2")
+        fixture.initRepo(defaultBranch: "main")
+        let headSHA = try fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
+        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
+
+        let branch = FeatureBranch(name: "yh-project-feature")
+        let committer = WorktreeCommitter(mode: .rehearsal)
+        let outcome = await committer.commitWIP(worktreePath: fixture.path, branch: branch)
+
+        guard case .noChanges(let headCommit, let wipRef, let wipCommit) = outcome else {
+            Issue.record("expected .noChanges, got \(outcome)")
+            return
+        }
+        #expect(headCommit == headSHA)
+        #expect(wipRef == nil)
+        #expect(wipCommit == nil)
+    }
+
+    @Test("preserveAndReset in rehearsal mode refuses a dirty Worktree without committing")
+    func preserveAndResetInRehearsalRefusesDirtyTree() async throws {
+        let fixture = GitFixture(name: "wip-rehearsal-preserve-3")
+        fixture.initRepo(defaultBranch: "main")
+        _ = try fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
+        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
+        let knownGood = try fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
+        try fixture.writeFile(filename: "feat.txt", content: "dirty feature edit")
+
+        let branch = FeatureBranch(name: "yh-project-feature")
+        let committer = WorktreeCommitter(mode: .rehearsal)
+        let outcome = await committer.preserveAndReset(
+            worktreePath: fixture.path, branch: branch, attemptID: 1, knownGood: knownGood
+        )
+
+        guard case .refused = outcome else {
+            Issue.record("expected .refused, got \(outcome)")
+            return
+        }
+        // HEAD is unchanged: `knownGood` was already the tip before this call, and nothing was committed.
+        #expect(fixture.revParse("HEAD") == knownGood)
+        let contents = try String(contentsOf: fixture.url.appending(component: "feat.txt"), encoding: .utf8)
+        #expect(contents == "dirty feature edit")
+    }
+}
+
 @Suite("Worktree reset-to-known-good tests")
 struct WorktreeResetTests {
 

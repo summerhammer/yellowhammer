@@ -24,9 +24,13 @@ public struct WorktreeCommitter: Sendable {
     public static let messageMarker = "yh-wip:"
 
     public let git: GitRunner
+    /// A rehearsal Night never commits into a Worktree (system-overview, Environment Differences):
+    /// `commitWIP` refuses on a dirty tree instead of writing a WIP commit.
+    public let mode: NightMode
 
-    public init(git: GitRunner = GitRunner()) {
+    public init(git: GitRunner = GitRunner(), mode: NightMode = .real) {
         self.git = git
+        self.mode = mode
     }
 
     /// Commits any uncommitted changes (tracked and untracked) in the Worktree as a WIP commit.
@@ -59,6 +63,17 @@ public struct WorktreeCommitter: Sendable {
             return .noChanges(headCommit: headCommit, wipRef: wipCommit != nil ? wipRef : nil, wipCommit: wipCommit)
         }
 
+        if mode == .rehearsal {
+            return .refused(
+                reason: "a rehearsal Night never commits into a Worktree; uncommitted changes were left in place"
+            )
+        }
+
+        return await commitDirtyTree(at: path, branch: branch, wipRef: wipRef)
+    }
+
+    /// Writes the WIP commit itself, once the tree is known dirty and eligible to commit (real mode).
+    private func commitDirtyTree(at path: String, branch: FeatureBranch, wipRef: String) async -> WIPCommitOutcome {
         let add = await git.run(["-C", path, "add", "-A"])
         guard add.isSuccess else {
             return .failed(reason: "git add exited \(add.exitCode): \(trimmed(add.stderr))")

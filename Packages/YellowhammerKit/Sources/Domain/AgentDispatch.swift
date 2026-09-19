@@ -43,15 +43,27 @@ public struct AgentDispatchRequest: Equatable, Sendable {
     }
 }
 
+/// Where one dispatched pass's answer came from: an agent CLI process actually spawned, or a
+/// rehearsal Night's fixture answering in its place (system-overview, Environment Differences —
+/// a rehearsal Night never dispatches an agent CLI).
+public enum AgentDispatchOrigin: Equatable, Sendable {
+    case agentCLIProcess
+    case rehearsalFixture(String)
+}
+
 /// What one dispatched pass yielded: the dual-key verdict and the opaque session to resume next, if the
 /// CLI offered one.
 public struct AgentDispatchReport: Equatable, Sendable {
     public let outcome: RunOutcome
     public let session: String?
+    /// Conservative default: any report that doesn't say otherwise is taken to have spawned an agent
+    /// CLI process, so existing fakes that construct a report need no change.
+    public let origin: AgentDispatchOrigin
 
-    public init(outcome: RunOutcome, session: String? = nil) {
+    public init(outcome: RunOutcome, session: String? = nil, origin: AgentDispatchOrigin = .agentCLIProcess) {
         self.outcome = outcome
         self.session = session
+        self.origin = origin
     }
 }
 

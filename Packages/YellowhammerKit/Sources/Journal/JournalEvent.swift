@@ -185,6 +185,12 @@ public enum JournalEvent: Equatable, Sendable {
     /// `.cardReclaimed` so the Night Summary never confuses a deferral with a real reclaim that happened
     /// to find no open Attempt.
     case cardReclaimDeferred(cardID: Int64, issueID: String, previousRunID: RunID, remaining: Int)
+    /// A pass actually spawned an agent CLI process (system-overview, Environment Differences, P8.11):
+    /// the conservative default for every dispatch that does not say otherwise.
+    case agentCLIProcessSpawned(cardID: Int64, issueID: String, attemptID: Int64, pass: RunPass, cli: String)
+    /// A rehearsal Night's pass was answered from a fixture instead of spawning an agent CLI process
+    /// (system-overview, Environment Differences, P8.11): one of the three rehearsal boundaries held.
+    case rehearsalFixtureAnswered(cardID: Int64, issueID: String, attemptID: Int64, pass: RunPass, fixture: String)
 
     /// The type of this event.
     public var type: JournalEventType {
@@ -307,6 +313,10 @@ public enum JournalEvent: Equatable, Sendable {
             .cardReclaimed
         case .cardReclaimDeferred:
             .cardReclaimDeferred
+        case .agentCLIProcessSpawned:
+            .agentCLIProcessSpawned
+        case .rehearsalFixtureAnswered:
+            .rehearsalFixtureAnswered
         }
     }
 }
@@ -372,4 +382,6 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case laneHoleRecorded = "LaneHoleRecorded"
     case cardReclaimed = "CardReclaimed"
     case cardReclaimDeferred = "CardReclaimDeferred"
+    case agentCLIProcessSpawned = "AgentCLIProcessSpawned"
+    case rehearsalFixtureAnswered = "RehearsalFixtureAnswered"
 }

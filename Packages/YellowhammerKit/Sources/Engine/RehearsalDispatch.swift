@@ -28,6 +28,6 @@ public final class RehearsalDispatch: AgentDispatch, Sendable {
         guard let fixture = script[request.pass] else {
             preconditionFailure("RehearsalDispatch has no fixture for pass \(request.pass)")
         }
-        return AgentDispatchReport(outcome: fixture.outcome())
+        return AgentDispatchReport(outcome: fixture.outcome(), origin: .rehearsalFixture(fixture.rawValue))
     }
 }

@@ -110,6 +110,14 @@ struct PayloadReader: Sendable {
         }
     }
 
+    func pass(_ key: String) throws -> RunPass {
+        let text = try require(key)
+        guard let pass = RunPass(rawValue: text) else {
+            throw JournalError.eventUnreadable(id: rowID)
+        }
+        return pass
+    }
+
     func route() throws -> Route {
         guard let route = Route(
             cli: try require("route_cli"), model: try require("route_model"), effort: try require("route_effort")
