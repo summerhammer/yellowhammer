@@ -15,7 +15,7 @@ struct CardRunLeaseTests {
     ) -> CardRun {
         CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log, during: during),
-            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2,
+            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
             leasePolicy: leasePolicy
         )
     }

@@ -5,7 +5,7 @@ import Journal
 /// The Round arithmetic of one open Attempt. Every failed judgement, whichever Lens made it, is a Round;
 /// the worker is dispatched again only while the Rounds recorded are fewer than the most allowed. Both
 /// Lenses share the one budget, and `recorded` is read back from the Journal, never counted in memory, so
-/// a crash and a resume keep the count. (`review_rounds_max` is the Bound; roadmap P8.6 reuses this.)
+/// a crash and a resume keep the count.
 struct RoundBudget: Equatable, Sendable {
     let max: Int
     /// The Rounds recorded on the open Attempt so far, including the one just judged.
@@ -14,11 +14,68 @@ struct RoundBudget: Equatable, Sendable {
     var allowsAnotherRound: Bool { recorded < max }
 }
 
+/// The Attempt arithmetic of one Card's current budget epoch: `attempts_per_card` is the Bound, and
+/// `consumed` counts only Attempts whose ending actually consumed one — every ended Attempt but a
+/// `question`, read back from the Journal's Attempt history, never counted in memory. A Card must never
+/// block on the round budget alone: it blocks only once this budget is spent too.
+struct AttemptBudget: Equatable, Sendable {
+    let max: Int
+    let consumed: Int
+
+    var isExhausted: Bool { consumed >= max }
+}
+
 /// What the Card comment for a failed Check carries out of the Check's output: the full capped output lives
 /// in the Journal, so the board copy is the last few KiB of it.
 private let checkCommentOutputLimit = 8 * 1024
 
+/// What one Round records, whichever Lens judged it: the Check's own loop and the review's
+/// (`CardRun+ReviewRound.swift`) each build one and hand it to the shared recorder.
+struct RoundToRecord: Sendable {
+    let attemptID: Int64
+    let lens: Lens
+    let verdict: String
+    let requestedChanges: String?
+    let judgedCommit: String?
+    /// The idempotency key prefix for the Card comment: distinct per Lens, so a Check Round and a review
+    /// Round of the same ordinal never collide.
+    let commentKeyPrefix: String
+}
+
 extension CardRun {
+    /// The result of running the Check to green, or exhausting the round budget while it stayed red.
+    enum CheckLoopOutcome: Sendable {
+        case passed(commit: String, session: String?)
+        case exhausted
+    }
+
+    /// Runs the Check, and while it fails records a Round and dispatches the worker again with every Round
+    /// so far, until the Check passes (or is declared none) or the round budget is spent.
+    func runCheckLoop(
+        frame: CardRunFrame, attemptID: Int64, worked: (commit: String, session: String?)
+    ) async throws -> CheckLoopOutcome {
+        var worked = worked
+        while true {
+            let checked = try await runCheck(frame: frame, attemptID: attemptID)
+            guard case .failed(let output, let exitStatus) = checked else {
+                return .passed(commit: worked.commit, session: worked.session)
+            }
+
+            // A failed Check is a Round of this Attempt, never a new Attempt: same worker, Route, Worktree.
+            let (rounds, budget) = try await recordCheckRound(
+                frame: frame, attemptID: attemptID, commit: worked.commit, output: output, exitStatus: exitStatus
+            )
+            guard budget.allowsAnotherRound else {
+                // A reviewer never sees red code.
+                return .exhausted
+            }
+            worked = try await work(
+                frame: frame, payloads: InstructionPayloads(roundFeedback: Self.feedback(of: rounds)),
+                resumeSession: worked.session
+            )
+        }
+    }
+
     /// Runs the Check over the worker's commit and records it: the `check` step (its outcome kind only, never
     /// the output) and the `checkRan` event (the output, capped by the runner).
     func runCheck(frame: CardRunFrame, attemptID: Int64) async throws -> RepositoryCheckResult {
@@ -59,23 +116,38 @@ extension CardRun {
     func recordCheckRound(
         frame: CardRunFrame, attemptID: Int64, commit: String, output: String, exitStatus: Int32
     ) async throws -> (rounds: [RoundRecord], budget: RoundBudget) {
-        try frame.revalidateLease()
-        let round = try frame.journal.recordRound(
+        let round = RoundToRecord(
             attemptID: attemptID, lens: .check, verdict: "failed", requestedChanges: output, judgedCommit: commit,
+            commentKeyPrefix: "check-round"
+        )
+        return try await recordRound(round, frame: frame) { number in
+            Self.checkRoundComment(
+                round: number, command: frame.check.description, exitStatus: exitStatus, output: output
+            )
+        }
+    }
+
+    /// Records a Round of the open Attempt, whichever Lens judged it, and reads the Rounds back to say
+    /// whether the worker may go again. Shared by the Check's and the review's Round loops (P8.5/P8.6):
+    /// only the verdict, the comment and its idempotency key differ between them.
+    func recordRound(
+        _ round: RoundToRecord, frame: CardRunFrame, comment: (Int) -> String
+    ) async throws -> (rounds: [RoundRecord], budget: RoundBudget) {
+        try frame.revalidateLease()
+        let recorded = try frame.journal.recordRound(
+            attemptID: round.attemptID, lens: round.lens, verdict: round.verdict,
+            requestedChanges: round.requestedChanges, judgedCommit: round.judgedCommit,
             runID: frame.context.act.runID
         )
         let rounds = try frame.journal.attemptHistory(cardID: frame.card.id).attempts
-            .first { $0.id == attemptID }?.rounds ?? [round]
+            .first { $0.id == round.attemptID }?.rounds ?? [recorded]
 
         // Without a Board there is nothing to post to; a later Act reposts, like every other board write.
         if let outbox = frame.context.act.outbox {
             try frame.revalidateLease()
-            let body = Self.checkRoundComment(
-                round: rounds.count, command: frame.check.description, exitStatus: exitStatus, output: output
-            )
             _ = try await outbox.post(OutboxWrite(
-                key: "check-round:\(frame.card.issueID):\(round.id)",
-                write: .createComment(issue: BoardObjectID(rawValue: frame.card.issueID), body: body),
+                key: "\(round.commentKeyPrefix):\(frame.card.issueID):\(recorded.id)",
+                write: .createComment(issue: BoardObjectID(rawValue: frame.card.issueID), body: comment(rounds.count)),
                 cardID: frame.card.id
             ))
         }

@@ -15,12 +15,12 @@ struct CardRunTests {
         log: CallLog, script: [RunPass: RehearsalResultFixture] = [:], check: RepositoryCheckResult = .declaredNone,
         checks: [String: Check] = ["backend": .none], leasePolicy: LeasePolicy = .ruled,
         during: (@Sendable (RunPass) async throws -> Void)? = nil,
-        resolver: RouteResolver = cardRunResolver()
+        resolver: RouteResolver = cardRunResolver(), reviewRoundsMax: Int = 2, attemptsPerCard: Int = 3
     ) -> CardRun {
         CardRun(
             resolver: resolver, dispatch: LoggingDispatch(log: log, script: script, during: during),
-            check: RecordingCheck(log: log, result: check), checks: checks, reviewRoundsMax: 2,
-            leasePolicy: leasePolicy
+            check: RecordingCheck(log: log, result: check), checks: checks, reviewRoundsMax: reviewRoundsMax,
+            attemptsPerCard: attemptsPerCard, leasePolicy: leasePolicy
         )
     }
 
@@ -61,7 +61,7 @@ struct CardRunTests {
         let log = CallLog()
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: rehearsal, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3
         )
 
         try await run.run("BACK-1", in: world)
@@ -72,19 +72,22 @@ struct CardRunTests {
         #expect(log.all == ["check"])
     }
 
-    @Test("A reviewer asking for changes is a review Round, not an ended Attempt")
-    func changesRequestedIsAReviewRound() async throws {
+    @Test("Changes requested with the round budget spent ends the Attempt rounds-exhausted; the Card returns to Ready")
+    func changesRequestedExhaustsTheRoundBudget() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
         let log = CallLog()
 
-        try await makeRun(log: log, script: [.reviewer: .reviewerChangesRequested]).run("BACK-1", in: world)
+        try await makeRun(
+            log: log, script: [.reviewer: .reviewerChangesRequested], reviewRoundsMax: 1, attemptsPerCard: 2
+        ).run("BACK-1", in: world)
 
         #expect(log.all == ["dispatch architect", "dispatch worker", "check", "dispatch reviewer"])
         let attempt = try #require(try world.attempts("BACK-1").first)
-        #expect(attempt.isOpen)
+        #expect(!attempt.isOpen)
+        #expect(attempt.result == "rounds-exhausted")
         #expect(attempt.rounds.map(\.lens) == [.review])
-        #expect(try world.card("BACK-1").state == .inProgress)
+        #expect(try world.card("BACK-1").state == .todo)
     }
 
     @Test("A failed architect ends the Attempt without dispatching the worker")

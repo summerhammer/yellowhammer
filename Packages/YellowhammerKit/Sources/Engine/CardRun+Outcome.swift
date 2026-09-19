@@ -25,27 +25,41 @@ extension CardRun {
             // the Card returns to Ready like every other ending.
             try await frame.transition(.ready)
 
-        case .round(let request):
-            // The review's Round is recorded and the Attempt left open, the Card In Progress, its Lease
-            // released: the state a killed run leaves, which a later Act can pick up. Re-dispatching the
-            // worker with the feedback is the review's Round loop (P8.6); the Check's loop already ran in the
-            // passes. Ending the Attempt here instead would misname a Round as an Attempt's end.
-            try frame.revalidateLease()
-            guard let attempt = frame.attempt else { return }
-            try frame.journal.recordRound(
-                attemptID: attempt.id, lens: request.lens, verdict: request.verdict,
-                requestedChanges: request.requestedChanges, judgedCommit: request.judgedCommit,
-                runID: frame.context.act.runID
-            )
-
         case .roundsExhausted(let lens):
-            // The Round was recorded as it happened. The Attempt stays open and the Card In Progress, as a
-            // `.round` ending leaves them. Moving the Card to Blocked, with a Block Reason telling "blocked by
-            // check" from "blocked by reviewer", is roadmap P8.6/P8.7: a Card blocks only when both budgets
-            // are exhausted.
+            // The Round that spent the budget was already recorded, on either Lens's own loop. This ends
+            // the Attempt `rounds-exhausted` — that Round's own comment already told the board why — and
+            // then decides the Card's fate from the Attempt budget, not the round budget alone.
+            guard let attempt = frame.attempt else { return }
+            let roundCount = try frame.journal.attemptHistory(cardID: frame.card.id).attempts
+                .first { $0.id == attempt.id }?.rounds.count ?? 0
+            try endAttempt(.roundsExhausted(rounds: roundCount), frame: frame)
             try frame.revalidateLease()
             try frame.record(.roundsExhausted, detail: lens.rawValue)
+
+            let budget = try attemptBudget(consumedInEpochOf: attempt, frame: frame)
+            if budget.isExhausted {
+                // Both budgets spent: the Card blocks, told which Lens's Round was the run's last.
+                try await frame.transition(.blocked(lens == .check ? .blockedByCheck : .blockedByReviewer))
+            } else {
+                // The round budget alone never blocks a Card. A fresh Attempt on a different Route is
+                // roadmap P8.7: this run does not re-dispatch, and the Card waits back in Ready for one.
+                try await frame.transition(.ready)
+            }
         }
+    }
+
+    /// The Attempt budget for the epoch `endedAttempt` just ended: `consumed` counts every ended Attempt
+    /// of that epoch whose ending consumed one, `endedAttempt` itself included — a `question` never
+    /// counts, and it is the only ending that does not.
+    private func attemptBudget(
+        consumedInEpochOf endedAttempt: AttemptRecord, frame: CardRunFrame
+    ) throws -> AttemptBudget {
+        let history = try frame.journal.attemptHistory(cardID: frame.card.id)
+        let consumed = history.attempts.filter {
+            $0.budgetEpoch == endedAttempt.budgetEpoch && $0.result != nil
+                && $0.result != AttemptOutcome.question.rawValue
+        }.count
+        return AttemptBudget(max: attemptsPerCard, consumed: consumed)
     }
 
     private func endAttempt(_ ending: AttemptEnding, frame: CardRunFrame) throws {

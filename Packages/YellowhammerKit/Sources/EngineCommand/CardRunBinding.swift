@@ -41,7 +41,7 @@ enum CardRunBinding {
         // dispatch, push, pull request), and the Check is not one of them.
         return CardRun(
             resolver: resolver, dispatch: dispatch, check: WorktreeCheck(), checks: checks,
-            reviewRoundsMax: project.bounds.reviewRoundsMax
+            reviewRoundsMax: project.bounds.reviewRoundsMax, attemptsPerCard: project.bounds.attemptsPerCard
         )
     }
 }
