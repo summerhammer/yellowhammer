@@ -927,7 +927,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests cover each quiet-Night reason, each recorded on the Night Card.
 
-### [ ] P9.2 Predecessor-ancestry gate
+### [x] P9.2 Predecessor-ancestry gate
 - **Work**
   - Check that the predecessor Feature's Feature Branches are ancestors of mainline in every
     repository it touched (this Project's repos only).
