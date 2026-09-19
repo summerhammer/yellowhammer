@@ -33,7 +33,7 @@ extension CardRun {
             // A hard failure or Crashed-Unknown: a fresh Attempt on a different Route while the Attempt
             // budget has room (P8.7); the Card stays In Progress between Attempts.
             guard let attempt = frame.attempt else { return .stop }
-            return try await retryOrBlock(attempt: attempt, frame: frame)
+            return try await retryOrBlock(attempt: attempt, cause: FailureCause(ending: ending), frame: frame)
 
         case .roundsExhausted(let lens):
             // The Round that spent the round budget was already recorded, on either Lens's own loop. This
@@ -42,10 +42,12 @@ extension CardRun {
             guard let attempt = frame.attempt else { return .stop }
             let roundCount = try frame.journal.attemptHistory(cardID: frame.card.id).attempts
                 .first { $0.id == attempt.id }?.rounds.count ?? 0
-            try endAttempt(.roundsExhausted(rounds: roundCount), frame: frame)
+            let ending = AttemptEnding.roundsExhausted(rounds: roundCount)
+            try endAttempt(ending, frame: frame)
             try frame.revalidateLease()
             try frame.record(.roundsExhausted, detail: lens.rawValue)
-            return try await retryOrBlock(attempt: attempt, frame: frame)
+            let cause = FailureCause(ending: ending, lens: lens)
+            return try await retryOrBlock(attempt: attempt, cause: cause, frame: frame)
         }
     }
 
@@ -53,7 +55,18 @@ extension CardRun {
     /// Blocks the Card once it is spent — never on the round budget alone. The Block Reason is the
     /// single derivation over the epoch's last ended Attempt (``AttemptHistory/blockReason(inEpoch:)``),
     /// not something this caller decides from which ending it just recorded.
-    private func retryOrBlock(attempt: AttemptRecord, frame: CardRunFrame) async throws -> CardRunAction {
+    ///
+    /// Before either, the failure's cause is counted (roadmap P8.8): a cause this Project's Journal
+    /// already met on an earlier Night promotes the Card to Triage rather than retrying it on a further
+    /// Route, even with Attempt budget left.
+    private func retryOrBlock(
+        attempt: AttemptRecord, cause: FailureCause?, frame: CardRunFrame
+    ) async throws -> CardRunAction {
+        if let cause, let promotion = try recurrence(of: cause, frame: frame) {
+            try await block(after: attempt, frame: frame)
+            try frame.record(.promotedToTriage, detail: promotion)
+            return .stop
+        }
         let budget = try attemptBudget(consumedInEpochOf: attempt, frame: frame)
         guard budget.isExhausted else {
             // The round budget alone never blocks a Card, and neither does a lone hard failure or
@@ -61,15 +74,35 @@ extension CardRun {
             // Route rather than returning the Card to Ready.
             return .retry(attempt)
         }
+        try await block(after: attempt, frame: frame)
+        let account = try consumptionDescription(epoch: attempt.budgetEpoch, frame: frame)
+        try frame.record(.attemptsExhausted, detail: account)
+        return .stop
+    }
+
+    /// Blocks the Card on the final Attempt's termination — the one Block sequence, whether the Attempt
+    /// budget was spent or the failure cause recurred.
+    private func block(after attempt: AttemptRecord, frame: CardRunFrame) async throws {
         let reason = try frame.journal.attemptHistory(cardID: frame.card.id).blockReason(inEpoch: attempt.budgetEpoch)
         // The reset runs after the Attempt is ended and before the Blocked transition (OQ60); the Card
         // still Blocks whether it succeeds or fails.
         _ = try await attemptReset(priorAttemptID: attempt.id, frame: frame)
         try frame.revalidateLease()
         try await frame.transition(.blocked(reason))
-        let account = try consumptionDescription(epoch: attempt.budgetEpoch, frame: frame)
-        try frame.record(.attemptsExhausted, detail: account)
-        return .stop
+    }
+
+    /// Counts `cause` against the Card for this Act's Night and returns the Operator-facing promotion
+    /// reason when it has recurred across separate Nights, nil on a first occurrence. The spec names no
+    /// board state for the Triage disposition (loop-state/record-failure-cause-recurrence): a promoted
+    /// Card is Blocked, on the final Attempt's Block Reason, and carries the promotion beside it.
+    private func recurrence(of cause: FailureCause, frame: CardRunFrame) throws -> String? {
+        try frame.revalidateLease()
+        let record = try frame.journal.recordFailureCause(
+            cardID: frame.card.id, cause: cause, nightID: frame.context.act.night.id,
+            runID: frame.context.act.runID, act: frame.context.act.act
+        )
+        guard record.hasRecurred else { return nil }
+        return TriagePromotion(cause: cause.summary, nights: record.recurrenceCount).reason
     }
 
     /// The Attempt budget for the epoch `endedAttempt` just ended: `consumed` counts every ended Attempt

@@ -31,6 +31,11 @@ public enum CardRunStep: String, CaseIterable, Sendable {
     /// (``Journal/AttemptHistory/consumption(inEpoch:)``), naming how many Attempts were consumed and by
     /// what: a Route failure, a Crashed-Unknown, or the round budget.
     case attemptsExhausted = "attempts-exhausted"
+    /// The same failure cause recurred across separate Nights, so the Card was promoted to Triage
+    /// instead of a fresh Attempt being dispatched, even with Attempt budget left
+    /// (loop-state/record-failure-cause-recurrence, roadmap P8.8). The detail is the Operator-facing
+    /// reason: the cause and how many Nights met it.
+    case promotedToTriage = "promoted-to-triage"
     /// The fence → WIP-commit → preserve → reset sequence ran before a new Attempt or a Block
     /// (Attempt, Block and Reset Ruling 2026-09-19, OQ60): the detail is the preservation ref, or
     /// "nothing to preserve" when the Feature Branch tip already equalled the last known-good commit.

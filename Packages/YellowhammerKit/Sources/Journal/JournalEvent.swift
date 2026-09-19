@@ -161,6 +161,12 @@ public enum JournalEvent: Equatable, Sendable {
     case attemptWorkPreserved(
         cardID: Int64, issueID: String, attemptID: Int64, ref: String, commit: String, resetTo: String
     )
+    /// A failed Attempt's cause was counted against the Card (loop-state/record-failure-cause-recurrence,
+    /// P8.8). `recurrenceCount` is how many separate Nights have met `causeHash`: above 1 it is a
+    /// recurrence rather than a first occurrence.
+    case failureCauseRecorded(
+        cardID: Int64, issueID: String, cause: String, causeHash: String, recurrenceCount: Int
+    )
 
     /// The type of this event.
     public var type: JournalEventType {
@@ -275,6 +281,8 @@ public enum JournalEvent: Equatable, Sendable {
             .checkRan
         case .attemptWorkPreserved:
             .attemptWorkPreserved
+        case .failureCauseRecorded:
+            .failureCauseRecorded
         }
     }
 }
@@ -336,4 +344,5 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case cardRunStep = "CardRunStep"
     case checkRan = "CheckRan"
     case attemptWorkPreserved = "AttemptWorkPreserved"
+    case failureCauseRecorded = "FailureCauseRecorded"
 }

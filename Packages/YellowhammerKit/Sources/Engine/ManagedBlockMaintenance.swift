@@ -112,8 +112,19 @@ public struct ManagedBlockMaintenance: Sendable {
             brief: brief,
             definitionOfDone: doDClauses,
             attempts: attempts,
-            attemptConsumption: consumption
+            attemptConsumption: consumption,
+            triagePromotion: try triagePromotion(card: card)
         )
         return managedBlock.render()
+    }
+
+    /// The promotion to show on the Card: only while it is Blocked, and only when the failure cause the
+    /// Journal recorded last against it had recurred across separate Nights (roadmap P8.8).
+    private func triagePromotion(card: CardRecord) throws -> TriagePromotion? {
+        guard card.state == .blocked, let last = try journal.lastRecordedFailureCause(cardID: card.id),
+              last.hasRecurred else {
+            return nil
+        }
+        return TriagePromotion(cause: last.summary, nights: last.recurrenceCount)
     }
 }
