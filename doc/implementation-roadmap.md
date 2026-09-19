@@ -902,7 +902,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — A rehearsal kills a real engine invocation mid-Card; the next build Act reclaims
   within the TTL, with the right classification.
 
-### [ ] P8.11 Rehearsal boundaries in the build Act
+### [x] P8.11 Rehearsal boundaries in the build Act
 - **Work** — In rehearsal mode the build Act never dispatches an agent CLI (fixture result files),
   never pushes, and never opens a pull request. It still writes to Linear, allocates real Worktrees,
   uses the real Ledger, and never commits into a Worktree.
