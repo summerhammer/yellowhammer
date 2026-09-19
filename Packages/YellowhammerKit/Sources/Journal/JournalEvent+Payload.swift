@@ -33,6 +33,18 @@ extension JournalEvent {
                 "feature_issue_id": featureIssueID,
                 "repositories": repositories.joined(separator: "\u{1F}")
             ]
+        case .predecessorAncestryObserved(let featureIssueID, let mergedRepositories, let unmergedRepositories):
+            [
+                "feature_issue_id": featureIssueID,
+                "merged_repositories": mergedRepositories.joined(separator: "\u{1F}"),
+                "unmerged_repositories": unmergedRepositories.joined(separator: "\u{1F}")
+            ]
+        case .mainlineConflictDetected(let featureIssueID, let repository, let paths):
+            [
+                "feature_issue_id": featureIssueID,
+                "repository": repository,
+                "paths": paths.joined(separator: "\u{1F}")
+            ]
         case .managedBlockDelimiterBroken(let issueID):
             ["issue_id": issueID]
         case .notificationDeliveryFailed(let notification, let reason):

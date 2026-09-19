@@ -87,3 +87,99 @@ func authoringPredecessorNotLandedRoundTripsEmptyRepositories() throws {
     }
     #expect(readRepositories.isEmpty)
 }
+
+@Test("predecessorAncestryObserved event round-trips")
+func predecessorAncestryObservedRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+
+    try journal.append(
+        .predecessorAncestryObserved(
+            featureIssueID: "FEAT-0",
+            mergedRepositories: ["backend"],
+            unmergedRepositories: ["mobile", "web"]
+        ),
+        act: .author, runID: run, now: epoch
+    )
+    let records = try journal.events()
+
+    #expect(records.count == 1)
+    guard
+        case .predecessorAncestryObserved(let featureIssueID, let merged, let unmerged) = records[0].event
+    else {
+        Issue.record("Event is not predecessorAncestryObserved")
+        return
+    }
+    #expect(featureIssueID == "FEAT-0")
+    #expect(merged == ["backend"])
+    #expect(unmerged == ["mobile", "web"])
+}
+
+@Test("predecessorAncestryObserved round-trips empty merged and unmerged lists")
+func predecessorAncestryObservedRoundTripsEmptyLists() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+
+    try journal.append(
+        .predecessorAncestryObserved(featureIssueID: "FEAT-0", mergedRepositories: [], unmergedRepositories: []),
+        act: .author, runID: run, now: epoch
+    )
+    let records = try journal.events()
+
+    guard
+        case .predecessorAncestryObserved(_, let merged, let unmerged) = records[0].event
+    else {
+        Issue.record("Event is not predecessorAncestryObserved")
+        return
+    }
+    #expect(merged.isEmpty)
+    #expect(unmerged.isEmpty)
+}
+
+@Test("mainlineConflictDetected event round-trips")
+func mainlineConflictDetectedRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+    let paths = ["Sources/A.swift", "Sources/B.swift"]
+
+    try journal.append(
+        .mainlineConflictDetected(featureIssueID: "FEAT-0", repository: "backend", paths: paths),
+        act: .author, runID: run, now: epoch
+    )
+    let records = try journal.events()
+
+    #expect(records.count == 1)
+    guard
+        case .mainlineConflictDetected(let featureIssueID, let repository, let readPaths) = records[0].event
+    else {
+        Issue.record("Event is not mainlineConflictDetected")
+        return
+    }
+    #expect(featureIssueID == "FEAT-0")
+    #expect(repository == "backend")
+    #expect(readPaths == paths)
+}
+
+@Test("mainlineConflictDetected round-trips an empty path list")
+func mainlineConflictDetectedRoundTripsEmptyPaths() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+
+    try journal.append(
+        .mainlineConflictDetected(featureIssueID: "FEAT-0", repository: "backend", paths: []),
+        act: .author, runID: run, now: epoch
+    )
+    let records = try journal.events()
+
+    guard
+        case .mainlineConflictDetected(_, _, let readPaths) = records[0].event
+    else {
+        Issue.record("Event is not mainlineConflictDetected")
+        return
+    }
+    #expect(readPaths.isEmpty)
+}

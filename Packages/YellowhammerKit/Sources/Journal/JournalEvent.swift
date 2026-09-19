@@ -23,6 +23,15 @@ public enum JournalEvent: Equatable, Sendable {
     /// The predecessor-ancestry gate (P9.2) found the named predecessor Feature not yet landed in one
     /// or more repositories: the author Act authored nothing, dispatched nothing. A quiet Night, not a failure.
     case authoringPredecessorNotLanded(featureIssueID: String, repositories: [String])
+    /// The predecessor-ancestry gate (P9.2) evaluated a pass of ancestry for the predecessor Feature:
+    /// the merged fraction k of N repositories observed on this pass.
+    case predecessorAncestryObserved(
+        featureIssueID: String, mergedRepositories: [String], unmergedRepositories: [String]
+    )
+    /// The predecessor-ancestry gate's merge test found an unmerged repository whose Feature Branch
+    /// will not merge cleanly into mainline: a Mainline Conflict. Reported only — no Card state
+    /// changes, no Block Reason.
+    case mainlineConflictDetected(featureIssueID: String, repository: String, paths: [String])
     case managedBlockDelimiterBroken(issueID: String)
     /// Fire-and-forget: the failure is recorded, never acted on.
     case notificationDeliveryFailed(notification: String, reason: String)
@@ -198,137 +207,8 @@ public enum JournalEvent: Equatable, Sendable {
     /// (system-overview, Environment Differences, P8.11): one of the three rehearsal boundaries held.
     case rehearsalFixtureAnswered(cardID: Int64, issueID: String, attemptID: Int64, pass: RunPass, fixture: String)
 
-    /// The type of this event.
-    public var type: JournalEventType {
-        switch self {
-        case .actStarted:
-            .actStarted
-        case .actEnded:
-            .actEnded
-        case .actIdle:
-            .actIdle
-        case .actIncomplete:
-            .actIncomplete
-        case .actStoodDown:
-            .actStoodDown
-        case .mainlineFetchFailed:
-            .mainlineFetchFailed
-        case .absentNightDetected:
-            .absentNightDetected
-        case .authoringNoWorkAvailable:
-            .authoringNoWorkAvailable
-        case .authoringSkippedFeatureInFlight:
-            .authoringSkippedFeatureInFlight
-        case .authoringPredecessorNotLanded:
-            .authoringPredecessorNotLanded
-        case .managedBlockDelimiterBroken:
-            .managedBlockDelimiterBroken
-        case .notificationDeliveryFailed:
-            .notificationDeliveryFailed
-        case .rateBudgetExhausted:
-            .rateBudgetExhausted
-        case .leaseReclaimed:
-            .leaseReclaimed
-        case .cardLeaseReclaimed:
-            .cardLeaseReclaimed
-        case .nightOpened:
-            .nightOpened
-        case .nightClosed:
-            .nightClosed
-        case .nightOpenedAndDied:
-            .nightOpenedAndDied
-        case .managedBlockWritten:
-            .managedBlockWritten
-        case .nightCardOpened:
-            .nightCardOpened
-        case .nightCardCompleted:
-            .nightCardCompleted
-        case .boardWriteFailed:
-            .boardWriteFailed
-        case .outboxGroupRolledBack:
-            .outboxGroupRolledBack
-        case .cardCancelled:
-            .cardCancelled
-        case .cardReopened:
-            .cardReopened
-        case .cardRestated:
-            .cardRestated
-        case .cardRemovedFromBoard:
-            .cardRemovedFromBoard
-        case .authoringInvariantBroken:
-            .authoringInvariantBroken
-        case .deltaReadCompleted:
-            .deltaReadCompleted
-        case .cardStateTransitioned:
-            .cardStateTransitioned
-        case .waitingOnYouUnbacked:
-            .waitingOnYouUnbacked
-        case .worktreeLost:
-            .worktreeLost
-        case .worktreeFenced:
-            .worktreeFenced
-        case .worktreeNotQuiescent:
-            .worktreeNotQuiescent
-        case .worktreeWIPCommitted:
-            .worktreeWIPCommitted
-        case .worktreeReconciliationFailed:
-            .worktreeReconciliationFailed
-        case .routeExhausted:
-            .routeExhausted
-        case .overrideRefused:
-            .overrideRefused
-        case .attemptEnded:
-            .attemptEnded
-        case .routeRetried:
-            .routeRetried
-        case .budgetEpochReset:
-            .budgetEpochReset
-        case .expiredCardLeasesSwept:
-            .expiredCardLeasesSwept
-        case .boardStateReposted:
-            .boardStateReposted
-        case .repoLanesDerived:
-            .repoLanesDerived
-        case .repoLaneStarted:
-            .repoLaneStarted
-        case .repoLaneEnded:
-            .repoLaneEnded
-        case .readinessCheckPassed:
-            .readinessCheckPassed
-        case .readinessCheckFailed:
-            .readinessCheckFailed
-        case .cardDiverged:
-            .cardDiverged
-        case .transcriptionStampVoided:
-            .transcriptionStampVoided
-        case .clauseMinted:
-            .clauseMinted
-        case .clauseInvalidated:
-            .clauseInvalidated
-        case .clauseDeleted:
-            .clauseDeleted
-        case .protectedPathRefused:
-            .protectedPathRefused
-        case .cardRunStep:
-            .cardRunStep
-        case .checkRan:
-            .checkRan
-        case .attemptWorkPreserved:
-            .attemptWorkPreserved
-        case .failureCauseRecorded:
-            .failureCauseRecorded
-        case .laneHoleRecorded:
-            .laneHoleRecorded
-        case .cardReclaimed:
-            .cardReclaimed
-        case .cardReclaimDeferred:
-            .cardReclaimDeferred
-        case .agentCLIProcessSpawned:
-            .agentCLIProcessSpawned
-        case .rehearsalFixtureAnswered:
-            .rehearsalFixtureAnswered
-        }
-    }
+    // `type`, the exhaustive switch from a case to its `JournalEventType`, lives in
+    // JournalEvent+Type.swift, split out to keep this file under the file length limit.
 }
 
 /// The type of a JournalEvent, with raw values matching the spec's PascalCase names.
@@ -343,6 +223,8 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case authoringNoWorkAvailable = "AuthoringNoWorkAvailable"
     case authoringSkippedFeatureInFlight = "AuthoringSkippedFeatureInFlight"
     case authoringPredecessorNotLanded = "AuthoringPredecessorNotLanded"
+    case predecessorAncestryObserved = "PredecessorAncestryObserved"
+    case mainlineConflictDetected = "MainlineConflictDetected"
     case managedBlockDelimiterBroken = "ManagedBlockDelimiterBroken"
     case notificationDeliveryFailed = "NotificationDeliveryFailed"
     case rateBudgetExhausted = "RateBudgetExhausted"
