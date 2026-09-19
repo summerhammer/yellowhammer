@@ -111,9 +111,10 @@ extension ActCommand {
         case .land:
             return nil
         case .author:
-            // The predecessor gate (P9.2) and Feature selection (P9.3–P9.7) are later phases; this Act
-            // still records every quiet Night's reason (P9.1).
-            return AuthorAct(predecessorGate: nil, authoring: nil).work
+            // Feature selection (P9.3–P9.7) is a later phase; the predecessor-ancestry gate (P9.2) is
+            // wired, and this Act still records every quiet Night's reason (P9.1). The closure seam
+            // (P10.8) is not wired yet, so a fully-merged predecessor is only observed, never closed.
+            return AuthorAct(predecessorGate: PredecessorAncestryGate(), authoring: nil).work
         case .build:
             let cardRunner = try CardRunBinding.cardRunner(
                 mode: mode, configuration: configuration, project: project,
