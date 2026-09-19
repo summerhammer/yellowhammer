@@ -125,10 +125,14 @@ struct AgentCLIProcessTests {
         let fixture = try StubAgentCLI.makeFixture(script: StubAgentCLI.leaderHonorsTermButLeavesOrphan)
         defer { fixture.cleanUp() }
 
+        // The timeout runs from the spawn, and the stub ignores SIGTERM only once `/bin/sh` has reached
+        // its `trap`. With the whole target spawning at once that has taken over 300 ms, and the SIGTERM
+        // then simply killed the stub; 2 s leaves the shell room to get there.
+        let timeout = Duration.seconds(2)
         let runner = AgentCLIProcess(gracePeriod: .milliseconds(400), pollInterval: .milliseconds(20))
-        let report = try await runner.run(fixture.launch(timeout: .milliseconds(300)))
+        let report = try await runner.run(fixture.launch(timeout: timeout))
 
-        #expect(report.end == .timedOut(after: .milliseconds(300), forcedKill: true))
+        #expect(report.end == .timedOut(after: timeout, forcedKill: true))
         #expect(report.outcome == .crashedUnknown(.terminated(report.end)))
         #expect(FileManager.default.fileExists(atPath: fixture.scratch.appendingPathComponent("term").path))
 
@@ -162,7 +166,8 @@ struct AgentCLIProcessTests {
         let fixture = try StubAgentCLI.makeFixture(script: StubAgentCLI.groupIgnoresTermEverywhere)
         defer { fixture.cleanUp() }
 
-        let timeout = Duration.milliseconds(300)
+        // 2 s, not a few hundred ms: the stub must reach its `trap` before the SIGTERM, see above.
+        let timeout = Duration.seconds(2)
         let gracePeriod = Duration.milliseconds(400)
         let runner = AgentCLIProcess(gracePeriod: gracePeriod, pollInterval: .milliseconds(20))
 
