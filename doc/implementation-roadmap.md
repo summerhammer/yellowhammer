@@ -853,7 +853,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal-assertable bound arithmetic with small configured values.
 
-### [ ] P8.7 Attempts and hard failure
+### [x] P8.7 Attempts and hard failure
 - **Work**
   - A hard failure ends the Attempt. The retry is a fresh dispatch with route exclusion (P7.7).
   - Bound Attempts by `attempts_per_card`. A Card blocks only when both budgets are exhausted, or
