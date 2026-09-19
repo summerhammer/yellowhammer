@@ -842,7 +842,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Wiring tests show the Check runs between worker and reviewer and a failure opens a
   `check` Round. The Check result itself is not asserted in rehearsal.
 
-### [ ] P8.6 Rounds (review and check lenses)
+### [x] P8.6 Rounds (review and check lenses)
 - **Work**
   - Reviewer requests changes: Round `n+1` with `lens = review` on the same worker, route and
     Worktree. No Attempt consumed.
