@@ -72,7 +72,7 @@ struct CardRunTests {
         #expect(log.all == ["check"])
     }
 
-    @Test("Changes requested with the round budget spent ends the Attempt rounds-exhausted; the Card returns to Ready")
+    @Test("Changes requested exhausts the round budget; a single Route leaves the retry no candidate, Card Blocks")
     func changesRequestedExhaustsTheRoundBudget() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
@@ -83,14 +83,18 @@ struct CardRunTests {
         ).run("BACK-1", in: world)
 
         #expect(log.all == ["dispatch architect", "dispatch worker", "check", "dispatch reviewer"])
-        let attempt = try #require(try world.attempts("BACK-1").first)
+        let attempts = try world.attempts("BACK-1")
+        #expect(attempts.count == 1)
+        let attempt = attempts[0]
         #expect(!attempt.isOpen)
         #expect(attempt.result == "rounds-exhausted")
         #expect(attempt.rounds.map(\.lens) == [.review])
-        #expect(try world.card("BACK-1").state == .todo)
+        let card = try world.card("BACK-1")
+        #expect(card.state == .blocked)
+        #expect(card.blockReason == BlockReason.hardFailure.rawValue)
     }
 
-    @Test("A failed architect ends the Attempt without dispatching the worker")
+    @Test("A failed architect skips the worker; a single-Route table leaves the retry no candidate, Card Blocks")
     func failedArchitectSkipsTheWorker() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
@@ -99,8 +103,9 @@ struct CardRunTests {
         try await makeRun(log: log, script: [.architect: .architectFailed]).run("BACK-1", in: world)
 
         #expect(log.all == ["dispatch architect"])
-        let attempt = try #require(try world.attempts("BACK-1").first)
-        #expect(attempt.result == "hard failure")
-        #expect(try world.card("BACK-1").state == .todo)
+        let attempts = try world.attempts("BACK-1")
+        #expect(attempts.count == 1)
+        #expect(attempts[0].result == "hard failure")
+        #expect(try world.card("BACK-1").state == .blocked)
     }
 }

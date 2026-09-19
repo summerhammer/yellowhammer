@@ -5,8 +5,11 @@ import Foundation
 import Testing
 
 // graph-execution/run-a-card (roadmap P8.4): every ending that is not a success, and Routes that never
-// dispatch. The policies around them — retry, the Attempt budget, the Round loop — are later items; here
-// the Attempt is ended faithfully and the Card returned to Ready.
+// dispatch. These fixtures use a single-Route table and `attemptsPerCard: 3`, so a consuming ending that
+// excludes its Route (hard failure) leaves no candidate for the retry (roadmap P8.7) to resolve, and the
+// Card Blocks `hard failure` rather than returning to Ready — Crashed-Unknown excludes nothing, so it
+// retries on the same Route until the Attempt budget itself is spent. The Round loop's own Attempt-budget
+// policy is CardRunCheckRoundTests.swift and CardRunReviewRoundTests.swift.
 
 @Suite("Card run endings")
 struct CardRunFailureTests {
@@ -19,7 +22,7 @@ struct CardRunFailureTests {
         )
     }
 
-    @Test("An empty worker result file is Crashed-Unknown: consumed, no Route excluded, the Card back to Ready")
+    @Test("An empty worker result file is Crashed-Unknown, excludes nothing, and retries the same Route until spent")
     func emptyWorkerResultIsCrashedUnknown() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
@@ -27,24 +30,36 @@ struct CardRunFailureTests {
 
         try await makeRun(log: log, script: [.worker: .workerEmpty]).run("BACK-1", in: world)
 
-        #expect(log.all == ["dispatch architect", "dispatch worker"])
-        let attempt = try #require(try world.attempts("BACK-1").first)
-        #expect(attempt.result == "Crashed-Unknown")
+        #expect(log.all == [
+            "dispatch architect", "dispatch worker", "dispatch architect", "dispatch worker",
+            "dispatch architect", "dispatch worker"
+        ])
+        let attempts = try world.attempts("BACK-1")
+        #expect(attempts.count == 3)
+        #expect(attempts.allSatisfy { $0.result == "Crashed-Unknown" && $0.route == cardRunOpus })
         #expect(try world.journal.excludedRoutes(cardID: try #require(world.cardIDs["BACK-1"])).isEmpty)
-        #expect(try world.card("BACK-1").state == .todo)
+        let card = try world.card("BACK-1")
+        #expect(card.state == .blocked)
+        #expect(card.blockReason == BlockReason.hardFailure.rawValue)
     }
 
-    @Test("A worker that reports failure is a hard failure: the Route is excluded, the Card back to Ready")
+    @Test("A worker that reports failure is a hard failure: the Route is excluded, and with none left the Card Blocks")
     func reportedWorkerFailureIsAHardFailure() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
 
         try await makeRun(log: CallLog(), script: [.worker: .workerFailed]).run("BACK-1", in: world)
 
-        let attempt = try #require(try world.attempts("BACK-1").first)
-        #expect(attempt.result == "hard failure")
+        let attempts = try world.attempts("BACK-1")
+        #expect(attempts.count == 1)
+        #expect(attempts[0].result == "hard failure")
         #expect(try world.journal.excludedRoutes(cardID: try #require(world.cardIDs["BACK-1"])) == [cardRunOpus])
-        #expect(try world.card("BACK-1").state == .todo)
+        let card = try world.card("BACK-1")
+        #expect(card.state == .blocked)
+        #expect(card.blockReason == BlockReason.hardFailure.rawValue)
+        // Blocked because the routing table has no candidate left, not because the Attempt budget was
+        // spent: no `attempts-exhausted` step (unlike ``emptyWorkerResultIsCrashedUnknown``, above).
+        #expect(!(try cardRunLog(world.journal).contains(CardRunStep.attemptsExhausted.rawValue)))
     }
 
     @Test("A worker's question ends the Attempt without consuming it: no Route excluded, the Card back to Ready")
@@ -95,9 +110,11 @@ struct CardRunFailureTests {
         try await run.run("BACK-1", in: world)
 
         #expect(log.all == ["dispatch architect"])
-        let attempt = try #require(try world.attempts("BACK-1").first)
-        #expect(attempt.result == "hard failure")
-        #expect(try world.card("BACK-1").state == .todo)
+        let attempts = try world.attempts("BACK-1")
+        #expect(attempts.count == 1)
+        #expect(attempts[0].result == "hard failure")
+        // The excluded Route leaves no candidate to retry on: Blocked, not a second Attempt.
+        #expect(try world.card("BACK-1").state == .blocked)
     }
 
     @Test("A Card whose repository holds no Worktree is an engine fault, and spends no Attempt")

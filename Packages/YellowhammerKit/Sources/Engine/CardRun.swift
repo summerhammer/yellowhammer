@@ -21,7 +21,17 @@ import Journal
 /// so far — both Lenses share the one round budget — the Check runs again before the reviewer does, and the
 /// reviewer never sees red code either. Once the round budget is spent with the work still not approved,
 /// the Attempt ends `rounds-exhausted`; the Card blocks only once the Attempt budget is spent too, never on
-/// the round budget alone. A fresh Attempt on a different Route when the Card is not yet blocked is P8.7.
+/// the round budget alone.
+///
+/// A hard failure, a Crashed-Unknown or a `rounds-exhausted` ending, with the Attempt budget not yet spent,
+/// dispatches a fresh Attempt from the same held Lease and the same Card run (roadmap P8.7): the routing is
+/// resolved again — the ended Attempt's exclusions apply, so a hard failure or `rounds-exhausted` never
+/// repeats its Route, while a Crashed-Unknown may land on the same one — a new Attempt is recorded, and the
+/// whole pass sequence runs again from the architect, with no worker session carried over. The Card stays
+/// In Progress between Attempts; it is never bounced back through Ready to get there. Once the Attempt
+/// budget is spent, the Card Blocks instead — `hard failure` after a hard failure or a Crashed-Unknown,
+/// or by whichever Lens's Round was the last after `rounds-exhausted` — and an `attempts-exhausted` step
+/// records the Operator-facing account of how the budget was spent.
 ///
 /// Architect, worker and reviewer are internals of this run, not actors.
 public struct CardRun: CardRunner {
@@ -94,7 +104,8 @@ public struct CardRun: CardRunner {
         }
     }
 
-    /// Everything after the Lease is held.
+    /// Everything after the Lease is held: one Attempt after another, from the same held Lease and the
+    /// same Card run, until one ends the run — success, a question, or the Attempt budget spent (P8.7).
     private func runHeld(card: CardRecord, context: BuildActContext, readiness: CardReadiness) async throws {
         let journal = context.act.journal
         var frame = try await prepare(card: card, context: context, readiness: readiness)
@@ -106,19 +117,42 @@ public struct CardRun: CardRunner {
             act: context.act.act, nightID: context.act.night.id
         )
         let override = try await frame.override()
-        let outcome = try await routing.route(
-            card: card, repoRole: frame.repository?.role, override: override, checkDeclaredNone: checkDeclaredNone
-        )
-        guard case .attempt(let attempt, let resolved) = outcome else {
-            return
-        }
-        frame.attempt = attempt
-        frame.route = resolved.route
-        try frame.record(.attemptStarted, detail: "attempt \(attempt.id) on \(resolved.route)")
 
-        try await frame.transition(.inProgress)
-        let end = try await runPasses(frame: frame)
-        try await conclude(end, frame: frame)
+        var movedToInProgress = false
+        while true {
+            let outcome = try await routing.route(
+                card: frame.card, repoRole: frame.repository?.role, override: override,
+                checkDeclaredNone: checkDeclaredNone, attemptsPerCard: attemptsPerCard
+            )
+            switch outcome {
+            case .attempt(let attempt, let resolved):
+                frame.attempt = attempt
+                frame.route = resolved.route
+                try frame.record(.attemptStarted, detail: "attempt \(attempt.id) on \(resolved.route)")
+
+                // The Card stays In Progress across a retry: only the first Attempt of the run moves it.
+                if !movedToInProgress {
+                    try await frame.transition(.inProgress)
+                    movedToInProgress = true
+                }
+                let end = try await runPasses(frame: frame)
+                switch try await conclude(end, frame: frame) {
+                case .stop:
+                    return
+                case .retry:
+                    continue
+                }
+
+            case .blocked, .readinessFailure:
+                // Routing already wrote the whole consequence: Blocked with no Attempt, or the refusal to
+                // report with the Card untouched. Either way nothing is dispatched.
+                return
+
+            case .attemptBudgetSpent(let spentCard):
+                try await blockOnSpentAttemptBudget(card: spentCard, frame: frame)
+                return
+            }
+        }
     }
 
     func record(_ step: CardRunStep, card: CardRecord, context: BuildActContext, detail: String? = nil) throws {

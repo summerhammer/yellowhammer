@@ -88,6 +88,14 @@ public struct CardManagedBlock: Equatable, Sendable {
     public var brief: ArchitecturalBrief
     public var definitionOfDone: [DoDClause]
     public var attempts: [AttemptAccount]
+    /// The current budget epoch's Attempt consumption (roadmap P8.7), or nil for a Card with no Attempt
+    /// in it yet. Read straight from the Journal (``AttemptHistory/consumption(inEpoch:)``): nothing here
+    /// is model-authored.
+    public var attemptConsumption: AttemptConsumption?
+    /// The most Attempts one budget epoch may consume (`attempts_per_card`), when the block's builder
+    /// holds it; nil renders the consumption account without a Bound to compare it to, rather than
+    /// plumbing configuration through a layer that otherwise holds none.
+    public var attemptsPerCard: Int?
 
     public static let footer = "_Managed by Yellowhammer. This block is rewritten from the Journal; " +
         "write outside it and your text is kept._"
@@ -102,7 +110,9 @@ public struct CardManagedBlock: Equatable, Sendable {
         laneLength: Int,
         brief: ArchitecturalBrief,
         definitionOfDone: [DoDClause],
-        attempts: [AttemptAccount]
+        attempts: [AttemptAccount],
+        attemptConsumption: AttemptConsumption? = nil,
+        attemptsPerCard: Int? = nil
     ) {
         self.kind = kind
         self.repository = repository
@@ -114,6 +124,8 @@ public struct CardManagedBlock: Equatable, Sendable {
         self.brief = brief
         self.definitionOfDone = definitionOfDone
         self.attempts = attempts
+        self.attemptConsumption = attemptConsumption
+        self.attemptsPerCard = attemptsPerCard
     }
 
     public func render() -> String {
@@ -209,6 +221,10 @@ public struct CardManagedBlock: Equatable, Sendable {
         if attempts.isEmpty {
             lines.append("_No Attempt yet._")
         } else {
+            if let attemptConsumption {
+                let bound = attemptsPerCard.map { " of \($0) allowed" } ?? ""
+                lines.append("- \(attemptConsumption.description)\(bound)")
+            }
             for (index, attempt) in attempts.enumerated() {
                 if index > 0 {
                     lines.append("")
