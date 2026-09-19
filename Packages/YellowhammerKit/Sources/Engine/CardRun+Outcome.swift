@@ -33,7 +33,7 @@ extension CardRun {
             // A hard failure or Crashed-Unknown: a fresh Attempt on a different Route while the Attempt
             // budget has room (P8.7); the Card stays In Progress between Attempts.
             guard let attempt = frame.attempt else { return .stop }
-            return try await retryOrBlock(attempt: attempt, lastRoundLens: nil, frame: frame)
+            return try await retryOrBlock(attempt: attempt, frame: frame)
 
         case .roundsExhausted(let lens):
             // The Round that spent the round budget was already recorded, on either Lens's own loop. This
@@ -45,29 +45,28 @@ extension CardRun {
             try endAttempt(.roundsExhausted(rounds: roundCount), frame: frame)
             try frame.revalidateLease()
             try frame.record(.roundsExhausted, detail: lens.rawValue)
-            return try await retryOrBlock(attempt: attempt, lastRoundLens: lens, frame: frame)
+            return try await retryOrBlock(attempt: attempt, frame: frame)
         }
     }
 
     /// Shared by every consuming ending: retries with a fresh Attempt while the Attempt budget has room,
-    /// Blocks the Card once it is spent. `lastRoundLens` is the Lens of the Round that spent the round
-    /// budget, when that is why the Attempt ended; nil for a hard failure or Crashed-Unknown, which block
-    /// `hard failure`.
-    private func retryOrBlock(
-        attempt: AttemptRecord, lastRoundLens: Lens?, frame: CardRunFrame
-    ) async throws -> CardRunAction {
+    /// Blocks the Card once it is spent — never on the round budget alone. The Block Reason is the
+    /// single derivation over the epoch's last ended Attempt (``AttemptHistory/blockReason(inEpoch:)``),
+    /// not something this caller decides from which ending it just recorded.
+    private func retryOrBlock(attempt: AttemptRecord, frame: CardRunFrame) async throws -> CardRunAction {
         let budget = try attemptBudget(consumedInEpochOf: attempt, frame: frame)
         guard budget.isExhausted else {
             // The round budget alone never blocks a Card, and neither does a lone hard failure or
             // Crashed-Unknown while Attempts remain: this run dispatches a fresh Attempt on a different
             // Route rather than returning the Card to Ready.
-            return .retry
+            return .retry(attempt)
         }
+        let reason = try frame.journal.attemptHistory(cardID: frame.card.id).blockReason(inEpoch: attempt.budgetEpoch)
+        // The reset runs after the Attempt is ended and before the Blocked transition (OQ60); the Card
+        // still Blocks whether it succeeds or fails.
+        _ = try await attemptReset(priorAttemptID: attempt.id, frame: frame)
         try frame.revalidateLease()
-        try await frame.transition(.blocked(Self.blockReason(
-            lastEndingOutcome: lastRoundLens == nil ? nil : AttemptOutcome.roundsExhausted.rawValue,
-            lastRoundLens: lastRoundLens
-        )))
+        try await frame.transition(.blocked(reason))
         let account = try consumptionDescription(epoch: attempt.budgetEpoch, frame: frame)
         try frame.record(.attemptsExhausted, detail: account)
         return .stop

@@ -69,6 +69,9 @@ enum JournalMigrations {
         migrator.registerMigration("v13-card-scope") { db in
             try addCardScopeTable(db)
         }
+        migrator.registerMigration("v14-attempt-preserved-ref") { db in
+            try addAttemptPreservedRef(db)
+        }
         return migrator
     }
 }

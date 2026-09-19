@@ -17,6 +17,9 @@ struct CardRunFrame: Sendable {
     /// Set once the Route is resolved and the Attempt recorded.
     var attempt: AttemptRecord?
     var route: Route?
+    /// The prior Attempt's preserved work, handed to a retry as context only, never as a starting
+    /// tree (OQ60): set by the reset sequence, merged into every pass instruction of the new Attempt.
+    var wipContext: WIPContext?
 
     var journal: JournalStore { context.act.journal }
 

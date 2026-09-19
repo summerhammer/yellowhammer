@@ -26,15 +26,19 @@ struct CardRunAttemptTests {
         let world = try await makeCardRunWorld(journal: try fixture.open())
         let log = CallLog()
         let dispatch = SequencedDispatch(log: log, sequences: [.worker: [.workerFailed, .workerCompleted]])
+        let resetting = RecordingAttemptResetting(log: log)
         let run = CardRun(
             resolver: twoRouteResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+            resetting: resetting
         )
 
         try await run.run("BACK-1", in: world)
 
+        // The reset runs between the first Attempt's last pass and the second Attempt's architect
+        // (OQ60): no reset before the first Attempt, and exactly one between the two.
         #expect(log.all == [
-            "dispatch architect", "dispatch worker", "dispatch architect", "dispatch worker", "check",
+            "dispatch architect", "dispatch worker", "reset", "dispatch architect", "dispatch worker", "check",
             "dispatch reviewer"
         ])
         let attempts = try world.attempts("BACK-1")
@@ -50,6 +54,22 @@ struct CardRunAttemptTests {
         let story = try cardRunLog(world.journal)
         #expect(story.filter { $0 == "→ In Progress" } == ["→ In Progress"])
         #expect(!story.contains("→ Todo"))
+
+        // The second Attempt's passes carry the preserved work as context; the first Attempt's do not
+        // (OQ60): a new Attempt starts fresh, never as a rescue, but the reset hands it what came before.
+        let architectRequests = dispatch.requests.passes(.architect)
+        #expect(architectRequests.count == 2)
+        #expect(architectRequests[0].instruction.payloads.wip == nil)
+        #expect(architectRequests[1].instruction.payloads.wip?.commit == "preserved-\(attempts[0].id)")
+
+        let steps = try cardRunLog(world.journal)
+        #expect(steps.contains(CardRunStep.attemptReset.rawValue))
+
+        // The preserved ref is recorded against the prior (first) Attempt's own row.
+        let history = try world.journal.attemptHistory(cardID: try #require(world.cardIDs["BACK-1"]))
+        let recordedFirst = try #require(history.attempts.first { $0.id == attempts[0].id })
+        #expect(recordedFirst.preservedRef == "refs/yellowhammer/attempts/test-branch/\(attempts[0].id)")
+        #expect(recordedFirst.preservedCommit == "preserved-\(attempts[0].id)")
     }
 
     // MARK: - b. hard failures until the Attempt budget is spent, Routes still available
@@ -62,7 +82,8 @@ struct CardRunAttemptTests {
         let dispatch = SequencedDispatch(log: log, sequences: [.worker: [.workerFailed, .workerFailed]])
         let run = CardRun(
             resolver: twoRouteResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 2
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 2,
+            resetting: RecordingAttemptResetting()
         )
 
         try await run.run("BACK-1", in: world)
@@ -88,7 +109,8 @@ struct CardRunAttemptTests {
         let log = CallLog()
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log, script: [.worker: .workerFailed]),
-            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3
+            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+            resetting: RecordingAttemptResetting()
         )
 
         try await run.run("BACK-1", in: world)
@@ -112,7 +134,8 @@ struct CardRunAttemptTests {
         let log = CallLog()
         let run = CardRun(
             resolver: twoRouteResolver(), dispatch: LoggingDispatch(log: log, script: [.worker: .workerEmpty]),
-            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 2
+            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 2,
+            resetting: RecordingAttemptResetting()
         )
 
         try await run.run("BACK-1", in: world)
@@ -123,7 +146,8 @@ struct CardRunAttemptTests {
         #expect(try world.journal.excludedRoutes(cardID: try #require(world.cardIDs["BACK-1"])).isEmpty)
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.hardFailure.rawValue)
+        // The final Attempt of the epoch ended Crashed-Unknown: `host crash`, not `hard failure`.
+        #expect(card.blockReason == BlockReason.hostCrash.rawValue)
 
         let consumption = try world.journal.attemptHistory(cardID: try #require(world.cardIDs["BACK-1"]))
             .consumption(inEpoch: card.budgetEpoch)
@@ -143,7 +167,8 @@ struct CardRunAttemptTests {
         )
         let run = CardRun(
             resolver: twoRouteResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 1, attemptsPerCard: 2
+            checks: ["backend": .none], reviewRoundsMax: 1, attemptsPerCard: 2,
+            resetting: RecordingAttemptResetting()
         )
 
         try await run.run("BACK-1", in: world)
@@ -168,7 +193,8 @@ struct CardRunAttemptTests {
         let log = CallLog()
         let firstRun = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log, script: [.worker: .workerQuestion]),
-            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 1
+            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 1,
+            resetting: RecordingAttemptResetting()
         )
 
         try await firstRun.run("BACK-1", in: world)
@@ -183,7 +209,8 @@ struct CardRunAttemptTests {
         let secondLog = CallLog()
         let secondRun = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: secondLog),
-            check: RecordingCheck(log: secondLog), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 1
+            check: RecordingCheck(log: secondLog), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 1,
+            resetting: RecordingAttemptResetting()
         )
         try await secondRun.run("BACK-1", in: world)
 
@@ -208,14 +235,19 @@ struct CardRunAttemptTests {
             )
         }
         let log = CallLog()
+        let resetLog = CallLog()
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log), check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 2
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 2,
+            resetting: RecordingAttemptResetting(log: resetLog)
         )
 
         try await run.run("BACK-1", in: world)
 
         #expect(log.all.isEmpty)
+        // Still runs the reset even though this run dispatched no Attempt of its own (OQ60): recorded
+        // against the Card's last Attempt in history.
+        #expect(resetLog.all == ["reset"])
         #expect(try world.attempts("BACK-1").count == 2)
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
@@ -234,7 +266,8 @@ struct CardRunAttemptTests {
         let secondLog = CallLog()
         let secondRun = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: secondLog),
-            check: RecordingCheck(log: secondLog), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 2
+            check: RecordingCheck(log: secondLog), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 2,
+            resetting: RecordingAttemptResetting()
         )
         try await secondRun.run("BACK-1", in: world)
 
@@ -242,3 +275,6 @@ struct CardRunAttemptTests {
         #expect(try world.attempts("BACK-1").count == 3)
     }
 }
+
+// Section h. the reset sequence (Attempt, Block and Reset Ruling 2026-09-19, OQ60) is
+// CardRunResetTests.swift, split out to keep this file under the length limit.

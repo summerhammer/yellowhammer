@@ -139,3 +139,19 @@ func budgetEpochResetMalformedEpochIsUnreadable() throws {
         try journal.events()
     }
 }
+
+@Test("attemptWorkPreserved event round-trips")
+func attemptWorkPreservedRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+    let event = JournalEvent.attemptWorkPreserved(
+        cardID: 9, issueID: "ENG-9", attemptID: 41,
+        ref: "refs/yellowhammer/attempts/feature-x/41", commit: "deadbeefcafebabe", resetTo: "0123456789ab"
+    )
+    try journal.append(event, act: .build, runID: run, now: epoch)
+    let records = try journal.events(ofType: .attemptWorkPreserved)
+
+    #expect(records.count == 1)
+    #expect(records[0].event == event)
+}

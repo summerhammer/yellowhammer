@@ -146,7 +146,20 @@ extension JournalEvent {
             try Self.decodeCardRunStep(reader)
         case .checkRan:
             try Self.decodeCheckRan(reader)
+        case .attemptWorkPreserved:
+            try Self.decodeAttemptWorkPreserved(reader)
         }
+    }
+
+    private static func decodeAttemptWorkPreserved(_ reader: PayloadReader) throws -> JournalEvent {
+        .attemptWorkPreserved(
+            cardID: try reader.int64("card_id"),
+            issueID: try reader.require("issue_id"),
+            attemptID: try reader.int64("attempt_id"),
+            ref: try reader.require("ref"),
+            commit: try reader.require("commit"),
+            resetTo: try reader.require("reset_to")
+        )
     }
 
     private static func decodeActIdle(_ reader: PayloadReader) throws -> JournalEvent {

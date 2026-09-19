@@ -31,6 +31,14 @@ public enum CardRunStep: String, CaseIterable, Sendable {
     /// (``Journal/AttemptHistory/consumption(inEpoch:)``), naming how many Attempts were consumed and by
     /// what: a Route failure, a Crashed-Unknown, or the round budget.
     case attemptsExhausted = "attempts-exhausted"
+    /// The fence → WIP-commit → preserve → reset sequence ran before a new Attempt or a Block
+    /// (Attempt, Block and Reset Ruling 2026-09-19, OQ60): the detail is the preservation ref, or
+    /// "nothing to preserve" when the Feature Branch tip already equalled the last known-good commit.
+    case attemptReset = "attempt-reset"
+    /// The fence → WIP-commit → preserve → reset sequence refused or failed: nothing was destroyed.
+    /// Before a retry, the new Attempt is never dispatched and the Card returns to Ready instead; on
+    /// a Block path the Card Blocks regardless. The detail is the reason.
+    case attemptResetFailed = "attempt-reset-failed"
 }
 
 /// What one engine-run Check yielded, as the `checkRan` event records it.

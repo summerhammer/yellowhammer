@@ -253,7 +253,7 @@ func v7DatabaseGainsPushedCommitColumn() throws {
 
     let journal = try fixture.open()
 
-    #expect(try journal.appliedMigrations().last == "v13-card-scope")
+    #expect(try journal.appliedMigrations().last == "v14-attempt-preserved-ref")
     let featureID = try insertFixtureFeature(journal, issueID: "FEAT-1")
     let runID = RunID()
     try claimLease(journal, runID: runID)
@@ -278,7 +278,7 @@ func v8DatabaseGainsReconciliationColumns() throws {
 
     let journal = try fixture.open()
 
-    #expect(try journal.appliedMigrations().last == "v13-card-scope")
+    #expect(try journal.appliedMigrations().last == "v14-attempt-preserved-ref")
     let columns = try journal.read { try $0.columns(in: "worktree") }.map(\.name)
     #expect(columns.contains("last_known_good_commit"))
     #expect(columns.contains("wip_commit"))

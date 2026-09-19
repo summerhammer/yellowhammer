@@ -4,41 +4,28 @@ import Journal
 
 /// What ``CardRun/conclude(_:frame:)`` decides once an Attempt has ended (roadmap P8.7): whether the run
 /// is over, or a fresh Attempt on a different Route should be dispatched from the same held Lease, the
-/// Card staying In Progress between them.
+/// Card staying In Progress between them. `retry` carries the Attempt that just ended, so the reset
+/// sequence (OQ60) knows whose work to preserve before the new one is recorded.
 enum CardRunAction: Sendable {
     case stop
-    case retry
+    case retry(AttemptRecord)
 }
 
 extension CardRun {
     /// Blocks a Card whose Attempt budget the routing guard (``CardRouting/route(card:repoRole:override:checkDeclaredNone:attemptsPerCard:)``)
     /// found already spent for `card`'s current budget epoch before any Attempt of this run: no Attempt
-    /// was recorded and nothing was dispatched, so the Block Reason is derived from the epoch's last
-    /// consuming Attempt already in the Journal, and the `attempts-exhausted` step's detail is the
-    /// Operator-facing consumption account.
+    /// was recorded and nothing was dispatched by this run, so the reset (OQ60) runs against the Card's
+    /// last Attempt in history, if it has one, before the Block, and the Block Reason is the single
+    /// derivation over the epoch's last ended Attempt (``AttemptHistory/blockReason(inEpoch:)``). The
+    /// `attempts-exhausted` step's detail is the Operator-facing consumption account.
     func blockOnSpentAttemptBudget(card: CardRecord, frame: CardRunFrame) async throws {
         let history = try frame.journal.attemptHistory(cardID: card.id)
         let consumption = history.consumption(inEpoch: card.budgetEpoch)
-        let lastConsuming = history.attempts.last {
-            $0.budgetEpoch == card.budgetEpoch && $0.result != nil
-                && $0.result != AttemptOutcome.question.rawValue
-        }
-        let reason = Self.blockReason(
-            lastEndingOutcome: lastConsuming?.result, lastRoundLens: lastConsuming?.rounds.last?.lens
-        )
+        let reason = history.blockReason(inEpoch: card.budgetEpoch)
+        try await attemptResetBeforeBlock(card: card, frame: frame)
         try frame.revalidateLease()
         try await frame.transition(.blocked(reason))
         try frame.record(.attemptsExhausted, detail: consumption.description)
-    }
-
-    /// The Block Reason for a Card whose Attempt budget is spent: `rounds-exhausted` blocks by the last
-    /// Round's Lens (P8.6's rule, unchanged); a hard failure or Crashed-Unknown — or no ending at all,
-    /// which cannot happen once the budget is spent but is handled the same way — blocks `hard failure`.
-    static func blockReason(lastEndingOutcome: String?, lastRoundLens: Lens?) -> BlockReason {
-        guard lastEndingOutcome == AttemptOutcome.roundsExhausted.rawValue, let lens = lastRoundLens else {
-            return .hardFailure
-        }
-        return lens == .check ? .blockedByCheck : .blockedByReviewer
     }
 
     /// The Operator-facing consumption account for `epoch`, read fresh from the Journal.

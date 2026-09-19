@@ -106,9 +106,17 @@ extension CardRun {
             preconditionFailure("a pass is dispatched only after the Route is resolved and the Attempt recorded")
         }
         try frame.revalidateLease()
+        // A new Attempt's preserved work is context, not a starting tree (OQ60): merged onto every
+        // pass instruction of this Attempt unless the caller already carries its own `wip` payload.
+        let effectivePayloads = payloads.wip == nil && frame.wipContext != nil
+            ? InstructionPayloads(
+                wip: frame.wipContext, answeredQuestion: payloads.answeredQuestion,
+                bankedReplies: payloads.bankedReplies, roundFeedback: payloads.roundFeedback
+            )
+            : payloads
         let request = AgentDispatchRequest(
             runID: frame.context.act.runID, issueID: frame.card.issueID, attemptID: attempt.id, route: route,
-            pass: pass, instruction: instruction(for: pass, route: route, frame: frame, payloads: payloads),
+            pass: pass, instruction: instruction(for: pass, route: route, frame: frame, payloads: effectivePayloads),
             worktreePath: frame.worktree.path, resumeSession: resumeSession
         )
         let report: AgentDispatchReport

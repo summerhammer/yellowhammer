@@ -254,6 +254,11 @@ extension JournalEvent {
                 }
                 return dict
             }()
+        case .attemptWorkPreserved(let cardID, let issueID, let attemptID, let ref, let commit, let resetTo):
+            [
+                "attempt_id": String(attemptID), "card_id": String(cardID), "commit": commit,
+                "issue_id": issueID, "ref": ref, "reset_to": resetTo
+            ]
         }
     }
 }
