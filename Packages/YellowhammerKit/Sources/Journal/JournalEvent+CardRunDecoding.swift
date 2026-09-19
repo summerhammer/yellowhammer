@@ -18,6 +18,16 @@ extension JournalEvent {
         )
     }
 
+    static func decodeFailureCauseRecorded(_ reader: PayloadReader) throws -> JournalEvent {
+        .failureCauseRecorded(
+            cardID: try reader.int64("card_id"),
+            issueID: try reader.require("issue_id"),
+            cause: try reader.require("cause"),
+            causeHash: try reader.require("cause_hash"),
+            recurrenceCount: try reader.int("recurrence_count")
+        )
+    }
+
     static func decodeCheckRan(_ reader: PayloadReader) throws -> JournalEvent {
         guard let result = CheckRunResult(rawValue: try reader.require("result")) else {
             throw JournalError.eventUnreadable(id: reader.rowID)

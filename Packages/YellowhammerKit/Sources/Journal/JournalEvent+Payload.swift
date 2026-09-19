@@ -259,6 +259,11 @@ extension JournalEvent {
                 "attempt_id": String(attemptID), "card_id": String(cardID), "commit": commit,
                 "issue_id": issueID, "ref": ref, "reset_to": resetTo
             ]
+        case .failureCauseRecorded(let cardID, let issueID, let cause, let causeHash, let recurrenceCount):
+            [
+                "card_id": String(cardID), "cause": cause, "cause_hash": causeHash, "issue_id": issueID,
+                "recurrence_count": String(recurrenceCount)
+            ]
         }
     }
 }

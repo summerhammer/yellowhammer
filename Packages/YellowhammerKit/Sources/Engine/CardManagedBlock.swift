@@ -96,6 +96,9 @@ public struct CardManagedBlock: Equatable, Sendable {
     /// holds it; nil renders the consumption account without a Bound to compare it to, rather than
     /// plumbing configuration through a layer that otherwise holds none.
     public var attemptsPerCard: Int?
+    /// Set when Failure-Cause Recurrence promoted this Blocked Card to Triage (roadmap P8.8); nil for a
+    /// first occurrence, which Blocks like any other.
+    public var triagePromotion: TriagePromotion?
 
     public static let footer = "_Managed by Yellowhammer. This block is rewritten from the Journal; " +
         "write outside it and your text is kept._"
@@ -112,7 +115,8 @@ public struct CardManagedBlock: Equatable, Sendable {
         definitionOfDone: [DoDClause],
         attempts: [AttemptAccount],
         attemptConsumption: AttemptConsumption? = nil,
-        attemptsPerCard: Int? = nil
+        attemptsPerCard: Int? = nil,
+        triagePromotion: TriagePromotion? = nil
     ) {
         self.kind = kind
         self.repository = repository
@@ -126,6 +130,7 @@ public struct CardManagedBlock: Equatable, Sendable {
         self.attempts = attempts
         self.attemptConsumption = attemptConsumption
         self.attemptsPerCard = attemptsPerCard
+        self.triagePromotion = triagePromotion
     }
 
     public func render() -> String {
@@ -152,6 +157,9 @@ public struct CardManagedBlock: Equatable, Sendable {
             stateLine = "**State:** \(state.rawValue)"
         }
         lines.append(stateLine)
+        if let triagePromotion {
+            lines.append("**Promoted to Triage:** \(triagePromotion.reason)")
+        }
 
         // Repo Lane position
         lines.append("**Repo Lane position:** \(lanePosition) of \(laneLength)")

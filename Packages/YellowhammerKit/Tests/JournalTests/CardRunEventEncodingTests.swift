@@ -64,3 +64,21 @@ func checkRanRoundTrips() throws {
         if case .checkRan(_, _, _, let result, _, _) = event { result } else { nil }
     }) == Set(CheckRunResult.allCases))
 }
+
+@Test("failureCauseRecorded event round-trips")
+func failureCauseRecordedRoundTrips() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appending(component: "yh-journal-failurecause-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let journal = try JournalStore.open(
+        configurationDirectory: directory, projectID: try #require(ProjectID(rawValue: "fixture"))
+    )
+    let event = JournalEvent.failureCauseRecorded(
+        cardID: 7, issueID: "BACK-1", cause: "hard failure (exit status 2)", causeHash: "abc123",
+        recurrenceCount: 2
+    )
+
+    try journal.append(event, act: .build, runID: RunID(), now: Date(timeIntervalSince1970: 1_800_000_000))
+
+    #expect(try journal.events(ofType: .failureCauseRecorded).map(\.event) == [event])
+}
