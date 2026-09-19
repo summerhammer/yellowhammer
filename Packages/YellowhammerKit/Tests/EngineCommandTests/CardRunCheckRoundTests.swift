@@ -20,7 +20,7 @@ struct CardRunCheckRoundTests {
     }
 
     private func makeRun(
-        results: [RepositoryCheckResult], roundsMax: Int = 2,
+        results: [RepositoryCheckResult], roundsMax: Int = 2, attemptsPerCard: Int = 3,
         checks: [String: Check] = ["backend": .command("make test")],
         during: (@Sendable (RunPass) async throws -> Void)? = nil
     ) -> Run {
@@ -29,7 +29,7 @@ struct CardRunCheckRoundTests {
         let check = RecordingCheck(log: log, results: results)
         let card = CardRun(
             resolver: cardRunResolver(), dispatch: dispatch, check: check, checks: checks,
-            reviewRoundsMax: roundsMax
+            reviewRoundsMax: roundsMax, attemptsPerCard: attemptsPerCard
         )
         return Run(card: card, dispatch: dispatch, check: check, log: log)
     }
@@ -52,7 +52,10 @@ struct CardRunCheckRoundTests {
     func failedCheckRedispatchesTheWorker() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
-        let run = makeRun(results: [red, red])
+        // A second, green Check keeps this Attempt from exhausting the round budget, so the redispatch
+        // mechanics (same Route, Attempt, Worktree, and the feedback the second worker was told) are
+        // visible without also exercising exhaustion, which is its own tests below.
+        let run = makeRun(results: [red, green])
 
         try await run.card.run("BACK-1", in: world)
 
@@ -70,16 +73,13 @@ struct CardRunCheckRoundTests {
         #expect(workers[1].attemptID == workers[0].attemptID)
         #expect(workers[1].worktreePath == workers[0].worktreePath)
 
-        // One Attempt, never ended by a Round.
         let attempts = try world.attempts("BACK-1")
         #expect(attempts.count == 1)
-        #expect(attempts[0].isOpen)
         #expect(attempts[0].id == workers[0].attemptID)
         let first = try #require(attempts[0].rounds.first)
         #expect(first.lens == .check)
         #expect(first.requestedChanges == "1 test failed")
         #expect(first.judgedCommit == workerCommit)
-        #expect(try cardRunLog(world.journal).contains { $0.hasPrefix("attempt ended") } == false)
     }
 
     @Test("A red Check never reaches the reviewer")
@@ -111,11 +111,11 @@ struct CardRunCheckRoundTests {
         #expect(try world.card("BACK-1").state == .done)
     }
 
-    @Test("Always failing with two Rounds allowed: two Rounds, two workers, no reviewer, the Attempt stays open")
+    @Test("Two Rounds allowed and Attempts left in the budget: Attempt ends rounds-exhausted, Card back to Ready")
     func exhaustsTwoRounds() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
-        let run = makeRun(results: [red], roundsMax: 2)
+        let run = makeRun(results: [red], roundsMax: 2, attemptsPerCard: 2)
 
         try await run.card.run("BACK-1", in: world)
 
@@ -123,10 +123,12 @@ struct CardRunCheckRoundTests {
         #expect(run.dispatch.requests.passes(.reviewer).isEmpty)
         let attempt = try #require(try world.attempts("BACK-1").first)
         #expect(attempt.rounds.count == 2)
-        #expect(attempt.isOpen)
-        #expect(try world.card("BACK-1").state == .inProgress)
+        #expect(!attempt.isOpen)
+        #expect(attempt.result == "rounds-exhausted")
+        #expect(try world.card("BACK-1").state == .todo)
         let steps = try cardRunLog(world.journal)
         #expect(steps.contains("rounds-exhausted"))
+        #expect(steps.contains("attempt ended: rounds-exhausted"))
         let exhausted = try world.journal.events(ofType: .cardRunStep).compactMap { record -> String? in
             if case .cardRunStep(_, _, .roundsExhausted, let detail) = record.event { detail } else { nil }
         }
@@ -135,18 +137,22 @@ struct CardRunCheckRoundTests {
         #expect(run.dispatch.requests.passes(.worker)[1].instruction.payloads.roundFeedback.map(\.round) == [1])
     }
 
-    @Test("With one Round allowed the first failure exhausts the budget: one Round, one worker")
+    @Test("One Round and one Attempt allowed: the Attempt ends rounds-exhausted, the spent budget blocks by Check")
     func exhaustsOneRound() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
-        let run = makeRun(results: [red], roundsMax: 1)
+        let run = makeRun(results: [red], roundsMax: 1, attemptsPerCard: 1)
 
         try await run.card.run("BACK-1", in: world)
 
         #expect(run.dispatch.requests.passes(.worker).count == 1)
         #expect(run.dispatch.requests.passes(.reviewer).isEmpty)
-        #expect(try #require(try world.attempts("BACK-1").first).rounds.count == 1)
+        let attempt = try #require(try world.attempts("BACK-1").first)
+        #expect(attempt.rounds.count == 1)
+        #expect(!attempt.isOpen)
+        #expect(attempt.result == "rounds-exhausted")
         #expect(try cardRunLog(world.journal).contains("rounds-exhausted"))
+        #expect(try world.card("BACK-1").state == .blocked)
     }
 
     @Test("A Round already on the Attempt counts against the budget: the count is read from the Journal")
@@ -154,7 +160,7 @@ struct CardRunCheckRoundTests {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
         let cardID = try #require(world.cardIDs["BACK-1"])
-        let run = makeRun(results: [red], roundsMax: 2) { pass in
+        let run = makeRun(results: [red], roundsMax: 2, attemptsPerCard: 2) { pass in
             guard pass == .worker else { return }
             let attempt = try #require(try world.journal.attemptHistory(cardID: cardID).openAttempt)
             if attempt.rounds.isEmpty {
@@ -249,7 +255,7 @@ struct CardRunCheckRoundTests {
         let log = CallLog()
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log), check: WorktreeCheck(),
-            checks: ["backend": .none], reviewRoundsMax: 2
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3
         )
 
         try await run.run("BACK-1", in: world)

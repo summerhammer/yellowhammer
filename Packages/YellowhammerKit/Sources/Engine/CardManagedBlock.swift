@@ -27,10 +27,14 @@ public struct DoDClause: Equatable, Sendable {
 public struct RoundAccount: Equatable, Sendable {
     public var lens: Lens
     public var verdict: String
+    public var requestedChanges: String?
+    public var judgedCommit: String?
 
-    public init(lens: Lens, verdict: String) {
+    public init(lens: Lens, verdict: String, requestedChanges: String? = nil, judgedCommit: String? = nil) {
         self.lens = lens
         self.verdict = verdict
+        self.requestedChanges = requestedChanges
+        self.judgedCommit = judgedCommit
     }
 }
 
@@ -59,7 +63,12 @@ public struct AttemptAccount: Equatable, Sendable {
         }
 
         // Build round accounts
-        self.rounds = record.rounds.map { RoundAccount(lens: $0.lens, verdict: $0.verdict) }
+        self.rounds = record.rounds.map {
+            RoundAccount(
+                lens: $0.lens, verdict: $0.verdict, requestedChanges: $0.requestedChanges,
+                judgedCommit: $0.judgedCommit
+            )
+        }
 
         // Outcome: result or "in progress"
         self.outcome = record.result ?? "in progress"
@@ -213,6 +222,7 @@ public struct CardManagedBlock: Equatable, Sendable {
                         "\(roundIndex + 1). \(round.lens.rawValue) — \(round.verdict)"
                     }
                     lines.append("- Rounds: \(roundTexts.joined(separator: "; "))")
+                    lines.append(contentsOf: renderRoundDetails(attempt.rounds))
                 }
                 lines.append("- Outcome: \(attempt.outcome)")
                 if let consumedHow = attempt.consumedHow {
@@ -221,5 +231,35 @@ public struct CardManagedBlock: Equatable, Sendable {
             }
         }
         return lines
+    }
+
+    /// The judged commit and requested changes of each Round that has one: the one-line summary above
+    /// names every Round, this fills in what it judged. Quoted (`> `) so neither a heading nor a list
+    /// marker in a model's text can be read back as part of the Managed Block's own markdown.
+    private func renderRoundDetails(_ rounds: [RoundAccount]) -> [String] {
+        var lines: [String] = []
+        for (index, round) in rounds.enumerated() {
+            let ordinal = index + 1
+            if let commit = round.judgedCommit {
+                lines.append("  - Round \(ordinal) judged commit: `\(commit)`")
+            }
+            if let requestedChanges = round.requestedChanges, !requestedChanges.isEmpty {
+                lines.append("  - Round \(ordinal) requested changes:")
+                lines.append(contentsOf: Self.quoteRequestedChanges(requestedChanges))
+            }
+        }
+        return lines
+    }
+
+    /// The Round's requested changes, capped and quoted for the Managed Block: over the character limit,
+    /// truncated with an explicit marker (the full text is in the Round's own Card comment and the
+    /// Journal); every line prefixed so it can never start a Markdown heading or list item of its own.
+    private static let requestedChangesLimit = 500
+
+    private static func quoteRequestedChanges(_ text: String) -> [String] {
+        let capped = text.count > requestedChangesLimit
+            ? "\(text.prefix(requestedChangesLimit))… truncated"
+            : text
+        return capped.components(separatedBy: "\n").map { "    > \($0)" }
     }
 }

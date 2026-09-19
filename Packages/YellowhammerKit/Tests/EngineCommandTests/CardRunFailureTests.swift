@@ -15,7 +15,7 @@ struct CardRunFailureTests {
     ) -> CardRun {
         CardRun(
             resolver: resolver, dispatch: LoggingDispatch(log: log, script: script),
-            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2
+            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3
         )
     }
 
@@ -89,7 +89,7 @@ struct CardRunFailureTests {
         let log = CallLog()
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: RefusingDispatch(log: log), check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3
         )
 
         try await run.run("BACK-1", in: world)

@@ -20,8 +20,10 @@ public enum CardRunStep: String, CaseIterable, Sendable {
     case leaseReleased = "lease-released"
     /// This run lost the Card's Lease mid-run; nothing was written as if it were complete.
     case leaseLost = "lease-lost"
-    /// The Round budget ran out with the work still red: the run stopped without dispatching the reviewer.
-    /// The detail is the raw value of the Lens whose Round was the last. Blocking the Card is P8.6/P8.7.
+    /// The Round budget ran out with the work still not approved — the run stopped without dispatching the
+    /// reviewer again, on either Lens. The detail is the raw value of the Lens whose Round was the last;
+    /// the Attempt this step belongs to ends `rounds-exhausted`, and the Card blocks only once the Attempt
+    /// budget is spent too. A fresh Attempt on a different Route when it is not yet spent is roadmap P8.7.
     case roundsExhausted = "rounds-exhausted"
 }
 

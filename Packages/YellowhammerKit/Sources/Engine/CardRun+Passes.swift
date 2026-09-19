@@ -8,23 +8,10 @@ enum CardRunEnd: Sendable {
     case approved(commit: String)
     /// An Attempt-ending outcome: a failed run, a reported failure, or the worker's question.
     case ending(AttemptEnding)
-    /// A Round is owed: the reviewer asked for changes. (A failed Check's Round is recorded as it happens, in
-    /// the Check's own loop; the review's loop is P8.6.)
-    case round(RoundRequest)
-    /// The Round budget ran out with the work still red, and the Round was already recorded: the Attempt
-    /// stays open and the reviewer never saw the code. Blocking the Card is P8.6/P8.7.
+    /// The round budget ran out with the work still not approved — red from the Check, or changes the
+    /// reviewer asked for — and the last Round was already recorded: `lens` is that Round's Lens. Ending
+    /// the Attempt `rounds-exhausted` and deciding whether the Attempt budget blocks the Card is `conclude`'s.
     case roundsExhausted(lens: Lens)
-}
-
-/// A Round the run owes, with what the next Round on the same worker needs (Rounds are P8.6).
-struct RoundRequest: Sendable {
-    let lens: Lens
-    let verdict: String
-    let requestedChanges: String?
-    let judgedCommit: String
-    /// The worker's opaque session, so a later Round resumes the same conversation. Not persisted: keeping
-    /// it across Acts needs a Journal column (P8.6).
-    let workerSession: String?
 }
 
 /// A pass that ended the Attempt instead of yielding a result: thrown inside the sequence, caught by it.
@@ -54,30 +41,46 @@ extension CardRun {
         guard let attempt = frame.attempt else {
             preconditionFailure("a pass is dispatched only after the Attempt is recorded")
         }
+
+        // The worker's opaque session, kept in memory only for as long as this run lasts, so a Round on
+        // either Lens resumes the same conversation. Not persisted across Acts.
         var worked = try await work(frame: frame, payloads: .none, resumeSession: nil)
         while true {
-            let checked = try await runCheck(frame: frame, attemptID: attempt.id)
-            guard case .failed(let output, let exitStatus) = checked else { break }
-
-            // A failed Check is a Round of this Attempt, never a new Attempt: same worker, Route, Worktree.
-            let (rounds, budget) = try await recordCheckRound(
-                frame: frame, attemptID: attempt.id, commit: worked.commit, output: output, exitStatus: exitStatus
-            )
-            guard budget.allowsAnotherRound else {
-                // A reviewer never sees red code.
+            switch try await runCheckLoop(frame: frame, attemptID: attempt.id, worked: worked) {
+            case .exhausted:
                 return .roundsExhausted(lens: .check)
+            case .passed(let commit, let session):
+                worked = (commit: commit, session: session)
             }
-            worked = try await work(
-                frame: frame, payloads: InstructionPayloads(roundFeedback: Self.feedback(of: rounds)),
-                resumeSession: worked.session
-            )
-        }
 
-        return try await review(frame: frame, commit: worked.commit, workerSession: worked.session)
+            let reviewer = try await runPass(.reviewer, frame: frame)
+            guard case .reviewer(let judged) = reviewer.result else {
+                throw CardRunError.unexpectedResult(expected: .reviewer, found: reviewer.result.pass)
+            }
+            switch judged.outcome {
+            case .approved:
+                return .approved(commit: worked.commit)
+            case .changesRequested(let judgedCommit, _, let requestedChanges):
+                // A review Round of this Attempt, never a new Attempt: same worker, Route, Worktree. Both
+                // Lenses share the one round budget, so the Check's own Rounds count against it too.
+                let (rounds, budget) = try await recordReviewRound(
+                    frame: frame, attemptID: attempt.id, judgedCommit: judgedCommit,
+                    requestedChanges: requestedChanges.joined(separator: "\n")
+                )
+                guard budget.allowsAnotherRound else {
+                    // The round budget is spent: the worker is not dispatched again on this Attempt.
+                    return .roundsExhausted(lens: .review)
+                }
+                worked = try await work(
+                    frame: frame, payloads: InstructionPayloads(roundFeedback: Self.feedback(of: rounds)),
+                    resumeSession: worked.session
+                )
+            }
+        }
     }
 
     /// One worker pass; a question or a reported failure ends the Attempt (thrown as a `PassStop`).
-    private func work(
+    func work(
         frame: CardRunFrame, payloads: InstructionPayloads, resumeSession: String?
     ) async throws -> (commit: String, session: String?) {
         let worker = try await runPass(.worker, frame: frame, payloads: payloads, resumeSession: resumeSession)
@@ -91,23 +94,6 @@ extension CardRun {
             throw PassStop(ending: .question)
         case .failed(let reason):
             throw PassStop(ending: .hardFailure(.reported(reason: reason)))
-        }
-    }
-
-    private func review(frame: CardRunFrame, commit: String, workerSession: String?) async throws -> CardRunEnd {
-        let reviewer = try await runPass(.reviewer, frame: frame)
-        guard case .reviewer(let judged) = reviewer.result else {
-            throw CardRunError.unexpectedResult(expected: .reviewer, found: reviewer.result.pass)
-        }
-        switch judged.outcome {
-        case .approved:
-            return .approved(commit: commit)
-        case .changesRequested(let judgedCommit, _, let requestedChanges):
-            return .round(RoundRequest(
-                lens: .review, verdict: "changes requested",
-                requestedChanges: requestedChanges.joined(separator: "\n"), judgedCommit: judgedCommit,
-                workerSession: workerSession
-            ))
         }
     }
 

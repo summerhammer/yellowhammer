@@ -17,9 +17,13 @@ import Journal
 /// Between the worker and the reviewer the engine runs the repository's Check (P8.5). A failed Check is a
 /// Round on the same Attempt: the worker is dispatched again, on the same Route and in the same Worktree,
 /// carrying every Round so far, until the round budget is spent, and the reviewer never sees red code.
+/// A reviewer asking for changes is a Round of the same kind (P8.6): the worker goes again with every Round
+/// so far — both Lenses share the one round budget — the Check runs again before the reviewer does, and the
+/// reviewer never sees red code either. Once the round budget is spent with the work still not approved,
+/// the Attempt ends `rounds-exhausted`; the Card blocks only once the Attempt budget is spent too, never on
+/// the round budget alone. A fresh Attempt on a different Route when the Card is not yet blocked is P8.7.
 ///
-/// Architect, worker and reviewer are internals of this run, not actors. The review's Round loop, blocking
-/// a Card whose budgets are spent, and the Attempt budget are later roadmap items (P8.6, P8.7).
+/// Architect, worker and reviewer are internals of this run, not actors.
 public struct CardRun: CardRunner {
     public let resolver: RouteResolver
     public let dispatch: any AgentDispatch
@@ -31,6 +35,9 @@ public struct CardRun: CardRunner {
     /// The most Rounds one Attempt may record, both Lenses together (`review_rounds_max`). Required: the ruled
     /// default lives in `Config`, and the Engine holds no configuration.
     public let reviewRoundsMax: Int
+    /// The most Attempts a Card may consume in one budget epoch (`attempts_per_card`). Required: the ruled
+    /// default lives in `Config`, and the Engine holds no configuration.
+    public let attemptsPerCard: Int
 
     public init(
         resolver: RouteResolver,
@@ -38,6 +45,7 @@ public struct CardRun: CardRunner {
         check: any RepositoryCheckRunning,
         checks: [String: Check],
         reviewRoundsMax: Int,
+        attemptsPerCard: Int,
         leasePolicy: LeasePolicy = .ruled
     ) {
         self.resolver = resolver
@@ -45,6 +53,7 @@ public struct CardRun: CardRunner {
         self.check = check
         self.checks = checks
         self.reviewRoundsMax = reviewRoundsMax
+        self.attemptsPerCard = attemptsPerCard
         self.leasePolicy = leasePolicy
     }
 

@@ -143,6 +143,39 @@ struct LoggingDispatch: AgentDispatch {
     }
 }
 
+/// A Dispatch seam that answers each pass from its own per-call sequence of fixtures, repeating the
+/// sequence's last fixture once it runs out; a pass with no sequence answers from
+/// ``RehearsalDispatch/defaultScript``. Built for the review Round loop (roadmap P8.6), where the same
+/// pass — most often the reviewer — must answer differently attempt over attempt of the same Card run.
+final class SequencedDispatch: AgentDispatch, Sendable {
+    let log: CallLog?
+    private let sequences: [RunPass: [RehearsalResultFixture]]
+    private let calls = Mutex<[RunPass: Int]>([:])
+    /// Every request seen, in order, so a test can inspect the instruction, Route, Worktree and Attempt.
+    let requests = RequestLog()
+
+    init(log: CallLog? = nil, sequences: [RunPass: [RehearsalResultFixture]]) {
+        self.log = log
+        self.sequences = sequences
+    }
+
+    func dispatch(_ request: AgentDispatchRequest) async throws -> AgentDispatchReport {
+        log?.add("dispatch \(request.pass.rawValue)")
+        requests.add(request)
+        guard let sequence = sequences[request.pass], !sequence.isEmpty else {
+            return try await RehearsalDispatch().dispatch(request)
+        }
+        let index = calls.withLock { calls in
+            let current = calls[request.pass, default: 0]
+            calls[request.pass] = current + 1
+            return current
+        }
+        let fixture = sequence[min(index, sequence.count - 1)]
+        // A deterministic, wiring-only session, so a test can tell a later call resumed an earlier one's.
+        return AgentDispatchReport(outcome: fixture.outcome(), session: "\(request.pass.rawValue)-session-\(index)")
+    }
+}
+
 /// A Dispatch seam whose Route cannot be run at all on this machine.
 struct RefusingDispatch: AgentDispatch {
     let log: CallLog
