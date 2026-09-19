@@ -107,7 +107,7 @@ func killedInvocationIsRebuiltFromTheJournal() async throws {
     try directory.writeValidProjectFile(id: "alpha")
     let projectID = try #require(ProjectID(rawValue: "alpha"))
 
-    let firstJournal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    let firstJournal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
     let (featureID, cardID) = try insertFixtureCard(firstJournal, issueID: "CARD-1")
     let firstRunID = RunID()
 
@@ -120,7 +120,7 @@ func killedInvocationIsRebuiltFromTheJournal() async throws {
     #expect(try firstJournal.currentActLease() == nil)
 
     // Invocation 2 shares nothing with invocation 1 but the row ids just inserted.
-    let secondJournal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    let secondJournal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
     let secondRunID = RunID()
     let historyBox = ResultBox<AttemptHistory>()
     let worktreesBox = ResultBox<[WorktreeRecord]>()
@@ -162,7 +162,7 @@ func reclaimedRunsOpenAttemptIsVisible() async throws {
     try directory.writeValidProjectFile(id: "alpha")
     let projectID = try #require(ProjectID(rawValue: "alpha"))
 
-    let storeA = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    let storeA = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
     let (_, cardID) = try insertFixtureCard(storeA, issueID: "CARD-1")
     let runA = RunID()
     // Claimed eleven minutes ago and never heartbeated: a crashed, or long-asleep, run.
@@ -173,7 +173,7 @@ func reclaimedRunsOpenAttemptIsVisible() async throws {
     }
     let deadAttempt = try storeA.recordAttempt(cardID: cardID, route: route, runID: runA, now: deadNow)
 
-    let secondJournal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    let secondJournal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
     let secondRunID = RunID()
     let historyBox = ResultBox<AttemptHistory>()
 
@@ -202,7 +202,7 @@ func runLeavesNothingResident() async throws {
     try directory.writeMachineFile()
     try directory.writeValidProjectFile(id: "alpha")
     let projectID = try #require(ProjectID(rawValue: "alpha"))
-    let journal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    let journal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
     let shortPolicy = LeasePolicy(heartbeatInterval: 0.05, timeToLive: 2)
 
     let invocation = EngineInvocation(
@@ -231,7 +231,7 @@ func workReceivesTheInvocationsOwnContext() async throws {
     try directory.writeMachineFile()
     try directory.writeValidProjectFile(id: "alpha")
     let projectID = try #require(ProjectID(rawValue: "alpha"))
-    let journal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    let journal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
     let runID = RunID()
     let contextBox = ResultBox<ActContext>()
 

@@ -74,7 +74,7 @@ func overlappingActStandsDown(_ act: Act) async throws {
     try directory.writeValidProjectFile(id: "alpha")
     let projectID = try #require(ProjectID(rawValue: "alpha"))
     // Another invocation of the same Project, mid-Act: it holds the Act-scoped lease and is heartbeating.
-    let running = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    let running = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
     let runningRun = RunID()
     guard case .claimed(let holder) = try running.claimActLease(act: .build, runID: runningRun, mode: .real) else {
         Issue.record("The running Act did not claim the Project")
@@ -108,7 +108,7 @@ func deadPredecessorIsReclaimed() async throws {
     try directory.writeMachineFile()
     try directory.writeValidProjectFile(id: "alpha")
     let projectID = try #require(ProjectID(rawValue: "alpha"))
-    let dead = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    let dead = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
     // Claimed eleven minutes ago and never heartbeated: crashed, or asleep past the TTL.
     _ = try dead.claimActLease(act: .build, runID: RunID(), mode: .real, now: Date().addingTimeInterval(-660))
 
@@ -137,7 +137,7 @@ func invocationReleasesOnExit(_ act: Act) async throws {
         }
     }
 
-    let journal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    let journal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
     #expect(try journal.currentActLease() == nil)
     // And so the next firing of the same Project is not held off.
     if act == .build {
@@ -153,7 +153,7 @@ func invocationReleasesOnExit(_ act: Act) async throws {
 func invocationIsScopedToItsJournal() throws {
     let directory = ConfigurationDirectory()
     let projectID = try #require(ProjectID(rawValue: "alpha"))
-    let journal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    let journal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
 
     let invocation = EngineInvocation(act: .build, mode: .rehearsal, nightStart: nightStart, journal: journal)
 

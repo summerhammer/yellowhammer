@@ -73,7 +73,7 @@ struct ActStartMainlineRefreshTests {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
         let projectID = try #require(ProjectID(rawValue: "mainline"))
-        let journal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+        let journal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
 
         // 1. Good repo: bare remote with a new commit to fetch
         let goodRemote = TempRepo(name: "good-remote")

@@ -37,7 +37,7 @@ func actNotImplementedRecordsEvents() async throws {
         try await runAct(.author, project: "alpha", in: directory)
     }
 
-    let journal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    let journal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
     let events = try journal.events()
 
     // The Night is recorded first, so an Act that dies on its first line still says it opened.
@@ -61,7 +61,7 @@ func stoodDownActRecordsEvent() async throws {
     let projectID = try #require(ProjectID(rawValue: "alpha"))
 
     // Another invocation holds the lease
-    let running = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    let running = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
     let runningRun = RunID()
     guard case .claimed(let holder) = try running.claimActLease(act: .build, runID: runningRun, mode: .real) else {
         Issue.record("The running Act did not claim the Project")
@@ -74,7 +74,7 @@ func stoodDownActRecordsEvent() async throws {
     }
 
     // Should have recorded ActStoodDown
-    let journal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    let journal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
     let events = try journal.events()
     #expect(events.count == 1)
     guard case .actStoodDown(let readHolder) = events[0].event else {
@@ -101,7 +101,7 @@ func actOnlyWritesOwnJournal() async throws {
     }
 
     // Alpha should have events
-    let alphaJournal = try JournalStore.open(configurationDirectory: directory.url, projectID: alphaID)
+    let alphaJournal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: alphaID)
     let alphaEvents = try alphaJournal.events()
     #expect(alphaEvents.map(\.type) == [.nightOpened, .actStarted, .actIncomplete])
 
@@ -116,7 +116,7 @@ func successfulWorkRecordsEndedEvent() async throws {
     try directory.writeMachineFile()
     try directory.writeValidProjectFile(id: "alpha")
     let projectID = try #require(ProjectID(rawValue: "alpha"))
-    let journal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    let journal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
 
     let invocation = EngineInvocation(
         act: .build,
@@ -141,7 +141,7 @@ func failingWorkRecordsIncompleteEvent() async throws {
     try directory.writeMachineFile()
     try directory.writeValidProjectFile(id: "alpha")
     let projectID = try #require(ProjectID(rawValue: "alpha"))
-    let journal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    let journal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
 
     enum CustomError: Error {
         case testError
@@ -176,7 +176,7 @@ func deadPredecessorReclaimIsRecordedInOrder() async throws {
     try directory.writeMachineFile()
     try directory.writeValidProjectFile(id: "alpha")
     let projectID = try #require(ProjectID(rawValue: "alpha"))
-    let dead = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    let dead = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
     let deadRun = RunID()
     // Claimed eleven minutes ago and never heartbeated: crashed, or asleep past the TTL.
     _ = try dead.claimActLease(act: .author, runID: deadRun, mode: .real, now: Date().addingTimeInterval(-660))
@@ -205,7 +205,7 @@ func actLeaseIsHeartbeatDuringWork() async throws {
     try directory.writeMachineFile()
     try directory.writeValidProjectFile(id: "alpha")
     let projectID = try #require(ProjectID(rawValue: "alpha"))
-    let journal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    let journal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
     // TTL must be >= 2s because whole-second storage loses up to 1s of precision
     let shortPolicy = LeasePolicy(heartbeatInterval: 0.05, timeToLive: 2)
     let runID = RunID()
@@ -237,7 +237,7 @@ func lostActLeaseCancelsWork() async throws {
     try directory.writeMachineFile()
     try directory.writeValidProjectFile(id: "alpha")
     let projectID = try #require(ProjectID(rawValue: "alpha"))
-    let journal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    let journal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
     // A fast beat on the ruled 600 s TTL: the run's own lease cannot expire under it however long the
     // parallel suite stalls a hop, so the only way to lose it is the takeover, injected through `now:`.
     let policy = LeasePolicy(heartbeatInterval: 0.05, timeToLive: 600)
@@ -257,7 +257,7 @@ func lostActLeaseCancelsWork() async throws {
             try await Task.sleep(for: Duration.milliseconds(100))
 
             // Have a second store "steal" the lease by claiming at a time past the run's expiry
-            let takeover = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+            let takeover = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
             _ = try takeover.claimActLease(
                 act: .author, runID: takerRunID, mode: .real, policy: policy,
                 now: Date().addingTimeInterval(policy.timeToLive + 60)

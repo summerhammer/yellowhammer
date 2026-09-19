@@ -40,7 +40,7 @@ func makeReadinessScenario() async throws -> ReadinessScenario {
     let directory = FileManager.default.temporaryDirectory
         .appending(component: "yh-readiness-\(UUID().uuidString)", directoryHint: .isDirectory)
     let projectID = try #require(ProjectID(rawValue: "fixture"))
-    let journal = try JournalStore.open(configurationDirectory: directory, projectID: projectID)
+    let journal = try JournalStore.openSeeded(configurationDirectory: directory, projectID: projectID)
     let runID = RunID()
     guard case .claimed = try journal.claimActLease(act: .build, runID: runID, mode: .rehearsal, now: readinessEpoch)
     else {
