@@ -29,6 +29,10 @@ public struct NightCardMaintenance: Sendable {
         "night-card:\(nightStart):complete"
     }
 
+    public static func authoringKey(nightStart: NightStart, hash: String) -> String {
+        "night-card:\(nightStart):authoring:\(hash)"
+    }
+
     public enum Opening: Equatable, Sendable {
         /// The Night already carried a Night Card issue id; nothing was written.
         case alreadyRecorded(issueID: String)
@@ -91,8 +95,11 @@ public struct NightCardMaintenance: Sendable {
         }
         let scope = try await NightCardScope.resolve(using: provisioning)
         let issue = BoardObjectID(rawValue: issueID)
+        let findings = try authoringLines(night: night)
         let anomalies = try anomalyLines(night: night)
-        let rendered = NightCardBlock.completed(night: night, projectID: journal.projectID, anomalies: anomalies)
+        let rendered = NightCardBlock.completed(
+            night: night, projectID: journal.projectID, authoringFindings: findings, anomalies: anomalies
+        )
         let hash = ManagedBlockFence.sha256(rendered)
         let summary = OutboxWrite(
             key: Self.summaryKey(nightStart: night.nightStart, hash: hash),
@@ -133,6 +140,60 @@ public struct NightCardMaintenance: Sendable {
             )
         }
         return lines
+    }
+
+    /// Puts this Night's quiet authoring reasons (P9.1) on the Night Card right away, rather than
+    /// waiting for completion: the author Act found a Feature already in flight, a predecessor not
+    /// landed, or nothing selectable. A no-op when there is nothing new to say, or no Night Card yet
+    /// recorded (this Act's own `open` failed, which would already have thrown). The rewrite's key is
+    /// derived from the rendered block's hash, like the completion summary's, so a repeat of the same
+    /// finding this Night (a forced re-run) is idempotent.
+    public func recordAuthoring(night: NightRecord) throws {
+        guard let issueID = night.nightCardIssueID else { return }
+        let findings = try authoringLines(night: night)
+        guard !findings.isEmpty else { return }
+        let rendered = NightCardBlock.opened(night: night, projectID: journal.projectID, authoringFindings: findings)
+        let hash = ManagedBlockFence.sha256(rendered)
+        let write = OutboxWrite(
+            key: Self.authoringKey(nightStart: night.nightStart, hash: hash),
+            write: .rewriteManagedBlock(issue: BoardObjectID(rawValue: issueID), rendered: rendered)
+        )
+        _ = try outbox.accept(write)
+    }
+
+    /// This Night's quiet authoring reasons (P9.1), one line each, deduplicated (a forced re-run may
+    /// record the same reason twice in one Night) and in the order the Journal recorded them.
+    private func authoringLines(night: NightRecord) throws -> [String] {
+        var seen: Set<String> = []
+        var lines: [String] = []
+        for record in try journal.events() where record.nightID == night.id {
+            guard let line = Self.authoringLine(for: record.event) else { continue }
+            guard seen.insert(line).inserted else { continue }
+            lines.append(line)
+        }
+        return lines
+    }
+
+    private static func authoringLine(for event: JournalEvent) -> String? {
+        switch event {
+        case .authoringSkippedFeatureInFlight(let featureIssueID):
+            return """
+                Authoring was skipped: Feature `\(featureIssueID)` is already in flight for this Project. \
+                A quiet Night, not a failure.
+                """
+        case .authoringPredecessorNotLanded(let featureIssueID, let repositories):
+            let named = repositories.joined(separator: ", ")
+            return """
+                Authoring was skipped: predecessor Feature `\(featureIssueID)` has not landed in \(named). \
+                A quiet Night, not a failure.
+                """
+        case .authoringNoWorkAvailable:
+            return """
+                Nothing was selectable to author (`AuthoringNoWorkAvailable`). A quiet Night, not a failure.
+                """
+        default:
+            return nil
+        }
     }
 }
 
