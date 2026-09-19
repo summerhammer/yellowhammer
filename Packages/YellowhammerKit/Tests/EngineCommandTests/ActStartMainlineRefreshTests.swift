@@ -35,18 +35,18 @@ struct ActStartMainlineRefreshTests {
         var path: String { url.path(percentEncoded: false) }
 
         @discardableResult
-        func run(_ args: [String]) -> GitCommandResult {
-            git.runSync(["-C", path] + args)
+        func run(_ args: [String]) async -> GitCommandResult {
+            await git.run(["-C", path] + args)
         }
 
-        func initRepo(bare: Bool = false, defaultBranch: String = "main") {
+        func initRepo(bare: Bool = false, defaultBranch: String = "main") async {
             if bare {
-                _ = run(["init", "--bare", "--initial-branch=\(defaultBranch)"])
+                _ = await run(["init", "--bare", "--initial-branch=\(defaultBranch)"])
             } else {
-                _ = run(["init", "--initial-branch=\(defaultBranch)"])
-                _ = run(["config", "user.name", "Test User"])
-                _ = run(["config", "user.email", "test@example.com"])
-                _ = run(["config", "commit.gpgsign", "false"])
+                _ = await run(["init", "--initial-branch=\(defaultBranch)"])
+                _ = await run(["config", "user.name", "Test User"])
+                _ = await run(["config", "user.email", "test@example.com"])
+                _ = await run(["config", "commit.gpgsign", "false"])
             }
         }
 
@@ -55,12 +55,12 @@ struct ActStartMainlineRefreshTests {
             filename: String = "file.txt",
             content: String = "content",
             message: String = "commit"
-        ) throws -> String {
+        ) async throws -> String {
             let fileURL = url.appending(component: filename)
             try content.write(to: fileURL, atomically: true, encoding: .utf8)
-            _ = run(["add", "."])
-            _ = run(["commit", "-m", message])
-            let result = run(["rev-parse", "--verify", "--quiet", "HEAD"])
+            _ = await run(["add", "."])
+            _ = await run(["commit", "-m", message])
+            let result = await run(["rev-parse", "--verify", "--quiet", "HEAD"])
             return result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         }
     }
@@ -77,50 +77,50 @@ struct ActStartMainlineRefreshTests {
 
         // 1. Good repo: bare remote with a new commit to fetch
         let goodRemote = TempRepo(name: "good-remote")
-        goodRemote.initRepo(bare: true)
+        await goodRemote.initRepo(bare: true)
 
         let goodLocal = TempRepo(name: "good-local")
-        goodLocal.initRepo()
-        goodLocal.run(["remote", "add", "origin", goodRemote.path])
-        _ = try goodLocal.commit(message: "initial good")
-        goodLocal.run(["push", "-u", "origin", "main"])
-        goodLocal.run(["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"])
+        await goodLocal.initRepo()
+        await goodLocal.run(["remote", "add", "origin", goodRemote.path])
+        _ = try await goodLocal.commit(message: "initial good")
+        await goodLocal.run(["push", "-u", "origin", "main"])
+        await goodLocal.run(["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"])
 
         // Push new commit to goodRemote
         let pusher = TempRepo(name: "pusher")
-        pusher.initRepo()
-        pusher.run(["remote", "add", "origin", goodRemote.path])
-        pusher.run(["fetch", "origin", "main"])
-        pusher.run(["checkout", "main"])
-        let newGoodSHA = try pusher.commit(filename: "update.txt", content: "new", message: "new good commit")
-        pusher.run(["push", "origin", "main"])
+        await pusher.initRepo()
+        await pusher.run(["remote", "add", "origin", goodRemote.path])
+        await pusher.run(["fetch", "origin", "main"])
+        await pusher.run(["checkout", "main"])
+        let newGoodSHA = try await pusher.commit(filename: "update.txt", content: "new", message: "new good commit")
+        await pusher.run(["push", "origin", "main"])
 
         // 2. Broken repo: unreachable origin URL
         let brokenLocal = TempRepo(name: "broken-local")
-        brokenLocal.initRepo()
-        brokenLocal.run(["remote", "add", "origin", "http://127.0.0.1:59999/unreachable.git"])
-        let brokenSHA = try brokenLocal.commit(message: "broken initial")
+        await brokenLocal.initRepo()
+        await brokenLocal.run(["remote", "add", "origin", "http://127.0.0.1:59999/unreachable.git"])
+        let brokenSHA = try await brokenLocal.commit(message: "broken initial")
         // Cache a remote ref so fallback has something to read
-        brokenLocal.run(["update-ref", "refs/remotes/origin/main", brokenSHA])
-        brokenLocal.run(["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"])
+        await brokenLocal.run(["update-ref", "refs/remotes/origin/main", brokenSHA])
+        await brokenLocal.run(["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"])
 
         // 3. Spec source: remote has newer commits, but spec source is never fetched
         let specRemote = TempRepo(name: "spec-remote")
-        specRemote.initRepo(bare: true)
+        await specRemote.initRepo(bare: true)
 
         let specLocal = TempRepo(name: "spec-local")
-        specLocal.initRepo()
-        specLocal.run(["remote", "add", "origin", specRemote.path])
-        let specInitialSHA = try specLocal.commit(message: "spec v1")
-        specLocal.run(["push", "-u", "origin", "main"])
+        await specLocal.initRepo()
+        await specLocal.run(["remote", "add", "origin", specRemote.path])
+        let specInitialSHA = try await specLocal.commit(message: "spec v1")
+        await specLocal.run(["push", "-u", "origin", "main"])
 
         let specAuthor = TempRepo(name: "spec-author")
-        specAuthor.initRepo()
-        specAuthor.run(["remote", "add", "origin", specRemote.path])
-        specAuthor.run(["fetch", "origin", "main"])
-        specAuthor.run(["checkout", "main"])
-        _ = try specAuthor.commit(filename: "v2.md", content: "v2", message: "spec v2")
-        specAuthor.run(["push", "origin", "main"])
+        await specAuthor.initRepo()
+        await specAuthor.run(["remote", "add", "origin", specRemote.path])
+        await specAuthor.run(["fetch", "origin", "main"])
+        await specAuthor.run(["checkout", "main"])
+        _ = try await specAuthor.commit(filename: "v2.md", content: "v2", message: "spec v2")
+        await specAuthor.run(["push", "origin", "main"])
 
         // Construct ProjectRepositories
         let workingRepos = [

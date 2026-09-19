@@ -11,18 +11,18 @@ struct AncestryTests {
     @Test("Single repo: Branch merged into mainline with merge commit is an ancestor")
     func singleRepoMergedBranchWithMergeCommit() async throws {
         let fixture = GitFixture(name: "ancestry-merged-1")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        let initialSHA = try fixture.commit(filename: "init.txt", content: "initial", message: "initial commit")
-        #expect(fixture.revParse("main") == initialSHA)
+        let initialSHA = try await fixture.commit(filename: "init.txt", content: "initial", message: "initial commit")
+        await #expect(fixture.revParse("main") == initialSHA)
 
         // Create feature branch and commit
-        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
-        let featureSHA = try fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
+        let featureSHA = try await fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
 
         // Switch back to main and merge with a merge commit
-        _ = fixture.run(["checkout", "main"])
-        _ = fixture.run(["merge", "--no-ff", "-m", "Merge branch yh-project-feature", "yh-project-feature"])
+        _ = await fixture.run(["checkout", "main"])
+        _ = await fixture.run(["merge", "--no-ff", "-m", "Merge branch yh-project-feature", "yh-project-feature"])
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = AncestryTester()
@@ -38,17 +38,17 @@ struct AncestryTests {
     @Test("Single repo: Branch fast-forward merged into mainline is an ancestor")
     func singleRepoFastForwardMergedBranch() async throws {
         let fixture = GitFixture(name: "ancestry-ff-2")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        _ = try fixture.commit(filename: "init.txt", content: "initial", message: "initial commit")
+        _ = try await fixture.commit(filename: "init.txt", content: "initial", message: "initial commit")
 
         // Create feature branch and commit
-        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
-        let featureSHA = try fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
+        let featureSHA = try await fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
 
         // Switch back to main and fast-forward merge
-        _ = fixture.run(["checkout", "main"])
-        _ = fixture.run(["merge", "--ff-only", "yh-project-feature"])
+        _ = await fixture.run(["checkout", "main"])
+        _ = await fixture.run(["merge", "--ff-only", "yh-project-feature"])
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = AncestryTester()
@@ -62,16 +62,16 @@ struct AncestryTests {
     @Test("Single repo: Unmerged branch is not an ancestor")
     func singleRepoUnmergedBranch() async throws {
         let fixture = GitFixture(name: "ancestry-unmerged-3")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        let initialSHA = try fixture.commit(filename: "init.txt", content: "initial", message: "initial commit")
+        let initialSHA = try await fixture.commit(filename: "init.txt", content: "initial", message: "initial commit")
 
         // Create feature branch and commit
-        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
-        let featureSHA = try fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
+        let featureSHA = try await fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
 
         // Switch back to main; do not merge
-        _ = fixture.run(["checkout", "main"])
+        _ = await fixture.run(["checkout", "main"])
 
         let repo = Repo(name: "service", path: fixture.path, role: .backend)
         let tester = AncestryTester()
@@ -86,17 +86,17 @@ struct AncestryTests {
     @Test("Single repo: Mainline moved ahead independently without merging branch")
     func singleRepoMainlineMovedAheadWithoutMerging() async throws {
         let fixture = GitFixture(name: "ancestry-moved-4")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        _ = try fixture.commit(filename: "init.txt", content: "initial", message: "initial commit")
+        _ = try await fixture.commit(filename: "init.txt", content: "initial", message: "initial commit")
 
         // Create feature branch and commit
-        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
-        let featureSHA = try fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
+        let featureSHA = try await fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
 
         // Switch to main and add unrelated commits
-        _ = fixture.run(["checkout", "main"])
-        let newMainSHA = try fixture.commit(filename: "other.txt", content: "other", message: "main commit")
+        _ = await fixture.run(["checkout", "main"])
+        let newMainSHA = try await fixture.commit(filename: "other.txt", content: "other", message: "main commit")
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = AncestryTester()
@@ -110,18 +110,18 @@ struct AncestryTests {
     @Test("Single repo: Mainline moved ahead after merging branch")
     func singleRepoMainlineMovedAheadAfterMerging() async throws {
         let fixture = GitFixture(name: "ancestry-merged-then-moved-5")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        _ = try fixture.commit(filename: "init.txt", content: "initial", message: "initial commit")
+        _ = try await fixture.commit(filename: "init.txt", content: "initial", message: "initial commit")
 
         // Create feature branch and commit
-        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
-        _ = try fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
+        _ = try await fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
 
         // Switch to main, merge, then add another commit
-        _ = fixture.run(["checkout", "main"])
-        _ = fixture.run(["merge", "--no-ff", "-m", "merge", "yh-project-feature"])
-        let latestMainSHA = try fixture.commit(filename: "latest.txt", content: "latest", message: "latest main")
+        _ = await fixture.run(["checkout", "main"])
+        _ = await fixture.run(["merge", "--no-ff", "-m", "merge", "yh-project-feature"])
+        let latestMainSHA = try await fixture.commit(filename: "latest.txt", content: "latest", message: "latest main")
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = AncestryTester()
@@ -134,12 +134,12 @@ struct AncestryTests {
     @Test("Single repo: Branch pointing to same commit as mainline is an ancestor")
     func singleRepoBranchSameAsMainline() async throws {
         let fixture = GitFixture(name: "ancestry-same-6")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        let initialSHA = try fixture.commit(filename: "init.txt", content: "initial", message: "initial commit")
+        let initialSHA = try await fixture.commit(filename: "init.txt", content: "initial", message: "initial commit")
 
         // Create branch without extra commits
-        _ = fixture.run(["branch", "yh-project-feature", "main"])
+        _ = await fixture.run(["branch", "yh-project-feature", "main"])
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = AncestryTester()
@@ -153,8 +153,8 @@ struct AncestryTests {
     @Test("Single repo: Non-existent branch returns isAncestor = false")
     func singleRepoNonExistentBranch() async throws {
         let fixture = GitFixture(name: "ancestry-nonexistent-7")
-        fixture.initRepo(defaultBranch: "main")
-        _ = try fixture.commit(message: "initial commit")
+        await fixture.initRepo(defaultBranch: "main")
+        _ = try await fixture.commit(message: "initial commit")
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = AncestryTester()
@@ -178,15 +178,15 @@ struct AncestryTests {
     @Test("Single repo: Explicit ResolvedMainline is used directly")
     func singleRepoExplicitResolvedMainline() async throws {
         let fixture = GitFixture(name: "ancestry-explicit-8")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        let initialSHA = try fixture.commit(message: "initial commit")
-        _ = fixture.run(["checkout", "-b", "yh-test-branch"])
-        let branchSHA = try fixture.commit(filename: "feat.txt", content: "data", message: "feature commit")
+        let initialSHA = try await fixture.commit(message: "initial commit")
+        _ = await fixture.run(["checkout", "-b", "yh-test-branch"])
+        let branchSHA = try await fixture.commit(filename: "feat.txt", content: "data", message: "feature commit")
 
-        _ = fixture.run(["checkout", "main"])
-        _ = fixture.run(["merge", "--ff-only", "yh-test-branch"])
-        let parsed = fixture.revParse("main")
+        _ = await fixture.run(["checkout", "main"])
+        _ = await fixture.run(["merge", "--ff-only", "yh-test-branch"])
+        let parsed = await fixture.revParse("main")
         let mergedMainSHA = try #require(parsed)
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
@@ -228,28 +228,28 @@ struct AncestryTests {
     @Test("Multi-repo: All N repositories merged yields k = N and isAllMerged = true")
     func multiRepoAllMerged() async throws {
         let backend = GitFixture(name: "multi-backend-1")
-        backend.initRepo(defaultBranch: "main")
-        _ = try backend.commit(message: "init backend")
-        _ = backend.run(["checkout", "-b", "yh-proj-auth"])
-        _ = try backend.commit(filename: "api.swift", content: "auth", message: "add auth API")
-        _ = backend.run(["checkout", "main"])
-        _ = backend.run(["merge", "--no-ff", "-m", "merge auth", "yh-proj-auth"])
+        await backend.initRepo(defaultBranch: "main")
+        _ = try await backend.commit(message: "init backend")
+        _ = await backend.run(["checkout", "-b", "yh-proj-auth"])
+        _ = try await backend.commit(filename: "api.swift", content: "auth", message: "add auth API")
+        _ = await backend.run(["checkout", "main"])
+        _ = await backend.run(["merge", "--no-ff", "-m", "merge auth", "yh-proj-auth"])
 
         let web = GitFixture(name: "multi-web-1")
-        web.initRepo(defaultBranch: "main")
-        _ = try web.commit(message: "init web")
-        _ = web.run(["checkout", "-b", "yh-proj-auth"])
-        _ = try web.commit(filename: "view.swift", content: "ui", message: "add auth UI")
-        _ = web.run(["checkout", "main"])
-        _ = web.run(["merge", "--no-ff", "-m", "merge auth", "yh-proj-auth"])
+        await web.initRepo(defaultBranch: "main")
+        _ = try await web.commit(message: "init web")
+        _ = await web.run(["checkout", "-b", "yh-proj-auth"])
+        _ = try await web.commit(filename: "view.swift", content: "ui", message: "add auth UI")
+        _ = await web.run(["checkout", "main"])
+        _ = await web.run(["merge", "--no-ff", "-m", "merge auth", "yh-proj-auth"])
 
         let mobile = GitFixture(name: "multi-mobile-1")
-        mobile.initRepo(defaultBranch: "main")
-        _ = try mobile.commit(message: "init mobile")
-        _ = mobile.run(["checkout", "-b", "yh-proj-auth"])
-        _ = try mobile.commit(filename: "app.swift", content: "cmd", message: "add auth mobile")
-        _ = mobile.run(["checkout", "main"])
-        _ = mobile.run(["merge", "--no-ff", "-m", "merge auth", "yh-proj-auth"])
+        await mobile.initRepo(defaultBranch: "main")
+        _ = try await mobile.commit(message: "init mobile")
+        _ = await mobile.run(["checkout", "-b", "yh-proj-auth"])
+        _ = try await mobile.commit(filename: "app.swift", content: "cmd", message: "add auth mobile")
+        _ = await mobile.run(["checkout", "main"])
+        _ = await mobile.run(["merge", "--no-ff", "-m", "merge auth", "yh-proj-auth"])
 
         let repos = [
             Repo(name: "backend", path: backend.path, role: .backend),
@@ -279,27 +279,27 @@ struct AncestryTests {
     @Test("Multi-repo: Partial Landing where 1 of 3 repositories is merged")
     func multiRepoPartialLanding() async throws {
         let backend = GitFixture(name: "multi-backend-2")
-        backend.initRepo(defaultBranch: "main")
-        _ = try backend.commit(message: "init backend")
-        _ = backend.run(["checkout", "-b", "yh-proj-partial"])
-        _ = try backend.commit(filename: "api.swift", content: "partial", message: "partial API")
-        _ = backend.run(["checkout", "main"])
-        _ = backend.run(["merge", "--no-ff", "-m", "merge partial", "yh-proj-partial"])
+        await backend.initRepo(defaultBranch: "main")
+        _ = try await backend.commit(message: "init backend")
+        _ = await backend.run(["checkout", "-b", "yh-proj-partial"])
+        _ = try await backend.commit(filename: "api.swift", content: "partial", message: "partial API")
+        _ = await backend.run(["checkout", "main"])
+        _ = await backend.run(["merge", "--no-ff", "-m", "merge partial", "yh-proj-partial"])
 
         let web = GitFixture(name: "multi-web-2")
-        web.initRepo(defaultBranch: "main")
-        _ = try web.commit(message: "init web")
-        _ = web.run(["checkout", "-b", "yh-proj-partial"])
-        _ = try web.commit(filename: "view.swift", content: "view", message: "unmerged view")
-        _ = web.run(["checkout", "main"])
+        await web.initRepo(defaultBranch: "main")
+        _ = try await web.commit(message: "init web")
+        _ = await web.run(["checkout", "-b", "yh-proj-partial"])
+        _ = try await web.commit(filename: "view.swift", content: "view", message: "unmerged view")
+        _ = await web.run(["checkout", "main"])
         // Not merged
 
         let mobile = GitFixture(name: "multi-mobile-2")
-        mobile.initRepo(defaultBranch: "main")
-        _ = try mobile.commit(message: "init mobile")
-        _ = mobile.run(["checkout", "-b", "yh-proj-partial"])
-        _ = try mobile.commit(filename: "app.swift", content: "mobile", message: "unmerged mobile")
-        _ = mobile.run(["checkout", "main"])
+        await mobile.initRepo(defaultBranch: "main")
+        _ = try await mobile.commit(message: "init mobile")
+        _ = await mobile.run(["checkout", "-b", "yh-proj-partial"])
+        _ = try await mobile.commit(filename: "app.swift", content: "mobile", message: "unmerged mobile")
+        _ = await mobile.run(["checkout", "main"])
         // Not merged
 
         let repos = [
@@ -329,18 +329,18 @@ struct AncestryTests {
     @Test("Multi-repo: None merged yields 0 of N merged")
     func multiRepoNoneMerged() async throws {
         let backend = GitFixture(name: "multi-backend-3")
-        backend.initRepo(defaultBranch: "main")
-        _ = try backend.commit(filename: "init.txt", content: "init", message: "init backend")
-        _ = backend.run(["checkout", "-b", "yh-proj-zero"])
-        _ = try backend.commit(filename: "feat.txt", content: "feat", message: "feat")
-        _ = backend.run(["checkout", "main"])
+        await backend.initRepo(defaultBranch: "main")
+        _ = try await backend.commit(filename: "init.txt", content: "init", message: "init backend")
+        _ = await backend.run(["checkout", "-b", "yh-proj-zero"])
+        _ = try await backend.commit(filename: "feat.txt", content: "feat", message: "feat")
+        _ = await backend.run(["checkout", "main"])
 
         let web = GitFixture(name: "multi-web-3")
-        web.initRepo(defaultBranch: "main")
-        _ = try web.commit(filename: "init.txt", content: "init", message: "init web")
-        _ = web.run(["checkout", "-b", "yh-proj-zero"])
-        _ = try web.commit(filename: "feat.txt", content: "feat", message: "feat")
-        _ = web.run(["checkout", "main"])
+        await web.initRepo(defaultBranch: "main")
+        _ = try await web.commit(filename: "init.txt", content: "init", message: "init web")
+        _ = await web.run(["checkout", "-b", "yh-proj-zero"])
+        _ = try await web.commit(filename: "feat.txt", content: "feat", message: "feat")
+        _ = await web.run(["checkout", "main"])
 
         let repos = [
             Repo(name: "backend", path: backend.path, role: .backend),

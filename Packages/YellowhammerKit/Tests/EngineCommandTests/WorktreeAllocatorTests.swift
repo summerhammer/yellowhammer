@@ -125,16 +125,16 @@ private func claimLease(_ journal: JournalStore, runID: RunID, now: Date = epoch
 
 /// Initializes a git repository at `directory` with one commit, returning the commit's SHA.
 @discardableResult
-private func initGitRepo(at directory: URL, git: GitRunner) throws -> String {
+private func initGitRepo(at directory: URL, git: GitRunner) async throws -> String {
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    _ = git.runSync(["init", "--initial-branch=main"], workingDirectory: directory.path)
-    _ = git.runSync(["config", "user.name", "Test"], workingDirectory: directory.path)
-    _ = git.runSync(["config", "user.email", "test@example.com"], workingDirectory: directory.path)
-    _ = git.runSync(["config", "commit.gpgsign", "false"], workingDirectory: directory.path)
+    _ = await git.run(["init", "--initial-branch=main"], workingDirectory: directory.path)
+    _ = await git.run(["config", "user.name", "Test"], workingDirectory: directory.path)
+    _ = await git.run(["config", "user.email", "test@example.com"], workingDirectory: directory.path)
+    _ = await git.run(["config", "commit.gpgsign", "false"], workingDirectory: directory.path)
     try "content".write(to: directory.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
-    _ = git.runSync(["add", "."], workingDirectory: directory.path)
-    _ = git.runSync(["commit", "-m", "initial"], workingDirectory: directory.path)
-    return git.runSync(["rev-parse", "HEAD"], workingDirectory: directory.path)
+    _ = await git.run(["add", "."], workingDirectory: directory.path)
+    _ = await git.run(["commit", "-m", "initial"], workingDirectory: directory.path)
+    return await git.run(["rev-parse", "HEAD"], workingDirectory: directory.path)
         .stdout.trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
@@ -242,15 +242,15 @@ struct WorktreeAllocatorTests {
             .appending(component: "yh-allocator-repo-\(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: repoDirectory) }
         let git = GitRunner()
-        try initGitRepo(at: repoDirectory, git: git)
+        try await initGitRepo(at: repoDirectory, git: git)
 
         let stray = FileManager.default.temporaryDirectory
             .appending(component: "yh-allocator-stray-\(UUID().uuidString)", directoryHint: .isDirectory)
-        _ = git.runSync(
+        _ = await git.run(
             ["worktree", "add", "-b", "stray-branch", stray.path], workingDirectory: repoDirectory.path
         )
         try FileManager.default.removeItem(at: stray)
-        let beforePrune = git.runSync(["worktree", "list", "--porcelain"], workingDirectory: repoDirectory.path)
+        let beforePrune = await git.run(["worktree", "list", "--porcelain"], workingDirectory: repoDirectory.path)
         #expect(beforePrune.stdout.contains(stray.path))
 
         let workspaceDirectory = FileManager.default.temporaryDirectory
@@ -262,7 +262,7 @@ struct WorktreeAllocatorTests {
         let repo = Repo(name: "backend", path: repoDirectory.path, role: .backend)
         _ = try await allocator.allocate(featureID: featureID, branch: Self.branch, repos: [repo])
 
-        let afterPrune = git.runSync(["worktree", "list", "--porcelain"], workingDirectory: repoDirectory.path)
+        let afterPrune = await git.run(["worktree", "list", "--porcelain"], workingDirectory: repoDirectory.path)
         #expect(!afterPrune.stdout.contains(stray.path))
     }
 

@@ -200,7 +200,7 @@ struct ExpiredLeaseSweepRealKillTests {
         let journal = try fixture.open()
         let git = GitRunner()
         let worktree = fixture.directory.appending(component: "worktree", directoryHint: .isDirectory)
-        try initReconcilerGitRepo(at: worktree, git: git)
+        try await initReconcilerGitRepo(at: worktree, git: git)
 
         let featureID = try insertReconcilerFeature(journal, issueID: "KILL-FEAT")
         try journal.recordFeatureBranch(featureID: featureID, branch: buildActBranch)

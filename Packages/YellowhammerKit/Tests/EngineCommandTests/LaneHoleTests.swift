@@ -47,7 +47,7 @@ struct LaneHoleTests {
         let journal = try fixture.open()
         let git = GitRunner()
         let worktrees = fixture.directory.appending(component: "worktrees", directoryHint: .isDirectory)
-        try initReconcilerGitRepo(at: worktrees.appending(component: "backend"), git: git)
+        try await initReconcilerGitRepo(at: worktrees.appending(component: "backend"), git: git)
         let world = try await makeCardRunWorld(
             journal: journal, cards: [("BACK-1", "backend"), ("BACK-2", "backend"), ("BACK-3", "backend")],
             worktreePath: { worktrees.appending(component: $0).path(percentEncoded: false) }

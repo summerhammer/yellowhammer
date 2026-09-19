@@ -11,12 +11,12 @@ struct MergeTests {
     @Test("Single repo: Mainline has not moved, branch merges cleanly on top")
     func mainlineNotMoved() async throws {
         let fixture = GitFixture(name: "merge-not-moved-1")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        let mainSHA = try fixture.commit(filename: "init.txt", content: "initial", message: "initial commit")
-        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
-        let featureSHA = try fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
-        _ = fixture.run(["checkout", "main"])
+        let mainSHA = try await fixture.commit(filename: "init.txt", content: "initial", message: "initial commit")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
+        let featureSHA = try await fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
+        _ = await fixture.run(["checkout", "main"])
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = MergeTester()
@@ -32,13 +32,15 @@ struct MergeTests {
     @Test("Single repo: Mainline moved compatibly is clean, but clean says nothing about the build")
     func mainlineMovedCompatibly() async throws {
         let fixture = GitFixture(name: "merge-moved-compat-2")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        _ = try fixture.commit(filename: "init.txt", content: "initial", message: "initial commit")
-        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
-        let featureSHA = try fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
-        _ = fixture.run(["checkout", "main"])
-        let mainSHA = try fixture.commit(filename: "other.txt", content: "other", message: "unrelated main commit")
+        _ = try await fixture.commit(filename: "init.txt", content: "initial", message: "initial commit")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
+        let featureSHA = try await fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
+        _ = await fixture.run(["checkout", "main"])
+        let mainSHA = try await fixture.commit(
+            filename: "other.txt", content: "other", message: "unrelated main commit"
+        )
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = MergeTester()
@@ -52,13 +54,13 @@ struct MergeTests {
     @Test("Single repo: Mainline and branch edit the same file differently is a Mainline Conflict")
     func sameFileEditedDifferently() async throws {
         let fixture = GitFixture(name: "merge-conflict-3")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        _ = try fixture.commit(filename: "f.txt", content: "base", message: "initial commit")
-        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
-        _ = try fixture.commit(filename: "f.txt", content: "feature-version", message: "feature edits f.txt")
-        _ = fixture.run(["checkout", "main"])
-        _ = try fixture.commit(filename: "f.txt", content: "main-version", message: "main edits f.txt")
+        _ = try await fixture.commit(filename: "f.txt", content: "base", message: "initial commit")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
+        _ = try await fixture.commit(filename: "f.txt", content: "feature-version", message: "feature edits f.txt")
+        _ = await fixture.run(["checkout", "main"])
+        _ = try await fixture.commit(filename: "f.txt", content: "main-version", message: "main edits f.txt")
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = MergeTester()
@@ -72,20 +74,20 @@ struct MergeTests {
     @Test("Single repo: Multiple conflicting files report exactly the conflicting paths, sorted")
     func multipleConflictingFiles() async throws {
         let fixture = GitFixture(name: "merge-multi-conflict-4")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        _ = try fixture.commit(filename: "b.txt", content: "base-b", message: "initial b")
-        _ = try fixture.commit(filename: "a.txt", content: "base-a", message: "initial a")
-        _ = try fixture.commit(filename: "quiet.txt", content: "base-quiet", message: "initial quiet")
+        _ = try await fixture.commit(filename: "b.txt", content: "base-b", message: "initial b")
+        _ = try await fixture.commit(filename: "a.txt", content: "base-a", message: "initial a")
+        _ = try await fixture.commit(filename: "quiet.txt", content: "base-quiet", message: "initial quiet")
 
-        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
-        _ = try fixture.commit(filename: "a.txt", content: "feature-a", message: "feature edits a")
-        _ = try fixture.commit(filename: "b.txt", content: "feature-b", message: "feature edits b")
-        _ = try fixture.commit(filename: "quiet.txt", content: "feature-quiet", message: "feature edits quiet")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
+        _ = try await fixture.commit(filename: "a.txt", content: "feature-a", message: "feature edits a")
+        _ = try await fixture.commit(filename: "b.txt", content: "feature-b", message: "feature edits b")
+        _ = try await fixture.commit(filename: "quiet.txt", content: "feature-quiet", message: "feature edits quiet")
 
-        _ = fixture.run(["checkout", "main"])
-        _ = try fixture.commit(filename: "a.txt", content: "main-a", message: "main edits a")
-        _ = try fixture.commit(filename: "b.txt", content: "main-b", message: "main edits b")
+        _ = await fixture.run(["checkout", "main"])
+        _ = try await fixture.commit(filename: "a.txt", content: "main-a", message: "main edits a")
+        _ = try await fixture.commit(filename: "b.txt", content: "main-b", message: "main edits b")
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = MergeTester()
@@ -98,13 +100,13 @@ struct MergeTests {
     @Test("Single repo: Branch already an ancestor of mainline is clean")
     func branchAlreadyMerged() async throws {
         let fixture = GitFixture(name: "merge-already-merged-5")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        _ = try fixture.commit(filename: "init.txt", content: "initial", message: "initial commit")
-        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
-        _ = try fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
-        _ = fixture.run(["checkout", "main"])
-        _ = fixture.run(["merge", "--no-ff", "-m", "merge feature", "yh-project-feature"])
+        _ = try await fixture.commit(filename: "init.txt", content: "initial", message: "initial commit")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
+        _ = try await fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
+        _ = await fixture.run(["checkout", "main"])
+        _ = await fixture.run(["merge", "--no-ff", "-m", "merge feature", "yh-project-feature"])
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = MergeTester()
@@ -116,8 +118,8 @@ struct MergeTests {
     @Test("Single repo: Non-existent branch is untestable")
     func nonExistentBranch() async throws {
         let fixture = GitFixture(name: "merge-nonexistent-branch-6")
-        fixture.initRepo(defaultBranch: "main")
-        _ = try fixture.commit(message: "initial commit")
+        await fixture.initRepo(defaultBranch: "main")
+        _ = try await fixture.commit(message: "initial commit")
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = MergeTester()
@@ -145,14 +147,16 @@ struct MergeTests {
     @Test("Single repo: Explicit ResolvedMainline pinned to an older commit is honoured")
     func explicitResolvedMainline() async throws {
         let fixture = GitFixture(name: "merge-explicit-mainline-7")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        let oldMainSHA = try fixture.commit(filename: "f.txt", content: "base", message: "initial commit")
-        _ = fixture.run(["checkout", "-b", "yh-test-branch"])
-        let branchSHA = try fixture.commit(filename: "f.txt", content: "branch-version", message: "branch edits f.txt")
+        let oldMainSHA = try await fixture.commit(filename: "f.txt", content: "base", message: "initial commit")
+        _ = await fixture.run(["checkout", "-b", "yh-test-branch"])
+        let branchSHA = try await fixture.commit(
+            filename: "f.txt", content: "branch-version", message: "branch edits f.txt"
+        )
 
-        _ = fixture.run(["checkout", "main"])
-        _ = try fixture.commit(filename: "f.txt", content: "main-version", message: "main edits f.txt")
+        _ = await fixture.run(["checkout", "main"])
+        _ = try await fixture.commit(filename: "f.txt", content: "main-version", message: "main edits f.txt")
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let resolvedMainline = ResolvedMainline(
@@ -182,17 +186,17 @@ struct MergeTests {
     @Test("Invariant: a conflicting merge test leaves the working tree, index, and refs untouched")
     func mergeTestDoesNotMutateRepository() async throws {
         let fixture = GitFixture(name: "merge-invariant-8")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        _ = try fixture.commit(filename: "f.txt", content: "base", message: "initial commit")
-        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
-        _ = try fixture.commit(filename: "f.txt", content: "feature-version", message: "feature edits f.txt")
-        _ = fixture.run(["checkout", "main"])
-        _ = try fixture.commit(filename: "f.txt", content: "main-version", message: "main edits f.txt")
+        _ = try await fixture.commit(filename: "f.txt", content: "base", message: "initial commit")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
+        _ = try await fixture.commit(filename: "f.txt", content: "feature-version", message: "feature edits f.txt")
+        _ = await fixture.run(["checkout", "main"])
+        _ = try await fixture.commit(filename: "f.txt", content: "main-version", message: "main edits f.txt")
 
-        let statusBefore = fixture.run(["status", "--porcelain"]).stdout
-        let refsBefore = fixture.run(["for-each-ref"]).stdout
-        let headBefore = fixture.revParse("HEAD")
+        let statusBefore = await fixture.run(["status", "--porcelain"]).stdout
+        let refsBefore = await fixture.run(["for-each-ref"]).stdout
+        let headBefore = await fixture.revParse("HEAD")
         let contentsBefore = try String(contentsOf: fixture.url.appending(component: "f.txt"), encoding: .utf8)
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
@@ -200,9 +204,9 @@ struct MergeTests {
         let result = await tester.testMerge(branch: "yh-project-feature", in: repo)
         #expect(result.isMainlineConflict == true)
 
-        let statusAfter = fixture.run(["status", "--porcelain"]).stdout
-        let refsAfter = fixture.run(["for-each-ref"]).stdout
-        let headAfter = fixture.revParse("HEAD")
+        let statusAfter = await fixture.run(["status", "--porcelain"]).stdout
+        let refsAfter = await fixture.run(["for-each-ref"]).stdout
+        let headAfter = await fixture.revParse("HEAD")
         let contentsAfter = try String(contentsOf: fixture.url.appending(component: "f.txt"), encoding: .utf8)
 
         #expect(statusBefore == statusAfter)
@@ -216,19 +220,19 @@ struct MergeTests {
     @Test("Multi-repo: One clean and one conflicting repository is a Mainline Conflict")
     func multiRepoOneCleanOneConflicting() async throws {
         let clean = GitFixture(name: "merge-multi-clean-9")
-        clean.initRepo(defaultBranch: "main")
-        _ = try clean.commit(filename: "init.txt", content: "initial", message: "init clean")
-        _ = clean.run(["checkout", "-b", "yh-proj-feature"])
-        _ = try clean.commit(filename: "feat.txt", content: "feature", message: "feature commit")
-        _ = clean.run(["checkout", "main"])
+        await clean.initRepo(defaultBranch: "main")
+        _ = try await clean.commit(filename: "init.txt", content: "initial", message: "init clean")
+        _ = await clean.run(["checkout", "-b", "yh-proj-feature"])
+        _ = try await clean.commit(filename: "feat.txt", content: "feature", message: "feature commit")
+        _ = await clean.run(["checkout", "main"])
 
         let conflicting = GitFixture(name: "merge-multi-conflicting-9")
-        conflicting.initRepo(defaultBranch: "main")
-        _ = try conflicting.commit(filename: "f.txt", content: "base", message: "init conflicting")
-        _ = conflicting.run(["checkout", "-b", "yh-proj-feature"])
-        _ = try conflicting.commit(filename: "f.txt", content: "feature-version", message: "feature edits f.txt")
-        _ = conflicting.run(["checkout", "main"])
-        _ = try conflicting.commit(filename: "f.txt", content: "main-version", message: "main edits f.txt")
+        await conflicting.initRepo(defaultBranch: "main")
+        _ = try await conflicting.commit(filename: "f.txt", content: "base", message: "init conflicting")
+        _ = await conflicting.run(["checkout", "-b", "yh-proj-feature"])
+        _ = try await conflicting.commit(filename: "f.txt", content: "feature-version", message: "feature edits f.txt")
+        _ = await conflicting.run(["checkout", "main"])
+        _ = try await conflicting.commit(filename: "f.txt", content: "main-version", message: "main edits f.txt")
 
         let repos = [
             Repo(name: "clean-repo", path: clean.path, role: .backend),

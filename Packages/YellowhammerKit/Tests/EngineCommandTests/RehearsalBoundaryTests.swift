@@ -90,7 +90,7 @@ struct RehearsalBoundaryWorktreeTests {
         let git = GitRunner()
         let tempDir = try makeReconcilerTempDir(name: "rehearsal-dirty")
         defer { try? FileManager.default.removeItem(at: tempDir) }
-        let (worktree, baseCommit) = try makeReconcilerRepoAndWorktree(
+        let (worktree, baseCommit) = try await makeReconcilerRepoAndWorktree(
             named: "backend", branch: reconcilerBranch.name, in: tempDir, git: git
         )
         try "modified".write(to: worktree.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
@@ -115,8 +115,8 @@ struct RehearsalBoundaryWorktreeTests {
 
         try await invocation.run()
 
-        #expect(reconcilerRevParse("HEAD", in: worktree, git: git) == baseCommit)
-        let status = reconcilerPorcelainStatus(in: worktree, git: git)
+        await #expect(reconcilerRevParse("HEAD", in: worktree, git: git) == baseCommit)
+        let status = await reconcilerPorcelainStatus(in: worktree, git: git)
         #expect(status.contains("file.txt"))
         #expect(try journal.events(ofType: .worktreeReconciliationFailed).count == 1)
         #expect(try journal.events(ofType: .worktreeWIPCommitted).isEmpty)
@@ -140,7 +140,7 @@ struct RehearsalBoundaryWorktreeTests {
         let git = GitRunner()
         let tempDir = try makeReconcilerTempDir(name: "real-dirty")
         defer { try? FileManager.default.removeItem(at: tempDir) }
-        let (worktree, baseCommit) = try makeReconcilerRepoAndWorktree(
+        let (worktree, baseCommit) = try await makeReconcilerRepoAndWorktree(
             named: "backend", branch: reconcilerBranch.name, in: tempDir, git: git
         )
         try "modified".write(to: worktree.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
@@ -165,8 +165,8 @@ struct RehearsalBoundaryWorktreeTests {
 
         try await invocation.run()
 
-        #expect(reconcilerRevParse("HEAD", in: worktree, git: git) == baseCommit)
-        #expect(reconcilerPorcelainStatus(in: worktree, git: git).isEmpty)
+        await #expect(reconcilerRevParse("HEAD", in: worktree, git: git) == baseCommit)
+        await #expect(reconcilerPorcelainStatus(in: worktree, git: git).isEmpty)
         #expect(try journal.events(ofType: .worktreeWIPCommitted).count == 1)
         #expect(try journal.events(ofType: .worktreeReconciliationFailed).isEmpty)
     }

@@ -12,32 +12,32 @@ struct MainlineRefreshTests {
     func fetchSuccessUpdatesRemoteTrackingRef() async throws {
         // Create bare remote repository
         let remote = GitFixture(name: "remote-1")
-        remote.initRepo(bare: true, defaultBranch: "main")
+        await remote.initRepo(bare: true, defaultBranch: "main")
 
         // Create local working repository cloned/connected to remote
         let local = GitFixture(name: "local-1")
-        local.initRepo(defaultBranch: "main")
-        local.addRemote(name: "origin", url: remote.path)
+        await local.initRepo(defaultBranch: "main")
+        await local.addRemote(name: "origin", url: remote.path)
 
         // Seed initial commit and push to remote
-        let initialSHA = try local.commit(message: "initial commit")
-        _ = local.run(["push", "-u", "origin", "main"])
-        local.setRemoteHead(remote: "origin", branch: "main")
+        let initialSHA = try await local.commit(message: "initial commit")
+        _ = await local.run(["push", "-u", "origin", "main"])
+        await local.setRemoteHead(remote: "origin", branch: "main")
 
         // Verify initial remote-tracking ref
-        #expect(local.revParse("refs/remotes/origin/main") == initialSHA)
+        await #expect(local.revParse("refs/remotes/origin/main") == initialSHA)
 
         // Now, another checkout pushes a new commit to the bare remote
         let pusher = GitFixture(name: "pusher-1")
-        pusher.initRepo(defaultBranch: "main")
-        pusher.addRemote(name: "origin", url: remote.path)
-        _ = pusher.run(["fetch", "origin", "main"])
-        _ = pusher.run(["checkout", "main"])
-        let newSHA = try pusher.commit(filename: "newfile.txt", content: "hello", message: "second commit")
-        _ = pusher.run(["push", "origin", "main"])
+        await pusher.initRepo(defaultBranch: "main")
+        await pusher.addRemote(name: "origin", url: remote.path)
+        _ = await pusher.run(["fetch", "origin", "main"])
+        _ = await pusher.run(["checkout", "main"])
+        let newSHA = try await pusher.commit(filename: "newfile.txt", content: "hello", message: "second commit")
+        _ = await pusher.run(["push", "origin", "main"])
 
         // Remote has newSHA, but local's remote-tracking ref still has initialSHA
-        #expect(local.revParse("refs/remotes/origin/main") == initialSHA)
+        await #expect(local.revParse("refs/remotes/origin/main") == initialSHA)
 
         // Refresh mainline
         let repo = Repo(name: "app", path: local.path, role: .backend)
@@ -54,9 +54,9 @@ struct MainlineRefreshTests {
         #expect(resolved.defaultBranch == "main")
         #expect(resolved.repository == "app")
         // 3. Remote-tracking ref is updated to new commit
-        #expect(local.revParse("refs/remotes/origin/main") == newSHA)
+        await #expect(local.revParse("refs/remotes/origin/main") == newSHA)
         // 4. Working tree and local branch were NOT updated (non-destructive)
-        #expect(local.revParse("refs/heads/main") == initialSHA)
+        await #expect(local.revParse("refs/heads/main") == initialSHA)
     }
 
     // MARK: - Test 2: Fetch failure fallback
@@ -65,17 +65,17 @@ struct MainlineRefreshTests {
     func fetchFailureFallsBackToCachedRef() async throws {
         // Create bare remote repository and populate it
         let remote = GitFixture(name: "remote-2")
-        remote.initRepo(bare: true, defaultBranch: "main")
+        await remote.initRepo(bare: true, defaultBranch: "main")
 
         let local = GitFixture(name: "local-2")
-        local.initRepo(defaultBranch: "main")
-        local.addRemote(name: "origin", url: remote.path)
+        await local.initRepo(defaultBranch: "main")
+        await local.addRemote(name: "origin", url: remote.path)
 
-        let initialSHA = try local.commit(message: "initial commit")
-        _ = local.run(["push", "-u", "origin", "main"])
-        local.setRemoteHead(remote: "origin", branch: "main")
+        let initialSHA = try await local.commit(message: "initial commit")
+        _ = await local.run(["push", "-u", "origin", "main"])
+        await local.setRemoteHead(remote: "origin", branch: "main")
 
-        #expect(local.revParse("refs/remotes/origin/main") == initialSHA)
+        await #expect(local.revParse("refs/remotes/origin/main") == initialSHA)
 
         // Make remote unreachable by deleting the remote directory
         try FileManager.default.removeItem(at: remote.url)
@@ -103,25 +103,25 @@ struct MainlineRefreshTests {
     func specSourceNeverFetched() async throws {
         // Create remote for spec
         let specRemote = GitFixture(name: "spec-remote-3")
-        specRemote.initRepo(bare: true, defaultBranch: "main")
+        await specRemote.initRepo(bare: true, defaultBranch: "main")
 
         // Create local spec checkout
         let localSpec = GitFixture(name: "local-spec-3")
-        localSpec.initRepo(defaultBranch: "main")
-        localSpec.addRemote(name: "origin", url: specRemote.path)
+        await localSpec.initRepo(defaultBranch: "main")
+        await localSpec.addRemote(name: "origin", url: specRemote.path)
 
-        let initialSHA = try localSpec.commit(message: "spec v1")
-        _ = localSpec.run(["push", "-u", "origin", "main"])
-        localSpec.setRemoteHead(remote: "origin", branch: "main")
+        let initialSHA = try await localSpec.commit(message: "spec v1")
+        _ = await localSpec.run(["push", "-u", "origin", "main"])
+        await localSpec.setRemoteHead(remote: "origin", branch: "main")
 
         // Another contributor pushes spec v2 to the remote
         let other = GitFixture(name: "spec-author-3")
-        other.initRepo(defaultBranch: "main")
-        other.addRemote(name: "origin", url: specRemote.path)
-        _ = other.run(["fetch", "origin", "main"])
-        _ = other.run(["checkout", "main"])
-        let newSHA = try other.commit(filename: "spec.md", content: "# Spec v2", message: "spec v2")
-        _ = other.run(["push", "origin", "main"])
+        await other.initRepo(defaultBranch: "main")
+        await other.addRemote(name: "origin", url: specRemote.path)
+        _ = await other.run(["fetch", "origin", "main"])
+        _ = await other.run(["checkout", "main"])
+        let newSHA = try await other.commit(filename: "spec.md", content: "# Spec v2", message: "spec v2")
+        _ = await other.run(["push", "origin", "main"])
 
         // Resolve Spec Source mainline
         let specSource = SpecSource(path: localSpec.path)
@@ -135,7 +135,7 @@ struct MainlineRefreshTests {
         #expect(mainline.ref == "refs/heads/main")
         #expect(mainline.defaultBranch == "main")
         // 2. Remote tracking ref in localSpec was NEVER fetched
-        #expect(localSpec.revParse("refs/remotes/origin/main") == initialSHA)
-        #expect(localSpec.revParse("refs/remotes/origin/main") != newSHA)
+        await #expect(localSpec.revParse("refs/remotes/origin/main") == initialSHA)
+        await #expect(localSpec.revParse("refs/remotes/origin/main") != newSHA)
     }
 }

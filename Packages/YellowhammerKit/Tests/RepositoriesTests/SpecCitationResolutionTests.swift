@@ -6,14 +6,14 @@ import Testing
 @Suite("SpecCitationResolution tests")
 struct SpecCitationResolutionTests {
 
-    private func populateSpecFixture(_ fixture: borrowing GitFixture) throws -> String {
+    private func populateSpecFixture(_ fixture: borrowing GitFixture) async throws -> String {
         let storyContent = """
         # Author an Architectural Brief
 
         ## Story: Brief authoring
         As Yellowhammer I want an architectural brief...
         """
-        _ = try fixture.commit(
+        _ = try await fixture.commit(
             filename: "docs/requirements/epics/feature-authoring/stories/author-an-architectural-brief.md",
             content: storyContent,
             message: "add story"
@@ -31,7 +31,7 @@ struct SpecCitationResolutionTests {
         ## G5: Five Is Alive {#g5-five}
         Target: Maintain high quality...
         """
-        return try fixture.commit(
+        return try await fixture.commit(
             filename: "docs/requirements/vision/goals.md",
             content: goalsContent,
             message: "add goals"
@@ -41,8 +41,8 @@ struct SpecCitationResolutionTests {
     @Test("Resolves valid story ID `<epic>/<story>`")
     func validStoryIDResolution() async throws {
         let fixture = GitFixture(name: "spec-story-valid")
-        fixture.initRepo(defaultBranch: "main")
-        let sha = try populateSpecFixture(fixture)
+        await fixture.initRepo(defaultBranch: "main")
+        let sha = try await populateSpecFixture(fixture)
 
         let specSource = SpecSource(path: fixture.path)
         let repos = ProjectRepositories(workingRepos: [], specSource: specSource)
@@ -72,8 +72,8 @@ struct SpecCitationResolutionTests {
     @Test("Rejects missing story ID with clear reason")
     func missingStoryIDRejection() async throws {
         let fixture = GitFixture(name: "spec-story-missing")
-        fixture.initRepo(defaultBranch: "main")
-        let sha = try populateSpecFixture(fixture)
+        await fixture.initRepo(defaultBranch: "main")
+        let sha = try await populateSpecFixture(fixture)
 
         let specSource = SpecSource(path: fixture.path)
         let repos = ProjectRepositories(workingRepos: [], specSource: specSource)
@@ -100,8 +100,8 @@ struct SpecCitationResolutionTests {
     @Test("Resolves valid goal IDs (G1, G5, anchors, and slugs)")
     func validGoalIDResolution() async throws {
         let fixture = GitFixture(name: "spec-goals-valid")
-        fixture.initRepo(defaultBranch: "main")
-        let sha = try populateSpecFixture(fixture)
+        await fixture.initRepo(defaultBranch: "main")
+        let sha = try await populateSpecFixture(fixture)
 
         let specSource = SpecSource(path: fixture.path)
         let repos = ProjectRepositories(workingRepos: [], specSource: specSource)
@@ -147,8 +147,8 @@ struct SpecCitationResolutionTests {
     @Test("Rejects missing goal ID with clear reason")
     func missingGoalIDRejection() async throws {
         let fixture = GitFixture(name: "spec-goals-missing")
-        fixture.initRepo(defaultBranch: "main")
-        _ = try populateSpecFixture(fixture)
+        await fixture.initRepo(defaultBranch: "main")
+        _ = try await populateSpecFixture(fixture)
 
         let specSource = SpecSource(path: fixture.path)
         let repos = ProjectRepositories(workingRepos: [], specSource: specSource)
@@ -163,9 +163,9 @@ struct SpecCitationResolutionTests {
     }
 
     @Test("Validates single specification source rule across both kinds (0 and >1 sources)")
-    func singleSpecificationSourceValidation() throws {
+    func singleSpecificationSourceValidation() async throws {
         let fixture = GitFixture(name: "spec-single-source")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
         let reader = MainlineReader()
 
@@ -227,7 +227,7 @@ struct SpecCitationResolutionTests {
     @Test("Rejects citation resolution when Project has 0 or >1 specification sources")
     func invalidSourceRejectionDuringCitationResolution() async throws {
         let fixture = GitFixture(name: "spec-invalid-resolve")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
         let reader = MainlineReader()
 
         // Zero sources
@@ -252,8 +252,8 @@ extension SpecCitationResolutionTests {
     @Test("Resolves citations against working repo having role == .spec")
     func workingRepoSpecCitationResolution() async throws {
         let fixture = GitFixture(name: "spec-working-repo-role")
-        fixture.initRepo(defaultBranch: "main")
-        let sha = try populateSpecFixture(fixture)
+        await fixture.initRepo(defaultBranch: "main")
+        let sha = try await populateSpecFixture(fixture)
 
         let specRepo = Repo(name: "product-spec", path: fixture.path, role: .spec)
         let repos = ProjectRepositories(workingRepos: [specRepo], specSource: nil)
@@ -271,18 +271,18 @@ extension SpecCitationResolutionTests {
     @Test("Commit-pinned citation resolution supports time-travel")
     func commitPinnedResolutionTimeTravel() async throws {
         let fixture = GitFixture(name: "spec-time-travel")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
         // Commit 1: Story v1 exists
-        let sha1 = try fixture.commit(
+        let sha1 = try await fixture.commit(
             filename: "docs/requirements/epics/auth/stories/v1.md",
             content: "# V1 Story",
             message: "add v1 story"
         )
 
         // Commit 2: Delete v1 and add v2
-        _ = fixture.run(["rm", "docs/requirements/epics/auth/stories/v1.md"])
-        let sha2 = try fixture.commit(
+        _ = await fixture.run(["rm", "docs/requirements/epics/auth/stories/v1.md"])
+        let sha2 = try await fixture.commit(
             filename: "docs/requirements/epics/auth/stories/v2.md",
             content: "# V2 Story",
             message: "replace v1 with v2"
@@ -312,15 +312,15 @@ extension SpecCitationResolutionTests {
     @Test("Citation resolution leaves repository status, HEAD, and dirty files untouched")
     func noMutationInvariant() async throws {
         let fixture = GitFixture(name: "spec-no-mutation")
-        fixture.initRepo(defaultBranch: "main")
-        _ = try populateSpecFixture(fixture)
+        await fixture.initRepo(defaultBranch: "main")
+        _ = try await populateSpecFixture(fixture)
 
         // Add dirty modifications in spec working tree
         let dirtyFileURL = fixture.url.appendingPathComponent("dirty-spec.txt")
         try "uncommitted work".write(to: dirtyFileURL, atomically: true, encoding: .utf8)
 
-        let statusBefore = fixture.run(["status", "--porcelain"]).stdout
-        let headBefore = fixture.run(["rev-parse", "HEAD"]).stdout
+        let statusBefore = await fixture.run(["status", "--porcelain"]).stdout
+        let headBefore = await fixture.run(["rev-parse", "HEAD"]).stdout
         let dirtyFileBefore = try String(contentsOf: dirtyFileURL, encoding: .utf8)
 
         let specSource = SpecSource(path: fixture.path)
@@ -331,8 +331,8 @@ extension SpecCitationResolutionTests {
         _ = await reader.resolveCitation("feature-authoring/author-an-architectural-brief", in: repos)
         _ = await reader.resolveCitation("nonexistent/story", in: repos)
 
-        let statusAfter = fixture.run(["status", "--porcelain"]).stdout
-        let headAfter = fixture.run(["rev-parse", "HEAD"]).stdout
+        let statusAfter = await fixture.run(["status", "--porcelain"]).stdout
+        let headAfter = await fixture.run(["rev-parse", "HEAD"]).stdout
         let dirtyFileAfter = try String(contentsOf: dirtyFileURL, encoding: .utf8)
 
         #expect(statusBefore == statusAfter)

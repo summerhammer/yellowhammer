@@ -1,14 +1,15 @@
 import Domain
 import Foundation
-import Synchronization
+import Subprocess
+import System
 
 /// The engine-run Check (graph-execution/gate-a-card-on-the-repository-check, roadmap P8.5): the command a
 /// repository declared, run by the engine in the Card's Worktree between the worker and the reviewer. A
 /// model's own "the tests pass" never stands in for it.
 ///
 /// The command runs as `/bin/sh -c <command>` with the Worktree as its current directory and this process's
-/// environment. Its stdout and stderr share one pipe, so the output stays interleaved in the order it was
-/// printed. Exit status 0 passes; any other status, command-not-found and death by a signal included, fails.
+/// environment. Its stdout and stderr share one pipe (`error: .combinedWithOutput`), so the output stays
+/// interleaved in the order it was printed. Exit status 0 passes; any other status, command-not-found and death by a signal included, fails.
 /// A shell that cannot be launched, or a Worktree that is not there, is an engine fault and throws
 /// ``WorktreeCheckError`` — never a failed Check, and never a pass.
 ///
@@ -39,19 +40,49 @@ public struct WorktreeCheck: RepositoryCheckRunning {
         }
         try Task.checkCancellation()
 
-        let child = CheckChild(command: command, directory: worktreePath, outputLimit: outputLimit)
+        var platformOptions = PlatformOptions()
+        // Cancellation sends SIGTERM to the shell, as before. Subprocess always ends a teardown with SIGKILL, so a
+        // Check that ignores SIGTERM is now killed after 3 s; the hand-rolled runner had no such escalation.
+        platformOptions.teardownSequence = [.send(signal: .terminate, allowedDurationToNextStep: .seconds(3))]
+        let outputLimit = outputLimit
+        let result: ExecutionResult<OutputTail, SequenceOutput, CombinedErrorOutput>
         do {
-            try child.launch()
+            result = try await Subprocess.run(
+                .path("/bin/sh"),
+                arguments: ["-c", command],
+                workingDirectory: FilePath(worktreePath),
+                platformOptions: platformOptions,
+                input: .none,
+                output: .sequence,
+                error: .combinedWithOutput
+            ) { execution in
+                // Drained while the child runs, so a Check printing more than a pipe buffer holds cannot deadlock.
+                var tail = OutputTail()
+                for try await buffer in execution.standardOutput {
+                    buffer.withUnsafeBytes { tail.append(Data($0), limit: outputLimit) }
+                }
+                return tail
+            }
+        } catch let error as SubprocessError
+            where [.spawnFailed, .executableNotFound, .failedToChangeWorkingDirectory].contains(error.code) {
+            throw WorktreeCheckError.shellNotLaunched(repository: repository, reason: "\(error)")
         } catch {
+            if Task.isCancelled { throw CancellationError() }
             throw WorktreeCheckError.shellNotLaunched(repository: repository, reason: "\(error)")
         }
-        let finished = await child.finished()
-        if finished.cancelled {
+        if Task.isCancelled {
             throw CancellationError()
         }
-        return finished.exitStatus == 0
-            ? .passed(output: finished.output)
-            : .failed(output: finished.output, exitStatus: finished.exitStatus)
+        let exitStatus: Int32
+        switch result.terminationStatus {
+        case .exited(let code):
+            exitStatus = code
+        case .signaled(let signal):
+            // The shell's convention for a command killed by a signal.
+            exitStatus = 128 + signal
+        }
+        let output = result.closureResult.render(limit: outputLimit)
+        return exitStatus == 0 ? .passed(output: output) : .failed(output: output, exitStatus: exitStatus)
     }
 }
 
@@ -72,129 +103,23 @@ public enum WorktreeCheckError: Error, Equatable, Sendable, CustomStringConverti
     }
 }
 
-/// One running Check: the child process, its pipe drained as it prints, and the wait for both its exit and
-/// the end of its output. Cancelling the waiting task terminates the child and ends the wait at once.
-private final class CheckChild: @unchecked Sendable {
-    struct Finished {
-        let output: String
-        let exitStatus: Int32
-        let cancelled: Bool
-    }
+/// The tail of a Check's output: at most the last `limit` bytes, and a count of the bytes dropped before them.
+private struct OutputTail: Sendable {
+    private var tail = Data()
+    private var dropped = 0
 
-    private struct State {
-        var tail = Data()
-        var dropped = 0
-        var endOfOutput = false
-        var exitStatus: Int32?
-        var launched = false
-        var cancelled = false
-        var waiter: CheckedContinuation<Void, Never>?
-
-        var isDone: Bool { cancelled || (endOfOutput && exitStatus != nil) }
-
-        /// Keeps at most about twice `limit` bytes, so trimming is amortised; the final trim is exact.
-        mutating func append(_ data: Data, limit: Int) {
-            tail.append(data)
-            if tail.count > limit * 2 {
-                dropped += tail.count - limit
-                tail = Data(tail.suffix(limit))
-            }
+    /// Keeps at most about twice `limit` bytes, so trimming is amortised; ``render(limit:)`` trims exactly.
+    mutating func append(_ data: Data, limit: Int) {
+        tail.append(data)
+        if tail.count > limit * 2 {
+            dropped += tail.count - limit
+            tail = Data(tail.suffix(limit))
         }
     }
 
-    private let process = Process()
-    private let pipe = Pipe()
-    private let outputLimit: Int
-    private let state = Mutex(State())
-
-    init(command: String, directory: String, outputLimit: Int) {
-        self.outputLimit = outputLimit
-        process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        process.arguments = ["-c", command]
-        process.currentDirectoryURL = URL(fileURLWithPath: directory, isDirectory: true)
-        process.standardInput = FileHandle.nullDevice
-        process.standardOutput = pipe
-        process.standardError = pipe
-    }
-
-    func launch() throws {
-        // Drained while the child runs, so a Check printing more than a pipe buffer holds cannot deadlock.
-        pipe.fileHandleForReading.readabilityHandler = { [self] handle in
-            let data = handle.availableData
-            if data.isEmpty {
-                handle.readabilityHandler = nil
-                update { $0.endOfOutput = true }
-            } else {
-                update { $0.append(data, limit: outputLimit) }
-            }
-        }
-        process.terminationHandler = { [self] finished in
-            // The shell's convention for a command killed by a signal.
-            let status = finished.terminationReason == .uncaughtSignal
-                ? 128 + finished.terminationStatus : finished.terminationStatus
-            update { $0.exitStatus = status }
-        }
-        do {
-            try process.run()
-        } catch {
-            pipe.fileHandleForReading.readabilityHandler = nil
-            throw error
-        }
-        // The parent's copy of the write end must close, or the read end never reaches end of output.
-        try? pipe.fileHandleForWriting.close()
-        let cancelledEarly = state.withLock { state in
-            state.launched = true
-            return state.cancelled
-        }
-        if cancelledEarly { terminate() }
-    }
-
-    func finished() async -> Finished {
-        await withTaskCancellationHandler {
-            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-                let alreadyDone = state.withLock { state in
-                    if state.isDone { return true }
-                    state.waiter = continuation
-                    return false
-                }
-                if alreadyDone { continuation.resume() }
-            }
-        } onCancel: {
-            cancel()
-        }
-        return state.withLock { state in
-            Finished(
-                output: Self.render(state, limit: outputLimit), exitStatus: state.exitStatus ?? -1,
-                cancelled: state.cancelled
-            )
-        }
-    }
-
-    private func update(_ change: (inout State) -> Void) {
-        let waiter = state.withLock { state -> CheckedContinuation<Void, Never>? in
-            change(&state)
-            guard state.isDone, let waiter = state.waiter else { return nil }
-            state.waiter = nil
-            return waiter
-        }
-        waiter?.resume()
-    }
-
-    private func cancel() {
-        let launched = state.withLock { $0.launched }
-        update { $0.cancelled = true }
-        if launched { terminate() }
-        // A grandchild that inherited the pipe may outlive the shell: stop reading rather than wait for it.
-        pipe.fileHandleForReading.readabilityHandler = nil
-    }
-
-    private func terminate() {
-        if process.isRunning { process.terminate() }
-    }
-
-    private static func render(_ state: State, limit: Int) -> String {
-        var tail = state.tail
-        var dropped = state.dropped
+    func render(limit: Int) -> String {
+        var tail = tail
+        var dropped = dropped
         if tail.count > limit {
             dropped += tail.count - limit
             tail = Data(tail.suffix(limit))

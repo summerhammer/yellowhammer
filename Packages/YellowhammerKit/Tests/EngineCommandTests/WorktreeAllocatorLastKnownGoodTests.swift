@@ -34,7 +34,7 @@ private final class GitBackedFakeWorkspace: Workspace, Sendable {
             return state.nextID
         }
         let directory = baseDirectory.appendingPathComponent(name)
-        _ = git.runSync(
+        _ = await git.run(
             ["-C", repositoryPath, "worktree", "add", "-b", name, directory.path], workingDirectory: repositoryPath
         )
         return WorkspaceWorktree(
@@ -104,16 +104,16 @@ struct WorktreeAllocatorLastKnownGoodTests {
         try FileManager.default.createDirectory(at: repoDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: repoDirectory) }
         let git = GitRunner()
-        _ = git.runSync(["init", "--initial-branch=main"], workingDirectory: repoDirectory.path)
-        _ = git.runSync(["config", "user.name", "Test"], workingDirectory: repoDirectory.path)
-        _ = git.runSync(["config", "user.email", "test@example.com"], workingDirectory: repoDirectory.path)
-        _ = git.runSync(["config", "commit.gpgsign", "false"], workingDirectory: repoDirectory.path)
+        _ = await git.run(["init", "--initial-branch=main"], workingDirectory: repoDirectory.path)
+        _ = await git.run(["config", "user.name", "Test"], workingDirectory: repoDirectory.path)
+        _ = await git.run(["config", "user.email", "test@example.com"], workingDirectory: repoDirectory.path)
+        _ = await git.run(["config", "commit.gpgsign", "false"], workingDirectory: repoDirectory.path)
         try "content".write(
             to: repoDirectory.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8
         )
-        _ = git.runSync(["add", "."], workingDirectory: repoDirectory.path)
-        _ = git.runSync(["commit", "-m", "initial"], workingDirectory: repoDirectory.path)
-        let baseCommit = git.runSync(["rev-parse", "HEAD"], workingDirectory: repoDirectory.path)
+        _ = await git.run(["add", "."], workingDirectory: repoDirectory.path)
+        _ = await git.run(["commit", "-m", "initial"], workingDirectory: repoDirectory.path)
+        let baseCommit = await git.run(["rev-parse", "HEAD"], workingDirectory: repoDirectory.path)
             .stdout.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let workspaceDirectory = FileManager.default.temporaryDirectory
