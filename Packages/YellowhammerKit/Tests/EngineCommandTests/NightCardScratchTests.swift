@@ -25,7 +25,7 @@ struct NightCardScratchTests {
         let directory = FileManager.default.temporaryDirectory
             .appending(component: "yh-night-card-scratch-\(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let journal = try JournalStore.open(configurationDirectory: directory, projectID: projectID)
+        let journal = try JournalStore.openSeeded(configurationDirectory: directory, projectID: projectID)
 
         // A unique Night derived from today's date, so re-running this scratch test on a later day
         // does not collide with an earlier one's card (a same-day re-run is idempotent by design:

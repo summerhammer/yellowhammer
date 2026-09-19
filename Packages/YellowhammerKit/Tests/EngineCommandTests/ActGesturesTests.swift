@@ -185,7 +185,7 @@ func featureNamedForNonAuthoringActBuild() async throws {
     try directory.writeMachineFile()
     try directory.writeValidProjectFile(id: "alpha")
     let projectID = try #require(ProjectID(rawValue: "alpha"))
-    let journal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    let journal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
 
     let invocation = EngineInvocation(
         act: .build,
@@ -209,7 +209,7 @@ func featureNamedForNonAuthoringActLand() async throws {
     try directory.writeMachineFile()
     try directory.writeValidProjectFile(id: "alpha")
     let projectID = try #require(ProjectID(rawValue: "alpha"))
-    let journal = try JournalStore.open(configurationDirectory: directory.url, projectID: projectID)
+    let journal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
 
     let invocation = EngineInvocation(
         act: .land,

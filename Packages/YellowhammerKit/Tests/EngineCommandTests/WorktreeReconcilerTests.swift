@@ -31,7 +31,7 @@ struct ReconcilerJournalFixture: ~Copyable {
     }
 
     func open() throws -> JournalStore {
-        try JournalStore.open(configurationDirectory: directory, projectID: projectID)
+        try JournalStore.openSeeded(configurationDirectory: directory, projectID: projectID)
     }
 }
 
