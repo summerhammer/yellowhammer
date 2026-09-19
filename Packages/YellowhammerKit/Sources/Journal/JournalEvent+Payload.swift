@@ -288,6 +288,16 @@ extension JournalEvent {
                 "card_id": String(cardID), "issue_id": issueID, "previous_run_id": previousRunID.rawValue,
                 "remaining": String(remaining)
             ]
+        case .agentCLIProcessSpawned(let cardID, let issueID, let attemptID, let pass, let cli):
+            [
+                "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
+                "pass": pass.rawValue, "cli": cli
+            ]
+        case .rehearsalFixtureAnswered(let cardID, let issueID, let attemptID, let pass, let fixture):
+            [
+                "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
+                "pass": pass.rawValue, "fixture": fixture
+            ]
         }
     }
 }

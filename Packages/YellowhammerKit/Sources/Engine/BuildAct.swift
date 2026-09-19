@@ -107,7 +107,7 @@ public struct BuildAct: Sendable {
         }
         let reconciler = WorktreeReconciler(
             workspace: workspace, journal: context.journal, runID: context.runID, act: context.act,
-            nightID: context.night.id
+            nightID: context.night.id, committer: WorktreeCommitter(mode: context.mode)
         )
         return try await reconciler.reconcile(featureID: feature.id, branch: branch)
     }

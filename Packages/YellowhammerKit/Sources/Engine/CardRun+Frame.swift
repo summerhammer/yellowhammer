@@ -43,6 +43,27 @@ struct CardRunFrame: Sendable {
         )
     }
 
+    /// Records whether a pass that dispatched successfully actually spawned an agent CLI process, or a
+    /// rehearsal Night's fixture answered in its place (system-overview, Environment Differences, P8.11).
+    func recordDispatchOrigin(_ origin: AgentDispatchOrigin, attemptID: Int64, pass: RunPass, cli: String) throws {
+        switch origin {
+        case .agentCLIProcess:
+            try journal.append(
+                .agentCLIProcessSpawned(
+                    cardID: card.id, issueID: card.issueID, attemptID: attemptID, pass: pass, cli: cli
+                ),
+                act: context.act.act, runID: context.act.runID, nightID: context.act.night.id
+            )
+        case .rehearsalFixture(let fixture):
+            try journal.append(
+                .rehearsalFixtureAnswered(
+                    cardID: card.id, issueID: card.issueID, attemptID: attemptID, pass: pass, fixture: fixture
+                ),
+                act: context.act.act, runID: context.act.runID, nightID: context.act.night.id
+            )
+        }
+    }
+
     /// Transitions the Card through the board projection, or on the Journal alone when the invocation has
     /// no Board (a later Act reposts it).
     func transition(_ transition: CardTransition) async throws {

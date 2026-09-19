@@ -156,6 +156,10 @@ extension JournalEvent {
             try Self.decodeCardReclaimed(reader)
         case .cardReclaimDeferred:
             try Self.decodeCardReclaimDeferred(reader)
+        case .agentCLIProcessSpawned:
+            try Self.decodeAgentCLIProcessSpawned(reader)
+        case .rehearsalFixtureAnswered:
+            try Self.decodeRehearsalFixtureAnswered(reader)
         }
     }
 
