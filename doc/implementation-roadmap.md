@@ -888,7 +888,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Rehearsal tests: a lane continues past a block; cancel and reopen round-trips with
   counters unchanged.
 
-### [ ] P8.10 Lease reclaim
+### [x] P8.10 Lease reclaim
 - **Work**
   - A later Act of the same Project reclaims an expired lease with a new `runId`.
   - Before reposting or retrying, run the process fencing sweep on the Worktree (P6.8).
