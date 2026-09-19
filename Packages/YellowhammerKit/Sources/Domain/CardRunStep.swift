@@ -23,8 +23,14 @@ public enum CardRunStep: String, CaseIterable, Sendable {
     /// The Round budget ran out with the work still not approved — the run stopped without dispatching the
     /// reviewer again, on either Lens. The detail is the raw value of the Lens whose Round was the last;
     /// the Attempt this step belongs to ends `rounds-exhausted`, and the Card blocks only once the Attempt
-    /// budget is spent too. A fresh Attempt on a different Route when it is not yet spent is roadmap P8.7.
+    /// budget is spent too. While the Attempt budget still has room, the run dispatches a fresh Attempt on
+    /// a different Route (roadmap P8.7) rather than returning the Card to Ready.
     case roundsExhausted = "rounds-exhausted"
+    /// The Attempt budget for the Card's current epoch is spent, so the Card Blocks instead of a fresh
+    /// Attempt being dispatched (roadmap P8.7). The detail is the Operator-facing consumption account
+    /// (``Journal/AttemptHistory/consumption(inEpoch:)``), naming how many Attempts were consumed and by
+    /// what: a Route failure, a Crashed-Unknown, or the round budget.
+    case attemptsExhausted = "attempts-exhausted"
 }
 
 /// What one engine-run Check yielded, as the `checkRan` event records it.

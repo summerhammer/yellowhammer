@@ -32,13 +32,14 @@ struct CardRunReviewRoundTests {
         reviewerScript: [RehearsalResultFixture],
         checkResults: [RepositoryCheckResult] = [.declaredNone],
         checks: [String: Check] = ["backend": .none],
-        reviewRoundsMax: Int, attemptsPerCard: Int
+        reviewRoundsMax: Int, attemptsPerCard: Int,
+        resolver: RouteResolver = cardRunResolver()
     ) -> Run {
         let log = CallLog()
         let dispatch = SequencedDispatch(log: log, sequences: [.worker: workerScript, .reviewer: reviewerScript])
         let check = RecordingCheck(log: log, results: checkResults)
         let card = CardRun(
-            resolver: cardRunResolver(), dispatch: dispatch, check: check, checks: checks,
+            resolver: resolver, dispatch: dispatch, check: check, checks: checks,
             reviewRoundsMax: reviewRoundsMax, attemptsPerCard: attemptsPerCard
         )
         return Run(card: card, dispatch: dispatch, check: check, log: log)
@@ -152,7 +153,7 @@ struct CardRunReviewRoundTests {
         #expect(run.dispatch.requests.passes(.reviewer).isEmpty)
     }
 
-    @Test("reviewRoundsMax=1, attemptsPerCard=2: rounds-exhausted, Route excluded, Card back to Ready, never Blocked")
+    @Test("reviewRoundsMax=1, attemptsPerCard=2, a single Route: rounds-exhausted excludes it, and the retry Blocks")
     func roundBudgetAloneNeverBlocksTheCard() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
@@ -162,19 +163,22 @@ struct CardRunReviewRoundTests {
 
         try await run.card.run("BACK-1", in: world)
 
-        let attempt = try #require(try world.attempts("BACK-1").first)
-        #expect(attempt.result == "rounds-exhausted")
+        let attempts = try world.attempts("BACK-1")
+        #expect(attempts.count == 1)
+        #expect(attempts[0].result == "rounds-exhausted")
         let card = try world.card("BACK-1")
-        #expect(card.state == .todo)
-        #expect(card.blockReason == nil)
+        #expect(card.state == .blocked)
+        #expect(card.blockReason == BlockReason.hardFailure.rawValue)
         #expect(try world.journal.excludedRoutes(cardID: try #require(world.cardIDs["BACK-1"])) == [cardRunOpus])
+        // Blocked because routing found no candidate, not because the Attempt budget (1 of 2) was spent.
+        #expect(!(try cardRunLog(world.journal).contains(CardRunStep.attemptsExhausted.rawValue)))
     }
 
-    @Test("attemptsPerCard=2 with an earlier consumed Attempt in the epoch blocks; an earlier question does not")
+    @Test("attemptsPerCard=2, two Routes: a consumed seed leaves one retry, a question leaves two, both Block")
     func earlierAttemptsInTheEpochCountTowardTheBudget() async throws {
-        for (seedEnding, expectBlocked) in [
-            (AttemptEnding.crashedUnknown(.signaled(9)), true),
-            (AttemptEnding.question, false)
+        for (seedEnding, expectedTotalAttempts) in [
+            (AttemptEnding.crashedUnknown(.signaled(9)), 2),
+            (AttemptEnding.question, 3)
         ] {
             let fixture = try OutboxJournalFixture()
             let world = try await makeCardRunWorld(journal: try fixture.open())
@@ -182,11 +186,22 @@ struct CardRunReviewRoundTests {
             let earlier = try world.journal.recordAttempt(cardID: cardID, route: cardRunOpus, runID: world.runID)
             try world.journal.endAttempt(attemptID: earlier.id, ending: seedEnding, runID: world.runID)
 
-            let run = makeRun(reviewerScript: [.reviewerChangesRequested], reviewRoundsMax: 1, attemptsPerCard: 2)
+            let run = makeRun(
+                reviewerScript: [.reviewerChangesRequested], reviewRoundsMax: 1, attemptsPerCard: 2,
+                resolver: cardRunResolver(
+                    table: RoutingTable(entries: [
+                        RoutingEntry(kind: Kind("card")!, route: cardRunOpus, fallbacks: [cardRunFallback])
+                    ])
+                )
+            )
             try await run.card.run("BACK-1", in: world)
 
             let card = try world.card("BACK-1")
-            #expect((card.state == .blocked) == expectBlocked)
+            #expect(card.state == .blocked)
+            #expect(card.blockReason == BlockReason.blockedByReviewer.rawValue)
+            // The seed Attempt itself, plus every Attempt this run recorded: a question consumes none of
+            // the budget, so it leaves the run a full extra retry the crashed seed does not.
+            #expect(try world.attempts("BACK-1").count == expectedTotalAttempts)
         }
     }
 

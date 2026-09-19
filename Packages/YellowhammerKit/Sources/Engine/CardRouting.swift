@@ -49,6 +49,10 @@ public struct CardRouting: Sendable {
         case blocked(CardRecord, RouteExhaustion)
         /// The Override was refused: the Card untouched, no Attempt, the refusal to report.
         case readinessFailure(CardRecord, OverrideRefusal)
+        /// The Card's current budget epoch has already consumed `attemptsPerCard` Attempts: the Card as
+        /// it stands, untouched — no Attempt is recorded and the resolver is never asked (roadmap P8.7).
+        /// The caller Blocks the Card; this type writes nothing but what selection already wrote.
+        case attemptBudgetSpent(CardRecord)
     }
 
     /// Resolves and records for one Card. `repoRole` is the role of the Card's Repo and `override`
@@ -57,17 +61,33 @@ public struct CardRouting: Sendable {
     /// onto the Attempt exactly as
     /// ``JournalStore/recordAttempt(cardID:route:checkDeclaredNone:routeSource:override:runID:act:nightID:now:)``
     /// takes it, along with the resolved Route's ``ResolvedRoute/source`` and the Operator's Override.
+    ///
+    /// `attemptsPerCard` is the Attempt budget guard (roadmap P8.7): when given and the Card's current
+    /// budget epoch has already consumed that many Attempts — from this run's own retries or an earlier
+    /// Act or Night, the counters live in the Journal and survive either — this returns
+    /// ``Outcome/attemptBudgetSpent(_:)`` instead of resolving, so a Card that arrives already spent
+    /// dispatches nothing. Checked after the Override-pin epoch reset and before resolution, so a pin
+    /// that starts a fresh epoch also gets a fresh budget. `nil` (the default) never guards, for the
+    /// existing callers that hold no Attempt budget.
     public func route(
         card: CardRecord,
         repoRole: RepoRole?,
         override: Override,
-        checkDeclaredNone: Bool = false
+        checkDeclaredNone: Bool = false,
+        attemptsPerCard: Int? = nil
     ) async throws -> Outcome {
         guard let kind = Kind(card.kind) else {
             throw CardRoutingError.kindUnparseable(cardID: card.id, kind: card.kind)
         }
 
         let card = try resetEpochIfOverridePinChanged(card: card, override: override)
+
+        if let attemptsPerCard {
+            let consumed = try journal.attemptHistory(cardID: card.id).consumption(inEpoch: card.budgetEpoch).consumed
+            if consumed >= attemptsPerCard {
+                return .attemptBudgetSpent(card)
+            }
+        }
 
         let request = RouteRequest(
             kind: kind,

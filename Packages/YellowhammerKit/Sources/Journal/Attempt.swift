@@ -2,44 +2,6 @@ import Domain
 import Foundation
 import GRDB
 
-/// One judgement pass over an Attempt's work, from a Lens (`review` or `check`), with its verdict, any
-/// requested changes, and the commit it judged.
-public struct RoundRecord: Equatable, Sendable {
-    public let id: Int64
-    public let attemptID: Int64
-    public let lens: Lens
-    public let verdict: String
-    public let requestedChanges: String?
-    public let judgedCommit: String?
-    public let createdAt: Date
-}
-
-/// One dispatch of a Card to a Route, with the Rounds judged over its work. An open Attempt (`endedAt`
-/// is `nil`) with no live run behind it is what a killed invocation leaves: classifying it
-/// (Crashed-Unknown or otherwise) is a later phase's work, so this record only reports it.
-public struct AttemptRecord: Equatable, Sendable {
-    public let id: Int64
-    public let cardID: Int64
-    public let budgetEpoch: Int
-    public let route: Route
-    public let classification: String?
-    public let result: String?
-    public let consumedHow: String?
-    public let checkDeclaredNone: Bool
-    /// How this Attempt's Route was selected: `entry`, `fallback:<n>` or `override`; nil for an
-    /// Attempt recorded before P7.7, or through the untyped ``JournalStore/recordAttempt`` overload.
-    public let routeSource: String?
-    /// The Override pinned in triage at the moment this Attempt was recorded (`Override.description`),
-    /// or nil when none was pinned (routing/exclude-tried-routes-on-retry, P7.7).
-    public let overridePin: String?
-    public let startedAt: Date
-    public let endedAt: Date?
-    public let rounds: [RoundRecord]
-
-    /// Whether this Attempt has not yet ended. By invariant, a Card has at most one open Attempt.
-    public var isOpen: Bool { endedAt == nil }
-}
-
 /// A Card's whole Attempt and Round history, rebuilt from the `attempt`, `round` and `route_exclusion`
 /// rows alone: nothing about a Card's dispatches lives anywhere else. A resumed Act reconstructs
 /// Attempt and Round counts and routes tried entirely from this.
@@ -93,6 +55,28 @@ public struct AttemptHistory: Equatable, Sendable {
             seenByEpoch[attempt.budgetEpoch] = seen
         }
         return retries
+    }
+
+    /// How many of one budget epoch's Attempts consumed the Attempt budget, and by what — the single
+    /// source both the Attempt budget arithmetic (``CardRun``) and the Attempt budget guard (P8.7) read,
+    /// so "how many are consumed" and "why" are never counted two different ways. Split into
+    /// `AttemptConsumption.swift` to keep this file under the length limit.
+    public func consumption(inEpoch epoch: Int) -> AttemptConsumption {
+        let ofEpoch = attempts.filter { $0.budgetEpoch == epoch }
+        // An open Attempt (`result == nil`) counts as consumed: the row is written at dispatch precisely
+        // so an unclassified Attempt still binds the Bound.
+        let consumed = ofEpoch.filter { $0.result != AttemptOutcome.question.rawValue }
+        func count(_ outcome: AttemptOutcome) -> Int {
+            ofEpoch.filter { $0.result == outcome.rawValue }.count
+        }
+        return AttemptConsumption(
+            consumed: consumed.count,
+            routesFailed: count(.hardFailure),
+            roundsExhausted: count(.roundsExhausted),
+            crashedUnknown: count(.crashedUnknown),
+            succeeded: count(.success),
+            notConsumed: count(.question)
+        )
     }
 }
 

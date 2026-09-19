@@ -9,6 +9,9 @@ import Testing
 // Route to resolve, and fakes for the two seams the Card run calls — the Dispatch seam and the Check.
 
 let cardRunOpus = Route(cli: "claude", model: "opus", effort: "high")!
+/// A second Route, distinct from ``cardRunOpus``, for fixtures whose table offers a fallback so a retry
+/// (roadmap P8.7) has somewhere to land once the first Route is excluded.
+let cardRunFallback = Route(cli: "codex", model: "o3", effort: "high")!
 
 func cardRunResolver(
     probe: @escaping RouteResolver.ProbeEligibility = { _ in .offered }, table: RoutingTable? = nil

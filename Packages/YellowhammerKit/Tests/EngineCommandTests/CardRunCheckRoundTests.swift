@@ -111,7 +111,7 @@ struct CardRunCheckRoundTests {
         #expect(try world.card("BACK-1").state == .done)
     }
 
-    @Test("Two Rounds allowed and Attempts left in the budget: Attempt ends rounds-exhausted, Card back to Ready")
+    @Test("Two Rounds allowed and Attempts in the budget, but a single Route: the retry finds none, Card Blocks")
     func exhaustsTwoRounds() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
@@ -121,12 +121,18 @@ struct CardRunCheckRoundTests {
 
         #expect(run.dispatch.requests.passes(.worker).count == 2)
         #expect(run.dispatch.requests.passes(.reviewer).isEmpty)
-        let attempt = try #require(try world.attempts("BACK-1").first)
+        let attempts = try world.attempts("BACK-1")
+        #expect(attempts.count == 1)
+        let attempt = attempts[0]
         #expect(attempt.rounds.count == 2)
         #expect(!attempt.isOpen)
         #expect(attempt.result == "rounds-exhausted")
-        #expect(try world.card("BACK-1").state == .todo)
+        let card = try world.card("BACK-1")
+        #expect(card.state == .blocked)
+        #expect(card.blockReason == BlockReason.hardFailure.rawValue)
+        // Blocked because routing found no candidate, not because the Attempt budget (1 of 2) was spent.
         let steps = try cardRunLog(world.journal)
+        #expect(!steps.contains(CardRunStep.attemptsExhausted.rawValue))
         #expect(steps.contains("rounds-exhausted"))
         #expect(steps.contains("attempt ended: rounds-exhausted"))
         let exhausted = try world.journal.events(ofType: .cardRunStep).compactMap { record -> String? in
