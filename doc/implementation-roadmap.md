@@ -875,7 +875,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests over multiple Nights promote on recurrence, not on first occurrence.
 
-### [ ] P8.9 Block mid-lane and Cancelled Cards
+### [x] P8.9 Block mid-lane and Cancelled Cards
 - **Work**
   - A Blocked or Waiting on You Card does not halt its lane. Later Cards run with their own budgets.
   - Record the blocked Card as a hole for landing (P10.4).
