@@ -17,17 +17,35 @@ public enum ArchitectOutcome: Equatable, Sendable {
 /// The architect pass's result-file contents (everything after the envelope's `schema`/`version`).
 public struct ArchitectResult: Equatable, Sendable, Codable {
     public let outcome: ArchitectOutcome
+    /// What this Card needed that another Card in the Feature has yet to do (graph-execution/
+    /// handle-a-block-mid-graph, P8.9): an authoring-invariant violation, reported alongside a `failed`
+    /// outcome rather than folded into `reason`, so the engine can tell the two apart without parsing
+    /// prose.
+    public let authoringInvariantViolation: String?
 
-    public init(outcome: ArchitectOutcome) {
+    public init(outcome: ArchitectOutcome, authoringInvariantViolation: String? = nil) {
         self.outcome = outcome
+        self.authoringInvariantViolation = authoringInvariantViolation
+    }
+
+    private enum ExtraCodingKeys: String, CodingKey {
+        case authoringInvariantViolation = "authoring_invariant_violation"
     }
 
     public init(from decoder: Decoder) throws {
         self.outcome = try ArchitectOutcome(from: decoder)
+        let container = try decoder.container(keyedBy: ExtraCodingKeys.self)
+        self.authoringInvariantViolation = try container.decodeIfPresent(
+            String.self, forKey: .authoringInvariantViolation
+        )
     }
 
     public func encode(to encoder: Encoder) throws {
         try outcome.encode(to: encoder)
+        if let authoringInvariantViolation {
+            var container = encoder.container(keyedBy: ExtraCodingKeys.self)
+            try container.encode(authoringInvariantViolation, forKey: .authoringInvariantViolation)
+        }
     }
 }
 
@@ -81,17 +99,35 @@ public enum WorkerOutcome: Equatable, Sendable {
 /// The worker pass's result-file contents (everything after the envelope's `schema`/`version`).
 public struct WorkerResult: Equatable, Sendable, Codable {
     public let outcome: WorkerOutcome
+    /// What this Card needed that another Card in the Feature has yet to do (graph-execution/
+    /// handle-a-block-mid-graph, P8.9): an authoring-invariant violation, reported alongside a `failed`
+    /// outcome rather than folded into `reason`, so the engine can tell the two apart without parsing
+    /// prose.
+    public let authoringInvariantViolation: String?
 
-    public init(outcome: WorkerOutcome) {
+    public init(outcome: WorkerOutcome, authoringInvariantViolation: String? = nil) {
         self.outcome = outcome
+        self.authoringInvariantViolation = authoringInvariantViolation
+    }
+
+    private enum ExtraCodingKeys: String, CodingKey {
+        case authoringInvariantViolation = "authoring_invariant_violation"
     }
 
     public init(from decoder: Decoder) throws {
         self.outcome = try WorkerOutcome(from: decoder)
+        let container = try decoder.container(keyedBy: ExtraCodingKeys.self)
+        self.authoringInvariantViolation = try container.decodeIfPresent(
+            String.self, forKey: .authoringInvariantViolation
+        )
     }
 
     public func encode(to encoder: Encoder) throws {
         try outcome.encode(to: encoder)
+        if let authoringInvariantViolation {
+            var container = encoder.container(keyedBy: ExtraCodingKeys.self)
+            try container.encode(authoringInvariantViolation, forKey: .authoringInvariantViolation)
+        }
     }
 }
 

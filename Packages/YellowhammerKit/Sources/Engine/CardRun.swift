@@ -93,7 +93,7 @@ public struct CardRun: CardRunner {
             try await withLeaseHeartbeat(
                 every: policy.heartbeatDuration,
                 beat: { try journal.heartbeatCardLease(cardID: card.id, runID: runID, policy: policy) },
-                body: { try await runHeld(card: card, context: context, readiness: readiness) }
+                body: { try await runHeld(card: card, in: lane, context: context, readiness: readiness) }
             )
         } catch JournalError.cardLeaseLost {
             // The Card is reclaimable, and no partial state was written as if it were complete: the
@@ -112,9 +112,11 @@ public struct CardRun: CardRunner {
 
     /// Everything after the Lease is held: one Attempt after another, from the same held Lease and the
     /// same Card run, until one ends the run — success, a question, or the Attempt budget spent (P8.7).
-    private func runHeld(card: CardRecord, context: BuildActContext, readiness: CardReadiness) async throws {
+    private func runHeld(
+        card: CardRecord, in lane: RepoLane, context: BuildActContext, readiness: CardReadiness
+    ) async throws {
         let journal = context.act.journal
-        var frame = try await prepare(card: card, context: context, readiness: readiness)
+        var frame = try await prepare(card: card, in: lane, context: context, readiness: readiness)
 
         try frame.revalidateLease()
         let checkDeclaredNone = frame.check == .none

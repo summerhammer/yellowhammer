@@ -59,6 +59,55 @@ func architectResultRoundTripsThroughCodable() throws {
     }
 }
 
+@Test("The architect and worker schemas declare an optional authoring_invariant_violation; the reviewer does not")
+func authoringInvariantViolationPropertyDeclared() throws {
+    for pass in [RunPass.architect, .worker] {
+        let object = try #require(
+            try JSONSerialization.jsonObject(with: ResultSchema.schemaData(for: pass)) as? [String: Any]
+        )
+        let properties = try #require(object["properties"] as? [String: Any])
+        let property = try #require(properties["authoring_invariant_violation"] as? [String: Any])
+        #expect(property["minLength"] as? Int == 1)
+        let required = try #require(object["required"] as? [String])
+        #expect(!required.contains("authoring_invariant_violation"))
+    }
+    let reviewerObject = try #require(
+        try JSONSerialization.jsonObject(with: ResultSchema.schemaData(for: .reviewer)) as? [String: Any]
+    )
+    let reviewerProperties = try #require(reviewerObject["properties"] as? [String: Any])
+    #expect(reviewerProperties["authoring_invariant_violation"] == nil)
+}
+
+@Test("WorkerResult round-trips authoring_invariant_violation through Codable")
+func workerResultRoundTripsAuthoringInvariantViolation() throws {
+    let original = WorkerResult(
+        outcome: .failed(reason: "cannot proceed"), authoringInvariantViolation: "needs BACK-1's migration"
+    )
+    let data = try JSONEncoder().encode(original)
+    let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+    #expect(object["authoring_invariant_violation"] as? String == "needs BACK-1's migration")
+    let decoded = try JSONDecoder().decode(WorkerResult.self, from: data)
+    #expect(decoded == original)
+
+    // Absent when nil, not written as null: the CLI dialect derives nullability from presence.
+    let withoutViolation = WorkerResult(outcome: .completed(commit: String(repeating: "a", count: 40), summary: "s"))
+    let withoutData = try JSONEncoder().encode(withoutViolation)
+    let withoutObject = try #require(try JSONSerialization.jsonObject(with: withoutData) as? [String: Any])
+    #expect(withoutObject["authoring_invariant_violation"] == nil)
+}
+
+@Test("ArchitectResult round-trips authoring_invariant_violation through Codable")
+func architectResultRoundTripsAuthoringInvariantViolation() throws {
+    let original = ArchitectResult(
+        outcome: .failed(reason: "cannot plan"), authoringInvariantViolation: "needs a repo not yet added"
+    )
+    let data = try JSONEncoder().encode(original)
+    let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+    #expect(object["authoring_invariant_violation"] as? String == "needs a repo not yet added")
+    let decoded = try JSONDecoder().decode(ArchitectResult.self, from: data)
+    #expect(decoded == original)
+}
+
 @Test("ReviewerResult round-trips through Codable for every outcome")
 func reviewerResultRoundTripsThroughCodable() throws {
     let commit = String(repeating: "a", count: 40)

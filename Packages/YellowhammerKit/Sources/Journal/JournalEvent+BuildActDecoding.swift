@@ -28,4 +28,13 @@ extension JournalEvent {
             cardsSkipped: reader.payload?["cards_skipped"].flatMap(Int.init) ?? 0
         )
     }
+
+    static func decodeLaneHoleRecorded(_ reader: PayloadReader) throws -> JournalEvent {
+        .laneHoleRecorded(
+            cardID: try reader.int64("card_id"),
+            issueID: try reader.require("issue_id"),
+            repository: try reader.require("repository"),
+            state: try reader.cardState("state")
+        )
+    }
 }

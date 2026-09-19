@@ -204,6 +204,9 @@ public struct DeltaRead: Sendable {
             card = try journal.markCardCancelled(
                 cardID: card.id, runID: runID, act: act, nightID: nightID, now: clock()
             )
+            try journal.abortPendingOutboxEntries(
+                issueID: card.issueID, reason: "the Card is Cancelled; nothing is posted to it"
+            )
             report.cancelled.append(card)
             return false
         case (.cancelled, false):

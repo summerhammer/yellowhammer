@@ -264,6 +264,11 @@ extension JournalEvent {
                 "card_id": String(cardID), "cause": cause, "cause_hash": causeHash, "issue_id": issueID,
                 "recurrence_count": String(recurrenceCount)
             ]
+        case .laneHoleRecorded(let cardID, let issueID, let repository, let state):
+            [
+                "card_id": String(cardID), "issue_id": issueID,
+                "repository": repository, "state": state.rawValue
+            ]
         }
     }
 }

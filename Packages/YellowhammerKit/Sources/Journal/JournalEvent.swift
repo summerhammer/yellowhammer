@@ -167,6 +167,10 @@ public enum JournalEvent: Equatable, Sendable {
     case failureCauseRecorded(
         cardID: Int64, issueID: String, cause: String, causeHash: String, recurrenceCount: Int
     )
+    /// A Repo Lane's Card ended Blocked or Waiting on You without stopping the lane: it is a hole in
+    /// the Feature (graph-execution/handle-a-block-mid-graph, P8.9), named in the Partial Landing
+    /// announcement (P10.4) and left for the lane to run past.
+    case laneHoleRecorded(cardID: Int64, issueID: String, repository: String, state: CardState)
 
     /// The type of this event.
     public var type: JournalEventType {
@@ -283,6 +287,8 @@ public enum JournalEvent: Equatable, Sendable {
             .attemptWorkPreserved
         case .failureCauseRecorded:
             .failureCauseRecorded
+        case .laneHoleRecorded:
+            .laneHoleRecorded
         }
     }
 }
@@ -345,4 +351,5 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case checkRan = "CheckRan"
     case attemptWorkPreserved = "AttemptWorkPreserved"
     case failureCauseRecorded = "FailureCauseRecorded"
+    case laneHoleRecorded = "LaneHoleRecorded"
 }

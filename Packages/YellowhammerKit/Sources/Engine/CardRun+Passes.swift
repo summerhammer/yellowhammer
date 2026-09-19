@@ -35,6 +35,7 @@ extension CardRun {
             throw CardRunError.unexpectedResult(expected: .architect, found: architect.result.pass)
         }
         if case .failed(let reason) = plan.outcome {
+            try recordAuthoringInvariantViolationIfNeeded(plan.authoringInvariantViolation, frame: frame)
             return .ending(.hardFailure(.reported(reason: reason)))
         }
 
@@ -93,8 +94,48 @@ extension CardRun {
         case .question:
             throw PassStop(ending: .question)
         case .failed(let reason):
+            try recordAuthoringInvariantViolationIfNeeded(work.authoringInvariantViolation, frame: frame)
             throw PassStop(ending: .hardFailure(.reported(reason: reason)))
         }
+    }
+
+    /// When an architect or worker `failed` result carries `authoring_invariant_violation`, records it
+    /// before the Attempt ends (graph-execution/handle-a-block-mid-graph, P8.9): this is an
+    /// authoring-invariant violation, not an ordering failure — the Feature was mis-authored, and its
+    /// Cards were never in an order that meant anything. Names an earlier Card in the same lane that is
+    /// currently Blocked or Waiting on You as the likely hole this Card needed.
+    private func recordAuthoringInvariantViolationIfNeeded(_ violation: String?, frame: CardRunFrame) throws {
+        guard let violation else { return }
+        var reason = "authoring-invariant violation, not an ordering failure: the Feature was mis-authored, "
+            + "and its Cards were never in an order that meant anything. Reported: \"\(violation)\""
+        let holes = try earlierHoles(frame: frame)
+        if !holes.isEmpty {
+            let named = holes.joined(separator: ", ")
+            reason += "; the likely hole: \(named)"
+        }
+        try frame.journal.append(
+            .authoringInvariantBroken(cardID: frame.card.id, issueID: frame.card.issueID, reason: reason),
+            act: frame.context.act.act, runID: frame.context.act.runID, nightID: frame.context.act.night.id
+        )
+        try frame.record(.authoringInvariantViolated, detail: reason)
+    }
+
+    /// The issue ids of every Card earlier in this Card's lane (by authored order) that is, as the
+    /// Journal now reads it, Blocked or Waiting on You — re-read for current state rather than trusting
+    /// the lane snapshot this build Act derived, since it may be stale by the time a later pass runs.
+    private func earlierHoles(frame: CardRunFrame) throws -> [String] {
+        let earlier = frame.lane.cards.filter { $0.authoredOrder < frame.card.authoredOrder }
+        var holes: [String] = []
+        for card in earlier {
+            let current = try frame.journal.card(id: card.id)
+            switch current.state {
+            case .blocked, .waitingOnYou:
+                holes.append(current.issueID)
+            default:
+                break
+            }
+        }
+        return holes
     }
 
     /// One pass: composes its instruction, dispatches it in the lane's Worktree and records the step. A

@@ -4,7 +4,9 @@ import Testing
 
 // P7.1: result schema and instruction contract
 
-private func makeInstruction(payloads: InstructionPayloads, check: Check = .command("swift test")) -> Instruction {
+private func makeInstruction(
+    payloads: InstructionPayloads, check: Check = .command("swift test"), pass: RunPass = .worker
+) -> Instruction {
     let night = NightStart(rawValue: "2026-09-17")!
     let repo = Repo(name: "yellowhammer", path: "/repos/yellowhammer", role: .backend)
     let brief = ArchitecturalBrief(
@@ -37,7 +39,7 @@ private func makeInstruction(payloads: InstructionPayloads, check: Check = .comm
     ]
     let route = Route(cli: "claude", model: "sonnet", effort: "medium")!
     return Instruction(
-        pass: .worker,
+        pass: pass,
         card: InstructionCard(key: "ENG-1", title: "Result schema and instruction contract", description: "Ship P7.1."),
         brief: brief,
         definitionOfDone: dod,
@@ -161,4 +163,20 @@ func renderingIsDeterministic() {
 func checkNoneRendersDeclaredNoneWording() {
     let rendered = makeInstruction(payloads: .none, check: .none).render()
     #expect(rendered.contains("none: declared `check = none`"))
+}
+
+@Test(
+    "The authoring-invariant sentence renders for the architect and worker passes, never the reviewer's",
+    arguments: RunPass.allCases
+)
+func authoringInvariantSentenceOnlyForArchitectAndWorker(_ pass: RunPass) {
+    let rendered = makeInstruction(payloads: .none, pass: pass).render()
+    let sentence = "Cards in a Feature never depend on each other"
+    switch pass {
+    case .architect, .worker:
+        #expect(rendered.contains(sentence))
+        #expect(rendered.contains("authoring_invariant_violation"))
+    case .reviewer:
+        #expect(!rendered.contains(sentence))
+    }
 }

@@ -19,7 +19,7 @@ public struct FailureCause: Equatable, Sendable {
         let outcome = ending.outcome.rawValue
         let detail: String
         switch ending {
-        case .success, .question:
+        case .success, .question, .cancelled:
             return nil
         case .hardFailure(.exitStatus(let status)):
             detail = "exit status \(status)"

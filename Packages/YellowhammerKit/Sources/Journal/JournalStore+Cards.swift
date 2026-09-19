@@ -168,6 +168,18 @@ extension JournalStore {
         )
     }
 
+    /// Every Card of this Cycle that is a hole in the Feature (graph-execution/handle-a-block-mid-graph,
+    /// P8.9): Blocked or Waiting on You, sorted by repository then authored order, so the Partial
+    /// Landing announcement (P10.4) can name them in a stable, readable order.
+    public func laneHoles(cycleID: Int64) throws -> [CardRecord] {
+        try cards(cycleID: cycleID).filter { $0.state == .blocked || $0.state == .waitingOnYou }
+            .sorted { lhs, rhs in
+                lhs.repository == rhs.repository
+                    ? lhs.authoredOrder < rhs.authoredOrder
+                    : lhs.repository < rhs.repository
+            }
+    }
+
     // MARK: - Card state changes
 
     /// The board read the Card as Cancelled. Sets state = Cancelled,
@@ -204,8 +216,39 @@ extension JournalStore {
                 arguments: [CardState.cancelled.rawValue, record.state.rawValue, cardID]
             )
 
-            // Append event
             let stamp = EventStamp(act: act, runID: runID, nightID: nightID, now: now)
+
+            // The running agent is not interrupted (spec: "A Card cancelled while it is running") — but
+            // any open Attempt this Card holds is not resumable state worth a budget, so it ends
+            // `cancelled` in the same write: consumes no Attempt, excludes no Route, writes no
+            // failure-cause row and touches no worktree, Feature Branch, round, budget_epoch or
+            // block_reason.
+            if let openRow = try Row.fetchOne(
+                db, sql: "SELECT id FROM attempt WHERE card_id = ? AND ended_at IS NULL", arguments: [cardID]
+            ) {
+                let attemptID: Int64 = openRow["id"]
+                let endedAt = JournalStore.stored(now)
+                try db.execute(
+                    sql: """
+                    UPDATE attempt SET ended_at = ?, result = ?, classification = ?, consumed_how = ?
+                    WHERE id = ?
+                    """,
+                    arguments: [
+                        JournalStore.timestamp(endedAt), AttemptEnding.cancelled.outcome.rawValue,
+                        AttemptEnding.cancelled.classification, AttemptEnding.cancelled.consumedHow, attemptID
+                    ]
+                )
+                guard let attempt = try Self.fetchAttempt(db, attemptID: attemptID) else {
+                    throw JournalError.attemptUnknown(attemptID: attemptID)
+                }
+                let attemptEndedEvent = JournalEvent.attemptEnded(
+                    cardID: cardID, issueID: record.issueID, attemptID: attemptID, route: attempt.route,
+                    outcome: AttemptEnding.cancelled.outcome.rawValue, routeExcluded: false
+                )
+                _ = try Self.insertEvent(db, attemptEndedEvent, stamp: stamp)
+            }
+
+            // Append event
             let event = JournalEvent.cardCancelled(
                 cardID: cardID,
                 issueID: record.issueID,

@@ -153,13 +153,31 @@ extension Instruction {
     }
 
     private var resultContractSection: String {
-        """
-        ## Result contract
+        var text = """
+            ## Result contract
 
-        Write the result file to `\(resultFilePath)` on completion. It must declare \
-        `"schema": "\(pass.schemaIdentifier)"` and `"version": 1`. Permitted outcomes for this pass: \
-        \(permittedOutcomes.joined(separator: ", ")). An empty or missing result file is treated as a crash.
-        """
+            Write the result file to `\(resultFilePath)` on completion. It must declare \
+            `"schema": "\(pass.schemaIdentifier)"` and `"version": 1`. Permitted outcomes for this pass: \
+            \(permittedOutcomes.joined(separator: ", ")). An empty or missing result file is treated as a crash.
+            """
+        if let authoringInvariantSentence {
+            text += " \(authoringInvariantSentence)"
+        }
+        return text
+    }
+
+    /// Only the architect and worker passes ever discover a Card cannot be completed against the
+    /// repositories as authored (graph-execution/handle-a-block-mid-graph, P8.9): Cards in a Feature
+    /// never depend on Cards, so this is an authoring-invariant violation, not an ordering failure.
+    private var authoringInvariantSentence: String? {
+        switch pass {
+        case .architect, .worker:
+            return "Cards in a Feature never depend on each other; if this Card cannot be completed "
+                + "without work another Card has yet to do, report `failed` and describe that work in "
+                + "`authoring_invariant_violation`."
+        case .reviewer:
+            return nil
+        }
     }
 
     private var permittedOutcomes: [String] {

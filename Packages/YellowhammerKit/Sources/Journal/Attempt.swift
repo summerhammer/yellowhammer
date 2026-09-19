@@ -66,7 +66,9 @@ public struct AttemptHistory: Equatable, Sendable {
     /// none to resolve — reads this one derivation.
     public func blockReason(inEpoch epoch: Int) -> BlockReason {
         guard let last = attempts.last(where: {
-            $0.budgetEpoch == epoch && $0.endedAt != nil && $0.result != AttemptOutcome.question.rawValue
+            $0.budgetEpoch == epoch && $0.endedAt != nil
+                && $0.result != AttemptOutcome.question.rawValue
+                && $0.result != AttemptOutcome.cancelled.rawValue
         }) else {
             return .hardFailure
         }
@@ -88,8 +90,12 @@ public struct AttemptHistory: Equatable, Sendable {
     public func consumption(inEpoch epoch: Int) -> AttemptConsumption {
         let ofEpoch = attempts.filter { $0.budgetEpoch == epoch }
         // An open Attempt (`result == nil`) counts as consumed: the row is written at dispatch precisely
-        // so an unclassified Attempt still binds the Bound.
-        let consumed = ofEpoch.filter { $0.result != AttemptOutcome.question.rawValue }
+        // so an unclassified Attempt still binds the Bound. `question` and `cancelled` are the two
+        // non-consuming endings — asking has no resumable state to protect a budget for, and neither
+        // does a Card cancelled mid-run.
+        let consumed = ofEpoch.filter {
+            $0.result != AttemptOutcome.question.rawValue && $0.result != AttemptOutcome.cancelled.rawValue
+        }
         func count(_ outcome: AttemptOutcome) -> Int {
             ofEpoch.filter { $0.result == outcome.rawValue }.count
         }
@@ -99,7 +105,7 @@ public struct AttemptHistory: Equatable, Sendable {
             roundsExhausted: count(.roundsExhausted),
             crashedUnknown: count(.crashedUnknown),
             succeeded: count(.success),
-            notConsumed: count(.question)
+            notConsumed: count(.question) + count(.cancelled)
         )
     }
 }

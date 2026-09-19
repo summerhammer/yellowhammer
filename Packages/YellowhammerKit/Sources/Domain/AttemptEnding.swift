@@ -10,6 +10,11 @@ public enum AttemptEnding: Equatable, Sendable {
     case roundsExhausted(rounds: Int)
     case crashedUnknown(CrashedUnknownCause)
     case question
+    /// The Card was read Cancelled while this Attempt was open (graph-execution/run-a-card, "A Card
+    /// cancelled while it is running", P8.9). Like `question`, this is not an outcome: cancelling
+    /// consumes no Attempt budget, excludes no Route, and is never a Block Reason source — there is no
+    /// resumable state to protect a budget for.
+    case cancelled
 }
 
 /// Why an Attempt hard-failed: attributable to the CLI, either directly or through the pass's
@@ -29,6 +34,7 @@ public enum AttemptOutcome: String, CaseIterable, Sendable {
     case roundsExhausted = "rounds-exhausted"
     case crashedUnknown = "Crashed-Unknown"
     case question
+    case cancelled
 }
 
 extension AttemptEnding {
@@ -45,25 +51,29 @@ extension AttemptEnding {
             .crashedUnknown
         case .question:
             .question
+        case .cancelled:
+            .cancelled
         }
     }
 
     /// True for a capability failure — hard failure or rounds-exhausted — the only two endings that
     /// exclude the Route (routing/exclude-tried-routes-on-retry). Crashed-Unknown never excludes: "a
-    /// dying host is ours, not the model's." A question never excludes, and neither does success.
+    /// dying host is ours, not the model's." A question never excludes, and neither does success, and
+    /// neither does a cancellation.
     public var excludesRoute: Bool {
         switch self {
         case .hardFailure, .roundsExhausted:
             true
-        case .success, .crashedUnknown, .question:
+        case .success, .crashedUnknown, .question, .cancelled:
             false
         }
     }
 
-    /// True for every ending but a question: asking consumes neither a Round nor an Attempt, and the
-    /// Card goes Waiting on You instead.
+    /// True for every ending but a question or a cancellation: asking consumes neither a Round nor an
+    /// Attempt, and the Card goes Waiting on You instead; a cancellation leaves no resumable state to
+    /// protect a budget for.
     public var consumesAttempt: Bool {
-        self != .question
+        self != .question && self != .cancelled
     }
 
     /// The `route_exclusion.reason` this ending writes, or nil when it excludes nothing.
@@ -73,7 +83,7 @@ extension AttemptEnding {
             "hard failure"
         case .roundsExhausted:
             "rounds-exhausted"
-        case .success, .crashedUnknown, .question:
+        case .success, .crashedUnknown, .question, .cancelled:
             nil
         }
     }
@@ -97,6 +107,8 @@ extension AttemptEnding {
             "signaled \(signal)"
         case .question:
             "asked a question"
+        case .cancelled:
+            "Card cancelled"
         }
     }
 
@@ -114,6 +126,8 @@ extension AttemptEnding {
             "consumed; route not excluded (Crashed-Unknown)"
         case .question:
             "not consumed (asked a question)"
+        case .cancelled:
+            "not consumed (Card cancelled)"
         }
     }
 
