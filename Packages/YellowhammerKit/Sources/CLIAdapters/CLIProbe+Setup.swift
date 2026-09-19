@@ -1,11 +1,13 @@
 import Foundation
+import Subprocess
+import System
 
 /// The Worktree, hold script and nonce every probe run needs before any dispatch, plus the
 /// separate `--version` probe (not a dispatch: no adapter, no schema, no session).
 extension CLIProbe {
     /// Creates the Worktree, `git init`s it, and writes the hold script. Returns a fully-failed
     /// ``ProbeReport`` when any step fails (setup failures are reported honestly, not thrown).
-    static func setUp(worktree: URL, adapter: some CLIAdapter, workDirectory: URL) -> ProbeReport? {
+    static func setUp(worktree: URL, adapter: some CLIAdapter, workDirectory: URL) async -> ProbeReport? {
         let fileManager = FileManager.default
 
         func failEverything(_ reason: String) -> ProbeReport {
@@ -27,7 +29,7 @@ extension CLIProbe {
         } catch {
             return failEverything("setup failed: could not create the Worktree: \(error)")
         }
-        guard runGitInit(in: worktree) else {
+        guard await runGitInit(in: worktree) else {
             return failEverything("setup failed: `git init -q` did not succeed in \(worktree.path)")
         }
 
@@ -57,68 +59,52 @@ extension CLIProbe {
         wait
         """
 
-    static func runGitInit(in worktree: URL) -> Bool {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = ["git", "init", "-q"]
-        process.currentDirectoryURL = worktree
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
+    static func runGitInit(in worktree: URL) async -> Bool {
         do {
-            try process.run()
+            let result = try await Subprocess.run(
+                .path(FilePath("/usr/bin/env")),
+                arguments: ["git", "init", "-q"],
+                workingDirectory: FilePath(worktree.path),
+                output: .discarded,
+                error: .discarded
+            )
+            return result.terminationStatus == .exited(0)
         } catch {
             return false
         }
-        process.waitUntilExit()
-        return process.terminationStatus == 0
     }
 
     /// Runs `<executable> --version`, capped at 10 s. The first non-empty stdout line, trimmed, or
     /// `"unknown"` if the process could not be spawned, timed out, or printed nothing parseable.
     static func probeVersion(executable: String, environment: [String: String]) async -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = ["--version"]
-        process.environment = environment
-        let stdout = Pipe()
-        process.standardOutput = stdout
-        process.standardError = FileHandle.nullDevice
-
-        do {
-            try process.run()
-        } catch {
-            return "unknown"
+        let fullEnvironment = Environment.custom(
+            Dictionary(uniqueKeysWithValues: environment.map { (Environment.Key(stringLiteral: $0.key), $0.value) })
+        )
+        let output: [UInt8]? = await withTaskGroup(of: [UInt8]?.self) { group in
+            group.addTask {
+                let result = try? await Subprocess.run(
+                    .path(FilePath(executable)),
+                    arguments: ["--version"],
+                    environment: fullEnvironment,
+                    output: .bytes(limit: 64 * 1024),
+                    error: .discarded
+                )
+                return result?.standardOutput
+            }
+            group.addTask {
+                // Losing the race cancels the run above, which tears the child down.
+                try? await Task.sleep(for: .seconds(10))
+                return nil
+            }
+            let first = await group.next()
+            group.cancelAll()
+            return first.flatMap { $0 }
         }
-
-        let outputTask = Task { stdout.fileHandleForReading.readDataToEndOfFile() }
-        let timedOut = await waitWithTimeout(process, timeout: .seconds(10))
-        if timedOut, process.isRunning {
-            process.terminate()
-        }
-
-        let data = await outputTask.value
-        guard let text = String(data: data, encoding: .utf8) else { return "unknown" }
+        guard let output, let text = String(validating: output, as: UTF8.self) else { return "unknown" }
         let firstLine = text
             .split(separator: "\n", omittingEmptySubsequences: true)
             .first
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) } ?? ""
         return firstLine.isEmpty ? "unknown" : firstLine
-    }
-
-    private static func waitWithTimeout(_ process: Process, timeout: Duration) async -> Bool {
-        await withTaskGroup(of: Bool.self) { group in
-            group.addTask {
-                await withCheckedContinuation { continuation in
-                    process.terminationHandler = { _ in continuation.resume(returning: false) }
-                }
-            }
-            group.addTask {
-                try? await Task.sleep(for: timeout)
-                return true
-            }
-            let first = await group.next() ?? true
-            group.cancelAll()
-            return first
-        }
     }
 }

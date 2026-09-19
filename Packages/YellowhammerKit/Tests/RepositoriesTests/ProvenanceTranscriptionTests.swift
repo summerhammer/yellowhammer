@@ -9,7 +9,7 @@ struct ProvenanceTranscriptionTests {
     @Test("Operator-supplied transcription block -> operatorSupplied, isStillGood == true, isDiverged == false")
     func operatorSuppliedBlock() async throws {
         let fixture = GitFixture(name: "prov-operator-supplied-1")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = ProvenanceDiffTester()
 
@@ -62,10 +62,12 @@ struct ProvenanceTranscriptionTests {
     @Test("Pinned ResolvedMainlines / ResolvedMainline is honoured")
     func pinnedMainlineHonoured() async throws {
         let fixture = GitFixture(name: "prov-pinned-mainline-2")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        let c1 = try fixture.commit(filename: "contract.swift", content: "protocol Contract {}", message: "v1")
-        _ = try fixture.commit(filename: "contract.swift", content: "protocol Contract modified {}", message: "v2")
+        let c1 = try await fixture.commit(filename: "contract.swift", content: "protocol Contract {}", message: "v1")
+        _ = try await fixture.commit(
+            filename: "contract.swift", content: "protocol Contract modified {}", message: "v2"
+        )
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = ProvenanceDiffTester()
@@ -109,10 +111,10 @@ struct ProvenanceTranscriptionTests {
     @Test("SpecSource provenance check")
     func specSourceProvenanceCheck() async throws {
         let fixture = GitFixture(name: "prov-specsource-3")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        let c1 = try fixture.commit(filename: "spec.md", content: "# Spec v1", message: "v1")
-        _ = try fixture.commit(filename: "spec.md", content: "# Spec v2", message: "v2")
+        let c1 = try await fixture.commit(filename: "spec.md", content: "# Spec v1", message: "v1")
+        _ = try await fixture.commit(filename: "spec.md", content: "# Spec v2", message: "v2")
 
         let specSource = SpecSource(path: fixture.path)
         let tester = ProvenanceDiffTester()
@@ -191,8 +193,8 @@ struct ProvenanceTranscriptionTests {
     @Test("Unresolvable commit -> untestable")
     func unresolvableCommit() async throws {
         let fixture = GitFixture(name: "prov-bad-commit-4")
-        fixture.initRepo(defaultBranch: "main")
-        _ = try fixture.commit(filename: "file.swift", content: "v1", message: "v1")
+        await fixture.initRepo(defaultBranch: "main")
+        _ = try await fixture.commit(filename: "file.swift", content: "v1", message: "v1")
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = ProvenanceDiffTester()
@@ -212,7 +214,7 @@ struct ProvenanceTranscriptionTests {
     @Test("Unconfigured repository in ProjectRepositories -> untestable")
     func unconfiguredRepository() async throws {
         let fixture = GitFixture(name: "prov-unconfigured-5")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
 
         let block = TranscriptionBlock(
@@ -240,19 +242,19 @@ struct ProvenanceReportRollUpTests {
     @Test("Multi-transcription / multi-repo CardProvenanceReport roll-up with divergence")
     func multiTranscriptionRollUpWithDivergence() async throws {
         let fixtureApp = GitFixture(name: "prov-rollup-app-6")
-        fixtureApp.initRepo(defaultBranch: "main")
-        let appC1 = try fixtureApp.commit(filename: "app.swift", content: "v1", message: "v1")
-        _ = try fixtureApp.commit(filename: "app.swift", content: "v2", message: "v2")
+        await fixtureApp.initRepo(defaultBranch: "main")
+        let appC1 = try await fixtureApp.commit(filename: "app.swift", content: "v1", message: "v1")
+        _ = try await fixtureApp.commit(filename: "app.swift", content: "v2", message: "v2")
 
         let fixtureBackend = GitFixture(name: "prov-rollup-backend-6")
-        fixtureBackend.initRepo(defaultBranch: "main")
-        let backendC1 = try fixtureBackend.commit(filename: "api.swift", content: "v1", message: "v1")
-        _ = try fixtureBackend.commit(filename: "other.swift", content: "other", message: "other")
+        await fixtureBackend.initRepo(defaultBranch: "main")
+        let backendC1 = try await fixtureBackend.commit(filename: "api.swift", content: "v1", message: "v1")
+        _ = try await fixtureBackend.commit(filename: "other.swift", content: "other", message: "other")
 
         let fixtureSpec = GitFixture(name: "prov-rollup-spec-6")
-        fixtureSpec.initRepo(defaultBranch: "main")
-        let specC1 = try fixtureSpec.commit(filename: "spec.md", content: "spec v1", message: "spec v1")
-        _ = try fixtureSpec.commit(filename: "spec.md", content: "spec v2", message: "spec v2")
+        await fixtureSpec.initRepo(defaultBranch: "main")
+        let specC1 = try await fixtureSpec.commit(filename: "spec.md", content: "spec v1", message: "spec v1")
+        _ = try await fixtureSpec.commit(filename: "spec.md", content: "spec v2", message: "spec v2")
 
         let projectRepos = ProjectRepositories(
             workingRepos: [
@@ -296,8 +298,8 @@ struct ProvenanceReportRollUpTests {
     @Test("Multi-transcription / multi-repo CardProvenanceReport roll-up all clean")
     func multiTranscriptionRollUpAllClean() async throws {
         let fixtureBackend = GitFixture(name: "prov-rollup-clean-backend-6")
-        fixtureBackend.initRepo(defaultBranch: "main")
-        let backendC1 = try fixtureBackend.commit(filename: "api.swift", content: "v1", message: "v1")
+        await fixtureBackend.initRepo(defaultBranch: "main")
+        let backendC1 = try await fixtureBackend.commit(filename: "api.swift", content: "v1", message: "v1")
 
         let projectRepos = ProjectRepositories(
             workingRepos: [Repo(name: "backend", path: fixtureBackend.path, role: .backend)]

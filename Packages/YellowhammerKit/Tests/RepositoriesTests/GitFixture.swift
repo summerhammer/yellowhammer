@@ -21,18 +21,18 @@ struct GitFixture: ~Copyable {
     var path: String { url.path(percentEncoded: false) }
 
     @discardableResult
-    func run(_ args: [String]) -> GitCommandResult {
-        git.runSync(["-C", path] + args)
+    func run(_ args: [String]) async -> GitCommandResult {
+        await git.run(["-C", path] + args)
     }
 
-    func initRepo(bare: Bool = false, defaultBranch: String = "main") {
+    func initRepo(bare: Bool = false, defaultBranch: String = "main") async {
         if bare {
-            _ = run(["init", "--bare", "--initial-branch=\(defaultBranch)"])
+            _ = await run(["init", "--bare", "--initial-branch=\(defaultBranch)"])
         } else {
-            _ = run(["init", "--initial-branch=\(defaultBranch)"])
-            _ = run(["config", "user.name", "Yellowhammer Test"])
-            _ = run(["config", "user.email", "test@yellowhammer.local"])
-            _ = run(["config", "commit.gpgsign", "false"])
+            _ = await run(["init", "--initial-branch=\(defaultBranch)"])
+            _ = await run(["config", "user.name", "Yellowhammer Test"])
+            _ = await run(["config", "user.email", "test@yellowhammer.local"])
+            _ = await run(["config", "commit.gpgsign", "false"])
         }
     }
 
@@ -41,28 +41,28 @@ struct GitFixture: ~Copyable {
         filename: String = "file.txt",
         content: String = "content",
         message: String = "commit"
-    ) throws -> String {
+    ) async throws -> String {
         let fileURL = url.appendingPathComponent(filename)
         try FileManager.default.createDirectory(
             at: fileURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
         try content.write(to: fileURL, atomically: true, encoding: .utf8)
-        _ = run(["add", "."])
-        _ = run(["commit", "-m", message])
-        return try #require(revParse("HEAD"))
+        _ = await run(["add", "."])
+        _ = await run(["commit", "-m", message])
+        return try #require(await revParse("HEAD"))
     }
 
-    func addRemote(name: String = "origin", url remoteURL: String) {
-        _ = run(["remote", "add", name, remoteURL])
+    func addRemote(name: String = "origin", url remoteURL: String) async {
+        _ = await run(["remote", "add", name, remoteURL])
     }
 
-    func setRemoteHead(remote: String = "origin", branch: String = "main") {
-        _ = run(["symbolic-ref", "refs/remotes/\(remote)/HEAD", "refs/remotes/\(remote)/\(branch)"])
+    func setRemoteHead(remote: String = "origin", branch: String = "main") async {
+        _ = await run(["symbolic-ref", "refs/remotes/\(remote)/HEAD", "refs/remotes/\(remote)/\(branch)"])
     }
 
-    func revParse(_ ref: String) -> String? {
-        let result = run(["rev-parse", "--verify", "--quiet", ref])
+    func revParse(_ ref: String) async -> String? {
+        let result = await run(["rev-parse", "--verify", "--quiet", ref])
         guard result.isSuccess else { return nil }
         let sha = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         return sha.isEmpty ? nil : sha

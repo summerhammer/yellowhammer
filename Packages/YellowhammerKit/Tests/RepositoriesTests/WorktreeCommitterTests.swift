@@ -9,9 +9,9 @@ struct WorktreeCommitterTests {
     @Test("A dirty Worktree with tracked and untracked changes is committed as one WIP commit")
     func dirtyWorktreeCommitsOnce() async throws {
         let fixture = GitFixture(name: "wip-dirty-1")
-        fixture.initRepo(defaultBranch: "main")
-        _ = try fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
-        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
+        await fixture.initRepo(defaultBranch: "main")
+        _ = try await fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
 
         try fixture.writeFile(filename: "tracked.txt", content: "changed")
         try fixture.writeFile(filename: "untracked.txt", content: "new file")
@@ -25,13 +25,14 @@ struct WorktreeCommitterTests {
             return
         }
         #expect(wipRef == "refs/yellowhammer/wip/yh-project-feature")
-        #expect(fixture.revParse(wipRef) == commit)
-        #expect(fixture.revParse("HEAD") == commit)
+        await #expect(fixture.revParse(wipRef) == commit)
+        await #expect(fixture.revParse("HEAD") == commit)
 
-        let status = fixture.run(["status", "--porcelain"]).stdout
+        let status = await fixture.run(["status", "--porcelain"]).stdout
         #expect(status.isEmpty)
 
-        let message = fixture.run(["log", "-1", "--format=%s"]).stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        let message = await fixture.run(["log", "-1", "--format=%s"]).stdout
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         #expect(message.hasPrefix(WorktreeCommitter.messageMarker))
         #expect(message.contains("yh-project-feature"))
     }
@@ -39,9 +40,9 @@ struct WorktreeCommitterTests {
     @Test("Committing WIP twice without new changes does not create a second commit")
     func idempotentAcrossCalls() async throws {
         let fixture = GitFixture(name: "wip-idempotent-2")
-        fixture.initRepo(defaultBranch: "main")
-        _ = try fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
-        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
+        await fixture.initRepo(defaultBranch: "main")
+        _ = try await fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
         try fixture.writeFile(filename: "tracked.txt", content: "changed")
 
         let branch = FeatureBranch(name: "yh-project-feature")
@@ -52,7 +53,7 @@ struct WorktreeCommitterTests {
             return
         }
 
-        let countBefore = fixture.run(["rev-list", "--count", "HEAD"]).stdout
+        let countBefore = await fixture.run(["rev-list", "--count", "HEAD"]).stdout
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         let second = await committer.commitWIP(worktreePath: fixture.path, branch: branch)
@@ -64,7 +65,7 @@ struct WorktreeCommitterTests {
         #expect(secondWipRef == wipRef)
         #expect(wipCommit == firstCommit)
 
-        let countAfter = fixture.run(["rev-list", "--count", "HEAD"]).stdout
+        let countAfter = await fixture.run(["rev-list", "--count", "HEAD"]).stdout
             .trimmingCharacters(in: .whitespacesAndNewlines)
         #expect(countBefore == countAfter)
     }
@@ -72,9 +73,9 @@ struct WorktreeCommitterTests {
     @Test("A clean Worktree with no standing WIP ref is a no-op that writes nothing")
     func cleanWorktreeIsNoOp() async throws {
         let fixture = GitFixture(name: "wip-clean-3")
-        fixture.initRepo(defaultBranch: "main")
-        let headSHA = try fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
-        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
+        await fixture.initRepo(defaultBranch: "main")
+        let headSHA = try await fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
 
         let branch = FeatureBranch(name: "yh-project-feature")
         let committer = WorktreeCommitter()
@@ -92,10 +93,10 @@ struct WorktreeCommitterTests {
     @Test("A Worktree not on its Feature Branch is refused, writing nothing")
     func notOnFeatureBranchIsRefused() async throws {
         let fixture = GitFixture(name: "wip-wrong-branch-4")
-        fixture.initRepo(defaultBranch: "main")
-        _ = try fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
-        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
-        _ = fixture.run(["checkout", "main"])
+        await fixture.initRepo(defaultBranch: "main")
+        _ = try await fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
+        _ = await fixture.run(["checkout", "main"])
         try fixture.writeFile(filename: "tracked.txt", content: "changed while on main")
 
         let branch = FeatureBranch(name: "yh-project-feature")
@@ -106,8 +107,8 @@ struct WorktreeCommitterTests {
             Issue.record("expected .refused, got \(outcome)")
             return
         }
-        #expect(fixture.revParse("refs/yellowhammer/wip/yh-project-feature") == nil)
-        let status = fixture.run(["status", "--porcelain"]).stdout
+        await #expect(fixture.revParse("refs/yellowhammer/wip/yh-project-feature") == nil)
+        let status = await fixture.run(["status", "--porcelain"]).stdout
         #expect(status.contains("tracked.txt"))
     }
 
@@ -135,9 +136,9 @@ struct WorktreeCommitterRehearsalTests {
     @Test("A dirty Worktree in rehearsal mode is refused, writing nothing and leaving changes in place")
     func dirtyWorktreeInRehearsalIsRefused() async throws {
         let fixture = GitFixture(name: "wip-rehearsal-dirty-1")
-        fixture.initRepo(defaultBranch: "main")
-        let headSHA = try fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
-        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
+        await fixture.initRepo(defaultBranch: "main")
+        let headSHA = try await fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
         try fixture.writeFile(filename: "tracked.txt", content: "changed")
         try fixture.writeFile(filename: "untracked.txt", content: "new file")
 
@@ -149,9 +150,9 @@ struct WorktreeCommitterRehearsalTests {
             Issue.record("expected .refused, got \(outcome)")
             return
         }
-        #expect(fixture.revParse("HEAD") == headSHA)
-        #expect(fixture.revParse("refs/yellowhammer/wip/yh-project-feature") == nil)
-        let status = fixture.run(["status", "--porcelain"]).stdout
+        await #expect(fixture.revParse("HEAD") == headSHA)
+        await #expect(fixture.revParse("refs/yellowhammer/wip/yh-project-feature") == nil)
+        let status = await fixture.run(["status", "--porcelain"]).stdout
         #expect(status.contains("tracked.txt"))
         #expect(status.contains("untracked.txt"))
     }
@@ -159,9 +160,9 @@ struct WorktreeCommitterRehearsalTests {
     @Test("A clean Worktree in rehearsal mode is still a no-op, exactly as in real mode")
     func cleanWorktreeInRehearsalIsNoOp() async throws {
         let fixture = GitFixture(name: "wip-rehearsal-clean-2")
-        fixture.initRepo(defaultBranch: "main")
-        let headSHA = try fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
-        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
+        await fixture.initRepo(defaultBranch: "main")
+        let headSHA = try await fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
 
         let branch = FeatureBranch(name: "yh-project-feature")
         let committer = WorktreeCommitter(mode: .rehearsal)
@@ -179,10 +180,10 @@ struct WorktreeCommitterRehearsalTests {
     @Test("preserveAndReset in rehearsal mode refuses a dirty Worktree without committing")
     func preserveAndResetInRehearsalRefusesDirtyTree() async throws {
         let fixture = GitFixture(name: "wip-rehearsal-preserve-3")
-        fixture.initRepo(defaultBranch: "main")
-        _ = try fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
-        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
-        let knownGood = try fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
+        await fixture.initRepo(defaultBranch: "main")
+        _ = try await fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
+        let knownGood = try await fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
         try fixture.writeFile(filename: "feat.txt", content: "dirty feature edit")
 
         let branch = FeatureBranch(name: "yh-project-feature")
@@ -196,7 +197,7 @@ struct WorktreeCommitterRehearsalTests {
             return
         }
         // HEAD is unchanged: `knownGood` was already the tip before this call, and nothing was committed.
-        #expect(fixture.revParse("HEAD") == knownGood)
+        await #expect(fixture.revParse("HEAD") == knownGood)
         let contents = try String(contentsOf: fixture.url.appending(component: "feat.txt"), encoding: .utf8)
         #expect(contents == "dirty feature edit")
     }
@@ -208,10 +209,10 @@ struct WorktreeResetTests {
     @Test("Resetting after a WIP commit moves the Feature Branch to known-good and keeps the WIP ref reachable")
     func resetAfterWIPCommit() async throws {
         let fixture = GitFixture(name: "reset-after-wip-1")
-        fixture.initRepo(defaultBranch: "main")
-        _ = try fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
-        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
-        let knownGood = try fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
+        await fixture.initRepo(defaultBranch: "main")
+        _ = try await fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
+        let knownGood = try await fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
         try fixture.writeFile(filename: "feat.txt", content: "dirty feature edit")
 
         let branch = FeatureBranch(name: "yh-project-feature")
@@ -233,19 +234,19 @@ struct WorktreeResetTests {
         }
         #expect(to == knownGood)
         #expect(wipRef == "refs/yellowhammer/wip/yh-project-feature")
-        #expect(fixture.revParse(try #require(wipRef)) == wipCommit)
-        #expect(fixture.revParse("HEAD") == knownGood)
+        await #expect(fixture.revParse(try #require(wipRef)) == wipCommit)
+        await #expect(fixture.revParse("HEAD") == knownGood)
 
-        let status = fixture.run(["status", "--porcelain"]).stdout
+        let status = await fixture.run(["status", "--porcelain"]).stdout
         #expect(status.isEmpty)
     }
 
     @Test("A dirty Worktree is refused and the uncommitted file is left untouched")
     func dirtyWorktreeIsRefused() async throws {
         let fixture = GitFixture(name: "reset-dirty-2")
-        fixture.initRepo(defaultBranch: "main")
-        let knownGood = try fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
-        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
+        await fixture.initRepo(defaultBranch: "main")
+        let knownGood = try await fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
         try fixture.writeFile(filename: "tracked.txt", content: "dirty edit")
 
         let branch = FeatureBranch(name: "yh-project-feature")
@@ -267,10 +268,10 @@ struct WorktreeResetTests {
     @Test("An unresolvable known-good commit is refused")
     func unresolvableKnownGoodIsRefused() async throws {
         let fixture = GitFixture(name: "reset-unresolvable-3")
-        fixture.initRepo(defaultBranch: "main")
-        _ = try fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
-        _ = fixture.run(["checkout", "-b", "yh-project-feature"])
-        _ = try fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
+        await fixture.initRepo(defaultBranch: "main")
+        _ = try await fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
+        _ = try await fixture.commit(filename: "feat.txt", content: "feature", message: "feature commit")
 
         let branch = FeatureBranch(name: "yh-project-feature")
         let committer = WorktreeCommitter()

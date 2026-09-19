@@ -26,7 +26,7 @@ struct WorktreeReconcilerContinuedTests {
         let tempDir = try makeReconcilerTempDir(name: "fence")
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
-        let (worktree, baseCommit) = try makeReconcilerRepoAndWorktree(
+        let (worktree, baseCommit) = try await makeReconcilerRepoAndWorktree(
             named: "backend", branch: reconcilerBranch.name, in: tempDir, git: git
         )
         try "modified".write(to: worktree.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
@@ -79,14 +79,14 @@ struct WorktreeReconcilerContinuedTests {
         let tempDir = try makeReconcilerTempDir(name: "clean")
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
-        let (worktree, baseCommit) = try makeReconcilerRepoAndWorktree(
+        let (worktree, baseCommit) = try await makeReconcilerRepoAndWorktree(
             named: "backend", branch: reconcilerBranch.name, in: tempDir, git: git
         )
         _ = try journal.recordWorktree(
             featureID: featureID, repository: "backend", worktreeID: "wt-backend", path: worktree.path,
             runID: runID, lastKnownGoodCommit: baseCommit
         )
-        let before = reconcilerObjectCount(in: worktree, git: git)
+        let before = await reconcilerObjectCount(in: worktree, git: git)
 
         let workspace = ReconcilerFakeWorkspace()
         let reconciler = WorktreeReconciler(
@@ -98,7 +98,7 @@ struct WorktreeReconcilerContinuedTests {
             Issue.record("expected .clean, got \(String(describing: result["backend"]))")
             return
         }
-        #expect(before == reconcilerObjectCount(in: worktree, git: git))
+        await #expect(before == reconcilerObjectCount(in: worktree, git: git))
 
         let worktreeEventTypes: Set<JournalEventType> = [
             .worktreeLost, .worktreeFenced, .worktreeNotQuiescent, .worktreeWIPCommitted,
@@ -121,7 +121,7 @@ struct WorktreeReconcilerContinuedTests {
         let tempDir = try makeReconcilerTempDir(name: "released")
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
-        let (worktree, _) = try makeReconcilerRepoAndWorktree(
+        let (worktree, _) = try await makeReconcilerRepoAndWorktree(
             named: "backend", branch: reconcilerBranch.name, in: tempDir, git: git
         )
         let recorded = try journal.recordWorktree(
@@ -155,7 +155,7 @@ struct WorktreeReconcilerContinuedTests {
         let tempDir = try makeReconcilerTempDir(name: "nogood")
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
-        let (worktree, _) = try makeReconcilerRepoAndWorktree(
+        let (worktree, _) = try await makeReconcilerRepoAndWorktree(
             named: "backend", branch: reconcilerBranch.name, in: tempDir, git: git
         )
         try "modified".write(to: worktree.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
@@ -175,7 +175,7 @@ struct WorktreeReconcilerContinuedTests {
             return
         }
         #expect(resetTo == nil)
-        #expect(reconcilerRevParse("HEAD", in: worktree, git: git) == wipCommit)
+        await #expect(reconcilerRevParse("HEAD", in: worktree, git: git) == wipCommit)
     }
 
     @Test("Reconciling a dirty Worktree twice writes no second WIP commit and no second event")
@@ -191,7 +191,7 @@ struct WorktreeReconcilerContinuedTests {
         let tempDir = try makeReconcilerTempDir(name: "idempotent")
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
-        let (worktree, baseCommit) = try makeReconcilerRepoAndWorktree(
+        let (worktree, baseCommit) = try await makeReconcilerRepoAndWorktree(
             named: "backend", branch: reconcilerBranch.name, in: tempDir, git: git
         )
         try "modified".write(to: worktree.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
@@ -207,17 +207,18 @@ struct WorktreeReconcilerContinuedTests {
 
         let firstResult = try await reconciler.reconcile(featureID: featureID, branch: reconcilerBranch)
         try #require(isWIPCommitted(firstResult["backend"]))
-        let countAfterFirst = reconcilerBranchCommitCount(worktree: worktree, git: git)
+        let countAfterFirst = await reconcilerBranchCommitCount(worktree: worktree, git: git)
 
         let secondResult = try await reconciler.reconcile(featureID: featureID, branch: reconcilerBranch)
         guard case .clean = secondResult["backend"] else {
             Issue.record("expected .clean on the second reconcile, got \(String(describing: secondResult["backend"]))")
             return
         }
-        #expect(countAfterFirst == reconcilerBranchCommitCount(worktree: worktree, git: git))
+        let countAfterSecond = await reconcilerBranchCommitCount(worktree: worktree, git: git)
+        #expect(countAfterFirst == countAfterSecond)
 
         let wipRef = "refs/yellowhammer/wip/\(reconcilerBranch.name)"
-        let log = git.runSync(["log", "--format=%s", wipRef], workingDirectory: worktree.path).stdout
+        let log = await git.run(["log", "--format=%s", wipRef], workingDirectory: worktree.path).stdout
         let markerLines = log.split(separator: "\n").filter { $0.hasPrefix(WorktreeCommitter.messageMarker) }
         #expect(markerLines.count == 1)
 
@@ -229,8 +230,8 @@ struct WorktreeReconcilerContinuedTests {
         return true
     }
 
-    private func reconcilerBranchCommitCount(worktree: URL, git: GitRunner) -> String {
-        git.runSync(["rev-list", "--count", reconcilerBranch.name], workingDirectory: worktree.path)
+    private func reconcilerBranchCommitCount(worktree: URL, git: GitRunner) async -> String {
+        await git.run(["rev-list", "--count", reconcilerBranch.name], workingDirectory: worktree.path)
             .stdout.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

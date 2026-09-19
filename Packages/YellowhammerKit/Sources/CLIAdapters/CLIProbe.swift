@@ -39,7 +39,7 @@ public struct CLIProbe: Sendable {
         let worktree = workDirectory.appendingPathComponent("worktree")
         let runsDirectory = workDirectory.appendingPathComponent("runs")
 
-        if let failure = Self.setUp(worktree: worktree, adapter: adapter, workDirectory: workDirectory) {
+        if let failure = await Self.setUp(worktree: worktree, adapter: adapter, workDirectory: workDirectory) {
             return failure
         }
 

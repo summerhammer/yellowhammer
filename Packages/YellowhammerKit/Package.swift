@@ -28,6 +28,10 @@ let package = Package(
         .package(
             url: "https://github.com/groue/GRDB.swift.git",
             from: "7.11.1"
+        ),
+        .package(
+            url: "https://github.com/swiftlang/swift-subprocess",
+            from: "1.0.0"
         )
     ],
     targets: [
@@ -54,11 +58,19 @@ let package = Package(
         ),
         .target(
             name: "Repositories",
-            dependencies: ["Domain"]
+            dependencies: [
+                "Domain",
+                .product(name: "Subprocess", package: "swift-subprocess")
+            ]
         ),
         .target(
             name: "Engine",
-            dependencies: ["Domain", "Journal", "Repositories"],
+            dependencies: [
+                "Domain",
+                "Journal",
+                "Repositories",
+                .product(name: "Subprocess", package: "swift-subprocess")
+            ],
             resources: [.copy("Fixtures")]
         ),
         .target(
@@ -67,11 +79,17 @@ let package = Package(
         ),
         .target(
             name: "OrcaADEAdapter",
-            dependencies: ["Domain"]
+            dependencies: [
+                "Domain",
+                .product(name: "Subprocess", package: "swift-subprocess")
+            ]
         ),
         .target(
             name: "CLIAdapters",
-            dependencies: ["Domain"]
+            dependencies: [
+                "Domain",
+                .product(name: "Subprocess", package: "swift-subprocess")
+            ]
         ),
         .target(
             name: "EngineCommand",

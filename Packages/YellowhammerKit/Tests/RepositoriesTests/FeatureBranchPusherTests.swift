@@ -9,14 +9,14 @@ struct FeatureBranchPusherTests {
     @Test("A successful push lands the Feature Branch's tip on the remote")
     func successfulPush() async throws {
         let local = GitFixture(name: "push-success-local-1")
-        local.initRepo(defaultBranch: "main")
-        _ = try local.commit(filename: "init.txt", content: "initial", message: "initial commit")
-        _ = local.run(["checkout", "-b", "yh-project-feature"])
-        let featureSHA = try local.commit(filename: "feat.txt", content: "feature", message: "feature commit")
+        await local.initRepo(defaultBranch: "main")
+        _ = try await local.commit(filename: "init.txt", content: "initial", message: "initial commit")
+        _ = await local.run(["checkout", "-b", "yh-project-feature"])
+        let featureSHA = try await local.commit(filename: "feat.txt", content: "feature", message: "feature commit")
 
         let remote = GitFixture(name: "push-success-remote-1")
-        remote.initRepo(bare: true, defaultBranch: "main")
-        local.addRemote(url: remote.path)
+        await remote.initRepo(bare: true, defaultBranch: "main")
+        await local.addRemote(url: remote.path)
 
         let repo = Repo(name: "app", path: local.path, role: .backend, defaultBranch: "main")
         let branch = FeatureBranch(name: "yh-project-feature")
@@ -28,19 +28,19 @@ struct FeatureBranchPusherTests {
             return
         }
         #expect(commit == featureSHA)
-        #expect(remote.revParse("refs/heads/yh-project-feature") == featureSHA)
+        await #expect(remote.revParse("refs/heads/yh-project-feature") == featureSHA)
     }
 
     @Test("Branch protection on the remote is reported and nothing else is attempted")
     func branchProtectionRejection() async throws {
         let local = GitFixture(name: "push-protected-local-2")
-        local.initRepo(defaultBranch: "main")
-        _ = try local.commit(filename: "init.txt", content: "initial", message: "initial commit")
-        _ = local.run(["checkout", "-b", "yh-project-feature"])
-        _ = try local.commit(filename: "feat.txt", content: "feature", message: "feature commit")
+        await local.initRepo(defaultBranch: "main")
+        _ = try await local.commit(filename: "init.txt", content: "initial", message: "initial commit")
+        _ = await local.run(["checkout", "-b", "yh-project-feature"])
+        _ = try await local.commit(filename: "feat.txt", content: "feature", message: "feature commit")
 
         let remote = GitFixture(name: "push-protected-remote-2")
-        remote.initRepo(bare: true, defaultBranch: "main")
+        await remote.initRepo(bare: true, defaultBranch: "main")
         try remote.installHook(
             named: "pre-receive",
             script: """
@@ -49,7 +49,7 @@ struct FeatureBranchPusherTests {
             exit 1
             """
         )
-        local.addRemote(url: remote.path)
+        await local.addRemote(url: remote.path)
 
         let repo = Repo(name: "app", path: local.path, role: .backend, defaultBranch: "main")
         let branch = FeatureBranch(name: "yh-project-feature")
@@ -61,20 +61,20 @@ struct FeatureBranchPusherTests {
             return
         }
         #expect(repository == "app")
-        #expect(remote.revParse("refs/heads/yh-project-feature") == nil)
+        await #expect(remote.revParse("refs/heads/yh-project-feature") == nil)
     }
 
     @Test("Rehearsal never pushes and runs no git command")
     func rehearsalNeverPushes() async throws {
         let local = GitFixture(name: "push-rehearsal-local-3")
-        local.initRepo(defaultBranch: "main")
-        _ = try local.commit(filename: "init.txt", content: "initial", message: "initial commit")
-        _ = local.run(["checkout", "-b", "yh-project-feature"])
-        _ = try local.commit(filename: "feat.txt", content: "feature", message: "feature commit")
+        await local.initRepo(defaultBranch: "main")
+        _ = try await local.commit(filename: "init.txt", content: "initial", message: "initial commit")
+        _ = await local.run(["checkout", "-b", "yh-project-feature"])
+        _ = try await local.commit(filename: "feat.txt", content: "feature", message: "feature commit")
 
         let remote = GitFixture(name: "push-rehearsal-remote-3")
-        remote.initRepo(bare: true, defaultBranch: "main")
-        local.addRemote(url: remote.path)
+        await remote.initRepo(bare: true, defaultBranch: "main")
+        await local.addRemote(url: remote.path)
 
         let repo = Repo(name: "app", path: local.path, role: .backend, defaultBranch: "main")
         let branch = FeatureBranch(name: "yh-project-feature")
@@ -82,18 +82,18 @@ struct FeatureBranchPusherTests {
         let outcome = await pusher.push(branch: branch, in: repo, mode: .rehearsal, token: nil)
 
         #expect(outcome == .notPushedInRehearsal)
-        #expect(remote.revParse("refs/heads/yh-project-feature") == nil)
+        await #expect(remote.revParse("refs/heads/yh-project-feature") == nil)
     }
 
     @Test("Pushing the default branch itself is refused as a Mainline push and the remote is unchanged")
     func mainlinePushIsRefused() async throws {
         let local = GitFixture(name: "push-mainline-local-4")
-        local.initRepo(defaultBranch: "main")
-        let mainSHA = try local.commit(filename: "init.txt", content: "initial", message: "initial commit")
+        await local.initRepo(defaultBranch: "main")
+        let mainSHA = try await local.commit(filename: "init.txt", content: "initial", message: "initial commit")
 
         let remote = GitFixture(name: "push-mainline-remote-4")
-        remote.initRepo(bare: true, defaultBranch: "main")
-        local.addRemote(url: remote.path)
+        await remote.initRepo(bare: true, defaultBranch: "main")
+        await local.addRemote(url: remote.path)
 
         let repo = Repo(name: "app", path: local.path, role: .backend, defaultBranch: "main")
         let branch = FeatureBranch(name: "main")
@@ -101,7 +101,7 @@ struct FeatureBranchPusherTests {
         let outcome = await pusher.push(branch: branch, in: repo, mode: .real, token: nil)
 
         #expect(outcome == .refusedMainline)
-        #expect(remote.revParse("refs/heads/main") == nil)
+        await #expect(remote.revParse("refs/heads/main") == nil)
         _ = mainSHA
     }
 

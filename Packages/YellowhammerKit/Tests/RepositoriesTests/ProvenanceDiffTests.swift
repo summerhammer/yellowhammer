@@ -9,10 +9,10 @@ struct ProvenanceDiffTests {
     @Test("Untouched path: mainline moved with unrelated commits, recorded file unchanged -> clean")
     func untouchedPathMainlineMoved() async throws {
         let fixture = GitFixture(name: "prov-untouched-1")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        let c1 = try fixture.commit(filename: "contract.swift", content: "protocol Contract {}", message: "v1")
-        _ = try fixture.commit(filename: "unrelated.swift", content: "struct Unrelated {}", message: "v2")
+        let c1 = try await fixture.commit(filename: "contract.swift", content: "protocol Contract {}", message: "v1")
+        _ = try await fixture.commit(filename: "unrelated.swift", content: "struct Unrelated {}", message: "v2")
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = ProvenanceDiffTester()
@@ -28,14 +28,14 @@ struct ProvenanceDiffTests {
     @Test("Touched path: recorded file modified on mainline -> stale with changedPaths and isDiverged")
     func touchedPathModified() async throws {
         let fixture = GitFixture(name: "prov-touched-2")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        let c1 = try fixture.commit(
+        let c1 = try await fixture.commit(
             filename: "contract.swift",
             content: "protocol Contract { func a() }",
             message: "v1"
         )
-        _ = try fixture.commit(
+        _ = try await fixture.commit(
             filename: "contract.swift",
             content: "protocol Contract { func b() }",
             message: "v2"
@@ -54,12 +54,14 @@ struct ProvenanceDiffTests {
     @Test("Renamed path: recorded file was renamed on mainline -> stale with original recorded path")
     func renamedPathOnMainline() async throws {
         let fixture = GitFixture(name: "prov-renamed-3")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        let c1 = try fixture.commit(filename: "old_contract.swift", content: "protocol Contract {}", message: "v1")
-        _ = fixture.run(["mv", "old_contract.swift", "new_contract.swift"])
-        _ = fixture.run(["add", "."])
-        _ = fixture.run(["commit", "-m", "rename contract"])
+        let c1 = try await fixture.commit(
+            filename: "old_contract.swift", content: "protocol Contract {}", message: "v1"
+        )
+        _ = await fixture.run(["mv", "old_contract.swift", "new_contract.swift"])
+        _ = await fixture.run(["add", "."])
+        _ = await fixture.run(["commit", "-m", "rename contract"])
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = ProvenanceDiffTester()
@@ -73,11 +75,11 @@ struct ProvenanceDiffTests {
     @Test("Deleted path: recorded file deleted on mainline -> stale")
     func deletedPathOnMainline() async throws {
         let fixture = GitFixture(name: "prov-deleted-4")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        let c1 = try fixture.commit(filename: "to_delete.swift", content: "protocol ToDelete {}", message: "v1")
-        _ = fixture.run(["rm", "to_delete.swift"])
-        _ = fixture.run(["commit", "-m", "delete contract"])
+        let c1 = try await fixture.commit(filename: "to_delete.swift", content: "protocol ToDelete {}", message: "v1")
+        _ = await fixture.run(["rm", "to_delete.swift"])
+        _ = await fixture.run(["commit", "-m", "delete contract"])
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = ProvenanceDiffTester()
@@ -91,14 +93,14 @@ struct ProvenanceDiffTests {
     @Test("Multiple paths: some touched, some untouched -> reports exactly touched paths sorted")
     func multiplePathsSomeTouched() async throws {
         let fixture = GitFixture(name: "prov-multi-5")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        _ = try fixture.commit(filename: "z_untouched.swift", content: "protocol Z {}", message: "v0")
-        _ = try fixture.commit(filename: "b_touched.swift", content: "protocol B {}", message: "v0")
-        let c1 = try fixture.commit(filename: "a_touched.swift", content: "protocol A {}", message: "v1")
+        _ = try await fixture.commit(filename: "z_untouched.swift", content: "protocol Z {}", message: "v0")
+        _ = try await fixture.commit(filename: "b_touched.swift", content: "protocol B {}", message: "v0")
+        let c1 = try await fixture.commit(filename: "a_touched.swift", content: "protocol A {}", message: "v1")
 
-        _ = try fixture.commit(filename: "a_touched.swift", content: "protocol A modified {}", message: "v2-a")
-        _ = try fixture.commit(filename: "b_touched.swift", content: "protocol B modified {}", message: "v2-b")
+        _ = try await fixture.commit(filename: "a_touched.swift", content: "protocol A modified {}", message: "v2-a")
+        _ = try await fixture.commit(filename: "b_touched.swift", content: "protocol B modified {}", message: "v2-b")
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = ProvenanceDiffTester()
@@ -116,10 +118,10 @@ struct ProvenanceDiffTests {
     @Test("Empty paths list -> clean")
     func emptyPathsList() async throws {
         let fixture = GitFixture(name: "prov-empty-paths-6")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        let c1 = try fixture.commit(filename: "file.swift", content: "v1", message: "v1")
-        _ = try fixture.commit(filename: "file.swift", content: "v2", message: "v2")
+        let c1 = try await fixture.commit(filename: "file.swift", content: "v1", message: "v1")
+        _ = try await fixture.commit(filename: "file.swift", content: "v2", message: "v2")
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = ProvenanceDiffTester()
@@ -134,9 +136,9 @@ struct ProvenanceDiffTests {
     @Test("Identical commit: recorded commit equals mainline commit -> clean")
     func identicalCommit() async throws {
         let fixture = GitFixture(name: "prov-identical-commit-7")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        let c1 = try fixture.commit(filename: "file.swift", content: "v1", message: "v1")
+        let c1 = try await fixture.commit(filename: "file.swift", content: "v1", message: "v1")
 
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = ProvenanceDiffTester()
@@ -150,24 +152,24 @@ struct ProvenanceDiffTests {
     @Test("No mutation invariant: status, refs, HEAD, file contents unchanged after provenance diff test")
     func noMutationInvariant() async throws {
         let fixture = GitFixture(name: "prov-no-mutation-8")
-        fixture.initRepo(defaultBranch: "main")
+        await fixture.initRepo(defaultBranch: "main")
 
-        let c1 = try fixture.commit(filename: "tracked.txt", content: "initial-tracked", message: "c1")
-        _ = try fixture.commit(filename: "tracked.txt", content: "modified-mainline", message: "c2")
+        let c1 = try await fixture.commit(filename: "tracked.txt", content: "initial-tracked", message: "c1")
+        _ = try await fixture.commit(filename: "tracked.txt", content: "modified-mainline", message: "c2")
 
         let untrackedURL = fixture.url.appending(component: "untracked.txt")
         try "untracked content".write(to: untrackedURL, atomically: true, encoding: .utf8)
 
         let stagedURL = fixture.url.appending(component: "staged.txt")
         try "staged content".write(to: stagedURL, atomically: true, encoding: .utf8)
-        _ = fixture.run(["add", "staged.txt"])
+        _ = await fixture.run(["add", "staged.txt"])
 
         let trackedURL = fixture.url.appending(component: "tracked.txt")
         try "dirty working tree modification".write(to: trackedURL, atomically: true, encoding: .utf8)
 
-        let statusBefore = fixture.run(["status", "--porcelain"]).stdout
-        let headBefore = fixture.revParse("HEAD")
-        let symHeadBefore = fixture.run(["symbolic-ref", "HEAD"]).stdout
+        let statusBefore = await fixture.run(["status", "--porcelain"]).stdout
+        let headBefore = await fixture.revParse("HEAD")
+        let symHeadBefore = await fixture.run(["symbolic-ref", "HEAD"]).stdout
         let trackedBefore = try String(contentsOf: trackedURL, encoding: .utf8)
         let untrackedBefore = try String(contentsOf: untrackedURL, encoding: .utf8)
         let stagedBefore = try String(contentsOf: stagedURL, encoding: .utf8)
@@ -177,9 +179,9 @@ struct ProvenanceDiffTests {
 
         _ = await tester.testProvenance(repository: repo, paths: ["tracked.txt"], recordedCommit: c1)
 
-        let statusAfter = fixture.run(["status", "--porcelain"]).stdout
-        let headAfter = fixture.revParse("HEAD")
-        let symHeadAfter = fixture.run(["symbolic-ref", "HEAD"]).stdout
+        let statusAfter = await fixture.run(["status", "--porcelain"]).stdout
+        let headAfter = await fixture.revParse("HEAD")
+        let symHeadAfter = await fixture.run(["symbolic-ref", "HEAD"]).stdout
         let trackedAfter = try String(contentsOf: trackedURL, encoding: .utf8)
         let untrackedAfter = try String(contentsOf: untrackedURL, encoding: .utf8)
         let stagedAfter = try String(contentsOf: stagedURL, encoding: .utf8)

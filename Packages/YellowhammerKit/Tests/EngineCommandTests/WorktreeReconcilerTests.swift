@@ -129,21 +129,21 @@ func insertReconcilerCard(
 
 /// Initializes a git repository at `directory` with one commit, returning the commit's SHA.
 @discardableResult
-func initReconcilerGitRepo(at directory: URL, git: GitRunner) throws -> String {
+func initReconcilerGitRepo(at directory: URL, git: GitRunner) async throws -> String {
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    _ = git.runSync(["init", "--initial-branch=main"], workingDirectory: directory.path)
-    _ = git.runSync(["config", "user.name", "Test"], workingDirectory: directory.path)
-    _ = git.runSync(["config", "user.email", "test@example.com"], workingDirectory: directory.path)
-    _ = git.runSync(["config", "commit.gpgsign", "false"], workingDirectory: directory.path)
+    _ = await git.run(["init", "--initial-branch=main"], workingDirectory: directory.path)
+    _ = await git.run(["config", "user.name", "Test"], workingDirectory: directory.path)
+    _ = await git.run(["config", "user.email", "test@example.com"], workingDirectory: directory.path)
+    _ = await git.run(["config", "commit.gpgsign", "false"], workingDirectory: directory.path)
     try "content".write(to: directory.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
-    _ = git.runSync(["add", "."], workingDirectory: directory.path)
-    _ = git.runSync(["commit", "-m", "initial"], workingDirectory: directory.path)
-    return reconcilerRevParse("HEAD", in: directory, git: git)
+    _ = await git.run(["add", "."], workingDirectory: directory.path)
+    _ = await git.run(["commit", "-m", "initial"], workingDirectory: directory.path)
+    return await reconcilerRevParse("HEAD", in: directory, git: git)
 }
 
 /// Adds a Worktree the way Orca ADE would: `git worktree add -b <branch> <directory>`.
-func addReconcilerWorktree(repo: URL, branch: String, at directory: URL, git: GitRunner) {
-    _ = git.runSync(
+func addReconcilerWorktree(repo: URL, branch: String, at directory: URL, git: GitRunner) async {
+    _ = await git.run(
         ["-C", repo.path, "worktree", "add", "-b", branch, directory.path], workingDirectory: repo.path
     )
 }
@@ -152,25 +152,25 @@ func addReconcilerWorktree(repo: URL, branch: String, at directory: URL, git: Gi
 /// `tempDir/<name>-wt`. Returns the Worktree directory and the repo's base commit.
 func makeReconcilerRepoAndWorktree(
     named name: String, branch: String, in tempDir: URL, git: GitRunner
-) throws -> (worktree: URL, baseCommit: String) {
+) async throws -> (worktree: URL, baseCommit: String) {
     let repo = tempDir.appendingPathComponent("\(name)-repo")
-    let baseCommit = try initReconcilerGitRepo(at: repo, git: git)
+    let baseCommit = try await initReconcilerGitRepo(at: repo, git: git)
     let worktree = tempDir.appendingPathComponent("\(name)-wt")
-    addReconcilerWorktree(repo: repo, branch: branch, at: worktree, git: git)
+    await addReconcilerWorktree(repo: repo, branch: branch, at: worktree, git: git)
     return (worktree, baseCommit)
 }
 
-func reconcilerRevParse(_ ref: String, in directory: URL, git: GitRunner) -> String {
-    git.runSync(["rev-parse", ref], workingDirectory: directory.path)
+func reconcilerRevParse(_ ref: String, in directory: URL, git: GitRunner) async -> String {
+    await git.run(["rev-parse", ref], workingDirectory: directory.path)
         .stdout.trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
-func reconcilerPorcelainStatus(in directory: URL, git: GitRunner) -> String {
-    git.runSync(["status", "--porcelain"], workingDirectory: directory.path).stdout
+func reconcilerPorcelainStatus(in directory: URL, git: GitRunner) async -> String {
+    await git.run(["status", "--porcelain"], workingDirectory: directory.path).stdout
 }
 
-func reconcilerObjectCount(in directory: URL, git: GitRunner) -> String {
-    git.runSync(["rev-list", "--count", "--all"], workingDirectory: directory.path)
+func reconcilerObjectCount(in directory: URL, git: GitRunner) async -> String {
+    await git.run(["rev-list", "--count", "--all"], workingDirectory: directory.path)
         .stdout.trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
@@ -215,12 +215,12 @@ struct WorktreeReconcilerTests {
         let tempDir = try makeReconcilerTempDir(name: "ghost")
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
-        let (backendWorktree, _) = try makeReconcilerRepoAndWorktree(
+        let (backendWorktree, _) = try await makeReconcilerRepoAndWorktree(
             named: "backend", branch: reconcilerBranch.name, in: tempDir, git: git
         )
         try FileManager.default.removeItem(at: backendWorktree)
 
-        let (mobileWorktree, _) = try makeReconcilerRepoAndWorktree(
+        let (mobileWorktree, _) = try await makeReconcilerRepoAndWorktree(
             named: "mobile", branch: reconcilerBranch.name, in: tempDir, git: git
         )
 
@@ -285,7 +285,7 @@ struct WorktreeReconcilerTests {
         let tempDir = try makeReconcilerTempDir(name: "dirty")
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
-        let (worktree, baseCommit) = try makeReconcilerRepoAndWorktree(
+        let (worktree, baseCommit) = try await makeReconcilerRepoAndWorktree(
             named: "backend", branch: reconcilerBranch.name, in: tempDir, git: git
         )
         try "modified".write(to: worktree.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
@@ -311,11 +311,11 @@ struct WorktreeReconcilerTests {
         #expect(resetTo == baseCommit)
         #expect(record.wipCommit == wipCommit)
 
-        #expect(reconcilerRevParse("HEAD", in: worktree, git: git) == baseCommit)
-        #expect(reconcilerPorcelainStatus(in: worktree, git: git).isEmpty)
-        #expect(reconcilerRevParse(wipRef, in: worktree, git: git) == wipCommit)
+        await #expect(reconcilerRevParse("HEAD", in: worktree, git: git) == baseCommit)
+        await #expect(reconcilerPorcelainStatus(in: worktree, git: git).isEmpty)
+        await #expect(reconcilerRevParse(wipRef, in: worktree, git: git) == wipCommit)
 
-        let show = git.runSync(["show", "--stat", wipCommit], workingDirectory: worktree.path)
+        let show = await git.run(["show", "--stat", wipCommit], workingDirectory: worktree.path)
         #expect(show.stdout.contains("file.txt"))
         #expect(show.stdout.contains("untracked.txt"))
 
@@ -348,10 +348,10 @@ struct WorktreeReconcilerTests {
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
         let repo = tempDir.appendingPathComponent("backend-repo")
-        let baseCommit = try initReconcilerGitRepo(at: repo, git: git)
+        let baseCommit = try await initReconcilerGitRepo(at: repo, git: git)
 
         let ownWorktree = tempDir.appendingPathComponent("own-wt")
-        addReconcilerWorktree(repo: repo, branch: reconcilerBranch.name, at: ownWorktree, git: git)
+        await addReconcilerWorktree(repo: repo, branch: reconcilerBranch.name, at: ownWorktree, git: git)
         _ = try journal.recordWorktree(
             featureID: featureID, repository: "backend", worktreeID: "wt-own", path: ownWorktree.path,
             runID: runID, lastKnownGoodCommit: baseCommit
@@ -359,11 +359,11 @@ struct WorktreeReconcilerTests {
 
         let siblingBranch = "yh-sibling-feat"
         let siblingWorktree = tempDir.appendingPathComponent("sibling-wt")
-        addReconcilerWorktree(repo: repo, branch: siblingBranch, at: siblingWorktree, git: git)
+        await addReconcilerWorktree(repo: repo, branch: siblingBranch, at: siblingWorktree, git: git)
         try "sibling edit".write(
             to: siblingWorktree.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8
         )
-        let siblingStatusBefore = reconcilerPorcelainStatus(in: siblingWorktree, git: git)
+        let siblingStatusBefore = await reconcilerPorcelainStatus(in: siblingWorktree, git: git)
         #expect(!siblingStatusBefore.isEmpty)
 
         let workspace = ReconcilerFakeWorkspace()
@@ -377,8 +377,8 @@ struct WorktreeReconcilerTests {
             Issue.record("expected .clean, got \(String(describing: result["backend"]))")
             return
         }
-        #expect(reconcilerPorcelainStatus(in: siblingWorktree, git: git) == siblingStatusBefore)
-        let siblingWipRef = git.runSync(
+        await #expect(reconcilerPorcelainStatus(in: siblingWorktree, git: git) == siblingStatusBefore)
+        let siblingWipRef = await git.run(
             ["-C", siblingWorktree.path, "rev-parse", "--verify", "--quiet", "refs/yellowhammer/wip/\(siblingBranch)"],
             workingDirectory: siblingWorktree.path
         )

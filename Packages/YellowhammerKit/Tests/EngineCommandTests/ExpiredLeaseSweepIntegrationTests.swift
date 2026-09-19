@@ -94,7 +94,7 @@ struct ExpiredLeaseSweepIntegrationTests {
         let journal = try fixture.open()
         let git = GitRunner()
         let worktrees = fixture.directory.appending(component: "worktrees", directoryHint: .isDirectory)
-        try initReconcilerGitRepo(at: worktrees.appending(component: "backend"), git: git)
+        try await initReconcilerGitRepo(at: worktrees.appending(component: "backend"), git: git)
 
         let runID = RunID()
         let deadRun = RunID()
