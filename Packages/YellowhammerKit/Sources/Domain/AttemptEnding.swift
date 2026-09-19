@@ -105,6 +105,8 @@ extension AttemptEnding {
             "terminated: \(end)"
         case .crashedUnknown(.signaled(let signal)):
             "signaled \(signal)"
+        case .crashedUnknown(.reclaimed(let reason)):
+            "reclaimed: \(reason)"
         case .question:
             "asked a question"
         case .cancelled:

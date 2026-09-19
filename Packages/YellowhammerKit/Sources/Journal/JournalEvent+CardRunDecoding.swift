@@ -28,6 +28,26 @@ extension JournalEvent {
         )
     }
 
+    static func decodeCardReclaimed(_ reader: PayloadReader) throws -> JournalEvent {
+        .cardReclaimed(
+            cardID: try reader.int64("card_id"),
+            issueID: try reader.require("issue_id"),
+            previousRunID: try reader.runID("previous_run_id"),
+            attemptID: reader.payload?["attempt_id"].flatMap { Int64($0) },
+            outcome: reader.payload?["outcome"],
+            routeExcluded: try reader.bool("route_excluded")
+        )
+    }
+
+    static func decodeCardReclaimDeferred(_ reader: PayloadReader) throws -> JournalEvent {
+        .cardReclaimDeferred(
+            cardID: try reader.int64("card_id"),
+            issueID: try reader.require("issue_id"),
+            previousRunID: try reader.runID("previous_run_id"),
+            remaining: try reader.int("remaining")
+        )
+    }
+
     static func decodeCheckRan(_ reader: PayloadReader) throws -> JournalEvent {
         guard let result = CheckRunResult(rawValue: try reader.require("result")) else {
             throw JournalError.eventUnreadable(id: reader.rowID)

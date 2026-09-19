@@ -49,10 +49,19 @@ public struct ProcessFencer: Sendable {
     public let pollInterval: Duration
     /// How long `fence(worktreePath:)` waits for quiescence before giving up.
     public let quiescenceTimeout: Duration
+    /// Sends a signal to a holder; real `SIGKILL` by default. Injectable so a test can make a holder
+    /// un-killable (e.g. a no-op) and exercise `notQuiescent` deterministically, without a process that
+    /// genuinely survives `SIGKILL`.
+    let sendSignal: @Sendable (pid_t, Int32) -> Int32
 
-    public init(pollInterval: Duration = .milliseconds(50), quiescenceTimeout: Duration = .seconds(10)) {
+    public init(
+        pollInterval: Duration = .milliseconds(50),
+        quiescenceTimeout: Duration = .seconds(10),
+        sendSignal: @escaping @Sendable (pid_t, Int32) -> Int32 = { kill($0, $1) }
+    ) {
         self.pollInterval = pollInterval
         self.quiescenceTimeout = quiescenceTimeout
+        self.sendSignal = sendSignal
     }
 
     /// Every process whose current working directory or an open file lies inside
@@ -87,7 +96,7 @@ public struct ProcessFencer: Sendable {
 
         func killNewHolders(_ found: [WorktreeHolder]) {
             for holder in found where !killedPIDs.contains(holder.pid) {
-                kill(holder.pid, SIGKILL)
+                _ = sendSignal(holder.pid, SIGKILL)
                 killedPIDs.insert(holder.pid)
                 killed.append(holder)
             }

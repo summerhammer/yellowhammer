@@ -33,6 +33,8 @@ public struct FailureCause: Equatable, Sendable {
             detail = "terminated"
         case .crashedUnknown(.signaled(let signal)):
             detail = "signaled \(signal)"
+        case .crashedUnknown(.reclaimed):
+            detail = "reclaimed"
         }
         self.canonical = "\(outcome)|\(detail)"
         self.summary = "\(outcome) (\(detail))"

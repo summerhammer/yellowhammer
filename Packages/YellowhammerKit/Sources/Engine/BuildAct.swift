@@ -1,19 +1,23 @@
 import Domain
 import Foundation
 import Journal
+import Repositories
 
 /// The build Act's work (roadmap P8.1; spec: graph-execution/overview,
 /// shift-scheduling/fire-an-act-on-schedule), in this order:
 ///
-/// 1. Sweeps expired Card Leases (``ExpiredLeaseSweep``, the Journal half of P8.10), then reconciles
-///    Worktrees (``WorktreeReconciler``), then reposts board state from the Journal
-///    (``BoardStateProjection/repost()``).
+/// 1. Sweeps and reclaims expired Card Leases (``ExpiredLeaseSweep``, loop-state/reclaim-an-expired-
+///    lease, P8.10), then reconciles Worktrees (``WorktreeReconciler``), then reposts board state from
+///    the Journal (``BoardStateProjection/repost()``) — the board projection is resolved once, when a
+///    Board is bound, and handed to both.
 /// 2. Performs the Delta Read (``DeltaRead``). Cancelled is applied inside the Delta Read itself; edits
 ///    and human comments ride in its report for later phases to consume.
 /// 3. Derives Repo Lanes from the in-flight Feature's Cards, read fresh from the Journal after the
-///    Delta Read, so Cancelled Cards are already reflected.
+///    Delta Read, so Cancelled Cards (and a reclaimed Card's return to Ready) are already reflected.
 /// 4. Runs lanes concurrently, and each lane's Cards one at a time in authored order, through an
-///    injectable ``CardRunner`` (the per-Card run itself is P8.4, a later phase).
+///    injectable ``CardRunner`` (the per-Card run itself is P8.4, a later phase) — a Crashed-Unknown
+///    reclaim retries its Card's same Route once in this very pass, since the Card is back in Todo and
+///    that ending never excludes a Route.
 /// 5. Writes back (delivers pending Outbox entries) and returns; the invocation records `ActEnded` and
 ///    releases the lease.
 ///
@@ -25,10 +29,24 @@ public struct BuildAct: Sendable {
     /// behaviour of dispatching every runnable Card unchecked, which is what tests that predate P8.2
     /// still exercise.
     public let readiness: ReadinessCheck?
+    /// Locates a dead run's last-attempted pass's result file for the lease-reclaim sweep's defensive
+    /// classification (P8.10); nil falls to the event log and Crashed-Unknown, which is what a rehearsal
+    /// Night's own binding does too (it writes no result files) and what every pre-P8.10 test exercises.
+    public let resultReader: (any RunResultReading)?
+    /// The Pre-Reclaim Quiescence Gate the lease-reclaim sweep runs before classifying or reposting a
+    /// reclaimed Card (P8.10).
+    public let worktreeFencer: ProcessFencer
 
-    public init(cardRunner: any CardRunner, readiness: ReadinessCheck? = nil) {
+    public init(
+        cardRunner: any CardRunner,
+        readiness: ReadinessCheck? = nil,
+        resultReader: (any RunResultReading)? = nil,
+        worktreeFencer: ProcessFencer = ProcessFencer()
+    ) {
         self.cardRunner = cardRunner
         self.readiness = readiness
+        self.resultReader = resultReader
+        self.worktreeFencer = worktreeFencer
     }
 
     public var work: EngineInvocation.ActWork {
@@ -44,12 +62,16 @@ public struct BuildAct: Sendable {
             return
         }
 
-        _ = try ExpiredLeaseSweep(journal: journal, runID: context.runID, act: context.act, nightID: context.night.id)
-            .sweep(cycleID: cycleID)
+        let projection = try await resolveBoardProjection(context: context)
+
+        _ = try await ExpiredLeaseSweep(
+            journal: journal, runID: context.runID, act: context.act, nightID: context.night.id,
+            fencer: worktreeFencer, projection: projection, resultReader: resultReader
+        ).sweep(featureID: feature.id, cycleID: cycleID)
 
         let reconciliation = try await reconcileWorktrees(feature: feature, context: context)
 
-        try await repostBoardState(context: context)
+        try await repostBoardState(projection: projection, context: context)
 
         switch try await performDeltaRead(context: context) {
         case .degraded?:
@@ -92,10 +114,16 @@ public struct BuildAct: Sendable {
 
     // MARK: - Board repost
 
-    private func repostBoardState(context: ActContext) async throws {
-        guard let board = context.board, let outbox = context.outbox else { return }
+    /// Resolved once, when a Board is bound, and shared by the lease-reclaim sweep (P8.10) and the
+    /// repost below: both write through the same projection, over the same resolved scope.
+    private func resolveBoardProjection(context: ActContext) async throws -> BoardStateProjection? {
+        guard let board = context.board, let outbox = context.outbox else { return nil }
         let scope = try await BoardStateScope.resolve(using: board.provisioning)
-        let projection = BoardStateProjection(journal: context.journal, outbox: outbox, scope: scope)
+        return BoardStateProjection(journal: context.journal, outbox: outbox, scope: scope)
+    }
+
+    private func repostBoardState(projection: BoardStateProjection?, context: ActContext) async throws {
+        guard let projection else { return }
         let outcomes = try await projection.repost()
         let posted = outcomes.filter {
             switch $0 {

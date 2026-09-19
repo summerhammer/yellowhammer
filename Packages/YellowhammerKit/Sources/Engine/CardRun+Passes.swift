@@ -220,6 +220,17 @@ extension CardRun {
         }
     }
 
+    /// Parses the `failed(exit status N)` detail ``describe(_:)`` writes to a `cardRunStep` event, for a
+    /// later Act's reclaim of a dead run's last recorded pass step (loop-state/reclaim-an-expired-lease,
+    /// P8.10). `nil` for every other detail string, so the format string lives in one place.
+    static func parseFailedExitStatus(_ detail: String) -> Int32? {
+        guard detail.hasPrefix("failed(exit status "), detail.hasSuffix(")") else { return nil }
+        let start = detail.index(detail.startIndex, offsetBy: "failed(exit status ".count)
+        let end = detail.index(before: detail.endIndex)
+        guard start < end else { return nil }
+        return Int32(detail[start..<end])
+    }
+
     static func describe(_ result: RepositoryCheckResult) -> String {
         switch result {
         case .passed: "passed"

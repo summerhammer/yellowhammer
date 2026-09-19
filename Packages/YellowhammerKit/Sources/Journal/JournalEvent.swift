@@ -171,6 +171,20 @@ public enum JournalEvent: Equatable, Sendable {
     /// the Feature (graph-execution/handle-a-block-mid-graph, P8.9), named in the Partial Landing
     /// announcement (P10.4) and left for the lane to run past.
     case laneHoleRecorded(cardID: Int64, issueID: String, repository: String, state: CardState)
+    /// A build Act's lease-reclaim sweep (loop-state/reclaim-an-expired-lease, P8.10) took over a dead
+    /// run's Card Lease and reposted the Card's board state. `attemptID` and `outcome` (the classified
+    /// Attempt's Operator-facing `consumed_how` account) are nil when no Attempt was open to classify,
+    /// or the Pre-Reclaim Quiescence Gate found the Worktree not quiescent and classification never ran.
+    case cardReclaimed(
+        cardID: Int64, issueID: String, previousRunID: RunID, attemptID: Int64?, outcome: String?,
+        routeExcluded: Bool
+    )
+    /// The Pre-Reclaim Quiescence Gate found the Card's Worktree still held after the fencing timeout
+    /// (loop-state/reclaim-an-expired-lease, P8.10): the Lease claim stands, but nothing was classified
+    /// or reposted, and the Attempt (if any) is left open for the next Act to try again. Distinct from
+    /// `.cardReclaimed` so the Night Summary never confuses a deferral with a real reclaim that happened
+    /// to find no open Attempt.
+    case cardReclaimDeferred(cardID: Int64, issueID: String, previousRunID: RunID, remaining: Int)
 
     /// The type of this event.
     public var type: JournalEventType {
@@ -289,6 +303,10 @@ public enum JournalEvent: Equatable, Sendable {
             .failureCauseRecorded
         case .laneHoleRecorded:
             .laneHoleRecorded
+        case .cardReclaimed:
+            .cardReclaimed
+        case .cardReclaimDeferred:
+            .cardReclaimDeferred
         }
     }
 }
@@ -352,4 +370,6 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case attemptWorkPreserved = "AttemptWorkPreserved"
     case failureCauseRecorded = "FailureCauseRecorded"
     case laneHoleRecorded = "LaneHoleRecorded"
+    case cardReclaimed = "CardReclaimed"
+    case cardReclaimDeferred = "CardReclaimDeferred"
 }

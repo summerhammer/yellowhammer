@@ -99,6 +99,13 @@ extension ActCommand {
                 // You assignment on a Divergence needs it.
                 readiness: ReadinessCheck(
                     provenance: ProvenanceDiffTester(), citations: MainlineReader(), operator: nil
+                ),
+                // Bound in both modes (P8.10): a rehearsal Night writes no result files, so this simply
+                // finds none, and the lease-reclaim sweep falls to the event log and Crashed-Unknown.
+                resultReader: RunDirectoryResultReader(
+                    runsDirectory: CLIAdapterDispatch.runsDirectory(
+                        configurationDirectory: configurationDirectory, projectID: project.id
+                    )
                 )
             ).work
         )
