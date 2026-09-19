@@ -915,7 +915,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 
 ## Phase 9 — Author Act
 
-### [ ] P9.1 Author Act sequence and quiet Nights
+### [x] P9.1 Author Act sequence and quiet Nights
 - **Work** — In order:
   1. Open the Night Card (P5.7).
   2. If a Feature is already in flight for this Project (including returned, Blocked or
