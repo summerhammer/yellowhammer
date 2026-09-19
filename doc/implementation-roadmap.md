@@ -865,7 +865,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Fable 5.1 High.
 - **Done when** — Rehearsal-assertable tests cover both-budgets rule and consumption accounting.
 
-### [ ] P8.8 Failure-cause recurrence
+### [x] P8.8 Failure-cause recurrence
 - **Work**
   - Reduce each failure to a failure-cause hash stored against the Card in the Journal.
   - Count recurrences across that Project's Nights. On recurrence, promote to Triage instead of
