@@ -9,6 +9,11 @@ public enum PredecessorGateOutcome: Equatable, Sendable {
     case landed
     /// The predecessor Feature has not landed in one or more repositories: authoring must not proceed.
     case notLanded(predecessorIssueID: String, repositories: [String])
+    /// The predecessor Feature's Feature Branch could not be found in one or more repositories that
+    /// have no recorded landing either (roadmap P9.9): authoring must not proceed, but this is not the
+    /// same as a known unmerged branch — takes precedence over ``notLanded`` when any repository is
+    /// indeterminate.
+    case indeterminate(predecessorIssueID: String, repositories: [String])
 }
 
 /// Checks whether the Feature about to be authored may proceed, given its predecessor's ancestry
@@ -106,6 +111,12 @@ public struct AuthorAct: Sendable {
         // precedes any Cycle and so is never itself the reason a Feature is in flight.
         try await UnansweredPositionClock.run(context: context, unansweredNightsMax: unansweredNightsMax)
 
+        // The predecessor-ancestry gate's pass (P9.9) runs every Night, independently of the in-flight
+        // skip below: it observes the in-flight Feature's landings when one is open (so they accumulate
+        // before it becomes tomorrow's predecessor) and gates the predecessor when nothing is. It opens
+        // no lane, consumes no Attempt, writes nothing to the board.
+        let gateOutcome = try await checkPredecessorGate(context: context)
+
         if let (feature, _) = try journal.inFlightFeature() {
             try journal.append(
                 .authoringSkippedFeatureInFlight(featureIssueID: feature.issueID),
@@ -115,10 +126,17 @@ public struct AuthorAct: Sendable {
             return
         }
 
-        switch try await checkPredecessorGate(context: context) {
+        switch gateOutcome {
         case .notLanded(let predecessorIssueID, let repositories):
             try journal.append(
                 .authoringPredecessorNotLanded(featureIssueID: predecessorIssueID, repositories: repositories),
+                act: context.act, runID: context.runID, nightID: context.night.id
+            )
+            try await writeBack(context: context)
+            return
+        case .indeterminate(let predecessorIssueID, let repositories):
+            try journal.append(
+                .authoringPredecessorIndeterminate(featureIssueID: predecessorIssueID, repositories: repositories),
                 act: context.act, runID: context.runID, nightID: context.night.id
             )
             try await writeBack(context: context)

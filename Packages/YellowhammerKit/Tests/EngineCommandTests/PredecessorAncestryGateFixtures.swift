@@ -66,24 +66,37 @@ final class ScriptedPostMergeClosure: PostMergeClosure, @unchecked Sendable {
 }
 
 /// Inserts a Feature and its Cycle, archiving the Cycle unless `inFlight` — the predecessor read only
-/// ever picks up an archived (not in-flight) Cycle's Feature.
+/// ever picks up an archived (not in-flight) Cycle's Feature. `repositories` is recorded directly into
+/// `feature_repository` (roadmap P9.9), the gate's own source of touched repositories — never derived
+/// from Cards.
 @discardableResult
 func insertGateFeature(
-    _ journal: JournalStore, issueID: String, branch: String?, inFlight: Bool = false
+    _ journal: JournalStore, issueID: String, branch: String?, repositories: [String] = [],
+    inFlight: Bool = false, landed: Bool = false, released: Bool = false
 ) throws -> Int64 {
     try journal.write { db in
         try db.execute(
-            sql: "INSERT INTO feature (issue_id, state, branch, created_at) VALUES (?, ?, ?, ?)",
-            arguments: [issueID, "selected", branch, JournalStore.timestamp(outboxEpoch)]
+            sql: "INSERT INTO feature (issue_id, state, branch, released_at, created_at) VALUES (?, ?, ?, ?, ?)",
+            arguments: [
+                issueID, "selected", branch, released ? JournalStore.timestamp(outboxEpoch) : nil,
+                JournalStore.timestamp(outboxEpoch)
+            ]
         )
         let featureID = db.lastInsertedRowID
         try db.execute(
-            sql: "INSERT INTO cycle (feature_id, created_at, archived_at) VALUES (?, ?, ?)",
+            sql: "INSERT INTO cycle (feature_id, created_at, archived_at, landed_at) VALUES (?, ?, ?, ?)",
             arguments: [
                 featureID, JournalStore.timestamp(outboxEpoch),
-                inFlight ? nil : JournalStore.timestamp(outboxEpoch)
+                inFlight ? nil : JournalStore.timestamp(outboxEpoch),
+                landed ? JournalStore.timestamp(outboxEpoch) : nil
             ]
         )
+        for repository in repositories {
+            try db.execute(
+                sql: "INSERT INTO feature_repository (feature_id, repository) VALUES (?, ?)",
+                arguments: [featureID, repository]
+            )
+        }
         return featureID
     }
 }

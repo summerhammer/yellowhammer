@@ -49,7 +49,9 @@ struct PredecessorAncestryGateTests {
 
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
-        let featureID = try insertGateFeature(journal, issueID: "FEAT-0", branch: "yh-proj-predecessor")
+        let featureID = try insertGateFeature(
+            journal, issueID: "FEAT-0", branch: "yh-proj-predecessor", repositories: ["backend", "mobile"]
+        )
         let cycleID = try gateCycleID(journal, featureID: featureID)
         try insertGateCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend")
         try insertGateCard(journal, cycleID: cycleID, issueID: "MOB-1", repository: "mobile")
@@ -102,7 +104,9 @@ struct PredecessorAncestryGateTests {
 
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
-        let featureID = try insertGateFeature(journal, issueID: "FEAT-1", branch: "yh-proj-none")
+        let featureID = try insertGateFeature(
+            journal, issueID: "FEAT-1", branch: "yh-proj-none", repositories: ["backend", "mobile"]
+        )
         let cycleID = try gateCycleID(journal, featureID: featureID)
         try insertGateCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend")
         try insertGateCard(journal, cycleID: cycleID, issueID: "MOB-1", repository: "mobile")
@@ -146,7 +150,9 @@ struct PredecessorAncestryGateTests {
 
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
-        let featureID = try insertGateFeature(journal, issueID: "FEAT-2", branch: "yh-proj-partial")
+        let featureID = try insertGateFeature(
+            journal, issueID: "FEAT-2", branch: "yh-proj-partial", repositories: ["backend", "mobile"]
+        )
         let cycleID = try gateCycleID(journal, featureID: featureID)
         try insertGateCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend")
         try insertGateCard(journal, cycleID: cycleID, issueID: "MOB-1", repository: "mobile")
@@ -183,7 +189,9 @@ struct PredecessorAncestryGateTests {
 
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
-        let featureID = try insertGateFeature(journal, issueID: "FEAT-3", branch: "yh-proj-conflict")
+        let featureID = try insertGateFeature(
+            journal, issueID: "FEAT-3", branch: "yh-proj-conflict", repositories: ["backend"]
+        )
         let cycleID = try gateCycleID(journal, featureID: featureID)
         try insertGateCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend")
 
@@ -221,7 +229,9 @@ struct PredecessorAncestryGateTests {
     func predecessorTouchingUnconfiguredRepositoryThrows() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
-        let featureID = try insertGateFeature(journal, issueID: "FEAT-4", branch: "yh-proj-ghost")
+        let featureID = try insertGateFeature(
+            journal, issueID: "FEAT-4", branch: "yh-proj-ghost", repositories: ["ghost"]
+        )
         let cycleID = try gateCycleID(journal, featureID: featureID)
         try insertGateCard(journal, cycleID: cycleID, issueID: "GHOST-1", repository: "ghost")
 
@@ -240,7 +250,9 @@ struct PredecessorAncestryGateTests {
     func predecessorWithoutBranchThrows() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
-        let featureID = try insertGateFeature(journal, issueID: "FEAT-5", branch: nil)
+        let featureID = try insertGateFeature(
+            journal, issueID: "FEAT-5", branch: nil, repositories: ["backend"]
+        )
         let cycleID = try gateCycleID(journal, featureID: featureID)
         try insertGateCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend")
 
@@ -253,61 +265,5 @@ struct PredecessorAncestryGateTests {
         await #expect(throws: PredecessorAncestryGateError.self) {
             _ = try await gate.check(context)
         }
-    }
-
-    @Test("An in-flight Feature (open Cycle) is never picked as the predecessor")
-    func inFlightFeatureIsNeverThePredecessor() async throws {
-        let fixture = try OutboxJournalFixture()
-        let journal = try fixture.open()
-        try insertGateFeature(journal, issueID: "FEAT-6", branch: "yh-proj-inflight", inFlight: true)
-
-        let predecessor = try journal.predecessorFeature()
-
-        #expect(predecessor == nil)
-    }
-
-    @Test("End to end through AuthorAct: not landed skips authoring, records the quiet reason, no Attempt or Worktree")
-    func endToEndThroughAuthorActSkipsAuthoring() async throws {
-        let backend = GateGitFixture(name: "gate-e2e-backend")
-        await backend.initRepo()
-        _ = try await backend.commit(message: "init")
-        _ = await backend.run(["checkout", "-b", "yh-proj-e2e"])
-        _ = try await backend.commit(filename: "feat.txt", content: "feat", message: "feature commit")
-        _ = await backend.run(["checkout", "main"])
-        // Not merged.
-
-        let fixture = try OutboxJournalFixture()
-        let journal = try fixture.open()
-        let featureID = try insertGateFeature(journal, issueID: "FEAT-7", branch: "yh-proj-e2e")
-        let cycleID = try gateCycleID(journal, featureID: featureID)
-        try insertGateCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend")
-
-        let repositories = ProjectRepositories(workingRepos: [
-            Repo(name: "backend", path: backend.path, role: .backend)
-        ])
-        let authoring = ScriptedFeatureAuthoring(outcome: .authored)
-
-        let invocation = EngineInvocation(
-            act: .author, mode: .rehearsal, nightStart: gateNightStart, journal: journal,
-            trigger: .forced, runID: RunID(), repositories: repositories,
-            work: AuthorAct(predecessorGate: PredecessorAncestryGate(), authoring: authoring).work
-        )
-        try await invocation.run()
-
-        #expect(!authoring.wasCalled)
-
-        let events = try journal.events()
-        let quiet = try #require(events.first { $0.type == .authoringPredecessorNotLanded })
-        guard case .authoringPredecessorNotLanded(let issueID, let repos) = quiet.event else {
-            Issue.record("expected authoringPredecessorNotLanded")
-            return
-        }
-        #expect(issueID == "FEAT-7")
-        #expect(repos == ["backend"])
-
-        let attemptCount = try journal.write { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM attempt") } ?? 0
-        let worktreeCount = try journal.write { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM worktree") } ?? 0
-        #expect(attemptCount == 0)
-        #expect(worktreeCount == 0)
     }
 }

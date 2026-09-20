@@ -27,7 +27,7 @@ private struct JournalFixture: ~Copyable {
 private let epoch = Date(timeIntervalSince1970: 1_800_000_000)
 private let nightStart = NightStart(rawValue: "2026-09-15")!
 
-@Test("Migration identifiers end at v17-authoring-halt")
+@Test("Migration identifiers end at v18-predecessor-gate")
 func migrationIdentifiersIncludeV6() throws {
     #expect(
         JournalStore.migrationIdentifiers == [
@@ -35,7 +35,7 @@ func migrationIdentifiersIncludeV6() throws {
             "v5-delta-read", "v6-night-verdict", "v7-card-state-version", "v8-worktree-pushed-commit",
             "v9-worktree-reconciliation", "v10-attempt-route-provenance", "v11-feature-branch",
             "v12-readiness-check", "v13-card-scope", "v14-attempt-preserved-ref", "v15-refusal", "v16-cycle-landed",
-            "v17-authoring-halt"
+            "v17-authoring-halt", "v18-predecessor-gate"
         ]
     )
 }

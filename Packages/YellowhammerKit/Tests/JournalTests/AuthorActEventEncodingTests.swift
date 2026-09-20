@@ -88,6 +88,66 @@ func authoringPredecessorNotLandedRoundTripsEmptyRepositories() throws {
     #expect(readRepositories.isEmpty)
 }
 
+@Test("authoringPredecessorIndeterminate event round-trips, including repository names with commas")
+func authoringPredecessorIndeterminateRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+    let repositories = ["backend, inc", "mobile"]
+
+    try journal.append(
+        .authoringPredecessorIndeterminate(featureIssueID: "FEAT-0", repositories: repositories),
+        act: .author, runID: run, now: epoch
+    )
+    let records = try journal.events()
+
+    #expect(records.count == 1)
+    guard case .authoringPredecessorIndeterminate(let featureIssueID, let readRepositories) = records[0].event else {
+        Issue.record("Event is not authoringPredecessorIndeterminate")
+        return
+    }
+    #expect(featureIssueID == "FEAT-0")
+    #expect(readRepositories == repositories)
+}
+
+@Test("authoringPredecessorIndeterminate round-trips an empty repository list")
+func authoringPredecessorIndeterminateRoundTripsEmptyRepositories() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+
+    try journal.append(
+        .authoringPredecessorIndeterminate(featureIssueID: "FEAT-0", repositories: []),
+        act: .author, runID: run, now: epoch
+    )
+    let records = try journal.events()
+
+    guard case .authoringPredecessorIndeterminate(_, let readRepositories) = records[0].event else {
+        Issue.record("Event is not authoringPredecessorIndeterminate")
+        return
+    }
+    #expect(readRepositories.isEmpty)
+}
+
+@Test("predecessorWalkSkippedReleasedFeature event round-trips")
+func predecessorWalkSkippedReleasedFeatureRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+
+    try journal.append(
+        .predecessorWalkSkippedReleasedFeature(featureIssueID: "FEAT-9"),
+        act: .author, runID: run, now: epoch
+    )
+    let records = try journal.events()
+
+    guard case .predecessorWalkSkippedReleasedFeature(let featureIssueID) = records[0].event else {
+        Issue.record("Event is not predecessorWalkSkippedReleasedFeature")
+        return
+    }
+    #expect(featureIssueID == "FEAT-9")
+}
+
 @Test("predecessorAncestryObserved event round-trips")
 func predecessorAncestryObservedRoundTrips() throws {
     let fixture = try JournalFixture()

@@ -57,7 +57,8 @@ struct AuthoringPlanner {
             record: FeatureAuthoringAcceptedPayload(
                 name: selection.name.rawValue, groupKey: "authoring:\(prefix)", featureKey: featureKey,
                 nightID: nightID, cards: cards, adoptions: adoptions,
-                featureClauses: featureClauses, uncitableClauses: uncitable
+                featureClauses: featureClauses, uncitableClauses: uncitable,
+                repositories: selection.repositories
             )
         )
     }

@@ -14,6 +14,15 @@ extension JournalEvent {
         )
     }
 
+    static func decodeAuthoringPredecessorIndeterminate(_ reader: PayloadReader) throws -> JournalEvent {
+        let raw = try reader.require("repositories")
+        let repositories = raw.isEmpty ? [] : raw.components(separatedBy: "\u{1F}")
+        return .authoringPredecessorIndeterminate(
+            featureIssueID: try reader.require("feature_issue_id"),
+            repositories: repositories
+        )
+    }
+
     static func decodePredecessorAncestryObserved(_ reader: PayloadReader) throws -> JournalEvent {
         let rawMerged = try reader.require("merged_repositories")
         let rawUnmerged = try reader.require("unmerged_repositories")

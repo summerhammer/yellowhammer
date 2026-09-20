@@ -41,6 +41,10 @@ extension JournalEvent {
             .authoringSkippedFeatureInFlight(featureIssueID: try reader.require("feature_issue_id"))
         case .authoringPredecessorNotLanded:
             try Self.decodeAuthoringPredecessorNotLanded(reader)
+        case .authoringPredecessorIndeterminate:
+            try Self.decodeAuthoringPredecessorIndeterminate(reader)
+        case .predecessorWalkSkippedReleasedFeature:
+            .predecessorWalkSkippedReleasedFeature(featureIssueID: try reader.require("feature_issue_id"))
         case .predecessorAncestryObserved:
             try Self.decodePredecessorAncestryObserved(reader)
         case .mainlineConflictDetected:

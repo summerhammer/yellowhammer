@@ -124,6 +124,7 @@ extension JournalStore {
                 sql: "INSERT INTO cycle (feature_id, created_at) VALUES (?, ?)", arguments: [featureID, timestamp]
             )
             let cycleID = db.lastInsertedRowID
+            try Self.insertFeatureRepositories(db, featureID: featureID, repositories: plan.repositories)
 
             for card in cards {
                 try Self.insertAuthoredCard(db, card, cycleID: cycleID, timestamp: timestamp)
