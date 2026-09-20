@@ -978,7 +978,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Rehearsal tests: a forced failure mid-transaction leaves no issues; a resumed
   author Act creates no duplicates; Cards appear nested under the Feature Issue.
 
-### [ ] P9.5 Citable Definitions of Done
+### [x] P9.5 Citable Definitions of Done
 - **Work**
   - Author clauses at Card and Feature level, before any code exists, each with one Spec Citation
     (story ID or goal ID) that resolves at authoring time.
