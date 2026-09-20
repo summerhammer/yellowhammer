@@ -90,11 +90,11 @@ extension ActCommand {
     ) throws -> EngineInvocation.ActWork {
         switch Self.act {
         case .land:
-            // Every seam is nil until its own roadmap phase lands: mergeTest (P10.3), push (P10.2),
-            // openPullRequest (P10.4), verification (P10.5), returnFeature (P10.6), archiveCycle (P10.7).
-            // Until then every land step records `.notWired` (or `.rehearsalBoundary`) and the Cycle
-            // still lands once every Repo Lane's steps have run.
-            return LandAct().work
+            // The Repo Lane push is wired (P10.2). Every other seam is nil until its own roadmap phase
+            // lands: mergeTest (P10.3), openPullRequest (P10.4), verification (P10.5), returnFeature
+            // (P10.6), archiveCycle (P10.7). Until then those land steps record `.notWired` (or
+            // `.rehearsalBoundary`) and the Cycle still lands once every Repo Lane's steps have run.
+            return LandAct(push: LandBinding.push(configuration: configuration, project: project)).work
         case .author:
             // Selection and breakdown are agent CLI dispatches routed through the ordinary Routing Table
             // under the reserved authoring Kind (P9.11); `AuthoringBinding` wires both, and a Rehearsal

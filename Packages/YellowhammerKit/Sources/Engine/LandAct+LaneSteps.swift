@@ -107,8 +107,8 @@ extension LandAct {
             if outcome.pushed, let commit = outcome.commit {
                 recordPushedCommit(commit, laneContext: laneContext, context: context)
             }
-            let result: LandStepResult = outcome.pushed ? .completed(detail: outcome.commit) : .failed(outcome.reason)
-            return (result, outcome)
+            await recordPushOutcome(outcome, laneContext: laneContext, context: context)
+            return (pushStepResult(for: outcome), outcome)
         } catch {
             return (.faulted(String(describing: error)), nil)
         }
