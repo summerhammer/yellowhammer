@@ -64,8 +64,8 @@ public struct ParsedCardBlock: Equatable, Sendable {
 /// Parses the text ``CardManagedBlock/render()`` produces, round-tripping the Architectural Brief's
 /// prose, its Transcription Blocks and the Definition of Done's clause lines.
 public enum CardManagedBlockParser {
-    private static let transcriptionStartPrefix = "<!-- yh:transcription:start "
-    private static let transcriptionEnd = "<!-- yh:transcription:end -->"
+    private static let transcriptionStartPrefix = TranscriptionBlockLine.startPrefix
+    private static let transcriptionEnd = TranscriptionBlockLine.endMarker
     private static let briefHeading = "### Architectural Brief"
     private static let dodHeading = "### Definition of Done"
     private static let noClausesLine = "_No clauses authored._"
@@ -195,14 +195,46 @@ public enum CardManagedBlockParser {
 
     // MARK: - Clauses
 
+    /// Every line index that sits inside a Transcription Block (its start marker, its content and its
+    /// end marker): a transcription of a specification story is markdown of its own, and may contain a
+    /// `### ` heading or a `- [ ]` line that must never be read as this document's own (roadmap P9.6).
+    private static func maskedLineIndices(_ lines: [String]) -> Set<Int> {
+        var masked = Set<Int>()
+        var index = 0
+        while index < lines.count {
+            let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix(transcriptionStartPrefix), trimmed.hasSuffix("-->") else {
+                index += 1
+                continue
+            }
+            masked.insert(index)
+            index += 1
+            while index < lines.count, lines[index].trimmingCharacters(in: .whitespaces) != transcriptionEnd {
+                masked.insert(index)
+                index += 1
+            }
+            if index < lines.count {
+                masked.insert(index)
+                index += 1
+            }
+        }
+        return masked
+    }
+
     private static func parseClauses(lines: [String]) -> [ParsedClause] {
-        guard let headingIndex = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == dodHeading })
-        else {
+        let masked = maskedLineIndices(lines)
+        guard let headingIndex = lines.indices.first(where: {
+            !masked.contains($0) && lines[$0].trimmingCharacters(in: .whitespaces) == dodHeading
+        }) else {
             return []
         }
         var results: [ParsedClause] = []
         var index = headingIndex + 1
         while index < lines.count {
+            if masked.contains(index) {
+                index += 1
+                continue
+            }
             let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
             if trimmed.hasPrefix("### ") { break }
             if trimmed == noClausesLine || trimmed.isEmpty {

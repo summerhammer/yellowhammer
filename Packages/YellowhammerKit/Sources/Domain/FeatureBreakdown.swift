@@ -12,9 +12,27 @@ public struct DefinitionOfDoneClauseDraft: Equatable, Sendable {
     }
 }
 
+/// One contract a Card names to be transcribed from another repository's merged mainline (roadmap
+/// P9.6; spec: feature-authoring/author-an-architectural-brief): the model only NAMES what to read — it
+/// never supplies transcribed content, a commit or a hash. ``ContractTranscribing`` reads it before
+/// anything is accepted into the Outbox.
+public struct ContractDraft: Equatable, Sendable {
+    public let repository: String
+    /// Every path the contract must be read from — the stamp the Readiness Check later diffs is only as
+    /// good as the paths named here.
+    public let paths: [String]
+    public let symbol: String?
+
+    public init(repository: String, paths: [String], symbol: String? = nil) {
+        self.repository = repository
+        self.paths = paths
+        self.symbol = symbol
+    }
+}
+
 /// One Card the model-authored breakdown asks for (roadmap P9.4; spec: feature-authoring/
-/// author-the-cycle-and-card-dag, first story): exactly one repository, one Kind, one unit of work, and
-/// its own Card-level Definition of Done (roadmap P9.5).
+/// author-the-cycle-and-card-dag, first story): exactly one repository, one Kind, one unit of work, its
+/// own Architectural Brief (roadmap P9.6) and its own Card-level Definition of Done (roadmap P9.5).
 ///
 /// It deliberately has NO field that could reference another Card — no predecessor, no dependency, no
 /// sibling. That is how "no Card-to-Card links" is enforced structurally: a breakdown cannot express an
@@ -25,17 +43,27 @@ public struct CardDraft: Equatable, Sendable {
     public let kind: Kind
     public let title: String
     public let unitOfWork: String
+    /// The Architectural Brief's approach prose (roadmap P9.6; spec: feature-authoring/
+    /// author-an-architectural-brief) — model-authored, distinct from ``unitOfWork`` and from the
+    /// Definition of Done. Every authored Card has one: ``FeatureBreakdownValidation`` refuses a blank
+    /// brief before anything is accepted into the Outbox.
+    public let brief: String
     public let definitionOfDone: [DefinitionOfDoneClauseDraft]
+    /// Contracts this Card consumes from another repository's merged mainline, each transcribed into its
+    /// own Transcription Block before this Card is authored (roadmap P9.6).
+    public let contracts: [ContractDraft]
 
     public init(
-        repository: String, kind: Kind, title: String, unitOfWork: String,
-        definitionOfDone: [DefinitionOfDoneClauseDraft] = []
+        repository: String, kind: Kind, title: String, unitOfWork: String, brief: String,
+        definitionOfDone: [DefinitionOfDoneClauseDraft] = [], contracts: [ContractDraft] = []
     ) {
         self.repository = repository
         self.kind = kind
         self.title = title
         self.unitOfWork = unitOfWork
+        self.brief = brief
         self.definitionOfDone = definitionOfDone
+        self.contracts = contracts
     }
 }
 

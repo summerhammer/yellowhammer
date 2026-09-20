@@ -187,9 +187,6 @@ public struct CardManagedBlock: Equatable, Sendable {
     private func renderTranscriptions() -> [String] {
         var lines: [String] = []
         for transcription in brief.transcriptions {
-            lines.append("")
-            let pathsStr = transcription.paths.joined(separator: ",")
-            let symbolStr = transcription.symbol ?? "-"
             let commitStr: String
             if transcription.authorSupplied, let night = transcription.authorSuppliedNight {
                 commitStr = "Operator-supplied as of \(night.rawValue)"
@@ -198,12 +195,7 @@ public struct CardManagedBlock: Equatable, Sendable {
             } else {
                 commitStr = transcription.mainlineCommit ?? "Operator-supplied"
             }
-            let hashStr = transcription.contentHash
-            let comment = "<!-- yh:transcription:start repo=\(transcription.repository) paths=\(pathsStr) " +
-                "symbol=\(symbolStr) commit=\(commitStr) hash=\(hashStr) -->"
-            lines.append(comment)
-            lines.append(transcription.content)
-            lines.append("<!-- yh:transcription:end -->")
+            lines.append(contentsOf: TranscriptionBlockLine.render(transcription, commitField: commitStr))
         }
         return lines
     }

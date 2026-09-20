@@ -19,6 +19,31 @@ public struct PlannedClause: Codable, Equatable, Sendable {
     }
 }
 
+/// One Transcription Block the plan minted for a Card, transcribed before it was accepted into the
+/// Outbox (roadmap P9.6; spec: feature-authoring/author-an-architectural-brief): the repository, every
+/// path it was read from, its symbol, the mainline commit it was read at, its content and content hash.
+/// Never Operator-supplied at authoring time — that flag is only ever set later, by an Operator's edit.
+public struct PlannedTranscription: Codable, Equatable, Sendable {
+    public let repository: String
+    public let paths: [String]
+    public let symbol: String?
+    public let mainlineCommit: String?
+    public let content: String
+    public let contentHash: String
+
+    public init(
+        repository: String, paths: [String], symbol: String?, mainlineCommit: String?, content: String,
+        contentHash: String
+    ) {
+        self.repository = repository
+        self.paths = paths
+        self.symbol = symbol
+        self.mainlineCommit = mainlineCommit
+        self.content = content
+        self.contentHash = contentHash
+    }
+}
+
 /// One Card the plan creates: the Outbox key its create was accepted under, and the Journal row it
 /// becomes once the board has applied it.
 public struct PlannedCard: Codable, Equatable, Sendable {
@@ -30,9 +55,16 @@ public struct PlannedCard: Codable, Equatable, Sendable {
     /// This Card's citable Definition of Done clauses (roadmap P9.5); empty for a P9.4-era plan decoded
     /// from a legacy `featureAuthoringAccepted` event.
     public let clauses: [PlannedClause]
+    /// The Card's Architectural Brief prose (roadmap P9.6); empty for a pre-P9.6 plan decoded from a
+    /// legacy `featureAuthoringAccepted` event.
+    public let brief: String
+    /// The Card's Transcription Blocks (roadmap P9.6); empty for a pre-P9.6 plan, or for a Card with no
+    /// contracts.
+    public let transcriptions: [PlannedTranscription]
 
     public init(
-        key: String, repository: String, kind: String, order: Int, title: String, clauses: [PlannedClause] = []
+        key: String, repository: String, kind: String, order: Int, title: String, clauses: [PlannedClause] = [],
+        brief: String = "", transcriptions: [PlannedTranscription] = []
     ) {
         self.key = key
         self.repository = repository
@@ -40,10 +72,12 @@ public struct PlannedCard: Codable, Equatable, Sendable {
         self.order = order
         self.title = title
         self.clauses = clauses
+        self.brief = brief
+        self.transcriptions = transcriptions
     }
 
     private enum CodingKeys: String, CodingKey {
-        case key, repository, kind, order, title, clauses
+        case key, repository, kind, order, title, clauses, brief, transcriptions
     }
 
     public init(from decoder: Decoder) throws {
@@ -54,6 +88,8 @@ public struct PlannedCard: Codable, Equatable, Sendable {
         order = try container.decode(Int.self, forKey: .order)
         title = try container.decode(String.self, forKey: .title)
         clauses = try container.decodeIfPresent([PlannedClause].self, forKey: .clauses) ?? []
+        brief = try container.decodeIfPresent(String.self, forKey: .brief) ?? ""
+        transcriptions = try container.decodeIfPresent([PlannedTranscription].self, forKey: .transcriptions) ?? []
     }
 }
 

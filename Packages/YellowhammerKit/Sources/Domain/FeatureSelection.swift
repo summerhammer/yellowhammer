@@ -103,6 +103,23 @@ public struct UncitableClause: Equatable, Sendable {
     }
 }
 
+/// One contract the author Act could not read from another repository's merged mainline (roadmap P9.6;
+/// spec: feature-authoring/author-an-architectural-brief): named specifically enough to act on — the
+/// Card that needed it, the repository and paths it could not be read from, and why.
+public struct UnreadableContract: Equatable, Sendable {
+    public let cardTitle: String
+    public let repository: String
+    public let paths: [String]
+    public let reason: String
+
+    public init(cardTitle: String, repository: String, paths: [String], reason: String) {
+        self.cardTitle = cardTitle
+        self.repository = repository
+        self.paths = paths
+        self.reason = reason
+    }
+}
+
 /// Why authoring halted before any dispatch (feature-authoring/select-the-next-feature, second and
 /// fourth stories; feature-authoring/author-citable-definitions-of-done, second story, for
 /// ``uncitableDefinitionOfDone``). Distinct from Refusal, which the glossary reserves for the thin-spec
@@ -120,6 +137,11 @@ public enum AuthoringHaltReason: Equatable, Sendable {
     /// newly authored Card was left with zero clauses: the Feature's spec support is too thin (roadmap
     /// P9.5, second story). This is the Refusal the glossary names.
     case uncitableDefinitionOfDone(clauses: [UncitableClause])
+    /// A Card names a contract the author Act could not read from its repository's merged mainline —
+    /// unconfigured, missing, or content that could not round-trip through the Managed Block (roadmap
+    /// P9.6, spec: feature-authoring/author-an-architectural-brief). A Card is never authored
+    /// speculatively without it.
+    case contractUnreadable(contracts: [UnreadableContract])
 
     /// A stable, machine-readable name for this reason, for the Journal's payload.
     public var kind: String {
@@ -128,11 +150,13 @@ public enum AuthoringHaltReason: Equatable, Sendable {
         case .repositoriesUndetermined: "repositories-undetermined"
         case .contractOutsideProject: "contract-outside-project"
         case .uncitableDefinitionOfDone: "uncitable-definition-of-done"
+        case .contractUnreadable: "contract-unreadable"
         }
     }
 
     /// The seam or the repository this reason names, when it names one; a compact listing of every
-    /// uncitable clause for ``uncitableDefinitionOfDone``.
+    /// uncitable clause for ``uncitableDefinitionOfDone``, or every unreadable contract for
+    /// ``contractUnreadable``.
     public var detail: String? {
         switch self {
         case .noBackwardCompatibleSeam(let seam): seam
@@ -140,6 +164,9 @@ public enum AuthoringHaltReason: Equatable, Sendable {
         case .contractOutsideProject(let repository): repository
         case .uncitableDefinitionOfDone(let clauses):
             clauses.map { "\($0.level):\($0.cardTitle ?? "-"):\($0.text)" }.joined(separator: "; ")
+        case .contractUnreadable(let contracts):
+            contracts.map { "\($0.cardTitle):\($0.repository):\($0.paths.joined(separator: ","))" }
+                .joined(separator: "; ")
         }
     }
 }
@@ -160,6 +187,12 @@ extension AuthoringHaltReason: CustomStringConvertible {
                     clause.reason
             }.joined(separator: "; ")
             return "The Definition of Done is not citable enough to dispatch: \(named)"
+        case .contractUnreadable(let contracts):
+            let named = contracts.map { contract -> String in
+                "Card '\(contract.cardTitle)': repository '\(contract.repository)' " +
+                    "(\(contract.paths.joined(separator: ", "))) could not be read: \(contract.reason)"
+            }.joined(separator: "; ")
+            return "A contract this author Act cannot read blocks authoring: \(named)"
         }
     }
 }

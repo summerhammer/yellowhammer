@@ -16,6 +16,9 @@ public enum FeatureBreakdownError: Error, Equatable, Sendable, CustomStringConve
     case repositoryOutsideSelection(title: String, repository: String)
     /// A Card has an empty title.
     case emptyTitle(position: Int)
+    /// A Card has an empty or whitespace-only Architectural Brief (roadmap P9.6; spec: feature-
+    /// authoring/author-an-architectural-brief): every authored Card carries a brief before dispatch.
+    case emptyBrief(position: Int)
     /// The transaction would author no Card at all — neither a new one nor an adopted one.
     case noCards
 
@@ -25,6 +28,8 @@ public enum FeatureBreakdownError: Error, Equatable, Sendable, CustomStringConve
             "Card '\(title)' names repository '\(repository)', which the selection did not resolve to."
         case .emptyTitle(let position):
             "Card \(position) of the breakdown has an empty title."
+        case .emptyBrief(let position):
+            "Card \(position) of the breakdown has an empty Architectural Brief."
         case .noCards:
             "The breakdown authors no Card and the selection adopts none."
         }
@@ -42,6 +47,9 @@ enum FeatureBreakdownValidation {
         for (index, card) in breakdown.cards.enumerated() {
             guard !card.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw FeatureBreakdownError.emptyTitle(position: index + 1)
+            }
+            guard !card.brief.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw FeatureBreakdownError.emptyBrief(position: index + 1)
             }
             guard repositories.contains(card.repository) else {
                 throw FeatureBreakdownError.repositoryOutsideSelection(

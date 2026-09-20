@@ -78,6 +78,7 @@ struct AuthoringTransactionClauseTests {
             cards: [
                 CardDraft(
                     repository: "backend", kind: kind, title: "Backend one", unitOfWork: "Do it",
+                    brief: "Approach for Backend one.",
                     definitionOfDone: [
                         authoringClause("Backend one is done."),
                         DefinitionOfDoneClauseDraft(text: "Unreachable", citation: "epic/ghost")
@@ -85,6 +86,7 @@ struct AuthoringTransactionClauseTests {
                 ),
                 CardDraft(
                     repository: "mobile", kind: kind, title: "Mobile one", unitOfWork: "Do it",
+                    brief: "Approach for Mobile one.",
                     definitionOfDone: [authoringClause("Mobile one is done.")]
                 )
             ]
@@ -161,6 +163,7 @@ struct AuthoringTransactionClauseTests {
             cards: [
                 CardDraft(
                     repository: "backend", kind: kind, title: "Backend one", unitOfWork: "Do it",
+                    brief: "Approach for Backend one.",
                     definitionOfDone: [DefinitionOfDoneClauseDraft(text: "Unreachable", citation: "epic/ghost")]
                 )
             ]

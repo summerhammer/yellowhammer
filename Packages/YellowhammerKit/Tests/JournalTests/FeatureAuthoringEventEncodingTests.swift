@@ -88,6 +88,86 @@ func featureAuthoringAcceptedRoundTripsClauses() throws {
     #expect(read == withClauses)
 }
 
+@Test("featureAuthoringAccepted round-trips a Card's brief and Transcription Blocks (roadmap P9.6)")
+func featureAuthoringAcceptedRoundTripsBriefAndTranscriptions() throws {
+    let fixture = try AuthoringJournalFixture()
+    let journal = try fixture.open()
+    let withBrief = FeatureAuthoringAcceptedPayload(
+        name: "FEAT-1", groupKey: "authoring:FEAT-1:0", featureKey: "feature:FEAT-1:0:create", nightID: 7,
+        cards: [
+            PlannedCard(
+                key: "card:FEAT-1:0:backend:1:create", repository: "backend", kind: "impl.a", order: 1,
+                title: "One", clauses: [PlannedClause(cid: "c1", text: "Card clause", citation: "epic/story")],
+                brief: "Approach for One.",
+                transcriptions: [
+                    PlannedTranscription(
+                        repository: "mobile", paths: ["a.swift", "b.swift"], symbol: "Foo",
+                        mainlineCommit: "deadbeef", content: "protocol Foo {}",
+                        contentHash: "abc123"
+                    )
+                ]
+            )
+        ],
+        adoptions: []
+    )
+
+    try journal.append(.featureAuthoringAccepted(withBrief), act: .author, runID: RunID(), now: epoch)
+    guard case .featureAuthoringAccepted(let read) = try journal.events()[0].event else {
+        Issue.record("Event is not featureAuthoringAccepted")
+        return
+    }
+    #expect(read == withBrief)
+    #expect(read.cards[0].brief == "Approach for One.")
+    #expect(read.cards[0].transcriptions == withBrief.cards[0].transcriptions)
+}
+
+@Test("A P9.5-era featureAuthoringAccepted payload with no brief or transcriptions keys decodes empty")
+func featureAuthoringAcceptedDecodesLegacyPayloadWithoutBriefOrTranscriptions() throws {
+    // A P9.5-era payload carried "clauses" but never "brief" or "transcriptions": decoding the event
+    // directly (bypassing `append`) is how this simulates a row an earlier build actually wrote.
+    let legacyCards = [
+        PlannedCard(
+            key: "card:FEAT-1:0:backend:1:create", repository: "backend", kind: "impl.a", order: 1, title: "One",
+            clauses: [PlannedClause(cid: "c1", text: "Card clause", citation: "epic/story")]
+        )
+    ]
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = .sortedKeys
+    // Encode via the CodingKeys that predate "brief"/"transcriptions": strip those keys back out of the
+    // JSON `PlannedCard`'s own (current) Encodable would otherwise include.
+    struct LegacyPlannedCard: Encodable {
+        let key: String
+        let repository: String
+        let kind: String
+        let order: Int
+        let title: String
+        let clauses: [PlannedClause]
+    }
+    let legacyEncoded = legacyCards.map {
+        LegacyPlannedCard(
+            key: $0.key, repository: $0.repository, kind: $0.kind, order: $0.order, title: $0.title,
+            clauses: $0.clauses
+        )
+    }
+    let legacyRow: [String: String] = [
+        "name": "FEAT-1", "group_key": "authoring:FEAT-1:0", "feature_key": "feature:FEAT-1:0:create",
+        "night_id": "7",
+        "cards": String(data: try encoder.encode(legacyEncoded), encoding: .utf8) ?? "[]",
+        "adoptions": "[]"
+    ]
+
+    let event = try JournalEvent(type: .featureAuthoringAccepted, payload: legacyRow, rowID: 1)
+
+    guard case .featureAuthoringAccepted(let read) = event else {
+        Issue.record("Event is not featureAuthoringAccepted")
+        return
+    }
+    #expect(read.cards.count == 1)
+    #expect(read.cards[0].brief == "")
+    #expect(read.cards[0].transcriptions.isEmpty)
+    #expect(read.cards[0].clauses == legacyCards[0].clauses)
+}
+
 @Test("A legacy featureAuthoringAccepted payload with no clause keys decodes with empty clause lists")
 func featureAuthoringAcceptedDecodesLegacyPayloadWithoutClauses() throws {
     // A P9.4-era payload never wrote "feature_clauses" or "uncitable_clauses" keys at all: decoding the
