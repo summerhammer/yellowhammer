@@ -1004,7 +1004,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Rehearsal tests check the block format and provenance fields. Brief content is not
   asserted.
 
-### [ ] P9.7 Refusal lifecycle at Feature level
+### [x] P9.7 Refusal lifecycle at Feature level
 - **Work**
   - A refused Feature Issue sits in Waiting on You with its Refusal content.
   - When `unanswered_nights_max` expires, convert to Blocked with Block Reason `unanswered`; the
