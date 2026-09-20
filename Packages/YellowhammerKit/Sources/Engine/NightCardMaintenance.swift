@@ -199,6 +199,11 @@ public struct NightCardMaintenance: Sendable {
             return """
                 Authoring halted for Feature `\(name)`: \(reasonKind)\(named). A quiet Night, not a failure.
                 """
+        case .featureAuthoringFailed(let name, _, let reason):
+            return """
+                Authoring failed for Feature `\(name)` and was rolled back: \(reason). No partial board was \
+                left behind; the next author Act authors it afresh.
+                """
         default:
             return nil
         }

@@ -250,6 +250,13 @@ public enum JournalEvent: Equatable, Sendable {
     /// second and fourth stories): `reasonKind` is ``AuthoringHaltReason/kind``, `detail` is the seam or
     /// repository it names.
     case featureAuthoringHalted(name: String, reasonKind: String, detail: String?)
+    /// The authoring transaction (roadmap P9.4) accepted its Outbox group and recorded its plan, in one
+    /// Journal transaction — the record a resumed author Act finishes from.
+    case featureAuthoringAccepted(FeatureAuthoringAcceptedPayload)
+    /// The board applied the whole group and the Feature, Cycle and Card rows were written.
+    case featureAuthored(FeatureAuthoredPayload)
+    /// The group was rolled back: no Feature, Cycle or Card row was written and no partial board is left.
+    case featureAuthoringFailed(name: String, groupKey: String, reason: String)
 
     // `type`, the exhaustive switch from a case to its `JournalEventType`, lives in
     // JournalEvent+Type.swift, split out to keep this file under the file length limit.
@@ -324,4 +331,7 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case rehearsalFixtureAnswered = "RehearsalFixtureAnswered"
     case featureSelected = "FeatureSelected"
     case featureAuthoringHalted = "FeatureAuthoringHalted"
+    case featureAuthoringAccepted = "FeatureAuthoringAccepted"
+    case featureAuthored = "FeatureAuthored"
+    case featureAuthoringFailed = "FeatureAuthoringFailed"
 }

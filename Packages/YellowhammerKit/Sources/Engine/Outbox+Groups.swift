@@ -27,6 +27,10 @@ extension Outbox {
                     compensations.append(OutboxWrite(
                         key: key, write: .updateIssue(issue: issue, change: undo, undo: nil), cardID: entry.cardID
                     ))
+                case .adoptIssue(let issue, _, let undo?)?:
+                    compensations.append(OutboxWrite(
+                        key: key, write: .updateIssue(issue: issue, change: undo, undo: nil), cardID: entry.cardID
+                    ))
                 default:
                     break
                 }

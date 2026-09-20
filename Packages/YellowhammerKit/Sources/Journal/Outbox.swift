@@ -56,16 +56,23 @@ extension JournalStore {
     /// `INSERT OR IGNORE` keyed on client_id so accepting the same client id twice is idempotent:
     /// the existing row is returned untouched (its state, result etc. preserved). Returns entries in
     /// draft order.
+    ///
+    /// `event`, when given, is appended in the SAME transaction and only if a draft was newly inserted:
+    /// the authoring plan and its group are recorded together or not at all.
     public func acceptOutbox(
         _ drafts: [OutboxDraft],
         runID: RunID,
-        now: Date = Date()
+        now: Date = Date(),
+        appending event: JournalEvent? = nil,
+        act: Act? = nil,
+        nightID: Int64? = nil
     ) throws -> [OutboxEntry] {
         let now = JournalStore.stored(now)
         return try write { db in
             _ = try Self.revalidateActLease(db, runID: runID, now: now)
 
             var results: [OutboxEntry] = []
+            var inserted = false // whether any draft was new
             let timestamp = JournalStore.timestamp(now)
 
             for draft in drafts {
@@ -90,6 +97,7 @@ extension JournalStore {
                     ]
                 )
 
+                inserted = inserted || db.changesCount > 0
                 // Fetch and return the entry (either newly inserted or existing)
                 let entry = try Self.fetchOutboxByClientID(db, clientID: draft.clientID)
                 guard let entry else {
@@ -98,6 +106,10 @@ extension JournalStore {
                 results.append(entry)
             }
 
+            if let event, inserted {
+                let stamp = EventStamp(act: act, runID: runID, nightID: nightID, now: now)
+                _ = try Self.insertEvent(db, event, stamp: stamp)
+            }
             return results
         }
     }

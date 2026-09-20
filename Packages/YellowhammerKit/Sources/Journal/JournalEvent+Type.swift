@@ -141,6 +141,12 @@ extension JournalEvent {
             .featureSelected
         case .featureAuthoringHalted:
             .featureAuthoringHalted
+        case .featureAuthoringAccepted:
+            .featureAuthoringAccepted
+        case .featureAuthored:
+            .featureAuthored
+        case .featureAuthoringFailed:
+            .featureAuthoringFailed
         }
     }
 }

@@ -82,6 +82,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     case waitingOnYouUnbacked(cardID: Int64)
     /// A transition to Blocked without a Block Reason.
     case blockReasonRequired(cardID: Int64)
+    /// The authoring transaction adopts a Card the Journal holds no row for.
+    case adoptedCardUnknown(issueID: String)
 
     public var description: String {
         return switch self {
@@ -174,6 +176,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
             "Card \(cardID) cannot transition to Waiting on You without a waiting reason"
         case .blockReasonRequired(let cardID):
             "Card \(cardID) cannot transition to Blocked without a Block Reason"
+        case .adoptedCardUnknown(let issueID):
+            "The Journal has no Card row for adopted issue \(issueID)"
         }
     }
 }

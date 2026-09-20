@@ -30,6 +30,14 @@ public enum FeatureAuthoringOutcome: Equatable, Sendable {
     /// failure: recorded and routed to Waiting on You by ``FeatureSelection`` itself, before this
     /// outcome is even returned.
     case halted
+    /// Authoring was attempted and the whole transaction was rolled back (roadmap P9.4): no Feature
+    /// Issue, Card, Cycle or row was left behind, and the failure is recorded on the Night Card. Like a
+    /// halt, a quiet Night for this Act — the next author Act authors afresh.
+    case authoringRolledBack
+    /// Authoring was accepted but not yet fully delivered — the board's rate limit, a transient outage or
+    /// a lost Card Lease deferred it. Nothing is written to the Journal's Feature, Cycle or Card rows
+    /// until the whole group is on the board; a later author Act resumes it without selecting again.
+    case authoringPending
 }
 
 /// Selects and authors the next Feature (P9.3–P9.7). The real implementation is a later phase; this
@@ -51,9 +59,10 @@ public protocol FeatureAuthoring: Sendable {
 ///    every repository stops authoring: no Worktree is allocated, nothing is dispatched, no Attempt
 ///    is recorded.
 /// 4. Selecting and authoring the Feature (``authoring``, P9.3–P9.7) runs only once the gate clears.
-///    A halt (``FeatureAuthoringOutcome/halted``) is treated the same as a successful authoring: it has
-///    already recorded itself and, where possible, routed the Feature to Waiting on You, so this Act
-///    only falls through to write-back.
+///    A halt (``FeatureAuthoringOutcome/halted``), a rolled-back transaction
+///    (``FeatureAuthoringOutcome/authoringRolledBack``) and an accepted-but-undelivered one
+///    (``FeatureAuthoringOutcome/authoringPending``) are treated the same as a successful authoring:
+///    each has already recorded itself, so this Act only falls through to write-back.
 /// 5. Nothing selectable to author records the Night's idle verdict
 ///    (``JournalStore/recordAuthoringNoWorkAvailable(nightID:act:runID:)``).
 ///
@@ -111,7 +120,7 @@ public struct AuthorAct: Sendable {
             try journal.recordAuthoringNoWorkAvailable(
                 nightID: context.night.id, act: context.act, runID: context.runID
             )
-        case .authored, .halted:
+        case .authored, .halted, .authoringRolledBack, .authoringPending:
             break
         }
         try await writeBack(context: context)

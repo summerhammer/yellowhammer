@@ -11,9 +11,14 @@ public protocol FeatureSelecting: Sendable {
 }
 
 /// Authors a validated ``SelectedFeature`` — the Feature Issue, its Cards and its adoptions (P9.4–P9.7).
-/// No implementation ships in this phase.
+/// ``AuthoringTransaction`` is the P9.4 implementation.
 public protocol SelectedFeatureAuthoring: Sendable {
-    func author(_ selection: SelectedFeature, context: ActContext) async throws
+    func author(_ selection: SelectedFeature, context: ActContext) async throws -> FeatureAuthoringOutcome
+
+    /// Finishes an authoring transaction an earlier Act accepted and did not complete, if there is one;
+    /// nil when there is nothing to resume. Called before the selector runs, so a resume never selects
+    /// (or breaks down) the Feature a second time.
+    func resumeUnfinished(_ context: ActContext) async throws -> FeatureAuthoringOutcome?
 }
 
 /// What is wrong with this Project's configuration, or with what the selector returned, such that
@@ -66,6 +71,9 @@ public struct FeatureSelection: FeatureAuthoring {
     }
 
     public func selectAndAuthor(_ context: ActContext) async throws -> FeatureAuthoringOutcome {
+        if let transaction, let resumed = try await transaction.resumeUnfinished(context) {
+            return resumed
+        }
         guard let repositories = context.repositories, !repositories.workingRepos.isEmpty else {
             throw FeatureSelectionError.noRepositoriesConfigured
         }
@@ -164,8 +172,7 @@ public struct FeatureSelection: FeatureAuthoring {
         guard let transaction else {
             throw EngineInvocationError.notImplemented(.author)
         }
-        try await transaction.author(validated, context: context)
-        return .authored
+        return try await transaction.author(validated, context: context)
     }
 
     /// Records a halt durably before any board write, then — only when this invocation has an Outbox
