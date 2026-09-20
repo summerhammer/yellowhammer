@@ -1120,7 +1120,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   and no board writes; a description whose Transcription Block contains a Managed Block delimiter
   still writes.
 
-### [ ] P9.11 The author Act's route
+### [x] P9.11 The author Act's route
 - **Work**
   - Resolve the author Act's model through the Routing Table, under a reserved authoring Kind
     carrying no Repo Role, and dispatch it as an agent CLI with the configured fallback order. The
