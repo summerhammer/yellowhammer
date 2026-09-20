@@ -55,7 +55,19 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
             throw AuthoringTransactionError.noBoard
         }
         let breakdown = try await drafting.breakdown(for: selection, mainlines: context.mainlines)
-        try FeatureBreakdownValidation.validate(breakdown, for: selection)
+        // A rejected breakdown is an authoring fault, not a halt (roadmap P9.10; spec: feature-authoring/
+        // author-the-cycle-and-card-dag): nothing was ever accepted into the Outbox, so there is no board
+        // write to roll back, no Authoring Halt, and no Refusal — only `FeatureBreakdownError` is caught
+        // here; any other thrown error keeps propagating and fails the invocation.
+        do {
+            try FeatureBreakdownValidation.validate(breakdown, for: selection)
+        } catch let error as FeatureBreakdownError {
+            try context.journal.append(
+                .featureBreakdownRejected(name: selection.name.rawValue, reason: error.description),
+                act: context.act, runID: context.runID, nightID: context.night.id
+            )
+            return .authoringRolledBack
+        }
 
         // Every drafted clause's citation is resolved before anything is accepted into the Outbox
         // (roadmap P9.5): a clause without a resolvable citation is never written speculatively, and a

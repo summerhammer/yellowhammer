@@ -256,6 +256,26 @@ func featureAuthoringFailedRoundTrips() throws {
     #expect(name == "FEAT-1" && groupKey == "authoring:FEAT-1:0" && reason == "Linear said no, twice")
 }
 
+@Test("featureBreakdownRejected round-trips")
+func featureBreakdownRejectedRoundTrips() throws {
+    let fixture = try AuthoringJournalFixture()
+    let journal = try fixture.open()
+
+    try journal.append(
+        .featureBreakdownRejected(name: "FEAT-1", reason: "Card 1 of the breakdown has an empty Architectural Brief."),
+        act: .author, runID: RunID(), now: epoch
+    )
+
+    let record = try journal.events()[0]
+    #expect(record.type == .featureBreakdownRejected)
+    #expect(JournalEventType.featureBreakdownRejected.rawValue == "FeatureBreakdownRejected")
+    guard case .featureBreakdownRejected(let name, let reason) = record.event else {
+        Issue.record("Event is not featureBreakdownRejected")
+        return
+    }
+    #expect(name == "FEAT-1" && reason == "Card 1 of the breakdown has an empty Architectural Brief.")
+}
+
 @Test("acceptOutbox appends the plan's event once, in the same transaction as the group")
 func acceptOutboxAppendsEventAtomically() throws {
     let fixture = try AuthoringJournalFixture()

@@ -111,8 +111,9 @@ struct AuthoringTransactionTests {
 
         let nightCard = try #require(await rig.boards.writing.liveIssues.first { $0.title.hasPrefix("Night ") })
         let description = try #require(nightCard.description)
-        #expect(description.contains("Authoring failed for Feature `FEAT-1`"))
-        #expect(description.contains("No partial board was left behind"))
+        #expect(description.contains("Authoring Feature `FEAT-1` failed"))
+        #expect(description.contains("the author Act stood down without authoring"))
+        #expect(!description.contains("halt"))
         #expect(await rig.boards.writing.liveIssues.map(\.title) == [nightCard.title])
     }
 
@@ -190,36 +191,8 @@ struct AuthoringTransactionTests {
         #expect(await rig.boards.writing.liveIssues.count == 4)
     }
 
-    @Test("A Card naming a repository outside the selection throws and accepts nothing")
-    func validationRefusesForeignRepository() async throws {
-        let kind = try authoringKind()
-        let rig = try await AuthoringRig(drafting: ScriptedBreakdown(FeatureBreakdown(
-            definitionOfDone: [authoringClause("x")],
-            cards: [CardDraft(
-                repository: "web", kind: kind, title: "Web", unitOfWork: "x", brief: "Approach.",
-                definitionOfDone: [authoringClause("x")]
-            )]
-        )))
-
-        await #expect(throws: FeatureBreakdownError.repositoryOutsideSelection(title: "Web", repository: "web")) {
-            _ = try await rig.run(rig.context())
-        }
-
-        #expect(try tableRowCount(rig.journal, table: "outbox") == 0)
-        #expect(try rig.journal.events(ofType: .featureAuthoringAccepted).isEmpty)
-        #expect(await rig.boards.writing.liveIssues.isEmpty)
-    }
-
-    @Test("A breakdown with no Card, and no adoption, throws and accepts nothing")
-    func validationRequiresACard() async throws {
-        let empty = FeatureBreakdown(definitionOfDone: [authoringClause("x")], cards: [])
-        let rig = try await AuthoringRig(drafting: ScriptedBreakdown(empty))
-
-        await #expect(throws: FeatureBreakdownError.noCards) {
-            _ = try await rig.run(rig.context())
-        }
-        #expect(try tableRowCount(rig.journal, table: "outbox") == 0)
-    }
+    // Validation-rejected breakdowns and accepted-but-undelivered are covered in
+    // AuthoringTransactionFaultTests.swift (roadmap P9.10).
 
     @Test("Authoring without an Outbox and a Board throws instead of silently skipping")
     func noBoardThrows() async throws {

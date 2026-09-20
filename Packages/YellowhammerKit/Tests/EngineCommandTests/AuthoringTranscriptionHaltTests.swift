@@ -178,7 +178,7 @@ struct AuthoringTranscriptionHaltTests {
         })
     }
 
-    @Test("A Card with an empty or whitespace-only brief is refused before anything is accepted")
+    @Test("A Card with an empty or whitespace-only brief is an authoring fault, not a throw")
     func emptyBriefRefusesAuthoring() async throws {
         let kind = try authoringKind()
         let breakdown = FeatureBreakdown(
@@ -193,12 +193,18 @@ struct AuthoringTranscriptionHaltTests {
         )
         let rig = try await AuthoringRig(drafting: ScriptedBreakdown(breakdown))
 
-        await #expect(throws: FeatureBreakdownError.emptyBrief(position: 1)) {
-            _ = try await rig.run(rig.context())
-        }
+        let outcome = try await rig.run(rig.context())
 
+        #expect(outcome == .authoringRolledBack)
         #expect(try tableRowCount(rig.journal, table: "outbox") == 0)
         #expect(try rig.journal.events(ofType: .featureAuthoringAccepted).isEmpty)
         #expect(await rig.boards.writing.liveIssues.isEmpty)
+        let rejected = try #require(try rig.journal.events(ofType: .featureBreakdownRejected).first)
+        guard case .featureBreakdownRejected(let name, let reason) = rejected.event else {
+            Issue.record("expected featureBreakdownRejected")
+            return
+        }
+        #expect(name == "FEAT-1")
+        #expect(reason.contains("Architectural Brief"))
     }
 }

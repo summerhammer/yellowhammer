@@ -48,7 +48,8 @@ func eventTypeRawValues() {
         "CardRunStep", "CheckRan", "AttemptWorkPreserved", "FailureCauseRecorded", "LaneHoleRecorded",
         "CardReclaimed", "CardReclaimDeferred", "AgentCLIProcessSpawned", "RehearsalFixtureAnswered",
         "FeatureSelected", "FeatureAuthoringHalted", "FeatureAuthoringAccepted", "FeatureAuthored",
-        "FeatureAuthoringFailed", "RefusalOpened", "RefusalRepeated", "RefusalExpired", "RefusalCountReset",
+        "FeatureAuthoringFailed", "FeatureBreakdownRejected",
+        "RefusalOpened", "RefusalRepeated", "RefusalExpired", "RefusalCountReset",
         "LandStep", "CycleLanded",
         "RefusalAnswered", "AuthoringHaltOpened", "AuthoringHaltRepeated", "AuthoringHaltExpired",
         "AuthoringHaltCleared"

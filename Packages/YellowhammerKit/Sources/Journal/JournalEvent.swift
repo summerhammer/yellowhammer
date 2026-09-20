@@ -265,6 +265,7 @@ public enum JournalEvent: Equatable, Sendable {
     case featureAuthored(FeatureAuthoredPayload)
     /// The group was rolled back: no Feature, Cycle or Card row was written and no partial board is left.
     case featureAuthoringFailed(name: String, groupKey: String, reason: String)
+    case featureBreakdownRejected(name: String, reason: String)
     /// A Feature's uncitable-Definition-of-Done halt opened a new Refusal (roadmap P9.7; glossary:
     /// Refusal): no `open` (or `expired`) Refusal existed for this Feature name yet.
     /// `uncitableClauses` is the compact listing of the clauses no citation supported, and
@@ -384,6 +385,7 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case featureAuthoringAccepted = "FeatureAuthoringAccepted"
     case featureAuthored = "FeatureAuthored"
     case featureAuthoringFailed = "FeatureAuthoringFailed"
+    case featureBreakdownRejected = "FeatureBreakdownRejected"
     case refusalOpened = "RefusalOpened"
     case refusalRepeated = "RefusalRepeated"
     case refusalExpired = "RefusalExpired"

@@ -198,27 +198,9 @@ public enum CardManagedBlockParser {
     /// Every line index that sits inside a Transcription Block (its start marker, its content and its
     /// end marker): a transcription of a specification story is markdown of its own, and may contain a
     /// `### ` heading or a `- [ ]` line that must never be read as this document's own (roadmap P9.6).
+    /// Delegates to ``TranscriptionBlockMasking``, shared with ``ManagedBlockFence`` (roadmap P9.10).
     private static func maskedLineIndices(_ lines: [String]) -> Set<Int> {
-        var masked = Set<Int>()
-        var index = 0
-        while index < lines.count {
-            let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
-            guard trimmed.hasPrefix(transcriptionStartPrefix), trimmed.hasSuffix("-->") else {
-                index += 1
-                continue
-            }
-            masked.insert(index)
-            index += 1
-            while index < lines.count, lines[index].trimmingCharacters(in: .whitespaces) != transcriptionEnd {
-                masked.insert(index)
-                index += 1
-            }
-            if index < lines.count {
-                masked.insert(index)
-                index += 1
-            }
-        }
-        return masked
+        TranscriptionBlockMasking.maskedLineIndices(lines)
     }
 
     private static func parseClauses(lines: [String]) -> [ParsedClause] {

@@ -190,6 +190,11 @@ extension JournalEvent {
                 groupKey: try reader.require("group_key"),
                 reason: try reader.require("reason")
             )
+        case .featureBreakdownRejected:
+            .featureBreakdownRejected(
+                name: try reader.require("name"),
+                reason: try reader.require("reason")
+            )
         case .refusalOpened:
             .refusalOpened(
                 feature: try reader.require("feature"),
