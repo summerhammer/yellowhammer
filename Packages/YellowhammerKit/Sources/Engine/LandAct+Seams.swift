@@ -42,16 +42,64 @@ public protocol LaneMergeTesting: Sendable {
 
 /// What a Repo Lane's push (P10.2) reported. A push failure is a first-class outcome, not a throw.
 public struct LanePushOutcome: Equatable, Sendable {
-    public let pushed: Bool
-    /// The pushed commit, set only when `pushed` is true.
-    public let commit: String?
-    /// Why the push did not happen, set only when `pushed` is false.
-    public let reason: String?
+    /// The distinct ways a Repo Lane's push can resolve.
+    public enum Kind: Equatable, Sendable {
+        case pushed(commit: String)
+        /// The Feature Branch does not exist in the repository, or has no commits ahead of Mainline.
+        /// No push was attempted.
+        case noCompletedWork
+        /// GitHub's branch protection rejected the push. Never carries the credential.
+        case refusedByBranchProtection(detail: String)
+        /// The GitHub credential is missing or insufficient. Never carries the credential.
+        case credentialsMissingOrInsufficient(detail: String)
+        /// Refused before running any push: the branch is the repository's Mainline.
+        case refusedMainline
+        /// Anything else: a missing repository, an unresolvable branch, a network failure, and so on.
+        case failed(reason: String)
+    }
 
+    public let kind: Kind
+
+    public var pushed: Bool {
+        if case .pushed = kind { return true }
+        return false
+    }
+
+    /// The pushed commit, set only when `pushed` is true.
+    public var commit: String? {
+        if case .pushed(let commit) = kind { return commit }
+        return nil
+    }
+
+    /// Why the push did not happen, set only when `pushed` is false. Nil for `.noCompletedWork`, which
+    /// is not a failure.
+    public var reason: String? {
+        switch kind {
+        case .pushed, .noCompletedWork:
+            return nil
+        case .refusedByBranchProtection(let detail):
+            return detail
+        case .credentialsMissingOrInsufficient(let detail):
+            return detail
+        case .refusedMainline:
+            return "the Feature Branch is the repository's Mainline"
+        case .failed(let reason):
+            return reason
+        }
+    }
+
+    public init(kind: Kind) {
+        self.kind = kind
+    }
+
+    /// Kept for the seams and tests predating the richer ``Kind`` (roadmap P10.1): `pushed` with no
+    /// commit, or any push short of `pushed`, becomes `.failed(reason:)`.
     public init(pushed: Bool, commit: String? = nil, reason: String? = nil) {
-        self.pushed = pushed
-        self.commit = commit
-        self.reason = reason
+        if pushed, let commit {
+            self.kind = .pushed(commit: commit)
+        } else {
+            self.kind = .failed(reason: reason ?? "the push did not complete")
+        }
     }
 }
 
