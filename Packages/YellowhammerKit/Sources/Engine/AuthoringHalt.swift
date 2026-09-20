@@ -17,6 +17,24 @@ enum AuthoringHalt {
             .featureAuthoringHalted(name: feature.rawValue, reasonKind: reason.kind, detail: reason.detail),
             act: context.act, runID: context.runID, nightID: context.night.id
         )
+
+        // Only the uncitable-Definition-of-Done halt is a Refusal in glossary terms (roadmap P9.7):
+        // recorded durably before any board write, and — once its Refusal has expired — this halt
+        // writes nothing to the board at all: the Feature Issue stays Blocked, no re-create into
+        // Waiting on You and no repeated comment.
+        var refusalAlreadyExpired = false
+        if case .uncitableDefinitionOfDone = reason {
+            let content = reason.description
+            let outcome = try context.journal.recordRefusal(
+                feature: feature, content: content, nightID: context.night.id,
+                act: context.act, runID: context.runID
+            )
+            refusalAlreadyExpired = outcome.alreadyExpired
+        }
+        guard !refusalAlreadyExpired else {
+            return .halted
+        }
+
         guard let outbox = context.outbox, let board = context.board else {
             return .halted
         }
@@ -43,6 +61,9 @@ enum AuthoringHalt {
             createdID = nil
         }
         if let createdID {
+            if case .uncitableDefinitionOfDone = reason {
+                try context.journal.recordRefusalIssue(feature: feature, issueID: createdID.rawValue)
+            }
             let commentKey = "feature:\(feature.rawValue):halt:\(context.night.nightStart.rawValue):comment"
             _ = try await outbox.post(OutboxWrite(
                 key: commentKey, write: .createComment(issue: createdID, body: reason.description)

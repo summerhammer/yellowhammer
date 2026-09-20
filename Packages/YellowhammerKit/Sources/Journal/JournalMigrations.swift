@@ -72,6 +72,9 @@ enum JournalMigrations {
         migrator.registerMigration("v14-attempt-preserved-ref") { db in
             try addAttemptPreservedRef(db)
         }
+        migrator.registerMigration("v15-refusal") { db in
+            try createRefusalTable(db)
+        }
         return migrator
     }
 }
