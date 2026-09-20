@@ -168,6 +168,14 @@ extension JournalEvent {
             try Self.decodeAgentCLIProcessSpawned(reader)
         case .rehearsalFixtureAnswered:
             try Self.decodeRehearsalFixtureAnswered(reader)
+        case .featureSelected:
+            try Self.decodeFeatureSelected(reader)
+        case .featureAuthoringHalted:
+            .featureAuthoringHalted(
+                name: try reader.require("name"),
+                reasonKind: try reader.require("reason_kind"),
+                detail: reader.payload?["detail"]
+            )
         }
     }
 

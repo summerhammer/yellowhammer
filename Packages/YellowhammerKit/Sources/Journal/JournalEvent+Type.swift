@@ -137,6 +137,10 @@ extension JournalEvent {
             .agentCLIProcessSpawned
         case .rehearsalFixtureAnswered:
             .rehearsalFixtureAnswered
+        case .featureSelected:
+            .featureSelected
+        case .featureAuthoringHalted:
+            .featureAuthoringHalted
         }
     }
 }

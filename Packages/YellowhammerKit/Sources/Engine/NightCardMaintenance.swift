@@ -191,6 +191,14 @@ public struct NightCardMaintenance: Sendable {
             return """
                 Nothing was selectable to author (`AuthoringNoWorkAvailable`). A quiet Night, not a failure.
                 """
+        case .featureSelected(let payload):
+            let repositories = payload.repositories.joined(separator: ", ")
+            return "Selected Feature `\(payload.name)`, touching \(repositories)."
+        case .featureAuthoringHalted(let name, let reasonKind, let detail):
+            let named = detail.map { " (\($0))" } ?? ""
+            return """
+                Authoring halted for Feature `\(name)`: \(reasonKind)\(named). A quiet Night, not a failure.
+                """
         default:
             return nil
         }

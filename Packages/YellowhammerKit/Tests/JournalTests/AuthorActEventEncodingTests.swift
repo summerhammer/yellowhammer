@@ -183,3 +183,95 @@ func mainlineConflictDetectedRoundTripsEmptyPaths() throws {
     }
     #expect(readPaths.isEmpty)
 }
+
+@Test("featureSelected event round-trips with every optional present and non-empty arrays")
+func featureSelectedRoundTripsFullyPopulated() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+    let payload = FeatureSelectedPayload(
+        name: "FEAT-1", reasoning: "Splits the seam cleanly.",
+        precededBy: "FEAT-0", followedBy: "FEAT-2", seam: "the endpoint contract",
+        repositories: ["backend", "mobile"],
+        adoptedCardIssueIDs: ["BACK-1"], unadoptedCardIssueIDs: ["BACK-2"]
+    )
+
+    try journal.append(.featureSelected(payload), act: .author, runID: run, now: epoch)
+    let records = try journal.events()
+
+    #expect(records.count == 1)
+    guard case .featureSelected(let read) = records[0].event else {
+        Issue.record("Event is not featureSelected")
+        return
+    }
+    #expect(read == payload)
+}
+
+@Test("featureSelected event round-trips with every optional nil and every array empty")
+func featureSelectedRoundTripsMinimal() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+    let payload = FeatureSelectedPayload(
+        name: "FEAT-1", reasoning: "No predecessor, no successor.",
+        precededBy: nil, followedBy: nil, seam: nil,
+        repositories: ["backend"], adoptedCardIssueIDs: [], unadoptedCardIssueIDs: []
+    )
+
+    try journal.append(.featureSelected(payload), act: .author, runID: run, now: epoch)
+    let records = try journal.events()
+
+    guard case .featureSelected(let read) = records[0].event else {
+        Issue.record("Event is not featureSelected")
+        return
+    }
+    #expect(read == payload)
+    #expect(read.precededBy == nil)
+    #expect(read.followedBy == nil)
+    #expect(read.seam == nil)
+    #expect(read.adoptedCardIssueIDs.isEmpty)
+    #expect(read.unadoptedCardIssueIDs.isEmpty)
+}
+
+@Test("featureAuthoringHalted event round-trips with a detail")
+func featureAuthoringHaltedRoundTripsWithDetail() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+
+    try journal.append(
+        .featureAuthoringHalted(
+            name: "FEAT-1", reasonKind: "no-backward-compatible-seam", detail: "the shared contract"
+        ),
+        act: .author, runID: run, now: epoch
+    )
+    let records = try journal.events()
+
+    #expect(records.count == 1)
+    guard case .featureAuthoringHalted(let name, let reasonKind, let detail) = records[0].event else {
+        Issue.record("Event is not featureAuthoringHalted")
+        return
+    }
+    #expect(name == "FEAT-1")
+    #expect(reasonKind == "no-backward-compatible-seam")
+    #expect(detail == "the shared contract")
+}
+
+@Test("featureAuthoringHalted event round-trips with a nil detail")
+func featureAuthoringHaltedRoundTripsWithNilDetail() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+
+    try journal.append(
+        .featureAuthoringHalted(name: "FEAT-1", reasonKind: "repositories-undetermined", detail: nil),
+        act: .author, runID: run, now: epoch
+    )
+    let records = try journal.events()
+
+    guard case .featureAuthoringHalted(_, _, let detail) = records[0].event else {
+        Issue.record("Event is not featureAuthoringHalted")
+        return
+    }
+    #expect(detail == nil)
+}

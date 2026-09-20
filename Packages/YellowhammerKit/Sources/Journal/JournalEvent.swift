@@ -1,6 +1,43 @@
 import Domain
 import Foundation
 
+/// The fields of a `featureSelected` event, wrapped in a struct (rather than a wide enum case) to keep
+/// `JournalEvent`'s cases within SwiftLint's associated-values-count limit.
+public struct FeatureSelectedPayload: Equatable, Sendable {
+    public let name: String
+    public let reasoning: String
+    /// Non-nil when the selection is one step of a sequence (feature-authoring/select-the-next-feature,
+    /// second story).
+    public let precededBy: String?
+    public let followedBy: String?
+    public let seam: String?
+    public let repositories: [String]
+    public let adoptedCardIssueIDs: [String]
+    /// Adoption candidates this selection did not take up — the Night Summary's standing line names
+    /// them later (roadmap P12), so that work no Feature covers is never merely invisible.
+    public let unadoptedCardIssueIDs: [String]
+
+    public init(
+        name: String,
+        reasoning: String,
+        precededBy: String?,
+        followedBy: String?,
+        seam: String?,
+        repositories: [String],
+        adoptedCardIssueIDs: [String],
+        unadoptedCardIssueIDs: [String]
+    ) {
+        self.name = name
+        self.reasoning = reasoning
+        self.precededBy = precededBy
+        self.followedBy = followedBy
+        self.seam = seam
+        self.repositories = repositories
+        self.adoptedCardIssueIDs = adoptedCardIssueIDs
+        self.unadoptedCardIssueIDs = unadoptedCardIssueIDs
+    }
+}
+
 /// One entry of the Project's append-only event log, typed so that the spec's vocabulary is the code's.
 public enum JournalEvent: Equatable, Sendable {
     case actStarted
@@ -206,6 +243,13 @@ public enum JournalEvent: Equatable, Sendable {
     /// A rehearsal Night's pass was answered from a fixture instead of spawning an agent CLI process
     /// (system-overview, Environment Differences, P8.11): one of the three rehearsal boundaries held.
     case rehearsalFixtureAnswered(cardID: Int64, issueID: String, attemptID: Int64, pass: RunPass, fixture: String)
+    /// The author Act's selection (roadmap P9.3) selected exactly one Feature and validated it:
+    /// repositories resolved to this Project's own, adoption candidates narrowed to real ones.
+    case featureSelected(FeatureSelectedPayload)
+    /// The author Act's selection halted before any dispatch (feature-authoring/select-the-next-feature,
+    /// second and fourth stories): `reasonKind` is ``AuthoringHaltReason/kind``, `detail` is the seam or
+    /// repository it names.
+    case featureAuthoringHalted(name: String, reasonKind: String, detail: String?)
 
     // `type`, the exhaustive switch from a case to its `JournalEventType`, lives in
     // JournalEvent+Type.swift, split out to keep this file under the file length limit.
@@ -278,4 +322,6 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case cardReclaimDeferred = "CardReclaimDeferred"
     case agentCLIProcessSpawned = "AgentCLIProcessSpawned"
     case rehearsalFixtureAnswered = "RehearsalFixtureAnswered"
+    case featureSelected = "FeatureSelected"
+    case featureAuthoringHalted = "FeatureAuthoringHalted"
 }
