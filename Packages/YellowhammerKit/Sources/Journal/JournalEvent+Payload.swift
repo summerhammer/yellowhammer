@@ -317,6 +317,33 @@ extension JournalEvent {
                 "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
                 "pass": pass.rawValue, "fixture": fixture
             ]
+        case .featureSelected(let payload):
+            {
+                var dict: [String: String] = [
+                    "name": payload.name, "reasoning": payload.reasoning,
+                    "repositories": payload.repositories.joined(separator: "\u{1F}"),
+                    "adopted_card_issue_ids": payload.adoptedCardIssueIDs.joined(separator: "\u{1F}"),
+                    "unadopted_card_issue_ids": payload.unadoptedCardIssueIDs.joined(separator: "\u{1F}")
+                ]
+                if let precededBy = payload.precededBy {
+                    dict["preceded_by"] = precededBy
+                }
+                if let followedBy = payload.followedBy {
+                    dict["followed_by"] = followedBy
+                }
+                if let seam = payload.seam {
+                    dict["seam"] = seam
+                }
+                return dict
+            }()
+        case .featureAuthoringHalted(let name, let reasonKind, let detail):
+            {
+                var dict: [String: String] = ["name": name, "reason_kind": reasonKind]
+                if let detail {
+                    dict["detail"] = detail
+                }
+                return dict
+            }()
         }
     }
 }

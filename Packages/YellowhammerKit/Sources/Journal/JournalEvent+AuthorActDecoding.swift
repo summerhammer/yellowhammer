@@ -32,4 +32,21 @@ extension JournalEvent {
             paths: rawPaths.isEmpty ? [] : rawPaths.components(separatedBy: "\u{1F}")
         )
     }
+
+    static func decodeFeatureSelected(_ reader: PayloadReader) throws -> JournalEvent {
+        let rawRepositories = try reader.require("repositories")
+        let rawAdopted = try reader.require("adopted_card_issue_ids")
+        let rawUnadopted = try reader.require("unadopted_card_issue_ids")
+        let payload = FeatureSelectedPayload(
+            name: try reader.require("name"),
+            reasoning: try reader.require("reasoning"),
+            precededBy: reader.payload?["preceded_by"],
+            followedBy: reader.payload?["followed_by"],
+            seam: reader.payload?["seam"],
+            repositories: rawRepositories.isEmpty ? [] : rawRepositories.components(separatedBy: "\u{1F}"),
+            adoptedCardIssueIDs: rawAdopted.isEmpty ? [] : rawAdopted.components(separatedBy: "\u{1F}"),
+            unadoptedCardIssueIDs: rawUnadopted.isEmpty ? [] : rawUnadopted.components(separatedBy: "\u{1F}")
+        )
+        return .featureSelected(payload)
+    }
 }

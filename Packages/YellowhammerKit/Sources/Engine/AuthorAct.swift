@@ -24,6 +24,12 @@ public enum FeatureAuthoringOutcome: Equatable, Sendable {
     case authored
     /// Nothing was selectable to author.
     case noWorkAvailable
+    /// A Feature was selected but authoring halted before any dispatch — no backward-compatible seam,
+    /// undetermined repositories, or a repository outside this Project (roadmap P9.3; spec:
+    /// feature-authoring/select-the-next-feature, second and fourth stories). A quiet Night, not a
+    /// failure: recorded and routed to Waiting on You by ``FeatureSelection`` itself, before this
+    /// outcome is even returned.
+    case halted
 }
 
 /// Selects and authors the next Feature (P9.3–P9.7). The real implementation is a later phase; this
@@ -45,12 +51,15 @@ public protocol FeatureAuthoring: Sendable {
 ///    every repository stops authoring: no Worktree is allocated, nothing is dispatched, no Attempt
 ///    is recorded.
 /// 4. Selecting and authoring the Feature (``authoring``, P9.3–P9.7) runs only once the gate clears.
+///    A halt (``FeatureAuthoringOutcome/halted``) is treated the same as a successful authoring: it has
+///    already recorded itself and, where possible, routed the Feature to Waiting on You, so this Act
+///    only falls through to write-back.
 /// 5. Nothing selectable to author records the Night's idle verdict
 ///    (``JournalStore/recordAuthoringNoWorkAvailable(nightID:act:runID:)``).
 ///
-/// Each of steps 2, 3 and 5 is a quiet Night, not a failure: the Act returns normally (the invocation
-/// records `ActEnded`) and the reason is put on the Night Card right away, before the Act's own
-/// write-back.
+/// Each of steps 2, 3 and 5 (and a halt inside step 4) is a quiet Night, not a failure: the Act returns
+/// normally (the invocation records `ActEnded`) and the reason is put on the Night Card right away,
+/// before the Act's own write-back.
 public struct AuthorAct: Sendable {
     /// The predecessor-ancestry gate (P9.2); nil is treated as `.landed` — there is no gate to fail
     /// yet, so authoring is never blocked on a check that has not landed.
@@ -102,7 +111,7 @@ public struct AuthorAct: Sendable {
             try journal.recordAuthoringNoWorkAvailable(
                 nightID: context.night.id, act: context.act, runID: context.runID
             )
-        case .authored:
+        case .authored, .halted:
             break
         }
         try await writeBack(context: context)
