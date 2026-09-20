@@ -1151,7 +1151,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Fable 5.1 Medium.
 - **Done when** — A rehearsal land Act runs each step up to the rehearsal boundaries.
 
-### [ ] P10.2 Push Feature Branches
+### [x] P10.2 Push Feature Branches
 - **Work**
   - Push each repository's Feature Branch before its Worktree is released, and record the ref on the
     Card.
