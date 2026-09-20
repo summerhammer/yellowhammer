@@ -33,15 +33,27 @@ func authoringKind(_ text: String = "impl.boilerplate") throws -> Kind {
     try #require(Kind(text))
 }
 
-/// Two backend Cards and one mobile Card, in authored order.
+/// One clause citing "resolvable/story" — the citation ``FakeCitationResolver`` resolves by default, so
+/// fixtures built from this are citable without a test having to script the resolver itself.
+func authoringClause(_ text: String) -> DefinitionOfDoneClauseDraft {
+    DefinitionOfDoneClauseDraft(text: text, citation: "resolvable/story")
+}
+
+/// Two backend Cards and one mobile Card, in authored order, each carrying one citable clause.
 func authoringBreakdown(
     backendTitles: [String] = ["Backend one", "Backend two"], mobileTitles: [String] = ["Mobile one"]
 ) throws -> FeatureBreakdown {
     let kind = try authoringKind()
+    func card(_ title: String, repository: String) -> CardDraft {
+        CardDraft(
+            repository: repository, kind: kind, title: title, unitOfWork: "Do \(title)",
+            definitionOfDone: [authoringClause("\(title) is done.")]
+        )
+    }
     return FeatureBreakdown(
-        definitionOfDone: "The Feature is done.",
-        cards: backendTitles.map { CardDraft(repository: "backend", kind: kind, title: $0, unitOfWork: "Do \($0)") }
-            + mobileTitles.map { CardDraft(repository: "mobile", kind: kind, title: $0, unitOfWork: "Do \($0)") }
+        definitionOfDone: [authoringClause("The Feature is done.")],
+        cards: backendTitles.map { card($0, repository: "backend") }
+            + mobileTitles.map { card($0, repository: "mobile") }
     )
 }
 
@@ -64,7 +76,8 @@ final class AuthoringRig {
     let selection: FeatureSelection
 
     init(
-        adopting adopted: [String] = [], sequence: FeatureSequence? = nil, drafting: ScriptedBreakdown? = nil
+        adopting adopted: [String] = [], sequence: FeatureSequence? = nil, drafting: ScriptedBreakdown? = nil,
+        citations: (any CitationResolving)? = nil
     ) async throws {
         fixture = try OutboxJournalFixture()
         journal = try fixture.open()
@@ -73,7 +86,9 @@ final class AuthoringRig {
             outcome: .selected(try authoringSelection(adopting: adopted, sequence: sequence))
         )
         self.drafting = try drafting ?? ScriptedBreakdown(try authoringBreakdown())
-        selection = FeatureSelection(selector: selector, transaction: AuthoringTransaction(drafting: self.drafting))
+        selection = FeatureSelection(selector: selector, transaction: AuthoringTransaction(
+            drafting: self.drafting, citations: citations ?? FakeCitationResolver()
+        ))
     }
 
     /// A fresh author Act's context (a new run under the Act Lease). The previous run's Lease is released

@@ -12,12 +12,15 @@ public struct AuthoredCardRow: Equatable, Sendable {
     public let repository: String
     public let kind: String
     public let order: Int
+    /// This Card's citable Definition of Done clauses (roadmap P9.5), from the plan's ``PlannedCard``.
+    public let clauses: [PlannedClause]
 
-    public init(issueID: String, repository: String, kind: String, order: Int) {
+    public init(issueID: String, repository: String, kind: String, order: Int, clauses: [PlannedClause] = []) {
         self.issueID = issueID
         self.repository = repository
         self.kind = kind
         self.order = order
+        self.clauses = clauses
     }
 }
 
@@ -114,17 +117,11 @@ extension JournalStore {
             let cycleID = db.lastInsertedRowID
 
             for card in cards {
-                try db.execute(
-                    sql: """
-                    INSERT INTO card (cycle_id, issue_id, repository, kind, authored_order, state, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    arguments: [
-                        cycleID, card.issueID, card.repository, card.kind, card.order, CardState.todo.rawValue,
-                        timestamp
-                    ]
-                )
+                try Self.insertAuthoredCard(db, card, cycleID: cycleID, timestamp: timestamp)
             }
+            try Self.insertClauseRows(
+                db, plan.featureClauses, issueID: featureIssueID, level: "feature", timestamp: timestamp
+            )
             for adoption in plan.adoptions {
                 try db.execute(
                     sql: "UPDATE card SET cycle_id = ?, authored_order = ? WHERE issue_id = ?",
@@ -142,6 +139,39 @@ extension JournalStore {
             let stamp = EventStamp(act: act, runID: runID, nightID: nightID, now: now)
             _ = try Self.insertEvent(db, .featureAuthored(payload), stamp: stamp)
             return cycleID
+        }
+    }
+
+    /// Inserts one newly authored Card's row and its citable clauses (roadmap P9.5).
+    private static func insertAuthoredCard(
+        _ db: Database, _ card: AuthoredCardRow, cycleID: Int64, timestamp: String
+    ) throws {
+        try db.execute(
+            sql: """
+            INSERT INTO card (cycle_id, issue_id, repository, kind, authored_order, state, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            arguments: [
+                cycleID, card.issueID, card.repository, card.kind, card.order, CardState.todo.rawValue, timestamp
+            ]
+        )
+        try Self.insertClauseRows(db, card.clauses, issueID: card.issueID, level: "card", timestamp: timestamp)
+    }
+
+    /// Inserts every citable clause the plan minted for one issue (roadmap P9.5), `machine-found` on
+    /// both provenance columns, in the same transaction as the Feature, Cycle and Card rows.
+    private static func insertClauseRows(
+        _ db: Database, _ clauses: [PlannedClause], issueID: String, level: String, timestamp: String
+    ) throws {
+        for clause in clauses {
+            try Self.insertClauseRow(
+                db,
+                NewClause(
+                    cid: clause.cid, issueID: issueID, level: level, text: clause.text, locationID: clause.citation,
+                    provenance: "machine-found", citationProvenance: "machine-found"
+                ),
+                timestamp: timestamp
+            )
         }
     }
 }

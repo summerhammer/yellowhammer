@@ -194,7 +194,11 @@ struct AuthoringTransactionTests {
     func validationRefusesForeignRepository() async throws {
         let kind = try authoringKind()
         let rig = try await AuthoringRig(drafting: ScriptedBreakdown(FeatureBreakdown(
-            definitionOfDone: "x", cards: [CardDraft(repository: "web", kind: kind, title: "Web", unitOfWork: "x")]
+            definitionOfDone: [authoringClause("x")],
+            cards: [CardDraft(
+                repository: "web", kind: kind, title: "Web", unitOfWork: "x",
+                definitionOfDone: [authoringClause("x")]
+            )]
         )))
 
         await #expect(throws: FeatureBreakdownError.repositoryOutsideSelection(title: "Web", repository: "web")) {
@@ -208,7 +212,7 @@ struct AuthoringTransactionTests {
 
     @Test("A breakdown with no Card, and no adoption, throws and accepts nothing")
     func validationRequiresACard() async throws {
-        let empty = FeatureBreakdown(definitionOfDone: "x", cards: [])
+        let empty = FeatureBreakdown(definitionOfDone: [authoringClause("x")], cards: [])
         let rig = try await AuthoringRig(drafting: ScriptedBreakdown(empty))
 
         await #expect(throws: FeatureBreakdownError.noCards) {

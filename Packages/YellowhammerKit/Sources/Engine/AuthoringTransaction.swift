@@ -34,9 +34,13 @@ public enum AuthoringTransactionError: Error, Equatable, Sendable, CustomStringC
 /// creates a Linear milestone or a Linear cycle: the Cycle is Yellowhammer's own, projected as `parentId`.
 public struct AuthoringTransaction: SelectedFeatureAuthoring {
     public let drafting: any FeatureBreakdownDrafting
+    /// Resolves a drafted clause's Spec Citation before it is accepted into the Outbox (roadmap P9.5;
+    /// spec: feature-authoring/author-citable-definitions-of-done, first story).
+    public let citations: any CitationResolving
 
-    public init(drafting: any FeatureBreakdownDrafting) {
+    public init(drafting: any FeatureBreakdownDrafting, citations: any CitationResolving) {
         self.drafting = drafting
+        self.citations = citations
     }
 
     public func author(_ selection: SelectedFeature, context: ActContext) async throws -> FeatureAuthoringOutcome {
@@ -46,12 +50,24 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         let breakdown = try await drafting.breakdown(for: selection, mainlines: context.mainlines)
         try FeatureBreakdownValidation.validate(breakdown, for: selection)
 
+        // Every drafted clause's citation is resolved before anything is accepted into the Outbox
+        // (roadmap P9.5): a clause without a resolvable citation is never written speculatively, and a
+        // Feature or newly authored Card left with zero citable clauses is a thin-spec Refusal — halted
+        // here, before any board write this transaction would otherwise make.
+        let resolution = await AuthoringCitations.resolve(breakdown, using: citations, context: context)
+        if resolution.isThin {
+            return try await AuthoringHalt.record(
+                feature: selection.name, reason: .uncitableDefinitionOfDone(clauses: resolution.uncitable),
+                context: context
+            )
+        }
+
         let scope = try await BoardStateScope.resolve(using: board.provisioning)
         let journal = context.journal
         let attempt = try journal.failedAuthoringTransactionCount(feature: selection.name.rawValue)
         let plan = try AuthoringPlanner(
             selection: selection, breakdown: breakdown, scope: scope, attempt: attempt,
-            nightID: context.night.id, journal: journal
+            nightID: context.night.id, journal: journal, citations: resolution
         ).plan()
         _ = try journal.acceptOutbox(
             try outbox.drafts(plan.writes, groupID: plan.record.groupKey),
@@ -98,7 +114,10 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
             return id
         }
         let cards = try plan.cards.map {
-            AuthoredCardRow(issueID: try createdID($0.key), repository: $0.repository, kind: $0.kind, order: $0.order)
+            AuthoredCardRow(
+                issueID: try createdID($0.key), repository: $0.repository, kind: $0.kind, order: $0.order,
+                clauses: $0.clauses
+            )
         }
         try journal.finaliseAuthoring(
             AuthoredFeature(plan: plan, featureIssueID: try createdID(plan.featureKey), cards: cards),

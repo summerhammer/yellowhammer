@@ -81,9 +81,32 @@ public struct SelectedFeature: Equatable, Sendable {
     }
 }
 
+/// One Definition of Done clause the author Act could not cite (roadmap P9.5; spec: feature-authoring/
+/// author-citable-definitions-of-done, second story): named specifically enough to act on — its level,
+/// the Card it belonged to when it was Card-level, its text, the citation it carried, and why the
+/// resolver refused it.
+public struct UncitableClause: Equatable, Sendable {
+    /// `"feature"` or `"card"`.
+    public let level: String
+    /// The Card's title, when ``level`` is `"card"`; nil for a Feature-level clause.
+    public let cardTitle: String?
+    public let text: String
+    public let citation: String
+    public let reason: String
+
+    public init(level: String, cardTitle: String?, text: String, citation: String, reason: String) {
+        self.level = level
+        self.cardTitle = cardTitle
+        self.text = text
+        self.citation = citation
+        self.reason = reason
+    }
+}
+
 /// Why authoring halted before any dispatch (feature-authoring/select-the-next-feature, second and
-/// fourth stories). Distinct from Refusal, which the glossary reserves for the thin-spec finding
-/// (roadmap P9.5): a halt here is the seam problem or the repository-determination problem, not a
+/// fourth stories; feature-authoring/author-citable-definitions-of-done, second story, for
+/// ``uncitableDefinitionOfDone``). Distinct from Refusal, which the glossary reserves for the thin-spec
+/// finding: every other case here is the seam problem or the repository-determination problem, not a
 /// citation the specification could not support.
 public enum AuthoringHaltReason: Equatable, Sendable {
     /// A genuinely atomic breaking change across repositories could not be split into a sequence of
@@ -93,6 +116,10 @@ public enum AuthoringHaltReason: Equatable, Sendable {
     case repositoriesUndetermined
     /// A repository the Feature named is not one of this Project's configured repositories.
     case contractOutsideProject(repository: String)
+    /// After dropping every clause whose citation did not resolve, the Feature level or at least one
+    /// newly authored Card was left with zero clauses: the Feature's spec support is too thin (roadmap
+    /// P9.5, second story). This is the Refusal the glossary names.
+    case uncitableDefinitionOfDone(clauses: [UncitableClause])
 
     /// A stable, machine-readable name for this reason, for the Journal's payload.
     public var kind: String {
@@ -100,15 +127,19 @@ public enum AuthoringHaltReason: Equatable, Sendable {
         case .noBackwardCompatibleSeam: "no-backward-compatible-seam"
         case .repositoriesUndetermined: "repositories-undetermined"
         case .contractOutsideProject: "contract-outside-project"
+        case .uncitableDefinitionOfDone: "uncitable-definition-of-done"
         }
     }
 
-    /// The seam or the repository this reason names, when it names one.
+    /// The seam or the repository this reason names, when it names one; a compact listing of every
+    /// uncitable clause for ``uncitableDefinitionOfDone``.
     public var detail: String? {
         switch self {
         case .noBackwardCompatibleSeam(let seam): seam
         case .repositoriesUndetermined: nil
         case .contractOutsideProject(let repository): repository
+        case .uncitableDefinitionOfDone(let clauses):
+            clauses.map { "\($0.level):\($0.cardTitle ?? "-"):\($0.text)" }.joined(separator: "; ")
         }
     }
 }
@@ -122,6 +153,13 @@ extension AuthoringHaltReason: CustomStringConvertible {
             return "The repositories this Feature touches could not be determined."
         case .contractOutsideProject(let repository):
             return "Repository '\(repository)' is not configured for this Project."
+        case .uncitableDefinitionOfDone(let clauses):
+            let named = clauses.map { clause -> String in
+                let location = clause.cardTitle.map { "Card '\($0)'" } ?? "the Feature"
+                return "\(location): clause '\(clause.text)' citing '\(clause.citation)' does not resolve: " +
+                    clause.reason
+            }.joined(separator: "; ")
+            return "The Definition of Done is not citable enough to dispatch: \(named)"
         }
     }
 }

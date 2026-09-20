@@ -106,17 +106,7 @@ extension JournalStore {
     public func insertClause(_ clause: NewClause, now: Date = Date()) throws -> ClauseRecord {
         let stored = JournalStore.timestamp(JournalStore.stored(now))
         return try write { db in
-            try db.execute(
-                sql: """
-                INSERT INTO clause (
-                    cid, issue_id, level, text, location_id, provenance, citation_provenance, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                arguments: [
-                    clause.cid, clause.issueID, clause.level, clause.text, clause.locationID,
-                    clause.provenance, clause.citationProvenance, stored
-                ]
-            )
+            try Self.insertClauseRow(db, clause, timestamp: stored)
             guard let row = try Row.fetchOne(
                 db, sql: "SELECT * FROM clause WHERE issue_id = ? AND cid = ?", arguments: [clause.issueID, clause.cid]
             ) else {
@@ -124,6 +114,22 @@ extension JournalStore {
             }
             return try Self.clauseRecord(from: row)
         }
+    }
+
+    /// The SQL a clause row insert shares with every writer that inserts one inside an already-open
+    /// transaction (``finaliseAuthoring``, roadmap P9.5) rather than opening its own.
+    static func insertClauseRow(_ db: Database, _ clause: NewClause, timestamp: String) throws {
+        try db.execute(
+            sql: """
+            INSERT INTO clause (
+                cid, issue_id, level, text, location_id, provenance, citation_provenance, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            arguments: [
+                clause.cid, clause.issueID, clause.level, clause.text, clause.locationID,
+                clause.provenance, clause.citationProvenance, timestamp
+            ]
+        )
     }
 
     /// Marks a tagged clause invalidated: its identity (`cid`) is preserved, but its text or citation
