@@ -960,7 +960,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Wiring tests show selection results are recorded and refusals produce Waiting on
   You with no dispatch. The quality of the selection itself is not asserted.
 
-### [ ] P9.4 Authoring transaction: Feature, Cycle and Cards
+### [x] P9.4 Authoring transaction: Feature, Cycle and Cards
 - **Work**
   - Create the Feature Issue (Feature label, feature-level DoD in the description, selection
     reasoning).
