@@ -1019,7 +1019,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 
 ## Phase 10 — Land Act & Verification
 
-### [ ] P10.1 Land Act sequence
+### [x] P10.1 Land Act sequence
 - **Work** — In order: open or join the Night; refresh mainlines; for each Repo Lane: merge test
   (P10.3), push (P10.2), open pull request (P10.4); release Worktrees only after push; run
   Verification (P10.5); return (P10.6) or archive (P10.7); write back. The land Act fires once per
