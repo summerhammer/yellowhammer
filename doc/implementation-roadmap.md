@@ -1099,7 +1099,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   a released predecessor skipped by the walk, a landing recorded and its ref then deleted, and a ref
   absent with no landing recorded. Pure local git, no model, no network.
 
-### [ ] P9.10 Authoring faults, and Transcription Block opacity in the fence
+### [x] P9.10 Authoring faults, and Transcription Block opacity in the fence
 - **Work**
   - A rolled-back authoring transaction — a breakdown validation rejection such as a briefless Card
     included — ends the author Act without authoring, and is recorded on the Night Card as an
