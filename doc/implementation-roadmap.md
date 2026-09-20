@@ -1041,7 +1041,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Amended 2026-09-20** — a clean authoring run resets the count without answering, `expired →
   answered` is reachable, and a halt's position runs on the same clock; corrected in P9.8.
 
-### [ ] P9.8 Authoring Halt as its own object
+### [x] P9.8 Authoring Halt as its own object
 - **Work**
   - Separate the Refusal from the Authoring Halt. Four causes halt: no backward-compatible seam,
     repositories undeterminable, a repository outside this Project, an unreadable contract. The
