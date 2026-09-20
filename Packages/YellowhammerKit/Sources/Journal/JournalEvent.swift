@@ -60,6 +60,14 @@ public enum JournalEvent: Equatable, Sendable {
     /// The predecessor-ancestry gate (P9.2) found the named predecessor Feature not yet landed in one
     /// or more repositories: the author Act authored nothing, dispatched nothing. A quiet Night, not a failure.
     case authoringPredecessorNotLanded(featureIssueID: String, repositories: [String])
+    /// The predecessor-ancestry gate (P9.9) could not find the predecessor Feature's Feature Branch in
+    /// one or more repositories that have no recorded landing either: the author Act authored nothing,
+    /// dispatched nothing. A quiet Night, not a failure.
+    case authoringPredecessorIndeterminate(featureIssueID: String, repositories: [String])
+    /// The predecessor walk (roadmap P9.9) stepped past a released Feature on its way to the
+    /// predecessor to check: more recent than the predecessor, its Cycle archived, and released. A
+    /// released Feature satisfies the gate for no repository and is never itself checked.
+    case predecessorWalkSkippedReleasedFeature(featureIssueID: String)
     /// The predecessor-ancestry gate (P9.2) evaluated a pass of ancestry for the predecessor Feature:
     /// the merged fraction k of N repositories observed on this pass.
     case predecessorAncestryObserved(
@@ -314,6 +322,8 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case authoringNoWorkAvailable = "AuthoringNoWorkAvailable"
     case authoringSkippedFeatureInFlight = "AuthoringSkippedFeatureInFlight"
     case authoringPredecessorNotLanded = "AuthoringPredecessorNotLanded"
+    case authoringPredecessorIndeterminate = "AuthoringPredecessorIndeterminate"
+    case predecessorWalkSkippedReleasedFeature = "PredecessorWalkSkippedReleasedFeature"
     case predecessorAncestryObserved = "PredecessorAncestryObserved"
     case mainlineConflictDetected = "MainlineConflictDetected"
     case managedBlockDelimiterBroken = "ManagedBlockDelimiterBroken"

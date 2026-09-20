@@ -187,6 +187,12 @@ public struct NightCardMaintenance: Sendable {
                 Authoring was skipped: predecessor Feature `\(featureIssueID)` has not landed in \(named). \
                 A quiet Night, not a failure.
                 """
+        case .authoringPredecessorIndeterminate(let featureIssueID, let repositories):
+            let named = repositories.joined(separator: ", ")
+            return """
+                Authoring was skipped: predecessor Feature `\(featureIssueID)`'s Feature Branch could not be \
+                found in \(named). A quiet Night, not a failure.
+                """
         case .authoringNoWorkAvailable:
             return """
                 Nothing was selectable to author (`AuthoringNoWorkAvailable`). A quiet Night, not a failure.

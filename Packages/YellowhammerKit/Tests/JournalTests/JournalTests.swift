@@ -157,6 +157,8 @@ let project2 = try #require(ProjectID(rawValue: "project-2"))
             "event",
             "failure_cause",
             "feature",
+            "feature_landing",
+            "feature_repository",
             "lease",
             "managed_block",
             "night",

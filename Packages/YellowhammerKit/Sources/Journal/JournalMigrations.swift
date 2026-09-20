@@ -81,6 +81,9 @@ enum JournalMigrations {
         migrator.registerMigration("v17-authoring-halt") { db in
             try createAuthoringHaltTable(db)
         }
+        migrator.registerMigration("v18-predecessor-gate") { db in
+            try addFeatureLandingTables(db)
+        }
         return migrator
     }
 }

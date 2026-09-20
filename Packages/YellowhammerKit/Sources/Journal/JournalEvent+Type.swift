@@ -27,6 +27,10 @@ extension JournalEvent {
             .authoringSkippedFeatureInFlight
         case .authoringPredecessorNotLanded:
             .authoringPredecessorNotLanded
+        case .authoringPredecessorIndeterminate:
+            .authoringPredecessorIndeterminate
+        case .predecessorWalkSkippedReleasedFeature:
+            .predecessorWalkSkippedReleasedFeature
         case .predecessorAncestryObserved:
             .predecessorAncestryObserved
         case .mainlineConflictDetected:

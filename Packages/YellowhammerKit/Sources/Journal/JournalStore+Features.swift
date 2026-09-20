@@ -10,6 +10,10 @@ public struct FeatureRecord: Equatable, Sendable {
     /// The Feature Branch name (`yh-<project>-<feature>`), recorded by the author Act. Nil until then.
     public let branch: FeatureBranch?
     public let createdAt: Date
+    /// When this Feature was released (P10.9, not yet built), nil until then. A released Feature
+    /// satisfies the predecessor gate for no repository and is never returned as the predecessor to
+    /// check ancestry against — the walk moves past it (roadmap P9.9).
+    public let releasedAt: Date?
 }
 
 extension JournalStore {
@@ -67,12 +71,14 @@ extension JournalStore {
         let createdAtText: String = row["created_at"]
         let createdAt = try Self.date(createdAtText) { JournalError.featureUnknown(featureID: id) }
         let rawBranch: String? = row["branch"]
+        let rawReleasedAt: String? = row["released_at"]
         return FeatureRecord(
             id: id,
             issueID: row["issue_id"],
             state: row["state"],
             branch: rawBranch.map { FeatureBranch(rawValue: $0) },
-            createdAt: createdAt
+            createdAt: createdAt,
+            releasedAt: try rawReleasedAt.map { try Self.date($0) { JournalError.featureUnknown(featureID: id) } }
         )
     }
 }

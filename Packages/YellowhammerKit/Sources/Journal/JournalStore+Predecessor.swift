@@ -2,46 +2,80 @@ import Domain
 import Foundation
 import GRDB
 
-/// A predecessor Feature and the repositories its Cycle's Cards touched, as read by the
+/// A predecessor Feature and the repositories its Cycle touches (roadmap P9.9), as read by the
 /// predecessor-ancestry gate (P9.2).
 public struct PredecessorFeature: Equatable, Sendable {
     public let feature: FeatureRecord
-    /// The distinct repository names this Feature's Cycle's Cards touched, sorted.
+    /// The distinct, sorted repository names this Feature's Cycle touches, from `feature_repository`
+    /// — recorded at selection, never derived from `card` rows.
+    public let touchedRepositories: [String]
+}
+
+/// What walking back from the most recent archived Feature found (roadmap P9.9; spec:
+/// feature-authoring/select-the-next-feature, third story; risks.md Authoring Halt Ruling item 12,
+/// OQ63): the first archived, unreleased Feature the gate must check, and every released Feature the
+/// walk stepped past on the way there — more recent than the predecessor, archived, and released.
+public struct PredecessorWalk: Equatable, Sendable {
+    /// The predecessor to check ancestry against; nil when every archived Feature has been released,
+    /// or there is no archived Feature at all (the first Night: the gate is open).
+    public let predecessor: PredecessorFeature?
+    /// Released Features the walk skipped, most recent first, so the Engine can record one
+    /// `predecessorWalkSkippedReleasedFeature` event per Feature it passed over.
+    public let skippedReleased: [FeatureRecord]
+}
+
+/// A Feature whose open Cycle has landed (roadmap P9.9, 1f): the in-flight Feature the gate observes
+/// ancestry for alongside gating the predecessor. A branch freshly cut from mainline is trivially an
+/// ancestor of it, so a Cycle that has not yet landed is never read as a landing.
+public struct InFlightLandedFeature: Equatable, Sendable {
+    public let feature: FeatureRecord
     public let touchedRepositories: [String]
 }
 
 extension JournalStore {
-    /// The most recent Feature that is not in flight (its Cycle is archived, not the open Cycle),
-    /// together with the distinct, sorted repository names its Cycle's Cards touched. Nil when there
-    /// is no such Feature — the first Night, or every Feature recorded so far is still in flight.
+    /// Walks back from the most recent archived Feature (its Cycle archived, not the open Cycle),
+    /// skipping every one already released, until it finds one that is not — the predecessor the gate
+    /// checks ancestry against — or runs out.
     ///
     /// A Feature with no Cycle at all (an inconsistent Journal, never produced by this engine) is
     /// never returned: a Cycle's `feature_id` is what this joins on.
-    public func predecessorFeature() throws -> PredecessorFeature? {
+    public func predecessorFeature() throws -> PredecessorWalk {
         try read { db in
-            guard
-                let row = try Row.fetchOne(
-                    db,
-                    sql: """
-                    SELECT feature.*, cycle.id AS cycle_id FROM feature
-                    JOIN cycle ON cycle.feature_id = feature.id
-                    WHERE cycle.archived_at IS NOT NULL
-                    ORDER BY feature.id DESC
-                    LIMIT 1
-                    """
-                )
-            else {
-                return nil
-            }
-            let feature = try Self.featureRecord(from: row)
-            let cycleID: Int64 = row["cycle_id"]
-            let repositories = try String.fetchAll(
+            let rows = try Row.fetchAll(
                 db,
-                sql: "SELECT DISTINCT repository FROM card WHERE cycle_id = ? ORDER BY repository ASC",
-                arguments: [cycleID]
+                sql: """
+                SELECT feature.* FROM feature
+                JOIN cycle ON cycle.feature_id = feature.id
+                WHERE cycle.archived_at IS NOT NULL
+                ORDER BY feature.id DESC
+                """
             )
-            return PredecessorFeature(feature: feature, touchedRepositories: repositories)
+            var skipped: [FeatureRecord] = []
+            for row in rows {
+                let feature = try Self.featureRecord(from: row)
+                guard feature.releasedAt == nil else {
+                    skipped.append(feature)
+                    continue
+                }
+                let repositories = try Self.touchedRepositories(db, featureID: feature.id)
+                return PredecessorWalk(
+                    predecessor: PredecessorFeature(feature: feature, touchedRepositories: repositories),
+                    skippedReleased: skipped
+                )
+            }
+            return PredecessorWalk(predecessor: nil, skippedReleased: skipped)
         }
+    }
+
+    /// The open Cycle's Feature, only when that Cycle has landed (roadmap P9.9, 1f) — a branch freshly
+    /// cut from mainline is trivially an ancestor, so a Cycle that has not landed yet is never observed
+    /// as if it might already be a landing. Nil when nothing is in flight, or the in-flight Cycle has
+    /// not landed.
+    public func inFlightLandedFeature() throws -> InFlightLandedFeature? {
+        guard let (feature, cycleID) = try inFlightFeature() else { return nil }
+        guard try isCycleLanded(cycleID: cycleID) else { return nil }
+        let repositories = try touchedRepositories(featureID: feature.id)
+        return InFlightLandedFeature(feature: feature, touchedRepositories: repositories)
     }
 
     /// Whether a `predecessorAncestryObserved` event already recorded every one of `repositories` as
@@ -54,5 +88,13 @@ extension JournalStore {
             }
             return observed == featureIssueID && unmergedRepositories.isEmpty
         }
+    }
+
+    static func touchedRepositories(_ db: Database, featureID: Int64) throws -> [String] {
+        try String.fetchAll(
+            db,
+            sql: "SELECT repository FROM feature_repository WHERE feature_id = ? ORDER BY repository ASC",
+            arguments: [featureID]
+        )
     }
 }

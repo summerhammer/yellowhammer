@@ -91,7 +91,10 @@ struct AuthorActTests {
         )
         try await invocation.run()
 
-        #expect(!gate.wasCalled)
+        // The predecessor-ancestry gate's pass (P9.9) runs every Night, independently of the in-flight
+        // skip: it is called to observe the in-flight Feature, even though its outcome never gates
+        // anything here.
+        #expect(gate.wasCalled)
         #expect(!authoring.wasCalled)
 
         let events = try journal.events()
@@ -130,7 +133,7 @@ struct AuthorActTests {
             )
             try await invocation.run()
 
-            #expect(!gate.wasCalled)
+            #expect(gate.wasCalled)
             #expect(!authoring.wasCalled)
             let events = try journal.events().map(\.type)
             #expect(events.contains(.authoringSkippedFeatureInFlight))

@@ -33,6 +33,13 @@ extension JournalEvent {
                 "feature_issue_id": featureIssueID,
                 "repositories": repositories.joined(separator: "\u{1F}")
             ]
+        case .authoringPredecessorIndeterminate(let featureIssueID, let repositories):
+            [
+                "feature_issue_id": featureIssueID,
+                "repositories": repositories.joined(separator: "\u{1F}")
+            ]
+        case .predecessorWalkSkippedReleasedFeature(let featureIssueID):
+            ["feature_issue_id": featureIssueID]
         case .predecessorAncestryObserved(let featureIssueID, let mergedRepositories, let unmergedRepositories):
             [
                 "feature_issue_id": featureIssueID,
