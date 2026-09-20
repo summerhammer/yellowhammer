@@ -943,7 +943,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Fixture repositories with and without the predecessor merged give the right
   result. Pure local git, no model, no network.
 
-### [ ] P9.3 Feature selection
+### [x] P9.3 Feature selection
 - **Work**
   - Read the Project's single specification source and its repos' mainlines.
   - Select one Feature and record it with written reasoning, including the sequence (what came
