@@ -142,6 +142,16 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
             AuthoredFeature(plan: plan, featureIssueID: try createdID(plan.featureKey), cards: cards),
             runID: context.runID, act: context.act, nightID: context.night.id
         )
+        // A clean authoring run resets only this Feature's consecutive-refusals count and answers its
+        // open Refusal, if it had one (roadmap P9.7). Recorded right after `finaliseAuthoring`'s own
+        // transaction, not inside it: the plan's Feature name is a free-text `FeatureName`, not the
+        // Journal row `finaliseAuthoring` writes, so there is no shared row to extend that transaction
+        // around.
+        if let featureName = FeatureName(rawValue: plan.name) {
+            try journal.resetConsecutiveRefusals(
+                feature: featureName, nightID: context.night.id, act: context.act, runID: context.runID
+            )
+        }
         return .authored
     }
 }

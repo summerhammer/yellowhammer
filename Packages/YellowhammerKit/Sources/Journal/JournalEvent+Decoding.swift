@@ -186,6 +186,25 @@ extension JournalEvent {
                 groupKey: try reader.require("group_key"),
                 reason: try reader.require("reason")
             )
+        case .refusalOpened:
+            .refusalOpened(
+                feature: try reader.require("feature"),
+                consecutiveRefusals: try reader.int("consecutive_refusals")
+            )
+        case .refusalRepeated:
+            .refusalRepeated(
+                feature: try reader.require("feature"),
+                consecutiveRefusals: try reader.int("consecutive_refusals")
+            )
+        case .refusalExpired:
+            .refusalExpired(
+                feature: try reader.require("feature"),
+                issueID: reader.payload?["issue_id"],
+                unansweredNights: try reader.int("unanswered_nights"),
+                bound: try reader.int("bound")
+            )
+        case .refusalCountReset:
+            .refusalCountReset(feature: try reader.require("feature"))
         }
     }
 

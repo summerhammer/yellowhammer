@@ -147,6 +147,14 @@ extension JournalEvent {
             .featureAuthored
         case .featureAuthoringFailed:
             .featureAuthoringFailed
+        case .refusalOpened:
+            .refusalOpened
+        case .refusalRepeated:
+            .refusalRepeated
+        case .refusalExpired:
+            .refusalExpired
+        case .refusalCountReset:
+            .refusalCountReset
         }
     }
 }

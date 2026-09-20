@@ -117,7 +117,10 @@ extension ActCommand {
             // stays nil until both do. The predecessor-ancestry gate (P9.2) is wired, and this Act
             // still records every quiet Night's reason (P9.1). The closure seam (P10.8) is not wired
             // yet, so a fully-merged predecessor is only observed, never closed.
-            return AuthorAct(predecessorGate: PredecessorAncestryGate(), authoring: nil).work
+            return AuthorAct(
+                predecessorGate: PredecessorAncestryGate(), authoring: nil,
+                unansweredNightsMax: project.bounds.unansweredNightsMax
+            ).work
         case .build:
             let cardRunner = try CardRunBinding.cardRunner(
                 mode: mode, configuration: configuration, project: project,

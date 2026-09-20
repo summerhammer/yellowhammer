@@ -84,6 +84,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     case blockReasonRequired(cardID: Int64)
     /// The authoring transaction adopts a Card the Journal holds no row for.
     case adoptedCardUnknown(issueID: String)
+    /// The `refusal` row does not decode; the Journal was written by something other than the engine.
+    case refusalUnreadable(id: Int64)
 
     public var description: String {
         return switch self {
@@ -178,6 +180,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
             "Card \(cardID) cannot transition to Blocked without a Block Reason"
         case .adoptedCardUnknown(let issueID):
             "The Journal has no Card row for adopted issue \(issueID)"
+        case .refusalUnreadable(let id):
+            "The Journal's refusal row \(id) cannot be read"
         }
     }
 }

@@ -77,10 +77,17 @@ public struct AuthorAct: Sendable {
     /// throwing `notImplemented` once the gate has cleared, so production never falsely records an
     /// idle verdict before selection exists.
     public let authoring: (any FeatureAuthoring)?
+    /// The Refusal clock's bound (bounds/bound-unanswered-nights): how many Nights a Refusal may go
+    /// unanswered before it expires. Defaults to the glossary's own default of 3.
+    public let unansweredNightsMax: Int
 
-    public init(predecessorGate: (any PredecessorGate)? = nil, authoring: (any FeatureAuthoring)? = nil) {
+    public init(
+        predecessorGate: (any PredecessorGate)? = nil, authoring: (any FeatureAuthoring)? = nil,
+        unansweredNightsMax: Int = 3
+    ) {
         self.predecessorGate = predecessorGate
         self.authoring = authoring
+        self.unansweredNightsMax = unansweredNightsMax
     }
 
     public var work: EngineInvocation.ActWork {
@@ -89,6 +96,11 @@ public struct AuthorAct: Sendable {
 
     public func run(_ context: ActContext) async throws {
         let journal = context.journal
+
+        // Every open Refusal's clock advances on every author Act of every Night, before anything
+        // else this Act does (roadmap P9.7) — including the in-flight check below, since a Refusal
+        // precedes any Cycle and so is never itself the reason a Feature is in flight.
+        try await RefusalLifecycle.run(context: context, unansweredNightsMax: unansweredNightsMax)
 
         if let (feature, _) = try journal.inFlightFeature() {
             try journal.append(

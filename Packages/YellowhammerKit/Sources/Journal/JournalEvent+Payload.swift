@@ -354,6 +354,22 @@ extension JournalEvent {
                 }
                 return dict
             }()
+        case .refusalOpened(let feature, let consecutiveRefusals):
+            ["feature": feature, "consecutive_refusals": String(consecutiveRefusals)]
+        case .refusalRepeated(let feature, let consecutiveRefusals):
+            ["feature": feature, "consecutive_refusals": String(consecutiveRefusals)]
+        case .refusalExpired(let feature, let issueID, let unansweredNights, let bound):
+            {
+                var dict: [String: String] = [
+                    "feature": feature, "unanswered_nights": String(unansweredNights), "bound": String(bound)
+                ]
+                if let issueID {
+                    dict["issue_id"] = issueID
+                }
+                return dict
+            }()
+        case .refusalCountReset(let feature):
+            ["feature": feature]
         }
     }
 }

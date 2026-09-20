@@ -161,6 +161,7 @@ let project2 = try #require(ProjectID(rawValue: "project-2"))
             "night",
             "outbox",
             "project_state",
+            "refusal",
             "round",
             "route_exclusion",
             "transcription_block",

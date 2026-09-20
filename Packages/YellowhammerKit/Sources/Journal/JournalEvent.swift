@@ -257,6 +257,18 @@ public enum JournalEvent: Equatable, Sendable {
     case featureAuthored(FeatureAuthoredPayload)
     /// The group was rolled back: no Feature, Cycle or Card row was written and no partial board is left.
     case featureAuthoringFailed(name: String, groupKey: String, reason: String)
+    /// A Feature's uncitable-Definition-of-Done halt opened a new Refusal (roadmap P9.7; glossary:
+    /// Refusal): no `open` (or `expired`) Refusal existed for this Feature name yet.
+    case refusalOpened(feature: String, consecutiveRefusals: Int)
+    /// A Feature was refused again while its Refusal was already `open` (or already `expired`): the
+    /// consecutive count moved, but the Night-driven clock did not — a repeat refusal never restarts it.
+    case refusalRepeated(feature: String, consecutiveRefusals: Int)
+    /// The Refusal's unanswered-Nights clock exceeded `bound` (bounds/bound-unanswered-nights): the
+    /// row moved to `expired`. `issueID` is nil when the Feature Issue's create had not yet applied.
+    case refusalExpired(feature: String, issueID: String?, unansweredNights: Int, bound: Int)
+    /// A clean authoring run reset this Feature's consecutive-refusals count and moved its `open`
+    /// Refusal to `answered`. Appended only when there was something to reset.
+    case refusalCountReset(feature: String)
 
     // `type`, the exhaustive switch from a case to its `JournalEventType`, lives in
     // JournalEvent+Type.swift, split out to keep this file under the file length limit.
@@ -334,4 +346,8 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case featureAuthoringAccepted = "FeatureAuthoringAccepted"
     case featureAuthored = "FeatureAuthored"
     case featureAuthoringFailed = "FeatureAuthoringFailed"
+    case refusalOpened = "RefusalOpened"
+    case refusalRepeated = "RefusalRepeated"
+    case refusalExpired = "RefusalExpired"
+    case refusalCountReset = "RefusalCountReset"
 }
