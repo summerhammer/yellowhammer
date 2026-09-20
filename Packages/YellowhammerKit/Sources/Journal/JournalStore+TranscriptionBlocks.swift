@@ -60,6 +60,20 @@ public struct TranscriptionBlockRecord: Equatable, Sendable {
     }
 }
 
+/// The fields one Transcription Block row needs, bundled so ``JournalStore/insertTranscriptionBlock(_:cardID:_:)``
+/// stays under the parameter-count limit — shared by ``JournalStore/recordTranscriptionBlocks(cardID:_:)``
+/// (from a Domain `TranscriptionBlock`) and `finaliseAuthoring` (from a plan's `PlannedTranscription`,
+/// roadmap P9.6), which carry different sets of fields.
+struct NewTranscriptionBlock {
+    let repository: String
+    let paths: [String]
+    let symbol: String?
+    let mainlineCommit: String?
+    let content: String
+    let contentHash: String
+    let authorSupplied: Bool
+}
+
 extension JournalStore {
     /// A Card's Transcription Blocks, ordered by id (authored order).
     public func transcriptionBlocks(cardID: Int64) throws -> [TranscriptionBlockRecord] {
@@ -80,21 +94,31 @@ extension JournalStore {
         try write { db in
             try db.execute(sql: "DELETE FROM transcription_block WHERE card_id = ?", arguments: [cardID])
             for block in blocks {
-                try db.execute(
-                    sql: """
-                    INSERT INTO transcription_block (
-                        card_id, repository, paths, symbol, mainline_commit, content, content_hash,
-                        author_supplied, author_supplied_night_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    arguments: [
-                        cardID, block.repository, block.paths.joined(separator: "\n"), block.symbol,
-                        block.mainlineCommit, block.content, block.contentHash,
-                        block.authorSupplied ? 1 : 0, nil
-                    ]
-                )
+                try Self.insertTranscriptionBlock(db, cardID: cardID, NewTranscriptionBlock(
+                    repository: block.repository, paths: block.paths, symbol: block.symbol,
+                    mainlineCommit: block.mainlineCommit, content: block.content, contentHash: block.contentHash,
+                    authorSupplied: block.authorSupplied
+                ))
             }
         }
+    }
+
+    /// Inserts one Transcription Block row. Shared with ``finaliseAuthoring(_:runID:act:nightID:now:)``
+    /// (roadmap P9.6) so a newly authored Card's blocks are written in the same transaction as its
+    /// Feature, Cycle and Card rows, without duplicating the SQL.
+    static func insertTranscriptionBlock(_ db: Database, cardID: Int64, _ block: NewTranscriptionBlock) throws {
+        try db.execute(
+            sql: """
+            INSERT INTO transcription_block (
+                card_id, repository, paths, symbol, mainline_commit, content, content_hash,
+                author_supplied, author_supplied_night_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            arguments: [
+                cardID, block.repository, block.paths.joined(separator: "\n"), block.symbol,
+                block.mainlineCommit, block.content, block.contentHash, block.authorSupplied ? 1 : 0, nil
+            ]
+        )
     }
 
     /// Voids a Transcription Block's stamp: an Operator edit inside it means the block is no longer

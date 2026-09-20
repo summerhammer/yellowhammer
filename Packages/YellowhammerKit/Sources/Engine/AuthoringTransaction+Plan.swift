@@ -23,6 +23,9 @@ struct AuthoringPlanner {
     /// The clauses ``AuthoringCitations`` resolved as citable, and every clause it dropped (roadmap
     /// P9.5). Only citable clauses are minted and written; dropped ones are recorded on the plan.
     let citations: AuthoringCitationResolution
+    /// Per-Card Transcription Blocks ``AuthoringTranscriptions`` read (roadmap P9.6), aligned by index
+    /// with `breakdown.cards`.
+    let transcriptions: [[TranscriptionBlock]]
 
     private var prefix: String { "\(selection.name.rawValue):\(attempt)" }
     private var featureKey: String { "feature:\(prefix):create" }
@@ -65,6 +68,17 @@ struct AuthoringPlanner {
     private static func mint(_ drafts: [DefinitionOfDoneClauseDraft]) -> [PlannedClause] {
         drafts.enumerated().map { index, draft in
             PlannedClause(cid: "c\(index + 1)", text: draft.text, citation: draft.citation.rawValue)
+        }
+    }
+
+    /// Carries every transcribed Transcription Block onto the plan (roadmap P9.6): never Operator-
+    /// supplied at authoring time.
+    private static func mintTranscriptions(_ blocks: [TranscriptionBlock]) -> [PlannedTranscription] {
+        blocks.map {
+            PlannedTranscription(
+                repository: $0.repository, paths: $0.paths, symbol: $0.symbol, mainlineCommit: $0.mainlineCommit,
+                content: $0.content, contentHash: $0.contentHash
+            )
         }
     }
 
@@ -115,13 +129,16 @@ struct AuthoringPlanner {
             nextOrder[draft.repository] = order
             let key = "card:\(prefix):\(draft.repository):\(order):create"
             let clauses = Self.mint(citations.cardClauses[index])
+            let blocks = transcriptions[index]
+            let plannedTranscriptions = Self.mintTranscriptions(blocks)
             planned.append(PlannedCard(
                 key: key, repository: draft.repository, kind: draft.kind.description, order: order,
-                title: draft.title, clauses: clauses
+                title: draft.title, clauses: clauses, brief: draft.brief, transcriptions: plannedTranscriptions
             ))
             writes.append(OutboxWrite(key: key, write: .createIssue(
                 BoardIssueDraft(
-                    team: scope.team, title: draft.title, description: Self.cardDescription(draft, clauses: clauses),
+                    team: scope.team, title: draft.title,
+                    description: Self.cardDescription(draft, clauses: clauses, transcriptions: blocks),
                     labels: [cardLabel], workflowState: todo
                 ),
                 parentKey: featureKey
@@ -165,13 +182,28 @@ struct AuthoringPlanner {
         return ManagedBlockFence.initialDescription(rendered: "") + "\n\n" + prose
     }
 
-    /// A Card's Definition of Done is authored inside the Managed Block fence, under its own
-    /// `### Definition of Done` heading, so ``CardManagedBlockParser`` reads the clauses straight back —
-    /// the Readiness Check marks a Journal clause missing from the board as deleted, so this must round-
-    /// trip exactly. The unit-of-work prose stays outside the fence, as before.
-    private static func cardDescription(_ draft: CardDraft, clauses: [PlannedClause]) -> String {
-        let lines = ["### Definition of Done"] + definitionOfDoneLines(clauses)
+    /// A Card's Architectural Brief and Definition of Done are both authored inside the Managed Block
+    /// fence, brief first (roadmap P9.6), so ``CardManagedBlockParser`` reads the prose, the Transcription
+    /// Blocks and the clauses straight back — the Readiness Check marks a Journal clause missing from the
+    /// board as deleted, so this must round-trip exactly. The unit-of-work prose stays outside the fence,
+    /// as before.
+    private static func cardDescription(
+        _ draft: CardDraft, clauses: [PlannedClause], transcriptions: [TranscriptionBlock]
+    ) -> String {
+        var lines = ["### Architectural Brief", draft.brief]
+        for block in transcriptions {
+            lines.append(contentsOf: Self.transcriptionLines(block))
+        }
+        lines.append("")
+        lines.append(contentsOf: ["### Definition of Done"] + definitionOfDoneLines(clauses))
         let rendered = lines.joined(separator: "\n")
         return ManagedBlockFence.initialDescription(rendered: rendered) + "\n\n" + draft.unitOfWork
+    }
+
+    /// Renders one freshly transcribed Transcription Block via the shared formatter (roadmap P9.6), so
+    /// this initial description is byte-identical to what a later Managed Block rewrite would emit for
+    /// the same block. Never Operator-supplied at authoring time.
+    private static func transcriptionLines(_ block: TranscriptionBlock) -> [String] {
+        TranscriptionBlockLine.render(block)
     }
 }

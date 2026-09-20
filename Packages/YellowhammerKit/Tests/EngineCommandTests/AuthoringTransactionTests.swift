@@ -196,7 +196,7 @@ struct AuthoringTransactionTests {
         let rig = try await AuthoringRig(drafting: ScriptedBreakdown(FeatureBreakdown(
             definitionOfDone: [authoringClause("x")],
             cards: [CardDraft(
-                repository: "web", kind: kind, title: "Web", unitOfWork: "x",
+                repository: "web", kind: kind, title: "Web", unitOfWork: "x", brief: "Approach.",
                 definitionOfDone: [authoringClause("x")]
             )]
         )))

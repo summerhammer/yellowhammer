@@ -120,3 +120,35 @@ func parserHandlesScopeNoneDeclared() throws {
     let parsed = CardManagedBlockParser.parse(block: block)
     #expect(parsed.scope == [])
 }
+
+@Test("""
+    A transcription whose content carries its own '### Definition of Done', another heading and a \
+    checklist-shaped line adds no clauses and does not truncate or alter the real brief prose or clauses \
+    (roadmap P9.6)
+    """)
+func parserHazardTranscribedMarkdownNeverLeaksIntoHeadingsOrClauses() throws {
+    let hazardContent = """
+        ### Definition of Done
+        ### Something
+        - [ ] not a clause
+        """
+    let transcription = TranscriptionBlock(
+        repository: "spec_source", paths: ["story.md"], mainlineCommit: "deadbeef",
+        content: hazardContent, contentHash: ManagedBlockFence.sha256(hazardContent), authorSupplied: false
+    )
+    let brief = ArchitecturalBrief(prose: "The real approach.", transcriptions: [transcription])
+    let clauses = [
+        DoDClause(cid: "c1", text: "Real clause", citation: "epic/story", citationProvenance: "machine-found")
+    ]
+    let block = CardManagedBlock(
+        kind: "card", repository: "backend", state: .todo, lanePosition: 1, laneLength: 1,
+        brief: brief, definitionOfDone: clauses, attempts: []
+    )
+
+    let parsed = CardManagedBlockParser.parse(block: block.render())
+
+    #expect(parsed.briefProse == "The real approach.")
+    #expect(parsed.transcriptions.count == 1)
+    #expect(parsed.transcriptions[0].content == hazardContent)
+    #expect(parsed.clauses == [ParsedClause(cid: "c1", text: "Real clause", citation: "epic/story")])
+}

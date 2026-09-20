@@ -1,5 +1,6 @@
 import Domain
 import Foundation
+import Repositories
 import Testing
 
 // P7.1: result schema and instruction contract
@@ -179,4 +180,49 @@ func authoringInvariantSentenceOnlyForArchitectAndWorker(_ pass: RunPass) {
     case .reviewer:
         #expect(!rendered.contains(sentence))
     }
+}
+
+@Test("""
+    The agent CLI never reads the Spec Source (roadmap P9.6; spec: feature-authoring/\
+    author-an-architectural-brief): a Spec Source Transcription Block reaches the instruction only as \
+    block content under the repository name, never the Spec Source's own filesystem path
+    """)
+func renderedInstructionNeverCarriesTheSpecSourcePath() async throws {
+    // `Instruction` and ``ArchitecturalBrief``/``TranscriptionBlock`` never carry a `SpecSource` value —
+    // only the repository NAME ("spec_source") and block content — so no pipeline that builds an
+    // Instruction from them can thread a Spec Source's filesystem path into it, even by accident
+    // (``CardRun+Passes.swift``'s `instruction(for:route:frame:payloads:)` takes `frame.readiness.brief`
+    // and `frame.repository`, a `Domain.Repo?`, never a `Repositories.SpecSource`). This transcribes a
+    // real Spec Source whose checkout sits at a distinctive path, from a Project that reads it, and
+    // confirms the rendered instruction never carries that path.
+    let fixture = EngineGitFixture()
+    await fixture.initRepo()
+    try await fixture.commit(filename: "docs/glossary.md", content: "A Card is the smallest unit of work.")
+    let specSource = SpecSource(path: fixture.path)
+    let repositories = ProjectRepositories(workingRepos: [], specSource: specSource)
+    let transcribedBlock = try await MainlineReader().transcribe(
+        path: "docs/glossary.md", repository: "spec_source", in: repositories
+    )
+
+    let brief = ArchitecturalBrief(prose: "Approach.", transcriptions: [transcribedBlock])
+    let repo = Repo(name: "yellowhammer", path: "/repos/yellowhammer", role: .backend)
+    let instruction = Instruction(
+        pass: .worker,
+        card: InstructionCard(key: "ENG-1", title: "Card", description: "Do it."),
+        brief: brief,
+        definitionOfDone: [DoDClause(id: "D-1", text: "Done.", citation: nil)],
+        repository: InstructionRepository(
+            repo: repo, worktreePath: "/worktrees/yellowhammer/ENG-1", featureBranch: "feature/eng-1",
+            check: .command("swift test")
+        ),
+        route: Route(cli: "claude", model: "sonnet", effort: "medium")!,
+        payloads: .none,
+        resultFilePath: "/worktrees/yellowhammer/ENG-1/.yellowhammer/result.json"
+    )
+
+    let rendered = instruction.render()
+
+    #expect(!rendered.contains(fixture.path))
+    #expect(rendered.contains("spec_source"))
+    #expect(rendered.contains("A Card is the smallest unit of work."))
 }

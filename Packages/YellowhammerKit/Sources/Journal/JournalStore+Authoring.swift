@@ -14,13 +14,22 @@ public struct AuthoredCardRow: Equatable, Sendable {
     public let order: Int
     /// This Card's citable Definition of Done clauses (roadmap P9.5), from the plan's ``PlannedCard``.
     public let clauses: [PlannedClause]
+    /// This Card's Architectural Brief prose (roadmap P9.6), from the plan's ``PlannedCard``.
+    public let brief: String
+    /// This Card's Transcription Blocks (roadmap P9.6), from the plan's ``PlannedCard``.
+    public let transcriptions: [PlannedTranscription]
 
-    public init(issueID: String, repository: String, kind: String, order: Int, clauses: [PlannedClause] = []) {
+    public init(
+        issueID: String, repository: String, kind: String, order: Int, clauses: [PlannedClause] = [],
+        brief: String = "", transcriptions: [PlannedTranscription] = []
+    ) {
         self.issueID = issueID
         self.repository = repository
         self.kind = kind
         self.order = order
         self.clauses = clauses
+        self.brief = brief
+        self.transcriptions = transcriptions
     }
 }
 
@@ -155,7 +164,18 @@ extension JournalStore {
                 cycleID, card.issueID, card.repository, card.kind, card.order, CardState.todo.rawValue, timestamp
             ]
         )
+        let cardID = db.lastInsertedRowID
         try Self.insertClauseRows(db, card.clauses, issueID: card.issueID, level: "card", timestamp: timestamp)
+        // The Architectural Brief and its Transcription Blocks are written in the same transaction as the
+        // Card row itself (roadmap P9.6): a Card is never left readable on the board without one.
+        try Self.insertArchitecturalBrief(db, cardID: cardID, prose: card.brief, timestamp: timestamp)
+        for transcription in card.transcriptions {
+            try Self.insertTranscriptionBlock(db, cardID: cardID, NewTranscriptionBlock(
+                repository: transcription.repository, paths: transcription.paths, symbol: transcription.symbol,
+                mainlineCommit: transcription.mainlineCommit, content: transcription.content,
+                contentHash: transcription.contentHash, authorSupplied: false
+            ))
+        }
     }
 
     /// Inserts every citable clause the plan minted for one issue (roadmap P9.5), `machine-found` on

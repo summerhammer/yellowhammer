@@ -39,3 +39,27 @@ struct FakeCitationResolver: CitationResolving {
         return .unresolved(citation: citation, reason: "not in the fake's resolvable set")
     }
 }
+
+/// A scripted `ContractTranscribing`: transcribes any contract whose repository is not in
+/// `unreadableRepositories`, with deterministic content derived from the contract's own fields — tests
+/// that don't care about a contract's transcribed content can ignore it.
+struct FakeContractTranscriber: ContractTranscribing {
+    struct Unreadable: Error, CustomStringConvertible {
+        var description: String { "the fake was scripted to refuse this repository" }
+    }
+
+    var unreadableRepositories: Set<String> = []
+
+    func transcribe(
+        _ contract: ContractDraft, in projectRepositories: ProjectRepositories, mainlines: ResolvedMainlines
+    ) async throws -> TranscriptionBlock {
+        guard !unreadableRepositories.contains(contract.repository) else { throw Unreadable() }
+        let commit = mainlines[contract.repository]?.commit ?? mainlines.specSource?.commit ?? "deadbeef"
+        let content = "Transcribed \(contract.paths.joined(separator: ",")) from \(contract.repository)."
+        return TranscriptionBlock(
+            repository: contract.repository, paths: contract.paths, symbol: contract.symbol,
+            mainlineCommit: commit, content: content, contentHash: MainlineReader.sha256(content),
+            authorSupplied: false
+        )
+    }
+}

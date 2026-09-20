@@ -37,10 +37,17 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
     /// Resolves a drafted clause's Spec Citation before it is accepted into the Outbox (roadmap P9.5;
     /// spec: feature-authoring/author-citable-definitions-of-done, first story).
     public let citations: any CitationResolving
+    /// Transcribes a drafted contract from another repository's merged mainline before it is accepted
+    /// into the Outbox (roadmap P9.6; spec: feature-authoring/author-an-architectural-brief).
+    public let transcribing: any ContractTranscribing
 
-    public init(drafting: any FeatureBreakdownDrafting, citations: any CitationResolving) {
+    public init(
+        drafting: any FeatureBreakdownDrafting, citations: any CitationResolving,
+        transcribing: any ContractTranscribing
+    ) {
         self.drafting = drafting
         self.citations = citations
+        self.transcribing = transcribing
     }
 
     public func author(_ selection: SelectedFeature, context: ActContext) async throws -> FeatureAuthoringOutcome {
@@ -62,12 +69,24 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
             )
         }
 
+        // Every drafted contract is transcribed before anything is accepted into the Outbox (roadmap
+        // P9.6): a Card that needs a contract this author Act cannot read is never authored
+        // speculatively — the whole Feature halts, naming every repository it could not read.
+        let transcriptions = await AuthoringTranscriptions.resolve(breakdown, using: transcribing, context: context)
+        if !transcriptions.isReadable {
+            return try await AuthoringHalt.record(
+                feature: selection.name, reason: .contractUnreadable(contracts: transcriptions.unreadable),
+                context: context
+            )
+        }
+
         let scope = try await BoardStateScope.resolve(using: board.provisioning)
         let journal = context.journal
         let attempt = try journal.failedAuthoringTransactionCount(feature: selection.name.rawValue)
         let plan = try AuthoringPlanner(
             selection: selection, breakdown: breakdown, scope: scope, attempt: attempt,
-            nightID: context.night.id, journal: journal, citations: resolution
+            nightID: context.night.id, journal: journal, citations: resolution,
+            transcriptions: transcriptions.cardTranscriptions
         ).plan()
         _ = try journal.acceptOutbox(
             try outbox.drafts(plan.writes, groupID: plan.record.groupKey),
@@ -116,7 +135,7 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         let cards = try plan.cards.map {
             AuthoredCardRow(
                 issueID: try createdID($0.key), repository: $0.repository, kind: $0.kind, order: $0.order,
-                clauses: $0.clauses
+                clauses: $0.clauses, brief: $0.brief, transcriptions: $0.transcriptions
             )
         }
         try journal.finaliseAuthoring(
