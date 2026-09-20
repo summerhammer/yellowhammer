@@ -25,12 +25,13 @@ enum UnansweredPositionClock {
             act: context.act, runID: context.runID
         )
         // Every expired row, not only the ones this call expired: the Outbox key is idempotent, so an
-        // Act killed between the expiry and its board update is completed by the next author Act.
+        // Act killed between the expiry and its board update is completed by the next author Act. The
+        // key carries the row id: a Feature answered or cleared and later expired again is Blocked again.
         var expired = try context.journal.expiredRefusals().map {
-            ($0.featureName, $0.issueID, "feature:\($0.featureName):refusal:expired")
+            ($0.featureName, $0.issueID, "feature:\($0.featureName):refusal:\($0.id):expired")
         }
         expired += try context.journal.expiredAuthoringHalts().map {
-            ($0.featureName, $0.issueID, "feature:\($0.featureName):authoring-halt:expired")
+            ($0.featureName, $0.issueID, "feature:\($0.featureName):authoring-halt:\($0.id):expired")
         }
         guard !expired.isEmpty, let outbox = context.outbox, let board = context.board else {
             return
