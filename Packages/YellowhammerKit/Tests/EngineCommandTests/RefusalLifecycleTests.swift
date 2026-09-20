@@ -188,7 +188,7 @@ struct RefusalLifecycleTests {
         #expect(refusal.openedNightID == context1.night.id)
     }
 
-    @Test("Clean authoring resets only that Feature's count and moves its open Refusal to answered")
+    @Test("Clean authoring resets only that Feature's count and closes its open Refusal without answering it")
     func cleanAuthoringResetsCount() async throws {
         let thin = FeatureBreakdown(
             definitionOfDone: [DefinitionOfDoneClauseDraft(text: "Uncitable", citation: "epic/ghost")],
@@ -228,7 +228,8 @@ struct RefusalLifecycleTests {
         try await AuthorAct(predecessorGate: nil, authoring: selection2, unansweredNightsMax: 5).run(context2)
 
         let refusal = try #require(try journal.refusals(feature: feature).last)
-        #expect(refusal.state == .answered)
+        #expect(refusal.state == .open)
+        #expect(refusal.closedNightID != nil)
         #expect(refusal.consecutiveRefusals == 0)
         #expect(try journal.events(ofType: .refusalCountReset).count == 1)
     }

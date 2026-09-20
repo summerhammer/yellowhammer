@@ -189,12 +189,16 @@ extension JournalEvent {
         case .refusalOpened:
             .refusalOpened(
                 feature: try reader.require("feature"),
-                consecutiveRefusals: try reader.int("consecutive_refusals")
+                consecutiveRefusals: try reader.int("consecutive_refusals"),
+                uncitableClauses: reader.payload?["uncitable_clauses"] ?? "",
+                reselectionDepth: reader.payload?["reselection_depth"].flatMap { Int($0) } ?? 0
             )
         case .refusalRepeated:
             .refusalRepeated(
                 feature: try reader.require("feature"),
-                consecutiveRefusals: try reader.int("consecutive_refusals")
+                consecutiveRefusals: try reader.int("consecutive_refusals"),
+                uncitableClauses: reader.payload?["uncitable_clauses"] ?? "",
+                reselectionDepth: reader.payload?["reselection_depth"].flatMap { Int($0) } ?? 0
             )
         case .refusalExpired:
             .refusalExpired(
@@ -209,6 +213,9 @@ extension JournalEvent {
             try Self.decodeLandStep(reader)
         case .cycleLanded:
             .cycleLanded(cycleID: try reader.int64("cycle_id"))
+        case .refusalAnswered, .authoringHaltOpened, .authoringHaltRepeated, .authoringHaltExpired,
+            .authoringHaltCleared:
+            try Self.decodeAuthoringStop(type, reader)
         }
     }
 

@@ -25,11 +25,15 @@ public enum FeatureAuthoringOutcome: Equatable, Sendable {
     /// Nothing was selectable to author.
     case noWorkAvailable
     /// A Feature was selected but authoring halted before any dispatch — no backward-compatible seam,
-    /// undetermined repositories, or a repository outside this Project (roadmap P9.3; spec:
-    /// feature-authoring/select-the-next-feature, second and fourth stories). A quiet Night, not a
+    /// undetermined repositories, a repository outside this Project or an unreadable contract (roadmap
+    /// P9.3, P9.6; spec: feature-authoring/select-the-next-feature, second and fourth stories). A quiet Night, not a
     /// failure: recorded and routed to Waiting on You by ``FeatureSelection`` itself, before this
     /// outcome is even returned.
     case halted
+    /// A Feature was selected but its specification was too thin to cite a Definition of Done (roadmap
+    /// P9.5, P9.8; glossary: Refusal). Not a halt: recorded and routed to Waiting on You by
+    /// ``RefusalRecording``. A quiet Night for this Act.
+    case refused
     /// Authoring was attempted and the whole transaction was rolled back (roadmap P9.4): no Feature
     /// Issue, Card, Cycle or row was left behind, and the failure is recorded on the Night Card. Like a
     /// halt, a quiet Night for this Act — the next author Act authors afresh.
@@ -100,7 +104,7 @@ public struct AuthorAct: Sendable {
         // Every open Refusal's clock advances on every author Act of every Night, before anything
         // else this Act does (roadmap P9.7) — including the in-flight check below, since a Refusal
         // precedes any Cycle and so is never itself the reason a Feature is in flight.
-        try await RefusalLifecycle.run(context: context, unansweredNightsMax: unansweredNightsMax)
+        try await UnansweredPositionClock.run(context: context, unansweredNightsMax: unansweredNightsMax)
 
         if let (feature, _) = try journal.inFlightFeature() {
             try journal.append(
@@ -132,7 +136,7 @@ public struct AuthorAct: Sendable {
             try journal.recordAuthoringNoWorkAvailable(
                 nightID: context.night.id, act: context.act, runID: context.runID
             )
-        case .authored, .halted, .authoringRolledBack, .authoringPending:
+        case .authored, .halted, .refused, .authoringRolledBack, .authoringPending:
             break
         }
         try await writeBack(context: context)

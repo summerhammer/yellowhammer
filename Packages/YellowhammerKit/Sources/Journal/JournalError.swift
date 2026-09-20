@@ -88,6 +88,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     case refusalUnreadable(id: Int64)
     /// The Cycle was already landed and cannot be landed again (roadmap P10.1; risks OQ8, once per Cycle).
     case cycleAlreadyLanded(cycleID: Int64)
+    /// The `authoring_halt` row does not decode; the Journal was written by something other than the engine.
+    case authoringHaltUnreadable(id: Int64)
 
     public var description: String {
         return switch self {
@@ -186,6 +188,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
             "The Journal's refusal row \(id) cannot be read"
         case .cycleAlreadyLanded(let cycleID):
             "Cycle \(cycleID) is already landed and cannot be landed again"
+        case .authoringHaltUnreadable(let id):
+            "The Journal's authoring halt row \(id) cannot be read"
         }
     }
 }

@@ -121,11 +121,10 @@ public struct UnreadableContract: Equatable, Sendable {
 }
 
 /// Why authoring halted before any dispatch (feature-authoring/select-the-next-feature, second and
-/// fourth stories; feature-authoring/author-citable-definitions-of-done, second story, for
-/// ``uncitableDefinitionOfDone``). Distinct from Refusal, which the glossary reserves for the thin-spec
-/// finding: every other case here is the seam problem or the repository-determination problem, not a
-/// citation the specification could not support.
-public enum AuthoringHaltReason: Equatable, Sendable {
+/// fourth stories; feature-authoring/author-an-architectural-brief for ``contractUnreadable``): the seam
+/// problem, the repository-determination problem or an unreadable contract. Deliberately not the thin-spec
+/// finding — that is a ``RefusalFinding``, a separate object the glossary keeps apart from an Authoring Halt.
+public enum AuthoringHaltCause: Equatable, Sendable {
     /// A genuinely atomic breaking change across repositories could not be split into a sequence of
     /// independently mergeable Features: no backward-compatible seam was found.
     case noBackwardCompatibleSeam(seam: String)
@@ -133,37 +132,29 @@ public enum AuthoringHaltReason: Equatable, Sendable {
     case repositoriesUndetermined
     /// A repository the Feature named is not one of this Project's configured repositories.
     case contractOutsideProject(repository: String)
-    /// After dropping every clause whose citation did not resolve, the Feature level or at least one
-    /// newly authored Card was left with zero clauses: the Feature's spec support is too thin (roadmap
-    /// P9.5, second story). This is the Refusal the glossary names.
-    case uncitableDefinitionOfDone(clauses: [UncitableClause])
     /// A Card names a contract the author Act could not read from its repository's merged mainline —
     /// unconfigured, missing, or content that could not round-trip through the Managed Block (roadmap
     /// P9.6, spec: feature-authoring/author-an-architectural-brief). A Card is never authored
     /// speculatively without it.
     case contractUnreadable(contracts: [UnreadableContract])
 
-    /// A stable, machine-readable name for this reason, for the Journal's payload.
+    /// A stable, machine-readable name for this cause, for the Journal's payload.
     public var kind: String {
         switch self {
         case .noBackwardCompatibleSeam: "no-backward-compatible-seam"
         case .repositoriesUndetermined: "repositories-undetermined"
         case .contractOutsideProject: "contract-outside-project"
-        case .uncitableDefinitionOfDone: "uncitable-definition-of-done"
         case .contractUnreadable: "contract-unreadable"
         }
     }
 
-    /// The seam or the repository this reason names, when it names one; a compact listing of every
-    /// uncitable clause for ``uncitableDefinitionOfDone``, or every unreadable contract for
-    /// ``contractUnreadable``.
+    /// The seam or the repository this cause names, when it names one; a compact listing of every
+    /// unreadable contract for ``contractUnreadable``.
     public var detail: String? {
         switch self {
         case .noBackwardCompatibleSeam(let seam): seam
         case .repositoriesUndetermined: nil
         case .contractOutsideProject(let repository): repository
-        case .uncitableDefinitionOfDone(let clauses):
-            clauses.map { "\($0.level):\($0.cardTitle ?? "-"):\($0.text)" }.joined(separator: "; ")
         case .contractUnreadable(let contracts):
             contracts.map { "\($0.cardTitle):\($0.repository):\($0.paths.joined(separator: ","))" }
                 .joined(separator: "; ")
@@ -171,7 +162,7 @@ public enum AuthoringHaltReason: Equatable, Sendable {
     }
 }
 
-extension AuthoringHaltReason: CustomStringConvertible {
+extension AuthoringHaltCause: CustomStringConvertible {
     public var description: String {
         switch self {
         case .noBackwardCompatibleSeam(let seam):
@@ -180,13 +171,6 @@ extension AuthoringHaltReason: CustomStringConvertible {
             return "The repositories this Feature touches could not be determined."
         case .contractOutsideProject(let repository):
             return "Repository '\(repository)' is not configured for this Project."
-        case .uncitableDefinitionOfDone(let clauses):
-            let named = clauses.map { clause -> String in
-                let location = clause.cardTitle.map { "Card '\($0)'" } ?? "the Feature"
-                return "\(location): clause '\(clause.text)' citing '\(clause.citation)' does not resolve: " +
-                    clause.reason
-            }.joined(separator: "; ")
-            return "The Definition of Done is not citable enough to dispatch: \(named)"
         case .contractUnreadable(let contracts):
             let named = contracts.map { contract -> String in
                 "Card '\(contract.cardTitle)': repository '\(contract.repository)' " +
@@ -197,11 +181,43 @@ extension AuthoringHaltReason: CustomStringConvertible {
     }
 }
 
+/// The thin-spec finding behind a Refusal (roadmap P9.5, P9.8; glossary: Refusal; spec: feature-authoring/
+/// author-citable-definitions-of-done, second story): the Definition of Done clauses no citation
+/// supported, and how deep in the backlog this Feature sat when it was found. A separate object from
+/// ``AuthoringHaltCause`` — neither is named after, or a case of, the other.
+public struct RefusalFinding: Equatable, Sendable {
+    public let uncitable: [UncitableClause]
+    /// How many Features the selection walked past before this one; 0 until the backlog walk lands (P11.6).
+    public let reselectionDepth: Int
+
+    public init(uncitable: [UncitableClause], reselectionDepth: Int) {
+        self.uncitable = uncitable
+        self.reselectionDepth = reselectionDepth
+    }
+
+    /// A compact listing of every uncitable clause, for the Journal's payload.
+    public var clauseListing: String {
+        uncitable.map { "\($0.level):\($0.cardTitle ?? "-"):\($0.text)" }.joined(separator: "; ")
+    }
+}
+
+extension RefusalFinding: CustomStringConvertible {
+    public var description: String {
+        let named = uncitable.map { clause -> String in
+            let location = clause.cardTitle.map { "Card '\($0)'" } ?? "the Feature"
+            return "\(location): clause '\(clause.text)' citing '\(clause.citation)' does not resolve: " +
+                clause.reason
+        }.joined(separator: "; ")
+        return "The Definition of Done is not citable enough to dispatch (re-selection depth " +
+            "\(reselectionDepth)): \(named)"
+    }
+}
+
 /// What the model-authored selection (``FeatureSelecting``) found.
 public enum FeatureSelectionOutcome: Equatable, Sendable {
     case selected(SelectedFeature)
     /// The specification yielded no selectable Feature: a quiet Night, not a failure.
     case noSelectableFeature
-    /// The selected Feature could not be authored — the seam or repository problem this reason names.
-    case halted(feature: FeatureName, reason: AuthoringHaltReason)
+    /// The selected Feature could not be authored — the seam or repository problem this cause names.
+    case halted(feature: FeatureName, cause: AuthoringHaltCause)
 }

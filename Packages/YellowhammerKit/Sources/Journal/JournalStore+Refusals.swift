@@ -21,6 +21,8 @@ public struct RefusalRecord: Equatable, Sendable {
     public let lastCountedNightID: Int64?
     public let consecutiveRefusals: Int
     public let expiredNightID: Int64?
+    /// The Night a clean authoring run closed this Refusal on, taking it off the clock; nil while live.
+    public let closedNightID: Int64?
     public let createdAt: Date
 }
 
@@ -45,7 +47,7 @@ public struct RefusalOutcome: Equatable, Sendable {
 }
 
 extension JournalStore {
-    /// Records one uncitable-Definition-of-Done halt against `feature` (roadmap P9.7):
+    /// Records one thin-spec finding against `feature` (roadmap P9.7, P9.8):
     ///
     /// - An `open` Refusal for this Feature name gets its consecutive count incremented and its
     ///   content replaced; the clock (`unanswered_nights`, `opened_night_id`) is left exactly as it
@@ -55,39 +57,45 @@ extension JournalStore {
     /// - Otherwise a new `open` row is inserted, its consecutive count one more than the previous
     ///   row's (zero once ``resetConsecutiveRefusals(feature:nightID:act:runID:)`` has run, so this is 1).
     ///
-    /// Appends `refusalOpened` or `refusalRepeated` in the same transaction as the row write.
+    /// A closed row (see ``resetConsecutiveRefusals(feature:nightID:act:runID:now:)``) is invisible to
+    /// the `open` lookup. Appends `refusalOpened` or `refusalRepeated` in the same transaction as the row
+    /// write, carrying the uncitable clauses' listing and the re-selection depth.
     @discardableResult
     public func recordRefusal(
-        feature: FeatureName, content: String, nightID: Int64, act: Act? = nil, runID: RunID? = nil, now: Date = Date()
+        feature: FeatureName, content: String, uncitableClauses: String = "", reselectionDepth: Int = 0,
+        nightID: Int64, act: Act? = nil, runID: RunID? = nil, now: Date = Date()
     ) throws -> RefusalOutcome {
         try write { db in
             let stamp = EventStamp(act: act, runID: runID, nightID: nightID, now: JournalStore.stored(now))
+            let finding = (uncitableClauses, reselectionDepth)
 
             if let openRow = try Row.fetchOne(
                 db,
-                sql: "SELECT * FROM refusal WHERE feature_name = ? AND state = 'open'",
+                sql: "SELECT * FROM refusal WHERE feature_name = ? AND state = 'open' AND closed_night_id IS NULL",
                 arguments: [feature.rawValue]
             ) {
                 let record = try Self.repeatRefusal(
-                    db, row: openRow, feature: feature, content: content, stamp: stamp
+                    db, row: openRow, content: content, finding: finding, stamp: stamp
                 )
                 return RefusalOutcome(record: record, newlyOpened: false, alreadyExpired: false)
             }
 
             let latestRow = try Row.fetchOne(
                 db,
-                sql: "SELECT * FROM refusal WHERE feature_name = ? ORDER BY id DESC LIMIT 1",
+                sql: """
+                SELECT * FROM refusal WHERE feature_name = ? AND closed_night_id IS NULL ORDER BY id DESC LIMIT 1
+                """,
                 arguments: [feature.rawValue]
             )
 
             if let latestRow, (latestRow["state"] as String) == RefusalState.expired.rawValue {
                 let record = try Self.repeatRefusal(
-                    db, row: latestRow, feature: feature, content: nil, stamp: stamp
+                    db, row: latestRow, content: nil, finding: finding, stamp: stamp
                 )
                 return RefusalOutcome(record: record, newlyOpened: false, alreadyExpired: true)
             }
 
-            let previousCount: Int = latestRow.map { $0["consecutive_refusals"] } ?? 0
+            let previousCount = try Self.latestRefusalCount(db, feature: feature)
             let newCount = previousCount + 1
             try db.execute(
                 sql: """
@@ -100,7 +108,12 @@ extension JournalStore {
             )
             let id = db.lastInsertedRowID
             _ = try Self.insertEvent(
-                db, .refusalOpened(feature: feature.rawValue, consecutiveRefusals: newCount), stamp: stamp
+                db,
+                .refusalOpened(
+                    feature: feature.rawValue, consecutiveRefusals: newCount,
+                    uncitableClauses: uncitableClauses, reselectionDepth: reselectionDepth
+                ),
+                stamp: stamp
             )
             let record = try Self.refusalRecord(from: try Self.fetchRefusalRow(db, id: id))
             return RefusalOutcome(record: record, newlyOpened: true, alreadyExpired: false)
@@ -113,7 +126,8 @@ extension JournalStore {
     /// ``recordRefusal(feature:content:nightID:act:runID:now:)`` to keep that function within the
     /// length limit.
     private static func repeatRefusal(
-        _ db: Database, row: Row, feature: FeatureName, content: String?, stamp: EventStamp
+        _ db: Database, row: Row, content: String?, finding: (String, Int),
+        stamp: EventStamp
     ) throws -> RefusalRecord {
         let id: Int64 = row["id"]
         let current: Int = row["consecutive_refusals"]
@@ -129,9 +143,25 @@ extension JournalStore {
             )
         }
         _ = try Self.insertEvent(
-            db, .refusalRepeated(feature: feature.rawValue, consecutiveRefusals: newCount), stamp: stamp
+            db,
+            .refusalRepeated(
+                feature: row["feature_name"], consecutiveRefusals: newCount,
+                uncitableClauses: finding.0, reselectionDepth: finding.1
+            ),
+            stamp: stamp
         )
         return try Self.refusalRecord(from: try Self.fetchRefusalRow(db, id: id))
+    }
+
+    /// The consecutive count on the Feature's latest row, closed or not — a fresh row after a clean
+    /// run starts from the zero that run left behind.
+    private static func latestRefusalCount(_ db: Database, feature: FeatureName) throws -> Int {
+        let row = try Row.fetchOne(
+            db,
+            sql: "SELECT consecutive_refusals FROM refusal WHERE feature_name = ? ORDER BY id DESC LIMIT 1",
+            arguments: [feature.rawValue]
+        )
+        return row?["consecutive_refusals"] ?? 0
     }
 
     /// Stores the Feature Issue's id on the most recently recorded Refusal for `feature`, once the
@@ -169,7 +199,7 @@ extension JournalStore {
                 db,
                 sql: """
                 SELECT * FROM refusal
-                WHERE state = 'open' AND opened_night_id != ?
+                WHERE state = 'open' AND closed_night_id IS NULL AND opened_night_id != ?
                   AND (last_counted_night_id IS NULL OR last_counted_night_id != ?)
                 """,
                 arguments: [nightID, nightID]
@@ -226,44 +256,6 @@ extension JournalStore {
         return try Self.refusalRecord(from: try Self.fetchRefusalRow(db, id: id))
     }
 
-    /// A clean authoring run for `feature` resets its consecutive-refusals count to zero on every one
-    /// of its rows, and moves its `open` row (if any) to `answered` — never touching another Feature's
-    /// rows. Appends `refusalCountReset` only when there was something to reset; returns whether it did.
-    @discardableResult
-    public func resetConsecutiveRefusals(
-        feature: FeatureName, nightID: Int64? = nil, act: Act? = nil, runID: RunID? = nil, now: Date = Date()
-    ) throws -> Bool {
-        try write { db in
-            let rows = try Row.fetchAll(
-                db,
-                sql: "SELECT id, state, consecutive_refusals FROM refusal WHERE feature_name = ?",
-                arguments: [feature.rawValue]
-            )
-            guard !rows.isEmpty else { return false }
-
-            var changed = false
-            for row in rows {
-                let id: Int64 = row["id"]
-                let state: String = row["state"]
-                let count: Int = row["consecutive_refusals"]
-                if count != 0 {
-                    try db.execute(sql: "UPDATE refusal SET consecutive_refusals = 0 WHERE id = ?", arguments: [id])
-                    changed = true
-                }
-                if state == RefusalState.open.rawValue {
-                    try db.execute(sql: "UPDATE refusal SET state = 'answered' WHERE id = ?", arguments: [id])
-                    changed = true
-                }
-            }
-
-            if changed {
-                let stamp = EventStamp(act: act, runID: runID, nightID: nightID, now: JournalStore.stored(now))
-                _ = try Self.insertEvent(db, .refusalCountReset(feature: feature.rawValue), stamp: stamp)
-            }
-            return changed
-        }
-    }
-
     /// The consecutive-refusals count on the latest Refusal recorded for `feature`, 0 when it has none.
     public func consecutiveRefusals(feature: FeatureName) throws -> Int {
         try read { db in
@@ -283,7 +275,9 @@ extension JournalStore {
     /// Every currently `open` Refusal, oldest first.
     public func openRefusals() throws -> [RefusalRecord] {
         try read { db in
-            try Row.fetchAll(db, sql: "SELECT * FROM refusal WHERE state = 'open' ORDER BY id ASC")
+            try Row.fetchAll(
+                db, sql: "SELECT * FROM refusal WHERE state = 'open' AND closed_night_id IS NULL ORDER BY id ASC"
+            )
                 .map { try Self.refusalRecord(from: $0) }
         }
     }
@@ -306,14 +300,14 @@ extension JournalStore {
         }
     }
 
-    private static func fetchRefusalRow(_ db: Database, id: Int64) throws -> Row {
+    static func fetchRefusalRow(_ db: Database, id: Int64) throws -> Row {
         guard let row = try Row.fetchOne(db, sql: "SELECT * FROM refusal WHERE id = ?", arguments: [id]) else {
             throw JournalError.refusalUnreadable(id: id)
         }
         return row
     }
 
-    private static func refusalRecord(from row: Row) throws -> RefusalRecord {
+    static func refusalRecord(from row: Row) throws -> RefusalRecord {
         let id: Int64 = row["id"]
         let stateRaw: String = row["state"]
         guard let state = RefusalState(rawValue: stateRaw) else {
@@ -332,6 +326,7 @@ extension JournalStore {
             lastCountedNightID: row["last_counted_night_id"],
             consecutiveRefusals: row["consecutive_refusals"],
             expiredNightID: row["expired_night_id"],
+            closedNightID: row["closed_night_id"],
             createdAt: createdAt
         )
     }

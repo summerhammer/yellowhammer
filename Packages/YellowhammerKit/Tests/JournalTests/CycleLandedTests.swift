@@ -46,13 +46,13 @@ private func insertFixtureCycle(_ journal: JournalStore, issueID: String) throws
 
 @Suite("v16-cycle-landed migration")
 struct CycleLandedMigrationTests {
-    @Test("v16-cycle-landed is the last migration and adds cycle.landed_at")
-    func v16IsLastAndAddsColumn() throws {
+    @Test("v16-cycle-landed is applied and adds cycle.landed_at")
+    func v16IsAppliedAndAddsColumn() throws {
         let fixture = try JournalFixture()
         let journal = try fixture.open()
 
-        #expect(try journal.appliedMigrations().last == "v16-cycle-landed")
-        #expect(JournalStore.migrationIdentifiers.last == "v16-cycle-landed")
+        #expect(try journal.appliedMigrations().contains("v16-cycle-landed"))
+        #expect(JournalStore.migrationIdentifiers.contains("v16-cycle-landed"))
 
         let cycleID = try insertFixtureCycle(journal, issueID: "FEAT-1")
         #expect(try journal.isCycleLanded(cycleID: cycleID) == false)

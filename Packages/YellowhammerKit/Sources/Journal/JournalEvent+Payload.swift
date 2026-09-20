@@ -354,10 +354,10 @@ extension JournalEvent {
                 }
                 return dict
             }()
-        case .refusalOpened(let feature, let consecutiveRefusals):
-            ["feature": feature, "consecutive_refusals": String(consecutiveRefusals)]
-        case .refusalRepeated(let feature, let consecutiveRefusals):
-            ["feature": feature, "consecutive_refusals": String(consecutiveRefusals)]
+        case .refusalOpened(let feature, let consecutiveRefusals, let clauses, let depth):
+            Self.refusalPayload(feature, consecutiveRefusals, clauses, depth)
+        case .refusalRepeated(let feature, let consecutiveRefusals, let clauses, let depth):
+            Self.refusalPayload(feature, consecutiveRefusals, clauses, depth)
         case .refusalExpired(let feature, let issueID, let unansweredNights, let bound):
             {
                 var dict: [String: String] = [
@@ -383,6 +383,9 @@ extension JournalEvent {
             }()
         case .cycleLanded(let cycleID):
             ["cycle_id": String(cycleID)]
+        case .refusalAnswered, .authoringHaltOpened, .authoringHaltRepeated, .authoringHaltExpired,
+            .authoringHaltCleared:
+            authoringStopPayload
         }
     }
 }

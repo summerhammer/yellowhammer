@@ -130,7 +130,7 @@ struct AuthoringTransactionClauseTests {
 
         let outcome = try await rig.run(rig.context())
 
-        #expect(outcome == .halted)
+        #expect(outcome == .refused)
         #expect(try tableRowCount(rig.journal, table: "feature") == 0)
         #expect(try tableRowCount(rig.journal, table: "cycle") == 0)
         #expect(try tableRowCount(rig.journal, table: "card") == 0)
@@ -139,14 +139,17 @@ struct AuthoringTransactionClauseTests {
         #expect(try tableRowCount(rig.journal, table: "worktree") == 0)
         #expect(try rig.journal.events(ofType: .featureAuthoringAccepted).isEmpty)
 
-        let event = try #require(try rig.journal.events().first { $0.type == .featureAuthoringHalted })
-        guard case .featureAuthoringHalted(let name, let kind, let detail) = event.event else {
-            Issue.record("expected featureAuthoringHalted")
+        // A Refusal is not a halt: no featureAuthoringHalted, and no authoring_halt row.
+        #expect(try rig.journal.events(ofType: .featureAuthoringHalted).isEmpty)
+        #expect(try tableRowCount(rig.journal, table: "authoring_halt") == 0)
+        let event = try #require(try rig.journal.events().first { $0.type == .refusalOpened })
+        guard case .refusalOpened(let name, _, let clauses, let depth) = event.event else {
+            Issue.record("expected refusalOpened")
             return
         }
         #expect(name == "FEAT-1")
-        #expect(kind == "uncitable-definition-of-done")
-        #expect(detail?.contains("Uncitable") == true)
+        #expect(clauses.contains("Uncitable"))
+        #expect(depth == 0)
 
         let live = await rig.boards.writing.liveIssues
         let issue = try #require(live.first { $0.title == "FEAT-1" })
@@ -172,16 +175,15 @@ struct AuthoringTransactionClauseTests {
 
         let outcome = try await rig.run(rig.context())
 
-        #expect(outcome == .halted)
+        #expect(outcome == .refused)
         #expect(try tableRowCount(rig.journal, table: "feature") == 0)
         #expect(try tableRowCount(rig.journal, table: "card") == 0)
-        let event = try #require(try rig.journal.events().first { $0.type == .featureAuthoringHalted })
-        guard case .featureAuthoringHalted(_, let kind, let detail) = event.event else {
-            Issue.record("expected featureAuthoringHalted")
+        let event = try #require(try rig.journal.events().first { $0.type == .refusalOpened })
+        guard case .refusalOpened(_, _, let clauses, _) = event.event else {
+            Issue.record("expected refusalOpened")
             return
         }
-        #expect(kind == "uncitable-definition-of-done")
-        #expect(detail?.contains("Backend one") == true)
+        #expect(clauses.contains("Backend one"))
     }
 
     @Test("A resumed transaction writes every clause row exactly once")

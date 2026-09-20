@@ -63,8 +63,10 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         // here, before any board write this transaction would otherwise make.
         let resolution = await AuthoringCitations.resolve(breakdown, using: citations, context: context)
         if resolution.isThin {
-            return try await AuthoringHalt.record(
-                feature: selection.name, reason: .uncitableDefinitionOfDone(clauses: resolution.uncitable),
+            // The backlog walk is P11.6's, so the re-selection depth is 0 until it lands.
+            return try await RefusalRecording.record(
+                feature: selection.name,
+                finding: RefusalFinding(uncitable: resolution.uncitable, reselectionDepth: 0),
                 context: context
             )
         }
@@ -75,7 +77,7 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         let transcriptions = await AuthoringTranscriptions.resolve(breakdown, using: transcribing, context: context)
         if !transcriptions.isReadable {
             return try await AuthoringHalt.record(
-                feature: selection.name, reason: .contractUnreadable(contracts: transcriptions.unreadable),
+                feature: selection.name, cause: .contractUnreadable(contracts: transcriptions.unreadable),
                 context: context
             )
         }
@@ -142,13 +144,17 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
             AuthoredFeature(plan: plan, featureIssueID: try createdID(plan.featureKey), cards: cards),
             runID: context.runID, act: context.act, nightID: context.night.id
         )
-        // A clean authoring run resets only this Feature's consecutive-refusals count and answers its
-        // open Refusal, if it had one (roadmap P9.7). Recorded right after `finaliseAuthoring`'s own
+        // A clean authoring run resets only this Feature's consecutive-refusals count, closes its
+        // Refusals so they leave the clock, and clears its Authoring Halts (roadmap P9.7, P9.8) — it
+        // never answers a Refusal; only a Spec Citation does. Recorded right after `finaliseAuthoring`'s own
         // transaction, not inside it: the plan's Feature name is a free-text `FeatureName`, not the
         // Journal row `finaliseAuthoring` writes, so there is no shared row to extend that transaction
         // around.
         if let featureName = FeatureName(rawValue: plan.name) {
             try journal.resetConsecutiveRefusals(
+                feature: featureName, nightID: context.night.id, act: context.act, runID: context.runID
+            )
+            try journal.clearAuthoringHalts(
                 feature: featureName, nightID: context.night.id, act: context.act, runID: context.runID
             )
         }

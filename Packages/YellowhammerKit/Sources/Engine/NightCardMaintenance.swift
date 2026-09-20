@@ -174,7 +174,7 @@ public struct NightCardMaintenance: Sendable {
         return lines
     }
 
-    private static func authoringLine(for event: JournalEvent) -> String? {
+    static func authoringLine(for event: JournalEvent) -> String? {
         switch event {
         case .authoringSkippedFeatureInFlight(let featureIssueID):
             return """
@@ -198,6 +198,13 @@ public struct NightCardMaintenance: Sendable {
             let named = detail.map { " (\($0))" } ?? ""
             return """
                 Authoring halted for Feature `\(name)`: \(reasonKind)\(named). A quiet Night, not a failure.
+                """
+        case .refusalOpened(let name, _, let clauses, let depth),
+            .refusalRepeated(let name, _, let clauses, let depth):
+            let named = clauses.isEmpty ? "" : " Uncitable clauses: \(clauses)."
+            return """
+                Feature `\(name)` was refused: its specification was too thin to cite a Definition of \
+                Done.\(named) Re-selection depth: \(depth). A quiet Night, not a failure.
                 """
         case .featureAuthoringFailed(let name, _, let reason):
             return """
