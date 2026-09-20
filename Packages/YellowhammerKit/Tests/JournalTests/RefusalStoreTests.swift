@@ -94,7 +94,7 @@ struct RefusalStoreTests {
 
         let events = try journal.events(ofType: .refusalRepeated)
         #expect(events.count == 1)
-        guard case .refusalRepeated(_, let consecutiveRefusals) = events[0].event else {
+        guard case .refusalRepeated(_, let consecutiveRefusals, _, _) = events[0].event else {
             Issue.record("expected refusalRepeated")
             return
         }
@@ -224,7 +224,7 @@ struct RefusalStoreTests {
         #expect(refusal.issueID == "FEAT-1")
     }
 
-    @Test("resetConsecutiveRefusals answers the open row, zeroes the count, and touches only that Feature")
+    @Test("resetConsecutiveRefusals closes the open row without answering, zeroes the count, touches only that Feature")
     func resetOnlyTouchesItsOwnFeature() throws {
         let fixture = try JournalFixture()
         let journal = try fixture.open()
@@ -239,7 +239,8 @@ struct RefusalStoreTests {
 
         #expect(changed)
         let refusal = try #require(try journal.refusals(feature: feature).first)
-        #expect(refusal.state == .answered)
+        #expect(refusal.state == .open)
+        #expect(refusal.closedNightID == night2)
         #expect(refusal.consecutiveRefusals == 0)
 
         let untouched = try #require(try journal.refusals(feature: other).first)
@@ -326,13 +327,13 @@ struct RefusalStoreTests {
 
 @Suite("Refusal migration (P9.7)")
 struct RefusalMigrationTests {
-    @Test("v15-refusal is the last migration and creates the refusal table")
+    @Test("v15-refusal creates the refusal table and is still applied")
     func v15IsLastAndCreatesTable() throws {
         let fixture = try JournalFixture()
         let journal = try fixture.open()
 
-        #expect(try journal.appliedMigrations().last == "v16-cycle-landed")
-        #expect(JournalStore.migrationIdentifiers.last == "v16-cycle-landed")
+        #expect(try journal.appliedMigrations().contains("v15-refusal"))
+        #expect(JournalStore.migrationIdentifiers.contains("v15-refusal"))
         #expect(try journal.tableNames().contains("refusal"))
     }
 

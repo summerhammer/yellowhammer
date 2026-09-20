@@ -41,7 +41,7 @@ func refusalOpenedRoundTrips() throws {
     let records = try journal.events()
 
     #expect(records.count == 1)
-    guard case .refusalOpened(let feature, let consecutiveRefusals) = records[0].event else {
+    guard case .refusalOpened(let feature, let consecutiveRefusals, _, _) = records[0].event else {
         Issue.record("Event is not refusalOpened")
         return
     }
@@ -61,7 +61,7 @@ func refusalRepeatedRoundTrips() throws {
     let records = try journal.events()
 
     #expect(records.count == 1)
-    guard case .refusalRepeated(let feature, let consecutiveRefusals) = records[0].event else {
+    guard case .refusalRepeated(let feature, let consecutiveRefusals, _, _) = records[0].event else {
         Issue.record("Event is not refusalRepeated")
         return
     }

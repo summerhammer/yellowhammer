@@ -78,6 +78,9 @@ enum JournalMigrations {
         migrator.registerMigration("v16-cycle-landed") { db in
             try addCycleLandedAtColumn(db)
         }
+        migrator.registerMigration("v17-authoring-halt") { db in
+            try createAuthoringHaltTable(db)
+        }
         return migrator
     }
 }

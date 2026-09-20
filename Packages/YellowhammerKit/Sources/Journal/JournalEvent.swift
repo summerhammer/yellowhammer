@@ -247,7 +247,7 @@ public enum JournalEvent: Equatable, Sendable {
     /// repositories resolved to this Project's own, adoption candidates narrowed to real ones.
     case featureSelected(FeatureSelectedPayload)
     /// The author Act's selection halted before any dispatch (feature-authoring/select-the-next-feature,
-    /// second and fourth stories): `reasonKind` is ``AuthoringHaltReason/kind``, `detail` is the seam or
+    /// second and fourth stories): `reasonKind` is ``AuthoringHaltCause/kind``, `detail` is the seam or
     /// repository it names.
     case featureAuthoringHalted(name: String, reasonKind: String, detail: String?)
     /// The authoring transaction (roadmap P9.4) accepted its Outbox group and recorded its plan, in one
@@ -259,15 +259,23 @@ public enum JournalEvent: Equatable, Sendable {
     case featureAuthoringFailed(name: String, groupKey: String, reason: String)
     /// A Feature's uncitable-Definition-of-Done halt opened a new Refusal (roadmap P9.7; glossary:
     /// Refusal): no `open` (or `expired`) Refusal existed for this Feature name yet.
-    case refusalOpened(feature: String, consecutiveRefusals: Int)
+    /// `uncitableClauses` is the compact listing of the clauses no citation supported, and
+    /// `reselectionDepth` how deep in the backlog the Feature sat (P9.8); rows written before then
+    /// decode as "" and 0.
+    case refusalOpened(
+        feature: String, consecutiveRefusals: Int, uncitableClauses: String = "", reselectionDepth: Int = 0
+    )
     /// A Feature was refused again while its Refusal was already `open` (or already `expired`): the
     /// consecutive count moved, but the Night-driven clock did not — a repeat refusal never restarts it.
-    case refusalRepeated(feature: String, consecutiveRefusals: Int)
+    case refusalRepeated(
+        feature: String, consecutiveRefusals: Int, uncitableClauses: String = "", reselectionDepth: Int = 0
+    )
     /// The Refusal's unanswered-Nights clock exceeded `bound` (bounds/bound-unanswered-nights): the
     /// row moved to `expired`. `issueID` is nil when the Feature Issue's create had not yet applied.
     case refusalExpired(feature: String, issueID: String?, unansweredNights: Int, bound: Int)
-    /// A clean authoring run reset this Feature's consecutive-refusals count and moved its `open`
-    /// Refusal to `answered`. Appended only when there was something to reset.
+    /// A clean authoring run reset this Feature's consecutive-refusals count and closed its `answered`
+    /// and `open` Refusals so they leave the clock; it never answers one. Appended only when there was
+    /// something to change.
     case refusalCountReset(feature: String)
     /// One step of the land Act's sequence (roadmap P10.1): a Repo Lane's merge test, push, open pull
     /// request or Worktree release, or the Feature's Verification, return or Cycle archive.
@@ -276,6 +284,19 @@ public enum JournalEvent: Equatable, Sendable {
     /// The land Act landed this Cycle: once per Cycle (risks OQ8), so a later firing's trigger goes
     /// false and no Repo Lane re-opens even if a Card returns to Todo.
     case cycleLanded(cycleID: Int64)
+    /// A Spec Citation answered the Feature's Refusal (P9.8): `from` is the state it was in, `open` or
+    /// `expired`. The consecutive count is untouched.
+    case refusalAnswered(feature: String, citation: String, from: String)
+    /// A Feature's authoring stopped without a thin specification — an Authoring Halt (P9.8; glossary:
+    /// Authoring Halt) — and no `open` or `expired` halt existed for it yet. `causeKind` is
+    /// ``AuthoringHaltCause/kind``; `detail` the repository or path it names.
+    case authoringHaltOpened(feature: String, causeKind: String, detail: String?)
+    /// The Feature halted again while its halt was already `open`: the content moved, the clock did not.
+    case authoringHaltRepeated(feature: String, causeKind: String, detail: String?)
+    /// The halt's unanswered-Nights clock exceeded `bound`; the row moved to `expired`.
+    case authoringHaltExpired(feature: String, issueID: String?, unansweredNights: Int, bound: Int)
+    /// The Feature's next clean authoring run cleared its `open` or `expired` halt.
+    case authoringHaltCleared(feature: String)
 
     // `type`, the exhaustive switch from a case to its `JournalEventType`, lives in
     // JournalEvent+Type.swift, split out to keep this file under the file length limit.
@@ -359,4 +380,9 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case refusalCountReset = "RefusalCountReset"
     case landStep = "LandStep"
     case cycleLanded = "CycleLanded"
+    case refusalAnswered = "RefusalAnswered"
+    case authoringHaltOpened = "AuthoringHaltOpened"
+    case authoringHaltRepeated = "AuthoringHaltRepeated"
+    case authoringHaltExpired = "AuthoringHaltExpired"
+    case authoringHaltCleared = "AuthoringHaltCleared"
 }

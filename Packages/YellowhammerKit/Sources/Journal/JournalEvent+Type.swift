@@ -159,6 +159,16 @@ extension JournalEvent {
             .landStep
         case .cycleLanded:
             .cycleLanded
+        case .refusalAnswered:
+            .refusalAnswered
+        case .authoringHaltOpened:
+            .authoringHaltOpened
+        case .authoringHaltRepeated:
+            .authoringHaltRepeated
+        case .authoringHaltExpired:
+            .authoringHaltExpired
+        case .authoringHaltCleared:
+            .authoringHaltCleared
         }
     }
 }

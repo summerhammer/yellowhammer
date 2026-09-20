@@ -93,8 +93,8 @@ public struct FeatureSelection: FeatureAuthoring {
         switch try await selector.select(request) {
         case .noSelectableFeature:
             return .noWorkAvailable
-        case .halted(let feature, let reason):
-            return try await recordHalt(feature: feature, reason: reason, context: context)
+        case .halted(let feature, let cause):
+            return try await recordHalt(feature: feature, cause: cause, context: context)
         case .selected(let selected):
             return try await validateAndRecord(
                 selected, repositories: repositories, candidates: candidates, context: context
@@ -136,13 +136,13 @@ public struct FeatureSelection: FeatureAuthoring {
         }
         guard !selected.repositories.isEmpty else {
             return try await recordHalt(
-                feature: selected.name, reason: .repositoriesUndetermined, context: context
+                feature: selected.name, cause: .repositoriesUndetermined, context: context
             )
         }
         let sortedRepositories = Set(selected.repositories).sorted()
         if let outside = sortedRepositories.first(where: { repositories.workingRepo(named: $0) == nil }) {
             return try await recordHalt(
-                feature: selected.name, reason: .contractOutsideProject(repository: outside), context: context
+                feature: selected.name, cause: .contractOutsideProject(repository: outside), context: context
             )
         }
 
@@ -176,10 +176,10 @@ public struct FeatureSelection: FeatureAuthoring {
     }
 
     /// Records a halt durably and routes it to Waiting on You, through the halt path
-    /// ``AuthoringTransaction`` shares for the thin-spec Refusal (roadmap P9.5).
+    /// ``AuthoringTransaction`` shares for the unreadable contract (roadmap P9.6).
     private func recordHalt(
-        feature: FeatureName, reason: AuthoringHaltReason, context: ActContext
+        feature: FeatureName, cause: AuthoringHaltCause, context: ActContext
     ) async throws -> FeatureAuthoringOutcome {
-        try await AuthoringHalt.record(feature: feature, reason: reason, context: context)
+        try await AuthoringHalt.record(feature: feature, cause: cause, context: context)
     }
 }

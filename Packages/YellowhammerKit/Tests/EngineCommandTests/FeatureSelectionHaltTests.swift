@@ -20,7 +20,7 @@ struct FeatureSelectionHaltTests {
         let boards = try await makeBuildActBoards()
         let feature = try #require(FeatureName(rawValue: "FEAT-1"))
         let selector = ScriptedFeatureSelector(
-            outcome: .halted(feature: feature, reason: .noBackwardCompatibleSeam(seam: "the shared endpoint"))
+            outcome: .halted(feature: feature, cause: .noBackwardCompatibleSeam(seam: "the shared endpoint"))
         )
         let transaction = ScriptedSelectedFeatureAuthoring()
         let workspace = ReconcilerFakeWorkspace()
@@ -122,7 +122,7 @@ struct FeatureSelectionHaltTests {
 
         for _ in 0..<2 {
             let selector = ScriptedFeatureSelector(
-                outcome: .halted(feature: feature, reason: .repositoriesUndetermined)
+                outcome: .halted(feature: feature, cause: .repositoriesUndetermined)
             )
             let selection = FeatureSelection(selector: selector)
             let (context, runID) = try makeSelectionContext(
@@ -192,7 +192,7 @@ struct FeatureSelectionHaltTests {
         let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
         let feature = try #require(FeatureName(rawValue: "FEAT-1"))
         let selector = ScriptedFeatureSelector(
-            outcome: .halted(feature: feature, reason: .repositoriesUndetermined)
+            outcome: .halted(feature: feature, cause: .repositoriesUndetermined)
         )
         let selection = FeatureSelection(selector: selector)
 
