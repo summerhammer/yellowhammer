@@ -1073,7 +1073,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   Refusal; a citation supplied after expiry returns the Feature to contention; a clean authoring
   run resets the count without answering; a repeat stop appends rather than duplicates.
 
-### [ ] P9.9 Predecessor gate: definition, released Features, durable landings
+### [x] P9.9 Predecessor gate: definition, released Features, durable landings
 - **Work**
   - Run the ancestry pass every Night, before and independently of the in-flight skip. The skip
     decides whether this Night authors, never whether the Act reads mainline. The pass opens no
