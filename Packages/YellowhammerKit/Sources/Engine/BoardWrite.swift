@@ -21,6 +21,11 @@ public enum BoardWrite: Codable, Equatable, Sendable {
     /// belongs to cannot complete — an adopted Card's previous parent, for instance.
     case updateIssue(issue: BoardObjectID, change: BoardIssueChange, undo: BoardIssueChange?)
     case archiveIssue(issue: BoardObjectID)
+    /// Adopts an existing Card into a Feature Issue accepted in the same group (roadmap P9.4): at
+    /// delivery `parentKey` resolves to that Feature Issue's created id and the Card is re-parented to
+    /// it. `undo` is what a rollback applies — the Card's previous parent. Additive: it never changes how
+    /// any earlier case encodes or decodes.
+    case adoptIssue(issue: BoardObjectID, parentKey: String, undo: BoardIssueChange?)
 
     /// The operation as the Journal names it.
     public var operation: String {
@@ -31,6 +36,7 @@ public enum BoardWrite: Codable, Equatable, Sendable {
         case .rewriteManagedBlock: "descriptionRewrite"
         case .updateIssue: "issueUpdate"
         case .archiveIssue: "issueArchive"
+        case .adoptIssue: "issueUpdate"
         }
     }
 
@@ -40,7 +46,7 @@ public enum BoardWrite: Codable, Equatable, Sendable {
         case .createIssue:
             nil
         case .createComment(let issue, _), .attachLink(let issue, _, _), .rewriteManagedBlock(let issue, _),
-             .updateIssue(let issue, _, _), .archiveIssue(let issue):
+             .updateIssue(let issue, _, _), .archiveIssue(let issue), .adoptIssue(let issue, _, _):
             issue
         }
     }
@@ -49,7 +55,7 @@ public enum BoardWrite: Codable, Equatable, Sendable {
     var isCreate: Bool {
         switch self {
         case .createIssue, .createComment, .attachLink: true
-        case .rewriteManagedBlock, .updateIssue, .archiveIssue: false
+        case .rewriteManagedBlock, .updateIssue, .archiveIssue, .adoptIssue: false
         }
     }
 }

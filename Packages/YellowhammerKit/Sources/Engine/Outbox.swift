@@ -100,6 +100,12 @@ public struct Outbox: Sendable {
         return OutboxDelivery(entry: entry, outcome: .deferred(.behindAnotherEntry))
     }
 
+    /// The Journal drafts for `writes` as one group — what ``acceptGroup(_:key:)`` accepts, for a caller
+    /// that must accept the group together with a Journal event of its own.
+    func drafts(_ writes: [OutboxWrite], groupID: String) throws -> [OutboxDraft] {
+        try writes.map { try draft($0, groupID: groupID) }
+    }
+
     private func draft(_ write: OutboxWrite, groupID: String?) throws -> OutboxDraft {
         if case .updateIssue(_, let change, _) = write.write, change.description != nil {
             throw OutboxError.descriptionNotFenced(key: write.key)
@@ -217,6 +223,10 @@ public struct Outbox: Sendable {
             return .updated
         case .archiveIssue(let issue):
             try await board.archiveIssue(issue)
+            return .updated
+        case .adoptIssue(let issue, let parentKey, _):
+            let parent = try parentID(forKey: parentKey, of: entry)
+            _ = try await board.updateIssue(issue, BoardIssueChange(parent: .set(parent)))
             return .updated
         }
     }

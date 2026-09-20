@@ -176,6 +176,16 @@ extension JournalEvent {
                 reasonKind: try reader.require("reason_kind"),
                 detail: reader.payload?["detail"]
             )
+        case .featureAuthoringAccepted:
+            .featureAuthoringAccepted(try FeatureAuthoringAcceptedPayload.decode(reader))
+        case .featureAuthored:
+            try Self.decodeFeatureAuthored(reader)
+        case .featureAuthoringFailed:
+            .featureAuthoringFailed(
+                name: try reader.require("name"),
+                groupKey: try reader.require("group_key"),
+                reason: try reader.require("reason")
+            )
         }
     }
 

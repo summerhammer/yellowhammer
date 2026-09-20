@@ -44,9 +44,12 @@ final class ScriptedSelectedFeatureAuthoring: SelectedFeatureAuthoring, Sendable
     var lastSelection: SelectedFeature? { state.withLock { $0.selection } }
     var callCount: Int { state.withLock { $0.callCount } }
 
-    func author(_ selection: SelectedFeature, context: ActContext) async throws {
+    func author(_ selection: SelectedFeature, context: ActContext) async throws -> FeatureAuthoringOutcome {
         state.withLock { $0.selection = selection; $0.callCount += 1 }
+        return .authored
     }
+
+    func resumeUnfinished(_ context: ActContext) async throws -> FeatureAuthoringOutcome? { nil }
 }
 
 /// Builds an `ActContext` for calling `FeatureSelection.selectAndAuthor` directly, mirroring

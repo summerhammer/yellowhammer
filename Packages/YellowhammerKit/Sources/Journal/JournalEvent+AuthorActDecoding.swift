@@ -49,4 +49,15 @@ extension JournalEvent {
         )
         return .featureSelected(payload)
     }
+
+    static func decodeFeatureAuthored(_ reader: PayloadReader) throws -> JournalEvent {
+        .featureAuthored(FeatureAuthoredPayload(
+            name: try reader.require("name"),
+            groupKey: try reader.require("group_key"),
+            featureIssueID: try reader.require("feature_issue_id"),
+            cycleID: try reader.int64("cycle_id"),
+            cardCount: try reader.int("card_count"),
+            adoptedCount: try reader.int("adopted_count")
+        ))
+    }
 }

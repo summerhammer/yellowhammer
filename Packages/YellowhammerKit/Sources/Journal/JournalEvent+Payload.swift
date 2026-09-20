@@ -259,6 +259,16 @@ extension JournalEvent {
                 }
                 return dict
             }()
+        case .featureAuthoringAccepted(let payload):
+            payload.eventPayload
+        case .featureAuthored(let payload):
+            [
+                "name": payload.name, "group_key": payload.groupKey, "feature_issue_id": payload.featureIssueID,
+                "cycle_id": String(payload.cycleID), "card_count": String(payload.cardCount),
+                "adopted_count": String(payload.adoptedCount)
+            ]
+        case .featureAuthoringFailed(let name, let groupKey, let reason):
+            ["name": name, "group_key": groupKey, "reason": reason]
         case .checkRan(let cardID, let issueID, let attemptID, let result, let exitStatus, let output):
             {
                 var dict: [String: String] = [
