@@ -75,6 +75,9 @@ enum JournalMigrations {
         migrator.registerMigration("v15-refusal") { db in
             try createRefusalTable(db)
         }
+        migrator.registerMigration("v16-cycle-landed") { db in
+            try addCycleLandedAtColumn(db)
+        }
         return migrator
     }
 }

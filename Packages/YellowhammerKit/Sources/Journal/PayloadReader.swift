@@ -118,6 +118,22 @@ struct PayloadReader: Sendable {
         return pass
     }
 
+    func landStep(_ key: String) throws -> LandStep {
+        let text = try require(key)
+        guard let step = LandStep(rawValue: text) else {
+            throw JournalError.eventUnreadable(id: rowID)
+        }
+        return step
+    }
+
+    func landStepOutcome(_ key: String) throws -> LandStepOutcome {
+        let text = try require(key)
+        guard let outcome = LandStepOutcome(rawValue: text) else {
+            throw JournalError.eventUnreadable(id: rowID)
+        }
+        return outcome
+    }
+
     func route() throws -> Route {
         guard let route = Route(
             cli: try require("route_cli"), model: try require("route_model"), effort: try require("route_effort")

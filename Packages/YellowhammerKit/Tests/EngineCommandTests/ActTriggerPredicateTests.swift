@@ -313,6 +313,38 @@ func archivedCycleNotInFlightLand() throws {
     #expect(outcome == .notMet(.noFeatureInFlight))
 }
 
+// MARK: - Already-Landed Cycle Tests (roadmap P10.1; risks OQ8, once per Cycle)
+
+@Test("a landed Cycle is not met for land, even with only finished Cards")
+func landedCycleNotMetForLand() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+
+    let cycleID = try insertFixtureCard(journal, issueID: "CARD-1", state: .done).cycleID
+    let runID = RunID()
+    try claimLease(journal, runID: runID, act: .land)
+    try journal.markCycleLanded(cycleID: cycleID, runID: runID, now: epoch)
+
+    let outcome = try ActTriggerPredicate.evaluate(act: .land, trigger: .scheduled, journal: journal)
+
+    #expect(outcome == .notMet(.cycleAlreadyLanded))
+}
+
+@Test("a landed Cycle is not met for build, even with a Todo Card")
+func landedCycleNotMetForBuild() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+
+    let cycleID = try insertFixtureCard(journal, issueID: "CARD-1", state: .todo).cycleID
+    let runID = RunID()
+    try claimLease(journal, runID: runID, act: .land)
+    try journal.markCycleLanded(cycleID: cycleID, runID: runID, now: epoch)
+
+    let outcome = try ActTriggerPredicate.evaluate(act: .build, trigger: .scheduled, journal: journal)
+
+    #expect(outcome == .notMet(.cycleAlreadyLanded))
+}
+
 // MARK: - Forced Trigger Tests
 
 @Test("forced trigger overrides false predicate for author")

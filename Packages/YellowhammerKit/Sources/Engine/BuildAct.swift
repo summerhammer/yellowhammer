@@ -21,8 +21,9 @@ import Repositories
 /// 5. Writes back (delivers pending Outbox entries) and returns; the invocation records `ActEnded` and
 ///    releases the lease.
 ///
-/// A forced build with no Feature in flight fires but does no work: it appends `.actIdle` and returns,
-/// because `EngineInvocation` only guards this when the trigger is not forced.
+/// A forced build with no Feature in flight, or whose in-flight Cycle already landed (roadmap P10.1;
+/// risks OQ8, once per Cycle), fires but does no work: it appends `.actIdle` and returns, because
+/// `EngineInvocation` only guards these when the trigger is not forced.
 public struct BuildAct: Sendable {
     public let cardRunner: any CardRunner
     /// The Readiness Check run before each Card is dispatched (P8.2); nil keeps the lane's pre-P8.2
@@ -58,6 +59,12 @@ public struct BuildAct: Sendable {
         guard let (feature, cycleID) = try journal.inFlightFeature() else {
             try journal.append(
                 .actIdle(reason: .noFeatureInFlight), act: context.act, runID: context.runID, nightID: context.night.id
+            )
+            return
+        }
+        if try journal.isCycleLanded(cycleID: cycleID) {
+            try journal.append(
+                .actIdle(reason: .cycleAlreadyLanded), act: context.act, runID: context.runID, nightID: context.night.id
             )
             return
         }
