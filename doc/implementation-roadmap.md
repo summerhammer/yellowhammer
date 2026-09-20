@@ -992,7 +992,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Rehearsal tests check the clause line format, the Journal rows, and the
   thin-spec refusal path. Clause content is not asserted.
 
-### [ ] P9.6 Architectural Briefs and Transcription Blocks
+### [x] P9.6 Architectural Briefs and Transcription Blocks
 - **Work**
   - Author a brief per Card inside the Managed Block, separate from the DoD.
   - For a Card that consumes a contract from another repository (or content from the Spec Source),
