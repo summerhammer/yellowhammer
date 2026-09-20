@@ -1,6 +1,12 @@
 # Yellowhammer — Implementation Roadmap
 
-Built against `../yellowhammer-spec` @ `eea7711` (2026-09-15).
+Built against `../yellowhammer-spec` @ `bfb7314` (2026-09-20).
+
+Steps marked **Amended 2026-09-20** were re-opened by the spec's *Authoring Halt Ruling*
+(`risks.md` → Authoring Halt Ruling — 2026-09-20; OQ61–OQ64), written against the P9.1–P9.7 pull
+requests. They shipped against an earlier spec and are corrected by a later step, named on the
+amendment line. A shipped step is never silently rewritten: the correction is its own step, so it is
+its own layer and its own pull request.
 
 This roadmap lists **what** has to be built and **in what order**. It holds no implementation
 advice and makes no architectural decisions. Where the spec leaves a decision open, the roadmap
@@ -27,6 +33,9 @@ disagreement is a defect in this file.
     bounded adapters, CLI surfaces and app screens; Sonnet for scripted `[DevOps]` steps. Where a
     step lists `Gemini Flash 3.8 Medium` as an alternative, the work is scripted, templated or a
     thin wrapper over a documented tool, and a cheap model is acceptable.
+  - **Amends** — *(corrections only)* the already-shipped steps this one corrects, each of which
+    carries the matching **Amended** line. A correction is its own step so it is its own layer; the
+    step it corrects keeps its `[x]`.
 - **Every acceptance criterion in a cited story is part of "done".** A "Done when" line picks out
   the key checks. It does not replace the story's criteria.
 - **DevOps** steps are marked `[DevOps]`. They sit where they are needed in the order, not in a
@@ -526,6 +535,8 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests show hash-skip, label-group exclusivity, and no writes to a
   Cancelled Card.
+- **Amended 2026-09-20** — the fence must not match a Managed Block delimiter inside a
+  Transcription Block; corrected in P9.10.
 
 ### [x] P5.7 Night Card open and close
 - **Work**
@@ -926,6 +937,8 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Spec** — `feature-authoring/select-the-next-feature`; risks.md OQ13 Facet 2.
 - **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests cover each quiet-Night reason, each recorded on the Night Card.
+- **Amended 2026-09-20** — the ancestry pass must run every Night, independent of the in-flight
+  skip; corrected in P9.9.
 
 ### [x] P9.2 Predecessor-ancestry gate
 - **Work**
@@ -942,6 +955,8 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Fable 5.1 Medium.
 - **Done when** — Fixture repositories with and without the predecessor merged give the right
   result. Pure local git, no model, no network.
+- **Amended 2026-09-20** — the predecessor's definition, released Features and durably recorded
+  landings; corrected in P9.9.
 
 ### [x] P9.3 Feature selection
 - **Work**
@@ -959,6 +974,9 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Fable 5.1 Medium.
 - **Done when** — Wiring tests show selection results are recorded and refusals produce Waiting on
   You with no dispatch. The quality of the selection itself is not asserted.
+- **Amended 2026-09-20** — three of the four stops listed here are Authoring Halts, not Refusals
+  (P9.8); the touched repositories are recorded on the Feature and read from there (P9.9); the
+  selector is reached through the Routing Table (P9.11).
 
 ### [x] P9.4 Authoring transaction: Feature, Cycle and Cards
 - **Work**
@@ -977,6 +995,8 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Fable 5.1 High.
 - **Done when** — Rehearsal tests: a forced failure mid-transaction leaves no issues; a resumed
   author Act creates no duplicates; Cards appear nested under the Feature Issue.
+- **Amended 2026-09-20** — a rolled-back transaction is an authoring fault, not a stop, and ends
+  the Act rather than failing it; corrected in P9.10.
 
 ### [x] P9.5 Citable Definitions of Done
 - **Work**
@@ -991,6 +1011,8 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests check the clause line format, the Journal rows, and the
   thin-spec refusal path. Clause content is not asserted.
+- **Amended 2026-09-20** — the thin-spec finding is the only Refusal, and must not be modelled as
+  an Authoring Halt; corrected in P9.8.
 
 ### [x] P9.6 Architectural Briefs and Transcription Blocks
 - **Work**
@@ -1003,6 +1025,8 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests check the block format and provenance fields. Brief content is not
   asserted.
+- **Amended 2026-09-20** — an unreadable contract is an Authoring Halt (P9.8), and a Transcription
+  Block's interior is opaque to the Managed Block fence as well as to its parser (P9.10).
 
 ### [x] P9.7 Refusal lifecycle at Feature level
 - **Work**
@@ -1014,6 +1038,105 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   Refusal.
 - **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal bound arithmetic with a small configured value.
+- **Amended 2026-09-20** — a clean authoring run resets the count without answering, `expired →
+  answered` is reachable, and a halt's position runs on the same clock; corrected in P9.8.
+
+### [ ] P9.8 Authoring Halt as its own object
+- **Work**
+  - Separate the Refusal from the Authoring Halt. Four causes halt: no backward-compatible seam,
+    repositories undeterminable, a repository outside this Project, an unreadable contract. The
+    thin-spec finding alone is a Refusal and alone carries the Refusal lifecycle. Neither type is
+    named after the other.
+  - Clock a halt's position on `unanswered_nights_max` on the same terms as a Refusal's: it expires
+    to Blocked under Block Reason `unanswered` with the halt's content intact. Position only —
+    nothing was spent. A halt never increments the consecutive-refusal count and is never promoted
+    by `consecutive_refusals_max`.
+  - A repeat halt re-enters the Feature Issue and appends its comment; no second Feature Issue and
+    no second workflow-state write. A halt has no answer-with-citation gesture: it is cleared off
+    the board and then forced.
+  - Separate a clean authoring run from an answer. A clean run resets that Feature's consecutive
+    count; only a supplied citation sets `answered`.
+  - Make `expired → answered` reachable on a Refusal: the citation moves the Feature out of Blocked
+    and back into contention, as it would from `open`. Refusals only — an `undecided` Divergence is
+    untouched.
+  - Report the two kinds differently wherever an authoring stop is written: a Refusal with its
+    uncitable clauses and re-selection depth, a halt with its cause and the repository or path
+    concerned. The word *refusal* is never rendered for a halt, and no halt carries a consecutive
+    count.
+- **Spec** — `feature-authoring/select-the-next-feature` (fourth story);
+  `feature-authoring/author-citable-definitions-of-done` (second story);
+  `bounds/bound-unanswered-nights`; glossary → Authoring Halt, Refusal, Block Reason; risks.md
+  OQ61, OQ62, Authoring Halt Ruling (2026-09-20) items 1, 7, 10, 11.
+- **Amends** — P9.3, P9.5, P9.7.
+- **Agent** — Fable 5.1 Medium.
+- **Done when** — Rehearsal bound arithmetic with a small configured value expires a halt and a
+  Refusal; a citation supplied after expiry returns the Feature to contention; a clean authoring
+  run resets the count without answering; a repeat stop appends rather than duplicates.
+
+### [ ] P9.9 Predecessor gate: definition, released Features, durable landings
+- **Work**
+  - Run the ancestry pass every Night, before and independently of the in-flight skip. The skip
+    decides whether this Night authors, never whether the Act reads mainline. The pass opens no
+    lane, consumes no Attempt and updates no pull request.
+  - Record the repositories a Feature touches on the Feature itself, at selection. That record is
+    what the gate and the merged fraction read — never a set derived from its Cards, which shrinks
+    under cancellation and Adoption while the gate must not move.
+  - Define the predecessor as this Project's most recent Feature that has left flight by
+    verification passing or by the Operator merging. Returned, Blocked or half-triaged has not left
+    flight. On the first Night of a Project there is no predecessor and the gate is open.
+  - Skip a Feature abandoned by `release` entirely: it is no longer anyone's predecessor and the
+    walk moves on. It satisfies the gate for no repository and never enters the merged fraction.
+  - Record a landing durably the first time it is observed: per repository, the mainline commit that
+    contains the Feature Branch. The gate reads that record afterwards, so a deleted ref after a
+    recorded landing changes nothing. A ref absent with no landing recorded reads *indeterminate*:
+    author nothing and name the repository.
+- **Spec** — `feature-authoring/select-the-next-feature` (third story); `landing/overview`;
+  `morning-report/triage-the-morning`; ooux/object-guide.md → Feature; risks.md OQ63, Authoring
+  Halt Ruling (2026-09-20) items 5, 6, 12.
+- **Amends** — P9.1, P9.2, P9.3.
+- **Agent** — Fable 5.1 High.
+- **Done when** — Fixture repositories cover an in-flight Feature whose ancestry is still observed,
+  a released predecessor skipped by the walk, a landing recorded and its ref then deleted, and a ref
+  absent with no landing recorded. Pure local git, no model, no network.
+
+### [ ] P9.10 Authoring faults, and Transcription Block opacity in the fence
+- **Work**
+  - A rolled-back authoring transaction — a breakdown validation rejection such as a briefless Card
+    included — ends the author Act without authoring, and is recorded on the Night Card as an
+    exception. Nothing is on the board, so it names no Feature card, is never reported as a halt,
+    and never fails the invocation.
+  - An accepted but not fully delivered transaction stays the Outbox's to replay: never reported as
+    a halt, and the author Act does not re-select.
+  - Mask a Transcription Block's interior in the Managed Block fence, as the block's parser already
+    does. Nothing between a Transcription Block's delimiters is read as a Managed Block delimiter,
+    a clause marker or a member row.
+- **Spec** — `feature-authoring/author-the-cycle-and-card-dag` (first story);
+  `feature-authoring/author-an-architectural-brief`;
+  `board-projection/maintain-the-managed-block` (first story); glossary → Transcription Block;
+  risks.md Authoring Halt Ruling (2026-09-20) items 2, 9.
+- **Amends** — P5.6, P9.4, P9.6.
+- **Agent** — Fable 5.1 Medium.
+- **Done when** — A rejected breakdown closes the Night cleanly with an exception on the Night Card
+  and no board writes; a description whose Transcription Block contains a Managed Block delimiter
+  still writes.
+
+### [ ] P9.11 The author Act's route
+- **Work**
+  - Resolve the author Act's model through the Routing Table, under a reserved authoring Kind
+    carrying no Repo Role, and dispatch it as an agent CLI with the configured fallback order. The
+    `(Kind, Repo Role)` key shape, the merge rule and resolution are unchanged: this adds one entry,
+    not a second table or a second resolution path.
+  - No dispatch in the product bypasses the table. The Operator can re-point authoring like any
+    other route, and nothing about it is hard-coded.
+  - A Rehearsal Night therefore substitutes nothing special: selection and breakdown are agent CLI
+    dispatches, fixtured by the rule that already exists.
+- **Spec** — `routing/overview`; `feature-authoring/select-the-next-feature` (first story);
+  glossary → Kind, Rehearsal Night; risks.md OQ64, Authoring Halt Ruling (2026-09-20) item 13.
+- **Amends** — P2.4, P7.6, P8.11, P9.3.
+- **Agent** — Fable 5.1 Medium.
+- **Done when** — Route resolution covers the authoring Kind with no Repo Role; re-pointing that
+  entry in a per-Project override changes the route the author Act resolves; a rehearsal author Act
+  takes its selection result from a fixture and dispatches no agent CLI.
 
 ---
 
@@ -1121,7 +1244,12 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     Landing, offer `release` only.
   - `release` abandons the unmerged pull requests on our side and salvages unfinished Cards exactly
     as the merge does.
-- **Spec** — `morning-report/triage-the-morning`; ooux/nav-flow.md (path 2).
+  - `release` also takes the Feature out of the predecessor-ancestry walk (P9.9). The gesture states
+    that second consequence before the Operator chooses, because it is the one that changes what
+    gets built — and never implies the abandoned work landed: releasing satisfies the gate for no
+    repository and is never counted in the merged fraction.
+- **Spec** — `morning-report/triage-the-morning`; `landing/overview`; ooux/nav-flow.md (path 2);
+  risks.md OQ63.
 - **Gate** — G-6 (where the gesture lives: Linear or the app).
 - **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests of both settle outcomes.
@@ -1198,6 +1326,10 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Work**
   - Refusal-drift promotion: consecutive refusals past the operator-set bound make a standing item.
     Nothing else changes.
+  - Every Bound is configured per Project; what each one counts is its own scope, and no Bound's
+    counter is Project-scoped. `consecutive_refusals_max` counts one Feature's consecutive Refusals
+    and resets on that Feature's clean authoring run. It counts Refusals only: an Authoring Halt
+    shares the `unanswered_nights_max` clock and never this count (P9.8).
   - Divergence promotion: consecutive failed adoptions past the bound make a standing item. Reset
     on a clean adoption.
   - Re-selection bound: ends the author Act's backlog walk for the Night.
@@ -1215,7 +1347,13 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Work** — Computed from the Project's Journal event table and written on the Night Card, every
   Night, including idle ones:
   - A constant-time verdict line.
-  - Quiet-Night reasons, including the unlanded predecessor with its repositories.
+  - Quiet-Night reasons, including the unlanded predecessor with its repositories, and the released
+    Feature whose work a successor is not built on.
+  - Every authoring stop, with the two kinds distinguishable: a Refusal by its uncitable clauses,
+    its re-selection depth and the Feature refused; an Authoring Halt by its cause and the
+    repository or path concerned.
+  - An authoring fault reported as an exception, never as a stop: the Act stood down, what it was
+    attempting, and no Feature card named.
   - Per Card touched: route, Check result (including model-alone greens), Rounds with lenses.
   - Blocked versus Waiting on You counts, and recurrences versus first occurrences.
   - Pull requests opened per repository, Partial Landing flags.
@@ -1248,7 +1386,9 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Derive the roll-up state from Card states and Repo Lane completion, with fallback to the Feature
     Issue's own state when there are no Cards.
   - Render the fixed sentence shapes for the running and closed halves, the zero-Card templates, the
-    `no live Cards · <c> cancelled` absence case, and Mainline Conflicts beside the sentence.
+    `no live Cards · <c> cancelled` absence case, and Mainline Conflicts beside the sentence. The
+    zero-Card templates cover the Authoring Halt forms as well as the Refusal ones, and the word
+    `refusal` is never rendered for a halt.
   - State-sorted member list grouped by Repo Lane, with adopted, banked-answer and Cancelled
     markers; Cancelled at the bottom.
   - A single Blocked Card always dominates and is counted.
@@ -1578,21 +1718,21 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 | `loop-state/record-failure-cause-recurrence` | P8.8 |
 | `board-projection/write-board-updates-through-the-outbox` | P5.4 |
 | `board-projection/read-board-changes-by-delta` | P5.5, P11.2, P11.3 |
-| `board-projection/maintain-the-managed-block` | P5.6, P12.3, P11.3 |
+| `board-projection/maintain-the-managed-block` | P5.6, P9.10, P12.3, P11.3 |
 | `board-projection/check-card-readiness-at-dispatch` | P8.2, P6.4 |
-| `routing/resolve-a-route-for-a-card` | P2.4, P7.6 |
+| `routing/resolve-a-route-for-a-card` | P2.4, P7.6, P9.11 |
 | `routing/exclude-tried-routes-on-retry` | P7.7 |
 | `routing/add-an-agent-cli` | P2.3, P7.2, P7.3, P7.4, P7.5 |
-| `feature-authoring/select-the-next-feature` | P9.1, P9.2, P9.3, P11.5, P11.6 |
-| `feature-authoring/author-the-cycle-and-card-dag` | P9.4, P11.5 |
-| `feature-authoring/author-citable-definitions-of-done` | P9.5, P9.7, P8.2 |
-| `feature-authoring/author-an-architectural-brief` | P9.6, P6.5, P8.2 |
+| `feature-authoring/select-the-next-feature` | P9.1, P9.2, P9.3, P9.8, P9.9, P9.11, P11.5, P11.6 |
+| `feature-authoring/author-the-cycle-and-card-dag` | P9.4, P9.10, P11.5 |
+| `feature-authoring/author-citable-definitions-of-done` | P9.5, P9.7, P9.8, P8.2 |
+| `feature-authoring/author-an-architectural-brief` | P9.6, P9.10, P6.5, P8.2 |
 | `graph-execution/allocate-a-worktree-per-graph-and-repo` | P6.7 |
 | `graph-execution/run-a-card` | P7.1, P7.2, P8.4, P8.6, P8.7, P8.9 |
 | `graph-execution/gate-a-card-on-the-repository-check` | P2.3, P8.5 |
 | `graph-execution/handle-a-block-mid-graph` | P8.9, P10.4 |
 | `bounds/bound-review-rounds-and-attempts` | P8.6, P8.7 |
-| `bounds/bound-unanswered-nights` | P11.4, P2.3 |
+| `bounds/bound-unanswered-nights` | P11.4, P9.8, P2.3 |
 | `bounds/escalate-a-question-to-the-operator` | P11.1, P11.2, P5.8 |
 | `bounds/refuse-protected-paths-before-dispatch` | P8.3 |
 | `landing/open-one-pull-request-per-repository` | P10.1, P10.2, P10.3, P10.4 |
@@ -1600,7 +1740,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 | `verification/verify-a-feature-clause-by-clause` | P10.5 |
 | `verification/return-a-feature-with-unmet-clauses` | P10.6 |
 | `verification/archive-the-cycle-on-a-verified-feature` | P10.7 |
-| `morning-report/write-the-night-summary` | P12.1 |
+| `morning-report/write-the-night-summary` | P12.1, P9.8 |
 | `morning-report/report-the-instrumented-rates` | P12.2 |
 | `morning-report/notify-the-operator-of-exceptions` | P12.4, P12.5 |
-| `morning-report/triage-the-morning` | P10.8, P10.9, P12.3, P16.8 |
+| `morning-report/triage-the-morning` | P10.8, P10.9, P9.9, P12.3, P16.8 |
