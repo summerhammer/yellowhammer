@@ -276,6 +276,8 @@ extension JournalEvent {
             ]
         case .featureAuthoringFailed(let name, let groupKey, let reason):
             ["name": name, "group_key": groupKey, "reason": reason]
+        case .featureBreakdownRejected(let name, let reason):
+            ["name": name, "reason": reason]
         case .checkRan(let cardID, let issueID, let attemptID, let result, let exitStatus, let output):
             {
                 var dict: [String: String] = [

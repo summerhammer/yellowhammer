@@ -85,6 +85,13 @@ actor FakeWritingBoard: BoardWriting {
         scripts[titleOrBody] = script
     }
 
+    /// Clears a scripted refusal set by ``script(_:for:)`` — unlike `.loseResponse`, `.refuse` does not
+    /// clear itself on its own, since a real refusal (unlike a lost response) repeats on every retry
+    /// until whatever caused it is gone.
+    func clearScript(for titleOrBody: String) {
+        scripts[titleOrBody] = nil
+    }
+
     func refuseNext(_ error: BoardError) {
         refusals.append(error)
     }

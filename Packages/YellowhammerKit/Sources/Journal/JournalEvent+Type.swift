@@ -151,6 +151,8 @@ extension JournalEvent {
             .featureAuthored
         case .featureAuthoringFailed:
             .featureAuthoringFailed
+        case .featureBreakdownRejected:
+            .featureBreakdownRejected
         case .refusalOpened:
             .refusalOpened
         case .refusalRepeated:

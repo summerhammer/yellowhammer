@@ -39,9 +39,12 @@ public enum FeatureAuthoringOutcome: Equatable, Sendable {
     /// P9.5, P9.8; glossary: Refusal). Not a halt: recorded and routed to Waiting on You by
     /// ``RefusalRecording``. A quiet Night for this Act.
     case refused
-    /// Authoring was attempted and the whole transaction was rolled back (roadmap P9.4): no Feature
-    /// Issue, Card, Cycle or row was left behind, and the failure is recorded on the Night Card. Like a
-    /// halt, a quiet Night for this Act — the next author Act authors afresh.
+    /// Authoring was attempted and the whole transaction was rolled back (roadmap P9.4, P9.10): no
+    /// Feature Issue, Card, Cycle or row was left behind, and the fault is recorded on the Night Card.
+    /// Covers both a board rollback of an accepted group and a breakdown `FeatureBreakdownValidation`
+    /// rejected before anything was ever accepted into the Outbox — an authoring fault, not a halt: it
+    /// touches no Authoring Halt row and no Refusal. Like a halt, the Act itself still ends normally — a
+    /// quiet Night for this Act — and the next author Act authors afresh.
     case authoringRolledBack
     /// Authoring was accepted but not yet fully delivered — the board's rate limit, a transient outage or
     /// a lost Card Lease deferred it. Nothing is written to the Journal's Feature, Cycle or Card rows

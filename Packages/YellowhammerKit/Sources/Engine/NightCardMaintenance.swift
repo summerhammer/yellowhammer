@@ -144,14 +144,15 @@ public struct NightCardMaintenance: Sendable {
 
     /// Puts this Night's quiet authoring reasons (P9.1) on the Night Card right away, rather than
     /// waiting for completion: the author Act found a Feature already in flight, a predecessor not
-    /// landed, or nothing selectable. A no-op when there is nothing new to say, or no Night Card yet
-    /// recorded (this Act's own `open` failed, which would already have thrown). The rewrite's key is
+    /// landed, or nothing selectable. A no-op when there is no Night Card yet recorded (this Act's own
+    /// `open` failed, which would already have thrown). Rendered fresh from every recorded finding each
+    /// time it runs — never incrementally — so an accepted-but-undelivered line (roadmap P9.10) that
+    /// resolves later in the same Night disappears on the next Act's render. The rewrite's key is
     /// derived from the rendered block's hash, like the completion summary's, so a repeat of the same
-    /// finding this Night (a forced re-run) is idempotent.
+    /// findings this Night (a forced re-run, or nothing new to say) is idempotent.
     public func recordAuthoring(night: NightRecord) throws {
         guard let issueID = night.nightCardIssueID else { return }
         let findings = try authoringLines(night: night)
-        guard !findings.isEmpty else { return }
         let rendered = NightCardBlock.opened(night: night, projectID: journal.projectID, authoringFindings: findings)
         let hash = ManagedBlockFence.sha256(rendered)
         let write = OutboxWrite(
@@ -162,14 +163,40 @@ public struct NightCardMaintenance: Sendable {
     }
 
     /// This Night's quiet authoring reasons (P9.1), one line each, deduplicated (a forced re-run may
-    /// record the same reason twice in one Night) and in the order the Journal recorded them.
+    /// record the same reason twice in one Night) and in the order the Journal recorded them — plus, for
+    /// every `featureAuthoringAccepted` plan this Night with no later `featureAuthored` /
+    /// `featureAuthoringFailed` for the same group key, a line saying the board is still being written
+    /// (roadmap P9.10): decided here, not in ``authoringLine(for:)`` alone, because whether a plan is
+    /// still pending depends on the *rest* of this Night's events — so the line disappears on a later
+    /// render of the same Night once the plan resolves.
     private func authoringLines(night: NightRecord) throws -> [String] {
         var seen: Set<String> = []
         var lines: [String] = []
+        var acceptedOrder: [String] = []
+        var acceptedPlans: [String: FeatureAuthoringAcceptedPayload] = [:]
+        var resolvedGroupKeys: Set<String> = []
         for record in try journal.events() where record.nightID == night.id {
-            guard let line = Self.authoringLine(for: record.event) else { continue }
-            guard seen.insert(line).inserted else { continue }
-            lines.append(line)
+            if let line = Self.authoringLine(for: record.event), seen.insert(line).inserted {
+                lines.append(line)
+            }
+            switch record.event {
+            case .featureAuthoringAccepted(let plan):
+                if acceptedPlans[plan.groupKey] == nil { acceptedOrder.append(plan.groupKey) }
+                acceptedPlans[plan.groupKey] = plan
+            case .featureAuthored(let payload):
+                resolvedGroupKeys.insert(payload.groupKey)
+            case .featureAuthoringFailed(_, let groupKey, _):
+                resolvedGroupKeys.insert(groupKey)
+            default:
+                break
+            }
+        }
+        for groupKey in acceptedOrder where !resolvedGroupKeys.contains(groupKey) {
+            guard let plan = acceptedPlans[groupKey] else { continue }
+            lines.append("""
+                Authoring Feature `\(plan.name)` was accepted onto the board but is not yet fully \
+                delivered: the board is still being written. Not a halt.
+                """)
         }
         return lines
     }
@@ -212,14 +239,24 @@ public struct NightCardMaintenance: Sendable {
                 Feature `\(name)` was refused: its specification was too thin to cite a Definition of \
                 Done.\(named) Re-selection depth: \(depth). A quiet Night, not a failure.
                 """
-        case .featureAuthoringFailed(let name, _, let reason):
-            return """
-                Authoring failed for Feature `\(name)` and was rolled back: \(reason). No partial board was \
-                left behind; the next author Act authors it afresh.
-                """
+        case .featureAuthoringFailed(let name, _, let reason), .featureBreakdownRejected(let name, let reason):
+            return authoringFaultLine(feature: name, reason: reason)
         default:
             return nil
         }
+    }
+
+    /// The exception wording an authoring fault reads as (roadmap P9.10): a rolled-back Outbox group
+    /// and a breakdown validation rejection say exactly the same thing — neither ever wrote to the
+    /// board, so there is no Feature card to open and nothing to answer, and the author Act stood down
+    /// without authoring. Never "halt"; never "A quiet Night, not a failure" (that phrase is reserved
+    /// for a quiet skip, not a fault).
+    private static func authoringFaultLine(feature name: String, reason: String) -> String {
+        """
+        Authoring Feature `\(name)` failed: \(reason). Nothing was written to the board, so there is no \
+        Feature card to open and nothing to answer; the author Act stood down without authoring. The \
+        next author Act authors it afresh.
+        """
     }
 }
 
