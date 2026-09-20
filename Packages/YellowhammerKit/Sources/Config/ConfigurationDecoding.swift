@@ -119,6 +119,12 @@ struct ConfigurationDecoding {
         }
         var repoRole = RepoRoleMatch.any
         if let string = try optionalString("repo_role", in: table, path: path), string != "*" {
+            guard !kind.isReservedForAuthoring else {
+                throw error(
+                    line: table["repo_role"]?.line ?? table.line, key: "\(path).repo_role",
+                    .reservedKindNamesRepoRole(kind: kind.description)
+                )
+            }
             repoRole = .role(RepoRole(rawValue: string))
         }
         guard let routeValue = table["route"] else {

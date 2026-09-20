@@ -1,0 +1,14 @@
+id = "routing-authoring-repo-role"
+name = "Routing Authoring Repo Role"
+linear_project = "RA"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"
+
+[[routing]]
+kind = "authoring"
+repo_role = "backend"
+route = "claude/sonnet"

@@ -15,6 +15,9 @@ public struct ConfigurationError: Error, Equatable, Sendable {
         case invalidKind(String)
         case invalidRoute(String)
         case duplicateRoutingEntry(firstLine: Int)
+        /// A Routing Entry for the Kind reserved for the author Act names a Repo Role: the author Act
+        /// resolves with no Repo Role, so such an entry could never match.
+        case reservedKindNamesRepoRole(kind: String)
         case invalidProjectID(String)
         case projectIDMismatch(fileStem: String)
         case emptyArray
@@ -77,6 +80,9 @@ extension ConfigurationError.Reason: CustomStringConvertible {
             return "expected \"cli/model\" or \"cli/model/effort\", got \"\(value)\""
         case .duplicateRoutingEntry(let firstLine):
             return "a Routing Entry for the same Kind and Repo Role is already defined on line \(firstLine)"
+        case .reservedKindNamesRepoRole(let kind):
+            return "Kind \"\(kind)\" is reserved for the author Act, which resolves with no Repo Role; "
+                + "remove repo_role (or use \"*\") so the entry can match"
         case .invalidProjectID(let value):
             return "Project ID must contain only letters, digits, underscores, and hyphens, got \"\(value)\""
         case .projectIDMismatch(let fileStem):

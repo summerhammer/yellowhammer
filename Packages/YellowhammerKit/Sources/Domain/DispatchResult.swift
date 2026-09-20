@@ -1,8 +1,20 @@
-/// The three internal passes of one dispatch: architect plans, worker executes, reviewer judges.
+/// The passes of one dispatch: architect plans, worker executes, reviewer judges — and, for the author
+/// Act (roadmap P9.11), selection chooses the next Feature and breakdown drafts its Cards. The last two
+/// dispatch under the reserved authoring Kind and are read-only, like architect and reviewer.
 public enum RunPass: String, CaseIterable, Sendable, Codable {
     case architect
     case worker
     case reviewer
+    case selection
+    case breakdown
+
+    /// True for the two author Act passes, which run no Card and no Worktree.
+    public var isAuthoring: Bool {
+        switch self {
+        case .selection, .breakdown: true
+        case .architect, .worker, .reviewer: false
+        }
+    }
 
     /// The `schema` value every result file for this pass must declare, e.g. `yellowhammer.result.worker`.
     public var schemaIdentifier: String { "yellowhammer.result.\(rawValue)" }

@@ -43,15 +43,9 @@ func actOpensOnlyItsOwnJournal(_ act: Act) async throws {
     try directory.writeValidProjectFile(id: "beta")
 
     // Force build and land Acts because this test is about Journal scoping, not trigger predicates.
-    // The build and land Acts' work has landed (P8.1, P10.1): on an empty Journal each completes
-    // doing nothing.
-    if act == .build || act == .land {
-        try await runAct(act, project: "alpha", in: directory, force: true)
-    } else {
-        await #expect(throws: EngineInvocationError.notImplemented(act)) {
-            try await runAct(act, project: "alpha", in: directory, force: act != .author)
-        }
-    }
+    // Every Act's work has landed (P8.1, P9.11, P10.1): on an empty Journal each completes doing
+    // nothing (the author Act's selection finds no Route it can run and ends as an authoring fault).
+    try await runAct(act, project: "alpha", in: directory, force: act != .author)
 
     #expect(try journalFiles(in: directory) == ["alpha.db"])
 }
@@ -128,27 +122,14 @@ func invocationReleasesOnExit(_ act: Act) async throws {
     try directory.writeValidProjectFile(id: "alpha")
     let projectID = try #require(ProjectID(rawValue: "alpha"))
 
-    // Force build and land Acts because this test is about lease release, not trigger predicates. The
-    // build and land Acts' work has landed (P8.1, P10.1): on an empty Journal each completes doing
-    // nothing.
-    if act == .build || act == .land {
-        try await runAct(act, project: "alpha", in: directory, force: true)
-    } else {
-        await #expect(throws: EngineInvocationError.notImplemented(act)) {
-            try await runAct(act, project: "alpha", in: directory, force: act != .author)
-        }
-    }
+    // Force build and land Acts because this test is about lease release, not trigger predicates.
+    // Every Act's work has landed (P8.1, P9.11, P10.1): on an empty Journal each completes doing nothing.
+    try await runAct(act, project: "alpha", in: directory, force: act != .author)
 
     let journal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
     #expect(try journal.currentActLease() == nil)
     // And so the next firing of the same Project is not held off.
-    if act == .build || act == .land {
-        try await runAct(act, project: "alpha", in: directory, force: true)
-    } else {
-        await #expect(throws: EngineInvocationError.notImplemented(act)) {
-            try await runAct(act, project: "alpha", in: directory, force: act != .author)
-        }
-    }
+    try await runAct(act, project: "alpha", in: directory, force: true)
 }
 
 @Test("An invocation is scoped to the Project whose Journal it was given")

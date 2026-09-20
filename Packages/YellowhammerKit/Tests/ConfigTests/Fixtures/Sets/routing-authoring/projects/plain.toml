@@ -1,0 +1,10 @@
+id = "plain"
+name = "Plain"
+linear_project = "PLAIN"
+spec_source = "~/dev/spec"
+
+[[repos]]
+name = "backend"
+path = "~/dev/plain-backend"
+role = "backend"
+check = "swift test"

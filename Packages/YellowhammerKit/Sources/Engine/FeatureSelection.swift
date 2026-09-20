@@ -5,9 +5,11 @@ import Journal
 /// The model-authored judgement (roadmap P9.3; spec: feature-authoring/select-the-next-feature): reads
 /// the specification and the Project's repositories to choose one Feature, or says there is nothing to
 /// select, or that the Feature it chose cannot be authored. It judges; ``FeatureSelection`` validates
-/// what it returns and records it. No implementation ships in this phase.
+/// what it returns and records it. ``RoutedFeatureSelector`` is the agent CLI implementation; it throws
+/// ``AuthoringDispatchFault`` when no Route answered, which ``FeatureSelection`` records as an authoring
+/// fault. `context` is the Act's, for the Journal and the run.
 public protocol FeatureSelecting: Sendable {
-    func select(_ request: FeatureSelectionRequest) async throws -> FeatureSelectionOutcome
+    func select(_ request: FeatureSelectionRequest, context: ActContext) async throws -> FeatureSelectionOutcome
 }
 
 /// Authors a validated ``SelectedFeature`` — the Feature Issue, its Cards and its adoptions (P9.4–P9.7).
@@ -90,7 +92,19 @@ public struct FeatureSelection: FeatureAuthoring {
             adoptionCandidates: candidates
         )
 
-        switch try await selector.select(request) {
+        let outcome: FeatureSelectionOutcome
+        do {
+            outcome = try await selector.select(request, context: context)
+        } catch let fault as AuthoringDispatchFault {
+            // An authoring fault (roadmap P9.10, P9.11): no Feature was chosen and nothing was written to
+            // the board, so there is no halt, no Refusal and nothing to answer.
+            try context.journal.append(
+                .featureSelectionFailed(reason: fault.reason),
+                act: context.act, runID: context.runID, nightID: context.night.id
+            )
+            return .authoringRolledBack
+        }
+        switch outcome {
         case .noSelectableFeature:
             return .noWorkAvailable
         case .halted(let feature, let cause):

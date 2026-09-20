@@ -25,7 +25,7 @@ private func request(
     )
     return AgentDispatchRequest(
         runID: RunID(rawValue: "run-1")!, issueID: "BACK-1", attemptID: 7, route: route, pass: pass,
-        instruction: instruction, worktreePath: "/wt/backend", resumeSession: resumeSession,
+        instruction: .card(instruction), worktreePath: "/wt/backend", resumeSession: resumeSession,
         additionalWritableDirectories: ["/repos/backend/.git"]
     )
 }

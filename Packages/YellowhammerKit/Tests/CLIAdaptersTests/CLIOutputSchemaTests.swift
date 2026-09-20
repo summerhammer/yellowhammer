@@ -17,6 +17,8 @@ struct CLIOutputSchemaTests {
         case .architect: "reason"
         case .worker: "commit"
         case .reviewer: "requested_changes"
+        case .selection: "name"
+        case .breakdown: "cards"
         }
     }
 

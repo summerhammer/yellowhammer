@@ -1,0 +1,18 @@
+[linear]
+credential = "keychain:linear"
+client_id = "yellowhammer-client-id"
+[github]
+credential = "keychain:github"
+
+[cli.claude]
+
+[cli.codex]
+
+[[routing]]
+kind = "*"
+route = "claude/sonnet/medium"
+
+[[routing]]
+kind = "authoring"
+route = "claude/opus/high"
+fallbacks = ["codex/gpt-5.4/high"]

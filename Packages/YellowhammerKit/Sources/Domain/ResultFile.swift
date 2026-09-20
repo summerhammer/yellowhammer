@@ -36,6 +36,10 @@ public enum ResultFile {
             throw .unsupportedVersion(version)
         }
 
+        return try decodeBody(object, pass: pass)
+    }
+
+    private static func decodeBody(_ object: [String: Any], pass: RunPass) throws(ResultFileError) -> DispatchResult {
         switch pass {
         case .architect:
             return .architect(try decodeArchitect(object))
@@ -43,6 +47,10 @@ public enum ResultFile {
             return .worker(try decodeWorker(object))
         case .reviewer:
             return .reviewer(try decodeReviewer(object))
+        case .selection:
+            return .selection(try decodeSelection(object))
+        case .breakdown:
+            return .breakdown(try decodeBreakdown(object))
         }
     }
 
@@ -128,14 +136,14 @@ public enum ResultFile {
         return text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private static func string(_ object: [String: Any], _ key: String) throws(ResultFileError) -> String {
+    static func string(_ object: [String: Any], _ key: String) throws(ResultFileError) -> String {
         guard let value = object[key] as? String else {
             throw .invalid(field: key, reason: "missing or not a string")
         }
         return value
     }
 
-    private static func nonEmptyString(_ object: [String: Any], _ key: String) throws(ResultFileError) -> String {
+    static func nonEmptyString(_ object: [String: Any], _ key: String) throws(ResultFileError) -> String {
         let value = try string(object, key)
         guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw .invalid(field: key, reason: "must not be empty")
@@ -143,7 +151,7 @@ public enum ResultFile {
         return value
     }
 
-    private static func stringArray(_ object: [String: Any], _ key: String) throws(ResultFileError) -> [String]? {
+    static func stringArray(_ object: [String: Any], _ key: String) throws(ResultFileError) -> [String]? {
         guard let raw = object[key] else { return nil }
         guard let array = raw as? [String] else {
             throw .invalid(field: key, reason: "must be an array of strings")

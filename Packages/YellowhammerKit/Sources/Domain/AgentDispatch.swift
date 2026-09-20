@@ -5,13 +5,17 @@ import Foundation
 public struct AgentDispatchRequest: Equatable, Sendable {
     public let runID: RunID
     /// The Card's board issue id: names the run directory an implementation keeps, beside the Journal.
+    /// For an authoring request it is the fixed name `authoring`: the author Act has no Card.
     public let issueID: String
+    /// For an authoring request, the 1-based ordinal of the candidate Route tried in this Act.
     public let attemptID: Int64
     public let route: Route
     public let pass: RunPass
     /// The composed instruction. Its `resultFilePath` is the one the implementation stamps, because the
     /// implementation owns the run directory the result file lives in.
-    public let instruction: Instruction
+    public let instruction: AgentInstruction
+    /// The directory the CLI runs in. For an authoring request (roadmap P9.11) it is the specification
+    /// source's local path, and `issueID` is the fixed run-directory name `authoring`.
     public let worktreePath: String
     /// An opaque session string a CLI handed back for an earlier pass on the same worker, so a Round
     /// resumes it. Yellowhammer never parses it.
@@ -26,7 +30,7 @@ public struct AgentDispatchRequest: Equatable, Sendable {
         attemptID: Int64,
         route: Route,
         pass: RunPass,
-        instruction: Instruction,
+        instruction: AgentInstruction,
         worktreePath: String,
         resumeSession: String? = nil,
         additionalWritableDirectories: [String] = []

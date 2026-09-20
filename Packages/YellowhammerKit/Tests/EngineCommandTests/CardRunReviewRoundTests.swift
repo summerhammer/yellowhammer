@@ -60,8 +60,8 @@ struct CardRunReviewRoundTests {
 
         let workers = run.dispatch.requests.passes(.worker)
         #expect(workers.count == 2)
-        #expect(workers[0].instruction.payloads.roundFeedback.isEmpty)
-        #expect(workers[1].instruction.payloads.roundFeedback.map(\.lens) == [.review])
+        #expect(workers[0].instruction.cardInstruction?.payloads.roundFeedback.isEmpty == true)
+        #expect(workers[1].instruction.cardInstruction?.payloads.roundFeedback.map(\.lens) == [.review])
         #expect(workers[1].route == workers[0].route)
         #expect(workers[1].attemptID == workers[0].attemptID)
         #expect(workers[1].worktreePath == workers[0].worktreePath)

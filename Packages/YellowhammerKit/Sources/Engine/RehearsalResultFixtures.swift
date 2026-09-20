@@ -17,6 +17,16 @@ public enum RehearsalResultFixture: String, CaseIterable, Sendable {
     case workerEmpty = "worker-empty.json"
     /// Truncated JSON. Must fail ``ResultFile`` validation.
     case workerMalformed = "worker-malformed.json"
+    /// The author Act's selection answers (roadmap P9.11). A rehearsal Night fixtures the selection and
+    /// breakdown dispatches by this same rule. The selected Feature names the repository
+    /// `fixture-backend`, which must be one of the Project's working repositories or ``FeatureSelection``
+    /// halts it as `contract-outside-project`: a test using it configures a Project with that repo name.
+    case selectionSelected = "selection-selected.json"
+    case selectionNoSelectableFeature = "selection-no-selectable-feature.json"
+    case selectionFailed = "selection-failed.json"
+    /// One Card in `fixture-backend` under Kind `impl.fixture`, citing `fixture-epic/fixture-story`; it
+    /// pairs with ``selectionSelected``.
+    case breakdownDrafted = "breakdown-drafted.json"
 
     public var pass: RunPass {
         switch self {
@@ -26,6 +36,10 @@ public enum RehearsalResultFixture: String, CaseIterable, Sendable {
             .worker
         case .reviewerApproved, .reviewerChangesRequested:
             .reviewer
+        case .selectionSelected, .selectionNoSelectableFeature, .selectionFailed:
+            .selection
+        case .breakdownDrafted:
+            .breakdown
         }
     }
 

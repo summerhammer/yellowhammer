@@ -101,7 +101,7 @@ public struct ClaudeCodeAdapter: CLIAdapter {
         switch pass {
         case .worker:
             Permissions(mode: "acceptEdits", allowed: "Bash Edit Write Read Glob Grep", disallowed: nil)
-        case .architect, .reviewer:
+        case .architect, .reviewer, .selection, .breakdown:
             Permissions(
                 mode: "dontAsk",
                 allowed: "Bash Read Glob Grep",

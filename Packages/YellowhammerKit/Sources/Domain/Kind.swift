@@ -4,6 +4,11 @@
 public struct Kind: Hashable, Sendable {
     public static let any = Kind(segments: [])
 
+    /// The one Kind not read off a Card: the author Act resolves its model through the ordinary Routing
+    /// Table under it (routing overview, "the author Act routes through the same table"). It is keyed
+    /// with no Repo Role, so an entry for it applies to the author Act only as an any-Repo-Role entry.
+    public static let authoring = Kind(segments: ["authoring"])
+
     public let segments: [String]
 
     private init(segments: [String]) {
@@ -32,6 +37,12 @@ public struct Kind: Hashable, Sendable {
     /// picks the longest such prefix (routing/resolve-a-route-for-a-card).
     public func isPrefix(of other: Kind) -> Bool {
         other.segments.starts(with: segments)
+    }
+
+    /// True when this Kind is ``authoring`` or sits under it: reserved for the author Act, so a Card may
+    /// never carry it and a Routing Entry for it can never name a Repo Role.
+    public var isReservedForAuthoring: Bool {
+        Kind.authoring.isPrefix(of: self)
     }
 }
 

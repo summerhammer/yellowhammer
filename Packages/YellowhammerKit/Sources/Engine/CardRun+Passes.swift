@@ -157,7 +157,8 @@ extension CardRun {
             : payloads
         let request = AgentDispatchRequest(
             runID: frame.context.act.runID, issueID: frame.card.issueID, attemptID: attempt.id, route: route,
-            pass: pass, instruction: instruction(for: pass, route: route, frame: frame, payloads: effectivePayloads),
+            pass: pass,
+            instruction: .card(instruction(for: pass, route: route, frame: frame, payloads: effectivePayloads)),
             worktreePath: frame.worktree.path, resumeSession: resumeSession
         )
         let report: AgentDispatchReport
@@ -209,6 +210,8 @@ extension CardRun {
         case .architect: .architect
         case .worker: .worker
         case .reviewer: .reviewer
+        case .selection, .breakdown:
+            preconditionFailure("a Card run dispatches no author Act pass")
         }
     }
 

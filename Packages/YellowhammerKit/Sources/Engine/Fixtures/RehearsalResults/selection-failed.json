@@ -1,0 +1,6 @@
+{
+  "schema": "yellowhammer.result.selection",
+  "version": 1,
+  "outcome": "failed",
+  "reason": "Fixture data: the selection pass could not read the specification."
+}

@@ -29,8 +29,8 @@ private struct AuthoringViolationDispatch: AgentDispatch {
                 )),
                 session: nil
             )
-        case .reviewer:
-            preconditionFailure("not reached: the worker fails before the reviewer runs")
+        case .reviewer, .selection, .breakdown:
+            preconditionFailure("not reached: the worker fails before any other pass runs")
         }
     }
 }

@@ -9,6 +9,8 @@ public enum ResultSchema {
         case .architect: architectSchema
         case .worker: workerSchema
         case .reviewer: reviewerSchema
+        case .selection: selectionSchema
+        case .breakdown: breakdownSchema
         }
     }
 
