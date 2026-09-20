@@ -79,6 +79,11 @@ private let routingFixtures: [MalformedFixture] = [
     MalformedFixture(
         "fallback-undeclared-cli", line: 11, key: "routing[0].fallbacks[1]", .undeclaredCLIAdapter("gemini")
     ),
+    // The author Act resolves with no Repo Role, so a reserved-Kind entry naming one could never match.
+    MalformedFixture(
+        "authoring-with-repo-role", line: 9, key: "routing[0].repo_role",
+        .reservedKindNamesRepoRole(kind: "authoring")
+    ),
     MalformedFixture("routing-without-cli-table", line: 8, key: "routing[0].route", .undeclaredCLIAdapter("claude"))
 ]
 

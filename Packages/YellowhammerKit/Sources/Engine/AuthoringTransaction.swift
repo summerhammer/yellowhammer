@@ -54,7 +54,9 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         guard let outbox = context.outbox, let board = context.board else {
             throw AuthoringTransactionError.noBoard
         }
-        let breakdown = try await drafting.breakdown(for: selection, mainlines: context.mainlines)
+        guard let breakdown = try await draft(selection, context: context) else {
+            return .authoringRolledBack
+        }
         // A rejected breakdown is an authoring fault, not a halt (roadmap P9.10; spec: feature-authoring/
         // author-the-cycle-and-card-dag): nothing was ever accepted into the Outbox, so there is no board
         // write to roll back, no Authoring Halt, and no Refusal — only `FeatureBreakdownError` is caught
@@ -110,6 +112,21 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
             nightID: context.night.id
         )
         return try await complete(plan.record, context: context, outbox: outbox)
+    }
+
+    /// Runs the model-authored breakdown; nil when no Route answered it. That is an authoring fault
+    /// (roadmap P9.10, P9.11): nothing was ever accepted into the Outbox, so it is recorded like a
+    /// rejected breakdown and the Act ends normally.
+    private func draft(_ selection: SelectedFeature, context: ActContext) async throws -> FeatureBreakdown? {
+        do {
+            return try await drafting.breakdown(for: selection, mainlines: context.mainlines, context: context)
+        } catch let fault as AuthoringDispatchFault {
+            try context.journal.append(
+                .featureBreakdownRejected(name: selection.name.rawValue, reason: fault.reason),
+                act: context.act, runID: context.runID, nightID: context.night.id
+            )
+            return nil
+        }
     }
 
     public func resumeUnfinished(_ context: ActContext) async throws -> FeatureAuthoringOutcome? {

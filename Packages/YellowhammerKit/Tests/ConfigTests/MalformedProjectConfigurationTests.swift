@@ -55,7 +55,11 @@ private let credentialAndRoutingFixtures: [MalformedFixture] = [
     MalformedFixture("github-without-credential", line: 11, key: "github.credential", .missingKey),
     MalformedFixture("unknown-github-key", line: 13, key: "github.unknown_key", .unknownKey),
     MalformedFixture("routing-invalid-route", line: 12, key: "routing[0].route", .invalidRoute("invalid")),
-    MalformedFixture("routing-duplicate", line: 15, key: "routing[1]", .duplicateRoutingEntry(firstLine: 11))
+    MalformedFixture("routing-duplicate", line: 15, key: "routing[1]", .duplicateRoutingEntry(firstLine: 11)),
+    MalformedFixture(
+        "routing-authoring-repo-role", line: 13, key: "routing[0].repo_role",
+        .reservedKindNamesRepoRole(kind: "authoring")
+    )
 ]
 
 /// Exactly one specification source across both kinds, and a Spec Source is a path only. The other

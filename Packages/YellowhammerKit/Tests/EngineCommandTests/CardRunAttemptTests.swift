@@ -59,8 +59,8 @@ struct CardRunAttemptTests {
         // (OQ60): a new Attempt starts fresh, never as a rescue, but the reset hands it what came before.
         let architectRequests = dispatch.requests.passes(.architect)
         #expect(architectRequests.count == 2)
-        #expect(architectRequests[0].instruction.payloads.wip == nil)
-        #expect(architectRequests[1].instruction.payloads.wip?.commit == "preserved-\(attempts[0].id)")
+        #expect(architectRequests[0].instruction.cardInstruction?.payloads.wip == nil)
+        #expect(architectRequests[1].instruction.cardInstruction?.payloads.wip?.commit == "preserved-\(attempts[0].id)")
 
         let steps = try cardRunLog(world.journal)
         #expect(steps.contains(CardRunStep.attemptReset.rawValue))

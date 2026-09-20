@@ -96,14 +96,16 @@ extension ActCommand {
             // still lands once every Repo Lane's steps have run.
             return LandAct().work
         case .author:
-            // Feature selection's own validation, recording and halt-routing (P9.3) are wired into
-            // `FeatureSelection`, but no `FeatureSelecting` implementation exists yet to hand it, and
-            // P9.4's `SelectedFeatureAuthoring` transaction has not landed either — so `authoring`
-            // stays nil until both do. The predecessor-ancestry gate (P9.2) is wired, and this Act
-            // still records every quiet Night's reason (P9.1). The closure seam (P10.8) is not wired
-            // yet, so a fully-merged predecessor is only observed, never closed.
+            // Selection and breakdown are agent CLI dispatches routed through the ordinary Routing Table
+            // under the reserved authoring Kind (P9.11); `AuthoringBinding` wires both, and a Rehearsal
+            // Night answers them from the shipped result fixtures. The closure seam (P10.8) is not
+            // wired yet, so a fully-merged predecessor is only observed, never closed.
             return AuthorAct(
-                predecessorGate: PredecessorAncestryGate(), authoring: nil,
+                predecessorGate: PredecessorAncestryGate(),
+                authoring: try AuthoringBinding.authoring(
+                    mode: mode, configuration: configuration, project: project,
+                    configurationDirectory: configurationDirectory
+                ),
                 unansweredNightsMax: project.bounds.unansweredNightsMax
             ).work
         case .build:

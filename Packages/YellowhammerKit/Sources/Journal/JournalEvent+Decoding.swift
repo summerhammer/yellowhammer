@@ -195,6 +195,15 @@ extension JournalEvent {
                 name: try reader.require("name"),
                 reason: try reader.require("reason")
             )
+        case .authoringDispatched:
+            .authoringDispatched(
+                pass: try reader.pass("pass"),
+                route: try reader.require("route"),
+                ordinal: try reader.int("ordinal"),
+                fixture: reader.payload?["fixture"]
+            )
+        case .featureSelectionFailed:
+            .featureSelectionFailed(reason: try reader.require("reason"))
         case .refusalOpened:
             .refusalOpened(
                 feature: try reader.require("feature"),

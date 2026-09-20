@@ -18,22 +18,10 @@ enum CardRunBinding {
     ) throws -> CardRun {
         let ledger = try LedgerStore.open(configurationDirectory: configurationDirectory)
         let resolver = try RoutingBinding.resolver(configuration: configuration, projectID: project.id, ledger: ledger)
-        let dispatch: any AgentDispatch
-        switch mode {
-        case .rehearsal:
-            dispatch = RehearsalDispatch()
-        case .real:
-            var declared: [String: String] = [:]
-            for adapter in configuration.machine.cliAdapters {
-                declared[adapter.name] = adapter.executable
-            }
-            dispatch = CLIAdapterDispatch(
-                runsDirectory: CLIAdapterDispatch.runsDirectory(
-                    configurationDirectory: configurationDirectory, projectID: project.id
-                ),
-                declaredExecutables: declared
-            )
-        }
+        let dispatch = DispatchBinding.dispatch(
+            mode: mode, configuration: configuration, project: project,
+            configurationDirectory: configurationDirectory
+        )
         var checks: [String: Check] = [:]
         for repo in project.repos {
             checks[repo.name] = repo.check

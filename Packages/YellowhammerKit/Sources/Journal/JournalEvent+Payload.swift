@@ -274,10 +274,8 @@ extension JournalEvent {
                 "cycle_id": String(payload.cycleID), "card_count": String(payload.cardCount),
                 "adopted_count": String(payload.adoptedCount)
             ]
-        case .featureAuthoringFailed(let name, let groupKey, let reason):
-            ["name": name, "group_key": groupKey, "reason": reason]
-        case .featureBreakdownRejected(let name, let reason):
-            ["name": name, "reason": reason]
+        case .featureAuthoringFailed, .featureBreakdownRejected, .authoringDispatched, .featureSelectionFailed:
+            authoringFaultPayload
         case .checkRan(let cardID, let issueID, let attemptID, let result, let exitStatus, let output):
             {
                 var dict: [String: String] = [

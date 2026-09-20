@@ -1,0 +1,10 @@
+[linear]
+credential = "keychain:linear"
+client_id = "yellowhammer-client-id"
+[github]
+credential = "keychain:github"
+
+[[routing]]
+kind = "authoring"
+repo_role = "backend"
+route = "claude/sonnet"

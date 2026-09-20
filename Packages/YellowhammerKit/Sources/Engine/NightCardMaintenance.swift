@@ -241,6 +241,12 @@ public struct NightCardMaintenance: Sendable {
                 """
         case .featureAuthoringFailed(let name, _, let reason), .featureBreakdownRejected(let name, let reason):
             return authoringFaultLine(feature: name, reason: reason)
+        case .featureSelectionFailed(let reason):
+            return """
+                Selecting a Feature failed: \(reason). Nothing was written to the board, so there is no \
+                Feature card to open and nothing to answer; the author Act stood down without authoring. \
+                The next author Act selects afresh.
+                """
         default:
             return nil
         }

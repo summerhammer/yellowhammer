@@ -62,8 +62,8 @@ struct CardRunCheckRoundTests {
 
         let workers = run.dispatch.requests.passes(.worker)
         #expect(workers.count == 2)
-        #expect(workers[0].instruction.payloads.roundFeedback.isEmpty)
-        let feedback = workers[1].instruction.payloads.roundFeedback
+        #expect(workers[0].instruction.cardInstruction?.payloads.roundFeedback.isEmpty == true)
+        let feedback = workers[1].instruction.cardInstruction?.payloads.roundFeedback
         #expect(feedback == [
             RoundFeedback(
                 round: 1, lens: .check, verdict: "failed", requestedChanges: "1 test failed",
@@ -143,7 +143,8 @@ struct CardRunCheckRoundTests {
         }
         #expect(exhausted == ["check"])
         // The second worker was told about Round 1 only: Round 2 came after it ran.
-        #expect(run.dispatch.requests.passes(.worker)[1].instruction.payloads.roundFeedback.map(\.round) == [1])
+        let retry = run.dispatch.requests.passes(.worker)[1]
+        #expect(retry.instruction.cardInstruction?.payloads.roundFeedback.map(\.round) == [1])
     }
 
     @Test("One Round and one Attempt allowed: the Attempt ends rounds-exhausted, the spent budget blocks by Check")

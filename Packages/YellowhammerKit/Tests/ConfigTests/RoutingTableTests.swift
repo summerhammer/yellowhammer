@@ -175,3 +175,27 @@ func invalidProjectHasNoRoutingTable() throws {
     #expect(configuration.routingTable(for: good) != nil)
     #expect(configuration.routingTable(for: bad) == nil)
 }
+
+// MARK: - The reserved authoring Kind (roadmap P9.11)
+
+@Test("routing-authoring: a per-Project (authoring, any) entry replaces the base one outright, fallbacks included")
+func authoringOverrideRepointsTheAuthorRoute() throws {
+    let configuration = try Configuration.load(directory: set("routing-authoring"))
+    #expect(configuration.invalidProjects.isEmpty)
+    let repointed = try #require(configuration.routingTable(for: try projectID("repointed")))
+    let plain = try #require(configuration.routingTable(for: try projectID("plain")))
+
+    let key = RoutingEntry.Key(kind: .authoring, repoRole: .any)
+    #expect(repointed.entries.filter { $0.key == key } == [
+        RoutingEntry(
+            kind: .authoring, route: try route("codex", "gpt-5.4", "medium"),
+            fallbacks: [try route("claude", "sonnet", "high")]
+        )
+    ])
+    #expect(plain.entries.filter { $0.key == key } == [
+        RoutingEntry(
+            kind: .authoring, route: try route("claude", "opus", "high"),
+            fallbacks: [try route("codex", "gpt-5.4", "high")]
+        )
+    ])
+}

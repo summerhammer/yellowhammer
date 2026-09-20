@@ -31,16 +31,10 @@ func subcommandRunsItsAct(_ act: Act) async throws {
     }
     let parsed = try RootCommand.parseAsRoot(args)
     let command = try #require(parsed as? any ActCommand)
-    // No Board bound: this test is about CLI dispatch, not the Night Card (NightCardTests). The build
-    // and land Acts' work has landed (P8.1, P10.1): on an empty Journal each completes doing nothing
-    // (no Feature in flight) rather than throwing.
-    if act == .build || act == .land {
-        try await command.makeInvocation(configurationDirectory: directory.url, now: Date(), bindBoard: nil).run()
-    } else {
-        await #expect(throws: EngineInvocationError.notImplemented(act)) {
-            try await command.makeInvocation(configurationDirectory: directory.url, now: Date(), bindBoard: nil).run()
-        }
-    }
+    // No Board bound: this test is about CLI dispatch, not the Night Card (NightCardTests). Every Act's
+    // work has landed (P8.1, P9.11, P10.1): on an empty Journal each completes doing nothing rather than
+    // throwing.
+    try await command.makeInvocation(configurationDirectory: directory.url, now: Date(), bindBoard: nil).run()
 }
 
 @Test("An unknown subcommand fails to parse")

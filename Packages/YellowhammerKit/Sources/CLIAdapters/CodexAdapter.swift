@@ -103,7 +103,7 @@ public struct CodexAdapter: CLIAdapter {
     private static func sandboxMode(for pass: RunPass) -> String {
         switch pass {
         case .worker: "workspace-write"
-        case .architect, .reviewer: "read-only"
+        case .architect, .reviewer, .selection, .breakdown: "read-only"
         }
     }
 

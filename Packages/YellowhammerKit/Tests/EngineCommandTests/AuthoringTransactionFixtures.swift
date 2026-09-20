@@ -20,7 +20,9 @@ final class ScriptedBreakdown: FeatureBreakdownDrafting, Sendable {
 
     var callCount: Int { state.withLock { $0 } }
 
-    func breakdown(for selection: SelectedFeature, mainlines: ResolvedMainlines) async throws -> FeatureBreakdown {
+    func breakdown(
+        for selection: SelectedFeature, mainlines: ResolvedMainlines, context: ActContext
+    ) async throws -> FeatureBreakdown {
         let index = state.withLock { count -> Int in
             defer { count += 1 }
             return count

@@ -3,13 +3,16 @@ import Synchronization
 
 /// The Dispatch seam for a Rehearsal Night: it never spawns anything (a rehearsal Night never dispatches
 /// an agent CLI), and answers each pass from the result files shipped with the engine. The default script
-/// is a clean run — architect plans, worker completes, reviewer approves — and a test drives a failure by
+/// is a clean run — architect plans, worker completes, reviewer approves; the author Act's selection selects
+/// one Feature and its breakdown drafts one Card — and a test drives a failure by
 /// scripting another fixture for a pass.
 public final class RehearsalDispatch: AgentDispatch, Sendable {
     public static let defaultScript: [RunPass: RehearsalResultFixture] = [
         .architect: .architectPlanned,
         .worker: .workerCompleted,
-        .reviewer: .reviewerApproved
+        .reviewer: .reviewerApproved,
+        .selection: .selectionSelected,
+        .breakdown: .breakdownDrafted
     ]
 
     private let script: [RunPass: RehearsalResultFixture]

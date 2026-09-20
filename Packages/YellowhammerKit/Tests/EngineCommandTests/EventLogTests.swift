@@ -33,11 +33,14 @@ func actNotImplementedRecordsEvents() async throws {
     try directory.writeValidProjectFile(id: "alpha")
     let projectID = try #require(ProjectID(rawValue: "alpha"))
 
+    // Every Act's work has landed, so an Act with no work injected is built directly: it keeps the
+    // public initializer's work, which throws `notImplemented`.
+    let journal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
+    let invocation = EngineInvocation(act: .author, mode: .real, nightStart: nightStart, journal: journal)
     await #expect(throws: EngineInvocationError.notImplemented(.author)) {
-        try await runAct(.author, project: "alpha", in: directory)
+        try await invocation.run()
     }
 
-    let journal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
     let events = try journal.events()
 
     // The Night is recorded first, so an Act that dies on its first line still says it opened.
@@ -96,14 +99,13 @@ func actOnlyWritesOwnJournal() async throws {
     let betaID = try #require(ProjectID(rawValue: "beta"))
 
     // Run against alpha
-    await #expect(throws: EngineInvocationError.notImplemented(.author)) {
-        try await runAct(.author, project: "alpha", in: directory)
-    }
+    try await runAct(.author, project: "alpha", in: directory)
 
     // Alpha should have events
     let alphaJournal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: alphaID)
     let alphaEvents = try alphaJournal.events()
-    #expect(alphaEvents.map(\.type) == [.nightOpened, .actStarted, .actIncomplete])
+    #expect(Array(alphaEvents.map(\.type).prefix(2)) == [.nightOpened, .actStarted])
+    #expect(alphaEvents.map(\.type).last == .actEnded)
 
     // Beta's Journal should not even exist (because the engine never opened it)
     let betaJournalPath = JournalStore.defaultFileURL(configurationDirectory: directory.url, id: betaID)

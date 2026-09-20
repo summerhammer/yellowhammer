@@ -184,14 +184,7 @@ extension ExpiredLeaseSweep {
             }
             return nil
         case .worker(let result):
-            switch result.outcome {
-            case .failed(let reason):
-                return Classification(ending: .hardFailure(.reported(reason: reason)), knownGoodCommit: nil)
-            case .question:
-                return Classification(ending: .question, knownGoodCommit: nil)
-            case .completed:
-                return nil
-            }
+            return Self.classify(worker: result)
         case .reviewer(let result):
             switch result.outcome {
             case .approved(let judgedCommit, _):
@@ -199,6 +192,20 @@ extension ExpiredLeaseSweep {
             case .changesRequested:
                 return nil
             }
+        case .selection, .breakdown:
+            // A Card's Attempt never runs an author Act pass.
+            return nil
+        }
+    }
+
+    private static func classify(worker result: WorkerResult) -> Classification? {
+        switch result.outcome {
+        case .failed(let reason):
+            Classification(ending: .hardFailure(.reported(reason: reason)), knownGoodCommit: nil)
+        case .question:
+            Classification(ending: .question, knownGoodCommit: nil)
+        case .completed:
+            nil
         }
     }
 

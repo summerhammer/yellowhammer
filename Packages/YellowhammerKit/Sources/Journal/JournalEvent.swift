@@ -266,6 +266,14 @@ public enum JournalEvent: Equatable, Sendable {
     /// The group was rolled back: no Feature, Cycle or Card row was written and no partial board is left.
     case featureAuthoringFailed(name: String, groupKey: String, reason: String)
     case featureBreakdownRejected(name: String, reason: String)
+    /// One authoring pass (selection or breakdown) was dispatched under the reserved authoring Kind and
+    /// answered (roadmap P9.11): `route` is the Route's description, `ordinal` the 1-based candidate tried
+    /// in this Act, and `fixture` the rehearsal fixture that answered — nil when an agent CLI process ran.
+    case authoringDispatched(pass: RunPass, route: String, ordinal: Int, fixture: String?)
+    /// Selection ended the author Act without choosing a Feature (roadmap P9.11): every candidate Route
+    /// failed, was unavailable or crashed, or the Routing Table had none. An authoring fault, not a halt
+    /// — there is no Feature name yet.
+    case featureSelectionFailed(reason: String)
     /// A Feature's uncitable-Definition-of-Done halt opened a new Refusal (roadmap P9.7; glossary:
     /// Refusal): no `open` (or `expired`) Refusal existed for this Feature name yet.
     /// `uncitableClauses` is the compact listing of the clauses no citation supported, and
@@ -309,92 +317,4 @@ public enum JournalEvent: Equatable, Sendable {
 
     // `type`, the exhaustive switch from a case to its `JournalEventType`, lives in
     // JournalEvent+Type.swift, split out to keep this file under the file length limit.
-}
-
-/// The type of a JournalEvent, with raw values matching the spec's PascalCase names.
-public enum JournalEventType: String, CaseIterable, Sendable {
-    case actStarted = "ActStarted"
-    case actEnded = "ActEnded"
-    case actIdle = "ActIdle"
-    case actIncomplete = "ActIncomplete"
-    case actStoodDown = "ActStoodDown"
-    case mainlineFetchFailed = "MainlineFetchFailed"
-    case absentNightDetected = "AbsentNightDetected"
-    case authoringNoWorkAvailable = "AuthoringNoWorkAvailable"
-    case authoringSkippedFeatureInFlight = "AuthoringSkippedFeatureInFlight"
-    case authoringPredecessorNotLanded = "AuthoringPredecessorNotLanded"
-    case authoringPredecessorIndeterminate = "AuthoringPredecessorIndeterminate"
-    case predecessorWalkSkippedReleasedFeature = "PredecessorWalkSkippedReleasedFeature"
-    case predecessorAncestryObserved = "PredecessorAncestryObserved"
-    case mainlineConflictDetected = "MainlineConflictDetected"
-    case managedBlockDelimiterBroken = "ManagedBlockDelimiterBroken"
-    case notificationDeliveryFailed = "NotificationDeliveryFailed"
-    case rateBudgetExhausted = "RateBudgetExhausted"
-    case leaseReclaimed = "LeaseReclaimed"
-    case cardLeaseReclaimed = "CardLeaseReclaimed"
-    case nightOpened = "NightOpened"
-    case nightClosed = "NightClosed"
-    case nightOpenedAndDied = "NightOpenedAndDied"
-    case managedBlockWritten = "ManagedBlockWritten"
-    case nightCardOpened = "NightCardOpened"
-    case nightCardCompleted = "NightCardCompleted"
-    case boardWriteFailed = "BoardWriteFailed"
-    case outboxGroupRolledBack = "OutboxGroupRolledBack"
-    case cardCancelled = "CardCancelled"
-    case cardReopened = "CardReopened"
-    case cardRestated = "CardRestated"
-    case cardRemovedFromBoard = "CardRemovedFromBoard"
-    case authoringInvariantBroken = "AuthoringInvariantBroken"
-    case deltaReadCompleted = "DeltaReadCompleted"
-    case cardStateTransitioned = "CardStateTransitioned"
-    case waitingOnYouUnbacked = "WaitingOnYouUnbacked"
-    case worktreeLost = "WorktreeLost"
-    case worktreeFenced = "WorktreeFenced"
-    case worktreeNotQuiescent = "WorktreeNotQuiescent"
-    case worktreeWIPCommitted = "WorktreeWIPCommitted"
-    case worktreeReconciliationFailed = "WorktreeReconciliationFailed"
-    case routeExhausted = "RouteExhausted"
-    case overrideRefused = "OverrideRefused"
-    case attemptEnded = "AttemptEnded"
-    case routeRetried = "RouteRetried"
-    case budgetEpochReset = "BudgetEpochReset"
-    case expiredCardLeasesSwept = "ExpiredCardLeasesSwept"
-    case boardStateReposted = "BoardStateReposted"
-    case repoLanesDerived = "RepoLanesDerived"
-    case repoLaneStarted = "RepoLaneStarted"
-    case repoLaneEnded = "RepoLaneEnded"
-    case readinessCheckPassed = "ReadinessCheckPassed"
-    case readinessCheckFailed = "ReadinessCheckFailed"
-    case cardDiverged = "CardDiverged"
-    case transcriptionStampVoided = "TranscriptionStampVoided"
-    case clauseMinted = "ClauseMinted"
-    case clauseInvalidated = "ClauseInvalidated"
-    case clauseDeleted = "ClauseDeleted"
-    case protectedPathRefused = "ProtectedPathRefused"
-    case cardRunStep = "CardRunStep"
-    case checkRan = "CheckRan"
-    case attemptWorkPreserved = "AttemptWorkPreserved"
-    case failureCauseRecorded = "FailureCauseRecorded"
-    case laneHoleRecorded = "LaneHoleRecorded"
-    case cardReclaimed = "CardReclaimed"
-    case cardReclaimDeferred = "CardReclaimDeferred"
-    case agentCLIProcessSpawned = "AgentCLIProcessSpawned"
-    case rehearsalFixtureAnswered = "RehearsalFixtureAnswered"
-    case featureSelected = "FeatureSelected"
-    case featureAuthoringHalted = "FeatureAuthoringHalted"
-    case featureAuthoringAccepted = "FeatureAuthoringAccepted"
-    case featureAuthored = "FeatureAuthored"
-    case featureAuthoringFailed = "FeatureAuthoringFailed"
-    case featureBreakdownRejected = "FeatureBreakdownRejected"
-    case refusalOpened = "RefusalOpened"
-    case refusalRepeated = "RefusalRepeated"
-    case refusalExpired = "RefusalExpired"
-    case refusalCountReset = "RefusalCountReset"
-    case landStep = "LandStep"
-    case cycleLanded = "CycleLanded"
-    case refusalAnswered = "RefusalAnswered"
-    case authoringHaltOpened = "AuthoringHaltOpened"
-    case authoringHaltRepeated = "AuthoringHaltRepeated"
-    case authoringHaltExpired = "AuthoringHaltExpired"
-    case authoringHaltCleared = "AuthoringHaltCleared"
 }

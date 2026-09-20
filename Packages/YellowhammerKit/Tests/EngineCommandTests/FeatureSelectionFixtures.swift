@@ -27,7 +27,7 @@ final class ScriptedFeatureSelector: FeatureSelecting, Sendable {
     var lastRequest: FeatureSelectionRequest? { state.withLock { $0.request } }
     var callCount: Int { state.withLock { $0.callCount } }
 
-    func select(_ request: FeatureSelectionRequest) async throws -> FeatureSelectionOutcome {
+    func select(_ request: FeatureSelectionRequest, context: ActContext) async throws -> FeatureSelectionOutcome {
         state.withLock { $0.request = request; $0.callCount += 1 }
         return outcome
     }

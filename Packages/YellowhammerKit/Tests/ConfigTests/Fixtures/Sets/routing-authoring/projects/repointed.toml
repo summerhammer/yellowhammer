@@ -1,0 +1,15 @@
+id = "repointed"
+name = "Repointed"
+linear_project = "REPOINT"
+spec_source = "~/dev/spec"
+
+[[repos]]
+name = "backend"
+path = "~/dev/repointed-backend"
+role = "backend"
+check = "swift test"
+
+[[routing]]
+kind = "authoring"
+route = "codex/gpt-5.4/medium"
+fallbacks = ["claude/sonnet/high"]
