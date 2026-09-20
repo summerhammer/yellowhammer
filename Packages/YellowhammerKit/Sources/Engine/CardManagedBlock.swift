@@ -216,7 +216,9 @@ public struct CardManagedBlock: Equatable, Sendable {
             lines.append("_No clauses authored._")
         } else {
             for clause in definitionOfDone {
-                lines.append("- [ ] <!-- yh:clause:\(clause.cid) --> \(clause.text) (\(clause.citation))")
+                lines.append(
+                    DefinitionOfDoneClauseLine.render(cid: clause.cid, text: clause.text, citation: clause.citation)
+                )
             }
         }
         return lines

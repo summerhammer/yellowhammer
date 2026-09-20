@@ -20,6 +20,9 @@ struct AuthoringPlanner {
     let attempt: Int
     let nightID: Int64
     let journal: JournalStore
+    /// The clauses ``AuthoringCitations`` resolved as citable, and every clause it dropped (roadmap
+    /// P9.5). Only citable clauses are minted and written; dropped ones are recorded on the plan.
+    let citations: AuthoringCitationResolution
 
     private var prefix: String { "\(selection.name.rawValue):\(attempt)" }
     private var featureKey: String { "feature:\(prefix):create" }
@@ -37,16 +40,32 @@ struct AuthoringPlanner {
     /// closed Feature. The Act-scoped Lease still guards every write.
     func plan() throws -> AuthoringPlan {
         var nextOrder: [String: Int] = [:]
-        let featureWrite = try featureCreate()
+        let featureClauses = Self.mint(citations.featureClauses)
+        let featureWrite = try featureCreate(clauses: featureClauses)
         let (adoptions, adoptionWrites) = try adopt(nextOrder: &nextOrder)
         let (cards, cardWrites) = try create(nextOrder: &nextOrder)
+        let uncitable = citations.uncitable.map {
+            PlannedUncitableClause(
+                level: $0.level, cardTitle: $0.cardTitle, text: $0.text, citation: $0.citation, reason: $0.reason
+            )
+        }
         return AuthoringPlan(
             writes: [featureWrite] + adoptionWrites + cardWrites,
             record: FeatureAuthoringAcceptedPayload(
                 name: selection.name.rawValue, groupKey: "authoring:\(prefix)", featureKey: featureKey,
-                nightID: nightID, cards: cards, adoptions: adoptions
+                nightID: nightID, cards: cards, adoptions: adoptions,
+                featureClauses: featureClauses, uncitableClauses: uncitable
             )
         )
+    }
+
+    /// Mints synthetic `cid`s for one issue's citable clauses, in draft order: `c1`, `c2`, … — the Feature
+    /// Issue and each new Card are brand new, so this equals what ``JournalStore/nextClauseID(issueID:)``
+    /// would give a fresh issue (roadmap P9.5).
+    private static func mint(_ drafts: [DefinitionOfDoneClauseDraft]) -> [PlannedClause] {
+        drafts.enumerated().map { index, draft in
+            PlannedClause(cid: "c\(index + 1)", text: draft.text, citation: draft.citation.rawValue)
+        }
     }
 
     private func label(_ name: String) throws -> BoardObjectID {
@@ -56,10 +75,10 @@ struct AuthoringPlanner {
         return id
     }
 
-    private func featureCreate() throws -> OutboxWrite {
+    private func featureCreate(clauses: [PlannedClause]) throws -> OutboxWrite {
         OutboxWrite(key: featureKey, write: .createIssue(
             BoardIssueDraft(
-                team: scope.team, title: selection.name.rawValue, description: featureDescription(),
+                team: scope.team, title: selection.name.rawValue, description: featureDescription(clauses: clauses),
                 labels: [try label("Feature")], workflowState: try scope.id(for: .todo)
             ),
             parentKey: nil
@@ -91,17 +110,18 @@ struct AuthoringPlanner {
         let todo = try scope.id(for: .todo)
         var planned: [PlannedCard] = []
         var writes: [OutboxWrite] = []
-        for draft in breakdown.cards {
+        for (index, draft) in breakdown.cards.enumerated() {
             let order = nextOrder[draft.repository, default: 0] + 1
             nextOrder[draft.repository] = order
             let key = "card:\(prefix):\(draft.repository):\(order):create"
+            let clauses = Self.mint(citations.cardClauses[index])
             planned.append(PlannedCard(
                 key: key, repository: draft.repository, kind: draft.kind.description, order: order,
-                title: draft.title
+                title: draft.title, clauses: clauses
             ))
             writes.append(OutboxWrite(key: key, write: .createIssue(
                 BoardIssueDraft(
-                    team: scope.team, title: draft.title, description: Self.cardDescription(draft),
+                    team: scope.team, title: draft.title, description: Self.cardDescription(draft, clauses: clauses),
                     labels: [cardLabel], workflowState: todo
                 ),
                 parentKey: featureKey
@@ -110,14 +130,22 @@ struct AuthoringPlanner {
         return (planned, writes)
     }
 
+    /// The Definition of Done section both descriptions share: a heading and one checklist line per
+    /// citable clause (roadmap P9.5).
+    private static func definitionOfDoneLines(_ clauses: [PlannedClause]) -> [String] {
+        clauses.map { DefinitionOfDoneClauseLine.render(cid: $0.cid, text: $0.text, citation: $0.citation) }
+    }
+
     /// Every issue this transaction creates carries a well-formed (near-empty) Managed Block fence, so a
     /// later rewrite finds its delimiters; the prose sits outside it, where a rewrite preserves it. The
-    /// Feature's carries the sequence and its reasoning when the selection is one step of a sequence.
-    private func featureDescription() -> String {
+    /// Feature's carries the sequence and its reasoning when the selection is one step of a sequence. Its
+    /// Definition of Done is authored as prose (outside the fence) — the checklist the Operator reads.
+    private func featureDescription(clauses: [PlannedClause]) -> String {
+        let checklist = Self.definitionOfDoneLines(clauses).joined(separator: "\n")
         var prose = """
             ## Definition of done
 
-            \(breakdown.definitionOfDone)
+            \(checklist)
 
             ## Why this Feature
 
@@ -137,7 +165,13 @@ struct AuthoringPlanner {
         return ManagedBlockFence.initialDescription(rendered: "") + "\n\n" + prose
     }
 
-    private static func cardDescription(_ draft: CardDraft) -> String {
-        ManagedBlockFence.initialDescription(rendered: "") + "\n\n" + draft.unitOfWork
+    /// A Card's Definition of Done is authored inside the Managed Block fence, under its own
+    /// `### Definition of Done` heading, so ``CardManagedBlockParser`` reads the clauses straight back —
+    /// the Readiness Check marks a Journal clause missing from the board as deleted, so this must round-
+    /// trip exactly. The unit-of-work prose stays outside the fence, as before.
+    private static func cardDescription(_ draft: CardDraft, clauses: [PlannedClause]) -> String {
+        let lines = ["### Definition of Done"] + definitionOfDoneLines(clauses)
+        let rendered = lines.joined(separator: "\n")
+        return ManagedBlockFence.initialDescription(rendered: rendered) + "\n\n" + draft.unitOfWork
     }
 }
