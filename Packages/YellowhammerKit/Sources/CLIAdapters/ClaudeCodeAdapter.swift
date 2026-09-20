@@ -44,6 +44,9 @@ public struct ClaudeCodeAdapter: CLIAdapter {
         if let disallowed = permissions.disallowed {
             arguments += ["--disallowedTools", disallowed]
         }
+        for directory in dispatch.additionalReadableDirectories {
+            arguments += ["--add-dir", directory]
+        }
         for directory in dispatch.additionalWritableDirectories {
             arguments += ["--add-dir", directory]
         }

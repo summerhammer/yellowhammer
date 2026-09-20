@@ -42,6 +42,7 @@ public struct AuthoringRoute: Sendable {
     /// Throws ``AuthoringDispatchFault`` when no Route answered.
     func run(
         pass: RunPass, worktreePath: String, context: ActContext,
+        additionalReadableDirectories: [String] = [],
         instruction: (Route) -> AuthoringInstruction
     ) async throws -> DispatchResult {
         var tried: Set<Route> = []
@@ -57,7 +58,8 @@ public struct AuthoringRoute: Sendable {
             ordinal += 1
             let dispatchRequest = AgentDispatchRequest(
                 runID: context.runID, issueID: Self.runDirectoryName, attemptID: ordinal, route: route,
-                pass: pass, instruction: .authoring(instruction(route)), worktreePath: worktreePath
+                pass: pass, instruction: .authoring(instruction(route)), worktreePath: worktreePath,
+                additionalReadableDirectories: additionalReadableDirectories
             )
             let report: AgentDispatchReport
             do {

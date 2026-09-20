@@ -17,6 +17,7 @@ enum CLIDispatchFixture {
             pass: RunPass = .worker,
             instruction: String = "do the thing",
             resume: CLISession? = nil,
+            additionalReadableDirectories: [String] = [],
             additionalWritableDirectories: [String] = [],
             executable: String = "/usr/bin/true",
             environment: [String: String] = [:]
@@ -30,6 +31,7 @@ enum CLIDispatchFixture {
                 runDirectory: runDirectory,
                 timeout: .seconds(5),
                 resume: resume,
+                additionalReadableDirectories: additionalReadableDirectories,
                 additionalWritableDirectories: additionalWritableDirectories,
                 executable: executable,
                 environment: environment

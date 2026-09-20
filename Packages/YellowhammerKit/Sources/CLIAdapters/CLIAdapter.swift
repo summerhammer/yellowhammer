@@ -32,6 +32,8 @@ public struct CLIDispatch: Sendable {
     /// Non-nil when this run is a Round on the same worker: the adapter resumes this session
     /// instead of starting a fresh one.
     public var resume: CLISession?
+    /// Extra directories the CLI must be able to read beyond the Worktree.
+    public var additionalReadableDirectories: [String]
     /// Extra directories the CLI must be able to write to beyond the Worktree — e.g. a linked
     /// Worktree's git common dir, so the worker can commit.
     public var additionalWritableDirectories: [String]
@@ -47,6 +49,7 @@ public struct CLIDispatch: Sendable {
         runDirectory: URL,
         timeout: Duration,
         resume: CLISession? = nil,
+        additionalReadableDirectories: [String] = [],
         additionalWritableDirectories: [String] = [],
         executable: String,
         environment: [String: String] = [:]
@@ -58,6 +61,7 @@ public struct CLIDispatch: Sendable {
         self.runDirectory = runDirectory
         self.timeout = timeout
         self.resume = resume
+        self.additionalReadableDirectories = additionalReadableDirectories
         self.additionalWritableDirectories = additionalWritableDirectories
         self.executable = executable
         self.environment = environment

@@ -15,7 +15,8 @@ public struct RoutedFeatureSelector: FeatureSelecting {
         _ request: FeatureSelectionRequest, context: ActContext
     ) async throws -> FeatureSelectionOutcome {
         let result = try await route.run(
-            pass: .selection, worktreePath: request.specificationSource.path, context: context
+            pass: .selection, worktreePath: request.specificationSource.path, context: context,
+            additionalReadableDirectories: request.repos.map(\.path)
         ) { route in
             AuthoringInstruction(
                 pass: .selection, route: route, specificationSource: request.specificationSource,
@@ -52,7 +53,10 @@ public struct RoutedFeatureBreakdown: FeatureBreakdownDrafting {
         case .specSource: specificationMainline = mainlines.specSource
         case .workingRepo(let repo): specificationMainline = mainlines[repo]
         }
-        let result = try await route.run(pass: .breakdown, worktreePath: source.path, context: context) { route in
+        let result = try await route.run(
+            pass: .breakdown, worktreePath: source.path, context: context,
+            additionalReadableDirectories: repositories.workingRepos.map(\.path)
+        ) { route in
             AuthoringInstruction(
                 pass: .breakdown, route: route, specificationSource: source,
                 specificationMainline: specificationMainline, repos: repositories.workingRepos,

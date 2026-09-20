@@ -96,6 +96,7 @@ struct AuthoringRouteDispatchTests {
         #expect(requests.map(\.attemptID) == [1, 2])
         #expect(requests.allSatisfy { $0.issueID == "authoring" && $0.pass == .selection })
         #expect(requests.allSatisfy { $0.worktreePath == "/repos/spec" })
+        #expect(requests.allSatisfy { $0.additionalReadableDirectories == ["/repos/backend", "/repos/mobile"] })
     }
 
     @Test("A Crashed-Unknown run excludes nothing and ends authoring: the fallback is never tried, no throw")
@@ -165,6 +166,7 @@ struct AuthoringRouteDispatchTests {
         #expect(outcome == .authoringRolledBack)
         #expect(dispatch.requests.map(\.route) == [primary, fallback])
         #expect(dispatch.requests.allSatisfy { $0.pass == .breakdown })
+        #expect(dispatch.requests.allSatisfy { $0.additionalReadableDirectories == ["/repos/backend", "/repos/mobile"] })
         #expect(try rig.journal.events(ofType: .featureBreakdownRejected).count == 1)
         #expect(try tableRowCount(rig.journal, table: "outbox") == 0)
     }
