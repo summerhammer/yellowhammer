@@ -13,4 +13,8 @@ public enum ActIdleReason: String, CaseIterable, Sendable {
     case cycleHasNoUnfinishedCards = "cycle_has_no_unfinished_cards"
     /// land: the in-flight Cycle still has unfinished Cards, so it is not ready to land.
     case cycleHasUnfinishedCards = "cycle_has_unfinished_cards"
+    /// build and land: the in-flight Cycle has already landed once (roadmap P10.1; risks OQ8, once per
+    /// Cycle). Checked before either Act's unfinished-Card count, so a Card returning to Todo after
+    /// landing never re-opens a Repo Lane.
+    case cycleAlreadyLanded = "cycle_already_landed"
 }

@@ -155,6 +155,10 @@ extension JournalEvent {
             .refusalExpired
         case .refusalCountReset:
             .refusalCountReset
+        case .landStep:
+            .landStep
+        case .cycleLanded:
+            .cycleLanded
         }
     }
 }

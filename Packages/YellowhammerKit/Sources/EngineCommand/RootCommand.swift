@@ -64,29 +64,12 @@ extension ActCommand {
         let board = try bindBoard?(configuration, project)
         let workspace = bindWorkspace?()
 
-        // land keeps a no-work invocation until its own phase lands; build and author each wire their
-        // own Act's work here, the one place an adapter is constructed for either (ADR-001): Engine
-        // itself never imports one.
-        guard
-            let work = try Self.work(
-                mode: mode, configuration: configuration, project: project,
-                configurationDirectory: configurationDirectory
-            )
-        else {
-            // land: no phase has landed to wire in yet; this keeps EngineInvocation's own
-            // `notImplemented` default.
-            return EngineInvocation(
-                act: Self.act,
-                mode: mode,
-                nightStart: window.nightStart,
-                journal: journal,
-                trigger: trigger,
-                closesNight: closesNight,
-                board: board,
-                repositories: project.repositories,
-                workspace: workspace
-            )
-        }
+        // Every Act wires its own work here, the one place an adapter is constructed for any of them
+        // (ADR-001): Engine itself never imports one.
+        let work = try Self.work(
+            mode: mode, configuration: configuration, project: project,
+            configurationDirectory: configurationDirectory
+        )
         return EngineInvocation(
             act: Self.act,
             mode: mode,
@@ -101,15 +84,17 @@ extension ActCommand {
         )
     }
 
-    /// This Act's own work, when its phase has landed — nil for land, whose own phase has not landed
-    /// yet, and for any other Act EngineInvocation's own default already covers with `notImplemented`.
-    /// Split out of `makeInvocation` to keep that function within its length limit.
+    /// This Act's own work. Split out of `makeInvocation` to keep that function within its length limit.
     private static func work(
         mode: NightMode, configuration: Configuration, project: ProjectConfiguration, configurationDirectory: URL
-    ) throws -> EngineInvocation.ActWork? {
+    ) throws -> EngineInvocation.ActWork {
         switch Self.act {
         case .land:
-            return nil
+            // Every seam is nil until its own roadmap phase lands: mergeTest (P10.3), push (P10.2),
+            // openPullRequest (P10.4), verification (P10.5), returnFeature (P10.6), archiveCycle (P10.7).
+            // Until then every land step records `.notWired` (or `.rehearsalBoundary`) and the Cycle
+            // still lands once every Repo Lane's steps have run.
+            return LandAct().work
         case .author:
             // Feature selection's own validation, recording and halt-routing (P9.3) are wired into
             // `FeatureSelection`, but no `FeatureSelecting` implementation exists yet to hand it, and

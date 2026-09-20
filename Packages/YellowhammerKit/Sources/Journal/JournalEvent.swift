@@ -269,6 +269,13 @@ public enum JournalEvent: Equatable, Sendable {
     /// A clean authoring run reset this Feature's consecutive-refusals count and moved its `open`
     /// Refusal to `answered`. Appended only when there was something to reset.
     case refusalCountReset(feature: String)
+    /// One step of the land Act's sequence (roadmap P10.1): a Repo Lane's merge test, push, open pull
+    /// request or Worktree release, or the Feature's Verification, return or Cycle archive.
+    /// `repository` is nil for the three Feature-scoped steps.
+    case landStep(step: LandStep, repository: String?, outcome: LandStepOutcome, detail: String?)
+    /// The land Act landed this Cycle: once per Cycle (risks OQ8), so a later firing's trigger goes
+    /// false and no Repo Lane re-opens even if a Card returns to Todo.
+    case cycleLanded(cycleID: Int64)
 
     // `type`, the exhaustive switch from a case to its `JournalEventType`, lives in
     // JournalEvent+Type.swift, split out to keep this file under the file length limit.
@@ -350,4 +357,6 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case refusalRepeated = "RefusalRepeated"
     case refusalExpired = "RefusalExpired"
     case refusalCountReset = "RefusalCountReset"
+    case landStep = "LandStep"
+    case cycleLanded = "CycleLanded"
 }

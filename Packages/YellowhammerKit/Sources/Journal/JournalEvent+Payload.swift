@@ -370,6 +370,19 @@ extension JournalEvent {
             }()
         case .refusalCountReset(let feature):
             ["feature": feature]
+        case .landStep(let step, let repository, let outcome, let detail):
+            {
+                var dict: [String: String] = ["step": step.rawValue, "outcome": outcome.rawValue]
+                if let repository {
+                    dict["repository"] = repository
+                }
+                if let detail {
+                    dict["detail"] = detail
+                }
+                return dict
+            }()
+        case .cycleLanded(let cycleID):
+            ["cycle_id": String(cycleID)]
         }
     }
 }

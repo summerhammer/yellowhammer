@@ -205,6 +205,10 @@ extension JournalEvent {
             )
         case .refusalCountReset:
             .refusalCountReset(feature: try reader.require("feature"))
+        case .landStep:
+            try Self.decodeLandStep(reader)
+        case .cycleLanded:
+            .cycleLanded(cycleID: try reader.int64("cycle_id"))
         }
     }
 
@@ -366,5 +370,6 @@ extension JournalEvent {
     // decodeWorktreeReconciliationFailed) live in JournalEvent+WorktreeDecoding.swift, split out to
     // keep this file under the file length limit. The build Act's own decode helpers
     // (decodeExpiredCardLeasesSwept through decodeRepoLaneEnded) live in
-    // JournalEvent+BuildActDecoding.swift for the same reason.
+    // JournalEvent+BuildActDecoding.swift for the same reason. The land Act's own
+    // (decodeLandStep) lives in JournalEvent+LandActDecoding.swift.
 }

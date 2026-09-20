@@ -331,8 +331,8 @@ struct RefusalMigrationTests {
         let fixture = try JournalFixture()
         let journal = try fixture.open()
 
-        #expect(try journal.appliedMigrations().last == "v15-refusal")
-        #expect(JournalStore.migrationIdentifiers.last == "v15-refusal")
+        #expect(try journal.appliedMigrations().last == "v16-cycle-landed")
+        #expect(JournalStore.migrationIdentifiers.last == "v16-cycle-landed")
         #expect(try journal.tableNames().contains("refusal"))
     }
 
