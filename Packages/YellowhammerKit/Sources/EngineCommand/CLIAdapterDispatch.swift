@@ -104,6 +104,7 @@ struct CLIAdapterDispatch: AgentDispatch {
             runDirectory: directory,
             timeout: timeout,
             resume: request.resumeSession.map { CLISession(rawValue: $0) },
+            additionalReadableDirectories: request.additionalReadableDirectories,
             additionalWritableDirectories: request.additionalWritableDirectories,
             executable: executable,
             environment: environment

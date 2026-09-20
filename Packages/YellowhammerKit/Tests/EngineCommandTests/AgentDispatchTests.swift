@@ -12,7 +12,8 @@ import Testing
 private let dispatchOpus = Route(cli: "claude", model: "opus", effort: "high")!
 
 private func request(
-    route: Route = dispatchOpus, pass: RunPass = .worker, resumeSession: String? = nil
+    route: Route = dispatchOpus, pass: RunPass = .worker, resumeSession: String? = nil,
+    additionalReadableDirectories: [String] = ["/repos/extra-readable"]
 ) -> AgentDispatchRequest {
     let repo = Repo(name: "backend", path: "/repos/backend", role: .backend)
     let instruction = Instruction(
@@ -26,6 +27,7 @@ private func request(
     return AgentDispatchRequest(
         runID: RunID(rawValue: "run-1")!, issueID: "BACK-1", attemptID: 7, route: route, pass: pass,
         instruction: .card(instruction), worktreePath: "/wt/backend", resumeSession: resumeSession,
+        additionalReadableDirectories: additionalReadableDirectories,
         additionalWritableDirectories: ["/repos/backend/.git"]
     )
 }
@@ -89,6 +91,7 @@ struct CLIAdapterDispatchTests {
         #expect(mapped.worktreePath == "/wt/backend")
         #expect(mapped.timeout == .seconds(90))
         #expect(mapped.resume?.rawValue == "session-abc")
+        #expect(mapped.additionalReadableDirectories == ["/repos/extra-readable"])
         #expect(mapped.additionalWritableDirectories == ["/repos/backend/.git"])
         #expect(mapped.executable == "/usr/local/bin/claude")
         #expect(mapped.environment == ["HOME": "/home/operator"])

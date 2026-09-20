@@ -104,6 +104,20 @@ struct CodexAdapterTests {
         #expect(ClaudeCodeAdapterTests.indices(of: "--add-dir", in: launch.arguments).count == 2)
     }
 
+    @Test("Additional readable directories do not become --add-dir flags in Codex")
+    func readableDirectoriesProduceNoAddDirFlagsInCodex() throws {
+        let fixture = try CLIDispatchFixture.make()
+        defer { fixture.cleanUp() }
+        let dispatch = fixture.dispatch(
+            cli: "codex", pass: .selection, additionalReadableDirectories: ["/repos/backend", "/repos/mobile"]
+        )
+
+        let launch = try adapter.launch(for: dispatch)
+
+        #expect(!launch.arguments.contains("--add-dir"))
+        #expect(ClaudeCodeAdapterTests.value(after: "--sandbox", in: launch.arguments) == "read-only")
+    }
+
     @Test("Forbidden flags never appear")
     func forbiddenFlagsNeverAppear() throws {
         let fixture = try CLIDispatchFixture.make()

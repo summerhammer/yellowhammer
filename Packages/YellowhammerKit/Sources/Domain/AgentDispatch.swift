@@ -20,6 +20,9 @@ public struct AgentDispatchRequest: Equatable, Sendable {
     /// An opaque session string a CLI handed back for an earlier pass on the same worker, so a Round
     /// resumes it. Yellowhammer never parses it.
     public let resumeSession: String?
+    /// Extra directories the CLI must be able to read beyond the Worktree (e.g. working repos during
+    /// authoring).
+    public let additionalReadableDirectories: [String]
     /// Directories the CLI must be able to write beyond the Worktree, such as a linked Worktree's git
     /// common dir.
     public let additionalWritableDirectories: [String]
@@ -33,6 +36,7 @@ public struct AgentDispatchRequest: Equatable, Sendable {
         instruction: AgentInstruction,
         worktreePath: String,
         resumeSession: String? = nil,
+        additionalReadableDirectories: [String] = [],
         additionalWritableDirectories: [String] = []
     ) {
         self.runID = runID
@@ -43,6 +47,7 @@ public struct AgentDispatchRequest: Equatable, Sendable {
         self.instruction = instruction
         self.worktreePath = worktreePath
         self.resumeSession = resumeSession
+        self.additionalReadableDirectories = additionalReadableDirectories
         self.additionalWritableDirectories = additionalWritableDirectories
     }
 }

@@ -96,6 +96,41 @@ struct ClaudeCodeAdapterTests {
         #expect(Self.value(after: "--add-dir", in: args) == "/a/gitdir")
     }
 
+    @Test("Additional readable directories become repeated --add-dir flags")
+    func addDirFlagsForReadableDirectories() throws {
+        let fixture = try CLIDispatchFixture.make()
+        defer { fixture.cleanUp() }
+        let dispatch = fixture.dispatch(
+            cli: "claude", pass: .selection, additionalReadableDirectories: ["/repos/backend", "/repos/mobile"]
+        )
+
+        let launch = try adapter.launch(for: dispatch)
+        let args = launch.arguments
+
+        #expect(Self.indices(of: "--add-dir", in: args).count == 2)
+        #expect(Self.value(after: "--add-dir", in: args) == "/repos/backend")
+        #expect(Self.value(after: "--permission-mode", in: args) == "dontAsk")
+        #expect(Self.value(after: "--disallowedTools", in: args) == "Edit Write NotebookEdit")
+    }
+
+    @Test("Both additional readable and writable directories become --add-dir flags in order")
+    func addDirFlagsForBothReadableAndWritable() throws {
+        let fixture = try CLIDispatchFixture.make()
+        defer { fixture.cleanUp() }
+        let dispatch = fixture.dispatch(
+            cli: "claude",
+            additionalReadableDirectories: ["/read/1", "/read/2"],
+            additionalWritableDirectories: ["/write/1"]
+        )
+
+        let launch = try adapter.launch(for: dispatch)
+        let args = launch.arguments
+
+        let addDirIndices = Self.indices(of: "--add-dir", in: args)
+        #expect(addDirIndices.count == 3)
+        #expect(addDirIndices.map { args[$0 + 1] } == ["/read/1", "/read/2", "/write/1"])
+    }
+
     // MARK: - Refusals
 
     @Test("A Route for another CLI is refused")
