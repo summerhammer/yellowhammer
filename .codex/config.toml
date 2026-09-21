@@ -1,0 +1,3 @@
+[mcp_servers.spec]
+command = "python3"
+args = ["../yellowhammer-spec/scripts/spec_mcp_server.py"]
