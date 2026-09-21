@@ -37,34 +37,86 @@ struct LandStepResult {
     }
 }
 
+/// Where one Repo Lane stood after its first phase (merge test, push): carried to the second phase (open
+/// pull request, release Worktree), which runs only once Verification has judged the Feature (P10.5).
+struct LandLaneProgress {
+    let laneContext: LandActLaneContext
+    let mergeOutcome: MergeTestOutcome?
+    let pushOutcome: LanePushOutcome?
+    /// Non-nil when a seam of the first phase faulted: the lane stops there and skips its second phase.
+    let fault: String?
+}
+
 extension LandAct {
-    /// One Repo Lane, start to end: merge test, push, open pull request, release Worktree, in that
-    /// order. Never throws: an engine fault from a seam is recorded as this lane's failure and
-    /// returned to the caller, so other lanes are never cancelled by it.
-    func run(lane: RepoLane, feature: FeatureRecord, cycleID: Int64, context: ActContext) async -> String? {
+    /// A Repo Lane's first phase: merge test, then push. Never throws: an engine fault from a seam is
+    /// recorded as this lane's failure and carried in the result, so other lanes are never cancelled.
+    func runFirstPhase(
+        lane: RepoLane, feature: FeatureRecord, cycleID: Int64, context: ActContext
+    ) async -> LandLaneProgress {
         let laneContext = LandActLaneContext(act: context, feature: feature, cycleID: cycleID, lane: lane)
 
         let (mergeResult, mergeOutcome) = await runMergeTest(laneContext)
         record(mergeResult, step: .mergeTest, repository: lane.repository, context: context)
-        if let fault = mergeResult.fault { return fault }
+        if let fault = mergeResult.fault {
+            return LandLaneProgress(laneContext: laneContext, mergeOutcome: nil, pushOutcome: nil, fault: fault)
+        }
 
         let (pushResult, pushOutcome) = await runPush(laneContext, context: context)
         record(pushResult, step: .push, repository: lane.repository, context: context)
-        if let fault = pushResult.fault { return fault }
+        return LandLaneProgress(
+            laneContext: laneContext, mergeOutcome: mergeOutcome, pushOutcome: pushOutcome, fault: pushResult.fault
+        )
+    }
+
+    /// One Repo Lane, both phases back to back with no Verification in between: merge test, push, open pull
+    /// request, release Worktree. `run(_:)` does not use it; it lets a test exercise one lane's seams in
+    /// isolation. Never throws: an engine fault is returned.
+    func run(lane: RepoLane, feature: FeatureRecord, cycleID: Int64, context: ActContext) async -> String? {
+        let progress = await runFirstPhase(lane: lane, feature: feature, cycleID: cycleID, context: context)
+        if let fault = progress.fault { return fault }
+        return await runSecondPhase(progress, verificationGate: nil, context: context)
+    }
+
+    /// Every lane's second phase, for the lanes whose first phase did not fault; the faults, by repository.
+    func runSecondPhases(
+        _ progresses: [LandLaneProgress], gate: String?, context: ActContext
+    ) async -> [String: String] {
+        var failures: [String: String] = [:]
+        for progress in progresses where progress.fault == nil {
+            let repository = progress.laneContext.lane.repository
+            if let failure = await runSecondPhase(progress, verificationGate: gate, context: context) {
+                failures[repository] = failure
+            }
+        }
+        return failures
+    }
+
+    /// A Repo Lane's second phase: open pull request, then release the Worktree. `verificationGate`, when
+    /// non-nil, is why Verification did not complete: the pull request is recorded skipped (its body is
+    /// written once and must carry the clause report) and the Worktree is left held. Returns a fault
+    /// description, nil otherwise.
+    func runSecondPhase(
+        _ progress: LandLaneProgress, verificationGate: String?, context: ActContext
+    ) async -> String? {
+        let laneContext = progress.laneContext
+        let lane = laneContext.lane
+        if let verificationGate {
+            record(.skipped(verificationGate), step: .openPullRequest, repository: lane.repository, context: context)
+            record(.skipped(verificationGate), step: .releaseWorktree, repository: lane.repository, context: context)
+            return nil
+        }
 
         let prResult = await runOpenPullRequest(
-            laneContext, pushOutcome: pushOutcome, mergeOutcome: mergeOutcome, context: context
+            laneContext, pushOutcome: progress.pushOutcome, mergeOutcome: progress.mergeOutcome, context: context
         )
         record(prResult, step: .openPullRequest, repository: lane.repository, context: context)
         if let fault = prResult.fault { return fault }
 
         let releaseResult = await runReleaseWorktree(
-            feature: feature, lane: lane, pushOutcome: pushOutcome, context: context
+            feature: laneContext.feature, lane: lane, pushOutcome: progress.pushOutcome, context: context
         )
         record(releaseResult, step: .releaseWorktree, repository: lane.repository, context: context)
-        if let fault = releaseResult.fault { return fault }
-
-        return nil
+        return releaseResult.fault
     }
 
     private func runMergeTest(_ laneContext: LandActLaneContext) async -> (LandStepResult, MergeTestOutcome?) {

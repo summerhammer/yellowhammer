@@ -175,7 +175,7 @@ extension Instruction {
             return "Cards in a Feature never depend on each other; if this Card cannot be completed "
                 + "without work another Card has yet to do, report `failed` and describe that work in "
                 + "`authoring_invariant_violation`."
-        case .reviewer, .selection, .breakdown:
+        case .reviewer, .selection, .breakdown, .verifier:
             return nil
         }
     }
@@ -185,7 +185,7 @@ extension Instruction {
         case .architect: ["planned", "failed"]
         case .worker: ["completed", "question", "failed"]
         case .reviewer: ["approved", "changes_requested"]
-        case .selection, .breakdown: []
+        case .selection, .breakdown, .verifier: []
         }
     }
 

@@ -1,0 +1,14 @@
+{
+  "schema": "yellowhammer.result.verifier",
+  "version": 1,
+  "outcome": "reported",
+  "clauses": [
+    {
+      "issue_id": "FIXTURE-1",
+      "cid": "c1",
+      "verdict": "met",
+      "what_was_checked": "Fixture data: a rehearsal Night reads no code.",
+      "interpretation": "Fixture data: the clause as written."
+    }
+  ]
+}

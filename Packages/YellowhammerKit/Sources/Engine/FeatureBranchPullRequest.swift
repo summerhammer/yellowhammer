@@ -166,6 +166,9 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
 
         let bodyCards = try bodyCards(cards, journal: journal, cycleID: context.cycleID)
         let unmetClauses = try unmetClauses(cards, journal: journal)
+        // Verification runs before this body is written (roadmap P10.5); when it recorded a report,
+        // the body carries it and derives its unmet list from it.
+        let report = try journal.featureVerification(cycleID: context.cycleID).map(VerificationReport.init(record:))
 
         let mergeVerdict = PullRequestBodyMergeVerdict(
             conflict: mergeOutcome?.conflict ?? false,
@@ -185,7 +188,8 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
             mergedCount: landings.count,
             cycleCards: bodyCards,
             mergeVerdict: mergeVerdict,
-            unmetClauses: unmetClauses
+            unmetClauses: unmetClauses,
+            verificationReport: report
         )
         return (PullRequestBody.render(input), input.isPartialLanding)
     }
@@ -219,9 +223,8 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
     }
 
     /// Definition of Done clauses of the incomplete (Blocked or Waiting on You) Cards, quoted with
-    /// their Spec Citation and marked unmet. Pre-Verification: Verification (P10.5) has not run yet
-    /// when this body is written at landing, so this is the citation-verified set known at landing
-    /// time (DR4), not Verification's own later verdict — the two can differ.
+    /// their Spec Citation and marked unmet. This is the set known from Card state alone; when
+    /// Verification recorded a report (P10.5) the body derives its list from that report instead.
     private func unmetClauses(
         _ cards: [CardRecord], journal: JournalStore
     ) throws -> [PullRequestBodyUnmetClause] {

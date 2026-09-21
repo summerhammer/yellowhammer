@@ -210,8 +210,8 @@ extension CardRun {
         case .architect: .architect
         case .worker: .worker
         case .reviewer: .reviewer
-        case .selection, .breakdown:
-            preconditionFailure("a Card run dispatches no author Act pass")
+        case .selection, .breakdown, .verifier:
+            preconditionFailure("a Card run dispatches no author Act or verifier pass")
         }
     }
 

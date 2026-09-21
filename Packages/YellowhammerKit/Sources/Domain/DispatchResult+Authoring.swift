@@ -54,7 +54,7 @@ extension DispatchResult {
             if case .failed(let reason) = result.outcome { reason } else { nil }
         case .breakdown(let result):
             if case .failed(let reason) = result.outcome { reason } else { nil }
-        case .architect, .worker, .reviewer:
+        case .architect, .worker, .reviewer, .verifier:
             nil
         }
     }

@@ -169,6 +169,8 @@ extension JournalEvent {
             .landStep
         case .cycleLanded:
             .cycleLanded
+        case .featureVerified:
+            .featureVerified
         case .refusalAnswered:
             .refusalAnswered
         case .authoringHaltOpened:

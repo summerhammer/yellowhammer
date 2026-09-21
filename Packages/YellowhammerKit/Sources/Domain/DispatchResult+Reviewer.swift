@@ -64,14 +64,15 @@ extension ReviewerOutcome: Codable {
     }
 }
 
-/// A decoded, pass-tagged result file: the outcome of one architect, worker, reviewer, selection or
-/// breakdown run.
+/// A decoded, pass-tagged result file: the outcome of one architect, worker, reviewer, selection,
+/// breakdown or verifier run.
 public enum DispatchResult: Equatable, Sendable {
     case architect(ArchitectResult)
     case worker(WorkerResult)
     case reviewer(ReviewerResult)
     case selection(SelectionResult)
     case breakdown(BreakdownResult)
+    case verifier(VerifierResult)
 
     public var pass: RunPass {
         switch self {
@@ -80,6 +81,7 @@ public enum DispatchResult: Equatable, Sendable {
         case .reviewer: .reviewer
         case .selection: .selection
         case .breakdown: .breakdown
+        case .verifier: .verifier
         }
     }
 }

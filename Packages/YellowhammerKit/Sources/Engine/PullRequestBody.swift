@@ -94,13 +94,18 @@ public struct PullRequestBodyInput: Equatable, Sendable {
     /// repository's incomplete Cards, not only this lane's.
     public let cycleCards: [PullRequestBodyCard]
     public let mergeVerdict: PullRequestBodyMergeVerdict
+    /// The Definition of Done clauses to list as unmet when there is no ``verificationReport``.
     public let unmetClauses: [PullRequestBodyUnmetClause]
+    /// The Feature's Verification report (roadmap P10.5), when Verification ran before this body was
+    /// written. When present the body carries it with its limitation, and the unmet list is derived
+    /// from it (``effectiveUnmetClauses``) so the two cannot disagree; when nil the body is unchanged.
+    public let verificationReport: VerificationReport?
 
     public init(
         featureTitle: String, featureIssueURL: String?, nightID: Int64, nightTimestamp: String,
         repository: String, touchedRepositoryCount: Int, mergedCount: Int,
         cycleCards: [PullRequestBodyCard], mergeVerdict: PullRequestBodyMergeVerdict,
-        unmetClauses: [PullRequestBodyUnmetClause]
+        unmetClauses: [PullRequestBodyUnmetClause], verificationReport: VerificationReport? = nil
     ) {
         self.featureTitle = featureTitle
         self.featureIssueURL = featureIssueURL
@@ -112,6 +117,16 @@ public struct PullRequestBodyInput: Equatable, Sendable {
         self.cycleCards = cycleCards
         self.mergeVerdict = mergeVerdict
         self.unmetClauses = unmetClauses
+        self.verificationReport = verificationReport
+    }
+
+    /// The unmet list the body prints: every clause the report did not find `met` (unmet and
+    /// unresolved) when there is a report, else the caller's own ``unmetClauses``.
+    public var effectiveUnmetClauses: [PullRequestBodyUnmetClause] {
+        guard let verificationReport else { return unmetClauses }
+        return verificationReport.unmetOrUnresolved.map {
+            PullRequestBodyUnmetClause(cardTitle: $0.issueID, text: $0.text, citation: $0.locationID)
+        }
     }
 
     /// Every incomplete Card of the whole Cycle (any repository), Blocked or Waiting on You.
@@ -147,6 +162,10 @@ public enum PullRequestBody {
         lines.append("")
         lines.append(cardListSection(title: "Cards in this repository", cards: input.laneCards))
         lines.append("")
+        if let report = input.verificationReport {
+            lines.append(report.markdownSection())
+            lines.append("")
+        }
         lines.append(
             "Merging this pull request is what releases the next Feature; leaving it open costs tomorrow night."
         )
@@ -165,7 +184,7 @@ public enum PullRequestBody {
         let blockedCount = incomplete.filter { $0.state == .blocked }.count
         let landedCount = input.cycleCards.filter { $0.state == .done }.count
         let totalCardCount = input.cycleCards.count
-        let uCount = input.unmetClauses.count
+        let uCount = input.effectiveUnmetClauses.count
         // The "carried forward" *list* (below) names only a Card still Waiting on You at landing, per
         // the story's own wording — that is the one auto-Blocked and sent to Adoption. Line 2's fixed
         // copy ("<c_count> unfinished Cards are carried forward and auto-Blocked awaiting Adoption")
@@ -188,7 +207,7 @@ public enum PullRequestBody {
         lines.append("")
         lines.append(incompleteCardsSection(incomplete))
         lines.append("")
-        lines.append(unmetClausesSection(input.unmetClauses))
+        lines.append(unmetClausesSection(input.effectiveUnmetClauses))
         lines.append("")
         lines.append(carriedForwardSection(carried))
         lines.append("")
@@ -203,6 +222,10 @@ public enum PullRequestBody {
         lines.append("")
         lines.append(cardListSection(title: "Cards in this repository", cards: input.laneCards))
         lines.append("")
+        if let report = input.verificationReport {
+            lines.append(report.markdownSection())
+            lines.append("")
+        }
         lines.append(mainlineVerdictLine(input))
         lines.append("")
         lines.append(featurePointerLine(input))
@@ -257,9 +280,9 @@ public enum PullRequestBody {
     }
 
     private static func unmetClausesSection(_ clauses: [PullRequestBodyUnmetClause]) -> String {
-        // Pre-Verification count: Verification runs after landing writes this body, so `unmetClauses`
-        // here is the citation-verified set known at landing time, not Verification's own later
-        // verdict — the two can differ, and this section never claims otherwise.
+        // Without a Verification report (a land Act with no Verification seam wired), `clauses` is the
+        // set known at landing time from the incomplete Cards, and this section claims nothing more. With
+        // one, it is derived from the report's own unmet and unresolved clauses, so the two agree.
         guard !clauses.isEmpty else { return "Definition of Done clauses unmet: none." }
         var lines = ["Definition of Done clauses unmet:"]
         for clause in clauses {
