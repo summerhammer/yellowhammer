@@ -1195,7 +1195,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Body rendering is tested against fixtures (copy only, not model content). A
   production-only smoke test on a sandbox GitHub repository opens one pull request.
 
-### [ ] P10.5 Verification clause by clause
+### [x] P10.5 Verification clause by clause
 - **Work**
   - Dispatch Verification to an agent other than the one that wrote the code.
   - Report every clause: `cid`, text, Spec Citation, provenance, verdict, what was checked, and the
