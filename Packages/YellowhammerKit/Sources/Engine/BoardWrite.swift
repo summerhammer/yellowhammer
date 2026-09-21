@@ -16,6 +16,8 @@ public enum BoardWrite: Codable, Equatable, Sendable {
     /// Replaces the text between the Managed Block delimiters with `rendered`, after a pre-flight
     /// read of the description as it is at that instant. The only way a description is written.
     case rewriteManagedBlock(issue: BoardObjectID, rendered: String)
+    /// Replaces matching report lines at delivery time, preserving the rest of the current block.
+    case updateManagedBlockLine(issue: BoardObjectID, prefix: String, line: String)
     /// Workflow state, labels, assignment, `parentId` and title. Never a description: the Outbox
     /// refuses a change that carries one. `undo` is what a rollback applies if a group this write
     /// belongs to cannot complete — an adopted Card's previous parent, for instance.
@@ -34,6 +36,7 @@ public enum BoardWrite: Codable, Equatable, Sendable {
         case .createComment: "commentCreate"
         case .attachLink: "attachmentCreate"
         case .rewriteManagedBlock: "descriptionRewrite"
+        case .updateManagedBlockLine: "descriptionRewrite"
         case .updateIssue: "issueUpdate"
         case .archiveIssue: "issueArchive"
         case .adoptIssue: "issueUpdate"
@@ -46,7 +49,8 @@ public enum BoardWrite: Codable, Equatable, Sendable {
         case .createIssue:
             nil
         case .createComment(let issue, _), .attachLink(let issue, _, _), .rewriteManagedBlock(let issue, _),
-             .updateIssue(let issue, _, _), .archiveIssue(let issue), .adoptIssue(let issue, _, _):
+             .updateIssue(let issue, _, _), .archiveIssue(let issue), .adoptIssue(let issue, _, _),
+             .updateManagedBlockLine(let issue, _, _):
             issue
         }
     }
@@ -55,7 +59,7 @@ public enum BoardWrite: Codable, Equatable, Sendable {
     var isCreate: Bool {
         switch self {
         case .createIssue, .createComment, .attachLink: true
-        case .rewriteManagedBlock, .updateIssue, .archiveIssue, .adoptIssue: false
+        case .rewriteManagedBlock, .updateManagedBlockLine, .updateIssue, .archiveIssue, .adoptIssue: false
         }
     }
 }

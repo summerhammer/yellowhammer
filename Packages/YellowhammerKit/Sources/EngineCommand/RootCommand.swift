@@ -90,11 +90,12 @@ extension ActCommand {
     ) throws -> EngineInvocation.ActWork {
         switch Self.act {
         case .land:
-            // The Repo Lane push is wired (P10.2). Every other seam is nil until its own roadmap phase
-            // lands: mergeTest (P10.3), openPullRequest (P10.4), verification (P10.5), returnFeature
-            // (P10.6), archiveCycle (P10.7). Until then those land steps record `.notWired` (or
-            // `.rehearsalBoundary`) and the Cycle still lands once every Repo Lane's steps have run.
-            return LandAct(push: LandBinding.push(configuration: configuration, project: project)).work
+            // The Repo Lane merge test (P10.3) is pure local git and records conflicts without gating
+            // landing. Push remains the only publication seam wired until P10.4.
+            return LandAct(
+                mergeTest: FeatureBranchLaneMergeTest(),
+                push: LandBinding.push(configuration: configuration, project: project)
+            ).work
         case .author:
             // Selection and breakdown are agent CLI dispatches routed through the ordinary Routing Table
             // under the reserved authoring Kind (P9.11); `AuthoringBinding` wires both, and a Rehearsal

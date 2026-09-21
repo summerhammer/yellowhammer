@@ -265,7 +265,7 @@ struct LandActPushTests {
 
 /// Minimal git fixture for these tests — `Tests/RepositoriesTests/GitFixture.swift` lives in a
 /// different test target and is not visible here.
-private final class TestGitRepo {
+final class TestGitRepo {
     let url: URL
     let git = GitRunner()
 
@@ -333,7 +333,7 @@ private final class TestGitRepo {
 /// `EngineInvocation` (which would also need a real Board Port for the Night Card) and calls
 /// `LandAct.run(lane:feature:cycleID:context:)` directly, as `LandActFixtures.swift` already does for
 /// `LandActTests`. Owns its own temp Journal directory, removed in `deinit`.
-private final class Environment {
+final class Environment {
     private let directory: URL
     let journal: JournalStore
     let board: FakeWritingBoard

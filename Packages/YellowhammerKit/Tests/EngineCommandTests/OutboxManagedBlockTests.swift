@@ -12,6 +12,42 @@ import Testing
 
 @Suite("Outbox: Managed Block rewrites")
 struct OutboxManagedBlockTests {
+    @Test("Deferred report updates preserve other repositories and current prose, and replace stale verdicts")
+    func queuedReportsPreserveCurrentBlock() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let board = FakeWritingBoard()
+        let issue = await board.seed(issue: "feature", description: fencedDescription)
+        let outbox = try outbox(journal, board: board)
+        let backend = "Mainline merge test for `backend`: "
+        let mobile = "Mainline merge test for `mobile`: "
+        _ = try outbox.accept([
+            OutboxWrite(key: "backend", write: .updateManagedBlockLine(
+                issue: issue, prefix: backend, line: backend + "[conflict: backend] a.swift"
+            )),
+            OutboxWrite(key: "mobile", write: .updateManagedBlockLine(
+                issue: issue, prefix: mobile, line: mobile + "[conflict: mobile] b.swift"
+            ))
+        ])
+        let edited = "Operator prose\n" + ManagedBlockFence.initialDescription(rendered: "roll-up\n\nDoD")
+        await board.edit(issue, description: edited)
+        _ = try await outbox.deliverPending()
+        let written = try #require(await board.issue(issue)?.description)
+        #expect(written.contains("roll-up\n\nDoD"))
+        #expect(written.hasPrefix("Operator prose\n"))
+        #expect(written.contains(backend + "[conflict: backend] a.swift"))
+        #expect(written.contains(mobile + "[conflict: mobile] b.swift"))
+        _ = try await outbox.post(OutboxWrite(key: "backend-clean", write: .updateManagedBlockLine(
+            issue: issue, prefix: backend, line: backend + "clean; not a safety claim"
+        )))
+        let revised = try #require(await board.issue(issue)?.description)
+        #expect(!revised.contains("[conflict: backend]"))
+        #expect(revised.contains("[conflict: mobile]"))
+        #expect(revised.contains("roll-up\n\nDoD"))
+        _ = try await outbox.deliverPending()
+        #expect(await board.issue(issue)?.description == revised)
+    }
+
     // MARK: - Managed Block
 
     @Test("A rewrite replaces only the text between the delimiters and records the prose hash")
