@@ -41,7 +41,7 @@ func actLeaseMigrationIsSecond() throws {
             "v5-delta-read", "v6-night-verdict", "v7-card-state-version", "v8-worktree-pushed-commit",
             "v9-worktree-reconciliation", "v10-attempt-route-provenance", "v11-feature-branch",
             "v12-readiness-check", "v13-card-scope", "v14-attempt-preserved-ref", "v15-refusal", "v16-cycle-landed",
-            "v17-authoring-halt", "v18-predecessor-gate"
+            "v17-authoring-halt", "v18-predecessor-gate", "v19-pull-request"
         ]
     )
 }
@@ -62,7 +62,7 @@ func v1JournalMigratesForwardToActLease() throws {
         "v5-delta-read", "v6-night-verdict", "v7-card-state-version", "v8-worktree-pushed-commit",
         "v9-worktree-reconciliation", "v10-attempt-route-provenance", "v11-feature-branch",
         "v12-readiness-check", "v13-card-scope", "v14-attempt-preserved-ref", "v15-refusal", "v16-cycle-landed",
-            "v17-authoring-halt", "v18-predecessor-gate"
+            "v17-authoring-halt", "v18-predecessor-gate", "v19-pull-request"
     ])
     #expect(try journal.tableNames().contains("act_lease"))
 }

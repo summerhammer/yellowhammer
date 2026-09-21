@@ -91,10 +91,12 @@ extension ActCommand {
         switch Self.act {
         case .land:
             // The Repo Lane merge test (P10.3) is pure local git and records conflicts without gating
-            // landing. Push remains the only publication seam wired until P10.4.
+            // landing. Push (P10.2) and open pull request (P10.4) are both wired; Verification
+            // (P10.5) and beyond are not.
             return LandAct(
                 mergeTest: FeatureBranchLaneMergeTest(),
-                push: LandBinding.push(configuration: configuration, project: project)
+                push: LandBinding.push(configuration: configuration, project: project),
+                openPullRequest: LandBinding.pullRequest(configuration: configuration, project: project)
             ).work
         case .author:
             // Selection and breakdown are agent CLI dispatches routed through the ordinary Routing Table

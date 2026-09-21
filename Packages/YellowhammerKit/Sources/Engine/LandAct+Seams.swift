@@ -30,15 +30,28 @@ public struct MergeTestOutcome: Equatable, Sendable {
     public let detail: String?
     /// A merge test that could not be evaluated. This never gates landing.
     public let untestable: Bool
+    /// The conflicting paths, when `conflict` is true; empty otherwise (roadmap P10.4, for the pull
+    /// request body's Mainline Conflict verdict).
+    public let paths: [String]
+    /// The remote-tracking mainline ref this outcome was read against, when resolved.
+    public let mainlineRef: String?
+    /// The commit `mainlineRef` resolved to at the time of the test.
+    public let mainlineCommit: String?
 
     public init(
         conflict: Bool,
         detail: String? = nil,
-        untestable: Bool = false
+        untestable: Bool = false,
+        paths: [String] = [],
+        mainlineRef: String? = nil,
+        mainlineCommit: String? = nil
     ) {
         self.conflict = conflict
         self.detail = detail
         self.untestable = untestable
+        self.paths = paths
+        self.mainlineRef = mainlineRef
+        self.mainlineCommit = mainlineCommit
     }
 }
 
@@ -127,9 +140,13 @@ public struct PullRequestOutcome: Equatable, Sendable {
 }
 
 /// Opens a Repo Lane's pull request (P10.4), only once its push reported pushed. Never called in
-/// rehearsal mode (a rehearsal boundary).
+/// rehearsal mode (a rehearsal boundary). `mergeOutcome` is this lane's merge test result (P10.3), so
+/// its Mainline Conflict verdict can reach the pull request body; nil when the merge test seam is not
+/// wired.
 public protocol PullRequestOpening: Sendable {
-    func open(_ context: LandActLaneContext, push: LanePushOutcome) async throws -> PullRequestOutcome
+    func open(
+        _ context: LandActLaneContext, push: LanePushOutcome, mergeOutcome: MergeTestOutcome?
+    ) async throws -> PullRequestOutcome
 }
 
 /// The Feature's context, handed to its three Feature-scoped seams.

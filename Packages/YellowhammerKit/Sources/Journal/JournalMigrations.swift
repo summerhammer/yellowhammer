@@ -84,6 +84,9 @@ enum JournalMigrations {
         migrator.registerMigration("v18-predecessor-gate") { db in
             try addFeatureLandingTables(db)
         }
+        migrator.registerMigration("v19-pull-request") { db in
+            try addPullRequestTable(db)
+        }
         return migrator
     }
 }
