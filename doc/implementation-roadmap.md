@@ -1175,7 +1175,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Fixture repos produce a conflict verdict with paths. Landing continues.
 
-### [ ] P10.4 Publication adapter: GitHub pull requests
+### [x] P10.4 Publication adapter: GitHub pull requests
 - **Work**
   - Open exactly one pull request per repository from its Feature Branch. Write-only: never read
     pull request state.
