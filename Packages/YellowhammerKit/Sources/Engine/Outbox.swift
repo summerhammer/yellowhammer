@@ -190,7 +190,7 @@ public struct Outbox: Sendable {
     }
 
     /// What the board did, before the Journal is told.
-    private enum Performed {
+    enum Performed {
         case created(BoardCreateReceipt)
         case updated
         case fenced(ManagedBlockFence.Replacement, renderedHash: String)
@@ -209,15 +209,9 @@ public struct Outbox: Sendable {
         case .attachLink(let issue, let url, let title):
             return .created(try await board.attachLink(to: issue, url: url, title: title, clientID: entry.clientID))
         case .rewriteManagedBlock(let issue, let rendered):
-            // The pre-flight read happens here, immediately before the mutation, never earlier.
-            let snapshot = try await board.issueDescription(issue)
-            switch ManagedBlockFence.replace(in: snapshot.description, rendered: rendered) {
-            case .failure(let failure):
-                return .unfenced(failure)
-            case .success(let replacement):
-                _ = try await board.updateIssue(issue, BoardIssueChange(description: replacement.description))
-                return .fenced(replacement, renderedHash: ManagedBlockFence.sha256(rendered))
-            }
+            return try await performManagedBlock(issue: issue, rendered: rendered)
+        case .updateManagedBlockLine(let issue, let prefix, let line):
+            return try await performManagedBlock(issue: issue, rendered: line, replacingPrefix: prefix)
         case .updateIssue(let issue, let change, _):
             _ = try await board.updateIssue(issue, change)
             return .updated

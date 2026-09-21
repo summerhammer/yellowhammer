@@ -97,8 +97,10 @@ public struct NightCardMaintenance: Sendable {
         let issue = BoardObjectID(rawValue: issueID)
         let findings = try authoringLines(night: night)
         let anomalies = try anomalyLines(night: night)
+        let conflicts = try mainlineConflictLines(night: night)
         let rendered = NightCardBlock.completed(
-            night: night, projectID: journal.projectID, authoringFindings: findings, anomalies: anomalies
+            night: night, projectID: journal.projectID, authoringFindings: findings, anomalies: anomalies,
+            mainlineConflicts: conflicts
         )
         let hash = ManagedBlockFence.sha256(rendered)
         let summary = OutboxWrite(
@@ -138,6 +140,24 @@ public struct NightCardMaintenance: Sendable {
             lines.append(
                 "`\(issueID)` was read in Waiting on You with no Journal record behind it; it was not dispatched."
             )
+        }
+        return lines
+    }
+
+    /// The standing Mainline Conflict line is recomputed from this Night's immutable Journal events.
+    private func mainlineConflictLines(night: NightRecord) throws -> [String] {
+        var seen: Set<String> = []
+        var lines: [String] = []
+        for record in try journal.events(ofType: .mainlineConflictDetected)
+            where record.nightID == night.id {
+            guard case .mainlineConflictDetected(let feature, let repository, let paths) = record.event else {
+                continue
+            }
+            let pathText = paths.isEmpty ? "paths unavailable" : paths.joined(separator: ", ")
+            let line = "Feature `\(feature)` — `\(repository)`: \(pathText) " +
+                "(detected as of Night \(night.nightStart); reported only, never gates landing)."
+            guard seen.insert(line).inserted else { continue }
+            lines.append(line)
         }
         return lines
     }

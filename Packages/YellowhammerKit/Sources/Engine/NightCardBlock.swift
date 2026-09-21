@@ -28,7 +28,8 @@ public enum NightCardBlock {
     /// (P12.1) — the quiet authoring findings this Night recorded (P9.1), and, when the Delta Read
     /// found any, the Waiting on You anomalies this Night.
     public static func completed(
-        night: NightRecord, projectID: ProjectID, authoringFindings: [String] = [], anomalies: [String] = []
+        night: NightRecord, projectID: ProjectID, authoringFindings: [String] = [], anomalies: [String] = [],
+        mainlineConflicts: [String] = []
     ) -> String {
         var lines = header(night: night, projectID: projectID)
         if let completedAt = night.completedAt {
@@ -48,6 +49,7 @@ public enum NightCardBlock {
             )
         }
         appendAuthoringFindings(authoringFindings, to: &lines)
+        appendMainlineConflicts(mainlineConflicts, to: &lines)
         if !anomalies.isEmpty {
             lines.append("")
             lines.append("**Anomalies:**")
@@ -68,6 +70,15 @@ public enum NightCardBlock {
         lines.append("**Authoring:**")
         for finding in findings {
             lines.append("- \(finding)")
+        }
+    }
+
+    private static func appendMainlineConflicts(_ conflicts: [String], to lines: inout [String]) {
+        guard !conflicts.isEmpty else { return }
+        lines.append("")
+        lines.append("**Mainline Conflicts:**")
+        for conflict in conflicts {
+            lines.append("- \(conflict)")
         }
     }
 

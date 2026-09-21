@@ -28,10 +28,17 @@ public struct MergeTestOutcome: Equatable, Sendable {
     /// Whether the Feature Branch would not merge cleanly into mainline — a Mainline Conflict.
     public let conflict: Bool
     public let detail: String?
+    /// A merge test that could not be evaluated. This never gates landing.
+    public let untestable: Bool
 
-    public init(conflict: Bool, detail: String? = nil) {
+    public init(
+        conflict: Bool,
+        detail: String? = nil,
+        untestable: Bool = false
+    ) {
         self.conflict = conflict
         self.detail = detail
+        self.untestable = untestable
     }
 }
 
