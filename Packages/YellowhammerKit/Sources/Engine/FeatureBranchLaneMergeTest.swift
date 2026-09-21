@@ -31,7 +31,10 @@ public struct FeatureBranchLaneMergeTest: LaneMergeTesting, Sendable {
             ))
             _ = try await outbox.deliverPending()
         }
-        return MergeTestOutcome(conflict: result.conflict, detail: detail, untestable: result.untestable)
+        return MergeTestOutcome(
+            conflict: result.conflict, detail: detail, untestable: result.untestable, paths: result.paths,
+            mainlineRef: result.mainlineRef, mainlineCommit: result.mainlineCommit
+        )
     }
 
     private func evaluate(_ context: LandActLaneContext) async throws -> MergeTestOutcome {
@@ -81,7 +84,9 @@ public struct FeatureBranchLaneMergeTest: LaneMergeTesting, Sendable {
             return MergeTestOutcome(
                 conflict: false,
                 detail: "clean against \(mainline.ref) at \(mainline.commit); " +
-                    "clean is not a claim that merging is safe; the cached remote-tracking ref may be stale"
+                    "clean is not a claim that merging is safe; the cached remote-tracking ref may be stale",
+                mainlineRef: mainline.ref,
+                mainlineCommit: mainline.commit
             )
         case .conflicting(let paths):
             try context.act.journal.append(
@@ -98,7 +103,10 @@ public struct FeatureBranchLaneMergeTest: LaneMergeTesting, Sendable {
                 conflict: true,
                 detail: "Mainline Conflict in \(repository.name): \(paths.joined(separator: ", ")) " +
                     "(branch \(result.branchCommit ?? "unresolved"), against \(mainline.ref) " +
-                    "at \(mainline.commit)); reported only"
+                    "at \(mainline.commit)); reported only",
+                paths: paths,
+                mainlineRef: mainline.ref,
+                mainlineCommit: mainline.commit
             )
         case .untestable(let reason):
             return MergeTestOutcome(

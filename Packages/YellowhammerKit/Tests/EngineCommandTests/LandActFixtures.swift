@@ -63,7 +63,9 @@ struct StubPush: LanePushing {
 struct StubPullRequest: PullRequestOpening {
     let log: LandCallLog
 
-    func open(_ context: LandActLaneContext, push: LanePushOutcome) async throws -> PullRequestOutcome {
+    func open(
+        _ context: LandActLaneContext, push: LanePushOutcome, mergeOutcome: MergeTestOutcome?
+    ) async throws -> PullRequestOutcome {
         log.add("openPullRequest:\(context.lane.repository)")
         return PullRequestOutcome(opened: true)
     }

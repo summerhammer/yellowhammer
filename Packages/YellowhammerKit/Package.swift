@@ -16,6 +16,7 @@ let package = Package(
         .library(name: "Engine", targets: ["Engine"]),
         .library(name: "LinearAdapter", targets: ["LinearAdapter"]),
         .library(name: "OrcaADEAdapter", targets: ["OrcaADEAdapter"]),
+        .library(name: "GitHubAdapter", targets: ["GitHubAdapter"]),
         .library(name: "Repositories", targets: ["Repositories"]),
         .library(name: "CLIAdapters", targets: ["CLIAdapters"]),
         .library(name: "EngineCommand", targets: ["EngineCommand"])
@@ -85,6 +86,10 @@ let package = Package(
             ]
         ),
         .target(
+            name: "GitHubAdapter",
+            dependencies: ["Domain"]
+        ),
+        .target(
             name: "CLIAdapters",
             dependencies: [
                 "Domain",
@@ -101,6 +106,7 @@ let package = Package(
                 "Ledger",
                 "LinearAdapter",
                 "OrcaADEAdapter",
+                "GitHubAdapter",
                 "Repositories",
                 "CLIAdapters",
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
@@ -139,6 +145,13 @@ let package = Package(
             name: "OrcaADEAdapterTests",
             dependencies: [
                 "OrcaADEAdapter",
+                "Domain"
+            ]
+        ),
+        .testTarget(
+            name: "GitHubAdapterTests",
+            dependencies: [
+                "GitHubAdapter",
                 "Domain"
             ]
         ),

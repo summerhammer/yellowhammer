@@ -44,7 +44,7 @@ extension LandAct {
     func run(lane: RepoLane, feature: FeatureRecord, cycleID: Int64, context: ActContext) async -> String? {
         let laneContext = LandActLaneContext(act: context, feature: feature, cycleID: cycleID, lane: lane)
 
-        let mergeResult = await runMergeTest(laneContext)
+        let (mergeResult, mergeOutcome) = await runMergeTest(laneContext)
         record(mergeResult, step: .mergeTest, repository: lane.repository, context: context)
         if let fault = mergeResult.fault { return fault }
 
@@ -52,7 +52,9 @@ extension LandAct {
         record(pushResult, step: .push, repository: lane.repository, context: context)
         if let fault = pushResult.fault { return fault }
 
-        let prResult = await runOpenPullRequest(laneContext, pushOutcome: pushOutcome, context: context)
+        let prResult = await runOpenPullRequest(
+            laneContext, pushOutcome: pushOutcome, mergeOutcome: mergeOutcome, context: context
+        )
         record(prResult, step: .openPullRequest, repository: lane.repository, context: context)
         if let fault = prResult.fault { return fault }
 
@@ -65,13 +67,13 @@ extension LandAct {
         return nil
     }
 
-    private func runMergeTest(_ laneContext: LandActLaneContext) async -> LandStepResult {
-        guard let mergeTest else { return .notWired() }
+    private func runMergeTest(_ laneContext: LandActLaneContext) async -> (LandStepResult, MergeTestOutcome?) {
+        guard let mergeTest else { return (.notWired(), nil) }
         do {
             let outcome = try await mergeTest.test(laneContext)
-            return .completed(detail: outcome.detail)
+            return (.completed(detail: outcome.detail), outcome)
         } catch {
-            return .faulted(String(describing: error))
+            return (.faulted(String(describing: error)), nil)
         }
     }
 
@@ -116,7 +118,8 @@ extension LandAct {
 
     /// Never called in rehearsal mode, and never called for a lane whose push did not report pushed.
     private func runOpenPullRequest(
-        _ laneContext: LandActLaneContext, pushOutcome: LanePushOutcome?, context: ActContext
+        _ laneContext: LandActLaneContext, pushOutcome: LanePushOutcome?, mergeOutcome: MergeTestOutcome?,
+        context: ActContext
     ) async -> LandStepResult {
         if context.mode == .rehearsal {
             return .rehearsalBoundary()
@@ -128,7 +131,7 @@ extension LandAct {
             return .skipped("not pushed")
         }
         do {
-            let outcome = try await openPullRequest.open(laneContext, push: pushOutcome)
+            let outcome = try await openPullRequest.open(laneContext, push: pushOutcome, mergeOutcome: mergeOutcome)
             return outcome.opened ? .completed(detail: outcome.detail) : .failed(outcome.detail)
         } catch {
             return .faulted(String(describing: error))
