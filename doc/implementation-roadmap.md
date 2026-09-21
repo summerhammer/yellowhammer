@@ -33,6 +33,9 @@ disagreement is a defect in this file.
     bounded adapters, CLI surfaces and app screens; Sonnet for scripted `[DevOps]` steps. Where a
     step lists `Gemini Flash 3.8 Medium` as an alternative, the work is scripted, templated or a
     thin wrapper over a documented tool, and a cheap model is acceptable.
+    Each line also names the ChatGPT model and reasoning effort for a Codex implementor:
+    `gpt-6-astra` pairs with Fable, `gpt-5.6-sol` with Opus, `gpt-5.6-terra` with Sonnet, and
+    `gpt-5.6-luna` with the cheap alternative.
   - **Amends** — *(corrections only)* the already-shipped steps this one corrects, each of which
     carries the matching **Amended** line. A correction is its own step so it is its own layer; the
     step it corrects keeps its `[x]`.
@@ -1169,7 +1172,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   reported, nothing is resolved, and the landing still proceeds. A clean verdict is never described
   as "safe to merge".
 - **Spec** — `landing/open-one-pull-request-per-repository`.
-- **Agent** — Fable 5.1 Medium.
+- **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Fixture repos produce a conflict verdict with paths. Landing continues.
 
 ### [ ] P10.4 Publication adapter: GitHub pull requests
@@ -1188,7 +1191,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Spec** — `landing/open-one-pull-request-per-repository`; `landing/announce-a-partial-landing`;
   risks.md OQ31, OQ26.
 - **Gate** — P1.1 item 6 (cost in the body).
-- **Agent** — Fable 5.1 Medium.
+- **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Body rendering is tested against fixtures (copy only, not model content). A
   production-only smoke test on a sandbox GitHub repository opens one pull request.
 
@@ -1204,7 +1207,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - A Partial Landing always fails verification.
 - **Spec** — `verification/verify-a-feature-clause-by-clause`; DR4.
 - **Gate** — G-11.
-- **Agent** — Fable 5.1 High.
+- **Agent** — Fable 5.1 High or `gpt-6-astra high`.
 - **Done when** — Report rendering and different-agent routing are tested. Verdicts are not
   asserted.
 
@@ -1213,7 +1216,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   met clauses too. Pull requests stay open and linked. Not Done, not archived. That Project's author
   Act authors nothing while it is returned.
 - **Spec** — `verification/return-a-feature-with-unmet-clauses`.
-- **Agent** — Fable 5.1 Medium.
+- **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Rehearsal state-transition tests.
 
 ### [ ] P10.7 Archive the Cycle on a verified Feature
@@ -1223,7 +1226,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     Done or archive it.
   - Never merge or close a pull request. Archival does not release the next Feature.
 - **Spec** — `verification/archive-the-cycle-on-a-verified-feature`; risks.md OQ54.
-- **Agent** — Fable 5.1 Medium.
+- **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Rehearsal tests for the verification route.
 
 ### [ ] P10.8 Closure by merge (observed ancestry)
@@ -1234,7 +1237,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     narrative comment, and count it in that Night Summary.
   - For `k < N`, change only the merged fraction. Write no receipt.
 - **Spec** — `landing/announce-a-partial-landing`; `morning-report/triage-the-morning`; R17, R18.
-- **Agent** — Fable 5.1 High.
+- **Agent** — Fable 5.1 High or `gpt-6-astra high`.
 - **Done when** — Fixture repositories with k = 0, k < N and k = N produce exactly the specified
   writes.
 
@@ -1251,7 +1254,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Spec** — `morning-report/triage-the-morning`; `landing/overview`; ooux/nav-flow.md (path 2);
   risks.md OQ63.
 - **Gate** — G-6 (where the gesture lives: Linear or the app).
-- **Agent** — Fable 5.1 Medium.
+- **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Rehearsal tests of both settle outcomes.
 
 ---
@@ -1263,7 +1266,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   record the question in the Journal, set `waiting_reason = question`. No Round, no Attempt. Hold
   the Worktree. The lane continues.
 - **Spec** — `bounds/escalate-a-question-to-the-operator` (first story).
-- **Agent** — Fable 5.1 Medium.
+- **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Rehearsal tests with a fixture "question" result file.
 
 ### [ ] P11.2 Answer detection and resumption
@@ -1277,7 +1280,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Spec** — `bounds/escalate-a-question-to-the-operator` (second story);
   `board-projection/read-board-changes-by-delta` (OQ37 copy).
 - **Gate** — G-8.
-- **Agent** — Fable 5.1 High.
+- **Agent** — Fable 5.1 High or `gpt-6-astra high`.
 - **Done when** — Rehearsal tests against real comments in the scratch team, for each branch.
 
 ### [ ] P11.3 Banked replies after landing
@@ -1289,7 +1292,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Derive the banked-answer marker on the Feature member row at read time. No roll-up change.
 - **Spec** — `board-projection/read-board-changes-by-delta`; `board-projection/maintain-the-managed-block`
   (second story); risks.md OQ8.
-- **Agent** — Fable 5.1 Medium.
+- **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Rehearsal tests cover first and repeated banked replies.
 
 ### [ ] P11.4 `unanswered_nights_max`
@@ -1301,7 +1304,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Before any Worktree release, push the Feature Branch and record the ref.
   - An auto-Blocked Card is not terminal and can be re-readied with counters preserved.
 - **Spec** — `bounds/bound-unanswered-nights`; DR8; risks.md OQ14, OQ47.
-- **Agent** — Opus 5 Medium.
+- **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
 - **Done when** — Rehearsal-assertable bound arithmetic with `unanswered_nights_max = 1`, including
   the stopped-Project case (no Acts, no change).
 
@@ -1319,7 +1322,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Adoption is part of the authoring transaction.
 - **Spec** — `feature-authoring/author-the-cycle-and-card-dag` (second story);
   `feature-authoring/select-the-next-feature`.
-- **Agent** — Fable 5.1 Medium.
+- **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Rehearsal tests of adopt and refuse-to-adopt, with counters verified.
 
 ### [ ] P11.6 Promotion and re-selection bounds
@@ -1336,7 +1339,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Report proximity to each in the Night Summary.
 - **Spec** — `bounds/overview`; `feature-authoring/select-the-next-feature`; risks.md OQ14 (4).
 - **Gate** — G-16.
-- **Agent** — Fable 5.1 Medium.
+- **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Rehearsal bound arithmetic with small values.
 
 ---
@@ -1366,7 +1369,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     `MainlineFetchFailed`, absent Nights detected, local-notification failures, anomalies.
   - Nothing spans Projects. No machine-wide bound line.
 - **Spec** — `morning-report/write-the-night-summary`; `loop-state/*`; risks.md OQ12.
-- **Agent** — Fable 5.1 Medium.
+- **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Rehearsal Nights of each kind (idle, quiet, crashed, partial) render the
   specified lines.
 
@@ -1378,7 +1381,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   `author_supplied_citation_count`.
 - **Spec** — `morning-report/report-the-instrumented-rates`; DR1; risks.md TD8.
 - **Gate** — G-9 (first rate only).
-- **Agent** — Opus 5 Medium.
+- **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
 - **Done when** — Rates computed from multi-Night rehearsal Journals match hand-computed values.
 
 ### [ ] P12.3 Feature roll-up
@@ -1395,7 +1398,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Hash-skip over the rendered block.
 - **Spec** — `board-projection/maintain-the-managed-block` (second story); glossary → Roll-up;
   risks.md OQ31.
-- **Agent** — Fable 5.1 Medium.
+- **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Rehearsal tests cover each lattice word, each template, and reposting when only
   lane completion, merged fraction, conflict, live set or Feature state changes.
 
@@ -1405,7 +1408,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     event, reason) under its own bundle identity, then exits. No window and nothing resident.
   - Notification permission request at setup, with Time Sensitive where available.
 - **Spec** — `morning-report/notify-the-operator-of-exceptions`; risks.md OQ9.
-- **Agent** — Opus 5 Medium.
+- **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
 - **Done when** — Launching the app headlessly with post arguments shows a notification and the
   process exits.
 
@@ -1418,7 +1421,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Spec** — `morning-report/notify-the-operator-of-exceptions`; system-overview → Notification
   behaviour.
 - **Gate** — G-10.
-- **Agent** — Fable 5.1 Medium.
+- **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — With notifications disabled or the app missing, an Act completes and logs the
   failure.
 
@@ -1434,7 +1437,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Notification permission registration through the headless app.
   - Routing warnings for entries with no fallback or a single CLI.
 - **Spec** — risks.md OQ13 Facet 1 and Facet 3; `bounds/bound-unanswered-nights` (defaults).
-- **Agent** — Fable 5.1 Medium.
+- **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — On a clean user account, `yh setup --init` produces a configuration that passes
   validation, and provisioning is idempotent.
 
@@ -1449,7 +1452,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     Orca ADE).
 - **Spec** — `shift-scheduling/overview`; risks.md OQ13, OQ44, OQ53.
 - **Gate** — G-7.
-- **Agent** — Fable 5.1 Medium.
+- **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Installed jobs fire `yh` on a developer machine at the scheduled times, and the
   event log shows each Act.
 
@@ -1458,7 +1461,8 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   inspect `launchd` job status, detect orphaned LaunchAgents (`--fix` unloads and removes them after
   confirmation), and warn on routing entries with no fallback.
 - **Spec** — risks.md OQ13, OQ52 Face 1.
-- **Agent** — Opus 5 Medium, or Gemini Flash 3.8 Medium.
+- **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`; cheap alternative Gemini
+  Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — Each check has a passing and a failing fixture. An orphaned agent is found and
   removed.
 
@@ -1467,7 +1471,8 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   and a diagnosis of a missed Night (sleep, missing or disabled job, pre-initialization crash). No
   cross-Project verdict.
 - **Spec** — risks.md OQ12 Surface 3.
-- **Agent** — Opus 5 Medium, or Gemini Flash 3.8 Medium.
+- **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`; cheap alternative Gemini
+  Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — Each diagnosis is produced from a staged scenario.
 
 ### [ ] P13.5 `yh project remove <id>`
@@ -1478,7 +1483,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - WIP-commit and push dirty Worktrees, then remove Worktrees through Orca ADE.
   - Close any open Night in the Journal with reason `project_removed`. Keep the Journal file.
 - **Spec** — risks.md OQ52 Face 1.
-- **Agent** — Opus 5 Medium.
+- **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
 - **Done when** — A rehearsal Project is removed with every listed effect, and removal during a
   running Act is refused.
 
@@ -1497,7 +1502,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Optional per-Project windows.
   - `yellowhammer://project/<id>` URL scheme.
 - **Spec** — risks.md OQ52 Face 2; ooux/nav-flow.md → Multi-Project Navigation.
-- **Agent** — Fable 5.1 Medium.
+- **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — The selector and deep link open the named Project. A UI test confirms no status is
   shown in the selector.
 
@@ -1505,7 +1510,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Work** — The app-side path for everything `yh setup` does (P13.1–P13.2), including notification
   permission status stated once, without nagging.
 - **Spec** — risks.md OQ13; system-overview → Notification behaviour.
-- **Agent** — Opus 5 Medium.
+- **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
 - **Done when** — A clean account is fully set up through the app alone.
 
 ### [ ] P14.3 Configuration editing
@@ -1514,7 +1519,8 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   valid under P2.3. Direct TOML editing stays supported.
 - **Spec** — system-overview → Integration Map (app edits Routing Table); ooux/nav-flow.md →
   Setup; risks.md OQ51.
-- **Agent** — Opus 5 Medium, or Gemini Flash 3.8 Medium.
+- **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`; cheap alternative Gemini
+  Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — Edits made in the app round-trip through the loader. Invalid edits are refused
   with the loader's message.
 
@@ -1522,7 +1528,8 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Work** — List declared CLIs with their latest Probe Result from the Ledger, and run a Probe on
   demand.
 - **Spec** — system-overview → Yellowhammer app; `routing/add-an-agent-cli`.
-- **Agent** — Opus 5 Medium, or Gemini Flash 3.8 Medium.
+- **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`; cheap alternative Gemini
+  Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — A Probe started from the app writes a Ledger row shown in the list.
 
 ### [ ] P14.5 Journal reading (account behind a Card)
@@ -1530,14 +1537,15 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   routes, Check output). Opening the Journal read-only is enforced.
 - **Spec** — system-overview → Yellowhammer app; `CLAUDE.md` → Read-only on every Journal.
 - **Gate** — G-6.
-- **Agent** — Opus 5 Medium.
+- **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
 - **Done when** — Opening a Journal in the app while an Act writes it causes no write conflict and no
   modification.
 
 ### [ ] P14.6 Status view
 - **Work** — The app equivalent of `yh status` (P13.4) and `yh doctor` findings, per Project.
 - **Spec** — risks.md OQ12 Surface 3.
-- **Agent** — Opus 5 Medium, or Gemini Flash 3.8 Medium.
+- **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`; cheap alternative Gemini
+  Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — Staged scenarios give the same diagnoses as the CLI.
 
 ### [ ] P14.7 Recalibrate
@@ -1545,7 +1553,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   a rehearsal Night.
 - **Spec** — ooux/nav-flow.md → Global nav; risks.md OQ52 Face 2.
 - **Gate** — G-6.
-- **Agent** — Opus 5 Medium.
+- **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
 - **Done when** — A rehearsal Night started from the app runs as a normal invocation that survives
   quitting the app.
 
@@ -1554,14 +1562,14 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   without making the app where a decision is recorded.
 - **Spec** — ooux/nav-flow.md; ooux/sketch-sheets.md; ooux/cta-matrix.md.
 - **Gate** — G-6.
-- **Agent** — Opus 5 Medium.
+- **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
 - **Done when** — Scope defined by G-6.
 
 ### [ ] P14.9 Shell-not-host verification
 - **Work** — An automated check that runs a rehearsal Night with the app never launched, and another
   that quits the app mid-Act. Both Nights complete identically.
 - **Spec** — system-overview → Yellowhammer app (hard constraint).
-- **Agent** — Fable 5.1 Medium.
+- **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Both runs produce equivalent Journals and Night Cards.
 
 ---
@@ -1576,7 +1584,8 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     provisioning.
   - Scratch credentials stored per P5.1.
 - **Spec** — system-overview → Environments.
-- **Agent** — Sonnet 5 Medium, or Gemini Flash 3.8 Medium.
+- **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`; cheap alternative Gemini
+  Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — A rehearsal Project can run against the scratch team repeatedly and be reset.
 
 ### [ ] P15.2 `[DevOps]` Throwaway repositories and fixtures
@@ -1588,7 +1597,8 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Scenario fixtures: predecessor merged or not, mainline moved or not, Transcription Block path
     touched, protected path, conflicting branch.
 - **Spec** — system-overview → What a story may assert against a rehearsal Night.
-- **Agent** — Opus 5 Medium, or Gemini Flash 3.8 Medium.
+- **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`; cheap alternative Gemini
+  Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — One command builds the full fixture set from nothing.
 
 ### [ ] P15.3 Rehearsal scenario suite
@@ -1609,14 +1619,15 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
       or writes.
   13. Configuration with two conflicting Projects plus one valid Project.
 - **Spec** — system-overview → Environment Differences; every epic listed above.
-- **Agent** — Fable 5.1 High.
+- **Agent** — Fable 5.1 High or `gpt-6-astra high`.
 - **Done when** — The suite runs from a single command and passes on a developer machine.
 
 ### [ ] P15.4 `[DevOps]` Rehearsal suite in automation
 - **Work** — Run P15.3 on a schedule on a self-hosted Apple Silicon runner with Orca ADE installed
   and scratch credentials available, or add it as a required manual release-checklist step when no
   such runner exists. Publish Journals and Night Card links as artifacts.
-- **Agent** — Sonnet 5 Medium, or Gemini Flash 3.8 Medium.
+- **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`; cheap alternative Gemini
+  Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — A failed scenario blocks the release checklist.
 
 ---
@@ -1629,7 +1640,8 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     Connect API key or equivalent) in the release machine's keychain and in CI secrets.
   - Document ownership, expiry dates and renewal.
 - **Spec** — stack.md → Distribution; feasibility probes → Build and packaging.
-- **Agent** — Sonnet 5 Medium, or Gemini Flash 3.8 Medium.
+- **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`; cheap alternative Gemini
+  Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — The release job can sign and authenticate for notarization without manual input.
 
 ### [ ] P16.2 `[DevOps]` Release build configuration
@@ -1641,7 +1653,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Versioning scheme: marketing version and build number set from the release tag in CI.
 - **Spec** — `CLAUDE.md` → Local choices (Build); stack.md → Platform Targets.
 - **Gate** — G-2.
-- **Agent** — Fable 5.1 Medium.
+- **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — A Release build from a tag carries the tag's version in both the app and `yh`.
 
 ### [ ] P16.3 `[DevOps]` Notarization, stapling and verification
@@ -1649,7 +1661,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   the result, staples the ticket, and verifies with `codesign --verify --deep --strict`, `spctl
   --assess`, and `stapler validate`. It fails on any rejection and archives the notarization log.
 - **Spec** — stack.md → Distribution.
-- **Agent** — Fable 5.1 Medium.
+- **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — A tagged build produces a notarized, stapled artifact that passes all three checks.
 
 ### [ ] P16.4 `[DevOps]` Packaging and distribution
@@ -1659,14 +1671,16 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
     it covers.
   - Host the download on the chosen direct-distribution channel.
 - **Spec** — stack.md → Distribution (direct, not Mac App Store).
-- **Agent** — Sonnet 5 Medium, or Gemini Flash 3.8 Medium.
+- **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`; cheap alternative Gemini
+  Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — A downloaded artifact installs on a clean Apple Silicon Mac with no Gatekeeper
   warning.
 
 ### [ ] P16.5 `[DevOps]` Update channel
 - **Work** — Implement the update channel decided in G-14.
 - **Gate** — G-14.
-- **Agent** — Sonnet 5 Medium, or Gemini Flash 3.8 Medium.
+- **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`; cheap alternative Gemini
+  Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — Defined by G-14.
 
 ### [ ] P16.6 `[DevOps]` Installed-product verification
@@ -1677,7 +1691,8 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   4. `yh doctor` passes with Orca ADE, at least one CLI and the production Linear identity.
   5. Quitting and never opening the app does not affect a scheduled Act.
 - **Spec** — feasibility probes → Build and packaging; risks.md OQ9, OQ53.
-- **Agent** — Opus 5 Medium, or Gemini Flash 3.8 Medium.
+- **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`; cheap alternative Gemini
+  Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — The checklist is completed and recorded for the release.
 
 ### [ ] P16.7 Release checklist
@@ -1685,7 +1700,8 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   rehearsal suite (P15.3/P15.4) green; notarization verified; installed-product verification (P16.6)
   done; release notes with spec commit and story IDs; spec conflicts from P1.1 checked for new
   answers.
-- **Agent** — Opus 5 Medium, or Gemini Flash 3.8 Medium.
+- **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`; cheap alternative Gemini
+  Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — The checklist is committed and used for the first release.
 
 ### [ ] P16.8 First production Night
@@ -1699,7 +1715,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
   - Record observations for the open threshold questions (G-13, G-15) without changing values in the
     same step.
 - **Spec** — DR1; `morning-report/triage-the-morning`; goals.md.
-- **Agent** — Fable 5.1 High.
+- **Agent** — Fable 5.1 High or `gpt-6-astra high`.
 - **Done when** — One production Night has run and been triaged from the board, and the observations
   are filed.
 
