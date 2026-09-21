@@ -1164,7 +1164,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Wiring tests on local bare remotes cover each outcome. GitHub push is not asserted
   in rehearsal.
 
-### [ ] P10.3 Mainline Conflict at landing
+### [x] P10.3 Mainline Conflict at landing
 - **Work** — Test-merge each Feature Branch before Worktree release. A conflict is recorded and
   reported, nothing is resolved, and the landing still proceeds. A clean verdict is never described
   as "safe to merge".
