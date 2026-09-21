@@ -390,6 +390,8 @@ extension JournalEvent {
             }()
         case .cycleLanded(let cycleID):
             ["cycle_id": String(cycleID)]
+        case .featureVerified:
+            featureVerifiedPayload
         case .refusalAnswered, .authoringHaltOpened, .authoringHaltRepeated, .authoringHaltExpired,
             .authoringHaltCleared:
             authoringStopPayload

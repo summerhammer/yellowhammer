@@ -192,8 +192,8 @@ extension ExpiredLeaseSweep {
             case .changesRequested:
                 return nil
             }
-        case .selection, .breakdown:
-            // A Card's Attempt never runs an author Act pass.
+        case .selection, .breakdown, .verifier:
+            // A Card's Attempt never runs an author Act or land Act pass.
             return nil
         }
     }

@@ -12,7 +12,8 @@ public final class RehearsalDispatch: AgentDispatch, Sendable {
         .worker: .workerCompleted,
         .reviewer: .reviewerApproved,
         .selection: .selectionSelected,
-        .breakdown: .breakdownDrafted
+        .breakdown: .breakdownDrafted,
+        .verifier: .verifierReported
     ]
 
     private let script: [RunPass: RehearsalResultFixture]
@@ -31,6 +32,24 @@ public final class RehearsalDispatch: AgentDispatch, Sendable {
         guard let fixture = script[request.pass] else {
             preconditionFailure("RehearsalDispatch has no fixture for pass \(request.pass)")
         }
-        return AgentDispatchReport(outcome: fixture.outcome(), origin: .rehearsalFixture(fixture.rawValue))
+        let outcome = fixture == .verifierReported ? Self.verifierOutcome(for: request) : fixture.outcome()
+        return AgentDispatchReport(outcome: outcome, origin: .rehearsalFixture(fixture.rawValue))
+    }
+
+    /// The `verifier-reported` fixture cannot know the clause ids it will be asked about, so it is
+    /// synthesized from the request: every clause its ``VerificationInstruction`` names is reported `met`
+    /// under fixed rehearsal copy. It asserts nothing about any code — a rehearsal Night reads none.
+    private static func verifierOutcome(for request: AgentDispatchRequest) -> RunOutcome {
+        guard case .verification(let instruction) = request.instruction else {
+            preconditionFailure("a verifier request carries a verification instruction")
+        }
+        let clauses = instruction.clauses.map {
+            VerifiedClause(
+                cid: $0.cid, issueID: $0.issueID, verdict: .met,
+                whatWasChecked: "Fixture data: a rehearsal Night reads no code.",
+                interpretation: "Fixture data: the clause as written."
+            )
+        }
+        return .completed(.verifier(VerifierResult(outcome: .reported(clauses: clauses))))
     }
 }

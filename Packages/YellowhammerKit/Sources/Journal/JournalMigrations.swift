@@ -87,6 +87,9 @@ enum JournalMigrations {
         migrator.registerMigration("v19-pull-request") { db in
             try addPullRequestTable(db)
         }
+        migrator.registerMigration("v20-feature-verification") { db in
+            try addFeatureVerificationTables(db)
+        }
         return migrator
     }
 }

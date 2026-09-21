@@ -51,6 +51,8 @@ public enum ResultFile {
             return .selection(try decodeSelection(object))
         case .breakdown:
             return .breakdown(try decodeBreakdown(object))
+        case .verifier:
+            return .verifier(try decodeVerifier(object))
         }
     }
 

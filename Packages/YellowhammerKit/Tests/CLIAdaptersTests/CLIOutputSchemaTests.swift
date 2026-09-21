@@ -19,6 +19,7 @@ struct CLIOutputSchemaTests {
         case .reviewer: "requested_changes"
         case .selection: "name"
         case .breakdown: "cards"
+        case .verifier: "clauses"
         }
     }
 

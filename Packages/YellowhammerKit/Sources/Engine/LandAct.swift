@@ -12,17 +12,23 @@ import Repositories
 ///    forced triggers — `EngineInvocation` only guards this when the trigger is not forced).
 /// 2. The in-flight Cycle already landed → `.actIdle(reason: .cycleAlreadyLanded)`, return: a forced
 ///    land must not land the same Cycle twice.
-/// 3. Repo Lanes are derived from the Cycle's Cards and run sequentially, one at a time: each lane's
-///    merge test (P10.3), push (P10.2), open pull request (P10.4), then its held Worktree's release, in
-///    that order. `context.mode == .rehearsal` is a rehearsal boundary enforced here, in defence in
-///    depth: the push and open-pull-request seams are never called, and those two steps are recorded
-///    `.rehearsalBoundary`. The merge test still runs in rehearsal — pure local git. A lane whose seam
-///    throws is an engine fault: recorded, the lane's remaining steps are skipped, and the other lanes
-///    still run.
-/// 4. If no lane faulted: Verification (P10.5), then — by its verdict — return the Feature (P10.6) or
-///    archive the Cycle (P10.7), never both. A nil Verification seam records all three steps
-///    `.notWired` and calls neither.
-/// 5. If nothing faulted: the Cycle is marked landed. The Outbox is always delivered, fault or not.
+/// 3. Repo Lanes are derived from the Cycle's Cards. In a first phase each runs, sequentially, its merge
+///    test (P10.3) and push (P10.2). `context.mode == .rehearsal` is a rehearsal boundary enforced here,
+///    in defence in depth: the push and open-pull-request seams are never called, and those two steps
+///    are recorded `.rehearsalBoundary`. The merge test still runs in rehearsal — pure local git. A lane
+///    whose seam throws is an engine fault: recorded, the lane's remaining steps are skipped, and the
+///    other lanes still run.
+/// 4. If no lane faulted: Verification (P10.5), judged before any pull request exists because a pull
+///    request body is written once and carries its clause report. A rehearsal Night runs it too — its
+///    verifier is answered by a fixture, never an agent CLI. A nil Verification seam records all three
+///    Feature steps `.notWired` and gates nothing.
+/// 5. In a second phase each lane that did not fault opens its pull request (P10.4) and then releases its
+///    held Worktree. Where Verification is wired but did not complete — a lane faulted in the first
+///    phase, or Verification itself did — every lane's pull request is recorded `.skipped` and its
+///    Worktree stays held; the Cycle stays unlanded and the next land firing retries.
+/// 6. If nothing faulted, by Verification's verdict: return the Feature (P10.6) or archive the Cycle
+///    (P10.7), never both.
+/// 7. If nothing faulted: the Cycle is marked landed. The Outbox is always delivered, fault or not.
 ///    A fault (from any lane or the Feature sequence) is thrown after write-back as
 ///    ``LandActError/lanesFailed(_:)``, keyed by repository (Feature-scoped faults are keyed by the
 ///    Feature's issue id), so the Cycle stays unlanded and the next land firing retries.
@@ -34,7 +40,8 @@ public struct LandAct: Sendable {
     /// Opens a Repo Lane's pull request (P10.4); nil records `.notWired`. Never called in rehearsal
     /// mode, nor for a lane whose push did not report pushed.
     public let openPullRequest: (any PullRequestOpening)?
-    /// Runs Verification over the Feature (P10.5); nil records `.notWired` for all three Feature steps.
+    /// Runs Verification over the Feature (P10.5), after the lanes' push and before any pull request; nil
+    /// records `.notWired` for all three Feature steps.
     public let verification: (any FeatureVerifying)?
     /// Returns the Feature for unmet clauses (P10.6); nil records `.notWired`.
     public let returnFeature: (any FeatureReturning)?
@@ -79,14 +86,26 @@ public struct LandAct: Sendable {
         let lanes = RepoLane.derive(from: try journal.cards(cycleID: cycleID))
 
         var failures: [String: String] = [:]
+        var progresses: [LandLaneProgress] = []
         for lane in lanes {
-            if let failure = await run(lane: lane, feature: feature, cycleID: cycleID, context: context) {
-                failures[lane.repository] = failure
-            }
+            let progress = await runFirstPhase(lane: lane, feature: feature, cycleID: cycleID, context: context)
+            progress.fault.map { failures[lane.repository] = $0 }
+            progresses.append(progress)
         }
 
-        if failures.isEmpty, let failure = await runFeatureSteps(feature: feature, cycleID: cycleID, context: context) {
+        let verification = await runVerification(
+            feature: feature, cycleID: cycleID, firstPhaseFailed: !failures.isEmpty, context: context
+        )
+        if case .faulted(let failure) = verification {
             failures[feature.issueID] = failure
+        }
+        failures.merge(await runSecondPhases(progresses, gate: verification.gate, context: context)) { $1 }
+
+        if failures.isEmpty {
+            let fault = await runFeatureSteps(
+                verification: verification, feature: feature, cycleID: cycleID, context: context
+            )
+            fault.map { failures[feature.issueID] = $0 }
         }
 
         if failures.isEmpty {

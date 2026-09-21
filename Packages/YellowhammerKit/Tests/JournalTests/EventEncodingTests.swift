@@ -50,7 +50,7 @@ func eventTypeRawValues() {
         "FeatureSelected", "FeatureAuthoringHalted", "FeatureAuthoringAccepted", "FeatureAuthored",
         "FeatureAuthoringFailed", "FeatureBreakdownRejected", "AuthoringDispatched", "FeatureSelectionFailed",
         "RefusalOpened", "RefusalRepeated", "RefusalExpired", "RefusalCountReset",
-        "LandStep", "CycleLanded",
+        "LandStep", "CycleLanded", "FeatureVerified",
         "RefusalAnswered", "AuthoringHaltOpened", "AuthoringHaltRepeated", "AuthoringHaltExpired",
         "AuthoringHaltCleared"
     ]

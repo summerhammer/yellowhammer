@@ -11,6 +11,7 @@ public enum ResultSchema {
         case .reviewer: reviewerSchema
         case .selection: selectionSchema
         case .breakdown: breakdownSchema
+        case .verifier: verifierSchema
         }
     }
 

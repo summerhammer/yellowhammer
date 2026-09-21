@@ -1,18 +1,21 @@
 /// The passes of one dispatch: architect plans, worker executes, reviewer judges — and, for the author
 /// Act (roadmap P9.11), selection chooses the next Feature and breakdown drafts its Cards. The last two
-/// dispatch under the reserved authoring Kind and are read-only, like architect and reviewer.
+/// dispatch under the reserved authoring Kind and are read-only, like architect and reviewer. The
+/// verifier (roadmap P10.5) judges a finished Feature's Definition of Done clauses at landing: it too is
+/// read-only, runs under the authoring Kind and never runs a Card.
 public enum RunPass: String, CaseIterable, Sendable, Codable {
     case architect
     case worker
     case reviewer
     case selection
     case breakdown
+    case verifier
 
     /// True for the two author Act passes, which run no Card and no Worktree.
     public var isAuthoring: Bool {
         switch self {
         case .selection, .breakdown: true
-        case .architect, .worker, .reviewer: false
+        case .architect, .worker, .reviewer, .verifier: false
         }
     }
 

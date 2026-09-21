@@ -44,14 +44,19 @@ struct LandActTests {
         #expect(calls.filter { $0 == "archiveCycle" }.count == 1)
         #expect(!calls.contains("returnFeature"))
 
-        // Per-lane order: merge test, then push, then open pull request, all before Verification.
+        // Per-lane order: merge test, then push; every push precedes Verification, which precedes every
+        // pull request (its report is written into the once-written body).
         let backendMerge = try #require(calls.firstIndex(of: "mergeTest:backend"))
         let backendPush = try #require(calls.firstIndex(of: "push:backend"))
+        let mobilePush = try #require(calls.firstIndex(of: "push:mobile"))
         let backendPR = try #require(calls.firstIndex(of: "openPullRequest:backend"))
+        let mobilePR = try #require(calls.firstIndex(of: "openPullRequest:mobile"))
         #expect(backendMerge < backendPush)
-        #expect(backendPush < backendPR)
         let verificationIndex = try #require(calls.firstIndex(of: "verification"))
-        #expect(backendPR < verificationIndex)
+        #expect(backendPush < verificationIndex)
+        #expect(mobilePush < verificationIndex)
+        #expect(verificationIndex < backendPR)
+        #expect(verificationIndex < mobilePR)
         let archiveIndex = try #require(calls.firstIndex(of: "archiveCycle"))
         #expect(verificationIndex < archiveIndex)
 
@@ -224,7 +229,7 @@ struct LandActTests {
         #expect(try journal.isCycleLanded(cycleID: land.cycleID))
     }
 
-    @Test("A throwing push in one lane leaves the other lane to run fully; Verification is not called")
+    @Test("A throwing push in one lane: Verification is not called, no lane opens a pull request")
     func throwingPushFaultsOneLaneOnly() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
@@ -251,14 +256,15 @@ struct LandActTests {
 
         // Lane A (backend) stopped after its push threw: no pull request, no release.
         #expect(!log.all.contains("openPullRequest:backend"))
-        // Lane B (mobile) ran to completion.
-        #expect(log.all.contains("openPullRequest:mobile"))
+        // Lane B (mobile) pushed, but Verification (wired) never ran, so its pull request is skipped.
+        #expect(log.all.contains("push:mobile"))
+        #expect(!log.all.contains("openPullRequest:mobile"))
         #expect(!log.all.contains("verification"))
         #expect(!log.all.contains("archiveCycle"))
         #expect(try !journal.isCycleLanded(cycleID: land.cycleID))
 
         let held = try heldWorktreeIDs(journal, featureID: land.featureID)
-        #expect(held["mobile"] == false)
+        #expect(held["mobile"] == true)
         #expect(held["backend"] == true)
     }
 

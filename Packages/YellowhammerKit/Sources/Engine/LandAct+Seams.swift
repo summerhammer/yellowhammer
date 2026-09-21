@@ -165,11 +165,16 @@ public struct LandActFeatureContext: Sendable {
 /// A two-way Verification verdict (P10.5): every Definition of Done clause met, or unmet clauses present.
 public struct VerificationVerdict: Equatable, Sendable {
     public let allClausesMet: Bool
+    /// The clauses found `unmet`, as `<issue> <cid>`.
     public let unmetClauses: [String]
+    /// The clauses whose Spec Citation no longer resolves, as `<issue> <cid>`: work for the Specification
+    /// Author, not unfinished code.
+    public let unresolvedClauses: [String]
 
-    public init(allClausesMet: Bool, unmetClauses: [String] = []) {
+    public init(allClausesMet: Bool, unmetClauses: [String] = [], unresolvedClauses: [String] = []) {
         self.allClausesMet = allClausesMet
         self.unmetClauses = unmetClauses
+        self.unresolvedClauses = unresolvedClauses
     }
 }
 

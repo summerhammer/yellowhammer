@@ -56,10 +56,11 @@ public struct AuthoringInstruction: Equatable, Sendable {
 }
 
 /// What one dispatched pass is told to do: a Card's architect, worker or reviewer pass, or one of the
-/// author Act's passes.
+/// author Act's passes, or the land Act's verifier pass.
 public enum AgentInstruction: Equatable, Sendable {
     case card(Instruction)
     case authoring(AuthoringInstruction)
+    case verification(VerificationInstruction)
 
     /// The Card instruction, when this is a Card's pass.
     public var cardInstruction: Instruction? {
@@ -70,6 +71,7 @@ public enum AgentInstruction: Equatable, Sendable {
         switch self {
         case .card(let instruction): instruction.render()
         case .authoring(let instruction): instruction.render()
+        case .verification(let instruction): instruction.render()
         }
     }
 
@@ -78,6 +80,7 @@ public enum AgentInstruction: Equatable, Sendable {
         switch self {
         case .card(let instruction): .card(instruction.withResultFilePath(path))
         case .authoring(let instruction): .authoring(instruction.withResultFilePath(path))
+        case .verification(let instruction): .verification(instruction.withResultFilePath(path))
         }
     }
 }

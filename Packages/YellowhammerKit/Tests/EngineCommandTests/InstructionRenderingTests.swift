@@ -177,7 +177,7 @@ func authoringInvariantSentenceOnlyForArchitectAndWorker(_ pass: RunPass) {
     case .architect, .worker:
         #expect(rendered.contains(sentence))
         #expect(rendered.contains("authoring_invariant_violation"))
-    case .reviewer, .selection, .breakdown:
+    case .reviewer, .selection, .breakdown, .verifier:
         #expect(!rendered.contains(sentence))
     }
 }

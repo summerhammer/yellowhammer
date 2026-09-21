@@ -27,6 +27,11 @@ public enum RehearsalResultFixture: String, CaseIterable, Sendable {
     /// One Card in `fixture-backend` under Kind `impl.fixture`, citing `fixture-epic/fixture-story`; it
     /// pairs with ``selectionSelected``.
     case breakdownDrafted = "breakdown-drafted.json"
+    /// The land Act's verifier answers (roadmap P10.5). The file's single clause is a placeholder:
+    /// the fixture cannot know the Feature's clause ids in advance, so ``RehearsalDispatch`` answers a
+    /// `verifierReported` request by reporting every clause the request names as `met`.
+    case verifierReported = "verifier-reported.json"
+    case verifierFailed = "verifier-failed.json"
 
     public var pass: RunPass {
         switch self {
@@ -40,6 +45,8 @@ public enum RehearsalResultFixture: String, CaseIterable, Sendable {
             .selection
         case .breakdownDrafted:
             .breakdown
+        case .verifierReported, .verifierFailed:
+            .verifier
         }
     }
 
