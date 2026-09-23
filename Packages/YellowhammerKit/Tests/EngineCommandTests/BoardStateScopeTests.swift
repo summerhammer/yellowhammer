@@ -100,4 +100,39 @@ struct BoardStateScopeTests {
             try scope.id(for: .cancelled)
         }
     }
+
+    @Test("Feature contention change moves to contention state and strips block reason labels")
+    func featureContentionChangeSetsStateAndLabels() async throws {
+        let provisioning = board()
+        let ids = try await seedDispositionLabels(on: provisioning, team: scopeTeam.id)
+        await provisioning.seed(state: "Todo", team: scopeTeam.id, category: .unstarted)
+        await provisioning.seed(state: "In Progress", team: scopeTeam.id, category: .started)
+        await provisioning.seed(state: "Done", team: scopeTeam.id, category: .completed)
+        await provisioning.seed(state: "Blocked", team: scopeTeam.id)
+        await provisioning.seed(state: "Waiting on You", team: scopeTeam.id)
+        let scope = try await BoardStateScope.resolve(using: provisioning)
+
+        let change = try scope.featureContentionChange()
+        #expect(change.workflowState == (try scope.id(for: .todo)))
+        #expect(change.addLabels.contains(try #require(ids["Feature"])))
+        for reason in BlockReason.allCases {
+            #expect(change.removeLabels.contains(try #require(ids[reason.rawValue])))
+        }
+    }
+
+    @Test("Feature contention change resolves by category fallback when Todo is named differently")
+    func featureContentionChangeFallsBackByCategory() async throws {
+        let provisioning = board()
+        let ids = try await seedDispositionLabels(on: provisioning, team: scopeTeam.id)
+        await provisioning.seed(state: "Backlog", team: scopeTeam.id, category: .unstarted)
+        await provisioning.seed(state: "In Flight", team: scopeTeam.id, category: .started)
+        await provisioning.seed(state: "Shipped", team: scopeTeam.id, category: .completed)
+        await provisioning.seed(state: "Blocked", team: scopeTeam.id)
+        await provisioning.seed(state: "Waiting on You", team: scopeTeam.id)
+        let scope = try await BoardStateScope.resolve(using: provisioning)
+
+        let change = try scope.featureContentionChange()
+        #expect(change.workflowState == (try scope.id(for: .todo)))
+        #expect(change.addLabels.contains(try #require(ids["Feature"])))
+    }
 }
