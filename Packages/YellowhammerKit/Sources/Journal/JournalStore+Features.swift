@@ -62,6 +62,18 @@ extension JournalStore {
         }
     }
 
+    /// The Feature named `issueID`, nil when the Journal has no `feature` row for it — a Feature Issue
+    /// still Waiting on You under a Refusal or Authoring Halt has none yet (roadmap P12.3).
+    public func feature(issueID: String) throws -> FeatureRecord? {
+        try read { db in
+            guard let row = try Row.fetchOne(db, sql: "SELECT * FROM feature WHERE issue_id = ?", arguments: [issueID])
+            else {
+                return nil
+            }
+            return try Self.featureRecord(from: row)
+        }
+    }
+
     /// Records the Feature Branch name for `featureID`. A simple update: the author Act records this
     /// once, and tests set it up directly for the phases that read it before author writes it.
     public func recordFeatureBranch(featureID: Int64, branch: FeatureBranch) throws {

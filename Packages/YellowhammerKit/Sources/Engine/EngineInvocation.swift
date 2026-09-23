@@ -231,8 +231,7 @@ public struct EngineInvocation: Sendable {
             // still opens one. An `open` failure propagates and is recorded as `ActIncomplete` by the
             // catch below, and no work runs.
             var night = night
-            var outbox: Outbox?
-            var nightCard: NightCardMaintenance?
+            var outbox: Outbox?, nightCard: NightCardMaintenance?
             if let board {
                 let boxed = Outbox(journal: journal, board: board.writing, runID: runID, act: act, nightID: night.id)
                 let maintenance = NightCardMaintenance(
@@ -265,6 +264,8 @@ public struct EngineInvocation: Sendable {
                     body: { try await work(context) }
                 )
             }
+            // Reported only, never acted on: a Roll-up failure must not fail the Act (see below).
+            try? await FeatureRollUpMaintenance.maintainRollUps(night: night, journal: journal, outbox: outbox)
             try await closeNightIfNeeded(night, card: nightCard, outbox: outbox)
             _ = try? journal.append(.actEnded, act: act, runID: runID, nightID: night.id)
         } catch {

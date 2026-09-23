@@ -183,6 +183,10 @@ struct NightCardTests {
         let board = ActBoard(reading: FakeReadingBoard([]), writing: writing, provisioning: provisioning)
         let run = RunID()
 
+        // The Feature Roll-up (P12.3) maintains the in-flight Feature's own Managed Block on every
+        // Act, idle or not — its Feature Issue needs a fenced description to post against.
+        await writing.seed(issue: "FEATURE-1", description: ManagedBlockFence.initialDescription(rendered: ""))
+
         // A todo Card makes the author trigger unmet: there is already dispatchable work.
         try journal.write { db in
             let timestamp = Date(timeIntervalSince1970: 1_800_000_000).formatted(.iso8601)
@@ -212,8 +216,12 @@ struct NightCardTests {
         try await invocation.run()
 
         let events = try journal.events().map(\.type)
-        #expect(events == [.nightOpened, .actStarted, .nightCardOpened, .actIdle, .actEnded])
-        #expect(await writing.liveIssues.count == 1)
+        #expect(
+            events ==
+                [.nightOpened, .actStarted, .nightCardOpened, .actIdle, .managedBlockWritten, .actEnded]
+        )
+        // The Night Card and the in-flight Feature's own Roll-up block, seeded above.
+        #expect(await writing.liveIssues.count == 2)
     }
 
     @Test("The land firing at night_end completes the Night Card")

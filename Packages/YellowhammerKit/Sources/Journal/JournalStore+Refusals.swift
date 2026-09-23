@@ -329,6 +329,14 @@ extension JournalStore {
         }
     }
 
+    /// Every Refusal ever recorded, any state, oldest first (roadmap P12.3: the Feature Roll-up reads
+    /// every Refusal/Authoring Halt Feature Issue's newest row across both tables to find its standing).
+    public func allRefusals() throws -> [RefusalRecord] {
+        try read { db in
+            try Row.fetchAll(db, sql: "SELECT * FROM refusal ORDER BY id ASC").map { try Self.refusalRecord(from: $0) }
+        }
+    }
+
     /// Every Refusal recorded for `feature`, oldest first.
     public func refusals(feature: FeatureName) throws -> [RefusalRecord] {
         try read { db in

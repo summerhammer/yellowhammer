@@ -245,6 +245,13 @@ extension JournalStore {
         try authoringHalts(where: "state = 'expired'")
     }
 
+    /// Every Authoring Halt ever recorded, any state, oldest first (roadmap P12.3: the Feature Roll-up
+    /// reads every Refusal/Authoring Halt Feature Issue's newest row across both tables to find its
+    /// standing).
+    public func allAuthoringHalts() throws -> [AuthoringHaltRecord] {
+        try authoringHalts(where: "1")
+    }
+
     /// Every halt recorded for `feature`, oldest first.
     public func authoringHalts(feature: FeatureName) throws -> [AuthoringHaltRecord] {
         try read { db in
