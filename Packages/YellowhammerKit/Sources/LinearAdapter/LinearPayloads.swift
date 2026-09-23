@@ -57,6 +57,12 @@ struct LinearIssuesPayload: Decodable {
     }
 }
 
+/// A single issue read (settle gesture, roadmap P10.9); `issue` is nil when Linear has no issue with
+/// that id, or it is outside this identity's reach.
+struct LinearIssuePayload: Decodable {
+    let issue: LinearIssuesPayload.Issue?
+}
+
 struct LinearDeltaPayload: Decodable {
     let viewer: DeltaViewerPayload
     let updatedIssues: LinearIssuesPayload.Issues

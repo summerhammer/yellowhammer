@@ -55,6 +55,15 @@ public actor LinearAdapter: Board {
         )
     }
 
+    /// A single issue by id (settle gesture, roadmap P10.9): a targeted `issue(id:)` query rather than
+    /// the protocol default's page-and-find. Nil when Linear has no issue with that id.
+    public func issue(_ id: BoardObjectID) async throws(BoardError) -> BoardObject? {
+        let payload: LinearIssuePayload = try await perform(
+            LinearGraphQL.issueByIDQuery, variables: ["id": id.rawValue]
+        )
+        return payload.issue.map(Self.boardObject)
+    }
+
     static func boardObject(_ issue: LinearIssuesPayload.Issue) -> BoardObject {
         BoardObject(
             id: BoardObjectID(rawValue: issue.id),

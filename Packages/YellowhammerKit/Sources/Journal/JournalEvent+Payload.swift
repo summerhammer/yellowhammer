@@ -393,6 +393,8 @@ extension JournalEvent {
         case .refusalAnswered, .authoringHaltOpened, .authoringHaltRepeated, .authoringHaltExpired,
             .authoringHaltCleared:
             authoringStopPayload
+        case .featureSettled, .featureReleased, .settleValueNotHonoured:
+            settlePayload
         }
     }
 }

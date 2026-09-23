@@ -18,8 +18,8 @@ public struct FeatureMergeClosure: PostMergeClosure, Sendable {
     public init() { }
 
     public func closeByMerge(feature: FeatureRecord, context: ActContext) async throws {
-        // A release lands nothing (P10.9, not yet built); a Feature already closed by verification is
-        // already closed — its merge closes nothing further.
+        // A release (P10.9) lands nothing; a Feature already closed by verification is already closed
+        // — its merge closes nothing further.
         guard feature.releasedAt == nil else { return }
         guard feature.closedBy != .verification else { return }
 
@@ -28,7 +28,7 @@ public struct FeatureMergeClosure: PostMergeClosure, Sendable {
             throw CycleArchiveFault(reason: "Feature '\(feature.issueID)' has no recorded Cycle to close by merge")
         }
 
-        try await autoBlockWaitingOnYou(cycleID: cycleID, context: context)
+        try await CardAutoBlock.waitingOnYou(cycleID: cycleID, context: context)
 
         // Computed after the auto-Block, from Journal state, so a retry (closedBy already `merge`)
         // recomputes the same values rather than trusting anything held in memory.
@@ -64,46 +64,6 @@ public struct FeatureMergeClosure: PostMergeClosure, Sendable {
         let blockedCards: [CardRecord]
         let acceptedCards: [String]
         let triagedNightID: Int64
-    }
-
-    /// Every Waiting on You Card of the Cycle is auto-Blocked `unanswered` — the same exit
-    /// `unanswered_nights_max` would have given it, with its counters and round history untouched.
-    /// Cancelled, Done and already-Blocked Cards are never touched. Through the board projection when
-    /// an Outbox and board are wired; Journal-only otherwise, so the auto-Block still happens.
-    private func autoBlockWaitingOnYou(cycleID: Int64, context: ActContext) async throws {
-        let journal = context.journal
-        let waiting = try journal.cards(cycleID: cycleID).filter { $0.state == .waitingOnYou }
-        guard !waiting.isEmpty else { return }
-
-        if let outbox = context.outbox, let board = context.board {
-            let scope = try await BoardStateScope.resolve(using: board.provisioning)
-            let projection = BoardStateProjection(journal: journal, outbox: outbox, scope: scope)
-            for card in waiting {
-                // A Card's state write is delivered only under that Card's Lease, and this Act runs no
-                // Card: claim it for the one write, then release it, as the expired-lease sweep does — a
-                // lease left to expire would later read as a crashed run. A live lease held by another run
-                // throws, so this closure is retried by the next ancestry pass rather than writing under it.
-                if case .held(let holder) = try journal.claimCardLease(cardID: card.id, runID: context.runID) {
-                    throw CycleArchiveFault(
-                        reason: "Card '\(card.issueID)' is held by run \(holder.runID); its auto-Block is retried"
-                    )
-                }
-                do {
-                    _ = try await projection.transition(card: card, to: .blocked(.unanswered))
-                } catch {
-                    _ = try? journal.releaseCardLease(cardID: card.id, runID: context.runID)
-                    throw error
-                }
-                try journal.releaseCardLease(cardID: card.id, runID: context.runID)
-            }
-        } else {
-            for card in waiting {
-                _ = try journal.transitionCard(
-                    cardID: card.id, to: .blocked, blockReason: .unanswered, runID: context.runID,
-                    act: context.act, nightID: context.night.id
-                )
-            }
-        }
     }
 
     /// The narrative comment, each Blocked Card's detachment, and the Feature Issue's archival — every

@@ -234,6 +234,7 @@ extension JournalEvent {
         case .refusalAnswered, .authoringHaltOpened, .authoringHaltRepeated, .authoringHaltExpired,
             .authoringHaltCleared:
             try Self.decodeAuthoringStop(type, reader)
+        case .featureSettled, .featureReleased, .settleValueNotHonoured: try Self.decodeSettle(type, reader)
         }
     }
 
@@ -391,10 +392,9 @@ extension JournalEvent {
         )
     }
 
-    // The five worktree reconciliation decode helpers (decodeWorktreeLost through
-    // decodeWorktreeReconciliationFailed) live in JournalEvent+WorktreeDecoding.swift, split out to
-    // keep this file under the file length limit. The build Act's own decode helpers
-    // (decodeExpiredCardLeasesSwept through decodeRepoLaneEnded) live in
-    // JournalEvent+BuildActDecoding.swift for the same reason. The land Act's own
-    // (decodeLandStep) lives in JournalEvent+LandActDecoding.swift.
+    // The five worktree reconciliation decode helpers live in JournalEvent+WorktreeDecoding.swift, split
+    // out to keep this file under the file length limit. The build Act's own (decodeExpiredCardLeasesSwept
+    // through decodeRepoLaneEnded) live in JournalEvent+BuildActDecoding.swift for the same reason. The
+    // land Act's own (decodeLandStep) lives in JournalEvent+LandActDecoding.swift, and the settle
+    // gesture's own (decodeSettle) lives in JournalEvent+SettleDecoding.swift.
 }

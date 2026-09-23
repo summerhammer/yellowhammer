@@ -89,16 +89,19 @@ public struct AuthorAct: Sendable {
     /// throwing `notImplemented` once the gate has cleared, so production never falsely records an
     /// idle verdict before selection exists.
     public let authoring: (any FeatureAuthoring)?
+    /// The Operator's settle gesture (roadmap P10.9); nil skips the settle read entirely.
+    public let settle: (any FeatureSettle)?
     /// The Refusal clock's bound (bounds/bound-unanswered-nights): how many Nights a Refusal may go
     /// unanswered before it expires. Defaults to the glossary's own default of 3.
     public let unansweredNightsMax: Int
 
     public init(
         predecessorGate: (any PredecessorGate)? = nil, authoring: (any FeatureAuthoring)? = nil,
-        unansweredNightsMax: Int = 3
+        settle: (any FeatureSettle)? = nil, unansweredNightsMax: Int = 3
     ) {
         self.predecessorGate = predecessorGate
         self.authoring = authoring
+        self.settle = settle
         self.unansweredNightsMax = unansweredNightsMax
     }
 
@@ -117,8 +120,21 @@ public struct AuthorAct: Sendable {
         // The predecessor-ancestry gate's pass (P9.9) runs every Night, independently of the in-flight
         // skip below: it observes the in-flight Feature's landings when one is open (so they accumulate
         // before it becomes tomorrow's predecessor) and gates the predecessor when nothing is. It opens
-        // no lane, consumes no Attempt, writes nothing to the board.
-        let gateOutcome = try await checkPredecessorGate(context: context)
+        // no lane, consumes no Attempt, writes nothing to the board. The gate's own closure seam may
+        // close the in-flight Feature by merge (P10.8) — merge wins over a same-morning release.
+        var gateOutcome = try await checkPredecessorGate(context: context)
+
+        // The Operator's settle gesture (P10.9) applies to whatever Feature is still in flight after
+        // the gate's own merge closure. If it released the Feature, the Feature is no longer in flight
+        // (its Cycle is archived), so the gate is re-run: the walk skips a released Feature
+        // (JournalStore+Predecessor.swift), and this same Act goes on to decide whether authoring
+        // proceeds against the new predecessor.
+        if let (feature, cycleID) = try journal.inFlightFeature(), let settle {
+            try await settle.settle(feature: feature, cycleID: cycleID, context: context)
+            if try journal.inFlightFeature() == nil {
+                gateOutcome = try await checkPredecessorGate(context: context)
+            }
+        }
 
         if let (feature, _) = try journal.inFlightFeature() {
             try journal.append(

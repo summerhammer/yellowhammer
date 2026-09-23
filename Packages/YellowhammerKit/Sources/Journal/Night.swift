@@ -20,7 +20,7 @@ public struct NightRecord: Equatable, Sendable {
     /// `idle` is the only value this phase writes — the author Act finding nothing selectable.
     public let verdict: NightVerdict?
     /// When this Night's morning was triaged (roadmap P10.8/P10.9; spec: morning-report/triage-the-
-    /// morning): written at the Operator's settle (P10.9, not yet built) or on observing a Partial
+    /// morning): written at the Operator's settle (P10.9) or on observing a Partial
     /// Landing's merge closure (P10.8). The one field a closed Night may still change.
     public let triagedAt: Date?
 

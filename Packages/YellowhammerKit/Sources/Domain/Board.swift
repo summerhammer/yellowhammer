@@ -23,6 +23,13 @@ public protocol Board: Sendable {
     /// The identity the board resolves Yellowhammer's calls to — the registered application, never an Operator.
     func identity() async throws(BoardError) -> BoardIdentity
 
+    /// One board object by id, nil when it does not exist (or is outside this Project's Linear
+    /// project). The settle gesture's read of the Feature Issue's workflow state (roadmap P10.9) is
+    /// the one caller that needs a single object rather than a page; the protocol extension's default
+    /// pages ``objects(updatedSince:after:pageSize:)`` to find it, so an existing fake `Board` keeps
+    /// compiling without implementing this itself.
+    func issue(_ id: BoardObjectID) async throws(BoardError) -> BoardObject?
+
     /// The budget the board reported on its most recent response, nil before any response.
     var latestBudget: BoardBudget? { get async }
 }
@@ -30,6 +37,21 @@ public protocol Board: Sendable {
 extension Board {
     /// A page of about 200 board objects is one request.
     public static var defaultPageSize: Int { 200 }
+
+    /// Finds `id` by paging every board object (``objects(updatedSince:after:pageSize:)``, `nil`
+    /// since). An implementation with a real single-issue query (``LinearAdapter``) overrides this
+    /// with a targeted request instead.
+    public func issue(_ id: BoardObjectID) async throws(BoardError) -> BoardObject? {
+        var cursor: BoardCursor?
+        repeat {
+            let page = try await objects(updatedSince: nil, after: cursor, pageSize: Self.defaultPageSize)
+            if let found = page.objects.first(where: { $0.id == id }) {
+                return found
+            }
+            cursor = page.nextCursor
+        } while cursor != nil
+        return nil
+    }
 
     public func objects(
         updatedSince: Date?, after: BoardCursor? = nil
