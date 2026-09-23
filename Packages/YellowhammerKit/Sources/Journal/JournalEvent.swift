@@ -312,6 +312,15 @@ public enum JournalEvent: Equatable, Sendable {
     /// archival. `detachedCards` counts the Blocked Cards detached from the Feature Issue in the same
     /// pass, left for later adoption.
     case cycleArchived(cycleID: Int64, featureIssueID: String, closedBy: FeatureClosure, detachedCards: Int)
+    /// A Feature was closed by merge (roadmap P10.8; spec: landing/announce-a-partial-landing,
+    /// morning-report/triage-the-morning): the predecessor-ancestry gate observed every touched
+    /// repository merged. `repositories` are the merged repositories (sorted); `carriedForward` and
+    /// `acceptedCards` are the Cycle's Blocked and Done Cards' issue ids (sorted); `triagedNightID`
+    /// names the Night whose morning the merge concluded, per the triaged-Night rule.
+    case featureClosedByMerge(
+        cycleID: Int64, featureIssueID: String, repositories: [String], carriedForward: [String],
+        acceptedCards: [String], triagedNightID: Int64
+    )
     /// A Spec Citation answered the Feature's Refusal (P9.8): `from` is the state it was in, `open` or
     /// `expired`. The consecutive count is untouched.
     case refusalAnswered(feature: String, citation: String, from: String)

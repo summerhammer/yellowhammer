@@ -221,6 +221,8 @@ public struct NightCardMaintenance: Sendable {
         return lines
     }
 
+    // One case per authoring-line event: a growing enumeration, not a complexity problem to refactor.
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     static func authoringLine(for event: JournalEvent) -> String? {
         switch event {
         case .authoringSkippedFeatureInFlight(let featureIssueID):
@@ -261,6 +263,13 @@ public struct NightCardMaintenance: Sendable {
                 """
         case .featureAuthoringFailed(let name, _, let reason), .featureBreakdownRejected(let name, let reason):
             return authoringFaultLine(feature: name, reason: reason)
+        case .featureClosedByMerge(_, let featureIssueID, let repositories, let carriedForward, _, _):
+            let named = repositories.joined(separator: ", ")
+            return """
+                Feature `\(featureIssueID)` closed by merge: its Feature Branches reached mainline in \
+                \(named). Its Cycle is archived unverified; \(carriedForward.count) Cards carried forward, \
+                Blocked awaiting Adoption.
+                """
         case .featureSelectionFailed(let reason):
             return """
                 Selecting a Feature failed: \(reason). Nothing was written to the board, so there is no \

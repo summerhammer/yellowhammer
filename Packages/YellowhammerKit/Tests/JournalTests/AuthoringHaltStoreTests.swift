@@ -311,7 +311,7 @@ struct RefusalAnswerStoreTests {
 
         let journal = try fixture.open()
 
-        #expect(try journal.appliedMigrations().last == "v21-feature-closure")
+        #expect(try journal.appliedMigrations().last == "v22-night-triaged")
         #expect(try journal.tableNames().contains("authoring_halt"))
         let rows = try journal.refusals(feature: try feature())
         #expect(rows.map(\.state) == [.open, .answered])

@@ -258,7 +258,8 @@ struct NightCardAuthoringFindingsTests {
         let night = NightRecord(
             id: 1, projectID: try #require(ProjectID(rawValue: "fixture")), nightStart: authorActNightStart,
             mode: .rehearsal, state: .opened, nightCardIssueID: nil,
-            openedAt: Date(timeIntervalSince1970: 1_800_000_000), completedAt: nil, closeReason: nil, verdict: nil
+            openedAt: Date(timeIntervalSince1970: 1_800_000_000), completedAt: nil, closeReason: nil, verdict: nil,
+            triagedAt: nil
         )
         let projectID = try #require(ProjectID(rawValue: "fixture"))
         let withDefault = NightCardBlock.opened(night: night, projectID: projectID)
@@ -272,7 +273,8 @@ struct NightCardAuthoringFindingsTests {
         let night = NightRecord(
             id: 1, projectID: try #require(ProjectID(rawValue: "fixture")), nightStart: authorActNightStart,
             mode: .rehearsal, state: .opened, nightCardIssueID: nil,
-            openedAt: Date(timeIntervalSince1970: 1_800_000_000), completedAt: nil, closeReason: nil, verdict: nil
+            openedAt: Date(timeIntervalSince1970: 1_800_000_000), completedAt: nil, closeReason: nil, verdict: nil,
+            triagedAt: nil
         )
         let projectID = try #require(ProjectID(rawValue: "fixture"))
         // Dedup itself is `NightCardMaintenance.recordAuthoring`'s job, reading the Journal's events;
@@ -319,7 +321,8 @@ struct NightCardAuthoringFindingsTests {
             id: 1, projectID: try #require(ProjectID(rawValue: "fixture")), nightStart: authorActNightStart,
             mode: .rehearsal, state: .closed, nightCardIssueID: nil,
             openedAt: Date(timeIntervalSince1970: 1_800_000_000),
-            completedAt: Date(timeIntervalSince1970: 1_800_003_600), closeReason: .nightEnd, verdict: .idle
+            completedAt: Date(timeIntervalSince1970: 1_800_003_600), closeReason: .nightEnd, verdict: .idle,
+            triagedAt: nil
         )
         let projectID = try #require(ProjectID(rawValue: "fixture"))
         let rendered = NightCardBlock.completed(

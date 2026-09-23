@@ -110,10 +110,11 @@ extension ActCommand {
         case .author:
             // Selection and breakdown are agent CLI dispatches routed through the ordinary Routing Table
             // under the reserved authoring Kind (P9.11); `AuthoringBinding` wires both, and a Rehearsal
-            // Night answers them from the shipped result fixtures. The closure seam (P10.8) is not
-            // wired yet, so a fully-merged predecessor is only observed, never closed.
+            // Night answers them from the shipped result fixtures. The closure seam (P10.8) is wired to
+            // the real `FeatureMergeClosure`: a fully-merged predecessor or in-flight landed Feature is
+            // closed unverified, not just observed.
             return AuthorAct(
-                predecessorGate: PredecessorAncestryGate(),
+                predecessorGate: PredecessorAncestryGate(closure: FeatureMergeClosure()),
                 authoring: try AuthoringBinding.authoring(
                     mode: mode, configuration: configuration, project: project,
                     configurationDirectory: configurationDirectory

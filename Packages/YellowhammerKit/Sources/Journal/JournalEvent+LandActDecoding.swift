@@ -19,9 +19,34 @@ extension JournalEvent {
             )
         case .cycleArchived:
             try decodeCycleArchived(reader)
+        case .featureClosedByMerge:
+            try decodeFeatureClosedByMerge(reader)
         default:
             try decodeLandStep(reader)
         }
+    }
+
+    /// The payload of the events that close out a landed Cycle — Verification, return, archival and
+    /// closure by merge — dispatched here so the exhaustive payload switch stays one line for all four.
+    var landActPayload: [String: String]? {
+        featureVerifiedPayload ?? featureReturnedPayload ?? cycleArchivedPayload ?? featureClosedByMergePayload
+    }
+
+    /// The `featureClosedByMerge` event's payload (roadmap P10.8).
+    var featureClosedByMergePayload: [String: String]? {
+        guard case .featureClosedByMerge(
+            let cycleID, let featureIssueID, let repositories, let carriedForward, let acceptedCards,
+            let triagedNightID
+        ) = self else {
+            return nil
+        }
+        return [
+            "cycle_id": String(cycleID), "feature_issue_id": featureIssueID,
+            "repositories": repositories.joined(separator: "\u{1F}"),
+            "carried_forward": carriedForward.joined(separator: "\u{1F}"),
+            "accepted_cards": acceptedCards.joined(separator: "\u{1F}"),
+            "triaged_night_id": String(triagedNightID)
+        ]
     }
 
     /// The `featureVerified` event's payload: counts only.
@@ -69,6 +94,20 @@ extension JournalEvent {
             repository: reader.payload?["repository"],
             outcome: try reader.landStepOutcome("outcome"),
             detail: reader.payload?["detail"]
+        )
+    }
+
+    static func decodeFeatureClosedByMerge(_ reader: PayloadReader) throws -> JournalEvent {
+        let rawRepositories = try reader.require("repositories")
+        let rawCarriedForward = try reader.require("carried_forward")
+        let rawAcceptedCards = try reader.require("accepted_cards")
+        return .featureClosedByMerge(
+            cycleID: try reader.int64("cycle_id"),
+            featureIssueID: try reader.require("feature_issue_id"),
+            repositories: rawRepositories.isEmpty ? [] : rawRepositories.components(separatedBy: "\u{1F}"),
+            carriedForward: rawCarriedForward.isEmpty ? [] : rawCarriedForward.components(separatedBy: "\u{1F}"),
+            acceptedCards: rawAcceptedCards.isEmpty ? [] : rawAcceptedCards.components(separatedBy: "\u{1F}"),
+            triagedNightID: try reader.int64("triaged_night_id")
         )
     }
 }

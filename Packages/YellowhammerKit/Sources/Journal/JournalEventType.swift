@@ -86,6 +86,7 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case featureVerified = "FeatureVerified"
     case featureReturned = "FeatureReturned"
     case cycleArchived = "CycleArchived"
+    case featureClosedByMerge = "FeatureClosedByMerge"
     case refusalAnswered = "RefusalAnswered"
     case authoringHaltOpened = "AuthoringHaltOpened"
     case authoringHaltRepeated = "AuthoringHaltRepeated"
