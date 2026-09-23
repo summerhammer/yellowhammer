@@ -1211,7 +1211,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Report rendering and different-agent routing are tested. Verdicts are not
   asserted.
 
-### [ ] P10.6 Return a Feature with unmet clauses
+### [x] P10.6 Return a Feature with unmet clauses
 - **Work** — Return and assign the Feature to the Operator, listing unmet clauses with citations and
   met clauses too. Pull requests stay open and linked. Not Done, not archived. That Project's author
   Act authors nothing while it is returned.
