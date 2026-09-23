@@ -17,6 +17,8 @@ extension JournalEvent {
                 cycleID: try reader.int64("cycle_id"), featureIssueID: try reader.require("feature_issue_id"),
                 unmet: try reader.int("unmet"), unresolved: try reader.int("unresolved")
             )
+        case .cycleArchived:
+            try decodeCycleArchived(reader)
         default:
             try decodeLandStep(reader)
         }
@@ -40,6 +42,25 @@ extension JournalEvent {
             "cycle_id": String(cycleID), "feature_issue_id": featureIssueID,
             "unmet": String(unmet), "unresolved": String(unresolved)
         ]
+    }
+
+    /// The `cycleArchived` event's payload: the Feature Issue id, which route closed it, and how many
+    /// Blocked Cards were detached in the same pass.
+    var cycleArchivedPayload: [String: String]? {
+        guard case .cycleArchived(let cycleID, let featureIssueID, let closedBy, let detachedCards) = self else {
+            return nil
+        }
+        return [
+            "cycle_id": String(cycleID), "feature_issue_id": featureIssueID, "closed_by": closedBy.rawValue,
+            "detached_cards": String(detachedCards)
+        ]
+    }
+
+    static func decodeCycleArchived(_ reader: PayloadReader) throws -> JournalEvent {
+        .cycleArchived(
+            cycleID: try reader.int64("cycle_id"), featureIssueID: try reader.require("feature_issue_id"),
+            closedBy: try reader.featureClosure("closed_by"), detachedCards: try reader.int("detached_cards")
+        )
     }
 
     static func decodeLandStep(_ reader: PayloadReader) throws -> JournalEvent {

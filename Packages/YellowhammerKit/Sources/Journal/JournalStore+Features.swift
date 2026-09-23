@@ -2,6 +2,14 @@ import Domain
 import Foundation
 import GRDB
 
+/// Which route closed a Feature (roadmap P10.7/P10.8; spec: verification/archive-the-cycle-on-a-
+/// verified-feature): every Definition of Done clause verified met, or a Partial Landing the Operator
+/// merged (P10.8, not yet built).
+public enum FeatureClosure: String, Equatable, Sendable {
+    case verification
+    case merge
+}
+
 /// A Feature Issue as the Journal holds it.
 public struct FeatureRecord: Equatable, Sendable {
     public let id: Int64
@@ -14,6 +22,8 @@ public struct FeatureRecord: Equatable, Sendable {
     /// satisfies the predecessor gate for no repository and is never returned as the predecessor to
     /// check ancestry against — the walk moves past it (roadmap P9.9).
     public let releasedAt: Date?
+    /// Which route closed this Feature, nil until its Cycle is archived (roadmap P10.7).
+    public let closedBy: FeatureClosure?
 }
 
 extension JournalStore {
@@ -72,13 +82,15 @@ extension JournalStore {
         let createdAt = try Self.date(createdAtText) { JournalError.featureUnknown(featureID: id) }
         let rawBranch: String? = row["branch"]
         let rawReleasedAt: String? = row["released_at"]
+        let rawClosedBy: String? = row["closed_by"]
         return FeatureRecord(
             id: id,
             issueID: row["issue_id"],
             state: row["state"],
             branch: rawBranch.map { FeatureBranch(rawValue: $0) },
             createdAt: createdAt,
-            releasedAt: try rawReleasedAt.map { try Self.date($0) { JournalError.featureUnknown(featureID: id) } }
+            releasedAt: try rawReleasedAt.map { try Self.date($0) { JournalError.featureUnknown(featureID: id) } },
+            closedBy: rawClosedBy.flatMap { FeatureClosure(rawValue: $0) }
         )
     }
 }

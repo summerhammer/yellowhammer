@@ -308,6 +308,10 @@ public enum JournalEvent: Equatable, Sendable {
     /// only on the Feature's first transition into `returned`. Counts only — the per-clause detail is
     /// in the return comment.
     case featureReturned(cycleID: Int64, featureIssueID: String, unmet: Int, unresolved: Int)
+    /// A verified Feature's Cycle was archived (roadmap P10.7): appended only on the Cycle's first
+    /// archival. `detachedCards` counts the Blocked Cards detached from the Feature Issue in the same
+    /// pass, left for later adoption.
+    case cycleArchived(cycleID: Int64, featureIssueID: String, closedBy: FeatureClosure, detachedCards: Int)
     /// A Spec Citation answered the Feature's Refusal (P9.8): `from` is the state it was in, `open` or
     /// `expired`. The consecutive count is untouched.
     case refusalAnswered(feature: String, citation: String, from: String)
