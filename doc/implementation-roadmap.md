@@ -1270,7 +1270,7 @@ comment on the Delta Read).
 - **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Rehearsal tests with a fixture "question" result file.
 
-### [ ] P11.2 Answer detection and resumption
+### [x] P11.2 Answer detection and resumption
 - **Work**
   - Pre-landing, from the Delta Read: a recognised answer moves the Card out of Waiting on You and
     queues it for the next build Act. Resumption consumes an Attempt, no exclusion, reuses a held
@@ -1283,6 +1283,9 @@ comment on the Delta Read).
 - **Gate** — G-8.
 - **Agent** — Fable 5.1 High or `gpt-6-astra high`.
 - **Done when** — Rehearsal tests against real comments in the scratch team, for each branch.
+- **Outcome (2026-09-23)** — Every branch is covered by fake-board tests. The G-8 probe (Linear
+  exposes a threaded reply's `parent` on the `comments` root) is an opt-in scratch test in
+  `LinearScratchTests`. It has not yet been run against the scratch workspace.
 
 ### [ ] P11.3 Banked replies after landing
 - **Work**
