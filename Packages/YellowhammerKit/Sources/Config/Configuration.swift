@@ -114,12 +114,14 @@ extension Configuration {
 
     private static func projectFileURLs(in directory: URL) -> [URL] {
         let projectsDirectory = directory.appending(component: "projects", directoryHint: .isDirectory)
-        let contents = (try? FileManager.default.contentsOfDirectory(
-            at: projectsDirectory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+        let filenames = (try? FileManager.default.contentsOfDirectory(
+            atPath: projectsDirectory.path(percentEncoded: false)
         )) ?? []
-        return contents
+        return filenames
+            .filter { !$0.hasPrefix(".") }
+            .sorted()
+            .map { projectsDirectory.appending(component: $0, directoryHint: .notDirectory) }
             .filter { $0.pathExtension == "toml" }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
 
     // MARK: - Working Repo exclusivity
