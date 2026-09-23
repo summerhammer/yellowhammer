@@ -32,7 +32,8 @@ protocol ActCommand: AsyncParsableCommand {
         configurationDirectory: URL,
         now: Date,
         bindBoard: ((Configuration, ProjectConfiguration) throws -> ActBoard)?,
-        bindWorkspace: (() -> any Workspace)?
+        bindWorkspace: (() -> any Workspace)?,
+        notifier: ExceptionNotifier
     ) throws -> EngineInvocation
 }
 
@@ -45,7 +46,8 @@ extension ActCommand {
         configurationDirectory: URL,
         now: Date = Date(),
         bindBoard: ((Configuration, ProjectConfiguration) throws -> ActBoard)? = nil,
-        bindWorkspace: (() -> any Workspace)? = nil
+        bindWorkspace: (() -> any Workspace)? = nil,
+        notifier: ExceptionNotifier = .silent
     ) throws -> EngineInvocation {
         let (configuration, project) = try ProjectResolution.resolve(
             projectArgument: project, configurationDirectory: configurationDirectory
@@ -95,6 +97,7 @@ extension ActCommand {
                 provenance: ProvenanceDiffTester(), citations: MainlineReader()
             ),
             operatorIdentity: operatorIdentity,
+            notifier: notifier,
             work: work
         )
     }
@@ -168,7 +171,8 @@ extension ActCommand {
             bindBoard: { configuration, project in
                 try BoardBinding.actBoard(machine: configuration.machine, project: project)
             },
-            bindWorkspace: { WorkspaceBinding.workspace() }
+            bindWorkspace: { WorkspaceBinding.workspace() },
+            notifier: .headlessApp()
         )
         try await invocation.run()
     }

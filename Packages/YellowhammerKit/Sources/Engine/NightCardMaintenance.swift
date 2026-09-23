@@ -41,6 +41,13 @@ public struct NightCardMaintenance: Sendable {
         "night-card:\(nightStart):authoring:\(hash)"
     }
 
+    /// The Outbox key for the comment an Act's halt writes to the Night Card (roadmap P12.5):
+    /// one per Act run, so a heartbeat-lost and reclaimed run's halt cannot collide with the run
+    /// that reclaimed it.
+    public static func haltedKey(nightStart: NightStart, runID: RunID) -> String {
+        "night-card:\(nightStart):halted:\(runID)"
+    }
+
     public enum Opening: Equatable, Sendable {
         /// The Night already carried a Night Card issue id; nothing was written.
         case alreadyRecorded(issueID: String)
