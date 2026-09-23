@@ -1416,7 +1416,7 @@ comment on the Delta Read).
 - **Done when** — Launching the app headlessly with post arguments shows a notification and the
   process exits.
 
-### [ ] P12.5 Exception notification from Acts
+### [x] P12.5 Exception notification from Acts
 - **Work**
   - On Night opened, halted (with reason) and closed: write the event to the Night Card first, then
     invoke the headless app post naming the Project.
