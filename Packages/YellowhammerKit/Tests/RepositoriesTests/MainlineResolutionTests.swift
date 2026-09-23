@@ -47,7 +47,7 @@ struct MainlineResolutionTests {
     }
 
     @Test("Rule 4: Probes refs/remotes/origin/master when origin/main absent")
-    func probesOriginMaster() async throws {
+    func probesOriginLegacyBranch() async throws {
         let fixture = GitFixture()
         await fixture.initRepo()
         let sha = try await fixture.commit(message: "initial")

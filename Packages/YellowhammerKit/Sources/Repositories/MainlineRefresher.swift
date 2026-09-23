@@ -66,106 +66,49 @@ public struct MainlineRefresher: Sendable {
         _ repo: Repo
     ) async -> (mainline: ResolvedMainline?, failure: MainlineFetchFailure?) {
         let path = (repo.path as NSString).expandingTildeInPath
-        guard FileManager.default.fileExists(atPath: path) else {
-            return (nil, nil)
-        }
+        guard FileManager.default.fileExists(atPath: path) else { return (nil, nil) }
 
-        let hasOrigin = await hasRemote(named: "origin", in: path)
         let defaultBranch = await resolveDefaultBranch(for: repo, in: path)
-
-        if !hasOrigin {
-            // With no remote, resolve local default branch without fetching.
-            let (ref, commit) = await resolveLocalCommit(defaultBranch: defaultBranch, in: path)
-            guard let commit else { return (nil, nil) }
-            let mainline = ResolvedMainline(
-                repository: repo.name,
-                defaultBranch: defaultBranch,
-                ref: ref,
-                commit: commit
-            )
-            return (mainline, nil)
+        if await !hasRemote(named: "origin", in: path) {
+            return (await localMainline(for: repo, branch: defaultBranch, in: path), nil)
         }
 
-        // Perform opportunistic non-destructive fetch with 10s transport timeout.
-        let fetchArgs = [
-            "-c", "transfer.timeout=10",
-            "-C", path,
-            "fetch",
-            "--quiet",
-            "origin",
-            defaultBranch
-        ]
-        let fetchResult = await git.run(fetchArgs, timeout: 15.0)
-
+        let fetchResult = await git.run([
+            "-c", "transfer.timeout=10", "-C", path, "fetch", "--quiet", "origin", defaultBranch
+        ], timeout: 15.0)
         if fetchResult.isSuccess {
-            // Fetch succeeded: resolve commit SHA for refs/remotes/origin/<default_branch>
-            let remoteRef = "refs/remotes/origin/\(defaultBranch)"
-            let shaResult = await git.run([
-                "-C", path, "rev-parse", "--verify", "--quiet", "\(remoteRef)^{commit}"
-            ])
-            if shaResult.isSuccess {
-                let commit = shaResult.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !commit.isEmpty {
-                    let mainline = ResolvedMainline(
-                        repository: repo.name,
-                        defaultBranch: defaultBranch,
-                        ref: remoteRef,
-                        commit: commit
-                    )
-                    return (mainline, nil)
-                }
-            }
-
-            // Fallback if remote ref wasn't populated
-            let (ref, commit) = await resolveLocalCommit(defaultBranch: defaultBranch, in: path)
-            if let commit {
-                let mainline = ResolvedMainline(
-                    repository: repo.name,
-                    defaultBranch: defaultBranch,
-                    ref: ref,
-                    commit: commit
-                )
-                return (mainline, nil)
-            }
-            return (nil, nil)
-        } else {
-            // Fetch failed: record failure and continue on cached ref.
-            let rawStderr = fetchResult.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-            let reason = rawStderr.isEmpty ? "git fetch exited with status \(fetchResult.exitCode)" : rawStderr
-            let failure = MainlineFetchFailure(repository: repo.name, reason: reason)
-
-            // 1. Probe cached refs/remotes/origin/<default_branch>
-            let remoteRef = "refs/remotes/origin/\(defaultBranch)"
-            let cachedResult = await git.run([
-                "-C", path, "rev-parse", "--verify", "--quiet", "\(remoteRef)^{commit}"
-            ])
-            if cachedResult.isSuccess {
-                let commit = cachedResult.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !commit.isEmpty {
-                    let mainline = ResolvedMainline(
-                        repository: repo.name,
-                        defaultBranch: defaultBranch,
-                        ref: remoteRef,
-                        commit: commit
-                    )
-                    return (mainline, failure)
-                }
-            }
-
-            // 2. Fallback to local default branch
-            let (ref, commit) = await resolveLocalCommit(defaultBranch: defaultBranch, in: path)
-            if let commit {
-                let mainline = ResolvedMainline(
-                    repository: repo.name,
-                    defaultBranch: defaultBranch,
-                    ref: ref,
-                    commit: commit
-                )
-                return (mainline, failure)
-            }
-
-            return (nil, failure)
+            let remote = await remoteMainline(for: repo, branch: defaultBranch, in: path)
+            if let remote { return (remote, nil) }
+            return (await localMainline(for: repo, branch: defaultBranch, in: path), nil)
         }
+
+        let rawStderr = fetchResult.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+        let reason = rawStderr.isEmpty ? "git fetch exited with status \(fetchResult.exitCode)" : rawStderr
+        let failure = MainlineFetchFailure(repository: repo.name, reason: reason)
+        let cached = await remoteMainline(for: repo, branch: defaultBranch, in: path)
+        if let cached { return (cached, failure) }
+        return (await localMainline(for: repo, branch: defaultBranch, in: path), failure)
+    }
+
+    private func remoteMainline(for repo: Repo, branch: String, in path: String) async -> ResolvedMainline? {
+        let ref = "refs/remotes/origin/\(branch)"
+        return await mainline(for: repo.name, branch: branch, ref: ref, in: path)
+    }
+
+    private func localMainline(for repo: Repo, branch: String, in path: String) async -> ResolvedMainline? {
+        let (ref, commit) = await resolveLocalCommit(defaultBranch: branch, in: path)
+        guard let commit else { return nil }
+        return ResolvedMainline(repository: repo.name, defaultBranch: branch, ref: ref, commit: commit)
+    }
+
+    private func mainline(
+        for repository: String, branch: String, ref: String, in path: String
+    ) async -> ResolvedMainline? {
+        let result = await git.run(["-C", path, "rev-parse", "--verify", "--quiet", "\(ref)^{commit}"])
+        guard result.isSuccess else { return nil }
+        let commit = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !commit.isEmpty else { return nil }
+        return ResolvedMainline(repository: repository, defaultBranch: branch, ref: ref, commit: commit)
     }
 
     /// Resolves the Spec Source's current HEAD without fetching or writing anything.
@@ -175,38 +118,7 @@ public struct MainlineRefresher: Sendable {
             return nil
         }
 
-        // 1. Resolve default branch for Spec Source
-        let defaultBranch: String
-        if let override = specSource.defaultBranch, !override.isEmpty {
-            defaultBranch = override
-        } else {
-            let symResult = await git.run(["-C", path, "symbolic-ref", "HEAD"])
-            if symResult.isSuccess {
-                let trimmed = symResult.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmed.hasPrefix("refs/heads/") {
-                    defaultBranch = String(trimmed.dropFirst("refs/heads/".count))
-                } else {
-                    defaultBranch = "main"
-                }
-            } else {
-                let probeMain = await git.run([
-                    "-C", path, "rev-parse", "--verify", "--quiet", "refs/heads/main^{commit}"
-                ])
-                if probeMain.isSuccess && !probeMain.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    defaultBranch = "main"
-                } else {
-                    let probeMaster = await git.run([
-                        "-C", path, "rev-parse", "--verify", "--quiet", "refs/heads/master^{commit}"
-                    ])
-                    if probeMaster.isSuccess
-                        && !probeMaster.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        defaultBranch = "master"
-                    } else {
-                        defaultBranch = "main"
-                    }
-                }
-            }
-        }
+        let defaultBranch = await resolveSpecDefaultBranch(specSource, in: path)
 
         // 2. Read local checkout's current head: refs/heads/<default_branch> or HEAD
         let branchRef = "refs/heads/\(defaultBranch)"
@@ -244,76 +156,50 @@ public struct MainlineRefresher: Sendable {
         return nil
     }
 
-    /// Resolves the default branch for a working repository according to the spec's precedence order:
-    /// 1. Explicit default branch override if specified.
-    /// 2. `git symbolic-ref refs/remotes/origin/HEAD` -> strip `refs/remotes/origin/`.
-    /// 3. Else probe `refs/remotes/origin/main`.
-    /// 4. Else probe `refs/remotes/origin/master`.
-    /// 5. With no remote, resolve local default branch (`git symbolic-ref HEAD` or probe local `main`/`master`).
-    public func resolveDefaultBranch(for repo: Repo, in path: String) async -> String {
-        // 1. Explicit default branch override
-        if let override = repo.defaultBranch, !override.isEmpty {
-            return override
-        }
-
-        // 2. git symbolic-ref refs/remotes/origin/HEAD
-        let symRefResult = await git.run(["-C", path, "symbolic-ref", "refs/remotes/origin/HEAD"])
-        if symRefResult.isSuccess {
-            let trimmed = symRefResult.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.hasPrefix("refs/remotes/origin/") {
-                let branch = String(trimmed.dropFirst("refs/remotes/origin/".count))
-                if !branch.isEmpty { return branch }
-            } else if trimmed.hasPrefix("origin/") {
-                let branch = String(trimmed.dropFirst("origin/".count))
-                if !branch.isEmpty { return branch }
-            }
-        }
-
-        // 3. Probe refs/remotes/origin/main
-        let probeOriginMain = await git.run([
-            "-C", path, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/main^{commit}"
-        ])
-        if probeOriginMain.isSuccess
-            && !probeOriginMain.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+    private func resolveSpecDefaultBranch(_ source: SpecSource, in path: String) async -> String {
+        if let override = source.defaultBranch, !override.isEmpty { return override }
+        let symbolic = await git.run(["-C", path, "symbolic-ref", "HEAD"])
+        if symbolic.isSuccess {
+            let branch = symbolic.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+            if branch.hasPrefix("refs/heads/") { return String(branch.dropFirst("refs/heads/".count)) }
             return "main"
         }
-
-        // 4. Probe refs/remotes/origin/master
-        let probeOriginMaster = await git.run([
-            "-C", path, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/master^{commit}"
-        ])
-        if probeOriginMaster.isSuccess
-            && !probeOriginMaster.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "master"
-        }
-
-        // 5. With no remote, resolve local default branch
-        let localSymResult = await git.run(["-C", path, "symbolic-ref", "HEAD"])
-        if localSymResult.isSuccess {
-            let trimmed = localSymResult.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.hasPrefix("refs/heads/") {
-                let branch = String(trimmed.dropFirst("refs/heads/".count))
-                if !branch.isEmpty { return branch }
-            }
-        }
-
-        let probeLocalMain = await git.run([
-            "-C", path, "rev-parse", "--verify", "--quiet", "refs/heads/main^{commit}"
-        ])
-        if probeLocalMain.isSuccess
-            && !probeLocalMain.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "main"
-        }
-
-        let probeLocalMaster = await git.run([
-            "-C", path, "rev-parse", "--verify", "--quiet", "refs/heads/master^{commit}"
-        ])
-        if probeLocalMaster.isSuccess
-            && !probeLocalMaster.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "master"
-        }
-
+        if await refExists("refs/heads/main", in: path) { return "main" }
+        if await refExists("refs/heads/master", in: path) { return "master" }
         return "main"
+    }
+
+    /// Resolves the default branch according to the configured override, remote HEAD,
+    /// remote main/master refs, then local HEAD and main/master refs.
+    public func resolveDefaultBranch(for repo: Repo, in path: String) async -> String {
+        if let override = repo.defaultBranch, !override.isEmpty { return override }
+        if let branch = await symbolicBranch(
+            "refs/remotes/origin/HEAD", prefixes: ["refs/remotes/origin/", "origin/"], in: path
+        ) {
+            return branch
+        }
+        if await refExists("refs/remotes/origin/main", in: path) { return "main" }
+        if await refExists("refs/remotes/origin/master", in: path) { return "master" }
+        if let branch = await symbolicBranch("HEAD", prefixes: ["refs/heads/"], in: path) { return branch }
+        if await refExists("refs/heads/main", in: path) { return "main" }
+        if await refExists("refs/heads/master", in: path) { return "master" }
+        return "main"
+    }
+
+    private func symbolicBranch(_ ref: String, prefixes: [String], in path: String) async -> String? {
+        let result = await git.run(["-C", path, "symbolic-ref", ref])
+        guard result.isSuccess else { return nil }
+        let value = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        for prefix in prefixes where value.hasPrefix(prefix) {
+            let branch = String(value.dropFirst(prefix.count))
+            if !branch.isEmpty { return branch }
+        }
+        return nil
+    }
+
+    private func refExists(_ ref: String, in path: String) async -> Bool {
+        let result = await git.run(["-C", path, "rev-parse", "--verify", "--quiet", "\(ref)^{commit}"])
+        return result.isSuccess && !result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func hasRemote(named remoteName: String, in path: String) async -> Bool {

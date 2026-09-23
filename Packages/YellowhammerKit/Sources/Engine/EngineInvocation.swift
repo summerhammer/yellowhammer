@@ -218,20 +218,7 @@ public struct EngineInvocation: Sendable {
                 nightCard = maintenance
             }
 
-            // Mainline refresh at Act start (after opening the Night/Night Card).
-            var resolvedMainlines = ResolvedMainlines()
-            if let repositories {
-                let refreshResult = await mainlineRefresher.refresh(repositories: repositories)
-                resolvedMainlines = refreshResult.mainlines
-                for failure in refreshResult.failures {
-                    _ = try? journal.append(
-                        .mainlineFetchFailed(repository: failure.repository, reason: failure.reason),
-                        act: act,
-                        runID: runID,
-                        nightID: night.id
-                    )
-                }
-            }
+            let resolvedMainlines = await refreshMainlines(night: night)
 
             // Evaluate the trigger predicate under the lease.
             switch try ActTriggerPredicate.evaluate(act: act, trigger: trigger, journal: journal) {
@@ -249,27 +236,34 @@ public struct EngineInvocation: Sendable {
                     body: { try await work(context) }
                 )
             }
-            // The land firing at `night_end` completes the Night whether or not the Cycle landed, and
-            // whether or not its trigger was met. `night` is still current: this run has held the
-            // Project's lease since it was opened, and only the engine writes the Journal.
-            if closesNight, night.isOpen {
-                try journal.closeNight(id: night.id, reason: .nightEnd, act: act, runID: runID)
-                // The completion block needs `completedAt` and the verdict, which exist only once the
-                // Night is closed, so completion is accepted and delivered after `closeNight`, from the
-                // re-read record. A crash between `closeNight` and here leaves the card uncompleted:
-                // the next Night's first Act sees a closed Night, not this one — a later phase may
-                // repair it (spec: opened-and-died narrows to "opened and died", not every gap).
-                if let nightCard, let closed = try journal.night(id: night.id) {
-                    _ = try await nightCard.acceptCompletion(night: closed)
-                    _ = try await nightCard.deliverCompletion(night: closed)
-                }
-            }
+            try await closeNightIfNeeded(night, card: nightCard)
             _ = try? journal.append(.actEnded, act: act, runID: runID, nightID: night.id)
         } catch {
             _ = try? journal.append(
                 .actIncomplete(reason: String(describing: error)), act: act, runID: runID, nightID: night.id
             )
             throw error
+        }
+    }
+    private func refreshMainlines(night: NightRecord) async -> ResolvedMainlines {
+        guard let repositories else { return ResolvedMainlines() }
+        let result = await mainlineRefresher.refresh(repositories: repositories)
+        for failure in result.failures {
+            _ = try? journal.append(
+                .mainlineFetchFailed(repository: failure.repository, reason: failure.reason),
+                act: act, runID: runID, nightID: night.id
+            )
+        }
+        return result.mainlines
+    }
+
+    private func closeNightIfNeeded(_ night: NightRecord, card: NightCardMaintenance?) async throws {
+        guard closesNight, night.isOpen else { return }
+        try journal.closeNight(id: night.id, reason: .nightEnd, act: act, runID: runID)
+        // Completion needs the closed Night's completedAt and verdict.
+        if let card, let closed = try journal.night(id: night.id) {
+            _ = try await card.acceptCompletion(night: closed)
+            _ = try await card.deliverCompletion(night: closed)
         }
     }
 }

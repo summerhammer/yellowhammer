@@ -181,14 +181,17 @@ public struct MainlineReader: Sendable {
         mainlines: ResolvedMainlines? = nil
     ) async throws -> MainlineFileRead {
         if let repo = projectRepositories.workingRepos.first(where: {
-            $0.name == repository || ($0.path as NSString).expandingTildeInPath == (repository as NSString).expandingTildeInPath
+            $0.name == repository
+                || ($0.path as NSString).expandingTildeInPath == (repository as NSString).expandingTildeInPath
         }) {
             let mainline = mainlines?[repo.name]
             return try await readFile(path: path, in: repo, commit: commit, mainline: mainline)
         }
 
         let isSpecName = repository == "spec_source" || repository == "spec"
-            || (projectRepositories.specSource.map { ($0.path as NSString).expandingTildeInPath == (repository as NSString).expandingTildeInPath } ?? false)
+            || (projectRepositories.specSource.map { source in
+                (source.path as NSString).expandingTildeInPath == (repository as NSString).expandingTildeInPath
+            } ?? false)
 
         if isSpecName {
             switch projectRepositories.specificationSourceLookup {

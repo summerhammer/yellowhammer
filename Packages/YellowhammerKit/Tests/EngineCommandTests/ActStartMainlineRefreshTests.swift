@@ -18,6 +18,12 @@ private final class ResultBox<Value: Sendable>: Sendable {
 
 @Suite("Act start mainline refresh")
 struct ActStartMainlineRefreshTests {
+    private struct ExpectedCommits {
+        let good: String
+        let broken: String
+        let spec: String
+    }
+
     private struct TempRepo: ~Copyable {
         let url: URL
         let git = GitRunner()
@@ -130,6 +136,17 @@ struct ActStartMainlineRefreshTests {
         let specSource = SpecSource(path: specLocal.path)
         let projectRepos = ProjectRepositories(workingRepos: workingRepos, specSource: specSource)
 
+        let context = try await runInvocation(act: act, journal: journal, repositories: projectRepos)
+
+        try assertRefresh(
+            context: context, journal: journal, act: act,
+            commits: ExpectedCommits(good: newGoodSHA, broken: brokenSHA, spec: specInitialSHA)
+        )
+    }
+
+    private func runInvocation(
+        act: Act, journal: JournalStore, repositories: ProjectRepositories
+    ) async throws -> ActContext {
         let nightStart = NightStart(rawValue: "2026-09-16")!
         let contextBox = ResultBox<ActContext>()
 
@@ -139,29 +156,34 @@ struct ActStartMainlineRefreshTests {
             nightStart: nightStart,
             journal: journal,
             trigger: .forced,
-            repositories: projectRepos,
+            repositories: repositories,
             work: { context in
                 contextBox.set(context)
             }
         )
 
         try await invocation.run()
+        return try #require(contextBox.value)
+    }
 
+    private func assertRefresh(
+        context: ActContext, journal: JournalStore, act: Act,
+        commits: ExpectedCommits
+    ) throws {
         // Verify ActContext
-        let context = try #require(contextBox.value)
         // 1. Good repo fetched new commit
         let goodMainline = try #require(context.mainlines["good-repo"])
-        #expect(goodMainline.commit == newGoodSHA)
+        #expect(goodMainline.commit == commits.good)
         #expect(goodMainline.ref == "refs/remotes/origin/main")
 
         // 2. Broken repo fell back to cached ref
         let brokenMainline = try #require(context.mainlines["broken-repo"])
-        #expect(brokenMainline.commit == brokenSHA)
+        #expect(brokenMainline.commit == commits.broken)
         #expect(brokenMainline.ref == "refs/remotes/origin/main")
 
         // 3. Spec source read local checkout, not the newer remote commit
         let resolvedSpec = try #require(context.mainlines.specSource)
-        #expect(resolvedSpec.commit == specInitialSHA)
+        #expect(resolvedSpec.commit == commits.spec)
         #expect(resolvedSpec.ref == "refs/heads/main")
 
         // Verify Journal events: MainlineFetchFailed recorded for broken-repo only
