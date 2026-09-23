@@ -73,17 +73,35 @@ public struct BoardStateProjection: Sendable {
 
     /// Reposts every Card whose board projection has not caught up with its Journal state
     /// (``JournalStore/cardsWithUnpostedState()``) — the board state written on a Night a run crashed
-    /// mid-Act. Never touches the assignee: the operator's board identity is not stored in the Journal,
-    /// so the assignment a Waiting on You transition wrote originally is left exactly as the board holds
-    /// it, because nothing here clears it. Never reposts a Cancelled Card — `cardsWithUnpostedState`
-    /// excludes it.
+    /// mid-Act, or deferred (`cardLeaseNotHeld`) by a caller that wrote its transition and released the
+    /// Lease before the board delivered it, and that no later Act will run again (Blocked, Waiting on
+    /// You, Done, or any Card of a landed Cycle). The caller runs no Card here either: the Lease is
+    /// claimed for the one write, then released, the same claim → write → release pattern
+    /// ``ExpiredLeaseSweep`` and ``CardAutoBlock`` use. A Card whose Lease is held live by another run
+    /// is skipped — that run is dispatching or transitioning it right now — and stays pending for a
+    /// later repost. Never touches the assignee: the operator's board identity is not stored in the
+    /// Journal, so the assignment a Waiting on You transition wrote originally is left exactly as the
+    /// board holds it, because nothing here clears it. Never reposts a Cancelled Card —
+    /// `cardsWithUnpostedState` excludes it.
     public func repost() async throws -> [Outcome] {
         var outcomes: [Outcome] = []
         for record in try journal.cardsWithUnpostedState() {
+            switch try journal.claimCardLease(cardID: record.id, runID: outbox.runID, now: outbox.clock()) {
+            case .held:
+                continue
+            case .claimed, .reclaimed:
+                break
+            }
             let blockReason = record.blockReason.flatMap { BlockReason(rawValue: $0) }
-            outcomes.append(
-                try await post(record: record, state: record.state, blockReason: blockReason, assignee: nil)
-            )
+            do {
+                outcomes.append(
+                    try await post(record: record, state: record.state, blockReason: blockReason, assignee: nil)
+                )
+            } catch {
+                _ = try? journal.releaseCardLease(cardID: record.id, runID: outbox.runID)
+                throw error
+            }
+            try journal.releaseCardLease(cardID: record.id, runID: outbox.runID)
         }
         return outcomes
     }

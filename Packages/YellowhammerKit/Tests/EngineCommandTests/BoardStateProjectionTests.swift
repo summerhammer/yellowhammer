@@ -160,10 +160,10 @@ struct BoardStateProjectionTests {
         _ = await boards.writing.seed(issue: "issue-1", description: nil)
         let cardID = try insertFixtureCard(journal, issueID: "issue-1")
         let outbox = try outbox(journal, board: boards.writing, runID: runID)
-        _ = try journal.claimCardLease(cardID: cardID, runID: runID, now: outboxEpoch)
         let projection = BoardStateProjection(journal: journal, outbox: outbox, scope: scope)
 
-        // The Journal transition landed; the process died before the board write.
+        // The Journal transition landed; the process died before the board write, and released (or
+        // never held) the Card Lease — `repost()` claims it for the replay, not a caller upstream.
         _ = try journal.transitionCard(
             cardID: cardID, to: .inProgress, runID: runID, act: .build, nightID: nil, now: outboxEpoch
         )
@@ -177,10 +177,44 @@ struct BoardStateProjectionTests {
         #expect(record.stateVersion == 1)
         #expect(await boards.writing.updateCalls == 1)
         #expect(try journal.card(id: cardID).boardStateVersion == 1)
+        #expect(try journal.currentCardLease(cardID: cardID) == nil)
 
         let secondRepost = try await projection.repost()
         #expect(secondRepost.isEmpty)
         #expect(await boards.writing.updateCalls == 1)
+    }
+
+    @Test("repost skips a Card whose Lease is held live by another run, and claims it once that run releases it")
+    func repostSkipsLiveLeaseThenClaimsOnceReleased() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeProjectionBoards()
+        let scope = try await BoardStateScope.resolve(using: boards.provisioning)
+        let runID = RunID()
+        let otherRunID = RunID()
+        _ = await boards.writing.seed(issue: "issue-1", description: nil)
+        let cardID = try insertFixtureCard(journal, issueID: "issue-1")
+        let outbox = try outbox(journal, board: boards.writing, runID: runID)
+        let projection = BoardStateProjection(journal: journal, outbox: outbox, scope: scope)
+
+        // The Journal transition landed under this run, but a different run is dispatching the Card
+        // right now and holds its Lease live.
+        _ = try journal.transitionCard(
+            cardID: cardID, to: .inProgress, runID: runID, act: .build, nightID: nil, now: outboxEpoch
+        )
+        _ = try journal.claimCardLease(cardID: cardID, runID: otherRunID, now: outboxEpoch)
+
+        let skipped = try await projection.repost()
+        #expect(skipped.isEmpty)
+        #expect(await boards.writing.updateCalls == 0)
+        #expect(try journal.card(id: cardID).boardStateVersion == nil)
+
+        try journal.releaseCardLease(cardID: cardID, runID: otherRunID)
+
+        let posted = try await projection.repost()
+        #expect(posted.count == 1)
+        #expect(await boards.writing.updateCalls == 1)
+        #expect(try journal.currentCardLease(cardID: cardID) == nil)
     }
 
     @Test("repost records a killed run's already-applied entry without a second update call")
@@ -193,13 +227,14 @@ struct BoardStateProjectionTests {
         let issue = await boards.writing.seed(issue: "issue-1", description: nil)
         let cardID = try insertFixtureCard(journal, issueID: "issue-1")
         let outbox = try outbox(journal, board: boards.writing, runID: runID)
-        _ = try journal.claimCardLease(cardID: cardID, runID: runID, now: outboxEpoch)
         let projection = BoardStateProjection(journal: journal, outbox: outbox, scope: scope)
 
         _ = try journal.transitionCard(
             cardID: cardID, to: .inProgress, runID: runID, act: .build, nightID: nil, now: outboxEpoch
         )
-        // The killed run reached the board and applied the write, but died before recording it.
+        // The killed run held the Lease long enough to reach the board and apply the write, but died
+        // before recording it — and before releasing the Lease, which its TTL then expired.
+        _ = try journal.claimCardLease(cardID: cardID, runID: runID, now: outboxEpoch)
         let key = BoardStateProjection.stateKey(issueID: "issue-1", version: 1)
         let change = BoardIssueChange(workflowState: scope.states[.inProgress])
         _ = try outbox.accept(OutboxWrite(
@@ -207,8 +242,10 @@ struct BoardStateProjectionTests {
         ))
         _ = try await outbox.deliverPending()
         #expect(try journal.card(id: cardID).boardStateVersion == nil)
+        try journal.releaseCardLease(cardID: cardID, runID: runID)
         let updatesBeforeRepost = await boards.writing.updateCalls
 
+        // `repost()` claims the Lease itself for the replay — no pre-claim ahead of the call.
         let outcomes = try await projection.repost()
 
         #expect(outcomes.count == 1)
