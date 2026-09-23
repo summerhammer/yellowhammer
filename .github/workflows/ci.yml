@@ -2,9 +2,19 @@ name: CI
 
 on:
   pull_request:
+    paths-ignore:
+      - 'doc/**'
+      - 'docs/**'
+      - '*.md'
+      - 'LICENSE'
   push:
     branches:
       - main
+    paths-ignore:
+      - 'doc/**'
+      - 'docs/**'
+      - '*.md'
+      - 'LICENSE'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

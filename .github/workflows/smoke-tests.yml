@@ -1,0 +1,75 @@
+name: Smoke tests
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # Daily at 03:00 UTC
+  workflow_dispatch:
+    inputs:
+      head:
+        description: "Head branch name for the smoke pull request"
+        required: false
+      base:
+        description: "Base branch name for the smoke pull request (default: main)"
+        required: false
+        default: "main"
+  pull_request:
+    paths:
+      - "Packages/YellowhammerKit/Sources/GitHubAdapter/**"
+      - "Packages/YellowhammerKit/Tests/GitHubAdapterTests/**"
+      - ".github/workflows/smoke-tests.yml"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  smoke-tests:
+    name: GitHub adapter smoke test
+    runs-on: macos-26
+    timeout-minutes: 20
+    env:
+      XCODE_VERSION: "26.6"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+
+      - name: Print versions
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Cache SwiftPM
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            Packages/YellowhammerKit/.build
+            ~/Library/Caches/org.swift.swiftpm
+          key: swiftpm-${{ hashFiles('Packages/YellowhammerKit/Package.resolved') }}
+          restore-keys: |
+            swiftpm-
+
+      - name: Resolve dependencies
+        run: swift package --package-path Packages/YellowhammerKit resolve
+
+      - name: Run GitHub adapter smoke test
+        env:
+          YH_GITHUB_SMOKE_TOKEN: ${{ secrets.YH_GITHUB_SMOKE_TOKEN }}
+          YH_GITHUB_SMOKE_REPO: ${{ secrets.YH_GITHUB_SMOKE_REPO || vars.YH_GITHUB_SMOKE_REPO }}
+          YH_GITHUB_SMOKE_HEAD: ${{ github.event.inputs.head || secrets.YH_GITHUB_SMOKE_HEAD || vars.YH_GITHUB_SMOKE_HEAD }}
+          YH_GITHUB_SMOKE_BASE: ${{ github.event.inputs.base || secrets.YH_GITHUB_SMOKE_BASE || vars.YH_GITHUB_SMOKE_BASE || 'main' }}
+          YH_GITHUB_SMOKE_TESTS: "1"
+        run: |
+          if [[ -z "$YH_GITHUB_SMOKE_TOKEN" || -z "$YH_GITHUB_SMOKE_REPO" || -z "$YH_GITHUB_SMOKE_HEAD" ]]; then
+            echo "::notice::GitHub smoke tests skipped: YH_GITHUB_SMOKE_TOKEN, YH_GITHUB_SMOKE_REPO, or YH_GITHUB_SMOKE_HEAD not configured."
+            echo "### GitHub Adapter Smoke Tests" >> "$GITHUB_STEP_SUMMARY"
+            echo "Skipped: sandbox credentials or repository not configured in secrets." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          swift test --package-path Packages/YellowhammerKit --filter GitHubAdapterSmokeTests
