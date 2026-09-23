@@ -66,7 +66,7 @@ public struct LanePushOutcome: Equatable, Sendable {
     public enum Kind: Equatable, Sendable {
         case pushed(commit: String)
         /// The Feature Branch does not exist in the repository, or has no commits ahead of Mainline.
-        /// No push was attempted.
+        /// No push was attempted. It is safe to release any allocated Worktree held for this lane.
         case noCompletedWork
         /// GitHub's branch protection rejected the push. Never carries the credential.
         case refusedByBranchProtection(detail: String)
@@ -83,6 +83,23 @@ public struct LanePushOutcome: Equatable, Sendable {
     public var pushed: Bool {
         if case .pushed = kind { return true }
         return false
+    }
+
+    /// Whether the lane's allocated Worktree can safely be released. True when the Feature Branch was
+    /// successfully pushed, or when the push was intentionally skipped because there was no completed
+    /// work (the Feature Branch does not exist, or has zero commits ahead of Mainline).
+    public var safeToReleaseWorktree: Bool {
+        switch kind {
+        case .pushed, .noCompletedWork:
+            return true
+        case .refusedByBranchProtection, .credentialsMissingOrInsufficient, .refusedMainline, .failed:
+            return false
+        }
+    }
+
+    /// An alias for ``safeToReleaseWorktree``, indicating whether Worktree deallocation is permitted.
+    public var canReleaseWorktree: Bool {
+        safeToReleaseWorktree
     }
 
     /// The pushed commit, set only when `pushed` is true.

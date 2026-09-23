@@ -190,9 +190,10 @@ extension LandAct {
         }
     }
 
-    /// Releases the lane's held Worktree, only once its push reported pushed
-    /// (``JournalStore/releaseWorktree(id:runID:now:)``'s own refusal is defence in depth, not relied
-    /// on here). Never throws for "not pushed" — that is recorded skipped, and the Worktree stays held.
+    /// Releases the lane's held Worktree, once its push reported pushed or safely skipped with no
+    /// completed work (``JournalStore/releaseWorktree(id:runID:now:)``'s own refusal is defence in
+    /// depth, not relied on here). Never throws for an unsafe push outcome — that is recorded skipped,
+    /// and the Worktree stays held.
     private func runReleaseWorktree(
         feature: FeatureRecord, lane: RepoLane, pushOutcome: LanePushOutcome?, context: ActContext
     ) async -> LandStepResult {
@@ -202,7 +203,7 @@ extension LandAct {
         else {
             return .skipped("no Worktree held")
         }
-        guard let pushOutcome, pushOutcome.pushed else {
+        guard let pushOutcome, pushOutcome.safeToReleaseWorktree else {
             return .skipped("not pushed")
         }
         guard let workspace = context.workspace else {
@@ -210,7 +211,9 @@ extension LandAct {
         }
         let allocator = WorktreeAllocator(workspace: workspace, journal: context.journal, runID: context.runID)
         do {
-            _ = try await allocator.release(featureID: feature.id, repository: lane.repository)
+            _ = try await allocator.release(
+                featureID: feature.id, repository: lane.repository, discardingUnpushedWork: !pushOutcome.pushed
+            )
             return .completed()
         } catch {
             return .faulted(String(describing: error))
