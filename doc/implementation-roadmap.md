@@ -1388,7 +1388,7 @@ comment on the Delta Read).
 - **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
 - **Done when** — Rates computed from multi-Night rehearsal Journals match hand-computed values.
 
-### [ ] P12.3 Feature roll-up
+### [x] P12.3 Feature roll-up
 - **Work**
   - Derive the roll-up state from Card states and Repo Lane completion, with fallback to the Feature
     Issue's own state when there are no Cards.
