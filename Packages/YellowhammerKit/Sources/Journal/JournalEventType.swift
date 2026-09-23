@@ -99,4 +99,7 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case featureReleased = "FeatureReleased"
     case settleValueNotHonoured = "SettleValueNotHonoured"
     case cardUnansweredBoundFired = "CardUnansweredBoundFired"
+    case adoptionRefused = "AdoptionRefused"
+    case cardAdopted = "CardAdopted"
+    case adoptionUntestable = "AdoptionUntestable"
 }

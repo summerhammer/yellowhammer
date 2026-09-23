@@ -56,7 +56,7 @@ struct RefusalLifecycleTests {
             selector: selector,
             transaction: AuthoringTransaction(
                 drafting: ScriptedBreakdown(thinFeature), citations: FakeCitationResolver(),
-                transcribing: FakeContractTranscriber()
+                transcribing: FakeContractTranscriber(), provenance: FakeProvenanceTester()
             )
         )
         let authorAct = AuthorAct(predecessorGate: nil, authoring: selection, unansweredNightsMax: 1)
@@ -125,7 +125,7 @@ struct RefusalLifecycleTests {
             selector: selector,
             transaction: AuthoringTransaction(
                 drafting: ScriptedBreakdown(thin), citations: FakeCitationResolver(),
-                transcribing: FakeContractTranscriber()
+                transcribing: FakeContractTranscriber(), provenance: FakeProvenanceTester()
             )
         )
         let authorAct = AuthorAct(predecessorGate: nil, authoring: selection, unansweredNightsMax: 5)
@@ -166,7 +166,7 @@ struct RefusalLifecycleTests {
             selector: selector,
             transaction: AuthoringTransaction(
                 drafting: ScriptedBreakdown(thin), citations: FakeCitationResolver(),
-                transcribing: FakeContractTranscriber()
+                transcribing: FakeContractTranscriber(), provenance: FakeProvenanceTester()
             )
         )
         let authorAct = AuthorAct(predecessorGate: nil, authoring: selection, unansweredNightsMax: 5)
@@ -205,7 +205,7 @@ struct RefusalLifecycleTests {
             selector: selector1,
             transaction: AuthoringTransaction(
                 drafting: ScriptedBreakdown(thin), citations: FakeCitationResolver(),
-                transcribing: FakeContractTranscriber()
+                transcribing: FakeContractTranscriber(), provenance: FakeProvenanceTester()
             )
         )
         let (context1, run1) = try refusalTestContext(
@@ -219,7 +219,7 @@ struct RefusalLifecycleTests {
             selector: selector2,
             transaction: AuthoringTransaction(
                 drafting: ScriptedBreakdown(clean), citations: FakeCitationResolver(),
-                transcribing: FakeContractTranscriber()
+                transcribing: FakeContractTranscriber(), provenance: FakeProvenanceTester()
             )
         )
         let (context2, _) = try refusalTestContext(
@@ -252,7 +252,7 @@ struct RefusalLifecycleTests {
                 selector: selector,
                 transaction: AuthoringTransaction(
                     drafting: ScriptedBreakdown(thin), citations: FakeCitationResolver(),
-                    transcribing: FakeContractTranscriber()
+                    transcribing: FakeContractTranscriber(), provenance: FakeProvenanceTester()
                 )
             )
             return AuthorAct(predecessorGate: nil, authoring: selection, unansweredNightsMax: 1)

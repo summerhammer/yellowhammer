@@ -374,7 +374,24 @@ public enum JournalEvent: Equatable, Sendable {
     case cardUnansweredBoundFired(
         cardID: Int64, issueID: String, unansweredNights: Int, bound: Int, blockReason: String
     )
+    /// A Card selection tried to adopt was refused: a stale Transcription Block (roadmap P11.5). Not
+    /// adopted, not re-authored; a Divergence, sibling of Refusal. `featureName` names the Feature that
+    /// tried — its Feature Issue does not exist yet, since re-validation precedes drafting.
+    case adoptionRefused(
+        cardID: Int64, issueID: String, nightID: Int64, featureName: String, staleBlocks: [AdoptionStaleBlock]
+    )
+    /// A Card was adopted cleanly into a successor Feature (roadmap P11.5): moved from its prior Feature
+    /// into the adopting one, cold in a fresh Worktree, carrying its prior Block Reason for the record.
+    case cardAdopted(
+        cardID: Int64, issueID: String, previousFeatureIssueID: String, newFeatureIssueID: String,
+        priorBlockReason: String?, coldStartNote: String
+    )
+    /// A Card a selection tried to adopt had untestable provenance (roadmap P11.5): not adopted this
+    /// Night, but not refused — no Divergence, no counter change, still a candidate for later.
+    case adoptionUntestable(cardID: Int64, issueID: String, featureName: String, reasons: [String])
 
     // `type`, the exhaustive switch from a case to its `JournalEventType`, lives in
     // JournalEvent+Type.swift, split out to keep this file under the file length limit.
+    // `AdoptionStaleBlock` (the payload of `adoptionRefused`) lives in JournalEvent+AdoptionDecoding.swift,
+    // for the same reason.
 }

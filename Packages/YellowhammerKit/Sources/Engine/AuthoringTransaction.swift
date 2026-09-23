@@ -40,15 +40,21 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
     /// Transcribes a drafted contract from another repository's merged mainline before it is accepted
     /// into the Outbox (roadmap P9.6; spec: feature-authoring/author-an-architectural-brief).
     public let transcribing: any ContractTranscribing
+    /// Re-validates every Card the selection tries to adopt, before the breakdown is drafted (roadmap
+    /// P11.5; spec: feature-authoring/author-the-cycle-and-card-dag, second story) — the same test the
+    /// Readiness Check runs at dispatch.
+    public let provenance: any ProvenanceTesting
     public let operatorIdentity: OperatorIdentity
 
     public init(
         drafting: any FeatureBreakdownDrafting, citations: any CitationResolving,
-        transcribing: any ContractTranscribing, operatorIdentity: OperatorIdentity = .none
+        transcribing: any ContractTranscribing, provenance: any ProvenanceTesting,
+        operatorIdentity: OperatorIdentity = .none
     ) {
         self.drafting = drafting
         self.citations = citations
         self.transcribing = transcribing
+        self.provenance = provenance
         self.operatorIdentity = operatorIdentity
     }
 
@@ -56,21 +62,19 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         guard let outbox = context.outbox, let board = context.board else {
             throw AuthoringTransactionError.noBoard
         }
+        // Every Card the selection tries to adopt is re-validated before the breakdown is drafted
+        // (roadmap P11.5), so the Feature is sized without any Card whose Adoption is refused.
+        let revalidated = try await AdoptionRevalidation.revalidate(
+            selection, provenance: provenance, context: context, operatorIdentity: operatorIdentity
+        )
+        let selection = revalidated.selection
         guard let breakdown = try await draft(selection, context: context) else {
             return .authoringRolledBack
         }
-        // A rejected breakdown is an authoring fault, not a halt (roadmap P9.10; spec: feature-authoring/
-        // author-the-cycle-and-card-dag): nothing was ever accepted into the Outbox, so there is no board
-        // write to roll back, no Authoring Halt, and no Refusal — only `FeatureBreakdownError` is caught
-        // here; any other thrown error keeps propagating and fails the invocation.
-        do {
-            try FeatureBreakdownValidation.validate(breakdown, for: selection)
-        } catch let error as FeatureBreakdownError {
-            try context.journal.append(
-                .featureBreakdownRejected(name: selection.name.rawValue, reason: error.description),
-                act: context.act, runID: context.runID, nightID: context.night.id
-            )
-            return .authoringRolledBack
+        if let rejection = try await validateBreakdown(
+            breakdown, for: selection, revalidated: revalidated, context: context
+        ) {
+            return rejection
         }
 
         // Every drafted clause's citation is resolved before anything is accepted into the Outbox
@@ -114,6 +118,34 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
             nightID: context.night.id
         )
         return try await complete(plan.record, context: context, outbox: outbox)
+    }
+
+    /// Validates the drafted breakdown, returning the outcome to return early with when it is rejected —
+    /// nil when it is valid and authoring should continue. A rejected breakdown is an authoring fault,
+    /// not a halt (roadmap P9.10; spec: feature-authoring/author-the-cycle-and-card-dag): nothing was
+    /// ever accepted into the Outbox, so there is no board write to roll back, no Authoring Halt, and no
+    /// Refusal — only `FeatureBreakdownError` is caught here; any other thrown error keeps propagating
+    /// and fails the invocation. `.noCards` caused entirely by an Adoption refusal is a quiet Night, not
+    /// an authoring fault (roadmap P11.5): the refusal already recorded its own Divergence and Journal
+    /// event, so this is `.noWorkAvailable` rather than `.featureBreakdownRejected` — the outcome the
+    /// author Act already turns into `.authoringNoWorkAvailable` on its own.
+    private func validateBreakdown(
+        _ breakdown: FeatureBreakdown, for selection: SelectedFeature, revalidated: AdoptionRevalidation.Outcome,
+        context: ActContext
+    ) async throws -> FeatureAuthoringOutcome? {
+        do {
+            try FeatureBreakdownValidation.validate(breakdown, for: selection)
+            return nil
+        } catch let error as FeatureBreakdownError {
+            if case .noCards = error, revalidated.hadRefusals {
+                return .noWorkAvailable
+            }
+            try context.journal.append(
+                .featureBreakdownRejected(name: selection.name.rawValue, reason: error.description),
+                act: context.act, runID: context.runID, nightID: context.night.id
+            )
+            return .authoringRolledBack
+        }
     }
 
     /// Runs the model-authored breakdown; nil when no Route answered it. That is an authoring fault

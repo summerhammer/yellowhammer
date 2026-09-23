@@ -105,6 +105,9 @@ enum JournalMigrations {
         migrator.registerMigration("v25-card-unanswered-clock") { db in
             try addCardUnansweredLastCountedNightColumn(db)
         }
+        migrator.registerMigration("v26-adoption-refusal") { db in
+            try createAdoptionRefusalTable(db)
+        }
         return migrator
     }
 }

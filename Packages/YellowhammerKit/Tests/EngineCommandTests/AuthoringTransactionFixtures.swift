@@ -80,7 +80,8 @@ final class AuthoringRig {
 
     init(
         adopting adopted: [String] = [], sequence: FeatureSequence? = nil, drafting: ScriptedBreakdown? = nil,
-        citations: (any CitationResolving)? = nil, transcribing: (any ContractTranscribing)? = nil
+        citations: (any CitationResolving)? = nil, transcribing: (any ContractTranscribing)? = nil,
+        provenance: (any ProvenanceTesting)? = nil
     ) async throws {
         fixture = try OutboxJournalFixture()
         journal = try fixture.open()
@@ -91,7 +92,8 @@ final class AuthoringRig {
         self.drafting = try drafting ?? ScriptedBreakdown(try authoringBreakdown())
         selection = FeatureSelection(selector: selector, transaction: AuthoringTransaction(
             drafting: self.drafting, citations: citations ?? FakeCitationResolver(),
-            transcribing: transcribing ?? FakeContractTranscriber()
+            transcribing: transcribing ?? FakeContractTranscriber(),
+            provenance: provenance ?? FakeProvenanceTester()
         ))
     }
 

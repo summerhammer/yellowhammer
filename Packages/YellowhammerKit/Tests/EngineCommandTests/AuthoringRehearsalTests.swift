@@ -36,7 +36,7 @@ struct AuthoringRehearsalTests {
             transaction: AuthoringTransaction(
                 drafting: RoutedFeatureBreakdown(route: route),
                 citations: FakeCitationResolver(resolvable: ["fixture-epic/fixture-story"]),
-                transcribing: FakeContractTranscriber()
+                transcribing: FakeContractTranscriber(), provenance: FakeProvenanceTester()
             )
         )
         let (context, _) = try makeSelectionContext(

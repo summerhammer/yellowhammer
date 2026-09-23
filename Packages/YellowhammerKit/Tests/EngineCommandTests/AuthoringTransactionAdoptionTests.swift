@@ -7,7 +7,10 @@ import Testing
 
 // roadmap P9.4 (spec: feature-authoring/author-the-cycle-and-card-dag, second story, as far as "adoption
 // is part of the same atomic transaction"): an adopted Blocked Card is re-parented on the board and moves
-// into the new Cycle, keeping its counters, state and Block Reason; a failed transaction restores it.
+// into the new Cycle; a failed transaction restores it. roadmap P11.5 changed what a clean Adoption does
+// to the Card itself: it starts Todo cold, its Block Reason is cleared but carried onto `.cardAdopted`,
+// and `failed_adoptions` / `consecutive_divergences` reset — round history, attempts, exclusions and
+// `budget_epoch` stay exactly as they were.
 
 @Suite("Authoring transaction: adoption (P9.4)")
 struct AuthoringTransactionAdoptionTests {
@@ -43,9 +46,9 @@ struct AuthoringTransactionAdoptionTests {
     func adoptionMovesTheCard() async throws {
         let rig = try await AuthoringRig(adopting: ["CARD-OLD"])
         let adopted = try await seedAdoptedCard(rig)
-        let before = try rig.journal.card(id: adopted.cardRowID)
+        let firstContext = try rig.context()
 
-        let outcome = try await rig.run(rig.context())
+        let outcome = try await rig.run(firstContext)
 
         #expect(outcome == .authored)
         let live = await rig.boards.writing.liveIssues
@@ -58,20 +61,51 @@ struct AuthoringTransactionAdoptionTests {
         let (_, cycleID) = try #require(try rig.journal.inFlightFeature())
         #expect(after.cycleID == cycleID)
         #expect(after.authoredOrder == 1)
-        #expect(after.state == before.state && after.blockReason == before.blockReason)
+        // A clean Adoption starts the Card cold, Todo, with its Block Reason cleared (roadmap P11.5):
+        // it no longer keeps the state and Block Reason it entered with.
+        #expect(after.state == .todo)
+        #expect(after.blockReason == nil)
         #expect(after.budgetEpoch == 4)
         let counters = try rig.journal.read { db in
             try Row.fetchOne(
-                db, sql: "SELECT failed_adoptions, unanswered_nights FROM card WHERE id = ?",
+                db, sql: "SELECT failed_adoptions, consecutive_divergences, unanswered_nights FROM card WHERE id = ?",
                 arguments: [adopted.cardRowID]
             )
         }
-        #expect(counters?["failed_adoptions"] == 2 && counters?["unanswered_nights"] == 1)
+        // failed_adoptions and consecutive_divergences reset to 0 on a clean Adoption; unanswered_nights
+        // (a different clock, P11.4) is untouched by this transaction.
+        #expect(counters?["failed_adoptions"] == 0 && counters?["consecutive_divergences"] == 0)
+        #expect(counters?["unanswered_nights"] == 1)
+
+        // The prior Block Reason and the cold-start record are carried onto `.cardAdopted` (roadmap
+        // P11.5), since leaving Blocked clears the Journal's own `block_reason` column.
+        let adoptedEvents = try rig.journal.events(ofType: .cardAdopted)
+        let adoptedEvent = try #require(adoptedEvents.first { event in
+            if case .cardAdopted(let cardID, _, _, _, _, _) = event.event { return cardID == adopted.cardRowID }
+            return false
+        })
+        guard case .cardAdopted(_, _, let previousFeatureIssueID, _, let priorBlockReason, let coldStartNote) =
+            adoptedEvent.event
+        else {
+            Issue.record("expected a cardAdopted event")
+            return
+        }
+        #expect(previousFeatureIssueID == "FEAT-OLD")
+        #expect(priorBlockReason == "unanswered")
+        #expect(!coldStartNote.isEmpty)
 
         let lane = try cardRows(rig.journal).filter { $0.repository == "backend" }
         #expect(lane.map(\.authoredOrder) == [1, 2, 3])
         #expect(lane.first?.issueID == "CARD-OLD")
         #expect(try tableRowCount(rig.journal, table: "card") == 4)
+
+        // finaliseAuthoring writes the adopted Card's Todo state to the Journal alone — the board write
+        // is a deferred one, exactly the state ``DeferredCardStateReplay`` exists to catch up on (issue
+        // #96), and the author Act's own writeBack runs it. Confirmed here directly.
+        try await DeferredCardStateReplay.run(context: rig.context(previous: firstContext))
+        let scope = try await BoardStateScope.resolve(using: rig.boards.provisioning)
+        let boardIssue = try #require(await rig.boards.writing.issue(adopted.card))
+        #expect(boardIssue.workflowState == scope.states[.todo])
     }
 
     @Test("A failed transaction restores the adopted Card's parent and leaves its row untouched")

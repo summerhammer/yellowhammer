@@ -77,6 +77,34 @@ public struct AttemptAccount: Equatable, Sendable {
     }
 }
 
+/// A failed Adoption's notice for the Managed Block (roadmap P11.5): what moved in which repository,
+/// naming the Feature that tried to adopt, and that a human turn is needed. Rendered only while the
+/// Card is Waiting on You under `divergence` because of this refusal — never posted as a comment.
+public struct AdoptionRefusalNotice: Equatable, Sendable {
+    public var featureName: String
+    public var staleBlocks: [AdoptionStaleBlock]
+
+    public init(featureName: String, staleBlocks: [AdoptionStaleBlock]) {
+        self.featureName = featureName
+        self.staleBlocks = staleBlocks
+    }
+
+    func render() -> [String] {
+        var lines = [
+            "### Adoption not completed",
+            "The Feature '\(featureName)' tried to adopt this Card, but its recorded contract had moved:"
+        ]
+        for block in staleBlocks {
+            lines.append("- \(block.repository): \(block.changedPaths.joined(separator: ", "))")
+        }
+        lines.append(
+            "This Card was not adopted. A human turn is needed: cancel it, or author the replacement " +
+                "work as new work with fresh budgets."
+        )
+        return lines
+    }
+}
+
 public struct CardManagedBlock: Equatable, Sendable {
     public var kind: String
     public var repository: String
@@ -99,6 +127,10 @@ public struct CardManagedBlock: Equatable, Sendable {
     /// Set when Failure-Cause Recurrence promoted this Blocked Card to Triage (roadmap P8.8); nil for a
     /// first occurrence, which Blocks like any other.
     public var triagePromotion: TriagePromotion?
+    /// The Card's latest adoption refusal (roadmap P11.5), rendered only while the Card is Waiting on
+    /// You under `divergence` because of it; nil otherwise, or once a later readiness Divergence
+    /// supersedes it. A second refusal replaces this notice rather than stacking beside it.
+    public var adoptionRefusalNotice: AdoptionRefusalNotice?
 
     public static let footer = "_Managed by Yellowhammer. This block is rewritten from the Journal; " +
         "write outside it and your text is kept._"
@@ -116,7 +148,8 @@ public struct CardManagedBlock: Equatable, Sendable {
         attempts: [AttemptAccount],
         attemptConsumption: AttemptConsumption? = nil,
         attemptsPerCard: Int? = nil,
-        triagePromotion: TriagePromotion? = nil
+        triagePromotion: TriagePromotion? = nil,
+        adoptionRefusalNotice: AdoptionRefusalNotice? = nil
     ) {
         self.kind = kind
         self.repository = repository
@@ -131,6 +164,7 @@ public struct CardManagedBlock: Equatable, Sendable {
         self.attemptConsumption = attemptConsumption
         self.attemptsPerCard = attemptsPerCard
         self.triagePromotion = triagePromotion
+        self.adoptionRefusalNotice = adoptionRefusalNotice
     }
 
     public func render() -> String {
@@ -177,6 +211,11 @@ public struct CardManagedBlock: Equatable, Sendable {
 
         // Attempts section
         lines.append(contentsOf: renderAttempts())
+
+        if let adoptionRefusalNotice {
+            lines.append("")
+            lines.append(contentsOf: adoptionRefusalNotice.render())
+        }
 
         // Footer
         lines.append(Self.footer)

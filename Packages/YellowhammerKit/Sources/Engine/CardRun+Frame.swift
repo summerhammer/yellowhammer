@@ -32,6 +32,11 @@ struct CardRunFrame: Sendable {
     /// `wipContext`. Nil when the latest question has no recorded answer yet — a newer question with no
     /// answers carries nothing, even if an older one did.
     var answeredQuestion: AnsweredQuestion?
+    /// Every reply banked against this Card (roadmap P11.5), in Journal order, set once in
+    /// ``prepare(card:in:context:readiness:)`` and merged into every pass instruction of every Attempt
+    /// of this run, like `answeredQuestion`. A banked reply is excluded from `answeredQuestion.replies`
+    /// so each reply appears once, carrying its own dated, unverified nature.
+    var bankedReplies: [BankedReply] = []
 
     var journal: JournalStore { context.act.journal }
 
@@ -136,20 +141,45 @@ extension CardRun {
                 key: card.issueID, title: object?.title ?? card.issueID, description: object?.description
             )
         )
-        frame.answeredQuestion = try Self.answeredQuestion(cardID: card.id, journal: journal)
+        let banked = try journal.bankedCardReplies(cardID: card.id)
+        let bankedCommentIDs = Set(banked.map { $0.reply.commentID })
+        frame.answeredQuestion = try Self.answeredQuestion(
+            cardID: card.id, journal: journal, excluding: bankedCommentIDs
+        )
+        frame.bankedReplies = try banked.map { try Self.bankedReply($0, journal: journal) }
         return frame
     }
 
-    /// The Card's latest question, with every recorded answer to it (roadmap P11.2): nil when the
-    /// latest question has none recorded yet, so a resumed run never carries a question the Operator
-    /// has not actually answered.
-    private static func answeredQuestion(cardID: Int64, journal: JournalStore) throws -> AnsweredQuestion? {
+    /// The Card's latest question, with every recorded answer to it that is not itself banked (roadmap
+    /// P11.2, P11.5): nil when the latest question has none recorded yet, so a resumed run never carries
+    /// a question the Operator has not actually answered. A banked reply appears only in
+    /// ``bankedReplies``, never twice.
+    private static func answeredQuestion(
+        cardID: Int64, journal: JournalStore, excluding bankedCommentIDs: Set<String>
+    ) throws -> AnsweredQuestion? {
         guard let question = try journal.latestCardQuestion(cardID: cardID) else { return nil }
         let answers = try journal.cardReplies(questionID: question.id, disposition: .answer)
+            .filter { !bankedCommentIDs.contains($0.commentID) }
         guard !answers.isEmpty, let night = try journal.night(id: question.nightID) else { return nil }
         return AnsweredQuestion(
             question: question.question, askedOn: night.nightStart,
             replies: answers.map { OperatorReply(body: $0.body, repliedAt: $0.commentedAt, commentID: $0.commentID) }
+        )
+    }
+
+    /// One banked reply, with its Night and every touched repository's mainline commit as of the Night
+    /// it was banked (roadmap P11.5).
+    private static func bankedReply(_ banked: BankedCardReply, journal: JournalStore) throws -> BankedReply {
+        guard let night = try journal.night(id: banked.nightID) else {
+            throw JournalError.nightUnknown(id: banked.nightID)
+        }
+        var commits: [String: String] = [:]
+        for stamp in banked.stamps {
+            if let commit = stamp.commit { commits[stamp.repository] = commit }
+        }
+        return BankedReply(
+            body: banked.reply.body, night: night.nightStart, mainlineCommits: commits,
+            commentID: banked.reply.commentID
         )
     }
 }

@@ -102,9 +102,16 @@ extension JournalStore {
         return try Self.cardRecord(from: updated)
     }
 
-    /// Every landed Cycle's id that currently holds a Waiting on You Card (roadmap P11.4) — what the
+    /// Every archived Cycle's id that currently holds a Waiting on You Card (roadmap P11.4) — what the
     /// author Act's own clock advance (``PostLandingReplies``) runs over, so it never reaches into the
     /// in-flight Cycle's Cards while that Cycle is still unlanded (the build Act owns those).
+    ///
+    /// Filters on `cycle.archived_at`, not `cycle.landed_at` (roadmap P11.5): a *released* Feature's
+    /// Cycle is archived without ever landing (``JournalStore/archiveReleasedCycle(cycleID:...)``), and a
+    /// Card an Adoption refused sits Waiting on You right there — its lane never reopens either way, so
+    /// the clock must still advance and, past `unansweredNightsMax`, Block it `undecided` so it becomes
+    /// a candidate for Adoption again. Every landed Cycle is archived, so this only widens, never narrows,
+    /// what the pre-P11.5 `landed_at` filter matched.
     public func landedCycleIDsWithWaitingOnYouCards() throws -> [Int64] {
         try read { db in
             try Int64.fetchAll(
@@ -112,7 +119,7 @@ extension JournalStore {
                 sql: """
                 SELECT DISTINCT cycle.id FROM cycle
                 JOIN card ON card.cycle_id = cycle.id
-                WHERE cycle.landed_at IS NOT NULL AND card.state = ?
+                WHERE cycle.archived_at IS NOT NULL AND card.state = ?
                 ORDER BY cycle.id ASC
                 """,
                 arguments: [CardState.waitingOnYou.rawValue]
