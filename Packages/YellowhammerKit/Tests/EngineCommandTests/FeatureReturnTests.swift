@@ -101,7 +101,7 @@ struct FeatureReturnTests {
         try recordVerification(world, clauses: [returnClause("c1", verdict: .unmet), returnClause("c2", verdict: .met)])
         let verdict = VerificationVerdict(allClausesMet: false, unmetClauses: ["BACK-1 c1"])
 
-        try await FeatureReturn(operator: nil).returnFeature(world.featureContext, verdict: verdict)
+        try await FeatureReturn(operatorIdentity: .none).returnFeature(world.featureContext, verdict: verdict)
 
         let feature = try #require(try world.journal.inFlightFeature()).feature
         #expect(feature.state == "returned")
@@ -129,7 +129,9 @@ struct FeatureReturnTests {
         try recordVerification(world, clauses: [returnClause("c1", verdict: .unresolved)])
         let verdict = VerificationVerdict(allClausesMet: false, unresolvedClauses: ["BACK-1 c1"])
 
-        try await FeatureReturn(operator: returnOperator).returnFeature(world.featureContext, verdict: verdict)
+        let operatorIdentity = OperatorIdentity(configured: returnOperator)
+        try await FeatureReturn(operatorIdentity: operatorIdentity)
+            .returnFeature(world.featureContext, verdict: verdict)
 
         let issue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: "FEAT-1")))
         #expect(issue.assignee == returnOperator)
@@ -141,8 +143,8 @@ struct FeatureReturnTests {
         try recordVerification(world, clauses: [returnClause("c1", verdict: .unmet)])
         let verdict = VerificationVerdict(allClausesMet: false, unmetClauses: ["BACK-1 c1"])
 
-        try await FeatureReturn(operator: nil).returnFeature(world.featureContext, verdict: verdict)
-        try await FeatureReturn(operator: nil).returnFeature(world.featureContext, verdict: verdict)
+        try await FeatureReturn(operatorIdentity: .none).returnFeature(world.featureContext, verdict: verdict)
+        try await FeatureReturn(operatorIdentity: .none).returnFeature(world.featureContext, verdict: verdict)
 
         #expect(try world.journal.events(ofType: .featureReturned).count == 1)
         #expect(await world.boards.writing.comments.count == 1)
@@ -159,7 +161,7 @@ struct FeatureReturnTests {
         )
         let verdict = VerificationVerdict(allClausesMet: false, unmetClauses: ["BACK-1 c1"])
 
-        try await FeatureReturn(operator: nil).returnFeature(world.featureContext, verdict: verdict)
+        try await FeatureReturn(operatorIdentity: .none).returnFeature(world.featureContext, verdict: verdict)
 
         let comment = try #require(await world.boards.writing.comments.first).body
         #expect(comment.contains("https://github.com/summerhammer/backend/pull/9"))
@@ -172,7 +174,7 @@ struct FeatureReturnTests {
         let verdict = VerificationVerdict(allClausesMet: false, unmetClauses: ["BACK-1 c1"])
 
         await #expect(throws: FeatureReturnFault.self) {
-            try await FeatureReturn(operator: nil).returnFeature(world.featureContext, verdict: verdict)
+            try await FeatureReturn(operatorIdentity: .none).returnFeature(world.featureContext, verdict: verdict)
         }
     }
 }
@@ -199,7 +201,7 @@ struct LandActFeatureReturnTests {
         let act = LandAct(
             mergeTest: StubMergeTest(log: log), push: StubPush(log: log), openPullRequest: StubPullRequest(log: log),
             verification: StubVerification(log: log, verdict: unmetVerdict),
-            returnFeature: FeatureReturn(operator: nil), archiveCycle: StubArchiveCycle(log: log)
+            returnFeature: FeatureReturn(operatorIdentity: .none), archiveCycle: StubArchiveCycle(log: log)
         )
         let outbox = Outbox(journal: journal, board: FakeWritingBoard(), runID: runID, act: .land, nightID: night.id)
         let context = ActContext(
@@ -271,7 +273,7 @@ struct LandActFeatureReturnTests {
         )
         let act = LandAct(
             mergeTest: StubMergeTest(log: log), push: StubPush(log: log), openPullRequest: StubPullRequest(log: log),
-            verification: verification, returnFeature: FeatureReturn(operator: nil),
+            verification: verification, returnFeature: FeatureReturn(operatorIdentity: .none),
             archiveCycle: StubArchiveCycle(log: log)
         )
 

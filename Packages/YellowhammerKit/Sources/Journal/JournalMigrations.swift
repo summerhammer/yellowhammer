@@ -96,6 +96,9 @@ enum JournalMigrations {
         migrator.registerMigration("v22-night-triaged") { db in
             try addNightTriagedAtColumn(db)
         }
+        migrator.registerMigration("v23-card-question") { db in
+            try createCardQuestionTable(db)
+        }
         return migrator
     }
 }

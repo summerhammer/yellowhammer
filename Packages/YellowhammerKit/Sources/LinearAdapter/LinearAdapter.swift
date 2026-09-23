@@ -64,6 +64,23 @@ public actor LinearAdapter: Board {
         return payload.issue.map(Self.boardObject)
     }
 
+    /// True when `user` is an active workspace member (roadmap P11.1, OQ66). A nonexistent id arrives
+    /// as a GraphQL "not found" error, translated to ``BoardError/scopeNotFound(_:)`` — read here as
+    /// inactive, not re-thrown.
+    public func isActiveMember(_ user: BoardObjectID) async throws(BoardError) -> Bool {
+        do {
+            let payload: LinearUserPayload = try await perform(
+                LinearGraphQL.userQuery, variables: ["id": user.rawValue]
+            )
+            return payload.user?.active ?? false
+        } catch {
+            if case .scopeNotFound = error {
+                return false
+            }
+            throw error
+        }
+    }
+
     static func boardObject(_ issue: LinearIssuesPayload.Issue) -> BoardObject {
         BoardObject(
             id: BoardObjectID(rawValue: issue.id),

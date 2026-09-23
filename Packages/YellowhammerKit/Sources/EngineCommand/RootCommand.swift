@@ -78,7 +78,6 @@ extension ActCommand {
             trigger: trigger,
             closesNight: closesNight,
             board: board,
-            boardOperator: configuration.machine.linearOperator,
             repositories: project.repositories,
             workspace: workspace,
             work: work
@@ -89,6 +88,7 @@ extension ActCommand {
     private static func work(
         mode: NightMode, configuration: Configuration, project: ProjectConfiguration, configurationDirectory: URL
     ) throws -> EngineInvocation.ActWork {
+        let operatorIdentity = OperatorIdentity(configured: configuration.machine.operatorIdentity)
         switch Self.act {
         case .land:
             // The Repo Lane merge test (P10.3) is pure local git and records conflicts without gating
@@ -103,7 +103,7 @@ extension ActCommand {
                     mode: mode, configuration: configuration, project: project,
                     configurationDirectory: configurationDirectory
                 ),
-                returnFeature: FeatureReturn(operator: configuration.machine.linearOperator),
+                returnFeature: FeatureReturn(operatorIdentity: operatorIdentity),
                 archiveCycle: CycleArchive()
             ).work
         case .author:
@@ -130,8 +130,7 @@ extension ActCommand {
             return BuildAct(
                 cardRunner: cardRunner,
                 readiness: ReadinessCheck(
-                    provenance: ProvenanceDiffTester(), citations: MainlineReader(),
-                    operator: configuration.machine.linearOperator
+                    provenance: ProvenanceDiffTester(), citations: MainlineReader(), operatorIdentity: operatorIdentity
                 ),
                 // Bound in both modes (P8.10): a rehearsal Night writes no result files, so this simply
                 // finds none, and the lease-reclaim sweep falls to the event log and Crashed-Unknown.

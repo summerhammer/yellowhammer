@@ -23,12 +23,11 @@ public struct FeatureReturnFault: Error, Equatable, Sendable, CustomStringConver
 /// Idempotent across a retried land Act: the Journal transition and the Outbox writes it queues are all
 /// keyed so a repeat run changes nothing.
 public struct FeatureReturn: FeatureReturning, Sendable {
-    /// The Operator's board identity for the Waiting on You assignment. If absent, the Feature Issue
-    /// is still moved to Waiting on You without an assignee.
-    let `operator`: BoardObjectID?
+    /// The Operator identity whose resolved assignee the Feature Issue is moved to Waiting on You under.
+    let operatorIdentity: OperatorIdentity
 
-    public init(operator: BoardObjectID? = nil) {
-        self.operator = `operator`
+    public init(operatorIdentity: OperatorIdentity = .none) {
+        self.operatorIdentity = operatorIdentity
     }
 
     public func returnFeature(_ context: LandActFeatureContext, verdict: VerificationVerdict) async throws {
@@ -54,25 +53,17 @@ public struct FeatureReturn: FeatureReturning, Sendable {
         try await postComment(recorded, context: context)
     }
 
-    /// Moves the Feature Issue to Waiting on You, through the board projection when the Operator's board
-    /// identity is known (so the assignment notifies them), or the same write with no assignee otherwise.
-    /// Never weakens ``BoardStateProjection``'s own `operatorRequired` check — the nil-operator write is
-    /// posted directly, under the same deterministic key.
+    /// Moves the Feature Issue to Waiting on You, through the board projection, with whatever assignee
+    /// the Operator identity resolves to right now — nil when unconfigured or no longer an active
+    /// workspace member, in which case the state is still written with no assignee.
     private func postWaitingOnYou(context: LandActFeatureContext) async throws {
         guard let outbox = context.act.outbox, let board = context.act.board else { return }
         let scope = try await BoardStateScope.resolve(using: board.provisioning)
         let issue = BoardObjectID(rawValue: context.feature.issueID)
+        let assignee = await operatorIdentity.assignee(on: board.reading)
 
-        if let `operator` {
-            let projection = BoardStateProjection(journal: context.act.journal, outbox: outbox, scope: scope)
-            _ = try await projection.transition(featureIssue: issue, to: .waitingOnYou, operator: `operator`)
-            return
-        }
-
-        var change = scope.labels.change(objectType: "Feature", state: .waitingOnYou, blockReason: nil)
-        change.workflowState = try scope.id(for: .waitingOnYou)
-        let key = BoardStateProjection.featureStateKey(issueID: context.feature.issueID, state: .waitingOnYou)
-        _ = try await outbox.post(OutboxWrite(key: key, write: .updateIssue(issue: issue, change: change, undo: nil)))
+        let projection = BoardStateProjection(journal: context.act.journal, outbox: outbox, scope: scope)
+        _ = try await projection.transition(featureIssue: issue, to: .waitingOnYou, operator: assignee)
     }
 
     /// Posts the return comment, keyed so a retried land Act queues the same write again rather than a

@@ -10,8 +10,10 @@ public enum CardTransition: Equatable, Sendable {
     case inProgress
     case blocked(BlockReason)
     /// Delivery is the assignment to the Operator (Linear notifies off it); `operator` is the
-    /// Operator's board identity.
-    case waitingOnYou(WaitingReason, operator: BoardObjectID)
+    /// Operator's board identity, nil when the Operator identity is unconfigured or is no longer an
+    /// active workspace member — the state is still written, only the assignment is skipped
+    /// (Operator Identity Ruling — 2026-09-23).
+    case waitingOnYou(WaitingReason, operator: BoardObjectID?)
     case done
 
     public var state: CardState {

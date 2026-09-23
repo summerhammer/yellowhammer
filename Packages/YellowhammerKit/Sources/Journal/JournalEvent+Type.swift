@@ -123,6 +123,8 @@ extension JournalEvent {
             .clauseDeleted
         case .protectedPathRefused:
             .protectedPathRefused
+        case .cardQuestionAsked:
+            .cardQuestionAsked
         case .cardRunStep:
             .cardRunStep
         case .checkRan:

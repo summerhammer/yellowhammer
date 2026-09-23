@@ -36,7 +36,7 @@ func migrationIdentifiersIncludeV6() throws {
             "v9-worktree-reconciliation", "v10-attempt-route-provenance", "v11-feature-branch",
             "v12-readiness-check", "v13-card-scope", "v14-attempt-preserved-ref", "v15-refusal", "v16-cycle-landed",
             "v17-authoring-halt", "v18-predecessor-gate", "v19-pull-request",
-            "v20-feature-verification", "v21-feature-closure", "v22-night-triaged"
+            "v20-feature-verification", "v21-feature-closure", "v22-night-triaged", "v23-card-question"
         ]
     )
 }

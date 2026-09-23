@@ -63,6 +63,18 @@ struct LinearIssuePayload: Decodable {
     let issue: LinearIssuesPayload.Issue?
 }
 
+/// Whether a workspace member is active (roadmap P11.1); `user` is nil only when the query's response
+/// carried no GraphQL error and no user, which Linear does not do in practice — the not-found case
+/// arrives as a GraphQL error instead, translated to ``BoardError/scopeNotFound(_:)``.
+struct LinearUserPayload: Decodable {
+    let user: User?
+
+    struct User: Decodable {
+        let id: String
+        let active: Bool
+    }
+}
+
 struct LinearDeltaPayload: Decodable {
     let viewer: DeltaViewerPayload
     let updatedIssues: LinearIssuesPayload.Issues

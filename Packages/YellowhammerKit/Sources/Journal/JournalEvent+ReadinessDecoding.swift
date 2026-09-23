@@ -21,12 +21,4 @@ extension JournalEvent {
             repository: try reader.require("repository"), changedPaths: changedPaths
         )
     }
-
-    static func decodeProtectedPathRefused(_ reader: PayloadReader) throws -> JournalEvent {
-        .protectedPathRefused(
-            cardID: try reader.int64("card_id"), issueID: try reader.require("issue_id"),
-            repository: try reader.require("repository"), declaredPath: try reader.require("declared_path"),
-            protectedPath: try reader.require("protected_path")
-        )
-    }
 }

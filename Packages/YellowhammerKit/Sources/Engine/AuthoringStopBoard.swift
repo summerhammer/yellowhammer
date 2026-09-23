@@ -15,7 +15,7 @@ enum AuthoringStopBoard {
     /// is handed the Feature Issue's id before the comment is posted, so the Journal row carries it.
     static func post(
         feature: FeatureName, body: String, context: ActContext,
-        reopenKey: String? = nil,
+        reopenKey: String? = nil, operatorIdentity: OperatorIdentity = .none,
         recordIssue: (String) throws -> Void
     ) async throws {
         guard let outbox = context.outbox, let board = context.board else { return }
@@ -24,11 +24,12 @@ enum AuthoringStopBoard {
             throw DispositionLabelsError.missing(group: BoardProvisioner.objectTypeGroup, label: "Feature")
         }
         let waitingOnYouID = try scope.id(for: .waitingOnYou)
+        let assignee = await operatorIdentity.assignee(on: board.reading)
 
         let createKey = "feature:\(feature.rawValue):halt:create"
         let draft = BoardIssueDraft(
             team: scope.team, title: feature.rawValue, labels: [featureLabelID], workflowState: waitingOnYouID,
-            assignee: context.boardOperator
+            assignee: assignee
         )
         let delivery = try await outbox.post(OutboxWrite(key: createKey, write: .createIssue(draft, parentKey: nil)))
 

@@ -8,28 +8,30 @@ public struct MachineConfiguration: Equatable, Sendable {
     /// behind ``linearCredential``.
     public var linearClientID: String
     public var linearCredential: CredentialReference
-    /// The machine-wide Linear user assigned Waiting on You issues, when configured.
-    public var linearOperator: BoardObjectID?
     public var gitHubCredential: CredentialReference
     /// In file order.
     public var cliAdapters: [CLIAdapterDeclaration]
     /// The base Routing Table, in file order.
     public var routingTable: [RoutingEntry]
+    /// The Operator identity's Linear user id (`[linear].operator`), nil when unconfigured or configured
+    /// empty — a missing Operator identity is never a load-time validation failure (Operator Identity
+    /// Ruling — 2026-09-23).
+    public var operatorIdentity: BoardObjectID?
 
     public init(
         linearClientID: String,
         linearCredential: CredentialReference,
-        linearOperator: BoardObjectID? = nil,
         gitHubCredential: CredentialReference,
         cliAdapters: [CLIAdapterDeclaration],
-        routingTable: [RoutingEntry]
+        routingTable: [RoutingEntry],
+        operatorIdentity: BoardObjectID? = nil
     ) {
         self.linearClientID = linearClientID
         self.linearCredential = linearCredential
-        self.linearOperator = linearOperator
         self.gitHubCredential = gitHubCredential
         self.cliAdapters = cliAdapters
         self.routingTable = routingTable
+        self.operatorIdentity = operatorIdentity
     }
 }
 

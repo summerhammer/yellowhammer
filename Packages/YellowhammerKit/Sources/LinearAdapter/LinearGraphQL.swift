@@ -109,6 +109,15 @@ enum LinearGraphQL {
         }
         """
 
+    /// Whether `id` is an active workspace member (roadmap P11.1, OQ66). Linear reports a nonexistent
+    /// id as a GraphQL "not found" error, not a null `user`; ``LinearAdapter/isActiveMember(_:)``
+    /// reads that as inactive.
+    static let userQuery = """
+        query YellowhammerUser($id: String!) {
+          user(id: $id) { id active }
+        }
+        """
+
     // MARK: - Provisioning Queries
 
     static let projectQuery = """

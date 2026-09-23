@@ -204,6 +204,10 @@ public enum JournalEvent: Equatable, Sendable {
     case protectedPathRefused(
         cardID: Int64, issueID: String, repository: String, declaredPath: String, protectedPath: String
     )
+    /// A worker pass returned a question: the Attempt ends `question`, consuming no Round and no
+    /// Attempt, and the Card moves to Waiting on You (roadmap P11.1; spec: bounds/escalate-a-question-
+    /// to-the-operator).
+    case cardQuestionAsked(cardID: Int64, issueID: String, attemptID: Int64)
     /// One step of running a Card to completion (graph-execution/run-a-card, P8.4): the Lease claimed,
     /// the Attempt started, each pass and the Check, the Lease released. `detail` is what the step
     /// yielded, when it yielded anything worth naming.
