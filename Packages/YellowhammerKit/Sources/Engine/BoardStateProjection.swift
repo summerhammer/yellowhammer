@@ -9,9 +9,11 @@ import Journal
 /// Blocked, and Cancelled is refused there too, not only here — and only then posted through the
 /// Outbox, keyed on the Journal's own `state_version` so a crashed and resumed run replays the same
 /// write rather than sending a stale one. The Journal transition stands even when the board write is
-/// deferred: ``repost()`` replays it on a later Act, from `state_version` and `board_state_version`
-/// alone, because the Outbox's own idempotency does not know which Card state a killed run's entry was
-/// for.
+/// deferred: ``repost(_:reclaimingExpiredLeases:)`` replays it on a later Act, from `state_version` and
+/// `board_state_version` alone, because the Outbox's own idempotency does not know which Card state a
+/// killed run's entry was for. ``BuildAct`` calls it directly, entitled to reclaim an expired Card
+/// Lease since it runs after ``ExpiredLeaseSweep``; ``DeferredCardStateReplay`` calls it for the author
+/// and land Acts, which run no Card and so must not (issue #96).
 public struct BoardStateProjection: Sendable {
     public let journal: JournalStore
     public let outbox: Outbox
@@ -83,38 +85,65 @@ public struct BoardStateProjection: Sendable {
     }
 
     /// Reposts every Card whose board projection has not caught up with its Journal state
-    /// (``JournalStore/cardsWithUnpostedState()``) — the board state written on a Night a run crashed
-    /// mid-Act, or deferred (`cardLeaseNotHeld`) by a caller that wrote its transition and released the
-    /// Lease before the board delivered it, and that no later Act will run again (Blocked, Waiting on
-    /// You, Done, or any Card of a landed Cycle). The caller runs no Card here either: the Lease is
-    /// claimed for the one write, then released, the same claim → write → release pattern
-    /// ``ExpiredLeaseSweep`` and ``CardAutoBlock`` use. A Card whose Lease is held live by another run
-    /// is skipped — that run is dispatching or transitioning it right now — and stays pending for a
-    /// later repost. Never touches the assignee: the operator's board identity is not stored in the
-    /// Journal, so the assignment a Waiting on You transition wrote originally is left exactly as the
-    /// board holds it, because nothing here clears it. Never reposts a Cancelled Card —
-    /// `cardsWithUnpostedState` excludes it.
-    public func repost() async throws -> [Outcome] {
+    /// (``JournalStore/cardsWithUnpostedState()``, or the explicit `cards` a caller already resolved) —
+    /// the board state written on a Night a run crashed mid-Act, or deferred (`cardLeaseNotHeld`) by a
+    /// caller that wrote its transition and released the Lease before the board delivered it, and that
+    /// no later Act will run again (Blocked, Waiting on You, Done, or any Card of a landed Cycle). The
+    /// caller runs no Card here either: the Lease is claimed for the one write, then released, the same
+    /// claim → write → release pattern ``ExpiredLeaseSweep`` and ``CardAutoBlock`` use. A Card whose
+    /// Lease is held live by another run is skipped — that run is dispatching or transitioning it right
+    /// now — and stays pending for a later repost. `reclaimingExpiredLeases` is forwarded to
+    /// ``JournalStore/claimCardLease(cardID:runID:reclaimingExpired:policy:now:)``: `true` (the build
+    /// Act's use, after ``ExpiredLeaseSweep`` has already run) takes over a dead run's expired lease;
+    /// `false` (``DeferredCardStateReplay``, which runs no Card and precedes no sweep) leaves it held, so
+    /// a later sweep still finds the evidence of the crashed Attempt. Stops after the first Card whose
+    /// outcome is a budget deferral (rate-limited, transient, or behind such an entry) and releases that
+    /// Card's Lease before returning: acting on a budget that is gone does less than waiting, and every
+    /// further Card here would just re-hit the same refused budget — the rest stay pending for a later
+    /// Act, mirroring ``Outbox/deliverPendingExclusively()``. Never touches the assignee: the operator's
+    /// board identity is not stored in the Journal, so the assignment a Waiting on You transition wrote
+    /// originally is left exactly as the board holds it, because nothing here clears it. Never reposts a
+    /// Cancelled Card — `cardsWithUnpostedState` excludes it.
+    public func repost(_ cards: [CardRecord]? = nil, reclaimingExpiredLeases: Bool = true) async throws -> [Outcome] {
         var outcomes: [Outcome] = []
-        for record in try journal.cardsWithUnpostedState() {
-            switch try journal.claimCardLease(cardID: record.id, runID: outbox.runID, now: outbox.clock()) {
+        for record in try cards ?? journal.cardsWithUnpostedState() {
+            switch try journal.claimCardLease(
+                cardID: record.id, runID: outbox.runID, reclaimingExpired: reclaimingExpiredLeases,
+                now: outbox.clock()
+            ) {
             case .held:
                 continue
             case .claimed, .reclaimed:
                 break
             }
             let blockReason = record.blockReason.flatMap { BlockReason(rawValue: $0) }
+            let outcome: Outcome
             do {
-                outcomes.append(
-                    try await post(record: record, state: record.state, blockReason: blockReason, assignee: nil)
-                )
+                outcome = try await post(record: record, state: record.state, blockReason: blockReason, assignee: nil)
             } catch {
                 _ = try? journal.releaseCardLease(cardID: record.id, runID: outbox.runID)
                 throw error
             }
+            outcomes.append(outcome)
+            if case .deferred(_, let delivery) = outcome, Self.isBudgetDeferral(delivery) {
+                try journal.releaseCardLease(cardID: record.id, runID: outbox.runID)
+                return outcomes
+            }
             try journal.releaseCardLease(cardID: record.id, runID: outbox.runID)
         }
         return outcomes
+    }
+
+    /// Whether a deferral is one that means the budget itself is gone for now (rate-limited, transient,
+    /// or behind such an entry), as opposed to `cardLeaseNotHeld` — another run dispatching the Card
+    /// right now, which is not a budget problem and never stops the loop.
+    private static func isBudgetDeferral(_ delivery: OutboxDelivery) -> Bool {
+        switch delivery.outcome {
+        case .deferred(.rateLimited), .deferred(.transient), .deferred(.behindAnotherEntry):
+            true
+        default:
+            false
+        }
     }
 
     /// Projects the Feature Issue's board-writing state: it shares the team's workflow states, so no

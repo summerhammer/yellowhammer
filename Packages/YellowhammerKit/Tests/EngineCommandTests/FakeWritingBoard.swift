@@ -46,6 +46,11 @@ actor FakeWritingBoard: BoardWriting {
     private var scripts: [String: Script] = [:]
     /// Errors thrown by the next calls of any kind, in order, before anything is applied.
     private var refusals: [BoardError] = []
+    /// Persistently refuses every `updateIssue` call naming this issue, until cleared — unlike
+    /// ``refuseNext(_:)``, which is consumed once. For a caller that needs one specific write (a Card's
+    /// state write and nothing else touching the same issue) to keep failing across many attempts,
+    /// where counting exact call order would be fragile.
+    private var issueRefusals: [BoardObjectID: BoardError] = [:]
 
     private(set) var createIssueCalls = 0
     private(set) var createCommentCalls = 0
@@ -94,6 +99,15 @@ actor FakeWritingBoard: BoardWriting {
 
     func refuseNext(_ error: BoardError) {
         refusals.append(error)
+    }
+
+    /// Every `updateIssue` naming `issue` throws `error` until ``clearRefusal(issue:)``.
+    func refuse(issue: BoardObjectID, with error: BoardError) {
+        issueRefusals[issue] = error
+    }
+
+    func clearRefusal(issue: BoardObjectID) {
+        issueRefusals[issue] = nil
     }
 
     func issue(_ id: BoardObjectID) -> Issue? { issues[id] }
@@ -176,7 +190,17 @@ actor FakeWritingBoard: BoardWriting {
     ) async throws(BoardError) -> BoardDescriptionSnapshot {
         updateCalls += 1
         try consumeRefusal()
-        guard var found = issues[issue] else { throw .scopeNotFound("no such issue") }
+        if let error = issueRefusals[issue] { throw error }
+        guard let found = issues[issue] else { throw .scopeNotFound("no such issue") }
+        let updated = Self.applying(change, to: found, now: now)
+        issues[issue] = updated
+        return BoardDescriptionSnapshot(id: issue, description: updated.description, updatedAt: updated.updatedAt)
+    }
+
+    /// The updated `Issue` `change` describes, applied field by field — split out of ``updateIssue``
+    /// purely to stay under the cyclomatic-complexity limit.
+    private static func applying(_ change: BoardIssueChange, to issue: Issue, now: Date) -> Issue {
+        var found = issue
         if let title = change.title { found.title = title }
         if let description = change.description { found.description = description }
         if let state = change.workflowState { found.workflowState = state }
@@ -193,8 +217,7 @@ actor FakeWritingBoard: BoardWriting {
         case nil: break
         }
         found.updatedAt = now.addingTimeInterval(2)
-        issues[issue] = found
-        return BoardDescriptionSnapshot(id: issue, description: found.description, updatedAt: found.updatedAt)
+        return found
     }
 
     func archiveIssue(_ issue: BoardObjectID) async throws(BoardError) {

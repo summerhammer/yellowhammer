@@ -39,9 +39,18 @@ extension JournalStore {
     /// that run is dead, or asleep past its TTL, and either way it no longer holds the Card.
     /// A run that already holds the lease keeps it and refreshes the heartbeat. When a dead
     /// predecessor's lease is reclaimed, the event is recorded in the same transaction.
+    ///
+    /// `reclaimingExpired` is `true` by default: most callers (the Card's own run, the build Act's
+    /// ``ExpiredLeaseSweep``) are entitled to take over a dead run's lease. Pass `false` for a
+    /// caller that runs no Card and only replays a deferred board write — the standalone deferred
+    /// Card state replay (issue #96): it must not take over a dead run's expired lease and
+    /// release it once its own write lands, because ``ExpiredLeaseSweep`` (build Act start, P8.10)
+    /// reads that lease row to classify the crashed Attempt Crashed-Unknown. A replay that reclaimed
+    /// and released it first would erase that evidence before the sweep ever saw it.
     public func claimCardLease(
         cardID: Int64,
         runID: RunID,
+        reclaimingExpired: Bool = true,
         policy: LeasePolicy = .ruled,
         now: Date = Date()
     ) throws -> CardLeaseClaim {
@@ -53,7 +62,7 @@ extension JournalStore {
                 throw JournalError.cardUnknown(cardID: cardID)
             }
             let holder = try Self.fetchCardLease(db, cardID: cardID)
-            if let holder, holder.runID != runID, holder.isHeld(at: now) {
+            if let holder, holder.runID != runID, holder.isHeld(at: now) || !reclaimingExpired {
                 return .held(holder)
             }
             let ownHolder = holder.flatMap { $0.runID == runID ? $0 : nil }

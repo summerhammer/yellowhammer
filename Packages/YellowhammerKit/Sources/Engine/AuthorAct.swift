@@ -80,7 +80,10 @@ public protocol FeatureAuthoring: Sendable {
 ///
 /// Each of steps 2, 3 and 5 (and a halt inside step 4) is a quiet Night, not a failure: the Act returns
 /// normally (the invocation records `ActEnded`) and the reason is put on the Night Card right away,
-/// before the Act's own write-back.
+/// before the Act's own write-back. This Act dispatches no Card, so its write-back also runs
+/// ``DeferredCardStateReplay`` (issue #96) before delivering pending Outbox entries: a Card
+/// state write a merge closure (P10.8) or a settle release (P10.9) deferred is otherwise never retried,
+/// because those seams release the Card Lease the instant the deferred write is accepted.
 public struct AuthorAct: Sendable {
     /// The predecessor-ancestry gate (P9.2); nil is treated as `.landed` — there is no gate to fail
     /// yet, so authoring is never blocked on a check that has not landed.
@@ -184,13 +187,16 @@ public struct AuthorAct: Sendable {
         return try await predecessorGate.check(context)
     }
 
-    /// Puts a quiet reason (or the idle verdict) on the Night Card right away, then delivers pending
-    /// Outbox entries. A deferred or failed delivery of that rewrite must not fail the Act — the
-    /// Outbox replays it on a later Act.
+    /// Puts a quiet reason (or the idle verdict) on the Night Card right away, replays any Card state
+    /// write a merge closure or the settle gesture's release deferred (``DeferredCardStateReplay``,
+    /// issue #96 — this Act dispatches no Card, so nothing else ever retries one), then delivers
+    /// pending Outbox entries. A deferred or failed delivery must not fail the Act — the Outbox (or the
+    /// next Act's own replay) tries again later.
     private func writeBack(context: ActContext) async throws {
         if let nightCard = context.nightCard {
             try nightCard.recordAuthoring(night: context.night)
         }
+        try await DeferredCardStateReplay.run(context: context)
         guard let outbox = context.outbox else { return }
         _ = try await outbox.deliverPending()
     }
