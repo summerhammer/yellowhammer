@@ -57,7 +57,7 @@ struct FeatureLandingStoreTests {
 
         let journal = try fixture.open()
 
-        #expect(try journal.appliedMigrations().last == "v24-card-reply")
+        #expect(try journal.appliedMigrations().last == "v25-card-unanswered-clock")
         #expect(try journal.tableNames().contains("feature_repository"))
         #expect(try journal.tableNames().contains("feature_landing"))
         let featureColumns = try journal.read { try $0.columns(in: "feature") }.map(\.name)

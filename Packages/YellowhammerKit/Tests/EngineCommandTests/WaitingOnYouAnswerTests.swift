@@ -209,8 +209,12 @@ struct WaitingOnYouAnswerTests {
         let world = try await makeReplyWorld(journal: journal, waitingReason: .question)
 
         // One Night elapses between the question and the remark: with unansweredNightsMax 3, 1 elapsed
-        // Night leaves 2 remaining.
+        // Night leaves 2 remaining. The countdown now reads the same clock the bound fires from
+        // (roadmap P11.4), so this Night's build Act's own advance is simulated directly.
         let night2 = try world.openNight(NightStart(rawValue: "2026-09-21")!)
+        _ = try journal.advanceCardUnansweredClocks(
+            cycleIDs: [world.cycleID], nightID: night2.id, unansweredNightsMax: 3, act: .build, runID: world.runID
+        )
 
         let topLevel = comment("remark-1", on: "BACK-1", author: humanAuthor, parent: nil, createdAt: 3_600)
         let misdirected = comment(

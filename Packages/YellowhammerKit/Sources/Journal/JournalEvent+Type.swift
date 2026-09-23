@@ -199,6 +199,8 @@ extension JournalEvent {
             .featureReleased
         case .settleValueNotHonoured:
             .settleValueNotHonoured
+        case .cardUnansweredBoundFired:
+            .cardUnansweredBoundFired
         }
     }
 }

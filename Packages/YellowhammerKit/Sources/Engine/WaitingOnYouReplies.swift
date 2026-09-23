@@ -92,19 +92,17 @@ enum WaitingOnYouReplies {
         try journal.markCardReplyApplied(id: reply.id)
     }
 
-    /// The Silence countdown reads the question this reply was classified against (nil when the Card
-    /// had none recorded, or the reply predates P11.2): `nightsRemaining` is `unansweredNightsMax`
-    /// unadjusted in that case, since no clock is running to subtract from.
+    /// The Silence countdown reads the same unanswered-Nights clock the bound fires from
+    /// (``CardRecord/unansweredNights``, roadmap P11.4) rather than recomputing an elapsed count of its
+    /// own, so the remark's acknowledgement never disagrees with what actually blocks the Card.
     private static func applyRemark(
         reply: CardReplyRecord, card: CardRecord, context: ActContext, unansweredNightsMax: Int
     ) async throws {
         var questionText = ""
-        var nightsRemaining = unansweredNightsMax
         if let questionID = reply.questionID, let question = try context.journal.cardQuestion(id: questionID) {
             questionText = question.question
-            let elapsed = try context.journal.nightsElapsed(after: question.nightID, through: context.night.id)
-            nightsRemaining = max(0, unansweredNightsMax - elapsed)
         }
+        let nightsRemaining = max(0, unansweredNightsMax - card.unansweredNights)
         let body = WaitingOnYouAcknowledgement.remark(question: questionText, nightsRemaining: nightsRemaining)
         try await acknowledge(body, reply: reply, issueID: card.issueID, context: context)
         try context.journal.markCardReplyApplied(id: reply.id)
