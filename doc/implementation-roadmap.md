@@ -1350,7 +1350,7 @@ comment on the Delta Read).
 
 ## Phase 12 — Morning report
 
-### [ ] P12.1 Night Summary
+### [x] P12.1 Night Summary
 - **Work** — Computed from the Project's Journal event table and written on the Night Card, every
   Night, including idle ones:
   - A constant-time verdict line.
