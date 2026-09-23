@@ -133,6 +133,8 @@ public struct DeltaRead: Sendable {
                           preservedProseHashes: preservedProseHashes, into: &report)
         }
 
+        try classifyAndRecordReplies(into: &report)
+
         if let syncPoint, syncPoint != since {
             try journal.recordBoardSync(lastSync: syncPoint, runID: runID, now: clock())
         }
@@ -251,6 +253,10 @@ public struct DeltaRead: Sendable {
         )
         try append(.waitingOnYouUnbacked(issueID: card.issueID, cardID: card.id, reason: reason))
     }
+
+    // The Waiting on You reply classification and recording (roadmap P11.2; spec G-8) — dispatched
+    // here from `reconcile` — live in DeltaRead+WaitingOnYouReplies.swift, split out to keep this file
+    // under the type-length limit.
 
     private func invariantBreakReason(card: CardRecord, named: String) -> String? {
         if named != card.repository {

@@ -208,6 +208,13 @@ public enum JournalEvent: Equatable, Sendable {
     /// Attempt, and the Card moves to Waiting on You (roadmap P11.1; spec: bounds/escalate-a-question-
     /// to-the-operator).
     case cardQuestionAsked(cardID: Int64, issueID: String, attemptID: Int64)
+    /// A human comment on a Card in Waiting on You was classified and recorded (roadmap P11.2; spec:
+    /// bounds/escalate-a-question-to-the-operator, board-projection/read-board-changes-by-delta):
+    /// `disposition` is `answer` (a threaded reply to the latest recorded question), `remark` (any other
+    /// comment against a `question` waiting reason) or `divergence` (any comment against a `divergence`
+    /// waiting reason). Recorded inside the Delta Read's reconciliation, idempotent on the board comment
+    /// id: a replay appends no second event.
+    case waitingOnYouReplyRecorded(cardID: Int64, issueID: String, commentID: String, disposition: String)
     /// One step of running a Card to completion (graph-execution/run-a-card, P8.4): the Lease claimed,
     /// the Attempt started, each pass and the Check, the Lease released. `detail` is what the step
     /// yielded, when it yielded anything worth naming.

@@ -43,6 +43,11 @@ public struct DeltaReadReport: Equatable, Sendable {
     /// or a known Card whose Journal state is Waiting on You with no waiting reason recorded (glossary
     /// → Waiting on You; bounds/escalate-a-question-to-the-operator).
     public var anomalies: [WaitingOnYouAnomaly]
+    /// Human comments on a Card in Waiting on You, classified and recorded this read (roadmap P11.2):
+    /// an answer to the latest recorded question, a remark, or a reply to a Divergence notice. Recorded
+    /// inside reconciliation, before the sync point moves; the board-side transition and
+    /// acknowledgement are a later, Journal-driven step (``WaitingOnYouReplies``), not this one.
+    public var waitingOnYouReplies: [CardReplyRecord]
 
     public init(
         since: Date?,
@@ -57,7 +62,8 @@ public struct DeltaReadReport: Equatable, Sendable {
         removed: [RemovedCard] = [],
         invariantBreaks: [InvariantBreak] = [],
         unknownObjects: [BoardObject] = [],
-        anomalies: [WaitingOnYouAnomaly] = []
+        anomalies: [WaitingOnYouAnomaly] = [],
+        waitingOnYouReplies: [CardReplyRecord] = []
     ) {
         self.since = since
         self.syncPoint = syncPoint
@@ -72,6 +78,7 @@ public struct DeltaReadReport: Equatable, Sendable {
         self.invariantBreaks = invariantBreaks
         self.unknownObjects = unknownObjects
         self.anomalies = anomalies
+        self.waitingOnYouReplies = waitingOnYouReplies
     }
 
     /// The Card changes that carry a signal Yellowhammer did not write itself: an Operator's edit to
@@ -149,8 +156,10 @@ public struct CardChange: Equatable, Sendable {
 public struct HumanComment: Equatable, Sendable {
     public var comment: BoardComment
     public var card: CardRecord?
-    /// A threaded reply. Whether it answers Yellowhammer's question is decided where the question's
-    /// comment id is known (spec G-8), not here.
+    /// A threaded reply. Whether it answers Yellowhammer's question is decided by
+    /// ``DeltaRead/reconcile(objects:comments:identity:since:requests:)`` (spec G-8), matching `parent`
+    /// against the Card's latest recorded question — never from this alone, since a reply to an older
+    /// question's thread is threaded too but is not an answer.
     public var isThreadedReply: Bool { comment.parent != nil }
 
     public init(comment: BoardComment, card: CardRecord?) {

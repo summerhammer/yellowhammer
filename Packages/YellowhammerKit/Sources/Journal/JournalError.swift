@@ -94,6 +94,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     case pullRequestUnreadable(featureID: Int64)
     /// The `feature_verification` row does not decode; the Journal was written by something other than the engine.
     case featureVerificationUnreadable(cycleID: Int64)
+    /// The `card_reply` row does not decode; the Journal was written by something other than the engine.
+    case cardReplyUnreadable(id: Int64)
 
     public var description: String {
         return switch self {
@@ -198,6 +200,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
             "The Journal's pull request row for Feature \(featureID) cannot be read"
         case .featureVerificationUnreadable(let cycleID):
             "The Journal's verification row for Cycle \(cycleID) cannot be read"
+        case .cardReplyUnreadable(let id):
+            "The Journal's card_reply row \(id) cannot be read"
         }
     }
 }

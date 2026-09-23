@@ -37,17 +37,25 @@ public struct BuildAct: Sendable {
     /// The Pre-Reclaim Quiescence Gate the lease-reclaim sweep runs before classifying or reposting a
     /// reclaimed Card (P8.10).
     public let worktreeFencer: ProcessFencer
+    /// The most Nights a Card's outstanding question may go unanswered (`unanswered_nights_max`),
+    /// shared with the Refusal and Authoring Halt clocks: the Silence countdown a remark's
+    /// acknowledgement reports (roadmap P11.2) reads it too. Required in production
+    /// (`RootCommand` passes `project.bounds.unansweredNightsMax`); the ruled default of 3 is what
+    /// every test that predates P11.2 still exercises.
+    public let unansweredNightsMax: Int
 
     public init(
         cardRunner: any CardRunner,
         readiness: ReadinessCheck? = nil,
         resultReader: (any RunResultReading)? = nil,
-        worktreeFencer: ProcessFencer = ProcessFencer()
+        worktreeFencer: ProcessFencer = ProcessFencer(),
+        unansweredNightsMax: Int = 3
     ) {
         self.cardRunner = cardRunner
         self.readiness = readiness
         self.resultReader = resultReader
         self.worktreeFencer = worktreeFencer
+        self.unansweredNightsMax = unansweredNightsMax
     }
 
     public var work: EngineInvocation.ActWork {
@@ -87,6 +95,7 @@ public struct BuildAct: Sendable {
             // what earlier steps accepted into the Outbox.
             break
         case .read(let report)?:
+            try await WaitingOnYouReplies.apply(context: context, unansweredNightsMax: unansweredNightsMax)
             try await runLanes(
                 feature: feature, cycleID: cycleID, reconciliation: reconciliation, deltaRead: report, context: context
             )

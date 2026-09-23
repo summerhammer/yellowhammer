@@ -1,6 +1,6 @@
 import Domain
 import Foundation
-import LinearAdapter
+@testable import LinearAdapter
 import Security
 import Testing
 
@@ -117,6 +117,77 @@ struct LinearScratchTests {
         try await adapter.archiveIssue(issueID)
     }
 
+    @Test("A threaded reply's parent is read back by the Delta Read (G-8)")
+    func threadedReplyParentIsReadByDeltaRead() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard let oauthClientID = environment["YH_LINEAR_CLIENT_ID"], !oauthClientID.isEmpty,
+              let linearProjectID = environment["YH_LINEAR_PROJECT_ID"], !linearProjectID.isEmpty else {
+            print("threadedReplyParentIsReadByDeltaRead skipped: client id or project id env var is not set")
+            return
+        }
+        guard let secret = Self.keychainSecret(account: "linear") else {
+            print("threadedReplyParentIsReadByDeltaRead skipped: no Keychain item for dev.yellowhammer/linear")
+            return
+        }
+
+        let adapter = LinearAdapter(
+            linearProjectID: linearProjectID,
+            credentials: LinearCredentials(clientID: oauthClientID, clientSecret: secret)
+        )
+
+        guard let issue = try await Self.makeThreadedReplyIssue(adapter: adapter) else {
+            return
+        }
+        let issueID = issue.issueID
+
+        // The Board Port carries no `parentId` (ADR-001, MB1): a threaded reply is created through the
+        // adapter's own internal send path, not the Port, with `parentId` in the CommentCreateInput.
+        let replyInput: [String: any Sendable] = [
+            "id": UUID().uuidString.lowercased(), "issueId": issueID.rawValue, "body": "the reply",
+            "parentId": issue.questionCommentID.rawValue
+        ]
+        let replyPayload: LinearCreateCommentPayload = try await adapter.perform(
+            LinearGraphQL.createCommentQuery, variables: ["input": replyInput]
+        )
+        guard let created = replyPayload.commentCreate?.comment else {
+            Issue.record("expected the threaded reply create to succeed")
+            try await adapter.archiveIssue(issueID)
+            return
+        }
+        let replyID = BoardObjectID(rawValue: created.id)
+
+        let delta = try await adapter.deltaRead(since: issue.since)
+        let reply = delta.newComments.first { $0.id == replyID }
+        #expect(reply?.parent == issue.questionCommentID)
+
+        try await adapter.archiveIssue(issueID)
+    }
+
+    /// Creates the fixture issue and its top-level "question" comment for
+    /// ``threadedReplyParentIsReadByDeltaRead()``, split out to keep that test within the function-body
+    /// length limit. Nil (having recorded the failure) when either create did not apply.
+    private static func makeThreadedReplyIssue(adapter: LinearAdapter) async throws -> ThreadedReplyIssue? {
+        let scope = try await adapter.linearProject()
+        let createClientID = UUID()
+        let draft = BoardIssueDraft(
+            team: scope.teams[0].id, title: "yh threaded-reply probe \(createClientID)",
+            description: "<!-- yh:managed:start -->\n\n<!-- yh:managed:end -->"
+        )
+        guard case .created(let issueID) = try await adapter.createIssue(draft, clientID: createClientID) else {
+            Issue.record("expected the issue create to be .created")
+            return nil
+        }
+
+        let since = Date()
+        let questionReceipt = try await adapter.createComment(on: issueID, body: "the question", clientID: UUID())
+        guard case .created(let questionCommentID) = questionReceipt else {
+            Issue.record("expected the question comment create to be .created")
+            try await adapter.archiveIssue(issueID)
+            return nil
+        }
+        return ThreadedReplyIssue(issueID: issueID, questionCommentID: questionCommentID, since: since)
+    }
+
     private static func keychainSecret(account: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -132,4 +203,10 @@ struct LinearScratchTests {
         }
         return String(data: data, encoding: .utf8)
     }
+}
+
+private struct ThreadedReplyIssue {
+    let issueID: BoardObjectID
+    let questionCommentID: BoardObjectID
+    let since: Date
 }

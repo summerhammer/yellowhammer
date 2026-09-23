@@ -61,6 +61,7 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case clauseDeleted = "ClauseDeleted"
     case protectedPathRefused = "ProtectedPathRefused"
     case cardQuestionAsked = "CardQuestionAsked"
+    case waitingOnYouReplyRecorded = "WaitingOnYouReplyRecorded"
     case cardRunStep = "CardRunStep"
     case checkRan = "CheckRan"
     case attemptWorkPreserved = "AttemptWorkPreserved"

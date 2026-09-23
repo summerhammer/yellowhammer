@@ -46,4 +46,14 @@ extension JournalEvent {
             attemptID: try reader.int64("attempt_id")
         )
     }
+
+    /// The decode of `waitingOnYouReplyRecorded` (roadmap P11.2): a third event that puts (or keeps) a
+    /// Card's Journal record in step with a comment read on a Card in Waiting on You, kept here beside
+    /// the other two for the same reason.
+    static func decodeWaitingOnYouReplyRecorded(_ reader: PayloadReader) throws -> JournalEvent {
+        .waitingOnYouReplyRecorded(
+            cardID: try reader.int64("card_id"), issueID: try reader.require("issue_id"),
+            commentID: try reader.require("comment_id"), disposition: try reader.require("disposition")
+        )
+    }
 }
