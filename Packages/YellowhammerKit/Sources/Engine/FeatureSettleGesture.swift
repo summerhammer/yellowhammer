@@ -105,15 +105,13 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
         )
     }
 
-    /// Stop-with-salvage, exactly as ``FeatureMergeClosure`` salvages: every Waiting on You Card is
-    /// auto-Blocked `unanswered` (``CardAutoBlock``), surviving Blocked Cards are detached from the
+    /// Stop-with-salvage: every Waiting on You Card is auto-Blocked `unanswered`, while Todo and In
+    /// Progress Cards are auto-Blocked `released` (``CardAutoBlock``). Blocked Cards are detached from the
     /// Feature Issue, every held Worktree is released — including unpushed work, which a release
     /// discards rather than refuses — and the Cycle is archived without `closed_by` (never a closure
     /// route; `released_at` is the marker). The Feature Issue itself is never archived and its workflow
     /// state is never rewritten: it stays in the Operator's own *released* state, re-enterable.
     ///
-    /// Todo and In Progress Cards — only possible when a still-running Feature is released — are left
-    /// untouched and undetached: the spec names no Block Reason for them (a gap to raise, not to guess).
     private func applyReleased(
         feature: FeatureRecord, cycleID: Int64, cards: [CardRecord], context: ActContext
     ) async throws {
@@ -121,6 +119,7 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
         guard feature.releasedAt == nil else { return }
 
         try await CardAutoBlock.waitingOnYou(cycleID: cycleID, context: context)
+        try await CardAutoBlock.releasedActive(cycleID: cycleID, context: context)
 
         // Recomputed after the auto-Block, from Journal state.
         let refreshedCards = try journal.cards(cycleID: cycleID)

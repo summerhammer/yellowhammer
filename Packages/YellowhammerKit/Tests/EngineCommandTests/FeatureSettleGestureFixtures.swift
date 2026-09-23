@@ -108,6 +108,38 @@ final class SettleWorld {
         )
     }
 
+    /// Adds unfinished Cards to a still-running Feature; release must carry both forward.
+    func seedActiveCards() async throws -> (todo: Int64, inProgress: Int64) {
+        for issueID in ["BACK-3", "MOB-3"] {
+            await boards.writing.seed(issue: issueID, description: nil)
+            _ = try await boards.writing.updateIssue(
+                BoardObjectID(rawValue: issueID),
+                BoardIssueChange(parent: .set(BoardObjectID(rawValue: "FEAT-1")))
+            )
+        }
+        let todo = try insertMergeCard(
+            journal, cycleID: cycleID, issueID: "BACK-3", repository: "backend", state: .todo, budgetEpoch: 3
+        )
+        let inProgress = try insertMergeCard(
+            journal, cycleID: cycleID, issueID: "MOB-3", repository: "mobile", state: .inProgress,
+            budgetEpoch: 4
+        )
+        try journal.write { db in
+            try db.execute(
+                sql: """
+                INSERT INTO attempt (card_id, budget_epoch, route_cli, route_model, route_effort, started_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                arguments: [inProgress, 4, "claude", "sonnet", "medium", JournalStore.timestamp(outboxEpoch)]
+            )
+            try db.execute(
+                sql: "INSERT INTO round (attempt_id, lens, verdict, created_at) VALUES (?, ?, ?, ?)",
+                arguments: [db.lastInsertedRowID, "check", "failed", JournalStore.timestamp(outboxEpoch)]
+            )
+        }
+        return (todo, inProgress)
+    }
+
     /// Holds a Worktree for the Feature's `repository`, pushed or not.
     @discardableResult
     func holdWorktree(repository: String, pushed: Bool) throws -> WorktreeRecord {
