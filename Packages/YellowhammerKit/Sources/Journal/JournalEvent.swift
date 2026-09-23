@@ -304,6 +304,10 @@ public enum JournalEvent: Equatable, Sendable {
     /// Verification judged this Cycle's Definition of Done clause by clause (roadmap P10.5): once per
     /// Cycle. Counts only — never a pass/fail headline; the per-clause verdicts are in the report.
     case featureVerified(cycleID: Int64, met: Int, unmet: Int, unresolved: Int)
+    /// A Feature was returned to the Operator for unmet or unresolved clauses (roadmap P10.6): appended
+    /// only on the Feature's first transition into `returned`. Counts only — the per-clause detail is
+    /// in the return comment.
+    case featureReturned(cycleID: Int64, featureIssueID: String, unmet: Int, unresolved: Int)
     /// A Spec Citation answered the Feature's Refusal (P9.8): `from` is the state it was in, `open` or
     /// `expired`. The consecutive count is untouched.
     case refusalAnswered(feature: String, citation: String, from: String)

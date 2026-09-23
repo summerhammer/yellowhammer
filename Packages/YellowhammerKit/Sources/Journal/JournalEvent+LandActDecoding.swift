@@ -12,6 +12,11 @@ extension JournalEvent {
                 cycleID: try reader.int64("cycle_id"), met: try reader.int("met"),
                 unmet: try reader.int("unmet"), unresolved: try reader.int("unresolved")
             )
+        case .featureReturned:
+            .featureReturned(
+                cycleID: try reader.int64("cycle_id"), featureIssueID: try reader.require("feature_issue_id"),
+                unmet: try reader.int("unmet"), unresolved: try reader.int("unresolved")
+            )
         default:
             try decodeLandStep(reader)
         }
@@ -22,6 +27,18 @@ extension JournalEvent {
         guard case .featureVerified(let cycleID, let met, let unmet, let unresolved) = self else { return nil }
         return [
             "cycle_id": String(cycleID), "met": String(met), "unmet": String(unmet), "unresolved": String(unresolved)
+        ]
+    }
+
+    /// The `featureReturned` event's payload: the Feature Issue id and counts only — the per-clause
+    /// detail is in the return comment, not the Journal.
+    var featureReturnedPayload: [String: String]? {
+        guard case .featureReturned(let cycleID, let featureIssueID, let unmet, let unresolved) = self else {
+            return nil
+        }
+        return [
+            "cycle_id": String(cycleID), "feature_issue_id": featureIssueID,
+            "unmet": String(unmet), "unresolved": String(unresolved)
         ]
     }
 
