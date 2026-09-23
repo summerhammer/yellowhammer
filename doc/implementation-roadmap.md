@@ -1287,7 +1287,7 @@ comment on the Delta Read).
   exposes a threaded reply's `parent` on the `comments` root) is an opt-in scratch test in
   `LinearScratchTests`. It has not yet been run against the scratch workspace.
 
-### [ ] P11.3 Banked replies after landing
+### [x] P11.3 Banked replies after landing
 - **Work**
   - A recognised answer on a Card whose Cycle has landed is banked: recorded, acknowledged with (c),
     Card stays in Waiting on You, clock stopped.
