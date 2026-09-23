@@ -118,15 +118,10 @@ public enum ReadinessVerdict: Equatable, Sendable {
 public struct ReadinessCheck: Sendable {
     let provenance: any ProvenanceTesting
     let citations: any CitationResolving
-    let operatorIdentity: OperatorIdentity
 
-    public init(
-        provenance: any ProvenanceTesting, citations: any CitationResolving,
-        operatorIdentity: OperatorIdentity = .none
-    ) {
+    public init(provenance: any ProvenanceTesting, citations: any CitationResolving) {
         self.provenance = provenance
         self.citations = citations
-        self.operatorIdentity = operatorIdentity
     }
 
     /// Evaluates one Card: reconciles the board's copy of its Managed Block into the Journal first (an

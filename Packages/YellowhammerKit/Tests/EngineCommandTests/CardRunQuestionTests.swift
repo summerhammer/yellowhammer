@@ -28,13 +28,12 @@ private struct PerCardDispatch: AgentDispatch {
 @Suite("A worker's question escalates to the Operator (P11.1)")
 struct CardRunQuestionTests {
     private func makeRun(
-        log: CallLog, dispatch: any AgentDispatch, operatorIdentity: OperatorIdentity = .none,
-        resetting: RecordingAttemptResetting? = nil
+        log: CallLog, dispatch: any AgentDispatch, resetting: RecordingAttemptResetting? = nil
     ) -> CardRun {
         CardRun(
             resolver: cardRunResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
             checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
-            resetting: resetting ?? RecordingAttemptResetting(log: log), operatorIdentity: operatorIdentity
+            resetting: resetting ?? RecordingAttemptResetting(log: log)
         )
     }
 
@@ -86,16 +85,16 @@ struct CardRunQuestionTests {
     @Test("The board write sets Waiting on You and the assignee, when the Operator identity is active")
     func setsWorkflowStateAndAssigneeWhenActive() async throws {
         let fixture = try OutboxJournalFixture()
-        let world = try await makeCardRunWorld(journal: try fixture.open())
+        let operatorID = BoardObjectID(rawValue: "operator-1")
+        let world = try await makeCardRunWorld(
+            journal: try fixture.open(), operatorIdentity: OperatorIdentity(configured: operatorID)
+        )
         let log = CallLog()
         let dispatch = LoggingDispatch(log: log, script: [.worker: .workerQuestion])
-        let operatorID = BoardObjectID(rawValue: "operator-1")
         let reading = world.context.act.board?.reading as? FakeReadingBoard
         await reading?.script(activeMember: .success(true))
 
-        try await makeRun(
-            log: log, dispatch: dispatch, operatorIdentity: OperatorIdentity(configured: operatorID)
-        ).run("BACK-1", in: world)
+        try await makeRun(log: log, dispatch: dispatch).run("BACK-1", in: world)
 
         let boards = try #require(world.boards)
         let scope = try await BoardStateScope.resolve(using: boards.provisioning)
@@ -107,16 +106,16 @@ struct CardRunQuestionTests {
     @Test("With the Operator identity no longer active, the state is written with no assignee")
     func writesStateWithNoAssigneeWhenInactive() async throws {
         let fixture = try OutboxJournalFixture()
-        let world = try await makeCardRunWorld(journal: try fixture.open())
+        let operatorID = BoardObjectID(rawValue: "operator-1")
+        let world = try await makeCardRunWorld(
+            journal: try fixture.open(), operatorIdentity: OperatorIdentity(configured: operatorID)
+        )
         let log = CallLog()
         let dispatch = LoggingDispatch(log: log, script: [.worker: .workerQuestion])
-        let operatorID = BoardObjectID(rawValue: "operator-1")
         let reading = world.context.act.board?.reading as? FakeReadingBoard
         await reading?.script(activeMember: .success(false))
 
-        try await makeRun(
-            log: log, dispatch: dispatch, operatorIdentity: OperatorIdentity(configured: operatorID)
-        ).run("BACK-1", in: world)
+        try await makeRun(log: log, dispatch: dispatch).run("BACK-1", in: world)
 
         let boards = try #require(world.boards)
         let scope = try await BoardStateScope.resolve(using: boards.provisioning)

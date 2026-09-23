@@ -46,7 +46,7 @@ extension ReadinessCheck {
         if let outbox = context.act.outbox, let board = context.act.board {
             let scope = try await BoardStateScope.resolve(using: board.provisioning)
             let projection = BoardStateProjection(journal: journal, outbox: outbox, scope: scope)
-            let assignee = await operatorIdentity.assignee(on: board.reading)
+            let assignee = await context.act.operatorIdentity.assignee(on: board.reading)
             switch try await projection.transition(card: card, to: .waitingOnYou(reason, operator: assignee)) {
             case .unchanged(let record), .posted(let record, _), .deferred(let record, _), .failed(let record, _):
                 return record

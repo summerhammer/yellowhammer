@@ -24,7 +24,6 @@ enum AuthoringBinding {
                 configurationDirectory: configurationDirectory
             )
         )
-        let operatorIdentity = OperatorIdentity(configured: configuration.machine.operatorIdentity)
         return FeatureSelection(
             selector: RoutedFeatureSelector(route: route),
             transaction: AuthoringTransaction(
@@ -32,11 +31,9 @@ enum AuthoringBinding {
                 citations: MainlineReader(),
                 transcribing: MainlineReader(),
                 provenance: ProvenanceDiffTester(),
-                operatorIdentity: operatorIdentity,
                 consecutiveRefusalsMax: project.bounds.consecutiveRefusalsMax,
                 failedAdoptionsMax: project.bounds.failedAdoptionsMax
             ),
-            operatorIdentity: operatorIdentity,
             reselectionsMax: project.bounds.reselectionsMax
         )
     }

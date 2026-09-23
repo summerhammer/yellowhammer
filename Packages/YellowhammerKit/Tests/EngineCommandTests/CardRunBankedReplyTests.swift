@@ -19,7 +19,7 @@ struct CardRunBankedReplyTests {
         CardRun(
             resolver: cardRunResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
             checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
-            resetting: RecordingAttemptResetting(log: log), operatorIdentity: .none
+            resetting: RecordingAttemptResetting(log: log)
         )
     }
 

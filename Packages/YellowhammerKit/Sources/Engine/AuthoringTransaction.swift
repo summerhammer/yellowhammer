@@ -44,7 +44,6 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
     /// P11.5; spec: feature-authoring/author-the-cycle-and-card-dag, second story) — the same test the
     /// Readiness Check runs at dispatch.
     public let provenance: any ProvenanceTesting
-    public let operatorIdentity: OperatorIdentity
     /// The refusal-drift promotion Bound (roadmap P11.6; bounds/overview): how many
     /// consecutive Refusals a Feature may carry before it is promoted to a standing item. Defaults to
     /// the glossary's own default of 3.
@@ -57,13 +56,12 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
     public init(
         drafting: any FeatureBreakdownDrafting, citations: any CitationResolving,
         transcribing: any ContractTranscribing, provenance: any ProvenanceTesting,
-        operatorIdentity: OperatorIdentity = .none, consecutiveRefusalsMax: Int = 3, failedAdoptionsMax: Int = 2
+        consecutiveRefusalsMax: Int = 3, failedAdoptionsMax: Int = 2
     ) {
         self.drafting = drafting
         self.citations = citations
         self.transcribing = transcribing
         self.provenance = provenance
-        self.operatorIdentity = operatorIdentity
         self.consecutiveRefusalsMax = consecutiveRefusalsMax
         self.failedAdoptionsMax = failedAdoptionsMax
     }
@@ -77,8 +75,7 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         // Every Card the selection tries to adopt is re-validated before the breakdown is drafted
         // (roadmap P11.5), so the Feature is sized without any Card whose Adoption is refused.
         let revalidated = try await AdoptionRevalidation.revalidate(
-            selection, provenance: provenance, context: context, operatorIdentity: operatorIdentity,
-            failedAdoptionsMax: failedAdoptionsMax
+            selection, provenance: provenance, context: context, failedAdoptionsMax: failedAdoptionsMax
         )
         let selection = revalidated.selection
         guard let breakdown = try await draft(selection, context: context) else {
@@ -99,7 +96,7 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
             return try await RefusalRecording.record(
                 feature: selection.name,
                 finding: RefusalFinding(uncitable: resolution.uncitable, reselectionDepth: reselectionDepth),
-                context: context, operatorIdentity: operatorIdentity, consecutiveRefusalsMax: consecutiveRefusalsMax
+                context: context, consecutiveRefusalsMax: consecutiveRefusalsMax
             )
         }
 
@@ -110,7 +107,7 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         if !transcriptions.isReadable {
             return try await AuthoringHalt.record(
                 feature: selection.name, cause: .contractUnreadable(contracts: transcriptions.unreadable),
-                context: context, operatorIdentity: operatorIdentity
+                context: context
             )
         }
 

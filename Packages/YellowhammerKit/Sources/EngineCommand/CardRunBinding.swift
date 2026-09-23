@@ -33,8 +33,7 @@ enum CardRunBinding {
         return CardRun(
             resolver: resolver, dispatch: dispatch, check: WorktreeCheck(), checks: checks,
             reviewRoundsMax: project.bounds.reviewRoundsMax, attemptsPerCard: project.bounds.attemptsPerCard,
-            resetting: AttemptWorktreeReset(committer: WorktreeCommitter(mode: mode)),
-            operatorIdentity: OperatorIdentity(configured: configuration.machine.operatorIdentity)
+            resetting: AttemptWorktreeReset(committer: WorktreeCommitter(mode: mode))
         )
     }
 }

@@ -58,7 +58,7 @@ private final class ReturnWorld {
     }
 }
 
-private func makeReturnWorld() async throws -> ReturnWorld {
+private func makeReturnWorld(operatorIdentity: OperatorIdentity = .none) async throws -> ReturnWorld {
     let fixture = try OutboxJournalFixture()
     let journal = try fixture.open()
     let boards = try await makeBuildActBoards()
@@ -77,7 +77,8 @@ private func makeReturnWorld() async throws -> ReturnWorld {
     )
     let context = ActContext(
         act: .land, mode: .real, trigger: .scheduled, runID: runID, journal: journal, night: night,
-        outbox: outbox, board: board, mainlines: selectionMainlines(), repositories: selectionRepositories()
+        outbox: outbox, board: board, mainlines: selectionMainlines(), repositories: selectionRepositories(),
+        operatorIdentity: operatorIdentity
     )
     let (feature, _) = try #require(try journal.inFlightFeature())
     return ReturnWorld(
@@ -101,7 +102,7 @@ struct FeatureReturnTests {
         try recordVerification(world, clauses: [returnClause("c1", verdict: .unmet), returnClause("c2", verdict: .met)])
         let verdict = VerificationVerdict(allClausesMet: false, unmetClauses: ["BACK-1 c1"])
 
-        try await FeatureReturn(operatorIdentity: .none).returnFeature(world.featureContext, verdict: verdict)
+        try await FeatureReturn().returnFeature(world.featureContext, verdict: verdict)
 
         let feature = try #require(try world.journal.inFlightFeature()).feature
         #expect(feature.state == "returned")
@@ -125,13 +126,11 @@ struct FeatureReturnTests {
 
     @Test("Given an Operator, the Waiting on You write carries the assignment")
     func returnsWithOperatorAssigned() async throws {
-        let world = try await makeReturnWorld()
+        let world = try await makeReturnWorld(operatorIdentity: OperatorIdentity(configured: returnOperator))
         try recordVerification(world, clauses: [returnClause("c1", verdict: .unresolved)])
         let verdict = VerificationVerdict(allClausesMet: false, unresolvedClauses: ["BACK-1 c1"])
 
-        let operatorIdentity = OperatorIdentity(configured: returnOperator)
-        try await FeatureReturn(operatorIdentity: operatorIdentity)
-            .returnFeature(world.featureContext, verdict: verdict)
+        try await FeatureReturn().returnFeature(world.featureContext, verdict: verdict)
 
         let issue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: "FEAT-1")))
         #expect(issue.assignee == returnOperator)
@@ -143,8 +142,8 @@ struct FeatureReturnTests {
         try recordVerification(world, clauses: [returnClause("c1", verdict: .unmet)])
         let verdict = VerificationVerdict(allClausesMet: false, unmetClauses: ["BACK-1 c1"])
 
-        try await FeatureReturn(operatorIdentity: .none).returnFeature(world.featureContext, verdict: verdict)
-        try await FeatureReturn(operatorIdentity: .none).returnFeature(world.featureContext, verdict: verdict)
+        try await FeatureReturn().returnFeature(world.featureContext, verdict: verdict)
+        try await FeatureReturn().returnFeature(world.featureContext, verdict: verdict)
 
         #expect(try world.journal.events(ofType: .featureReturned).count == 1)
         #expect(await world.boards.writing.comments.count == 1)
@@ -161,7 +160,7 @@ struct FeatureReturnTests {
         )
         let verdict = VerificationVerdict(allClausesMet: false, unmetClauses: ["BACK-1 c1"])
 
-        try await FeatureReturn(operatorIdentity: .none).returnFeature(world.featureContext, verdict: verdict)
+        try await FeatureReturn().returnFeature(world.featureContext, verdict: verdict)
 
         let comment = try #require(await world.boards.writing.comments.first).body
         #expect(comment.contains("https://github.com/summerhammer/backend/pull/9"))
@@ -174,7 +173,7 @@ struct FeatureReturnTests {
         let verdict = VerificationVerdict(allClausesMet: false, unmetClauses: ["BACK-1 c1"])
 
         await #expect(throws: FeatureReturnFault.self) {
-            try await FeatureReturn(operatorIdentity: .none).returnFeature(world.featureContext, verdict: verdict)
+            try await FeatureReturn().returnFeature(world.featureContext, verdict: verdict)
         }
     }
 }
@@ -201,7 +200,7 @@ struct LandActFeatureReturnTests {
         let act = LandAct(
             mergeTest: StubMergeTest(log: log), push: StubPush(log: log), openPullRequest: StubPullRequest(log: log),
             verification: StubVerification(log: log, verdict: unmetVerdict),
-            returnFeature: FeatureReturn(operatorIdentity: .none), archiveCycle: StubArchiveCycle(log: log)
+            returnFeature: FeatureReturn(), archiveCycle: StubArchiveCycle(log: log)
         )
         let outbox = Outbox(journal: journal, board: FakeWritingBoard(), runID: runID, act: .land, nightID: night.id)
         let context = ActContext(
@@ -273,7 +272,7 @@ struct LandActFeatureReturnTests {
         )
         let act = LandAct(
             mergeTest: StubMergeTest(log: log), push: StubPush(log: log), openPullRequest: StubPullRequest(log: log),
-            verification: verification, returnFeature: FeatureReturn(operatorIdentity: .none),
+            verification: verification, returnFeature: FeatureReturn(),
             archiveCycle: StubArchiveCycle(log: log)
         )
 

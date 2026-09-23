@@ -19,7 +19,8 @@ extension AdoptionRevalidationTests {
     /// Night, and these tests need more than one.
     func context(
         _ journal: JournalStore, nightStart: String, boards: NightCardTestBoards, previous: RunID? = nil,
-        repositories: ProjectRepositories? = nil, mainlines: ResolvedMainlines? = nil
+        repositories: ProjectRepositories? = nil, mainlines: ResolvedMainlines? = nil,
+        operatorIdentity: OperatorIdentity = .none
     ) throws -> (context: ActContext, runID: RunID) {
         if let previous {
             try journal.releaseActLease(runID: previous)
@@ -40,7 +41,7 @@ extension AdoptionRevalidationTests {
         let ctx = ActContext(
             act: .author, mode: .rehearsal, trigger: .scheduled, runID: runID, journal: journal,
             night: opening.night, outbox: outbox, board: actBoard, mainlines: mainlines ?? selectionMainlines(),
-            workspace: nil, repositories: repositories ?? selectionRepositories()
+            workspace: nil, repositories: repositories ?? selectionRepositories(), operatorIdentity: operatorIdentity
         )
         return (ctx, runID)
     }
@@ -71,12 +72,10 @@ extension AdoptionRevalidationTests {
         return SeededCandidate(oldFeature: oldFeature, card: card, cardRowID: rowID)
     }
 
-    func selection(
-        _ transaction: AuthoringTransaction, operatorIdentity: OperatorIdentity = .none
-    ) throws -> FeatureSelection {
+    func selection(_ transaction: AuthoringTransaction) throws -> FeatureSelection {
         FeatureSelection(
             selector: ScriptedFeatureSelector(outcome: .selected(try authoringSelection(adopting: ["CARD-OLD"]))),
-            transaction: transaction, operatorIdentity: operatorIdentity
+            transaction: transaction
         )
     }
 
@@ -87,12 +86,10 @@ extension AdoptionRevalidationTests {
     }
 
     /// An `AuthoringTransaction` scripted with `threeCardBreakdown()` and the given provenance.
-    func transaction(
-        provenance: any ProvenanceTesting, operatorIdentity: OperatorIdentity = .none
-    ) throws -> AuthoringTransaction {
+    func transaction(provenance: any ProvenanceTesting) throws -> AuthoringTransaction {
         AuthoringTransaction(
             drafting: ScriptedBreakdown(try threeCardBreakdown()), citations: FakeCitationResolver(),
-            transcribing: FakeContractTranscriber(), provenance: provenance, operatorIdentity: operatorIdentity
+            transcribing: FakeContractTranscriber(), provenance: provenance
         )
     }
 }

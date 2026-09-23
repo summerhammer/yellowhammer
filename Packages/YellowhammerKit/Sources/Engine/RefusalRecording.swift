@@ -11,8 +11,7 @@ import Journal
 /// nothing is written to the board.
 enum RefusalRecording {
     static func record(
-        feature: FeatureName, finding: RefusalFinding, context: ActContext,
-        operatorIdentity: OperatorIdentity = .none, consecutiveRefusalsMax: Int = 3
+        feature: FeatureName, finding: RefusalFinding, context: ActContext, consecutiveRefusalsMax: Int = 3
     ) async throws -> FeatureAuthoringOutcome {
         let body = finding.description
         let outcome = try context.journal.recordRefusal(
@@ -22,10 +21,7 @@ enum RefusalRecording {
         )
         if outcome.alreadyExpired { return .refused }
         let reopenKey = outcome.newlyOpened ? "feature:\(feature.rawValue):refusal:\(outcome.record.id):reenter" : nil
-        try await AuthoringStopBoard.post(
-            feature: feature, body: body, context: context, reopenKey: reopenKey,
-            operatorIdentity: operatorIdentity
-        ) {
+        try await AuthoringStopBoard.post(feature: feature, body: body, context: context, reopenKey: reopenKey) {
             try context.journal.recordRefusalIssue(feature: feature, issueID: $0)
         }
         return .refused

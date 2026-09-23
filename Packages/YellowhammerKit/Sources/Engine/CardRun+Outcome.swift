@@ -71,7 +71,7 @@ extension CardRun {
             nightID: frame.context.act.night.id, act: frame.context.act.act, runID: frame.context.act.runID
         )
 
-        let assignee = await operatorIdentity.assignee(on: frame.context.act.board?.reading)
+        let assignee = await frame.context.act.operatorIdentity.assignee(on: frame.context.act.board?.reading)
         try await frame.transition(.waitingOnYou(.question, operator: assignee))
 
         if let outbox {

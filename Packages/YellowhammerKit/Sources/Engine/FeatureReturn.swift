@@ -23,12 +23,7 @@ public struct FeatureReturnFault: Error, Equatable, Sendable, CustomStringConver
 /// Idempotent across a retried land Act: the Journal transition and the Outbox writes it queues are all
 /// keyed so a repeat run changes nothing.
 public struct FeatureReturn: FeatureReturning, Sendable {
-    /// The Operator identity whose resolved assignee the Feature Issue is moved to Waiting on You under.
-    let operatorIdentity: OperatorIdentity
-
-    public init(operatorIdentity: OperatorIdentity = .none) {
-        self.operatorIdentity = operatorIdentity
-    }
+    public init() { }
 
     public func returnFeature(_ context: LandActFeatureContext, verdict: VerificationVerdict) async throws {
         let journal = context.act.journal
@@ -60,7 +55,7 @@ public struct FeatureReturn: FeatureReturning, Sendable {
         guard let outbox = context.act.outbox, let board = context.act.board else { return }
         let scope = try await BoardStateScope.resolve(using: board.provisioning)
         let issue = BoardObjectID(rawValue: context.feature.issueID)
-        let assignee = await operatorIdentity.assignee(on: board.reading)
+        let assignee = await context.act.operatorIdentity.assignee(on: board.reading)
 
         let projection = BoardStateProjection(journal: context.act.journal, outbox: outbox, scope: scope)
         _ = try await projection.transition(featureIssue: issue, to: .waitingOnYou, operator: assignee)

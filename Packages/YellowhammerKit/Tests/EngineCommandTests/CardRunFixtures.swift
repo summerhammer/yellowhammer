@@ -42,7 +42,8 @@ struct CardRunWorld {
 /// Linear stand-in and the Outbox is bound to it, so state transitions post to the board.
 func makeCardRunWorld(
     journal: JournalStore, cards: [(issueID: String, repository: String)] = [("BACK-1", "backend")],
-    withBoard: Bool = true, worktreePath: @escaping (String) -> String = { "/tmp/yh-cardrun-\($0)" }
+    withBoard: Bool = true, worktreePath: @escaping (String) -> String = { "/tmp/yh-cardrun-\($0)" },
+    operatorIdentity: OperatorIdentity = .none
 ) async throws -> CardRunWorld {
     let runID = RunID()
     guard case .claimed = try journal.claimActLease(act: .build, runID: runID, mode: .rehearsal) else {
@@ -79,7 +80,7 @@ func makeCardRunWorld(
     }
     let actContext = ActContext(
         act: .build, mode: .rehearsal, trigger: .scheduled, runID: runID, journal: journal, night: night,
-        outbox: outbox, board: actBoard
+        outbox: outbox, board: actBoard, operatorIdentity: operatorIdentity
     )
     let feature = try #require(try journal.inFlightFeature()).0
     let context = BuildActContext(
