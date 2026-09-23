@@ -19,9 +19,12 @@ public protocol BoardProvisioning: Sendable {
     /// All workflow states in the given team. Archived states are excluded by the board.
     func workflowStates(team: BoardObjectID) async throws(BoardError) -> [BoardWorkflowState]
 
-    /// Create a new workflow state in the given team with the given name.
-    /// The adapter chooses the Linear type and color; these are vendor details.
-    func createWorkflowState(name: String, team: BoardObjectID) async throws(BoardError) -> BoardWorkflowState
+    /// Create a new workflow state in the given team with the given name and category.
+    /// The Engine chooses the category; the adapter translates it into the vendor's type and
+    /// chooses only the color.
+    func createWorkflowState(
+        name: String, category: BoardWorkflowStateCategory, team: BoardObjectID
+    ) async throws(BoardError) -> BoardWorkflowState
 
     /// All labels visible to the team: team-scoped labels in that team plus workspace-level labels.
     func labels(team: BoardObjectID) async throws(BoardError) -> [BoardLabel]

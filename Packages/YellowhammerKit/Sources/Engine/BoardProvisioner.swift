@@ -7,10 +7,21 @@ import Foundation
 /// at setup time. The three Override label groups (G-17, roadmap P7.6) are provisioned from the
 /// merged Routing Table's values when one is given, and refreshed by re-running provisioning after
 /// the table changes: a value it no longer names is never removed, because nothing ever clears an
-/// Override. The settle workflow-state group (gate G-6, probe owed) is deliberately not provisioned.
+/// Override. The settle workflow-state group (`Kept in Flight`, `Released`) is provisioned alongside
+/// `Waiting on You`; a same-name state of another type is a collision, never reused (G-6 probe,
+/// 2026-09-23).
 public struct BoardProvisioner {
     /// The exact name of the workflow state Yellowhammer depends on, glossary-verbatim.
     public static let waitingOnYouState = "Waiting on You"
+
+    /// The category every workflow state Yellowhammer provisions is created with.
+    private static let provisionedStateCategory: BoardWorkflowStateCategory = .started
+
+    /// The workflow states provisioned once per team, in this order: Waiting on You, then the
+    /// settle group in `SettleValue`'s declaration order.
+    private static var declaredWorkflowStates: [String] {
+        [waitingOnYouState] + SettleValue.allCases.map(\.rawValue)
+    }
 
     /// The workflow state for unstarted work.
     public static let todoState = "Todo"
@@ -127,21 +138,46 @@ public struct BoardProvisioner {
         existingStates: [BoardWorkflowState],
         into entries: inout [ProvisioningEntry]
     ) async throws(BoardError) {
-        let waitingState = existingStates.first { state in
-            state.name.lowercased() == Self.waitingOnYouState.lowercased()
+        for stateName in Self.declaredWorkflowStates {
+            try await provisionWorkflowState(
+                named: stateName, board: board, team: team, existingStates: existingStates, into: &entries
+            )
         }
-        if waitingState != nil {
+    }
+
+    /// Provisions one declared workflow state. Linear's uniqueness is scoped to (name, type), not
+    /// name alone (G-6 probe): a same-name state of a different category — including one this build
+    /// cannot categorize — is a collision, and is never overwritten or reused.
+    private static func provisionWorkflowState(
+        named stateName: String,
+        board: any BoardProvisioning,
+        team: BoardTeam,
+        existingStates: [BoardWorkflowState],
+        into entries: inout [ProvisioningEntry]
+    ) async throws(BoardError) {
+        let sameName = existingStates.filter { $0.name.lowercased() == stateName.lowercased() }
+        let foreignTyped = sameName.contains { $0.category != Self.provisionedStateCategory }
+        if foreignTyped {
             entries.append(ProvisioningEntry(
-                subject: .workflowState(Self.waitingOnYouState, team: team),
+                subject: .workflowState(stateName, team: team),
+                outcome: .collision("team")
+            ))
+            return
+        }
+        if sameName.contains(where: { $0.category == Self.provisionedStateCategory }) {
+            entries.append(ProvisioningEntry(
+                subject: .workflowState(stateName, team: team),
                 outcome: .present
             ))
-        } else {
-            _ = try await board.createWorkflowState(name: Self.waitingOnYouState, team: team.id)
-            entries.append(ProvisioningEntry(
-                subject: .workflowState(Self.waitingOnYouState, team: team),
-                outcome: .created
-            ))
+            return
         }
+        _ = try await board.createWorkflowState(
+            name: stateName, category: Self.provisionedStateCategory, team: team.id
+        )
+        entries.append(ProvisioningEntry(
+            subject: .workflowState(stateName, team: team),
+            outcome: .created
+        ))
     }
 
     private static func provisionGroup(

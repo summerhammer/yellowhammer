@@ -103,7 +103,7 @@ struct LinearProvisioningTests {
         #expect(try Fixture.variables(transport.requests[2])["after"] as? String == "cursor-a")
     }
 
-    @Test("Create workflow state sends team id, name, and uses neutral color")
+    @Test("Create workflow state sends team id, name, type and uses neutral color")
     func createWorkflowStateMutation() async throws {
         let json = """
             {"data":{"workflowStateCreate":{"success":true,"workflowState":{"id":"state-new","name":"Waiting on You"}}}}
@@ -113,14 +113,34 @@ struct LinearProvisioningTests {
 
         let state = try await adapter.createWorkflowState(
             name: "Waiting on You",
+            category: .started,
             team: BoardObjectID(rawValue: "team-1")
         )
 
         let variables = try Fixture.variables(transport.requests[1])
         #expect(variables["teamId"] as? String == "team-1")
         #expect(variables["name"] as? String == "Waiting on You")
+        #expect(variables["type"] as? String == "started")
         // Color is not inspectable from outside, but mutation uses neutral value
         #expect(state.id == BoardObjectID(rawValue: "state-new"))
+    }
+
+    @Test("A cancelled category is sent as Linear's canceled type")
+    func createWorkflowStateSendsCancelledAsCanceled() async throws {
+        let json = """
+            {"data":{"workflowStateCreate":{"success":true,"workflowState":{"id":"state-new","name":"Dropped"}}}}
+            """
+        let transport = StubHTTPTransport([Fixture.token(), Fixture.json(json)])
+        let adapter = Fixture.adapter(transport)
+
+        _ = try await adapter.createWorkflowState(
+            name: "Dropped",
+            category: .cancelled,
+            team: BoardObjectID(rawValue: "team-1")
+        )
+
+        let variables = try Fixture.variables(transport.requests[1])
+        #expect(variables["type"] as? String == "canceled")
     }
 
     @Test("Labels query filters for team-scoped and workspace-level labels")
@@ -185,6 +205,7 @@ struct LinearProvisioningTests {
         do {
             _ = try await adapter.createWorkflowState(
                 name: "Waiting on You",
+                category: .started,
                 team: BoardObjectID(rawValue: "team-1")
             )
             Issue.record("expected refused")
