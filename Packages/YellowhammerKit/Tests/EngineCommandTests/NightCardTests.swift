@@ -343,7 +343,10 @@ struct NightCardTests {
         }
 
         let events = try journal.events().map(\.type)
-        #expect(events.last == .actIncomplete)
+        // A board is wired, but the Night Card was never opened, so the halted event (P12.5) cannot be
+        // recorded on it first: `notificationDeliveryFailed` follows `actIncomplete` instead of a post.
+        #expect(events.contains(.actIncomplete))
+        #expect(events.last == .notificationDeliveryFailed)
         #expect(try journal.currentNight()?.nightCardIssueID == nil)
     }
 }

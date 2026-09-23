@@ -104,7 +104,11 @@ public struct EngineInvocation: Sendable {
     /// The Operator's board identity, machine-configured (roadmap P11.1): built once by `EngineCommand`
     /// and carried onto every `ActContext` this invocation hands its work.
     public let operatorIdentity: OperatorIdentity
-    private let journal: JournalStore
+    /// Posts local Exception Notifications for `halted` and `closed` (roadmap P12.5). `.silent` by
+    /// default, so no invocation spawns a process unless `EngineCommand` wires the real launcher in.
+    public let notifier: ExceptionNotifier
+    /// Not `private`: the module-internal notification extension reads it (roadmap P12.5).
+    let journal: JournalStore
     private let work: ActWork
 
     public init(
@@ -122,7 +126,8 @@ public struct EngineInvocation: Sendable {
         workspace: (any Workspace)? = nil,
         nightCardBounds: NightCardMaintenance.Bounds = NightCardMaintenance.Bounds(),
         openingReadiness: ReadinessCheck? = nil,
-        operatorIdentity: OperatorIdentity = .none
+        operatorIdentity: OperatorIdentity = .none,
+        notifier: ExceptionNotifier = .silent
     ) {
         self.act = act
         self.mode = mode
@@ -139,6 +144,7 @@ public struct EngineInvocation: Sendable {
         self.mainlineRefresher = mainlineRefresher
         self.workspace = workspace
         self.operatorIdentity = operatorIdentity
+        self.notifier = notifier
         self.work = { _ in throw EngineInvocationError.notImplemented(act) }
     }
 
@@ -162,6 +168,7 @@ public struct EngineInvocation: Sendable {
         nightCardBounds: NightCardMaintenance.Bounds = NightCardMaintenance.Bounds(),
         openingReadiness: ReadinessCheck? = nil,
         operatorIdentity: OperatorIdentity = .none,
+        notifier: ExceptionNotifier = .silent,
         work: @escaping ActWork
     ) {
         self.act = act
@@ -179,6 +186,7 @@ public struct EngineInvocation: Sendable {
         self.mainlineRefresher = mainlineRefresher
         self.workspace = workspace
         self.operatorIdentity = operatorIdentity
+        self.notifier = notifier
         self.work = work
     }
 
@@ -224,23 +232,18 @@ public struct EngineInvocation: Sendable {
             _ = try? journal.append(.actIncomplete(reason: String(describing: error)), act: act, runID: runID)
             throw error
         }
-        let night = opening.night
-        _ = try? journal.append(.actStarted, act: act, runID: runID, nightID: night.id)
+        _ = try? journal.append(.actStarted, act: act, runID: runID, nightID: opening.night.id)
+        // Declared before the `do`: the halted path in `catch` below needs the Night Card (P12.5).
+        var night = opening.night
+        var outbox: Outbox?
+        var nightCard: NightCardMaintenance?
         do {
             // The Night Card is created before the trigger is even evaluated (DR7): an idle Night
             // still opens one. An `open` failure propagates and is recorded as `ActIncomplete` by the
             // catch below, and no work runs.
-            var night = night
-            var outbox: Outbox?, nightCard: NightCardMaintenance?
-            if let board {
-                let boxed = Outbox(journal: journal, board: board.writing, runID: runID, act: act, nightID: night.id)
-                let maintenance = NightCardMaintenance(
-                    journal: journal, outbox: boxed, provisioning: board.provisioning, bounds: nightCardBounds
-                )
-                _ = try await maintenance.open(night: night)
+            (outbox, nightCard) = try await openNightCardIfNeeded(night: night)
+            if outbox != nil {
                 night = try journal.night(id: night.id) ?? night
-                outbox = boxed
-                nightCard = maintenance
             }
 
             let resolvedMainlines = await refreshMainlines(night: night)
@@ -266,14 +269,29 @@ public struct EngineInvocation: Sendable {
             }
             // Reported only, never acted on: a Roll-up failure must not fail the Act (see below).
             try? await FeatureRollUpMaintenance.maintainRollUps(night: night, journal: journal, outbox: outbox)
+            // Posts `closed` once the Night Card's completion is recorded; `opened` never posts (G-10).
             try await closeNightIfNeeded(night, card: nightCard, outbox: outbox)
             _ = try? journal.append(.actEnded, act: act, runID: runID, nightID: night.id)
         } catch {
             _ = try? journal.append(
                 .actIncomplete(reason: String(describing: error)), act: act, runID: runID, nightID: night.id
             )
+            await notifyHalted(reason: String(describing: error), night: night, nightCard: nightCard, outbox: outbox)
             throw error
         }
+    }
+
+    /// Creates the Project's Night Card when a board is wired and none is recorded yet. Split out of
+    /// `runUnderLease` to keep that function under the function body length limit; the caller re-reads
+    /// the Night afterwards, since `open` may have recorded its Night Card issue id.
+    private func openNightCardIfNeeded(night: NightRecord) async throws -> (Outbox?, NightCardMaintenance?) {
+        guard let board else { return (nil, nil) }
+        let boxed = Outbox(journal: journal, board: board.writing, runID: runID, act: act, nightID: night.id)
+        let maintenance = NightCardMaintenance(
+            journal: journal, outbox: boxed, provisioning: board.provisioning, bounds: nightCardBounds
+        )
+        _ = try await maintenance.open(night: night)
+        return (boxed, maintenance)
     }
 
     /// Reads the Project board once before this Act's work, then applies the same readiness inputs
@@ -342,30 +360,8 @@ public struct EngineInvocation: Sendable {
         return result.mainlines
     }
 
-    private func closeNightIfNeeded(
-        _ night: NightRecord, card: NightCardMaintenance?, outbox: Outbox?
-    ) async throws {
-        guard closesNight, night.isOpen else { return }
-        try journal.closeNight(id: night.id, reason: .nightEnd, act: act, runID: runID)
-        // Completion needs the closed Night's completedAt and verdict.
-        if let card, let closed = try journal.night(id: night.id) {
-            _ = try await card.acceptCompletion(night: closed)
-            _ = try await card.deliverCompletion(night: closed)
-            // The un-adopted-Cards figure changes every Night regardless of whether the Card was
-            // touched, so its Managed Block header is refreshed here too — never lets a refresh
-            // failure fail the Night's own completion, which has already happened above.
-            if let outbox {
-                try? await UnadoptedCardRefresh.refresh(
-                    night: closed, journal: journal, outbox: outbox, runID: runID
-                )
-            }
-        }
-        if let board, let outbox, let (feature, cycleID) = try journal.inFlightFeature() {
-            _ = try await FeatureSettleGesture.resetSettleState(
-                feature: feature, cycleID: cycleID, nightID: night.id, board: board, outbox: outbox
-            )
-        }
-    }
+    // `closeNightIfNeeded(_:card:outbox:)` lives in EngineInvocation+ExceptionNotification.swift, next
+    // to the `notifyClosed` it calls — split out to keep this type under the type body length limit.
 }
 
 public enum EngineInvocationError: Error, Sendable, Equatable {
@@ -376,24 +372,5 @@ public enum EngineInvocationError: Error, Sendable, Equatable {
     case featureNamedForNonAuthoringAct(Act)
 }
 
-extension EngineInvocationError: CustomStringConvertible {
-    public var description: String {
-        switch self {
-        case .notImplemented(let act):
-            return "Act '\(act.rawValue)' is not implemented"
-        case .actLeaseHeld(let act, let projectID, let holder):
-            return """
-                The \(act.rawValue) Act for Project '\(projectID)' stood down: run \(holder.runID) has held the \
-                Project for the \(holder.act.rawValue) Act since \(Self.timestamp(holder.claimedAt)) \
-                (last heartbeat \(Self.timestamp(holder.heartbeatAt)); the lease expires at \
-                \(Self.timestamp(holder.expiresAt)) unless heartbeated). No Act was run.
-                """
-        case .featureNamedForNonAuthoringAct(let act):
-            return "A Feature name can only be provided for the author Act, not \(act.rawValue). No Act was run."
-        }
-    }
-
-    private static func timestamp(_ date: Date) -> String {
-        date.formatted(.iso8601)
-    }
-}
+// `EngineInvocationError`'s `CustomStringConvertible` conformance lives in
+// EngineInvocationError+Description.swift, split out to keep this file under the file length limit.
