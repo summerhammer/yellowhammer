@@ -171,6 +171,8 @@ extension JournalEvent {
             .cycleLanded
         case .featureVerified:
             .featureVerified
+        case .featureReturned:
+            .featureReturned
         case .refusalAnswered:
             .refusalAnswered
         case .authoringHaltOpened:

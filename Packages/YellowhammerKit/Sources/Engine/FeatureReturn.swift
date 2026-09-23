@@ -1,0 +1,89 @@
+import Domain
+import Foundation
+import Journal
+
+/// Why a Feature could not be returned: the land Act records it and the Cycle stays unlanded so the next
+/// firing retries.
+public struct FeatureReturnFault: Error, Equatable, Sendable, CustomStringConvertible {
+    public let reason: String
+
+    public init(reason: String) {
+        self.reason = reason
+    }
+
+    public var description: String { reason }
+}
+
+/// Returns a Feature with unmet or unresolved clauses to the Operator (roadmap P10.6; spec: verification/
+/// return-a-feature-with-unmet-clauses), the real ``FeatureReturning``. Called only when Verification's
+/// verdict is not all-met, after every lane's pull request has opened.
+///
+/// The Feature is never moved to Done and its Cycle is never archived — this seam does neither. Pull
+/// requests already opened are read, never written: landing is not reversed by a failed verification.
+/// Idempotent across a retried land Act: the Journal transition and the Outbox writes it queues are all
+/// keyed so a repeat run changes nothing.
+public struct FeatureReturn: FeatureReturning, Sendable {
+    /// The Operator's board identity for the Waiting on You assignment. Open until P11: the Operator's
+    /// board identity is not wired anywhere yet, so this is nil in production and the Feature Issue is
+    /// moved to Waiting on You with no assignee (the same gap ``AuthoringStopBoard`` documents).
+    let `operator`: BoardObjectID?
+
+    public init(operator: BoardObjectID? = nil) {
+        self.operator = `operator`
+    }
+
+    public func returnFeature(_ context: LandActFeatureContext, verdict: VerificationVerdict) async throws {
+        let journal = context.act.journal
+        guard let recorded = try journal.featureVerification(cycleID: context.cycleID) else {
+            throw FeatureReturnFault(reason: "the Cycle has no recorded Verification to return the Feature with")
+        }
+
+        let firstReturn = try journal.recordFeatureReturned(featureID: context.feature.id, runID: context.act.runID)
+        if firstReturn {
+            let unmet = recorded.clauses.filter { $0.verdict == .unmet }.count
+            let unresolved = recorded.clauses.filter { $0.verdict == .unresolved }.count
+            try journal.append(
+                .featureReturned(
+                    cycleID: context.cycleID, featureIssueID: context.feature.issueID, unmet: unmet,
+                    unresolved: unresolved
+                ),
+                act: context.act.act, runID: context.act.runID, nightID: context.act.night.id
+            )
+        }
+
+        try await postWaitingOnYou(context: context)
+        try await postComment(recorded, context: context)
+    }
+
+    /// Moves the Feature Issue to Waiting on You, through the board projection when the Operator's board
+    /// identity is known (so the assignment notifies them), or the same write with no assignee otherwise.
+    /// Never weakens ``BoardStateProjection``'s own `operatorRequired` check — the nil-operator write is
+    /// posted directly, under the same deterministic key.
+    private func postWaitingOnYou(context: LandActFeatureContext) async throws {
+        guard let outbox = context.act.outbox, let board = context.act.board else { return }
+        let scope = try await BoardStateScope.resolve(using: board.provisioning)
+        let issue = BoardObjectID(rawValue: context.feature.issueID)
+
+        if let `operator` {
+            let projection = BoardStateProjection(journal: context.act.journal, outbox: outbox, scope: scope)
+            _ = try await projection.transition(featureIssue: issue, to: .waitingOnYou, operator: `operator`)
+            return
+        }
+
+        var change = scope.labels.change(objectType: "Feature", state: .waitingOnYou, blockReason: nil)
+        change.workflowState = try scope.id(for: .waitingOnYou)
+        let key = BoardStateProjection.featureStateKey(issueID: context.feature.issueID, state: .waitingOnYou)
+        _ = try await outbox.post(OutboxWrite(key: key, write: .updateIssue(issue: issue, change: change, undo: nil)))
+    }
+
+    /// Posts the return comment, keyed so a retried land Act queues the same write again rather than a
+    /// second comment.
+    private func postComment(_ recorded: FeatureVerificationRecord, context: LandActFeatureContext) async throws {
+        guard let outbox = context.act.outbox else { return }
+        let pullRequests = try context.act.journal.pullRequests(featureID: context.feature.id)
+        let body = FeatureReturnComment(record: recorded, pullRequests: pullRequests).body()
+        let key = "land:\(context.cycleID):return:\(context.feature.issueID)"
+        let issue = BoardObjectID(rawValue: context.feature.issueID)
+        _ = try await outbox.post(OutboxWrite(key: key, write: .createComment(issue: issue, body: body)))
+    }
+}

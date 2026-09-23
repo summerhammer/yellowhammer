@@ -216,4 +216,22 @@ struct FeatureVerificationStoreTests {
         #expect(records.map(\.event) == [.featureVerified(cycleID: 7, met: 3, unmet: 2, unresolved: 1)])
         #expect(JournalEventType.featureVerified.rawValue == "FeatureVerified")
     }
+
+    @Test("featureReturned round-trips with the Feature Issue id and counts only (P10.6)")
+    func featureReturnedEventRoundTrips() throws {
+        let fixture = try JournalFixture()
+        let journal = try fixture.open()
+        let run = RunID()
+
+        try journal.append(
+            .featureReturned(cycleID: 9, featureIssueID: "FEAT-1", unmet: 2, unresolved: 1),
+            act: .land, runID: run, now: epoch
+        )
+
+        let records = try journal.events(ofType: .featureReturned)
+        #expect(records.map(\.event) == [
+            .featureReturned(cycleID: 9, featureIssueID: "FEAT-1", unmet: 2, unresolved: 1)
+        ])
+        #expect(JournalEventType.featureReturned.rawValue == "FeatureReturned")
+    }
 }

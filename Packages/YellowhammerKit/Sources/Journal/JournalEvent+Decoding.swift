@@ -227,7 +227,7 @@ extension JournalEvent {
             )
         case .refusalCountReset:
             .refusalCountReset(feature: try reader.require("feature"))
-        case .landStep, .featureVerified:
+        case .landStep, .featureVerified, .featureReturned:
             try Self.decodeLandAct(type, reader)
         case .cycleLanded:
             .cycleLanded(cycleID: try reader.int64("cycle_id"))
