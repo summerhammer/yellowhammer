@@ -175,6 +175,8 @@ extension JournalEvent {
             .featureReturned
         case .cycleArchived:
             .cycleArchived
+        case .featureClosedByMerge:
+            .featureClosedByMerge
         case .refusalAnswered:
             .refusalAnswered
         case .authoringHaltOpened:

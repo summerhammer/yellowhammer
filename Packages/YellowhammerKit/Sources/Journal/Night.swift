@@ -19,6 +19,10 @@ public struct NightRecord: Equatable, Sendable {
     /// The Night Summary's constant-time verdict line (OQ13); nil until something writes one.
     /// `idle` is the only value this phase writes — the author Act finding nothing selectable.
     public let verdict: NightVerdict?
+    /// When this Night's morning was triaged (roadmap P10.8/P10.9; spec: morning-report/triage-the-
+    /// morning): written at the Operator's settle (P10.9, not yet built) or on observing a Partial
+    /// Landing's merge closure (P10.8). The one field a closed Night may still change.
+    public let triagedAt: Date?
 
     public var isOpen: Bool { state == .opened }
 }
@@ -84,7 +88,7 @@ extension JournalStore {
             let night = NightRecord(
                 id: db.lastInsertedRowID, projectID: projectID, nightStart: nightStart, mode: mode,
                 state: .opened, nightCardIssueID: nil, openedAt: now, completedAt: nil, closeReason: nil,
-                verdict: nil
+                verdict: nil, triagedAt: nil
             )
             let stamp = EventStamp(act: act, runID: runID, nightID: night.id, now: now)
             _ = try Self.insertEvent(db, .nightOpened, stamp: stamp)
@@ -186,7 +190,8 @@ extension JournalStore {
                 openedAt: night.openedAt,
                 completedAt: night.completedAt,
                 closeReason: night.closeReason,
-                verdict: night.verdict
+                verdict: night.verdict,
+                triagedAt: night.triagedAt
             )
             let stamp = EventStamp(act: act, runID: runID, nightID: id, now: now)
             _ = try Self.insertEvent(db, .nightCardOpened(issueID: issueID), stamp: stamp)
@@ -228,7 +233,8 @@ extension JournalStore {
                 openedAt: night.openedAt,
                 completedAt: night.completedAt,
                 closeReason: night.closeReason,
-                verdict: .idle
+                verdict: .idle,
+                triagedAt: night.triagedAt
             )
             let stamp = EventStamp(act: act, runID: runID, nightID: nightID, now: now)
             _ = try Self.insertEvent(db, .authoringNoWorkAvailable, stamp: stamp)
@@ -280,7 +286,8 @@ extension JournalStore {
             openedAt: night.openedAt,
             completedAt: now,
             closeReason: reason,
-            verdict: night.verdict
+            verdict: night.verdict,
+            triagedAt: night.triagedAt
         )
     }
 
@@ -354,6 +361,9 @@ extension JournalStore {
             }
             return verdict
         }
+        let triagedAt = try (row["triaged_at"] as String?).map { text in
+            try JournalStore.date(text) { JournalError.nightUnreadable(id: id) }
+        }
         return NightRecord(
             id: id,
             projectID: projectID,
@@ -364,7 +374,8 @@ extension JournalStore {
             openedAt: openedAt,
             completedAt: completedAt,
             closeReason: closeReason,
-            verdict: verdict
+            verdict: verdict,
+            triagedAt: triagedAt
         )
     }
 }

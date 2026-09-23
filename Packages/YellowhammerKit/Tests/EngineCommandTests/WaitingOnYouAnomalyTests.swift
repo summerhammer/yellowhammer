@@ -114,7 +114,7 @@ struct WaitingOnYouAnomalyTests {
         let night = NightRecord(
             id: 1, projectID: ProjectID(rawValue: "fixture")!, nightStart: nightCardNightStart,
             mode: .real, state: .closed, nightCardIssueID: "NIGHT-1", openedAt: deltaEpoch,
-            completedAt: deltaEpoch, closeReason: .nightEnd, verdict: nil
+            completedAt: deltaEpoch, closeReason: .nightEnd, verdict: nil, triagedAt: nil
         )
 
         let withoutAnomalies = NightCardBlock.completed(night: night, projectID: night.projectID)

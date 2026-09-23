@@ -93,6 +93,9 @@ enum JournalMigrations {
         migrator.registerMigration("v21-feature-closure") { db in
             try addFeatureClosedByColumn(db)
         }
+        migrator.registerMigration("v22-night-triaged") { db in
+            try addNightTriagedAtColumn(db)
+        }
         return migrator
     }
 }

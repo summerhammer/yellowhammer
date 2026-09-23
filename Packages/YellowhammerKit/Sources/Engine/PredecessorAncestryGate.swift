@@ -4,8 +4,8 @@ import Journal
 import Repositories
 
 /// What the predecessor-ancestry gate does once every touched repository has merged the predecessor
-/// Feature's branch — the real close-by-merge work is roadmap P10.8, not this phase. Nil means skip
-/// it: there is nothing to close yet.
+/// Feature's branch — the real close-by-merge work is ``FeatureMergeClosure`` (roadmap P10.8). Nil
+/// means skip it: there is nothing to close yet.
 public protocol PostMergeClosure: Sendable {
     func closeByMerge(feature: FeatureRecord, context: ActContext) async throws
 }
@@ -49,7 +49,7 @@ extension PredecessorAncestryGateError: CustomStringConvertible {
 public struct PredecessorAncestryGate: PredecessorGate {
     public let ancestryTester: AncestryTester
     public let mergeTester: MergeTester
-    /// P10.8's closure seam; nil skips it (see ``PostMergeClosure``).
+    /// The real closure seam is ``FeatureMergeClosure`` (P10.8); nil skips it (see ``PostMergeClosure``).
     public let closure: (any PostMergeClosure)?
 
     public init(
@@ -192,7 +192,7 @@ public struct PredecessorAncestryGate: PredecessorGate {
         let alreadyFullyMerged = try journal.predecessorAncestryPreviouslyFullyMerged(featureIssueID: feature.issueID)
         let fullyMerged = unmergedRepositories.isEmpty && indeterminateRepositories.isEmpty
 
-        // First pass observing all-N merged: the closure seam (P10.8) has not yet run for this
+        // First pass observing all-N merged: the closure seam (P10.8) has not yet closed this
         // Feature. It runs before this pass's event is appended, so a closure that threw or died
         // part-way is not recorded as done and is reclaimable by the next pass.
         if fullyMerged, !alreadyFullyMerged {
