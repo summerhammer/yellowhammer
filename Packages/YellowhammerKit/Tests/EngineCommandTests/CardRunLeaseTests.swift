@@ -39,26 +39,36 @@ struct CardRunLeaseTests {
         #expect(try cardRunLog(world.journal) == ["skipped-lease-held"])
     }
 
-    @Test("The Lease is heartbeated while a pass runs: still held past its TTL only because of the beats")
+    @Test("The Lease is heartbeated while a pass runs: still held at its original expiry only because of a beat")
     func leaseIsHeartbeatedWhileAPassRuns() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
         let cardID = try #require(world.cardIDs["BACK-1"])
-        let policy = LeasePolicy(heartbeatInterval: 0.05, timeToLive: 2)
+        let policy = LeasePolicy(heartbeatInterval: 0.05, timeToLive: 30)
         let journal = world.journal
         let runID = world.runID
         let log = CallLog()
 
         let run = makeRun(log: log, leasePolicy: policy) { pass in
             guard pass == .worker else { return }
-            // Past a 2 s TTL, revalidation succeeds only because the beats pushed the expiry out.
-            try await Task.sleep(for: .seconds(3))
-            _ = try journal.revalidateCardLease(cardID: cardID, runID: runID)
-            log.add("lease held after the TTL")
+            let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+            while ContinuousClock.now < deadline {
+                let lease = try #require(try journal.currentCardLease(cardID: cardID))
+                if lease.heartbeatAt > lease.claimedAt {
+                    let originalExpiry = lease.claimedAt.addingTimeInterval(policy.timeToLive)
+                    #expect(lease.expiresAt > originalExpiry)
+                    // At the original expiry the Lease is held only because a beat extended it.
+                    _ = try journal.revalidateCardLease(cardID: cardID, runID: runID, now: originalExpiry)
+                    log.add("lease held at original expiry")
+                    return
+                }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            Issue.record("The Card run did not heartbeat while the worker pass was running")
         }
         try await run.run("BACK-1", in: world)
 
-        #expect(log.all.contains("lease held after the TTL"))
+        #expect(log.all.contains("lease held at original expiry"))
         #expect(try world.card("BACK-1").state == .done)
     }
 
