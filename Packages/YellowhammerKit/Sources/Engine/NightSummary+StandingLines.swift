@@ -27,13 +27,15 @@ extension NightSummary {
     public static func inFlightFeatureLines(night: NightRecord, journal: JournalStore) throws -> [String] {
         guard let inFlight = try journal.inFlightLandedFeature() else { return [] }
         let featureIssueID = inFlight.feature.issueID
-        let observation = try latestAncestryObservation(featureIssueID: featureIssueID, journal: journal)
+        let observation = try FeatureMainlineObservationReader.latestAncestryObservation(
+            featureIssueID: featureIssueID, journal: journal
+        )
 
         var line = "`\(featureIssueID)` — " +
             (try nightsHeldPhrase(featureID: inFlight.feature.id, night: night, journal: journal)) + "; " +
             mergePhrase(observation: observation, touchedRepositories: inFlight.touchedRepositories)
         if let conflicts = try conflictsPhrase(
-            featureIssueID: featureIssueID, unmergedRepositories: observation?.unmerged, journal: journal
+            featureIssueID: featureIssueID, unmergedRepositories: observation?.unmerged ?? [], journal: journal
         ) {
             line += "; \(conflicts)"
         }
@@ -50,50 +52,26 @@ extension NightSummary {
     }
 
     private static func mergePhrase(
-        observation: (merged: [String], unmerged: [String])?, touchedRepositories: [String]
+        observation: FeatureMainlineObservation?, touchedRepositories: [String]
     ) -> String {
         guard let observation else { return "the merge state has not been read yet" }
         return "\(observation.merged.count) of \(touchedRepositories.count) Feature Branches merged"
     }
 
-    /// The latest `predecessorAncestryObserved` pass for this Feature, nil when none has run yet.
-    private static func latestAncestryObservation(
-        featureIssueID: String, journal: JournalStore
-    ) throws -> (merged: [String], unmerged: [String])? {
-        let events = try journal.events(ofType: .predecessorAncestryObserved)
-        guard let latest = events.last(where: { record in
-            guard case .predecessorAncestryObserved(let observed, _, _) = record.event else { return false }
-            return observed == featureIssueID
-        }), case .predecessorAncestryObserved(_, let merged, let unmerged) = latest.event else {
-            return nil
-        }
-        return (merged, unmerged)
-    }
-
-    /// Which of the still-unmerged Feature Branches carry a Mainline Conflict, from the most recent
-    /// Night that recorded any `mainlineConflictDetected` event for this Feature — not just this
-    /// render's Night, since the line is a standing one. Nil when there is nothing unmerged yet to
-    /// know about, or nothing to report.
+    /// Which of the still-unmerged Feature Branches carry a Mainline Conflict (``FeatureMainlineObservationReader``),
+    /// named in stable repository order. Nil when there is nothing to report.
     private static func conflictsPhrase(
-        featureIssueID: String, unmergedRepositories: [String]?, journal: JournalStore
+        featureIssueID: String, unmergedRepositories: [String], journal: JournalStore
     ) throws -> String? {
-        guard let unmergedRepositories, !unmergedRepositories.isEmpty else { return nil }
-        let unmerged = Set(unmergedRepositories)
-        let matching = try journal.events(ofType: .mainlineConflictDetected).filter { record in
-            guard case .mainlineConflictDetected(let observed, _, _) = record.event else { return false }
-            return observed == featureIssueID
-        }
-        guard let mostRecentNightID = matching.compactMap(\.nightID).max() else { return nil }
-        let named = matching.filter { $0.nightID == mostRecentNightID }.compactMap { record -> String? in
-            guard case .mainlineConflictDetected(_, let repository, let paths) = record.event,
-                unmerged.contains(repository)
-            else {
-                return nil
-            }
+        let conflicts = try FeatureMainlineObservationReader.conflicts(
+            featureIssueID: featureIssueID, unmergedRepositories: unmergedRepositories, journal: journal
+        )
+        guard !conflicts.isEmpty else { return nil }
+        let named = conflicts.keys.sorted().map { repository -> String in
+            let paths = conflicts[repository] ?? []
             let pathText = paths.isEmpty ? "paths unavailable" : paths.joined(separator: ", ")
             return "`\(repository)` (\(pathText))"
         }
-        guard !named.isEmpty else { return nil }
         return "unmerged Feature Branches with a Mainline Conflict: \(named.joined(separator: "; "))"
     }
 }
