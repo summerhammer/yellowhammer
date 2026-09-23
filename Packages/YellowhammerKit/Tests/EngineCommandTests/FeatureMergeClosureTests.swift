@@ -268,8 +268,10 @@ struct AuthorActFeatureMergeClosureTests {
     func authorActClosesAndAuthorsAfresh() async throws {
         let world = try await makeMergeWorld(mergedRepositories: ["backend", "mobile"])
         let repositories = mergeWorldRepositories(world)
+        // One empty page for this Act's own post-landing reply read (P11.3): MOB-1 is still Waiting
+        // on You in the already-landed Cycle when this Act starts, before the closure below Blocks it.
         let board = ActBoard(
-            reading: FakeReadingBoard([]), writing: world.boards.writing, provisioning: world.boards.provisioning
+            reading: FakeReadingBoard([page()]), writing: world.boards.writing, provisioning: world.boards.provisioning
         )
         let authoring = ScriptedFeatureAuthoring(outcome: .authored)
 
@@ -311,8 +313,11 @@ struct AuthorActFeatureMergeClosureTests {
     func singleRefusalRecoveredBySameActWriteBack() async throws {
         let world = try await makeMergeWorld(mergedRepositories: ["backend", "mobile"])
         let repositories = mergeWorldRepositories(world)
+        // One empty page per Act for its own post-landing reply read (P11.3): the warm-up Act and
+        // this one both start with the Cycle landed and MOB-1 still Waiting on You.
         let board = ActBoard(
-            reading: FakeReadingBoard([]), writing: world.boards.writing, provisioning: world.boards.provisioning
+            reading: FakeReadingBoard([page(), page()]), writing: world.boards.writing,
+            provisioning: world.boards.provisioning
         )
         let authoring = ScriptedFeatureAuthoring(outcome: .noWorkAvailable)
         try await warmUpNightCard(world, board: board, repositories: repositories)
@@ -340,8 +345,11 @@ struct AuthorActFeatureMergeClosureTests {
     func convergesAfterThrottlingAcrossTwoActs() async throws {
         let world = try await makeMergeWorld(mergedRepositories: ["backend", "mobile"])
         let repositories = mergeWorldRepositories(world)
+        // One empty page per Act for its own post-landing reply read (P11.3): the warm-up and first
+        // Acts below both start with MOB-1 still Waiting on You; the second starts Blocked already.
         let board = ActBoard(
-            reading: FakeReadingBoard([]), writing: world.boards.writing, provisioning: world.boards.provisioning
+            reading: FakeReadingBoard([page(), page()]), writing: world.boards.writing,
+            provisioning: world.boards.provisioning
         )
         try await warmUpNightCard(world, board: board, repositories: repositories)
         // Every attempt at this specific issue — the initial auto-Block, and this Act's own write-back

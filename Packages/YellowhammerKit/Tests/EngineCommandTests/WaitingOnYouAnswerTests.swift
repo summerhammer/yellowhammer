@@ -26,6 +26,7 @@ struct ReplyWorld {
     let journal: JournalStore
     let runID: RunID
     let cardID: Int64
+    let cycleID: Int64
     let questionID: Int64?
     /// The question comment's id as the board assigned it; nil for `.divergence`.
     let questionCommentBoardID: BoardObjectID?
@@ -44,14 +45,22 @@ struct ReplyWorld {
             .night
     }
 
-    func context(night: NightRecord, reading: FakeReadingBoard) -> ActContext {
+    /// Marks this world's Cycle landed, on the Act Lease already held for `runID` (roadmap P11.3).
+    func markCycleLanded() throws {
+        try journal.markCycleLanded(cycleID: cycleID, runID: runID, now: clock.read())
+    }
+
+    func context(
+        night: NightRecord, reading: FakeReadingBoard, act: Act = .build,
+        mainlines: ResolvedMainlines = ResolvedMainlines()
+    ) -> ActContext {
         let outbox = Outbox(
-            journal: journal, board: boards.writing, runID: runID, act: .build, nightID: night.id, clock: clock.read
+            journal: journal, board: boards.writing, runID: runID, act: act, nightID: night.id, clock: clock.read
         )
         let actBoard = ActBoard(reading: reading, writing: boards.writing, provisioning: boards.provisioning)
         return ActContext(
-            act: .build, mode: .rehearsal, trigger: .scheduled, runID: runID, journal: journal, night: night,
-            outbox: outbox, board: actBoard
+            act: act, mode: .rehearsal, trigger: .scheduled, runID: runID, journal: journal, night: night,
+            outbox: outbox, board: actBoard, mainlines: mainlines
         )
     }
 
@@ -95,7 +104,7 @@ func makeReplyWorld(journal: JournalStore, waitingReason: WaitingReason) async t
     )
 
     return ReplyWorld(
-        journal: journal, runID: runID, cardID: cardID, questionID: questionID,
+        journal: journal, runID: runID, cardID: cardID, cycleID: cycleID, questionID: questionID,
         questionCommentBoardID: questionCommentBoardID, night: night, boards: boards, clock: clock
     )
 }

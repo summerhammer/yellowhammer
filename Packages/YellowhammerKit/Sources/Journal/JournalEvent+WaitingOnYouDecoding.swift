@@ -47,13 +47,34 @@ extension JournalEvent {
         )
     }
 
-    /// The decode of `waitingOnYouReplyRecorded` (roadmap P11.2): a third event that puts (or keeps) a
-    /// Card's Journal record in step with a comment read on a Card in Waiting on You, kept here beside
-    /// the other two for the same reason.
-    static func decodeWaitingOnYouReplyRecorded(_ reader: PayloadReader) throws -> JournalEvent {
-        .waitingOnYouReplyRecorded(
-            cardID: try reader.int64("card_id"), issueID: try reader.require("issue_id"),
-            commentID: try reader.require("comment_id"), disposition: try reader.require("disposition")
-        )
+    /// The decode of `waitingOnYouReplyRecorded` (roadmap P11.2) and `waitingOnYouReplyBanked` (roadmap
+    /// P11.3): two further events that put (or keep) a Card's Journal record in step with a comment
+    /// read on a Card in Waiting on You, kept here beside the other two for the same reason.
+    static func decodeWaitingOnYouReply(_ type: JournalEventType, _ reader: PayloadReader) throws -> JournalEvent {
+        switch type {
+        case .waitingOnYouReplyBanked:
+            .waitingOnYouReplyBanked(
+                cardID: try reader.int64("card_id"), issueID: try reader.require("issue_id"),
+                commentID: try reader.require("comment_id")
+            )
+        default:
+            .waitingOnYouReplyRecorded(
+                cardID: try reader.int64("card_id"), issueID: try reader.require("issue_id"),
+                commentID: try reader.require("comment_id"), disposition: try reader.require("disposition")
+            )
+        }
+    }
+
+    /// The payload of both reply events, dispatched here so the exhaustive payload switch stays one
+    /// line for the two.
+    var waitingOnYouReplyPayload: [String: String]? {
+        switch self {
+        case .waitingOnYouReplyRecorded(let cardID, let issueID, let commentID, let disposition):
+            ["card_id": String(cardID), "issue_id": issueID, "comment_id": commentID, "disposition": disposition]
+        case .waitingOnYouReplyBanked(let cardID, let issueID, let commentID):
+            ["card_id": String(cardID), "issue_id": issueID, "comment_id": commentID]
+        default:
+            nil
+        }
     }
 }

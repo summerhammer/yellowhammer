@@ -215,6 +215,10 @@ public enum JournalEvent: Equatable, Sendable {
     /// waiting reason). Recorded inside the Delta Read's reconciliation, idempotent on the board comment
     /// id: a replay appends no second event.
     case waitingOnYouReplyRecorded(cardID: Int64, issueID: String, commentID: String, disposition: String)
+    /// A Card Reply was banked (roadmap P11.3): the Feature that put its Card in Waiting on You has
+    /// landed, so the answer is recorded and stamped with each touched Repo's mainline rather than
+    /// dispatched — appended once, on first banking, never on a replayed idempotent bank.
+    case waitingOnYouReplyBanked(cardID: Int64, issueID: String, commentID: String)
     /// One step of running a Card to completion (graph-execution/run-a-card, P8.4): the Lease claimed,
     /// the Attempt started, each pass and the Check, the Lease released. `detail` is what the step
     /// yielded, when it yielded anything worth naming.

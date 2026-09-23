@@ -78,6 +78,11 @@ public protocol FeatureAuthoring: Sendable {
 /// 5. Nothing selectable to author records the Night's idle verdict
 ///    (``JournalStore/recordAuthoringNoWorkAvailable(nightID:act:runID:)``).
 ///
+/// Before any of the above, the Refusal clock advances (``UnansweredPositionClock``, P9.7) and this Act
+/// reads and banks replies to Cards left Waiting on You in an already-landed Cycle
+/// (``PostLandingReplies``, roadmap P11.3) — the only place that ever happens once no build Act fires
+/// for that Cycle again.
+///
 /// Each of steps 2, 3 and 5 (and a halt inside step 4) is a quiet Night, not a failure: the Act returns
 /// normally (the invocation records `ActEnded`) and the reason is put on the Night Card right away,
 /// before the Act's own write-back. This Act dispatches no Card, so its write-back also runs
@@ -119,6 +124,12 @@ public struct AuthorAct: Sendable {
         // else this Act does (roadmap P9.7) — including the in-flight check below, since a Refusal
         // precedes any Cycle and so is never itself the reason a Feature is in flight.
         try await UnansweredPositionClock.run(context: context, unansweredNightsMax: unansweredNightsMax)
+
+        // Once a Feature has landed, no build Act ever fires again (P10.1) and so nothing else reads
+        // the board for a Card left Waiting on You — the author Act reads and banks its replies itself
+        // (roadmap P11.3), strictly before the predecessor gate below, whose merge closure auto-Blocks
+        // a Waiting on You Card and would otherwise carry an unbanked reply forward as lost.
+        try await PostLandingReplies.run(context: context, unansweredNightsMax: unansweredNightsMax)
 
         // The predecessor-ancestry gate's pass (P9.9) runs every Night, independently of the in-flight
         // skip below: it observes the in-flight Feature's landings when one is open (so they accumulate

@@ -255,8 +255,8 @@ extension JournalEvent {
             ["issue_id": issueID, "cid": cid]
         case .protectedPathRefused, .cardQuestionAsked:
             waitingOnYouPayload
-        case .waitingOnYouReplyRecorded(let cardID, let issueID, let commentID, let disposition):
-            ["card_id": String(cardID), "issue_id": issueID, "comment_id": commentID, "disposition": disposition]
+        case .waitingOnYouReplyRecorded, .waitingOnYouReplyBanked:
+            waitingOnYouReplyPayload
         case .cardRunStep(let cardID, let issueID, let step, let detail):
             {
                 var dict: [String: String] = ["card_id": String(cardID), "issue_id": issueID, "step": step.rawValue]
