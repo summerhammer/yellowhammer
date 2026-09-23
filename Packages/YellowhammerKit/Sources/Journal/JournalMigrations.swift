@@ -108,6 +108,9 @@ enum JournalMigrations {
         migrator.registerMigration("v26-adoption-refusal") { db in
             try createAdoptionRefusalTable(db)
         }
+        migrator.registerMigration("v27-standing-items") { db in
+            try addStandingItemColumns(db)
+        }
         return migrator
     }
 }

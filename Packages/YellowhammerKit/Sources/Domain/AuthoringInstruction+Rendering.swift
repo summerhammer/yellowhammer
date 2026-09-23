@@ -6,6 +6,7 @@ extension AuthoringInstruction {
         var sections: [String] = [header, specificationSection, repositoriesSection]
         if let namedFeatureSection { sections.append(namedFeatureSection) }
         if let adoptionSection { sections.append(adoptionSection) }
+        if let refusedThisNightSection { sections.append(refusedThisNightSection) }
         if let selectedFeatureSection { sections.append(selectedFeatureSection) }
         sections.append(resultContractSection)
         return sections.joined(separator: "\n\n") + "\n"
@@ -53,6 +54,17 @@ extension AuthoringInstruction {
             ["## Adoption candidates", "", "Blocked Cards left by a closed Feature, which a Feature may adopt:", ""]
                 + bullets
         ).joined(separator: "\n")
+    }
+
+    /// Features refused earlier in this Night's re-selection walk (roadmap P11.6): must not be chosen again.
+    private var refusedThisNightSection: String? {
+        guard !refusedThisNight.isEmpty else { return nil }
+        let bullets = refusedThisNight.map { "- \($0)" }
+        let header = [
+            "## Refused this Night", "",
+            "Already refused earlier in this Night's re-selection walk; do not select again:", ""
+        ]
+        return (header + bullets).joined(separator: "\n")
     }
 
     private var selectedFeatureSection: String? {

@@ -23,10 +23,14 @@ extension JournalStore {
     /// increments `card.failed_adoptions` and `card.consecutive_divergences`, and appends
     /// `.adoptionRefused`. This stands even if the authoring transaction that tried the Adoption later
     /// rolls back — it is written outside that Outbox group, before the breakdown is drafted.
+    /// When the resulting `failed_adoptions` exceeds `failedAdoptionsMax` and the Card is not already
+    /// promoted, the Divergence promotion Bound (roadmap P11.6; bounds/overview) sets
+    /// `card.divergence_standing_night_id` and appends `cardPromotedToStandingItem`, in the same write —
+    /// visibility only: no state, counter or budget change, and nothing written to the board.
     @discardableResult
     public func recordAdoptionRefusal(
         cardID: Int64, nightID: Int64, featureName: String, staleBlocks: [AdoptionStaleBlock],
-        act: Act? = nil, runID: RunID? = nil, now: Date = Date()
+        failedAdoptionsMax: Int = 2, act: Act? = nil, runID: RunID? = nil, now: Date = Date()
     ) throws -> AdoptionRefusalRecord {
         try write { db in
             guard
@@ -63,10 +67,55 @@ extension JournalStore {
                 ),
                 stamp: stamp
             )
+            try Self.promoteCardIfNeeded(
+                db, cardID: cardID, nightID: nightID, failedAdoptionsMax: failedAdoptionsMax, stamp: stamp
+            )
             return AdoptionRefusalRecord(
                 id: id, cardID: cardID, nightID: nightID, featureName: featureName,
                 staleBlocks: staleBlocks, createdAt: JournalStore.stored(now)
             )
+        }
+    }
+
+    /// Promotes a Card to a standing item (roadmap P11.6) when its `failed_adoptions` count exceeds
+    /// `failedAdoptionsMax` and it is not already promoted: sets `divergence_standing_night_id` and
+    /// appends `cardPromotedToStandingItem`, once per promotion. Split out of
+    /// `recordAdoptionRefusal` to keep that function within the length limit.
+    private static func promoteCardIfNeeded(
+        _ db: Database, cardID: Int64, nightID: Int64, failedAdoptionsMax: Int, stamp: EventStamp
+    ) throws {
+        guard
+            let row = try Row.fetchOne(
+                db, sql: "SELECT issue_id, failed_adoptions, divergence_standing_night_id FROM card WHERE id = ?",
+                arguments: [cardID]
+            )
+        else {
+            return
+        }
+        let issueID: String = row["issue_id"]
+        let failedAdoptions: Int = row["failed_adoptions"]
+        let alreadyPromoted: Int64? = row["divergence_standing_night_id"]
+        guard alreadyPromoted == nil, failedAdoptions > failedAdoptionsMax else { return }
+        try db.execute(
+            sql: "UPDATE card SET divergence_standing_night_id = ? WHERE id = ?", arguments: [nightID, cardID]
+        )
+        _ = try Self.insertEvent(
+            db,
+            .cardPromotedToStandingItem(
+                cardID: cardID, issueID: issueID, failedAdoptions: failedAdoptions,
+                failedAdoptionsMax: failedAdoptionsMax
+            ),
+            stamp: stamp
+        )
+    }
+
+    /// Every Card currently promoted to a standing item (roadmap P11.6): the marker is set. Oldest first.
+    public func standingDivergenceCards() throws -> [CardRecord] {
+        try read { db in
+            try Row.fetchAll(
+                db, sql: "SELECT * FROM card WHERE divergence_standing_night_id IS NOT NULL ORDER BY id ASC"
+            )
+            .map { try Self.cardRecord(from: $0) }
         }
     }
 
@@ -117,7 +166,11 @@ extension JournalStore {
     public func resetFailedAdoptions(cardID: Int64) throws {
         try write { db in
             try db.execute(
-                sql: "UPDATE card SET failed_adoptions = 0, consecutive_divergences = 0 WHERE id = ?",
+                sql: """
+                UPDATE card
+                SET failed_adoptions = 0, consecutive_divergences = 0, divergence_standing_night_id = NULL
+                WHERE id = ?
+                """,
                 arguments: [cardID]
             )
         }

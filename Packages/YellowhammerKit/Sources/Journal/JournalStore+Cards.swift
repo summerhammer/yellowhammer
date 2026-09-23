@@ -34,9 +34,14 @@ public struct CardRecord: Equatable, Sendable {
     /// first advance after the Card most recently entered Waiting on You.
     public let unansweredLastCountedNightID: Int64?
     /// How many Adoptions this Card has failed consecutively (roadmap P11.5; spec: feature-authoring/
-    /// author-the-cycle-and-card-dag, second story): reset to 0 by a clean Adoption. What
-    /// `failed_adoptions_max` will read (roadmap P11.6) — this milestone only keeps the count.
+    /// author-the-cycle-and-card-dag, second story): reset to 0 by a clean Adoption. The Divergence
+    /// promotion Bound (roadmap P11.6; bounds/overview) promotes this Card to a standing
+    /// item once this count exceeds `failed_adoptions_max`.
     public let failedAdoptions: Int
+    /// The Night this Card's `failed_adoptions` first exceeded `failed_adoptions_max` (roadmap P11.6):
+    /// visibility only, never a state, counter or budget change — nil until promoted, cleared by every
+    /// reset of `failed_adoptions` so a fresh count starts unpromoted.
+    public let divergenceStandingNightID: Int64?
 }
 
 // The reads the Act trigger predicates are evaluated from. They answer two questions and no others:
@@ -177,7 +182,8 @@ extension JournalStore {
             boardStateVersion: row["board_state_version"],
             unansweredNights: row["unanswered_nights"],
             unansweredLastCountedNightID: row["unanswered_last_counted_night_id"],
-            failedAdoptions: row["failed_adoptions"]
+            failedAdoptions: row["failed_adoptions"],
+            divergenceStandingNightID: row["divergence_standing_night_id"]
         )
     }
 
@@ -349,7 +355,8 @@ extension CardRecord {
             boardStateVersion: boardStateVersion,
             unansweredNights: unansweredNights,
             unansweredLastCountedNightID: unansweredLastCountedNightID,
-            failedAdoptions: failedAdoptions
+            failedAdoptions: failedAdoptions,
+            divergenceStandingNightID: divergenceStandingNightID
         )
     }
 }

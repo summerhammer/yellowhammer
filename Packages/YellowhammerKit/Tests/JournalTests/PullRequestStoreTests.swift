@@ -67,7 +67,7 @@ struct PullRequestStoreTests {
 
         let journal = try fixture.open()
 
-        #expect(try journal.appliedMigrations().last == "v26-adoption-refusal")
+        #expect(try journal.appliedMigrations().last == "v27-standing-items")
         let exists = try journal.write { db in try db.tableExists("pull_request") }
         #expect(exists)
     }

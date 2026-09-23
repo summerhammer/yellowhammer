@@ -102,4 +102,8 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case adoptionRefused = "AdoptionRefused"
     case cardAdopted = "CardAdopted"
     case adoptionUntestable = "AdoptionUntestable"
+    case featureReselected = "FeatureReselected"
+    case reselectionBoundReached = "ReselectionBoundReached"
+    case refusalPromotedToStandingItem = "RefusalPromotedToStandingItem"
+    case cardPromotedToStandingItem = "CardPromotedToStandingItem"
 }

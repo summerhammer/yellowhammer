@@ -29,7 +29,7 @@ public enum NightCardBlock {
     /// found any, the Waiting on You anomalies this Night.
     public static func completed(
         night: NightRecord, projectID: ProjectID, authoringFindings: [String] = [], anomalies: [String] = [],
-        mainlineConflicts: [String] = []
+        mainlineConflicts: [String] = [], bounds: [String] = [], standingItems: [String] = []
     ) -> String {
         var lines = header(night: night, projectID: projectID)
         if let completedAt = night.completedAt {
@@ -57,9 +57,34 @@ public enum NightCardBlock {
                 lines.append("- \(anomaly)")
             }
         }
+        appendBounds(bounds, to: &lines)
+        appendStandingItems(standingItems, to: &lines)
         lines.append("")
         lines.append(CardManagedBlock.footer)
         return lines.joined(separator: "\n")
+    }
+
+    /// The `**Bounds:**` section (roadmap P11.6; bounds overview): this Night's proximity to
+    /// `reselections_max`, `consecutive_refusals_max` and `failed_adoptions_max`, one line each — always
+    /// present on a completed block, even when nothing happened this Night.
+    private static func appendBounds(_ bounds: [String], to lines: inout [String]) {
+        guard !bounds.isEmpty else { return }
+        lines.append("")
+        lines.append("**Bounds:**")
+        for line in bounds {
+            lines.append("- \(line)")
+        }
+    }
+
+    /// The `**Standing items:**` section (roadmap P11.6): every currently promoted Refusal and Card,
+    /// rendered on every completed Night Card while any exist — not only the Night of promotion.
+    private static func appendStandingItems(_ items: [String], to lines: inout [String]) {
+        guard !items.isEmpty else { return }
+        lines.append("")
+        lines.append("**Standing items:**")
+        for item in items {
+            lines.append("- \(item)")
+        }
     }
 
     /// Appends the authoring section when there is anything to say. Called with an empty array by

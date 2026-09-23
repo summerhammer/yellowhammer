@@ -24,6 +24,10 @@ public struct FeatureSelectionRequest: Equatable, Sendable {
     /// The Feature the Operator forced authoring for, overriding selection.
     public let namedFeature: FeatureName?
     public let adoptionCandidates: [AdoptionCandidate]
+    /// Features refused earlier in this Night's re-selection walk (roadmap P11.6; bounds/
+    /// bound-re-selections): the selector must not choose one of these again. Empty until the walk
+    /// re-selects for the first time.
+    public let refusedThisNight: [FeatureName]
 
     public init(
         specificationSource: ProjectSpecificationSource,
@@ -31,7 +35,8 @@ public struct FeatureSelectionRequest: Equatable, Sendable {
         repos: [Repo],
         mainlines: ResolvedMainlines,
         namedFeature: FeatureName?,
-        adoptionCandidates: [AdoptionCandidate]
+        adoptionCandidates: [AdoptionCandidate],
+        refusedThisNight: [FeatureName] = []
     ) {
         self.specificationSource = specificationSource
         self.specificationMainline = specificationMainline
@@ -39,6 +44,7 @@ public struct FeatureSelectionRequest: Equatable, Sendable {
         self.mainlines = mainlines
         self.namedFeature = namedFeature
         self.adoptionCandidates = adoptionCandidates
+        self.refusedThisNight = refusedThisNight
     }
 }
 

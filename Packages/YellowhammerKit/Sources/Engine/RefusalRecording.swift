@@ -12,13 +12,13 @@ import Journal
 enum RefusalRecording {
     static func record(
         feature: FeatureName, finding: RefusalFinding, context: ActContext,
-        operatorIdentity: OperatorIdentity = .none
+        operatorIdentity: OperatorIdentity = .none, consecutiveRefusalsMax: Int = 3
     ) async throws -> FeatureAuthoringOutcome {
         let body = finding.description
         let outcome = try context.journal.recordRefusal(
             feature: feature, content: body, uncitableClauses: finding.clauseListing,
-            reselectionDepth: finding.reselectionDepth, nightID: context.night.id,
-            act: context.act, runID: context.runID
+            reselectionDepth: finding.reselectionDepth, consecutiveRefusalsMax: consecutiveRefusalsMax,
+            nightID: context.night.id, act: context.act, runID: context.runID
         )
         if outcome.alreadyExpired { return .refused }
         let reopenKey = outcome.newlyOpened ? "feature:\(feature.rawValue):refusal:\(outcome.record.id):reenter" : nil

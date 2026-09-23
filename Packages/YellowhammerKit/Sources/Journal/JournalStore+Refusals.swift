@@ -6,7 +6,11 @@ import GRDB
 // Feature is too thin to yield citable Definition of Done clauses. Tracked per Feature name, because a
 // Refusal can exist before the Journal has a `feature` row for it — the Feature Issue is created in
 // Waiting on You before authoring is ever accepted into the Outbox. This phase implements `open`,
-// `answered` and `expired`; `standing_item` (the refusal-drift promotion Bound) is P11.6's.
+// `answered` and `expired`. The refusal-drift promotion Bound (roadmap P11.6; bounds/overview)
+// is `standing_item_night_id`, a nullable marker set once a row's
+// consecutive count exceeds `consecutive_refusals_max` — never `refusal.state`, which the Unanswered
+// Position Clock and the answer path still select `open`/`expired` on; a state change would silently
+// stop the clock.
 
 /// A Refusal as the Journal holds it.
 public struct RefusalRecord: Equatable, Sendable {
@@ -23,11 +27,16 @@ public struct RefusalRecord: Equatable, Sendable {
     public let expiredNightID: Int64?
     /// The Night a clean authoring run closed this Refusal on, taking it off the clock; nil while live.
     public let closedNightID: Int64?
+    /// The Night this row's consecutive count first exceeded `consecutive_refusals_max` (roadmap P11.6;
+    /// bounds/overview): visibility only, never a state change — nil until promoted,
+    /// and only ever set once per row, since a fresh row after a reset starts unpromoted.
+    public let standingItemNightID: Int64?
     public let createdAt: Date
 }
 
-/// The lifecycle states the glossary names for a Refusal. `standingItem` is stored but not yet
-/// transitioned into by anything in this phase — that is P11.6's refusal-drift promotion Bound.
+/// The lifecycle states the glossary names for a Refusal. `standingItem` is stored but never written by
+/// this Journal: the refusal-drift promotion Bound (roadmap P11.6) is a separate nullable marker
+/// (``RefusalRecord/standingItemNightID``), not a state transition — see the note above.
 public enum RefusalState: String, Equatable, Sendable {
     case open
     case answered
@@ -59,11 +68,14 @@ extension JournalStore {
     ///
     /// A closed row (see ``resetConsecutiveRefusals(feature:nightID:act:runID:now:)``) is invisible to
     /// the `open` lookup. Appends `refusalOpened` or `refusalRepeated` in the same transaction as the row
-    /// write, carrying the uncitable clauses' listing and the re-selection depth.
+    /// write, carrying the uncitable clauses' listing and the re-selection depth. When the resulting
+    /// consecutive count exceeds `consecutiveRefusalsMax` and the row is not already promoted, the
+    /// refusal-drift promotion Bound (roadmap P11.6) sets ``RefusalRecord/standingItemNightID`` and
+    /// appends `refusalPromotedToStandingItem`, in the same write.
     @discardableResult
     public func recordRefusal(
         feature: FeatureName, content: String, uncitableClauses: String = "", reselectionDepth: Int = 0,
-        nightID: Int64, act: Act? = nil, runID: RunID? = nil, now: Date = Date()
+        consecutiveRefusalsMax: Int = 3, nightID: Int64, act: Act? = nil, runID: RunID? = nil, now: Date = Date()
     ) throws -> RefusalOutcome {
         try write { db in
             let stamp = EventStamp(act: act, runID: runID, nightID: nightID, now: JournalStore.stored(now))
@@ -74,8 +86,12 @@ extension JournalStore {
                 sql: "SELECT * FROM refusal WHERE feature_name = ? AND state = 'open' AND closed_night_id IS NULL",
                 arguments: [feature.rawValue]
             ) {
-                let record = try Self.repeatRefusal(
+                var record = try Self.repeatRefusal(
                     db, row: openRow, content: content, finding: finding, stamp: stamp
+                )
+                record = try Self.promoteRefusalIfNeeded(
+                    db, record: record, consecutiveRefusalsMax: consecutiveRefusalsMax, nightID: nightID,
+                    stamp: stamp
                 )
                 return RefusalOutcome(record: record, newlyOpened: false, alreadyExpired: false)
             }
@@ -89,36 +105,58 @@ extension JournalStore {
             )
 
             if let latestRow, (latestRow["state"] as String) == RefusalState.expired.rawValue {
-                let record = try Self.repeatRefusal(
+                var record = try Self.repeatRefusal(
                     db, row: latestRow, content: nil, finding: finding, stamp: stamp
+                )
+                record = try Self.promoteRefusalIfNeeded(
+                    db, record: record, consecutiveRefusalsMax: consecutiveRefusalsMax, nightID: nightID,
+                    stamp: stamp
                 )
                 return RefusalOutcome(record: record, newlyOpened: false, alreadyExpired: true)
             }
 
-            let previousCount = try Self.latestRefusalCount(db, feature: feature)
-            let newCount = previousCount + 1
-            try db.execute(
-                sql: """
-                INSERT INTO refusal (
-                    feature_name, state, content, opened_night_id, unanswered_nights, consecutive_refusals,
-                    created_at
-                ) VALUES (?, 'open', ?, ?, 0, ?, ?)
-                """,
-                arguments: [feature.rawValue, content, nightID, newCount, JournalStore.timestamp(stamp.now)]
+            var record = try Self.openNewRefusal(
+                db, feature: feature, content: content, finding: finding, stamp: stamp
             )
-            let id = db.lastInsertedRowID
-            _ = try Self.insertEvent(
-                db,
-                .refusalOpened(
-                    feature: feature.rawValue, consecutiveRefusals: newCount,
-                    uncitableClauses: uncitableClauses, reselectionDepth: reselectionDepth
-                ),
-                stamp: stamp
+            record = try Self.promoteRefusalIfNeeded(
+                db, record: record, consecutiveRefusalsMax: consecutiveRefusalsMax, nightID: nightID, stamp: stamp
             )
-            let record = try Self.refusalRecord(from: try Self.fetchRefusalRow(db, id: id))
             return RefusalOutcome(record: record, newlyOpened: true, alreadyExpired: false)
         }
     }
+
+    /// Inserts a brand-new `open` Refusal row (no existing `open` or `expired` row for this Feature
+    /// name) and appends `refusalOpened`. Split out of `recordRefusal` to keep that function within the
+    /// length limit.
+    private static func openNewRefusal(
+        _ db: Database, feature: FeatureName, content: String, finding: (String, Int), stamp: EventStamp
+    ) throws -> RefusalRecord {
+        let previousCount = try Self.latestRefusalCount(db, feature: feature)
+        let newCount = previousCount + 1
+        try db.execute(
+            sql: """
+            INSERT INTO refusal (
+                feature_name, state, content, opened_night_id, unanswered_nights, consecutive_refusals,
+                created_at
+            ) VALUES (?, 'open', ?, ?, 0, ?, ?)
+            """,
+            arguments: [feature.rawValue, content, stamp.nightID, newCount, JournalStore.timestamp(stamp.now)]
+        )
+        let id = db.lastInsertedRowID
+        _ = try Self.insertEvent(
+            db,
+            .refusalOpened(
+                feature: feature.rawValue, consecutiveRefusals: newCount,
+                uncitableClauses: finding.0, reselectionDepth: finding.1
+            ),
+            stamp: stamp
+        )
+        return try Self.refusalRecord(from: try Self.fetchRefusalRow(db, id: id))
+    }
+
+    // `promoteRefusalIfNeeded` (the refusal-drift promotion Bound, roadmap P11.6) and
+    // `standingRefusals()` live in JournalStore+RefusalStandingItem.swift, split out to keep this file
+    // under the file length limit.
 
     /// Bumps one existing Refusal row's consecutive count by one, optionally replacing its content
     /// (only ever done for the `open` row — a repeat against an `expired` row keeps its original
@@ -327,6 +365,7 @@ extension JournalStore {
             consecutiveRefusals: row["consecutive_refusals"],
             expiredNightID: row["expired_night_id"],
             closedNightID: row["closed_night_id"],
+            standingItemNightID: row["standing_item_night_id"],
             createdAt: createdAt
         )
     }

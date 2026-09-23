@@ -33,8 +33,7 @@ extension JournalEvent {
             )
         case .absentNightDetected:
             .absentNightDetected(nightStart: try reader.nightStart("night_start"))
-        case .authoringNoWorkAvailable:
-            .authoringNoWorkAvailable
+        case .authoringNoWorkAvailable: .authoringNoWorkAvailable
         case .authoringSkippedFeatureInFlight:
             .authoringSkippedFeatureInFlight(featureIssueID: try reader.require("feature_issue_id"))
         case .authoringPredecessorNotLanded:
@@ -60,8 +59,7 @@ extension JournalEvent {
             try Self.decodeLeaseReclaimed(reader)
         case .cardLeaseReclaimed:
             try Self.decodeCardLeaseReclaimed(reader)
-        case .nightOpened:
-            .nightOpened
+        case .nightOpened: .nightOpened
         case .nightClosed:
             try Self.decodeNightClosed(reader)
         case .nightOpenedAndDied:
@@ -223,8 +221,7 @@ extension JournalEvent {
                 unansweredNights: try reader.int("unanswered_nights"),
                 bound: try reader.int("bound")
             )
-        case .refusalCountReset:
-            .refusalCountReset(feature: try reader.require("feature"))
+        case .refusalCountReset: .refusalCountReset(feature: try reader.require("feature"))
         case .landStep, .featureVerified, .featureReturned, .cycleArchived, .featureClosedByMerge:
             try Self.decodeLandAct(type, reader)
         case .cycleLanded: .cycleLanded(cycleID: try reader.int64("cycle_id"))
@@ -234,6 +231,10 @@ extension JournalEvent {
         case .featureSettled, .featureReleased, .settleValueNotHonoured: try Self.decodeSettle(type, reader)
         case .cardUnansweredBoundFired: try Self.decodeCardUnansweredBoundFired(reader)
         case .adoptionRefused, .cardAdopted, .adoptionUntestable: try Self.decodeAdoptionEvent(type, reader)
+        case .featureReselected: try Self.decodeFeatureReselected(reader)
+        case .reselectionBoundReached: try Self.decodeReselectionBoundReached(reader)
+        case .refusalPromotedToStandingItem: try Self.decodeRefusalPromotedToStandingItem(reader)
+        case .cardPromotedToStandingItem: try Self.decodeCardPromotedToStandingItem(reader)
         }
     }
 

@@ -57,7 +57,8 @@ struct RefusalLifecycleTests {
             transaction: AuthoringTransaction(
                 drafting: ScriptedBreakdown(thinFeature), citations: FakeCitationResolver(),
                 transcribing: FakeContractTranscriber(), provenance: FakeProvenanceTester()
-            )
+            ),
+            reselectionsMax: 0
         )
         let authorAct = AuthorAct(predecessorGate: nil, authoring: selection, unansweredNightsMax: 1)
 
@@ -126,7 +127,8 @@ struct RefusalLifecycleTests {
             transaction: AuthoringTransaction(
                 drafting: ScriptedBreakdown(thin), citations: FakeCitationResolver(),
                 transcribing: FakeContractTranscriber(), provenance: FakeProvenanceTester()
-            )
+            ),
+            reselectionsMax: 0
         )
         let authorAct = AuthorAct(predecessorGate: nil, authoring: selection, unansweredNightsMax: 5)
         let feature = try #require(FeatureName(rawValue: "FEAT-1"))
@@ -167,7 +169,8 @@ struct RefusalLifecycleTests {
             transaction: AuthoringTransaction(
                 drafting: ScriptedBreakdown(thin), citations: FakeCitationResolver(),
                 transcribing: FakeContractTranscriber(), provenance: FakeProvenanceTester()
-            )
+            ),
+            reselectionsMax: 0
         )
         let authorAct = AuthorAct(predecessorGate: nil, authoring: selection, unansweredNightsMax: 5)
         let feature = try #require(FeatureName(rawValue: "FEAT-1"))
@@ -206,7 +209,8 @@ struct RefusalLifecycleTests {
             transaction: AuthoringTransaction(
                 drafting: ScriptedBreakdown(thin), citations: FakeCitationResolver(),
                 transcribing: FakeContractTranscriber(), provenance: FakeProvenanceTester()
-            )
+            ),
+            reselectionsMax: 0
         )
         let (context1, run1) = try refusalTestContext(
             journal, nightStart: try #require(NightStart(rawValue: "2026-09-15")), boards: boards
@@ -220,7 +224,8 @@ struct RefusalLifecycleTests {
             transaction: AuthoringTransaction(
                 drafting: ScriptedBreakdown(clean), citations: FakeCitationResolver(),
                 transcribing: FakeContractTranscriber(), provenance: FakeProvenanceTester()
-            )
+            ),
+            reselectionsMax: 0
         )
         let (context2, _) = try refusalTestContext(
             journal, nightStart: try #require(NightStart(rawValue: "2026-09-16")), boards: boards, previous: run1
@@ -253,7 +258,8 @@ struct RefusalLifecycleTests {
                 transaction: AuthoringTransaction(
                     drafting: ScriptedBreakdown(thin), citations: FakeCitationResolver(),
                     transcribing: FakeContractTranscriber(), provenance: FakeProvenanceTester()
-                )
+                ),
+                reselectionsMax: 0
             )
             return AuthorAct(predecessorGate: nil, authoring: selection, unansweredNightsMax: 1)
         }
@@ -299,7 +305,7 @@ struct RefusalLifecycleTests {
             name: feature, reasoning: "no repos determined", sequence: nil, repositories: [], adoptedCardIssueIDs: []
         )
         let selector = ScriptedFeatureSelector(outcome: .selected(selected))
-        let selection = FeatureSelection(selector: selector)
+        let selection = FeatureSelection(selector: selector, reselectionsMax: 0)
         let (context, _) = try refusalTestContext(
             journal, nightStart: try #require(NightStart(rawValue: "2026-09-15")), boards: boards
         )

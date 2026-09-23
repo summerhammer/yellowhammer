@@ -19,10 +19,18 @@ enum AdoptionRevalidation {
         let hadRefusals: Bool
     }
 
+    /// The caller-supplied configuration `refuse(card:report:feature:context:options:)` needs, bundled
+    /// to keep that function's parameter count within the lint limit.
+    struct Options {
+        let operatorIdentity: OperatorIdentity
+        let failedAdoptionsMax: Int
+    }
+
     static func revalidate(
         _ selection: SelectedFeature, provenance: any ProvenanceTesting, context: ActContext,
-        operatorIdentity: OperatorIdentity
+        operatorIdentity: OperatorIdentity, failedAdoptionsMax: Int = 2
     ) async throws -> Outcome {
+        let options = Options(operatorIdentity: operatorIdentity, failedAdoptionsMax: failedAdoptionsMax)
         guard !selection.adoptedCardIssueIDs.isEmpty, let repositories = context.repositories else {
             return Outcome(selection: selection, hadRefusals: false)
         }
@@ -52,8 +60,7 @@ enum AdoptionRevalidation {
                 }
                 hadRefusals = true
                 try await refuse(
-                    card: card, report: report, feature: selection.name, context: context,
-                    operatorIdentity: operatorIdentity
+                    card: card, report: report, feature: selection.name, context: context, options: options
                 )
                 continue
             }
@@ -76,8 +83,7 @@ enum AdoptionRevalidation {
     /// ``CardAutoBlock``), and renders the Managed Block's notice. The caller has already claimed the
     /// Card Lease; it is released here.
     private static func refuse(
-        card: CardRecord, report: CardProvenanceReport, feature: FeatureName, context: ActContext,
-        operatorIdentity: OperatorIdentity
+        card: CardRecord, report: CardProvenanceReport, feature: FeatureName, context: ActContext, options: Options
     ) async throws {
         let journal = context.journal
         let staleBlocks = report.results.filter(\.isDiverged).map {
@@ -86,9 +92,12 @@ enum AdoptionRevalidation {
         do {
             try journal.recordAdoptionRefusal(
                 cardID: card.id, nightID: context.night.id, featureName: feature.rawValue,
-                staleBlocks: staleBlocks, act: context.act, runID: context.runID
+                staleBlocks: staleBlocks, failedAdoptionsMax: options.failedAdoptionsMax,
+                act: context.act, runID: context.runID
             )
-            try await transitionToWaitingOnYou(card: card, context: context, operatorIdentity: operatorIdentity)
+            try await transitionToWaitingOnYou(
+                card: card, context: context, operatorIdentity: options.operatorIdentity
+            )
         } catch {
             _ = try? journal.releaseCardLease(cardID: card.id, runID: context.runID)
             throw error
