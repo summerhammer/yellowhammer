@@ -369,6 +369,11 @@ public enum JournalEvent: Equatable, Sendable {
     /// e.g. *kept in flight* read on a Partial Landing (or with every Card Cancelled), where only
     /// *released* is offered. Not honoured: treated as unsettled, and nothing else is written.
     case settleValueNotHonoured(featureIssueID: String, value: String, reason: String)
+    /// A Card's unanswered-Nights clock exceeded `bound` (bounds/bound-unanswered-nights): it is being
+    /// auto-Blocked. `blockReason` is `unanswered` on the `question` route, `undecided` on `divergence`.
+    case cardUnansweredBoundFired(
+        cardID: Int64, issueID: String, unansweredNights: Int, bound: Int, blockReason: String
+    )
 
     // `type`, the exhaustive switch from a case to its `JournalEventType`, lives in
     // JournalEvent+Type.swift, split out to keep this file under the file length limit.

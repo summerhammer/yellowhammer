@@ -394,6 +394,7 @@ extension JournalEvent {
             authoringStopPayload
         case .featureSettled, .featureReleased, .settleValueNotHonoured:
             settlePayload
+        case .cardUnansweredBoundFired: cardUnansweredBoundFiredPayload
         }
     }
 }

@@ -27,6 +27,12 @@ public struct CardRecord: Equatable, Sendable {
     public let stateVersion: Int
     /// The version of `stateVersion` last confirmed applied on the board; nil until the first confirmed write.
     public let boardStateVersion: Int?
+    /// The unanswered-Nights clock (bounds/bound-unanswered-nights, roadmap P11.4): how many Nights this
+    /// Card has been in Waiting on You without an answer, counted only across Nights an Act actually ran.
+    public let unansweredNights: Int
+    /// The Night this clock last counted, so a second Act of the same Night adds nothing; nil until the
+    /// first advance after the Card most recently entered Waiting on You.
+    public let unansweredLastCountedNightID: Int64?
 }
 
 // The reads the Act trigger predicates are evaluated from. They answer two questions and no others:
@@ -164,7 +170,9 @@ extension JournalStore {
             budgetEpoch: row["budget_epoch"],
             createdAt: createdAt,
             stateVersion: row["state_version"],
-            boardStateVersion: row["board_state_version"]
+            boardStateVersion: row["board_state_version"],
+            unansweredNights: row["unanswered_nights"],
+            unansweredLastCountedNightID: row["unanswered_last_counted_night_id"]
         )
     }
 
@@ -333,7 +341,9 @@ extension CardRecord {
             budgetEpoch: budgetEpoch,
             createdAt: createdAt,
             stateVersion: stateVersion,
-            boardStateVersion: boardStateVersion
+            boardStateVersion: boardStateVersion,
+            unansweredNights: unansweredNights,
+            unansweredLastCountedNightID: unansweredLastCountedNightID
         )
     }
 }

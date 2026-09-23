@@ -127,9 +127,10 @@ public struct AuthorAct: Sendable {
 
         // Once a Feature has landed, no build Act ever fires again (P10.1) and so nothing else reads
         // the board for a Card left Waiting on You — the author Act reads and banks its replies itself
-        // (roadmap P11.3), strictly before the predecessor gate below, whose merge closure auto-Blocks
-        // a Waiting on You Card and would otherwise carry an unbanked reply forward as lost.
-        try await PostLandingReplies.run(context: context, unansweredNightsMax: unansweredNightsMax)
+        // (roadmap P11.3), and then spends the unanswered-Nights clock for those same Cards (roadmap
+        // P11.4), strictly before the predecessor gate below, whose merge closure auto-Blocks a Waiting
+        // on You Card and would otherwise carry an unbanked reply, or an unspent Night, forward as lost.
+        try await runPostLandingRepliesAndClock(context: context)
 
         // The predecessor-ancestry gate's pass (P9.9) runs every Night, independently of the in-flight
         // skip below: it observes the in-flight Feature's landings when one is open (so they accumulate
@@ -196,6 +197,22 @@ public struct AuthorAct: Sendable {
     private func checkPredecessorGate(context: ActContext) async throws -> PredecessorGateOutcome {
         guard let predecessorGate else { return .landed }
         return try await predecessorGate.check(context)
+    }
+
+    /// Reads and banks replies to Cards left Waiting on You after their Feature has landed
+    /// (``PostLandingReplies``, roadmap P11.3), then spends the unanswered-Nights clock for those same
+    /// Cards (``UnansweredCardClock``, roadmap P11.4) — skipped only when the read degraded, since an
+    /// unread answer must never be charged as silence, but spent when no Board is bound at all, exactly
+    /// like the Refusal clock. Split out of ``run(_:)`` to keep that function within the length limit.
+    private func runPostLandingRepliesAndClock(context: ActContext) async throws {
+        let postLandingOutcome = try await PostLandingReplies.run(
+            context: context, unansweredNightsMax: unansweredNightsMax
+        )
+        guard postLandingOutcome != .degraded else { return }
+        let landedCycleIDs = try context.journal.landedCycleIDsWithWaitingOnYouCards()
+        try await UnansweredCardClock.run(
+            cycleIDs: landedCycleIDs, unansweredNightsMax: unansweredNightsMax, context: context
+        )
     }
 
     /// Puts a quiet reason (or the idle verdict) on the Night Card right away, replays any Card state

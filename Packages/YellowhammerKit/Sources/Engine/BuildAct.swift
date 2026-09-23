@@ -98,11 +98,17 @@ public struct BuildAct: Sendable {
             break
         case .read(let report)?:
             try await WaitingOnYouReplies.apply(context: context, unansweredNightsMax: unansweredNightsMax)
+            try await UnansweredCardClock.run(
+                cycleIDs: [cycleID], unansweredNightsMax: unansweredNightsMax, context: context
+            )
             try await runLanes(
                 feature: feature, cycleID: cycleID, reconciliation: reconciliation, deltaRead: report, context: context
             )
         case nil:
-            // No Board bound: nothing to read, so the lanes run without a report.
+            // No Board bound: nothing to read, but the clock is still spent by the Night this Act ran.
+            try await UnansweredCardClock.run(
+                cycleIDs: [cycleID], unansweredNightsMax: unansweredNightsMax, context: context
+            )
             try await runLanes(
                 feature: feature, cycleID: cycleID, reconciliation: reconciliation, deltaRead: nil, context: context
             )

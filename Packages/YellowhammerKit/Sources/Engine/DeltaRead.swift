@@ -219,6 +219,9 @@ public struct DeltaRead: Sendable {
             return false
         case (_, false):
             guard boardState.name != card.state.rawValue, !pendingWrites.contains(card.issueID) else { return false }
+            if try reReadyIfUnansweredBlock(card: &card, boardState: boardState, into: &report) {
+                return false
+            }
             // The board moved the Card to a state the Journal did not write. The Journal is
             // authoritative; the board copy is reposted from it, not the other way round.
             report.restated.append(RestatedCard(card: card, boardState: boardState))

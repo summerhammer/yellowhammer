@@ -55,12 +55,8 @@ extension JournalStore {
                 return record
             }
 
-            try db.execute(
-                sql: """
-                UPDATE card SET state = ?, waiting_reason = ?, block_reason = ?, state_version = state_version + 1
-                WHERE id = ?
-                """,
-                arguments: [state.rawValue, newWaitingReason?.rawValue, newBlockReason?.rawValue, cardID]
+            try Self.writeCardTransition(
+                db, record: record, state: state, reasons: (newWaitingReason, newBlockReason), nightID: nightID
             )
 
             let stamp = EventStamp(act: act, runID: runID, nightID: nightID, now: now)
@@ -74,6 +70,44 @@ extension JournalStore {
                 throw JournalError.cardUnknown(cardID: cardID)
             }
             return try Self.cardRecord(from: updated)
+        }
+    }
+
+    /// Writes the Card's state row, resetting the unanswered-Nights clock (bounds/bound-unanswered-nights,
+    /// roadmap P11.4) when this transition enters Waiting on You afresh — a new question, or a different
+    /// waiting reason than the one already held (the divergence route or adoption refusal). Earlier
+    /// counters and round history are preserved elsewhere; only this clock restarts. A Card already in
+    /// Waiting on You for the same reason (e.g. a repeat remark) leaves the clock untouched. Split out of
+    /// ``transitionCard(cardID:to:waitingReason:blockReason:runID:act:nightID:now:)`` to keep that
+    /// function within the length limit.
+    private static func writeCardTransition(
+        _ db: Database, record: CardRecord, state: CardState,
+        reasons: (waiting: WaitingReason?, block: BlockReason?), nightID: Int64?
+    ) throws {
+        let cardID = record.id
+        let entersWaitingOnYouAfresh = state == .waitingOnYou
+            && (record.state != .waitingOnYou || record.waitingReason != reasons.waiting)
+
+        if entersWaitingOnYouAfresh {
+            try db.execute(
+                sql: """
+                UPDATE card
+                SET state = ?, waiting_reason = ?, block_reason = ?, state_version = state_version + 1,
+                    unanswered_nights = 0, unanswered_last_counted_night_id = ?
+                WHERE id = ?
+                """,
+                arguments: [
+                    state.rawValue, reasons.waiting?.rawValue, reasons.block?.rawValue, nightID, cardID
+                ]
+            )
+        } else {
+            try db.execute(
+                sql: """
+                UPDATE card SET state = ?, waiting_reason = ?, block_reason = ?, state_version = state_version + 1
+                WHERE id = ?
+                """,
+                arguments: [state.rawValue, reasons.waiting?.rawValue, reasons.block?.rawValue, cardID]
+            )
         }
     }
 

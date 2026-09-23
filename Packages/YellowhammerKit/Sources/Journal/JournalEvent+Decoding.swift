@@ -229,12 +229,12 @@ extension JournalEvent {
             .refusalCountReset(feature: try reader.require("feature"))
         case .landStep, .featureVerified, .featureReturned, .cycleArchived, .featureClosedByMerge:
             try Self.decodeLandAct(type, reader)
-        case .cycleLanded:
-            .cycleLanded(cycleID: try reader.int64("cycle_id"))
+        case .cycleLanded: .cycleLanded(cycleID: try reader.int64("cycle_id"))
         case .refusalAnswered, .authoringHaltOpened, .authoringHaltRepeated, .authoringHaltExpired,
             .authoringHaltCleared:
             try Self.decodeAuthoringStop(type, reader)
         case .featureSettled, .featureReleased, .settleValueNotHonoured: try Self.decodeSettle(type, reader)
+        case .cardUnansweredBoundFired: try Self.decodeCardUnansweredBoundFired(reader)
         }
     }
 
