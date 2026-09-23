@@ -1229,7 +1229,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Rehearsal tests for the verification route.
 
-### [ ] P10.8 Closure by merge (observed ancestry)
+### [x] P10.8 Closure by merge (observed ancestry)
 - **Work**
   - When ancestry reaches all N (observed in P9.2), close the Feature by merge: move the roll-up to a
     closed value, auto-Block every Card still Waiting on You with its counters, detach surviving
