@@ -84,9 +84,15 @@ extension ActCommand {
             repositories: project.repositories,
             workspace: workspace,
             nightCardBounds: NightCardMaintenance.Bounds(
+                reviewRoundsMax: project.bounds.reviewRoundsMax,
+                attemptsPerCard: project.bounds.attemptsPerCard,
+                unansweredNightsMax: project.bounds.unansweredNightsMax,
                 reselectionsMax: project.bounds.reselectionsMax,
                 consecutiveRefusalsMax: project.bounds.consecutiveRefusalsMax,
                 failedAdoptionsMax: project.bounds.failedAdoptionsMax
+            ),
+            openingReadiness: ReadinessCheck(
+                provenance: ProvenanceDiffTester(), citations: MainlineReader()
             ),
             operatorIdentity: operatorIdentity,
             work: work

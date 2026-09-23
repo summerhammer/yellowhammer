@@ -40,7 +40,7 @@ public enum NightCardBlock {
         pullRequestLines: [String] = [], answerLines: [String] = [], anomalies: [String] = [],
         crashesAndReclaims: [String] = [], exceptions: [String] = [],
         bounds: [String] = [], standingItems: [String] = [], unadoptedCards: [String] = [],
-        inFlightFeature: [String] = []
+        inFlightFeature: [String] = [], instrumentedRates: [String] = []
     ) -> String {
         var lines = header(night: night, projectID: projectID)
         if let completedAt = night.completedAt {
@@ -60,6 +60,7 @@ public enum NightCardBlock {
         appendStandingItems(standingItems, to: &lines)
         appendSection("Standing: un-adopted Cards", unadoptedCards, to: &lines)
         appendSection("Standing: unmerged in-flight Feature", inFlightFeature, to: &lines)
+        appendSection("Instrumented rates", instrumentedRates, to: &lines)
         lines.append("")
         lines.append(CardManagedBlock.footer)
         return lines.joined(separator: "\n")

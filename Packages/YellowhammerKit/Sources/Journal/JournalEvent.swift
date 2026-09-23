@@ -1,5 +1,6 @@
 import Domain
 import Foundation
+// swiftlint:disable file_length
 
 /// The fields of a `featureSelected` event, wrapped in a struct (rather than a wide enum case) to keep
 /// `JournalEvent`'s cases within SwiftLint's associated-values-count limit.
@@ -115,6 +116,8 @@ public enum JournalEvent: Equatable, Sendable {
     /// The board moved a Card to a state the Journal did not write; the Journal stays authoritative
     /// and records the discrepancy.
     case cardRestated(cardID: Int64, issueID: String, journalState: CardState, boardState: String)
+    /// A human comment observed by the Delta Read on a known Card; comment id makes re-reads harmless.
+    case humanCardComment(cardID: Int64, commentID: String, commentedAt: Date)
     /// The board no longer lists this Card; the Journal records how it was removed.
     case cardRemovedFromBoard(cardID: Int64, issueID: String, how: String)
     /// A Card violates an invariant that must hold for authoring to proceed; the Journal records

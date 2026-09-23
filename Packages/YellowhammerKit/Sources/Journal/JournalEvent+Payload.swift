@@ -1,5 +1,6 @@
 import Domain
 import Foundation
+// swiftlint:disable file_length
 
 extension JournalEvent {
     /// Encodes this event as a payload dictionary with sorted keys (for byte-stable storage).
@@ -114,6 +115,9 @@ extension JournalEvent {
                 "issue_id": issueID,
                 "journal_state": journalState.rawValue
             ]
+        case .humanCardComment(let cardID, let commentID, let commentedAt):
+            ["card_id": String(cardID), "comment_id": commentID,
+             "commented_at": JournalStore.timestamp(commentedAt)]
         case .cardRemovedFromBoard(let cardID, let issueID, let how):
             ["card_id": String(cardID), "how": how, "issue_id": issueID]
         case .authoringInvariantBroken(let cardID, let issueID, let reason):

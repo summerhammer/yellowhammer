@@ -272,6 +272,24 @@ extension JournalStore {
         reason: NightCloseReason,
         now: Date
     ) throws -> NightRecord {
+        if reason == .nightEnd {
+            let counters = try Row.fetchOne(
+                db,
+                sql: "SELECT MAX(unanswered_nights) AS unanswered, MAX(failed_adoptions) AS adoptions FROM card"
+            )
+            let unanswered: Int = counters?["unanswered"] ?? 0
+            let adoptions: Int = counters?["adoptions"] ?? 0
+            let citations = try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM clause WHERE deleted = 0 AND citation_provenance = 'Author-supplied'"
+            ) ?? 0
+            try db.execute(
+                sql: """
+                UPDATE night SET closing_unanswered_max = ?, closing_failed_adoptions_max = ?,
+                                 closing_author_supplied_citation_count = ? WHERE id = ?
+                """, arguments: [unanswered, adoptions, citations, night.id]
+            )
+        }
         try db.execute(
             sql: "UPDATE night SET state = ?, close_reason = ?, completed_at = ? WHERE id = ?",
             arguments: [NightState.closed.rawValue, reason.rawValue, JournalStore.timestamp(now), night.id]

@@ -10,11 +10,20 @@ extension NightCardMaintenance {
     /// overview): plain Ints, the same stance as `AuthorAct`'s `unansweredNightsMax` — the Engine never
     /// imports `Config`, so `EngineCommand` is the one place these are read from `project.bounds`.
     public struct Bounds: Equatable, Sendable {
+        public let reviewRoundsMax: Int
+        public let attemptsPerCard: Int
+        public let unansweredNightsMax: Int
         public let reselectionsMax: Int
         public let consecutiveRefusalsMax: Int
         public let failedAdoptionsMax: Int
 
-        public init(reselectionsMax: Int = 2, consecutiveRefusalsMax: Int = 3, failedAdoptionsMax: Int = 2) {
+        public init(
+            reviewRoundsMax: Int = 2, attemptsPerCard: Int = 3, unansweredNightsMax: Int = 3,
+            reselectionsMax: Int = 2, consecutiveRefusalsMax: Int = 3, failedAdoptionsMax: Int = 2
+        ) {
+            self.reviewRoundsMax = reviewRoundsMax
+            self.attemptsPerCard = attemptsPerCard
+            self.unansweredNightsMax = unansweredNightsMax
             self.reselectionsMax = reselectionsMax
             self.consecutiveRefusalsMax = consecutiveRefusalsMax
             self.failedAdoptionsMax = failedAdoptionsMax

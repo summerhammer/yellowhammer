@@ -1,5 +1,6 @@
 import Domain
 import Foundation
+// swiftlint:disable file_length
 
 extension JournalEvent {
     /// Decodes an event from its type and payload. Throws `JournalError.eventUnreadable(id:)` with
@@ -80,6 +81,11 @@ extension JournalEvent {
             try Self.decodeCardReopened(reader)
         case .cardRestated:
             try Self.decodeCardRestated(reader)
+        case .humanCardComment:
+            .humanCardComment(
+                cardID: try reader.int64("card_id"), commentID: try reader.require("comment_id"),
+                commentedAt: try reader.date("commented_at")
+            )
         case .cardRemovedFromBoard:
             try Self.decodeCardRemovedFromBoard(reader)
         case .authoringInvariantBroken:

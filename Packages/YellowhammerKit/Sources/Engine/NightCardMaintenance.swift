@@ -116,12 +116,14 @@ public struct NightCardMaintenance: Sendable {
         let standingItems = try standingItemLines()
         let unadoptedCards = try NightSummary.unadoptedCardLines(night: night, journal: journal)
         let inFlightFeature = try NightSummary.inFlightFeatureLines(night: night, journal: journal)
+        let instrumentedRates = try NightSummary.instrumentedRateLines(night: night, journal: journal, bounds: bounds)
         let rendered = NightCardBlock.completed(
             night: night, projectID: journal.projectID, verdictLine: verdict, authoringFindings: findings,
             cardLines: cardLines, dispositionLines: dispositionLines, pullRequestLines: pullRequestLines,
             answerLines: answerLines, anomalies: anomalies, crashesAndReclaims: crashesAndReclaims,
             exceptions: exceptions, bounds: boundsLines, standingItems: standingItems,
-            unadoptedCards: unadoptedCards, inFlightFeature: inFlightFeature
+            unadoptedCards: unadoptedCards, inFlightFeature: inFlightFeature,
+            instrumentedRates: instrumentedRates
         )
         let hash = ManagedBlockFence.sha256(rendered)
         let summary = OutboxWrite(
