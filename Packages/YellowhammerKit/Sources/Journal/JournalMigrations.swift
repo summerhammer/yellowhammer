@@ -90,6 +90,9 @@ enum JournalMigrations {
         migrator.registerMigration("v20-feature-verification") { db in
             try addFeatureVerificationTables(db)
         }
+        migrator.registerMigration("v21-feature-closure") { db in
+            try addFeatureClosedByColumn(db)
+        }
         return migrator
     }
 }

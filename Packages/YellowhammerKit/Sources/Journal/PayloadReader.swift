@@ -134,6 +134,14 @@ struct PayloadReader: Sendable {
         return outcome
     }
 
+    func featureClosure(_ key: String) throws -> FeatureClosure {
+        let text = try require(key)
+        guard let closure = FeatureClosure(rawValue: text) else {
+            throw JournalError.eventUnreadable(id: rowID)
+        }
+        return closure
+    }
+
     func route() throws -> Route {
         guard let route = Route(
             cli: try require("route_cli"), model: try require("route_model"), effort: try require("route_effort")
