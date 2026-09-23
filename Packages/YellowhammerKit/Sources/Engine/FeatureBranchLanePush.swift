@@ -5,8 +5,8 @@ import Repositories
 /// Pushes a Repo Lane's Feature Branch to GitHub (P10.2), the real seam behind ``LanePushing``. Reuses
 /// ``FeatureBranchPusher`` for the git-level push (P6.6); this type adds the land-scoped policy in
 /// front of it: resolving the lane's Repo and Feature Branch, detecting a lane with no completed work
-/// so it is never pushed, and resolving the GitHub token lazily, once per call, only when a real push
-/// is about to run.
+/// so it is never pushed (signaling safe release of allocated Worktrees via ``LanePushOutcome/safeToReleaseWorktree``),
+/// and resolving the GitHub token lazily, once per call, only when a real push is about to run.
 public struct FeatureBranchLanePush: LanePushing, Sendable {
     private let pusher: FeatureBranchPusher
     /// Returns the GitHub token to push with, or throws when it could not be resolved. Called only
