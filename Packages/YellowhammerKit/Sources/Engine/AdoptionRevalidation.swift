@@ -19,18 +19,10 @@ enum AdoptionRevalidation {
         let hadRefusals: Bool
     }
 
-    /// The caller-supplied configuration `refuse(card:report:feature:context:options:)` needs, bundled
-    /// to keep that function's parameter count within the lint limit.
-    struct Options {
-        let operatorIdentity: OperatorIdentity
-        let failedAdoptionsMax: Int
-    }
-
     static func revalidate(
         _ selection: SelectedFeature, provenance: any ProvenanceTesting, context: ActContext,
-        operatorIdentity: OperatorIdentity, failedAdoptionsMax: Int = 2
+        failedAdoptionsMax: Int = 2
     ) async throws -> Outcome {
-        let options = Options(operatorIdentity: operatorIdentity, failedAdoptionsMax: failedAdoptionsMax)
         guard !selection.adoptedCardIssueIDs.isEmpty, let repositories = context.repositories else {
             return Outcome(selection: selection, hadRefusals: false)
         }
@@ -60,7 +52,8 @@ enum AdoptionRevalidation {
                 }
                 hadRefusals = true
                 try await refuse(
-                    card: card, report: report, feature: selection.name, context: context, options: options
+                    card: card, report: report, feature: selection.name, context: context,
+                    failedAdoptionsMax: failedAdoptionsMax
                 )
                 continue
             }
@@ -83,7 +76,8 @@ enum AdoptionRevalidation {
     /// ``CardAutoBlock``), and renders the Managed Block's notice. The caller has already claimed the
     /// Card Lease; it is released here.
     private static func refuse(
-        card: CardRecord, report: CardProvenanceReport, feature: FeatureName, context: ActContext, options: Options
+        card: CardRecord, report: CardProvenanceReport, feature: FeatureName, context: ActContext,
+        failedAdoptionsMax: Int
     ) async throws {
         let journal = context.journal
         let staleBlocks = report.results.filter(\.isDiverged).map {
@@ -92,12 +86,10 @@ enum AdoptionRevalidation {
         do {
             try journal.recordAdoptionRefusal(
                 cardID: card.id, nightID: context.night.id, featureName: feature.rawValue,
-                staleBlocks: staleBlocks, failedAdoptionsMax: options.failedAdoptionsMax,
+                staleBlocks: staleBlocks, failedAdoptionsMax: failedAdoptionsMax,
                 act: context.act, runID: context.runID
             )
-            try await transitionToWaitingOnYou(
-                card: card, context: context, operatorIdentity: options.operatorIdentity
-            )
+            try await transitionToWaitingOnYou(card: card, context: context)
         } catch {
             _ = try? journal.releaseCardLease(cardID: card.id, runID: context.runID)
             throw error
@@ -105,14 +97,12 @@ enum AdoptionRevalidation {
         try journal.releaseCardLease(cardID: card.id, runID: context.runID)
     }
 
-    private static func transitionToWaitingOnYou(
-        card: CardRecord, context: ActContext, operatorIdentity: OperatorIdentity
-    ) async throws {
+    private static func transitionToWaitingOnYou(card: CardRecord, context: ActContext) async throws {
         let journal = context.journal
         if let outbox = context.outbox, let board = context.board {
             let scope = try await BoardStateScope.resolve(using: board.provisioning)
             let projection = BoardStateProjection(journal: journal, outbox: outbox, scope: scope)
-            let assignee = await operatorIdentity.assignee(on: board.reading)
+            let assignee = await context.operatorIdentity.assignee(on: board.reading)
             let current = try journal.card(id: card.id)
             let outcome = try await projection.transition(
                 card: current, to: .waitingOnYou(.divergence, operator: assignee)

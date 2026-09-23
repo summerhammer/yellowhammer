@@ -63,6 +63,9 @@ extension ActCommand {
 
         let board = try bindBoard?(configuration, project)
         let workspace = bindWorkspace?()
+        // Built once, here, and carried on every `ActContext` this invocation hands its work (roadmap
+        // #114): no consumer threads it through its own initializer any more.
+        let operatorIdentity = OperatorIdentity(configured: configuration.machine.operatorIdentity)
 
         // Every Act wires its own work here, the one place an adapter is constructed for any of them
         // (ADR-001): Engine itself never imports one.
@@ -85,6 +88,7 @@ extension ActCommand {
                 consecutiveRefusalsMax: project.bounds.consecutiveRefusalsMax,
                 failedAdoptionsMax: project.bounds.failedAdoptionsMax
             ),
+            operatorIdentity: operatorIdentity,
             work: work
         )
     }
@@ -93,7 +97,6 @@ extension ActCommand {
     private static func work(
         mode: NightMode, configuration: Configuration, project: ProjectConfiguration, configurationDirectory: URL
     ) throws -> EngineInvocation.ActWork {
-        let operatorIdentity = OperatorIdentity(configured: configuration.machine.operatorIdentity)
         switch Self.act {
         case .land:
             // The Repo Lane merge test (P10.3) is pure local git and records conflicts without gating
@@ -108,7 +111,7 @@ extension ActCommand {
                     mode: mode, configuration: configuration, project: project,
                     configurationDirectory: configurationDirectory
                 ),
-                returnFeature: FeatureReturn(operatorIdentity: operatorIdentity),
+                returnFeature: FeatureReturn(),
                 archiveCycle: CycleArchive()
             ).work
         case .author:
@@ -134,9 +137,7 @@ extension ActCommand {
             )
             return BuildAct(
                 cardRunner: cardRunner,
-                readiness: ReadinessCheck(
-                    provenance: ProvenanceDiffTester(), citations: MainlineReader(), operatorIdentity: operatorIdentity
-                ),
+                readiness: ReadinessCheck(provenance: ProvenanceDiffTester(), citations: MainlineReader()),
                 // Bound in both modes (P8.10): a rehearsal Night writes no result files, so this simply
                 // finds none, and the lease-reclaim sweep falls to the event log and Crashed-Unknown.
                 resultReader: RunDirectoryResultReader(

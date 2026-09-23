@@ -79,19 +79,16 @@ public struct FeatureSelection: FeatureAuthoring {
     /// P9.4–P9.7's transaction; nil throws `notImplemented` once a selection is recorded, the same
     /// stance as `AuthorAct`'s nil `authoring`.
     public let transaction: (any SelectedFeatureAuthoring)?
-    public let operatorIdentity: OperatorIdentity
     /// The re-selection walk's bound (roadmap P11.6; bounds/overview): how many Features a
     /// Night may walk past, after the first selection, before authoring gives up. Defaults to the
     /// glossary's own default of 2.
     public let reselectionsMax: Int
 
     public init(
-        selector: any FeatureSelecting, transaction: (any SelectedFeatureAuthoring)? = nil,
-        operatorIdentity: OperatorIdentity = .none, reselectionsMax: Int = 2
+        selector: any FeatureSelecting, transaction: (any SelectedFeatureAuthoring)? = nil, reselectionsMax: Int = 2
     ) {
         self.selector = selector
         self.transaction = transaction
-        self.operatorIdentity = operatorIdentity
         self.reselectionsMax = reselectionsMax
     }
 
@@ -269,8 +266,6 @@ public struct FeatureSelection: FeatureAuthoring {
     private func recordHalt(
         feature: FeatureName, cause: AuthoringHaltCause, context: ActContext
     ) async throws -> FeatureAuthoringOutcome {
-        try await AuthoringHalt.record(
-            feature: feature, cause: cause, context: context, operatorIdentity: operatorIdentity
-        )
+        try await AuthoringHalt.record(feature: feature, cause: cause, context: context)
     }
 }

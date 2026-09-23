@@ -29,12 +29,13 @@ struct AdoptionRevalidationTests {
         let operatorIdentity = OperatorIdentity(configured: operatorID)
 
         let transaction = try transaction(
-            provenance: FakeProvenanceTester(verdicts: ["backend": .stale(changedPaths: ["contract.swift"])]),
-            operatorIdentity: operatorIdentity
+            provenance: FakeProvenanceTester(verdicts: ["backend": .stale(changedPaths: ["contract.swift"])])
         )
-        let (context, _) = try context(journal, nightStart: "2026-09-20", boards: boards)
+        let (context, _) = try context(
+            journal, nightStart: "2026-09-20", boards: boards, operatorIdentity: operatorIdentity
+        )
 
-        let outcome = try await selection(transaction, operatorIdentity: operatorIdentity).selectAndAuthor(context)
+        let outcome = try await selection(transaction).selectAndAuthor(context)
 
         #expect(outcome == .authored)
 

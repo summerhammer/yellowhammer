@@ -30,6 +30,9 @@ public struct ActContext: Sendable {
     /// The Project's configured repositories, when provided — the Readiness Check's provenance and
     /// citation resolution need these to test a Transcription Block or resolve a Spec Citation.
     public let repositories: ProjectRepositories?
+    /// The Operator's board identity, machine-configured (roadmap P11.1; carried on the context itself,
+    /// not threaded through each consumer's initializer, since every consumer already has this).
+    public let operatorIdentity: OperatorIdentity
 
     public init(
         act: Act,
@@ -43,7 +46,8 @@ public struct ActContext: Sendable {
         board: ActBoard? = nil,
         mainlines: ResolvedMainlines = ResolvedMainlines(),
         workspace: (any Workspace)? = nil,
-        repositories: ProjectRepositories? = nil
+        repositories: ProjectRepositories? = nil,
+        operatorIdentity: OperatorIdentity = .none
     ) {
         self.act = act
         self.mode = mode
@@ -57,6 +61,7 @@ public struct ActContext: Sendable {
         self.mainlines = mainlines
         self.workspace = workspace
         self.repositories = repositories
+        self.operatorIdentity = operatorIdentity
     }
 }
 
@@ -94,6 +99,9 @@ public struct EngineInvocation: Sendable {
     /// The Night Summary's Bounds (roadmap P11.6): plain Ints, read from `project.bounds` only by
     /// `EngineCommand` — the Engine never imports `Config`.
     public let nightCardBounds: NightCardMaintenance.Bounds
+    /// The Operator's board identity, machine-configured (roadmap P11.1): built once by `EngineCommand`
+    /// and carried onto every `ActContext` this invocation hands its work.
+    public let operatorIdentity: OperatorIdentity
     private let journal: JournalStore
     private let work: ActWork
 
@@ -110,7 +118,8 @@ public struct EngineInvocation: Sendable {
         repositories: ProjectRepositories? = nil,
         mainlineRefresher: MainlineRefresher = MainlineRefresher(),
         workspace: (any Workspace)? = nil,
-        nightCardBounds: NightCardMaintenance.Bounds = NightCardMaintenance.Bounds()
+        nightCardBounds: NightCardMaintenance.Bounds = NightCardMaintenance.Bounds(),
+        operatorIdentity: OperatorIdentity = .none
     ) {
         self.act = act
         self.mode = mode
@@ -125,6 +134,7 @@ public struct EngineInvocation: Sendable {
         self.repositories = repositories
         self.mainlineRefresher = mainlineRefresher
         self.workspace = workspace
+        self.operatorIdentity = operatorIdentity
         self.work = { _ in throw EngineInvocationError.notImplemented(act) }
     }
 
@@ -146,6 +156,7 @@ public struct EngineInvocation: Sendable {
         mainlineRefresher: MainlineRefresher = MainlineRefresher(),
         workspace: (any Workspace)? = nil,
         nightCardBounds: NightCardMaintenance.Bounds = NightCardMaintenance.Bounds(),
+        operatorIdentity: OperatorIdentity = .none,
         work: @escaping ActWork
     ) {
         self.act = act
@@ -161,6 +172,7 @@ public struct EngineInvocation: Sendable {
         self.repositories = repositories
         self.mainlineRefresher = mainlineRefresher
         self.workspace = workspace
+        self.operatorIdentity = operatorIdentity
         self.work = work
     }
 
@@ -235,7 +247,7 @@ public struct EngineInvocation: Sendable {
                 let context = ActContext(
                     act: act, mode: mode, trigger: trigger, runID: runID, journal: journal, night: night,
                     outbox: outbox, nightCard: nightCard, board: board, mainlines: resolvedMainlines,
-                    workspace: workspace, repositories: repositories
+                    workspace: workspace, repositories: repositories, operatorIdentity: operatorIdentity
                 )
                 try await withLeaseHeartbeat(
                     every: leasePolicy.heartbeatDuration,
