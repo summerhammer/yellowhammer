@@ -9,6 +9,8 @@ import Journal
 /// ``FeatureSettleGesture``; nil skips the settle read entirely.
 public protocol FeatureSettle: Sendable {
     func settle(feature: FeatureRecord, cycleID: Int64, context: ActContext) async throws
+    @discardableResult
+    func reset(feature: FeatureRecord, cycleID: Int64, context: ActContext) async throws -> Bool
 }
 
 /// The real settle gesture (roadmap P10.9): reads the Feature Issue's workflow state as a tri-state —
@@ -28,6 +30,45 @@ public protocol FeatureSettle: Sendable {
 /// No board wired means the settle gesture is never read at all, the same as *unsettled*.
 public struct FeatureSettleGesture: FeatureSettle, Sendable {
     public init() { }
+
+    /// Resets a kept-in-flight Feature's workflow state on the board back to *unsettled* (``SettleValue/resetTargetState``),
+    /// so the Operator is presented with the settle gesture on the subsequent morning triage (roadmap P10.9; Gate G-6).
+    @discardableResult
+    public func reset(feature: FeatureRecord, cycleID: Int64, context: ActContext) async throws -> Bool {
+        guard let board = context.board, let outbox = context.outbox else { return false }
+        return try await Self.resetSettleState(
+            feature: feature, cycleID: cycleID, nightID: context.night.id, board: board, outbox: outbox
+        )
+    }
+
+    /// Resets a kept-in-flight Feature's workflow state on the board back to *unsettled* (``SettleValue/resetTargetState``).
+    ///
+    /// Idempotent on `(cycleID, nightID)`. If the Feature Issue is not in `Kept in Flight` (e.g. already reset,
+    /// released, or in another state), no write is posted.
+    @discardableResult
+    public static func resetSettleState(
+        feature: FeatureRecord,
+        cycleID: Int64,
+        nightID: Int64,
+        board: ActBoard,
+        outbox: Outbox
+    ) async throws -> Bool {
+        let issue = BoardObjectID(rawValue: feature.issueID)
+        guard let object = try await board.reading.issue(issue),
+              let read = SettleValue(workflowStateName: object.workflowState.name),
+              read.requiresDailyReset else {
+            return false
+        }
+
+        let scope = try await BoardStateScope.resolve(using: board.provisioning)
+        var change = scope.labels.change(objectType: "Feature", state: SettleValue.resetTargetState, blockReason: nil)
+        change.workflowState = try scope.id(for: SettleValue.resetTargetState)
+
+        let key = "settle:\(cycleID):reset:\(nightID)"
+        _ = try await outbox.post(OutboxWrite(key: key, write: .updateIssue(issue: issue, change: change, undo: nil)))
+        _ = try await outbox.deliverPending()
+        return true
+    }
 
     public func settle(feature: FeatureRecord, cycleID: Int64, context: ActContext) async throws {
         guard let board = context.board, let outbox = context.outbox else { return }
