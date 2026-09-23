@@ -4,8 +4,9 @@ import Foundation
 /// The Operator's settle gesture (roadmap P10.9; spec: morning-report/triage-the-morning) reads the
 /// Feature Issue's workflow state tri-state: *unsettled*, *kept in flight*, or *released*.
 ///
-/// `keptInFlight` and `released` are the names for the two Linear workflow states the
-/// gesture offers (Gate G-6 ruling: risks.md#decision-gates-ruling-2026-09-15). Any Feature Issue workflow state that
+/// `keptInFlight` and `released` are the canonical names for the two Linear workflow states the
+/// gesture offers (Gate G-6 ruling: risks.md#decision-gates-ruling-2026-09-15).
+/// ``BoardProvisioner`` provisions both as `started` states. Any Feature Issue workflow state that
 /// is not one of these two reads as *unsettled* — including no board wired at all, in which case the
 /// settle gesture is never read.
 public enum SettleValue: String, Equatable, Sendable, CaseIterable {

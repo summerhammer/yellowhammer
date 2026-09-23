@@ -141,10 +141,11 @@ else is touched. The new Linear project's id must then be written to `linear_pro
 
 Then, **once per team** the Linear project belongs to (Projects sharing a team share the result):
 
-- the `Waiting on You` workflow state (type `started`), matched by name, case-insensitively;
+- the `Waiting on You`, `Kept in Flight`, and `Released` workflow states (type `started`),
+  matched by name, case-insensitively and checked for category collisions;
 - the label group `Object Type` with `Feature`, `Card`, `Night Card`;
 - the label group `Block Reason` with `blocked by reviewer`, `blocked by check`, `hard failure`,
-  `unanswered`, `undecided`.
+  `unanswered`, `undecided`, `released`.
 
 Every item is reported `present`, `created`, `collision` or `blocked`. A label of the same name
 anywhere the team can see it — a workspace label, a team label, or a label in another group — is a
@@ -152,8 +153,7 @@ anywhere the team can see it — a workspace label, a team label, or a label in 
 probe's workspace already had a workspace-level `Feature`.) A non-group label holding a group's name
 blocks the whole group. Resolve a collision by hand in Linear, then run provisioning again.
 
-Not provisioned here: the settle workflow-state group (gate G-6, probe owed) and the Override label
-groups (gate G-17, P7.6).
+The Override label groups are provisioned when a merged Routing Table is supplied (G-17, P7.6).
 
 ### Running provisioning against the scratch workspace
 

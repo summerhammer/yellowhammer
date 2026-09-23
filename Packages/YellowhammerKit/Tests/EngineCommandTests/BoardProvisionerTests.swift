@@ -1,3 +1,5 @@
+// Keep the fake and its state, label, collision, and idempotency coverage together.
+// swiftlint:disable file_length
 import Domain
 import Engine
 import Testing
@@ -58,7 +60,7 @@ actor FakeProvisioningBoard: BoardProvisioning {
 
     func createWorkflowState(name: String, team: BoardObjectID) async throws(BoardError) -> BoardWorkflowState {
         creates += 1
-        let state = BoardWorkflowState(id: mint(), name: name)
+        let state = BoardWorkflowState(id: mint(), name: name, category: .started)
         states[team, default: []].append(state)
         return state
     }
@@ -125,23 +127,33 @@ private func waitingOnYou(_ subject: ProvisioningEntry.Subject) -> Bool {
     return false
 }
 
+private func workflowState(_ name: String, team: BoardTeam = engineering) -> (ProvisioningEntry.Subject) -> Bool {
+    { subject in
+        if case .workflowState(name, team) = subject { return true }
+        return false
+    }
+}
+
 @Suite("Board provisioning")
 struct BoardProvisionerTests {
-    @Test("A bare team gets Waiting on You, both label groups and all ten labels, and the report names each")
+    @Test("A bare team gets all three started workflow states, both label groups and all ten labels")
     func firstRunCreatesTheDeclaredSet() async throws {
         let board = board()
         let report = try await provision(board)
 
-        #expect(await board.creates == 13)
-        #expect(report.changes.count == 13)
+        #expect(await board.creates == 15)
+        #expect(report.changes.count == 15)
         #expect(outcome(of: report, waitingOnYou) == .created)
+        #expect(outcome(of: report, workflowState("Kept in Flight")) == .created)
+        #expect(outcome(of: report, workflowState("Released")) == .created)
         #expect(outcome(of: report, objectTypeGroup) == .created)
         #expect(outcome(of: report, blockReasonGroup) == .created)
         for name in ["Feature", "Card", "Night Card"] {
             #expect(outcome(of: report, label(name, in: "Object Type")) == .created)
         }
         for name in [
-            "blocked by reviewer", "blocked by check", "hard failure", "host crash", "unanswered", "undecided"
+            "blocked by reviewer", "blocked by check", "hard failure", "host crash", "unanswered", "undecided",
+            "released"
         ] {
             #expect(outcome(of: report, label(name, in: "Block Reason")) == .created)
         }
@@ -205,19 +217,73 @@ struct BoardProvisionerTests {
                 return false
             }
             #expect(blocked.count == BlockReason.allCases.count)
-            #expect(await board.creates == 5) // Waiting on You, Object Type and its three labels
+            #expect(await board.creates == 7) // Three states, Object Type and its three labels
         }
     }
 
     @Test("An existing Waiting on You in a different case is present, not created again")
     func waitingOnYouMatchesCaseInsensitively() async throws {
         let board = board()
-        await board.seed(state: "waiting on you", team: engineering.id)
+        await board.seed(state: "waiting on you", team: engineering.id, category: .started)
 
         let report = try await provision(board)
 
         #expect(outcome(of: report, waitingOnYou) == .present)
-        #expect(await board.creates == 12)
+        #expect(await board.creates == 14)
+    }
+
+    @Test("Existing started settle states are reused independently of a missing settle state")
+    func startedSettleStatesAreReused() async throws {
+        let board = board()
+        await board.seed(state: "kept in flight", team: engineering.id, category: .started)
+
+        let first = try await provision(board)
+        #expect(outcome(of: first, workflowState("Kept in Flight")) == .present)
+        #expect(outcome(of: first, workflowState("Released")) == .created)
+        #expect(await board.creates == 14)
+
+        let second = try await provision(board)
+        #expect(!second.isChanged)
+        #expect(outcome(of: second, workflowState("Kept in Flight")) == .present)
+        #expect(outcome(of: second, workflowState("Released")) == .present)
+    }
+
+    @Test("A same-name state of another or unknown category collides while other states still progress")
+    func workflowStateCategoryCollisions() async throws {
+        for name in ["Waiting on You", "Kept in Flight", "Released"] {
+            for category: BoardWorkflowStateCategory? in [.unstarted, nil] {
+                let board = board()
+                await board.seed(state: name.lowercased(), team: engineering.id, category: category)
+
+                let first = try await provision(board)
+                #expect(outcome(of: first, workflowState(name)) == .collision(
+                    "workflow state category: \(category?.rawValue ?? "unknown")"
+                ))
+                #expect(first.collisions.count == 1)
+                #expect(await board.creates == 14)
+                for other in ["Waiting on You", "Kept in Flight", "Released"] where other != name {
+                    #expect(outcome(of: first, workflowState(other)) == .created)
+                }
+
+                let second = try await provision(board)
+                #expect(!second.isChanged)
+                #expect(outcome(of: second, workflowState(name)) == .collision(
+                    "workflow state category: \(category?.rawValue ?? "unknown")"
+                ))
+            }
+        }
+    }
+
+    @Test("A state with both started and conflicting same-name categories reports collision")
+    func duplicateNameWithConflictingCategories() async throws {
+        let board = board()
+        await board.seed(state: "Released", team: engineering.id, category: .started)
+        await board.seed(state: "released", team: engineering.id, category: .completed)
+
+        let report = try await provision(board)
+
+        #expect(outcome(of: report, workflowState("Released")) == .collision("workflow state category: completed"))
+        #expect(outcome(of: report, workflowState("Kept in Flight")) == .created)
     }
 
     @Test("A missing Linear project with no team named is reported missing and nothing else is touched")
@@ -246,13 +312,13 @@ struct BoardProvisionerTests {
             return
         }
         #expect(report.entries[0].outcome == .created)
-        #expect(report.changes.count == 14)
+        #expect(report.changes.count == 16)
     }
 
     @Test("Each team of the Linear project is provisioned on its own")
     func eachTeamIsProvisioned() async throws {
         let board = board(teams: [engineering, product])
-        await board.seed(state: "Waiting on You", team: engineering.id)
+        await board.seed(state: "Waiting on You", team: engineering.id, category: .started)
 
         let report = try await provision(board)
 
@@ -260,9 +326,9 @@ struct BoardProvisionerTests {
             if case .workflowState(_, let team) = entry.subject { return (team.key, entry.outcome) }
             return nil
         }
-        #expect(states.map(\.0) == ["ENG", "PRD"])
-        #expect(states.map(\.1) == [.present, .created])
-        #expect(await board.creates == 25)
+        #expect(states.map(\.0) == ["ENG", "ENG", "ENG", "PRD", "PRD", "PRD"])
+        #expect(states.map(\.1) == [.present, .created, .created, .created, .created, .created])
+        #expect(await board.creates == 29)
     }
 
     // MARK: - Override label groups (G-17, P7.6)
@@ -283,8 +349,8 @@ struct BoardProvisionerTests {
             using: board, projectName: "Yellowhammer", createIn: nil, routingTable: Self.table
         )
 
-        // 13 as before, plus three groups and 2 + 3 + 2 children.
-        #expect(await board.creates == 23)
+        // 15 as before, plus three groups and 2 + 3 + 2 children.
+        #expect(await board.creates == 25)
         for group in ["Override CLI", "Override Model", "Override Effort"] {
             #expect(outcome(of: report) { if case .labelGroup(group, _) = $0 { true } else { false } } == .created)
         }
@@ -350,7 +416,7 @@ struct BoardProvisionerTests {
         let board = board()
         let report = try await provision(board)
 
-        #expect(await board.creates == 13)
+        #expect(await board.creates == 15)
         #expect(report.entries.allSatisfy { subject in
             if case .labelGroup(let name, _) = subject.subject { return !name.hasPrefix("Override") }
             return true

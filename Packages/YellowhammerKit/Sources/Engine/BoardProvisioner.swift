@@ -7,10 +7,11 @@ import Foundation
 /// at setup time. The three Override label groups (G-17, roadmap P7.6) are provisioned from the
 /// merged Routing Table's values when one is given, and refreshed by re-running provisioning after
 /// the table changes: a value it no longer names is never removed, because nothing ever clears an
-/// Override. The settle workflow-state group (gate G-6, probe owed) is deliberately not provisioned.
+/// Override. The settle workflow states are provisioned in every team as `started` states.
 public struct BoardProvisioner {
     /// The exact name of the workflow state Yellowhammer depends on, glossary-verbatim.
     static let waitingOnYouState = "Waiting on You"
+    private static let workflowStateNames = [waitingOnYouState] + SettleValue.allCases.map(\.rawValue)
 
     /// Object type label group and its children.
     static let objectTypeGroup = "Object Type"
@@ -101,9 +102,11 @@ public struct BoardProvisioner {
         let existingStates = try await board.workflowStates(team: team.id)
         let existingLabels = try await board.labels(team: team.id)
 
-        try await provisionWorkflowState(
-            board: board, team: team, existingStates: existingStates, into: &entries
-        )
+        for stateName in workflowStateNames {
+            try await provisionWorkflowState(
+                board: board, name: stateName, team: team, existingStates: existingStates, into: &entries
+            )
+        }
 
         for groupSpec in groups {
             try await provisionGroup(
@@ -114,22 +117,29 @@ public struct BoardProvisioner {
 
     private static func provisionWorkflowState(
         board: any BoardProvisioning,
+        name: String,
         team: BoardTeam,
         existingStates: [BoardWorkflowState],
         into entries: inout [ProvisioningEntry]
     ) async throws(BoardError) {
-        let waitingState = existingStates.first { state in
-            state.name.lowercased() == Self.waitingOnYouState.lowercased()
+        let namedStates = existingStates.filter { state in
+            state.name.lowercased() == name.lowercased()
         }
-        if waitingState != nil {
+        if let collision = namedStates.first(where: { $0.category != .started }) {
+            let category = collision.category?.rawValue ?? "unknown"
             entries.append(ProvisioningEntry(
-                subject: .workflowState(Self.waitingOnYouState, team: team),
+                subject: .workflowState(name, team: team),
+                outcome: .collision("workflow state category: \(category)")
+            ))
+        } else if !namedStates.isEmpty {
+            entries.append(ProvisioningEntry(
+                subject: .workflowState(name, team: team),
                 outcome: .present
             ))
         } else {
-            _ = try await board.createWorkflowState(name: Self.waitingOnYouState, team: team.id)
+            _ = try await board.createWorkflowState(name: name, team: team.id)
             entries.append(ProvisioningEntry(
-                subject: .workflowState(Self.waitingOnYouState, team: team),
+                subject: .workflowState(name, team: team),
                 outcome: .created
             ))
         }
