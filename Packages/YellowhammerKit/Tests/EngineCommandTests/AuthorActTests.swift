@@ -112,6 +112,39 @@ struct AuthorActTests {
         #expect(description.contains("quiet Night"))
     }
 
+    @Test("No deferred Card state write to replay: write-back makes no extra board call, no boardStateReposted")
+    func writeBackWithNoDeferredWritesIsZeroCost() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
+        let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
+        // A freshly authored Card: Todo, state_version 0, board_state_version nil — unposted by
+        // `cardsWithUnpostedState()`'s own definition, but never transitioned, so nothing to replay.
+        let cardID = try insertReconcilerCard(
+            journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .todo
+        )
+
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let gate = ScriptedPredecessorGate(outcome: .landed)
+        let authoring = ScriptedFeatureAuthoring(outcome: .authored)
+
+        let invocation = EngineInvocation(
+            // Forced: a Todo Card is "unfinished", so the scheduled trigger would not even fire —
+            // this test is about write-back's own zero-cost path, not the trigger predicate.
+            act: .author, mode: .rehearsal, nightStart: authorActNightStart, journal: journal,
+            trigger: .forced, runID: RunID(), board: board,
+            work: AuthorAct(predecessorGate: gate, authoring: authoring).work
+        )
+        try await invocation.run()
+
+        // The Night Card's own opening/recording does its own update calls; what matters here is that
+        // the freshly authored, never-transitioned Card was never touched by the replay.
+        #expect(try journal.events(ofType: .boardStateReposted).isEmpty)
+        #expect(try journal.card(id: cardID).boardStateVersion == nil)
+        #expect(try journal.currentCardLease(cardID: cardID) == nil)
+    }
+
     @Test("A forced trigger and .forcedForFeature still skip when a Feature is in flight")
     func forcedTriggersStillSkip() async throws {
         for trigger: ActTrigger in [.forced, .forcedForFeature(try #require(FeatureName(rawValue: "OTHER")))] {

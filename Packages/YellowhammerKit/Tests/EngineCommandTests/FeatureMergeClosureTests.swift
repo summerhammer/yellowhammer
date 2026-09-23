@@ -289,4 +289,103 @@ struct AuthorActFeatureMergeClosureTests {
         let row = try mergeFeatureRow(world.journal, featureID: world.featureID)
         #expect(row.closedBy == "merge")
     }
+
+    // MARK: - Issue #96: a rate-limited auto-Block converges through the standalone replay
+
+    /// Opens the observing Night's Night Card with the budget unrefused, before any refusal is queued:
+    /// `NightCardMaintenance.open()` throws outright if its own create is deferred, and it is not what
+    /// either of these tests is about — the refusals below are for the merge closure's own writes.
+    private func warmUpNightCard(_ world: MergeWorld, board: ActBoard, repositories: ProjectRepositories) async throws {
+        let invocation = EngineInvocation(
+            act: .author, mode: .real, nightStart: mergeClosureObservingNightStart, journal: world.journal,
+            trigger: .forced, runID: RunID(), board: board, repositories: repositories,
+            work: AuthorAct(
+                predecessorGate: ScriptedPredecessorGate(outcome: .landed),
+                authoring: ScriptedFeatureAuthoring(outcome: .noWorkAvailable)
+            ).work
+        )
+        try await invocation.run()
+    }
+
+    @Test("A single refusal is recovered within the same Act: write-back's own replay converges it")
+    func singleRefusalRecoveredBySameActWriteBack() async throws {
+        let world = try await makeMergeWorld(mergedRepositories: ["backend", "mobile"])
+        let repositories = mergeWorldRepositories(world)
+        let board = ActBoard(
+            reading: FakeReadingBoard([]), writing: world.boards.writing, provisioning: world.boards.provisioning
+        )
+        let authoring = ScriptedFeatureAuthoring(outcome: .noWorkAvailable)
+        try await warmUpNightCard(world, board: board, repositories: repositories)
+        await world.boards.writing.refuseNext(.rateLimited(retryAfter: nil, budget: nil))
+
+        let invocation = EngineInvocation(
+            act: .author, mode: .real, nightStart: mergeClosureObservingNightStart, journal: world.journal,
+            trigger: .scheduled, runID: RunID(), board: board, repositories: repositories,
+            work: AuthorAct(
+                predecessorGate: PredecessorAncestryGate(closure: FeatureMergeClosure()), authoring: authoring
+            ).work
+        )
+        try await invocation.run()
+
+        let scope = try await BoardStateScope.resolve(using: world.boards.provisioning)
+        let waiting = try world.journal.card(id: world.waitingCardID)
+        #expect(waiting.state == .blocked)
+        #expect(waiting.boardStateVersion == waiting.stateVersion)
+        let issue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: "MOB-1")))
+        #expect(issue.workflowState == scope.states[.blocked])
+        #expect(try world.journal.currentCardLease(cardID: world.waitingCardID) == nil)
+    }
+
+    @Test("Throttled through the whole first Act: Journal Blocked, board stale, converges on the next Act")
+    func convergesAfterThrottlingAcrossTwoActs() async throws {
+        let world = try await makeMergeWorld(mergedRepositories: ["backend", "mobile"])
+        let repositories = mergeWorldRepositories(world)
+        let board = ActBoard(
+            reading: FakeReadingBoard([]), writing: world.boards.writing, provisioning: world.boards.provisioning
+        )
+        try await warmUpNightCard(world, board: board, repositories: repositories)
+        // Every attempt at this specific issue — the initial auto-Block, and this Act's own write-back
+        // replay — keeps hitting the rate limit; a call count would be fragile to the exact number of
+        // Outbox entries the merge closure happens to post in between.
+        let mobIssue = BoardObjectID(rawValue: "MOB-1")
+        await world.boards.writing.refuse(issue: mobIssue, with: .rateLimited(retryAfter: nil, budget: nil))
+
+        let firstAuthoring = ScriptedFeatureAuthoring(outcome: .noWorkAvailable)
+        let firstInvocation = EngineInvocation(
+            act: .author, mode: .real, nightStart: mergeClosureObservingNightStart, journal: world.journal,
+            trigger: .scheduled, runID: RunID(), board: board, repositories: repositories,
+            work: AuthorAct(
+                predecessorGate: PredecessorAncestryGate(closure: FeatureMergeClosure()), authoring: firstAuthoring
+            ).work
+        )
+        try await firstInvocation.run()
+
+        let scope = try await BoardStateScope.resolve(using: world.boards.provisioning)
+        var waiting = try world.journal.card(id: world.waitingCardID)
+        #expect(waiting.state == .blocked)
+        // Journal Blocked, but the board write is still stuck: no run holds the entry's Card Lease, and
+        // the budget kept refusing through this whole Act's own write-back replay attempt too.
+        #expect(waiting.boardStateVersion == nil)
+        let staleIssue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: "MOB-1")))
+        #expect(staleIssue.workflowState != scope.states[.blocked])
+        #expect(try world.journal.currentCardLease(cardID: world.waitingCardID) == nil)
+
+        // A second Act, new run, the budget no longer refusing: converges what the first Act left stale.
+        await world.boards.writing.clearRefusal(issue: mobIssue)
+        let secondAuthoring = ScriptedFeatureAuthoring(outcome: .noWorkAvailable)
+        let secondInvocation = EngineInvocation(
+            act: .author, mode: .real, nightStart: mergeClosureObservingNightStart, journal: world.journal,
+            trigger: .scheduled, runID: RunID(), board: board, repositories: repositories,
+            work: AuthorAct(
+                predecessorGate: PredecessorAncestryGate(closure: FeatureMergeClosure()), authoring: secondAuthoring
+            ).work
+        )
+        try await secondInvocation.run()
+
+        waiting = try world.journal.card(id: world.waitingCardID)
+        #expect(waiting.boardStateVersion == waiting.stateVersion)
+        let convergedIssue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: "MOB-1")))
+        #expect(convergedIssue.workflowState == scope.states[.blocked])
+        #expect(try world.journal.currentCardLease(cardID: world.waitingCardID) == nil)
+    }
 }

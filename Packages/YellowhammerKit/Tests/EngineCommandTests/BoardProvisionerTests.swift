@@ -12,9 +12,16 @@ actor FakeProvisioningBoard: BoardProvisioning {
     private var nextID = 0
     private(set) var creates = 0
     private(set) var reads = 0
+    /// Errors thrown by the next call to ``linearProject()``, in order, consumed before it answers —
+    /// following ``FakeWritingBoard/refuseNext(_:)``'s pattern.
+    private var refusals: [BoardError] = []
 
     init(project: BoardProjectScope?) {
         self.project = project
+    }
+
+    func refuseNext(_ error: BoardError) {
+        refusals.append(error)
     }
 
     func seed(workspaceLabel name: String) {
@@ -32,6 +39,7 @@ actor FakeProvisioningBoard: BoardProvisioning {
 
     func linearProject() async throws(BoardError) -> BoardProjectScope {
         reads += 1
+        if !refusals.isEmpty { throw refusals.removeFirst() }
         guard let project else { throw .scopeNotFound("no such Linear project") }
         return project
     }

@@ -28,8 +28,10 @@ import Repositories
 ///    Worktree stays held; the Cycle stays unlanded and the next land firing retries.
 /// 6. If nothing faulted, by Verification's verdict: return the Feature (P10.6) or archive the Cycle
 ///    (P10.7), never both.
-/// 7. If nothing faulted: the Cycle is marked landed. The Outbox is always delivered, fault or not.
-///    A fault (from any lane or the Feature sequence) is thrown after write-back as
+/// 7. If nothing faulted: the Cycle is marked landed. Write-back always runs, fault or not: it replays
+///    any deferred Card state write left behind (``DeferredCardStateReplay``, issue #96 — this
+///    Act dispatches no Card, so nothing else ever retries one) and then delivers the Outbox. A fault
+///    (from any lane or the Feature sequence) is thrown after write-back as
 ///    ``LandActError/lanesFailed(_:)``, keyed by repository (Feature-scoped faults are keyed by the
 ///    Feature's issue id), so the Cycle stays unlanded and the next land firing retries.
 public struct LandAct: Sendable {
@@ -122,7 +124,11 @@ public struct LandAct: Sendable {
         }
     }
 
+    /// Replays any Card state write deferred and left behind (``DeferredCardStateReplay``, roadmap
+    /// issue #96 — this Act dispatches no Card, so nothing else ever retries one), then delivers pending
+    /// Outbox entries.
     private func writeBack(context: ActContext) async throws {
+        try await DeferredCardStateReplay.run(context: context)
         guard let outbox = context.outbox else { return }
         _ = try await outbox.deliverPending()
     }
