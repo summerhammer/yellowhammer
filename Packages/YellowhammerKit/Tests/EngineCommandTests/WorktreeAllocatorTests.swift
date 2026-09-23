@@ -317,6 +317,31 @@ struct WorktreeAllocatorTests {
         #expect(workspace.removeCalls.isEmpty)
     }
 
+    @Test("discardingUnpushedWork releases an unpushed Worktree instead of refusing (settle *released*, P10.9)")
+    func discardingUnpushedWorkReleasesWithoutAPush() async throws {
+        let fixture = try JournalFixture()
+        let journal = try fixture.open()
+        let runID = RunID()
+        try claimLease(journal, runID: runID)
+        let featureID = try insertFixtureFeature(journal, issueID: "FEAT-1")
+
+        let workspaceDirectory = FileManager.default.temporaryDirectory
+            .appending(component: "yh-workspace-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: workspaceDirectory) }
+        let workspace = FakeWorkspace(baseDirectory: workspaceDirectory)
+        let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID)
+        let repo = Repo(name: "backend", path: "/tmp/yh-allocator-fixture/backend", role: .backend)
+        _ = try await allocator.allocate(featureID: featureID, branch: Self.branch, repos: [repo])
+
+        let record = try await allocator.release(
+            featureID: featureID, repository: "backend", discardingUnpushedWork: true
+        )
+
+        #expect(record.releasedAt != nil)
+        #expect(workspace.removeCalls.count == 1)
+        #expect(try journal.heldWorktree(featureID: featureID, repository: "backend") == nil)
+    }
+
     @Test("After recordWorktreePush, release removes through the workspace and the Journal record releases")
     func releaseAfterPushSucceeds() async throws {
         let fixture = try JournalFixture()

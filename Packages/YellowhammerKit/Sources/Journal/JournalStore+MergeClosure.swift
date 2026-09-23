@@ -4,9 +4,13 @@ import GRDB
 
 // Closure by merge (roadmap P10.8; spec: landing/announce-a-partial-landing, morning-report/
 // triage-the-morning): when the predecessor-ancestry gate first observes every touched repository
-// merged, the Feature is closed unverified. Closing writes what the Operator's settle (P10.9, not yet
-// built) would have written for the Night the merge concluded — its `triaged` flag — possibly inside a
-// later Night's span, per the triaged-Night rule below.
+// merged, the Feature is closed unverified. Closing writes what the Operator's settle (P10.9) would
+// have written for the Night the merge concluded — its `triaged` flag — possibly inside a later
+// Night's span, per the triaged-Night rule below. The settle gesture's own triaged-Night rule
+// (``JournalStore/settleTriagedNightID(currentNightID:)``, JournalStore+Settle.swift) is simpler —
+// unbounded by any Cycle's landing — because a settle write is never racing a merge closure for the
+// same Feature: once a Feature is closed by merge it is no longer in flight, and the settle seam is
+// never called for it (roadmap P10.9's own wiring in AuthorAct.swift).
 
 extension JournalStore {
     /// The Feature's 1:1 Cycle, archived or not; nil for a Feature the Journal never gave one (never
@@ -50,7 +54,7 @@ extension JournalStore {
     /// Closes `featureID` by merge (roadmap P10.8), revalidating the Act Lease first, the same way
     /// ``archiveCycle(cycleID:featureID:closedBy:runID:now:)`` does. One write transaction: archives the
     /// Cycle (`closed_by = 'merge'`), sets `night.triaged_at` on `triagedNightID` only if it is still
-    /// unset — first write wins, so a later Night's settle (P10.9) never overwrites what this call
+    /// unset — first write wins, so a later settle (P10.9) never overwrites what this call
     /// recorded — and appends `.cycleArchived` then `.featureClosedByMerge` in the same pass. Idempotent:
     /// a Cycle already archived is left untouched and this returns false, appending nothing — the caller
     /// (``FeatureMergeClosure``) still retries its board writes on every call, keyed so a retry re-queues

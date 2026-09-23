@@ -110,9 +110,14 @@ extension JournalStore {
 
     /// Releases a held Worktree. One write transaction, revalidating the Act-scoped lease before writing.
     /// Refuses with `worktreeNotPushed` when the Feature Branch has not been recorded pushed: releasing
-    /// a Worktree is what lets Orca ADE remove it, and removal must never discard unpushed work.
+    /// a Worktree is what lets Orca ADE remove it, and removal must never discard unpushed work — unless
+    /// `discardingUnpushedWork` says otherwise (the settle gesture's *released* value, roadmap P10.9:
+    /// abandoning the pull requests on our side is never softer than discarding a Worktree that never
+    /// got that far).
     @discardableResult
-    public func releaseWorktree(id: Int64, runID: RunID, now: Date = Date()) throws -> WorktreeRecord {
+    public func releaseWorktree(
+        id: Int64, runID: RunID, discardingUnpushedWork: Bool = false, now: Date = Date()
+    ) throws -> WorktreeRecord {
         try write { db in
             _ = try Self.revalidateActLease(db, runID: runID, now: now)
 
@@ -122,7 +127,7 @@ extension JournalStore {
             guard existing.releasedAt == nil else {
                 throw JournalError.worktreeReleased(id: id)
             }
-            guard existing.pushedCommit != nil else {
+            guard existing.pushedCommit != nil || discardingUnpushedWork else {
                 throw JournalError.worktreeNotPushed(id: id)
             }
 

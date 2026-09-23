@@ -276,6 +276,23 @@ public struct NightCardMaintenance: Sendable {
                 Feature card to open and nothing to answer; the author Act stood down without authoring. \
                 The next author Act selects afresh.
                 """
+        case .featureSettled(_, let featureIssueID, let acceptedCards, _):
+            return """
+                Feature `\(featureIssueID)` was settled *kept in flight*: it stays in flight. \
+                \(acceptedCards.count) green Cards recorded as accepted.
+                """
+        case .featureReleased(_, let featureIssueID, let carriedForward, _, let abandonedRepositories, _):
+            let abandoned = abandonedRepositories.isEmpty ? "none" : abandonedRepositories.joined(separator: ", ")
+            return """
+                Feature `\(featureIssueID)` was settled *released*: stop-with-salvage. \
+                \(carriedForward.count) Cards carried forward, Blocked awaiting Adoption; abandoned pull \
+                requests: \(abandoned). This Feature Issue is not archived and stays re-enterable.
+                """
+        case .settleValueNotHonoured(let featureIssueID, let value, let reason):
+            return """
+                Feature `\(featureIssueID)`'s settle read `\(value)`, not honoured: \(reason). Treated as \
+                unsettled.
+                """
         default:
             return nil
         }

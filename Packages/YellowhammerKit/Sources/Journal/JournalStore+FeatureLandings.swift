@@ -55,7 +55,7 @@ extension JournalStore {
         }
     }
 
-    /// Marks `featureID` released (P10.9, not yet built): once set, this Feature satisfies the
+    /// Marks `featureID` released (P10.9): once set, this Feature satisfies the
     /// predecessor gate for no repository and is never returned as the predecessor to check — the walk
     /// moves past it to the Feature before it.
     public func markFeatureReleased(featureID: Int64, now: Date = Date()) throws {

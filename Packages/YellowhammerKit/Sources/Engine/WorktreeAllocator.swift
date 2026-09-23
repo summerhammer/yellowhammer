@@ -133,14 +133,18 @@ public struct WorktreeAllocator: Sendable {
 
     /// Releases the Worktree held for `featureID`'s `repository`. Refuses with
     /// ``WorktreeAllocationError/notPushed(repository:)`` before any Orca ADE call unless the Feature
-    /// Branch has been recorded pushed. A Worktree Orca ADE has already lost track of is tolerated:
-    /// it is already gone, so the Journal still records the release.
+    /// Branch has been recorded pushed — unless `discardingUnpushedWork` says otherwise (the settle
+    /// gesture's *released* value, roadmap P10.9: "abandons the unmerged pull requests on our side" is
+    /// never softer than abandoning a Worktree that never got that far). A Worktree Orca ADE has
+    /// already lost track of is tolerated: it is already gone, so the Journal still records the release.
     @discardableResult
-    public func release(featureID: Int64, repository: String) async throws -> WorktreeRecord {
+    public func release(
+        featureID: Int64, repository: String, discardingUnpushedWork: Bool = false
+    ) async throws -> WorktreeRecord {
         guard let held = try journal.heldWorktree(featureID: featureID, repository: repository) else {
             throw WorktreeAllocationError.notHeld(repository: repository)
         }
-        guard held.pushedCommit != nil else {
+        guard held.pushedCommit != nil || discardingUnpushedWork else {
             throw WorktreeAllocationError.notPushed(repository: repository)
         }
 
@@ -152,7 +156,9 @@ public struct WorktreeAllocator: Sendable {
             throw WorktreeAllocationError.workspace(repository: repository, error)
         }
 
-        return try journal.releaseWorktree(id: held.id, runID: runID)
+        return try journal.releaseWorktree(
+            id: held.id, runID: runID, discardingUnpushedWork: discardingUnpushedWork
+        )
     }
 
     private static func expandedPath(_ path: String) -> String {

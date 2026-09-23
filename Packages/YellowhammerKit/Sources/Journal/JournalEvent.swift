@@ -334,6 +334,26 @@ public enum JournalEvent: Equatable, Sendable {
     case authoringHaltExpired(feature: String, issueID: String?, unansweredNights: Int, bound: Int)
     /// The Feature's next clean authoring run cleared its `open` or `expired` halt.
     case authoringHaltCleared(feature: String)
+    /// The Operator's settle gesture (roadmap P10.9; spec: morning-report/triage-the-morning) read
+    /// *kept in flight* on the Feature Issue: the Feature stays in flight. `acceptedCards` are the
+    /// Cycle's Done Cards' issue ids (sorted); `triagedNightID` names the Night whose morning was
+    /// triaged, per the settle triaged-Night rule (the latest earlier Night, or this Night itself).
+    /// Appended only when this call newly wrote `night.triaged_at` — first write wins — so a repeated
+    /// Act of the same Night appends nothing further.
+    case featureSettled(cycleID: Int64, featureIssueID: String, acceptedCards: [String], triagedNightID: Int64)
+    /// The Operator's settle gesture (roadmap P10.9) read *released*: the Feature is released,
+    /// stop-with-salvage. `carriedForward` and `acceptedCards` are the Cycle's Blocked and Done Cards'
+    /// issue ids (sorted); `abandonedRepositories` are the touched repositories with a recorded pull
+    /// request but no recorded landing (sorted); `triagedNightID` is the settle triaged-Night rule's
+    /// result. Appended only on the Feature's first release — idempotent, like ``featureClosedByMerge``.
+    case featureReleased(
+        cycleID: Int64, featureIssueID: String, carriedForward: [String], acceptedCards: [String],
+        abandonedRepositories: [String], triagedNightID: Int64
+    )
+    /// The settle gesture read a value the offered set did not include for this pass (roadmap P10.9) —
+    /// e.g. *kept in flight* read on a Partial Landing (or with every Card Cancelled), where only
+    /// *released* is offered. Not honoured: treated as unsettled, and nothing else is written.
+    case settleValueNotHonoured(featureIssueID: String, value: String, reason: String)
 
     // `type`, the exhaustive switch from a case to its `JournalEventType`, lives in
     // JournalEvent+Type.swift, split out to keep this file under the file length limit.

@@ -16,9 +16,21 @@ actor FakeReadingBoard: Board {
     private var replies: [Result<BoardDelta, BoardError>]
     private(set) var calls: [Call] = []
     var latestBudget: BoardBudget?
+    /// Seeded for ``issue(_:)`` (the settle gesture's single-issue read, roadmap P10.9) — kept
+    /// separate from `replies`/`objects`, which every existing caller of this fake still expects empty.
+    private var seededIssues: [BoardObjectID: BoardObject] = [:]
 
     init(_ replies: [Result<BoardDelta, BoardError>]) {
         self.replies = replies
+    }
+
+    /// Seeds `object` for a later ``issue(_:)`` call, keyed by its id.
+    func seed(issue object: BoardObject) {
+        seededIssues[object.id] = object
+    }
+
+    func issue(_ id: BoardObjectID) async throws(BoardError) -> BoardObject? {
+        seededIssues[id]
     }
 
     func deltaRead(

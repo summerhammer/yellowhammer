@@ -94,6 +94,21 @@ enum LinearGraphQL {
         }
         """
 
+    /// A single issue by id, selecting the same fields the Delta Read's object selection does (settle
+    /// gesture, roadmap P10.9): its workflow state is read fresh rather than waiting for the next
+    /// Delta Read.
+    static let issueByIDQuery = """
+        query YellowhammerIssue($id: String!) {
+          issue(id: $id) {
+            id identifier title description url createdAt updatedAt archivedAt trashed
+            state { id name }
+            labels { nodes { name } }
+            parent { id }
+            assignee { id }
+          }
+        }
+        """
+
     // MARK: - Provisioning Queries
 
     static let projectQuery = """

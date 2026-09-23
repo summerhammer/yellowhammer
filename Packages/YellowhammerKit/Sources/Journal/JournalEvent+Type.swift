@@ -187,6 +187,12 @@ extension JournalEvent {
             .authoringHaltExpired
         case .authoringHaltCleared:
             .authoringHaltCleared
+        case .featureSettled:
+            .featureSettled
+        case .featureReleased:
+            .featureReleased
+        case .settleValueNotHonoured:
+            .settleValueNotHonoured
         }
     }
 }
