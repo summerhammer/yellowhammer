@@ -1312,7 +1312,7 @@ comment on the Delta Read).
 - **Done when** — Rehearsal-assertable bound arithmetic with `unanswered_nights_max = 1`, including
   the stopped-Project case (no Acts, no change).
 
-### [ ] P11.5 Adoption
+### [x] P11.5 Adoption
 - **Work**
   - A later Feature adopts a Blocked Card left by a closed Feature: keep counters, round history,
     Block Reason and question; no new budgets.
