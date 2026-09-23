@@ -1219,7 +1219,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Rehearsal state-transition tests.
 
-### [ ] P10.7 Archive the Cycle on a verified Feature
+### [x] P10.7 Archive the Cycle on a verified Feature
 - **Work**
   - Archive only when every clause is met. Record which route closed the Feature.
   - Detach surviving Blocked Cards (`parentId: null`) with counters intact. Move the Feature Issue to
