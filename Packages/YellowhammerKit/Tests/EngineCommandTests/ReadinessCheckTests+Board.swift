@@ -35,6 +35,10 @@ func staleBlockDiverges() async throws {
     let card = try #require(try scenario.journal.card(issueID: scenario.issueOne))
     #expect(card.state == .waitingOnYou)
     #expect(card.waitingReason == .divergence)
+    let scope = try await BoardStateScope.resolve(using: scenario.boards.provisioning)
+    let posted = try #require(await scenario.boards.writing.issue(BoardObjectID(rawValue: scenario.issueOne)))
+    #expect(posted.workflowState == (try scope.id(for: .waitingOnYou)))
+    #expect(posted.assignee == nil)
     #expect(try scenario.journal.consecutiveDivergences(cardID: scenario.cardOne) == 1)
 
     let diverged = try scenario.journal.events(ofType: .cardDiverged)

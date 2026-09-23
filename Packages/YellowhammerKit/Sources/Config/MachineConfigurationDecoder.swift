@@ -4,6 +4,12 @@ import Domain
 ///
 /// Within each table, unknown keys are reported first, in file order, then the known keys in a fixed order.
 struct MachineConfigurationDecoder {
+    private struct LinearSettings {
+        let clientID: String
+        let credential: CredentialReference
+        let operatorID: BoardObjectID?
+    }
+
     private let decoding: ConfigurationDecoding
 
     init(file: String) {
@@ -14,14 +20,15 @@ struct MachineConfigurationDecoder {
     /// must name a declared CLI Adapter.
     func decode(_ root: TOMLTable) throws(ConfigurationError) -> MachineConfiguration {
         try decoding.rejectUnknownKeys(in: root, path: nil, allowed: ["linear", "github", "cli", "routing"])
-        let (linearClientID, linearCredential) = try linear(in: root)
+        let linear = try linear(in: root)
         let gitHubCredential = try decoding.credential(in: root, table: "github")
         let cliAdapters = try cliAdapters(in: root)
         var routingDecoding = decoding
         routingDecoding.declaredCLIAdapters = Set(cliAdapters.map(\.name))
         return MachineConfiguration(
-            linearClientID: linearClientID,
-            linearCredential: linearCredential,
+            linearClientID: linear.clientID,
+            linearCredential: linear.credential,
+            linearOperator: linear.operatorID,
             gitHubCredential: gitHubCredential,
             cliAdapters: cliAdapters,
             routingTable: try routingDecoding.routingTable(in: root)
@@ -34,19 +41,22 @@ struct MachineConfigurationDecoder {
     ///
     /// Decoded here rather than through ``ConfigurationDecoding/credential(in:table:)``, which must keep
     /// refusing every key but `credential` in `[github]`.
-    private func linear(in root: TOMLTable) throws(ConfigurationError) -> (String, CredentialReference) {
+    private func linear(in root: TOMLTable) throws(ConfigurationError) -> LinearSettings {
         guard let value = root["linear"] else {
             throw decoding.error(line: 1, key: "linear", .missingTable)
         }
         let table = try decoding.table(value, key: "linear")
-        try decoding.rejectUnknownKeys(in: table, path: "linear", allowed: ["client_id", "credential"])
+        try decoding.rejectUnknownKeys(in: table, path: "linear", allowed: ["client_id", "credential", "operator"])
         let credentialString = try decoding.requiredString("credential", in: table, path: "linear")
         guard let credential = CredentialReference(credentialString) else {
             let line = table["credential"]?.line ?? table.line
             throw decoding.error(line: line, key: "linear.credential", .emptyString)
         }
         let clientID = try decoding.requiredString("client_id", in: table, path: "linear")
-        return (clientID, credential)
+        let operatorID = try decoding.optionalString("operator", in: table, path: "linear")
+        return LinearSettings(
+            clientID: clientID, credential: credential, operatorID: operatorID.map(BoardObjectID.init(rawValue:))
+        )
     }
 
     private func cliAdapters(in root: TOMLTable) throws(ConfigurationError) -> [CLIAdapterDeclaration] {
