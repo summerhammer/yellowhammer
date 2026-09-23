@@ -1377,7 +1377,7 @@ comment on the Delta Read).
 - **Done when** — Rehearsal Nights of each kind (idle, quiet, crashed, partial) render the
   specified lines.
 
-### [ ] P12.2 Instrumented rates
+### [x] P12.2 Instrumented rates
 - **Work** — Report per Project, accumulating across that Project's Nights, with no pass/fail
   presentation and no cross-Project figure: share of green Cards accepted without reopening the
   diff; share of Nights ending with at least one pull request per touched repository; proximity to

@@ -67,6 +67,8 @@ extension JournalEvent {
             .cardReopened
         case .cardRestated:
             .cardRestated
+        case .humanCardComment:
+            .humanCardComment
         case .cardRemovedFromBoard:
             .cardRemovedFromBoard
         case .authoringInvariantBroken:

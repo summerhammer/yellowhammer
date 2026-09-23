@@ -14,6 +14,7 @@ actor FakeReadingBoard: Board {
     }
 
     private var replies: [Result<BoardDelta, BoardError>]
+    private var objectReplies: [Result<BoardPage, BoardError>] = []
     private(set) var calls: [Call] = []
     var latestBudget: BoardBudget?
     /// Seeded for ``issue(_:)`` (the settle gesture's single-issue read, roadmap P10.9) — kept
@@ -27,6 +28,10 @@ actor FakeReadingBoard: Board {
     /// Seeds `object` for a later ``issue(_:)`` call, keyed by its id.
     func seed(issue object: BoardObject) {
         seededIssues[object.id] = object
+    }
+
+    func scriptObjectPages(_ replies: [Result<BoardPage, BoardError>]) {
+        objectReplies = replies
     }
 
     func issue(_ id: BoardObjectID) async throws(BoardError) -> BoardObject? {
@@ -45,7 +50,11 @@ actor FakeReadingBoard: Board {
     }
 
     func objects(updatedSince: Date?, after: BoardCursor?, pageSize: Int) async throws(BoardError) -> BoardPage {
-        BoardPage(objects: [], nextCursor: nil)
+        guard !objectReplies.isEmpty else { return BoardPage(objects: [], nextCursor: nil) }
+        switch objectReplies.removeFirst() {
+        case .success(let page): return page
+        case .failure(let error): throw error
+        }
     }
 
     func identity() async throws(BoardError) -> BoardIdentity {

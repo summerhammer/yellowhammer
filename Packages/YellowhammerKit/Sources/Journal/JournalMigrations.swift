@@ -111,6 +111,9 @@ enum JournalMigrations {
         migrator.registerMigration("v27-standing-items") { db in
             try addStandingItemColumns(db)
         }
+        migrator.registerMigration("v28-night-opening-board-snapshot") { db in
+            try addNightOpeningBoardSnapshotColumn(db)
+        }
         return migrator
     }
 }

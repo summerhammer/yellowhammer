@@ -14,6 +14,7 @@ import Journal
 /// moves — and the degradation is recorded as workspace-wide, because the budget is the identity's
 /// and shared by every Project on the board tonight.
 public struct DeltaRead: Sendable {
+    // swiftlint:disable:previous type_body_length
     public let journal: JournalStore
     public let board: any Board
     public let runID: RunID
@@ -118,6 +119,11 @@ public struct DeltaRead: Sendable {
             }
             let card = try journal.card(issueID: comment.issue.rawValue)
             report.humanComments.append(HumanComment(comment: comment, card: card))
+            if let card {
+                try append(.humanCardComment(
+                    cardID: card.id, commentID: comment.id.rawValue, commentedAt: comment.createdAt
+                ))
+            }
         }
 
         let pendingWrites = Set(try journal.pendingOutboxEntries().compactMap(\.issueID))

@@ -99,6 +99,8 @@ public struct EngineInvocation: Sendable {
     /// The Night Summary's Bounds (roadmap P11.6): plain Ints, read from `project.bounds` only by
     /// `EngineCommand` — the Engine never imports `Config`.
     public let nightCardBounds: NightCardMaintenance.Bounds
+    /// Pure readiness judgement used only for the first Act's opening measurement.
+    public let openingReadiness: ReadinessCheck?
     /// The Operator's board identity, machine-configured (roadmap P11.1): built once by `EngineCommand`
     /// and carried onto every `ActContext` this invocation hands its work.
     public let operatorIdentity: OperatorIdentity
@@ -119,6 +121,7 @@ public struct EngineInvocation: Sendable {
         mainlineRefresher: MainlineRefresher = MainlineRefresher(),
         workspace: (any Workspace)? = nil,
         nightCardBounds: NightCardMaintenance.Bounds = NightCardMaintenance.Bounds(),
+        openingReadiness: ReadinessCheck? = nil,
         operatorIdentity: OperatorIdentity = .none
     ) {
         self.act = act
@@ -131,6 +134,7 @@ public struct EngineInvocation: Sendable {
         self.leasePolicy = leasePolicy
         self.board = board
         self.nightCardBounds = nightCardBounds
+        self.openingReadiness = openingReadiness
         self.repositories = repositories
         self.mainlineRefresher = mainlineRefresher
         self.workspace = workspace
@@ -156,6 +160,7 @@ public struct EngineInvocation: Sendable {
         mainlineRefresher: MainlineRefresher = MainlineRefresher(),
         workspace: (any Workspace)? = nil,
         nightCardBounds: NightCardMaintenance.Bounds = NightCardMaintenance.Bounds(),
+        openingReadiness: ReadinessCheck? = nil,
         operatorIdentity: OperatorIdentity = .none,
         work: @escaping ActWork
     ) {
@@ -169,6 +174,7 @@ public struct EngineInvocation: Sendable {
         self.leasePolicy = leasePolicy
         self.board = board
         self.nightCardBounds = nightCardBounds
+        self.openingReadiness = openingReadiness
         self.repositories = repositories
         self.mainlineRefresher = mainlineRefresher
         self.workspace = workspace
@@ -211,13 +217,14 @@ public struct EngineInvocation: Sendable {
     private func runUnderLease() async throws {
         // The Night is recorded before anything else — before the trigger is even evaluated — so a
         // Night with nothing to do, or one whose first Act dies on the next line, still says it opened.
-        let night: NightRecord
+        let opening: NightOpening
         do {
-            night = try journal.openNight(nightStart: nightStart, mode: mode, act: act, runID: runID).night
+            opening = try journal.openNight(nightStart: nightStart, mode: mode, act: act, runID: runID)
         } catch {
             _ = try? journal.append(.actIncomplete(reason: String(describing: error)), act: act, runID: runID)
             throw error
         }
+        let night = opening.night
         _ = try? journal.append(.actStarted, act: act, runID: runID, nightID: night.id)
         do {
             // The Night Card is created before the trigger is even evaluated (DR7): an idle Night
@@ -238,6 +245,9 @@ public struct EngineInvocation: Sendable {
             }
 
             let resolvedMainlines = await refreshMainlines(night: night)
+            if opening.isFirstAct {
+                await recordOpeningReadiness(night: night, mainlines: resolvedMainlines)
+            }
 
             // Evaluate the trigger predicate under the lease.
             switch try ActTriggerPredicate.evaluate(act: act, trigger: trigger, journal: journal) {
@@ -263,6 +273,61 @@ public struct EngineInvocation: Sendable {
             )
             throw error
         }
+    }
+
+    /// Reads the Project board once before this Act's work, then applies the same readiness inputs
+    /// without claiming a Card lease or mutating the Journal. Any failed read is recorded as unknown.
+    private func recordOpeningReadiness(night: NightRecord, mainlines: ResolvedMainlines) async {
+        guard let board else {
+            try? journal.recordOpeningReadyState(nightID: night.id, state: .unknown)
+            return
+        }
+        var cursor: BoardCursor?
+        var requests = 0
+        do {
+            var objects: [BoardObject] = []
+            repeat {
+                guard requests < 40 else {
+                    try journal.recordOpeningReadyState(nightID: night.id, state: .unknown)
+                    return
+                }
+                let page = try await board.reading.objects(
+                    updatedSince: nil, after: cursor, pageSize: 200
+                )
+                requests += 1
+                objects += page.objects
+                cursor = page.nextCursor
+            } while cursor != nil
+            let state = try await openingReadyState(objects: objects, mainlines: mainlines)
+            try journal.recordOpeningReadyState(nightID: night.id, state: state)
+        } catch {
+            try? journal.recordOpeningReadyState(nightID: night.id, state: .unknown)
+        }
+    }
+
+    private func openingReadyState(
+        objects: [BoardObject], mainlines: ResolvedMainlines
+    ) async throws -> OpeningReadyState {
+        let cards = try journal.cards()
+        let knownIDs = Set(cards.map(\.issueID))
+        let unbackedCard = objects.contains(where: { object in
+            !knownIDs.contains(object.id.rawValue) &&
+                object.labels.contains(where: { $0.caseInsensitiveCompare("Card") == .orderedSame })
+        })
+        guard let openingReadiness else { return cards.isEmpty && !unbackedCard ? .zero : .unknown }
+        let byID = Dictionary(uniqueKeysWithValues: objects.map { ($0.id.rawValue, $0) })
+        var unknown = unbackedCard
+        for card in cards where card.state == .todo {
+            guard let object = byID[card.issueID] else { unknown = true; continue }
+            switch try await openingReadiness.inspectAtOpening(
+                card: card, object: object, journal: journal, repositories: repositories, mainlines: mainlines
+            ) {
+            case .ready: return .nonzero
+            case .unknown: unknown = true
+            case .notReady: break
+            }
+        }
+        return unknown ? .unknown : .zero
     }
     private func refreshMainlines(night: NightRecord) async -> ResolvedMainlines {
         guard let repositories else { return ResolvedMainlines() }
