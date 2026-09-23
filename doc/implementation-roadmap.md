@@ -1406,7 +1406,7 @@ comment on the Delta Read).
 - **Done when** — Rehearsal tests cover each lattice word, each template, and reposting when only
   lane completion, merged fraction, conflict, live set or Feature state changes.
 
-### [ ] P12.4 Headless notification posting mode in the app
+### [x] P12.4 Headless notification posting mode in the app
 - **Work**
   - `Yellowhammer.app` accepts a one-shot headless launch that posts one local notification (Project,
     event, reason) under its own bundle identity, then exits. No window and nothing resident.
