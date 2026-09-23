@@ -158,6 +158,24 @@ struct WaitingOnYouAnswerTests {
         #expect(try journal.unappliedCardReplies().isEmpty)
     }
 
+    /// Matcher path (b): Linear creates the question comment under the Outbox client id, lowercased, and
+    /// the Journal stores that id uppercased — a reply naming it is an answer without the Outbox result.
+    @Test("A threaded reply naming the question's client id, in any case, is an answer")
+    func threadedReplyToClientIDIsAnAnswer() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let world = try await makeReplyWorld(journal: journal, waitingReason: .question)
+        let clientID = try #require(try journal.latestCardQuestion(cardID: world.cardID)?.commentClientID)
+
+        let replyComment = comment("reply-1", on: "BACK-1", author: humanAuthor, parent: clientID.lowercased())
+        let reading = FakeReadingBoard([page(comments: [replyComment])])
+        guard case .read(let report) = try await world.deltaRead(night: world.night, reading: reading).perform() else {
+            Issue.record("expected a read")
+            return
+        }
+        #expect(report.waitingOnYouReplies.map(\.disposition) == [.answer])
+    }
+
     /// The Journal and board assertions common to an answer resuming the Card, split out to keep the
     /// test that calls it within the function-body length limit.
     private func assertCardResumedOnBoard(world: ReplyWorld, questionCommentBoardID: BoardObjectID) async throws {
