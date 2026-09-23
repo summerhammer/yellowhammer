@@ -67,11 +67,16 @@ extension LinearAdapter: BoardProvisioning {
     }
 
     public func createWorkflowState(
-        name: String, team: BoardObjectID
+        name: String, category: BoardWorkflowStateCategory, team: BoardObjectID
     ) async throws(BoardError) -> BoardWorkflowState {
         let payload: LinearWorkflowStateCreatePayload = try await perform(
             LinearGraphQL.workflowStateCreateQuery,
-            variables: ["teamId": team.rawValue, "name": name, "color": provisioningWorkflowStateColor]
+            variables: [
+                "teamId": team.rawValue,
+                "name": name,
+                "type": Self.vendorType(for: category),
+                "color": provisioningWorkflowStateColor
+            ]
         )
         guard let createData = payload.workflowStateCreate else {
             throw .refused("Linear workflow state creation returned no data")
@@ -93,6 +98,13 @@ extension LinearAdapter: BoardProvisioning {
         guard let type else { return nil }
         if type == "canceled" { return .cancelled }
         return BoardWorkflowStateCategory(rawValue: type)
+    }
+
+    /// Translates Yellowhammer's category into Linear's vendor `type` string, the inverse of
+    /// `category(of:)`. Linear spells its cancelled type `canceled`.
+    private static func vendorType(for category: BoardWorkflowStateCategory) -> String {
+        if category == .cancelled { return "canceled" }
+        return category.rawValue
     }
 
     public func labels(team: BoardObjectID) async throws(BoardError) -> [BoardLabel] {

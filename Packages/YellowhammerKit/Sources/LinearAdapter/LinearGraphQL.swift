@@ -142,8 +142,8 @@ enum LinearGraphQL {
         """
 
     static let workflowStateCreateQuery = """
-        mutation YellowhammerCreateWorkflowState($teamId: String!, $name: String!, $color: String!) {
-          workflowStateCreate(input: { teamId: $teamId, name: $name, type: "started", color: $color }) {
+        mutation YellowhammerCreateWorkflowState($teamId: String!, $name: String!, $type: String!, $color: String!) {
+          workflowStateCreate(input: { teamId: $teamId, name: $name, type: $type, color: $color }) {
             success
             workflowState { id name type }
           }

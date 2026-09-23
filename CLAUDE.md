@@ -189,9 +189,9 @@ there; the repo-local consequences are:
 
 ## Still open — raise them, do not invent them
 
-- **Probes owed before the code that depends on them:** Linear exposing a threaded
-  reply's parent comment to the Delta Read (G-8), and the settle workflow-state group's
-  names, collisions and interaction with the Feature Issue's other states (G-6).
+- **Probe owed before the code that depends on it:** Linear exposing a threaded
+  reply's parent comment to the Delta Read (G-8). The G-6 settle probe has run — read
+  `docs/tech/investigations/2026-09-23-g6-settle-state-probe.md` in the spec.
 - **Brand is entirely unfilled.** `../yellowhammer-spec/docs/brand/*.md` are
   unpopulated templates — the hex values are `#000000` placeholders and no fonts are
   chosen. The one real artifact is the semantic text-style table, which maps 1:1 onto

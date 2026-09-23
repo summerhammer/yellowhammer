@@ -162,7 +162,8 @@ These decisions were open in the spec or in `CLAUDE.md`. **All are closed** by t
 *Decision Gates Ruling — 2026-09-15* (`risks.md#decision-gates-ruling-2026-09-15`); the rule is
 cited by gate number there. This roadmap still does not restate the decisions — read them in the
 spec. Two carry a probe that must pass before the code that depends on them: **G-6** (settle
-workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Read).
+workflow-state group; probe run 2026-09-23, group provisioned) and **G-8** (threaded-reply parent
+comment on the Delta Read).
 
 | Gate | Decision (now closed) | Where recorded | Blocks |
 |---|---|---|---|
