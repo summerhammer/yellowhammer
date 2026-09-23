@@ -7,12 +7,16 @@ import Journal
 ///
 /// Both kinds use ONE create key, so a Feature that first halts and is later refused still has exactly
 /// one Feature Issue. A repeat stop of either kind is `alreadyApplied` through the Outbox: no second
-/// Feature Issue and no second workflow-state write, only one more comment (keyed per Night).
+/// Feature Issue and no second workflow-state write while already in Waiting on You, only one more
+/// comment (keyed per Night). When the Feature returned to contention, a newly opened stop transitions
+/// it back to Waiting on You under an idempotent re-entry key.
 enum AuthoringStopBoard {
     /// Posts the create and the comment, when this invocation has an Outbox and a Board. `recordIssue`
     /// is handed the Feature Issue's id before the comment is posted, so the Journal row carries it.
     static func post(
-        feature: FeatureName, body: String, context: ActContext, recordIssue: (String) throws -> Void
+        feature: FeatureName, body: String, context: ActContext,
+        reopenKey: String? = nil,
+        recordIssue: (String) throws -> Void
     ) async throws {
         guard let outbox = context.outbox, let board = context.board else { return }
         let scope = try await BoardStateScope.resolve(using: board.provisioning)
@@ -29,19 +33,36 @@ enum AuthoringStopBoard {
         let delivery = try await outbox.post(OutboxWrite(key: createKey, write: .createIssue(draft, parentKey: nil)))
 
         let createdID: BoardObjectID?
+        let newlyCreated: Bool
         switch delivery.outcome {
         case .applied(let id):
             createdID = id
+            newlyCreated = true
         case .alreadyApplied(let id):
             createdID = id
+            newlyCreated = false
         default:
-            createdID = nil
+            if let result = delivery.entry.result {
+                createdID = BoardObjectID(rawValue: result)
+            } else {
+                createdID = nil
+            }
+            newlyCreated = false
         }
         // A repeat stop's create is already accepted, so the Outbox delivers nothing new and reports no id:
         // the Feature Issue is then the one either kind's Journal row already holds.
         let known = try knownIssueID(feature, context.journal)
         guard let createdID = createdID ?? known else { return }
         try recordIssue(createdID.rawValue)
+
+        if let reopenKey, !newlyCreated {
+            var change = scope.labels.change(objectType: "Feature", state: .waitingOnYou, blockReason: nil)
+            change.workflowState = waitingOnYouID
+            _ = try await outbox.post(OutboxWrite(
+                key: reopenKey, write: .updateIssue(issue: createdID, change: change, undo: nil)
+            ))
+        }
+
         let commentKey = "feature:\(feature.rawValue):halt:\(context.night.nightStart.rawValue):comment"
         _ = try await outbox.post(OutboxWrite(key: commentKey, write: .createComment(issue: createdID, body: body)))
     }

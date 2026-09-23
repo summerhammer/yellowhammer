@@ -183,6 +183,47 @@ struct AuthoringHaltStoreTests {
         )
         #expect(again.newlyOpened)
     }
+
+    @Test("resolveAuthoringHalt resolves an open halt, appends the event and reports its previous state")
+    func resolvesOpenHalt() throws {
+        let fixture = try HaltJournalFixture()
+        let (journal, nights) = try openedHalt(fixture, later: ["2026-09-16"])
+
+        let outcome = try #require(
+            try journal.resolveAuthoringHalt(feature: try feature(), nightID: nights[1])
+        )
+
+        #expect(outcome.previousState == .open)
+        #expect(outcome.record.state == .cleared)
+        let event = try #require(try journal.events(ofType: .authoringHaltCleared).first)
+        #expect(event.event == .authoringHaltCleared(feature: "FEAT-1"))
+    }
+
+    @Test("resolveAuthoringHalt resolves an expired halt and reports its previous state")
+    func resolvesExpiredHalt() throws {
+        let fixture = try HaltJournalFixture()
+        let (journal, nights) = try openedHalt(fixture, later: ["2026-09-16", "2026-09-17"])
+        _ = try journal.advanceAuthoringHaltClocks(nightID: nights[1], unansweredNightsMax: 0)
+
+        let outcome = try #require(
+            try journal.resolveAuthoringHalt(feature: try feature(), nightID: nights[2])
+        )
+
+        #expect(outcome.previousState == .expired)
+        #expect(outcome.record.state == .cleared)
+    }
+
+    @Test("resolveAuthoringHalt is a no-op with nothing resolvable, including an already cleared halt")
+    func resolveHaltNoOpOtherwise() throws {
+        let fixture = try HaltJournalFixture()
+        let (journal, nights) = try openedHalt(fixture, later: ["2026-09-16"])
+
+        #expect(try journal.resolveAuthoringHalt(feature: try feature("FEAT-2")) == nil)
+
+        _ = try journal.resolveAuthoringHalt(feature: try feature(), nightID: nights[1])
+        #expect(try journal.resolveAuthoringHalt(feature: try feature(), nightID: nights[1]) == nil)
+        #expect(try journal.events(ofType: .authoringHaltCleared).count == 1)
+    }
 }
 
 @Suite("Refusal answer and close (P9.8)")

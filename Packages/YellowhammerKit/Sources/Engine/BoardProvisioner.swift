@@ -10,15 +10,24 @@ import Foundation
 /// Override. The settle workflow-state group (gate G-6, probe owed) is deliberately not provisioned.
 public struct BoardProvisioner {
     /// The exact name of the workflow state Yellowhammer depends on, glossary-verbatim.
-    static let waitingOnYouState = "Waiting on You"
+    public static let waitingOnYouState = "Waiting on You"
+
+    /// The workflow state for unstarted work.
+    public static let todoState = "Todo"
+
+    /// A Feature returning to contention is mapped to the Todo workflow state.
+    public static let contentionState = todoState
+
+    /// The workflow state for blocked work.
+    public static let blockedState = "Blocked"
 
     /// Object type label group and its children.
-    static let objectTypeGroup = "Object Type"
-    static let objectTypeChildren = ["Feature", "Card", "Night Card"]
+    public static let objectTypeGroup = "Object Type"
+    public static let objectTypeChildren = ["Feature", "Card", "Night Card"]
 
     /// Block Reason label group and its children.
-    static let blockReasonGroup = "Block Reason"
-    static let blockReasonChildren = BlockReason.allCases.map(\.rawValue)
+    public static let blockReasonGroup = "Block Reason"
+    public static let blockReasonChildren = BlockReason.allCases.map(\.rawValue)
 
     /// A label group to be provisioned.
     private struct LabelGroupDeclaration {

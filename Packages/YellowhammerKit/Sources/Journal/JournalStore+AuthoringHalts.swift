@@ -40,6 +40,18 @@ public struct AuthoringHaltOutcome: Equatable, Sendable {
     public let alreadyExpired: Bool
 }
 
+/// What `resolveAuthoringHalt` did: the Authoring Halt now `cleared`, and the state it was in.
+public struct AuthoringHaltResolutionOutcome: Equatable, Sendable {
+    public let record: AuthoringHaltRecord
+    /// `open` or `expired`.
+    public let previousState: AuthoringHaltState
+
+    public init(record: AuthoringHaltRecord, previousState: AuthoringHaltState) {
+        self.record = record
+        self.previousState = previousState
+    }
+}
+
 extension JournalStore {
     /// Records one Authoring Halt against `feature`:
     ///
@@ -172,13 +184,33 @@ extension JournalStore {
         }
     }
 
-    /// A clean authoring run for `feature` clears its `open` and `expired` halts, taking them off the
-    /// clock. Appends `authoringHaltCleared` only when it cleared something; returns whether it did.
+    /// Resolves `feature`'s latest live Authoring Halt, `open` or `expired`, transitioning it to `cleared`.
+    /// Appends `authoringHaltCleared`. Returns nil, changing nothing, when there is no live `open` or
+    /// `expired` halt — already `cleared` halts are not resolvable.
     @discardableResult
-    public func clearAuthoringHalts(
-        feature: FeatureName, nightID: Int64? = nil, act: Act? = nil, runID: RunID? = nil, now: Date = Date()
-    ) throws -> Bool {
+    public func resolveAuthoringHalt(
+        feature: FeatureName, nightID: Int64? = nil, act: Act? = nil, runID: RunID? = nil,
+        now: Date = Date()
+    ) throws -> AuthoringHaltResolutionOutcome? {
         try write { db in
+            guard
+                let row = try Row.fetchOne(
+                    db,
+                    sql: """
+                    SELECT * FROM authoring_halt
+                    WHERE feature_name = ? AND state IN ('open','expired')
+                    ORDER BY id DESC LIMIT 1
+                    """,
+                    arguments: [feature.rawValue]
+                )
+            else {
+                return nil
+            }
+            let id: Int64 = row["id"]
+            let previous: String = row["state"]
+            guard let previousState = AuthoringHaltState(rawValue: previous) else {
+                throw JournalError.authoringHaltUnreadable(id: id)
+            }
             try db.execute(
                 sql: """
                 UPDATE authoring_halt SET state = 'cleared'
@@ -186,11 +218,20 @@ extension JournalStore {
                 """,
                 arguments: [feature.rawValue]
             )
-            guard db.changesCount > 0 else { return false }
             let stamp = EventStamp(act: act, runID: runID, nightID: nightID, now: JournalStore.stored(now))
             _ = try Self.insertEvent(db, .authoringHaltCleared(feature: feature.rawValue), stamp: stamp)
-            return true
+            let record = try Self.authoringHaltRecord(from: try Self.fetchAuthoringHaltRow(db, id: id))
+            return AuthoringHaltResolutionOutcome(record: record, previousState: previousState)
         }
+    }
+
+    /// A clean authoring run for `feature` clears its `open` and `expired` halts, taking them off the
+    /// clock. Appends `authoringHaltCleared` only when it cleared something; returns whether it did.
+    @discardableResult
+    public func clearAuthoringHalts(
+        feature: FeatureName, nightID: Int64? = nil, act: Act? = nil, runID: RunID? = nil, now: Date = Date()
+    ) throws -> Bool {
+        try resolveAuthoringHalt(feature: feature, nightID: nightID, act: act, runID: runID, now: now) != nil
     }
 
     /// Every currently `open` halt, oldest first.

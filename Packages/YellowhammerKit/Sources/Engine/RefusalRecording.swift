@@ -20,7 +20,10 @@ enum RefusalRecording {
             act: context.act, runID: context.runID
         )
         if outcome.alreadyExpired { return .refused }
-        try await AuthoringStopBoard.post(feature: feature, body: body, context: context) {
+        let reopenKey = outcome.newlyOpened ? "feature:\(feature.rawValue):refusal:\(outcome.record.id):reenter" : nil
+        try await AuthoringStopBoard.post(
+            feature: feature, body: body, context: context, reopenKey: reopenKey
+        ) {
             try context.journal.recordRefusalIssue(feature: feature, issueID: $0)
         }
         return .refused

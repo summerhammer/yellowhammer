@@ -214,4 +214,144 @@ struct AuthoringStopTests {
         #expect(line.contains("depth"))
         #expect(try journal.events(ofType: .featureAuthoringHalted).isEmpty)
     }
+
+    @Test("A citation from Waiting on You answers the Refusal and moves the Feature Issue to Todo, once")
+    func citationFromWaitingOnYou() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBuildActBoards()
+        let (night1, run1) = try stopContext(journal, night: "2026-09-15", boards: boards)
+        _ = try await RefusalRecording.record(feature: try name("FEAT-R"), finding: finding, context: night1)
+        #expect(try journal.refusals(feature: try name("FEAT-R")).first?.state == .open)
+        let updatesBefore = await boards.writing.updateCalls
+
+        let (night2, _) = try stopContext(journal, night: "2026-09-16", boards: boards, previous: run1)
+        #expect(try await RefusalAnswer.apply(feature: try name("FEAT-R"), citation: "epic/story", context: night2))
+        #expect(try await !RefusalAnswer.apply(feature: try name("FEAT-R"), citation: "epic/story", context: night2))
+
+        let refusal = try #require(try journal.refusals(feature: try name("FEAT-R")).first)
+        #expect(refusal.state == .answered)
+        #expect(await boards.writing.updateCalls == updatesBefore + 1)
+        let scope = try await BoardStateScope.resolve(using: boards.provisioning)
+        let issue = try #require(await boards.writing.liveIssues.first { $0.id.rawValue == refusal.issueID })
+        #expect(issue.workflowState == (try scope.id(for: .todo)))
+        #expect(!issue.labels.contains(try #require(boards.ids["unanswered"])))
+    }
+
+    @Test("Resolving a halt from Waiting on You moves the Feature Issue to Todo, once")
+    func resolutionFromWaitingOnYou() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBuildActBoards()
+        let (night1, run1) = try stopContext(journal, night: "2026-09-15", boards: boards)
+        _ = try await AuthoringHalt.record(feature: try name("FEAT-H"), cause: seam, context: night1)
+        #expect(try journal.authoringHalts(feature: try name("FEAT-H")).first?.state == .open)
+        let updatesBefore = await boards.writing.updateCalls
+
+        let (night2, _) = try stopContext(journal, night: "2026-09-16", boards: boards, previous: run1)
+        #expect(try await AuthoringHaltResolution.apply(feature: try name("FEAT-H"), context: night2))
+        #expect(try await !AuthoringHaltResolution.apply(feature: try name("FEAT-H"), context: night2))
+
+        let halt = try #require(try journal.authoringHalts(feature: try name("FEAT-H")).first)
+        #expect(halt.state == .cleared)
+        #expect(await boards.writing.updateCalls == updatesBefore + 1)
+        let scope = try await BoardStateScope.resolve(using: boards.provisioning)
+        let issue = try #require(await boards.writing.liveIssues.first { $0.id.rawValue == halt.issueID })
+        #expect(issue.workflowState == (try scope.id(for: .todo)))
+        #expect(!issue.labels.contains(try #require(boards.ids["unanswered"])))
+    }
+
+    @Test("Resolving a halt after expiry moves the Feature Issue from Blocked to Todo, once")
+    func resolutionAfterExpiry() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBuildActBoards()
+        let (night1, run1) = try stopContext(journal, night: "2026-09-15", boards: boards)
+        _ = try await AuthoringHalt.record(feature: try name("FEAT-H"), cause: seam, context: night1)
+        let (night2, run2) = try stopContext(journal, night: "2026-09-16", boards: boards, previous: run1)
+        try await UnansweredPositionClock.run(context: night2, unansweredNightsMax: 0)
+        #expect(try journal.authoringHalts(feature: try name("FEAT-H")).first?.state == .expired)
+        let updatesBefore = await boards.writing.updateCalls
+
+        let (night3, _) = try stopContext(journal, night: "2026-09-17", boards: boards, previous: run2)
+        #expect(try await AuthoringHaltResolution.apply(feature: try name("FEAT-H"), context: night3))
+        #expect(try await !AuthoringHaltResolution.apply(feature: try name("FEAT-H"), context: night3))
+
+        let halt = try #require(try journal.authoringHalts(feature: try name("FEAT-H")).first)
+        #expect(halt.state == .cleared)
+        #expect(await boards.writing.updateCalls == updatesBefore + 1)
+        let scope = try await BoardStateScope.resolve(using: boards.provisioning)
+        let issue = try #require(await boards.writing.liveIssues.first { $0.id.rawValue == halt.issueID })
+        #expect(issue.workflowState == (try scope.id(for: .todo)))
+        #expect(!issue.labels.contains(try #require(boards.ids["unanswered"])))
+    }
+
+    @Test("A Feature that returns to contention and halts again moves back to Waiting on You")
+    func reHaltAfterContentionMovesBackToWaitingOnYou() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBuildActBoards()
+        let (night1, run1) = try stopContext(journal, night: "2026-09-15", boards: boards)
+        _ = try await AuthoringHalt.record(feature: try name("FEAT-H"), cause: seam, context: night1)
+
+        let scope = try await BoardStateScope.resolve(using: boards.provisioning)
+        let waitingOnYou = try scope.id(for: .waitingOnYou)
+        let todo = try scope.id(for: .todo)
+
+        let issueAfterNight1 = try #require(await boards.writing.liveIssues.first)
+        #expect(issueAfterNight1.workflowState == waitingOnYou)
+        #expect(await boards.writing.comments.count == 1)
+
+        // Night 2: Halt is resolved -> moves to Todo (contention)
+        let (night2, run2) = try stopContext(journal, night: "2026-09-16", boards: boards, previous: run1)
+        #expect(try await AuthoringHaltResolution.apply(feature: try name("FEAT-H"), context: night2))
+        let issueAfterNight2 = try #require(await boards.writing.liveIssues.first)
+        #expect(issueAfterNight2.workflowState == todo)
+
+        // Night 3: Halts again -> moves back to Waiting on You
+        let (night3, run3) = try stopContext(journal, night: "2026-09-17", boards: boards, previous: run2)
+        _ = try await AuthoringHalt.record(feature: try name("FEAT-H"), cause: seam, context: night3)
+        let issueAfterNight3 = try #require(await boards.writing.liveIssues.first)
+        #expect(issueAfterNight3.workflowState == waitingOnYou)
+        #expect(await boards.writing.liveIssues.count == 1)
+        #expect(await boards.writing.comments.count == 2)
+
+        // Night 4: Repeat halt while still open -> no second update, only comment
+        let updatesBeforeNight4 = await boards.writing.updateCalls
+        let (night4, _) = try stopContext(journal, night: "2026-09-18", boards: boards, previous: run3)
+        _ = try await AuthoringHalt.record(feature: try name("FEAT-H"), cause: seam, context: night4)
+        #expect(await boards.writing.updateCalls == updatesBeforeNight4)
+        #expect(await boards.writing.comments.count == 3)
+    }
+
+    @Test("A Feature that returns to contention and is refused again moves back to Waiting on You")
+    func reRefusalAfterContentionMovesBackToWaitingOnYou() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBuildActBoards()
+        let (night1, run1) = try stopContext(journal, night: "2026-09-15", boards: boards)
+        _ = try await RefusalRecording.record(feature: try name("FEAT-R"), finding: finding, context: night1)
+
+        let scope = try await BoardStateScope.resolve(using: boards.provisioning)
+        let waitingOnYou = try scope.id(for: .waitingOnYou)
+        let todo = try scope.id(for: .todo)
+
+        let issueAfterNight1 = try #require(await boards.writing.liveIssues.first)
+        #expect(issueAfterNight1.workflowState == waitingOnYou)
+        #expect(await boards.writing.comments.count == 1)
+
+        // Night 2: Refusal is answered -> moves to Todo (contention)
+        let (night2, run2) = try stopContext(journal, night: "2026-09-16", boards: boards, previous: run1)
+        #expect(try await RefusalAnswer.apply(feature: try name("FEAT-R"), citation: "epic/story", context: night2))
+        let issueAfterNight2 = try #require(await boards.writing.liveIssues.first)
+        #expect(issueAfterNight2.workflowState == todo)
+
+        // Night 3: Refused again -> moves back to Waiting on You
+        let (night3, _) = try stopContext(journal, night: "2026-09-17", boards: boards, previous: run2)
+        _ = try await RefusalRecording.record(feature: try name("FEAT-R"), finding: finding, context: night3)
+        let issueAfterNight3 = try #require(await boards.writing.liveIssues.first)
+        #expect(issueAfterNight3.workflowState == waitingOnYou)
+        #expect(await boards.writing.liveIssues.count == 1)
+        #expect(await boards.writing.comments.count == 2)
+    }
 }

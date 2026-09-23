@@ -34,6 +34,22 @@ public struct BoardStateScope: Equatable, Sendable {
         get throws { try id(for: state) }
     }
 
+    /// The CardState corresponding to a Feature returning to contention.
+    public static let contentionCardState: CardState = .todo
+
+    /// Resolves the workflow state id for a Feature returning to contention.
+    public func contentionWorkflowStateID() throws -> BoardObjectID {
+        try id(for: Self.contentionCardState)
+    }
+
+    /// The issue change that returns a Feature to contention: transitions to `.todo` (contention)
+    /// and clears any Block Reason label.
+    public func featureContentionChange() throws -> BoardIssueChange {
+        var change = labels.change(objectType: "Feature", state: Self.contentionCardState, blockReason: nil)
+        change.workflowState = try contentionWorkflowStateID()
+        return change
+    }
+
     /// The states resolved by name first, falling back to a category match; Blocked and Waiting on You
     /// are provisioned by name only, so they never fall back.
     private static let writableStates: [CardState] = [.todo, .inProgress, .done, .blocked, .waitingOnYou]
