@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-@main
+/// The window app. `AppLaunch` starts it for every launch that is not a headless post.
 struct YellowhammerApp: App {
     var body: some Scene {
         WindowGroup {
