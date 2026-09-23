@@ -285,6 +285,14 @@ public struct EngineInvocation: Sendable {
         if let card, let closed = try journal.night(id: night.id) {
             _ = try await card.acceptCompletion(night: closed)
             _ = try await card.deliverCompletion(night: closed)
+            // The un-adopted-Cards figure changes every Night regardless of whether the Card was
+            // touched, so its Managed Block header is refreshed here too — never lets a refresh
+            // failure fail the Night's own completion, which has already happened above.
+            if let outbox {
+                try? await UnadoptedCardRefresh.refresh(
+                    night: closed, journal: journal, outbox: outbox, runID: runID
+                )
+            }
         }
         if let board, let outbox, let (feature, cycleID) = try journal.inFlightFeature() {
             _ = try await FeatureSettleGesture.resetSettleState(

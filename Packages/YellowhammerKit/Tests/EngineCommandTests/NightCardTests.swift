@@ -236,7 +236,7 @@ struct NightCardTests {
         #expect(issue.workflowState == scope.completedState)
         let description = try #require(issue.description)
         #expect(description.contains("**Completed:**"))
-        #expect(description.contains("not yet computed"))
+        #expect(description.contains("**Verdict:** no decisions waiting · did not advance · closed"))
 
         let events = try journal.events().map(\.type)
         let nightClosedIndex = try #require(events.firstIndex(of: .nightClosed))
@@ -267,7 +267,7 @@ struct NightCardTests {
 
         let issue = try #require(await writing.liveIssues.first)
         let description = try #require(issue.description)
-        #expect(description.contains("**Verdict:** idle"))
+        #expect(description.contains("**Verdict:** no decisions waiting · did not advance — idle · closed"))
         let events = try journal.events()
         #expect(events.map(\.type).contains(.authoringNoWorkAvailable))
     }

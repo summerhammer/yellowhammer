@@ -103,14 +103,25 @@ public struct NightCardMaintenance: Sendable {
         }
         let scope = try await NightCardScope.resolve(using: provisioning)
         let issue = BoardObjectID(rawValue: issueID)
+        let verdict = try NightSummary.verdictLine(night: night, journal: journal)
         let findings = try authoringLines(night: night)
-        let anomalies = try anomalyLines(night: night)
-        let conflicts = try mainlineConflictLines(night: night)
+        let cardLines = try NightSummary.cardLines(night: night, journal: journal)
+        let dispositionLines = try NightSummary.dispositionLines(night: night, journal: journal)
+        let pullRequestLines = try NightSummary.pullRequestLines(night: night, journal: journal)
+        let answerLines = try NightSummary.answerLines(night: night, journal: journal)
+        let anomalies = try NightSummary.anomalyLines(night: night, journal: journal)
+        let crashesAndReclaims = try NightSummary.crashesAndReclaimsLines(night: night, journal: journal)
+        let exceptions = try NightSummary.exceptionLines(night: night, journal: journal)
         let boundsLines = try self.boundsLines(night: night)
         let standingItems = try standingItemLines()
+        let unadoptedCards = try NightSummary.unadoptedCardLines(night: night, journal: journal)
+        let inFlightFeature = try NightSummary.inFlightFeatureLines(night: night, journal: journal)
         let rendered = NightCardBlock.completed(
-            night: night, projectID: journal.projectID, authoringFindings: findings, anomalies: anomalies,
-            mainlineConflicts: conflicts, bounds: boundsLines, standingItems: standingItems
+            night: night, projectID: journal.projectID, verdictLine: verdict, authoringFindings: findings,
+            cardLines: cardLines, dispositionLines: dispositionLines, pullRequestLines: pullRequestLines,
+            answerLines: answerLines, anomalies: anomalies, crashesAndReclaims: crashesAndReclaims,
+            exceptions: exceptions, bounds: boundsLines, standingItems: standingItems,
+            unadoptedCards: unadoptedCards, inFlightFeature: inFlightFeature
         )
         let hash = ManagedBlockFence.sha256(rendered)
         let summary = OutboxWrite(
@@ -139,38 +150,11 @@ public struct NightCardMaintenance: Sendable {
         return report
     }
 
-    /// The Waiting on You anomalies (`WaitingOnYouUnbacked`) this Night's Delta Reads found, one line
-    /// each, deduplicated by issue id in the order they were first recorded.
-    private func anomalyLines(night: NightRecord) throws -> [String] {
-        var seen: Set<String> = []
-        var lines: [String] = []
-        for record in try journal.events(ofType: .waitingOnYouUnbacked) where record.nightID == night.id {
-            guard case .waitingOnYouUnbacked(let issueID, _, _) = record.event else { continue }
-            guard seen.insert(issueID).inserted else { continue }
-            lines.append(
-                "`\(issueID)` was read in Waiting on You with no Journal record behind it; it was not dispatched."
-            )
-        }
-        return lines
-    }
-
-    /// The standing Mainline Conflict line is recomputed from this Night's immutable Journal events.
-    private func mainlineConflictLines(night: NightRecord) throws -> [String] {
-        var seen: Set<String> = []
-        var lines: [String] = []
-        for record in try journal.events(ofType: .mainlineConflictDetected)
-            where record.nightID == night.id {
-            guard case .mainlineConflictDetected(let feature, let repository, let paths) = record.event else {
-                continue
-            }
-            let pathText = paths.isEmpty ? "paths unavailable" : paths.joined(separator: ", ")
-            let line = "Feature `\(feature)` — `\(repository)`: \(pathText) " +
-                "(detected as of Night \(night.nightStart); reported only, never gates landing)."
-            guard seen.insert(line).inserted else { continue }
-            lines.append(line)
-        }
-        return lines
-    }
+    // `anomalyLines(night:journal:)`, `crashesAndReclaimsLines(night:journal:)`,
+    // `exceptionLines(night:journal:)`, `unadoptedCardLines(night:journal:)` and
+    // `inFlightFeatureLines(night:journal:)` — which folds the old, per-Night `**Mainline Conflicts:**`
+    // section into the standing unmerged-in-flight-Feature line — live on `NightSummary`
+    // (NightSummary+Exceptions.swift, NightSummary+StandingLines.swift).
 
     // `boundsLines(night:)` and `standingItemLines()` live in NightCardMaintenance+Bounds.swift.
     // `recordAuthoring(night:)`, `authoringLines(night:)`, `authoringLine(for:)` and

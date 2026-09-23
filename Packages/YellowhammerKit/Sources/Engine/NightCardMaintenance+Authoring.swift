@@ -78,6 +78,11 @@ extension NightCardMaintenance {
                 Authoring was skipped: predecessor Feature `\(featureIssueID)`'s Feature Branch could not be \
                 found in \(named). A quiet Night, not a failure.
                 """
+        case .predecessorWalkSkippedReleasedFeature(let featureIssueID):
+            return """
+                Feature `\(featureIssueID)` was released: tonight's work is not built on it. The \
+                predecessor-ancestry gate walked past it to the Feature before it.
+                """
         case .authoringNoWorkAvailable:
             return """
                 Nothing was selectable to author (`AuthoringNoWorkAvailable`). A quiet Night, not a failure.

@@ -83,12 +83,27 @@ extension LandActPushTests {
         )
         _ = try await maintenance.open(night: context.night)
         let night = try #require(try env.journal.night(id: context.night.id))
+
+        // The `**Standing: unmerged in-flight Feature:**` line, which folds the old, per-Night
+        // `**Mainline Conflicts:**` section, only renders once the Cycle has landed but not yet
+        // merged (roadmap P12.1): a Cycle a Repo Lane merely pushed, as this test does, is not yet a
+        // landing on its own.
+        let cycleID = try #require(try env.journal.card(issueID: "BACK-1")).cycleID
+        try env.journal.markCycleLanded(cycleID: cycleID, runID: env.runID)
+        try env.journal.append(
+            .predecessorAncestryObserved(
+                featureIssueID: "FEAT-1", mergedRepositories: [], unmergedRepositories: ["backend"]
+            ),
+            act: .land, runID: env.runID, nightID: night.id
+        )
+
         _ = try await maintenance.acceptCompletion(night: night)
         _ = try await maintenance.deliverCompletion(night: night)
         let nightIssue = try #require(night.nightCardIssueID)
         let summary = await env.board.issue(BoardObjectID(rawValue: nightIssue))?.description
+        #expect(summary?.contains("**Standing: unmerged in-flight Feature:**") == true)
+        #expect(summary?.contains("`FEAT-1`") == true)
         #expect(summary?.contains("shared.txt") == true)
-        #expect(summary?.contains("as of Night \(landNightStart)") == true)
     }
 
     @Test("Merge results distinguish missing snapshots, local fallbacks and missing branches from clean",
