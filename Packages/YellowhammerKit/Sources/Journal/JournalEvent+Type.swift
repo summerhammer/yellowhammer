@@ -125,6 +125,8 @@ extension JournalEvent {
             .protectedPathRefused
         case .cardQuestionAsked:
             .cardQuestionAsked
+        case .waitingOnYouReplyRecorded:
+            .waitingOnYouReplyRecorded
         case .cardRunStep:
             .cardRunStep
         case .checkRan:

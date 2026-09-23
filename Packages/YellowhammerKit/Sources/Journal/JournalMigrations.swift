@@ -99,6 +99,9 @@ enum JournalMigrations {
         migrator.registerMigration("v23-card-question") { db in
             try createCardQuestionTable(db)
         }
+        migrator.registerMigration("v24-card-reply") { db in
+            try createCardReplyTable(db)
+        }
         return migrator
     }
 }

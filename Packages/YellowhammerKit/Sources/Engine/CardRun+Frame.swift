@@ -26,6 +26,12 @@ struct CardRunFrame: Sendable {
     /// The prior Attempt's preserved work, handed to a retry as context only, never as a starting
     /// tree (OQ60): set by the reset sequence, merged into every pass instruction of the new Attempt.
     var wipContext: WIPContext?
+    /// The Card's latest recorded question, with every Operator reply this Journal has recorded as an
+    /// answer to it (roadmap P11.2): set once in ``prepare(card:in:context:readiness:)`` from the
+    /// Journal alone, and merged into every pass instruction of every Attempt of this run, like
+    /// `wipContext`. Nil when the latest question has no recorded answer yet — a newer question with no
+    /// answers carries nothing, even if an older one did.
+    var answeredQuestion: AnsweredQuestion?
 
     var journal: JournalStore { context.act.journal }
 
@@ -122,13 +128,28 @@ extension CardRun {
         // The Journal stores no Card title. The Delta Read's board object carries one only when the Card
         // changed since the last read, so an unchanged Card is titled by its issue id: a known gap.
         let object = context.deltaRead?.cardChanges.first { $0.card.id == card.id }?.object
-        return CardRunFrame(
+        var frame = CardRunFrame(
             card: card, context: context, readiness: readiness, lane: lane,
             repository: context.act.repositories?.workingRepo(named: card.repository), check: check,
             worktree: worktree, branch: branch, projection: projection,
             instructionCard: InstructionCard(
                 key: card.issueID, title: object?.title ?? card.issueID, description: object?.description
             )
+        )
+        frame.answeredQuestion = try Self.answeredQuestion(cardID: card.id, journal: journal)
+        return frame
+    }
+
+    /// The Card's latest question, with every recorded answer to it (roadmap P11.2): nil when the
+    /// latest question has none recorded yet, so a resumed run never carries a question the Operator
+    /// has not actually answered.
+    private static func answeredQuestion(cardID: Int64, journal: JournalStore) throws -> AnsweredQuestion? {
+        guard let question = try journal.latestCardQuestion(cardID: cardID) else { return nil }
+        let answers = try journal.cardReplies(questionID: question.id, disposition: .answer)
+        guard !answers.isEmpty, let night = try journal.night(id: question.nightID) else { return nil }
+        return AnsweredQuestion(
+            question: question.question, askedOn: night.nightStart,
+            replies: answers.map { OperatorReply(body: $0.body, repliedAt: $0.commentedAt, commentID: $0.commentID) }
         )
     }
 }

@@ -138,7 +138,8 @@ extension ActCommand {
                     runsDirectory: CLIAdapterDispatch.runsDirectory(
                         configurationDirectory: configurationDirectory, projectID: project.id
                     )
-                )
+                ),
+                unansweredNightsMax: project.bounds.unansweredNightsMax
             ).work
         }
     }

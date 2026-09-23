@@ -73,6 +73,16 @@ extension JournalStore {
         }
     }
 
+    /// The question recorded with this id, nil when it does not exist — a reply's `question_id` reads
+    /// back through here (roadmap P11.2) rather than trusting a card's *latest* question, since the
+    /// reply may have answered an earlier one.
+    public func cardQuestion(id: Int64) throws -> CardQuestionRecord? {
+        try read { db in
+            try Row.fetchOne(db, sql: "SELECT * FROM card_question WHERE id = ?", arguments: [id])
+                .map(Self.cardQuestionRecord)
+        }
+    }
+
     private static func cardQuestionRecord(_ row: Row) throws -> CardQuestionRecord {
         let askedAtText: String = row["asked_at"]
         let cardID: Int64 = row["card_id"]
