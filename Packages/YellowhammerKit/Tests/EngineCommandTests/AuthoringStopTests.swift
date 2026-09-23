@@ -10,8 +10,7 @@ import Testing
 // each kind uses. Never asserts model-authored content, only the wiring.
 
 private func stopContext(
-    _ journal: JournalStore, night: String, boards: NightCardTestBoards, previous: RunID? = nil,
-    boardOperator: BoardObjectID? = nil
+    _ journal: JournalStore, night: String, boards: NightCardTestBoards, previous: RunID? = nil
 ) throws -> (context: ActContext, runID: RunID) {
     if let previous {
         try journal.releaseActLease(runID: previous)
@@ -27,8 +26,7 @@ private func stopContext(
     let actBoard = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
     let context = ActContext(
         act: .author, mode: .rehearsal, trigger: .forced, runID: runID, journal: journal,
-        night: opening.night, outbox: outbox, board: actBoard, boardOperator: boardOperator,
-        mainlines: selectionMainlines(),
+        night: opening.night, outbox: outbox, board: actBoard, mainlines: selectionMainlines(),
         workspace: nil, repositories: selectionRepositories()
     )
     return (context, runID)
@@ -52,10 +50,11 @@ struct AuthoringStopTests {
         let journal = try fixture.open()
         let boards = try await makeBuildActBoards()
         let assigned = BoardObjectID(rawValue: "linear-user-1")
-        let (night1, run1) = try stopContext(
-            journal, night: "2026-09-15", boards: boards, boardOperator: assigned
+        let (night1, run1) = try stopContext(journal, night: "2026-09-15", boards: boards)
+        _ = try await AuthoringHalt.record(
+            feature: try name("FEAT-H"), cause: seam, context: night1,
+            operatorIdentity: OperatorIdentity(configured: assigned)
         )
-        _ = try await AuthoringHalt.record(feature: try name("FEAT-H"), cause: seam, context: night1)
         let (night2, _) = try stopContext(journal, night: "2026-09-16", boards: boards, previous: run1)
         _ = try await RefusalRecording.record(feature: try name("FEAT-R"), finding: finding, context: night2)
         let issues = await boards.writing.liveIssues

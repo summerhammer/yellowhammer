@@ -6,9 +6,9 @@ extension CardRun {
     /// Tells the Journal how the run ended, revalidating the Lease before each write, and decides whether
     /// this Card run is over or a fresh Attempt should be dispatched (roadmap P8.7). Only a reviewer
     /// approval after a passing (or declared-none) Check ends the Attempt in success and moves the Card to
-    /// Done; a question ends the run without consuming the Attempt budget; every other ending — hard
-    /// failure, Crashed-Unknown, `rounds-exhausted` — retries while the Attempt budget has room, and Blocks
-    /// the Card once it is spent.
+    /// Done; a question ends the run without consuming the Attempt budget or retrying, moving the Card to
+    /// Waiting on You instead (roadmap P11.1); every other ending — hard failure, Crashed-Unknown,
+    /// `rounds-exhausted` — retries while the Attempt budget has room, and Blocks the Card once it is spent.
     func conclude(_ end: CardRunEnd, frame: CardRunFrame) async throws -> CardRunAction {
         switch end {
         case .approved(let commit):
@@ -21,12 +21,12 @@ extension CardRun {
             try await frame.transition(.done)
             return .stop
 
+        case .asked(let question):
+            return try await concludeAsked(question, frame: frame)
+
         case .ending(let ending):
             try endAttempt(ending, frame: frame)
             guard ending.consumesAttempt else {
-                // A question would move the Card to Waiting on You, which needs the Operator's board
-                // identity: it is wired nowhere yet (P11), so the Card returns to Ready like every other
-                // unconsuming ending. Asking never retries: it consumes no Attempt to retry with.
                 try await frame.transition(.ready)
                 return .stop
             }
@@ -49,6 +49,52 @@ extension CardRun {
             let cause = FailureCause(ending: ending, lens: lens)
             return try await retryOrBlock(attempt: attempt, cause: cause, frame: frame)
         }
+    }
+
+    /// A worker's question ends the Attempt `question` — consuming no Round and no Attempt, and never
+    /// retrying, since there is no Attempt budget spent to retry with — records the question in the
+    /// Journal, moves the Card to Waiting on You (assigned to the Operator identity when it is
+    /// configured and still an active workspace member), and posts the question as a comment through the
+    /// Outbox. The Worktree is left exactly as the Attempt left it (roadmap P11.1; spec: bounds/
+    /// escalate-a-question-to-the-operator).
+    private func concludeAsked(_ question: String, frame: CardRunFrame) async throws -> CardRunAction {
+        try endAttempt(.question, frame: frame)
+        try frame.revalidateLease()
+        guard let attempt = frame.attempt else { return .stop }
+
+        let outbox = frame.context.act.outbox
+        let key = "question:\(frame.card.issueID):\(attempt.id)"
+        let commentClientID = outbox.map { $0.clientID(for: key).uuidString }
+
+        try frame.journal.recordCardQuestion(
+            cardID: frame.card.id, attemptID: attempt.id, question: question, commentClientID: commentClientID,
+            nightID: frame.context.act.night.id, act: frame.context.act.act, runID: frame.context.act.runID
+        )
+
+        let assignee = await operatorIdentity.assignee(on: frame.context.act.board?.reading)
+        try await frame.transition(.waitingOnYou(.question, operator: assignee))
+
+        if let outbox {
+            try frame.revalidateLease()
+            let body = Self.questionCommentBody(question)
+            let write = OutboxWrite(
+                key: key, write: .createComment(issue: BoardObjectID(rawValue: frame.card.issueID), body: body),
+                cardID: frame.card.id
+            )
+            _ = try await outbox.post(write)
+        }
+        return .stop
+    }
+
+    /// First line states the consequence, then the question as a Markdown blockquote — nothing here
+    /// judges the question's content, only carries it (P11.1).
+    private static func questionCommentBody(_ question: String) -> String {
+        """
+        Waiting on You: the worker stopped to ask rather than guess. Reply in this thread to answer; \
+        this consumed no Round and no Attempt.
+
+        > \(question)
+        """
     }
 
     /// Shared by every consuming ending: retries with a fresh Attempt while the Attempt budget has room,

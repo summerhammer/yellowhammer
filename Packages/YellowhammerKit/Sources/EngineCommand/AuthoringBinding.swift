@@ -24,13 +24,16 @@ enum AuthoringBinding {
                 configurationDirectory: configurationDirectory
             )
         )
+        let operatorIdentity = OperatorIdentity(configured: configuration.machine.operatorIdentity)
         return FeatureSelection(
             selector: RoutedFeatureSelector(route: route),
             transaction: AuthoringTransaction(
                 drafting: RoutedFeatureBreakdown(route: route),
                 citations: MainlineReader(),
-                transcribing: MainlineReader()
-            )
+                transcribing: MainlineReader(),
+                operatorIdentity: operatorIdentity
+            ),
+            operatorIdentity: operatorIdentity
         )
     }
 }

@@ -4,12 +4,6 @@ import Domain
 ///
 /// Within each table, unknown keys are reported first, in file order, then the known keys in a fixed order.
 struct MachineConfigurationDecoder {
-    private struct LinearSettings {
-        let clientID: String
-        let credential: CredentialReference
-        let operatorID: BoardObjectID?
-    }
-
     private let decoding: ConfigurationDecoding
 
     init(file: String) {
@@ -28,20 +22,30 @@ struct MachineConfigurationDecoder {
         return MachineConfiguration(
             linearClientID: linear.clientID,
             linearCredential: linear.credential,
-            linearOperator: linear.operatorID,
             gitHubCredential: gitHubCredential,
             cliAdapters: cliAdapters,
-            routingTable: try routingDecoding.routingTable(in: root)
+            routingTable: try routingDecoding.routingTable(in: root),
+            operatorIdentity: linear.operatorIdentity
         )
     }
 
     // MARK: - Sections
 
-    /// `[linear]`: the credential, then the registered application's non-empty `client_id`.
+    /// `[linear]`'s decoded fields: the credential, the registered application's non-empty `client_id`,
+    /// and the optional Operator identity (`operator`).
+    private struct LinearSection {
+        let clientID: String
+        let credential: CredentialReference
+        let operatorIdentity: BoardObjectID?
+    }
+
+    /// `[linear]`: the credential, the registered application's non-empty `client_id`, and the optional
+    /// Operator identity (`operator`). An absent or empty `operator` decodes to nil — never a load-time
+    /// validation failure (Operator Identity Ruling — 2026-09-23).
     ///
     /// Decoded here rather than through ``ConfigurationDecoding/credential(in:table:)``, which must keep
     /// refusing every key but `credential` in `[github]`.
-    private func linear(in root: TOMLTable) throws(ConfigurationError) -> LinearSettings {
+    private func linear(in root: TOMLTable) throws(ConfigurationError) -> LinearSection {
         guard let value = root["linear"] else {
             throw decoding.error(line: 1, key: "linear", .missingTable)
         }
@@ -53,10 +57,9 @@ struct MachineConfigurationDecoder {
             throw decoding.error(line: line, key: "linear.credential", .emptyString)
         }
         let clientID = try decoding.requiredString("client_id", in: table, path: "linear")
-        let operatorID = try decoding.optionalString("operator", in: table, path: "linear")
-        return LinearSettings(
-            clientID: clientID, credential: credential, operatorID: operatorID.map(BoardObjectID.init(rawValue:))
-        )
+        let operatorString = try decoding.optionalString("operator", in: table, path: "linear", allowEmpty: true)
+        let operatorIdentity = operatorString.flatMap { $0.isEmpty ? nil : BoardObjectID(rawValue: $0) }
+        return LinearSection(clientID: clientID, credential: credential, operatorIdentity: operatorIdentity)
     }
 
     private func cliAdapters(in root: TOMLTable) throws(ConfigurationError) -> [CLIAdapterDeclaration] {

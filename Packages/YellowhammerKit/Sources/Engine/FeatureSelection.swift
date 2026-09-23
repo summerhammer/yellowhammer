@@ -66,10 +66,15 @@ public struct FeatureSelection: FeatureAuthoring {
     /// P9.4–P9.7's transaction; nil throws `notImplemented` once a selection is recorded, the same
     /// stance as `AuthorAct`'s nil `authoring`.
     public let transaction: (any SelectedFeatureAuthoring)?
+    public let operatorIdentity: OperatorIdentity
 
-    public init(selector: any FeatureSelecting, transaction: (any SelectedFeatureAuthoring)? = nil) {
+    public init(
+        selector: any FeatureSelecting, transaction: (any SelectedFeatureAuthoring)? = nil,
+        operatorIdentity: OperatorIdentity = .none
+    ) {
         self.selector = selector
         self.transaction = transaction
+        self.operatorIdentity = operatorIdentity
     }
 
     public func selectAndAuthor(_ context: ActContext) async throws -> FeatureAuthoringOutcome {
@@ -194,6 +199,8 @@ public struct FeatureSelection: FeatureAuthoring {
     private func recordHalt(
         feature: FeatureName, cause: AuthoringHaltCause, context: ActContext
     ) async throws -> FeatureAuthoringOutcome {
-        try await AuthoringHalt.record(feature: feature, cause: cause, context: context)
+        try await AuthoringHalt.record(
+            feature: feature, cause: cause, context: context, operatorIdentity: operatorIdentity
+        )
     }
 }

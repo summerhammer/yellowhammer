@@ -30,6 +30,11 @@ public protocol Board: Sendable {
     /// compiling without implementing this itself.
     func issue(_ id: BoardObjectID) async throws(BoardError) -> BoardObject?
 
+    /// True when `user` is an active (not deactivated) member of the workspace, false when deactivated
+    /// or not found. No default implementation: every conformer decides for itself, since "not found"
+    /// and "deactivated" read differently through each vendor's API (OQ66).
+    func isActiveMember(_ user: BoardObjectID) async throws(BoardError) -> Bool
+
     /// The budget the board reported on its most recent response, nil before any response.
     var latestBudget: BoardBudget? { get async }
 }

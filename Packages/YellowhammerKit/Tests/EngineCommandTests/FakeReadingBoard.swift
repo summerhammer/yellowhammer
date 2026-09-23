@@ -51,6 +51,23 @@ actor FakeReadingBoard: Board {
     func identity() async throws(BoardError) -> BoardIdentity {
         Self.identity
     }
+
+    /// Scripted ``isActiveMember(_:)`` outcome (roadmap P11.1, OQ66): active unless a test configures
+    /// otherwise.
+    var activeMemberResult: Result<Bool, BoardError> = .success(true)
+    private(set) var activeMemberCalls: [BoardObjectID] = []
+
+    func script(activeMember result: Result<Bool, BoardError>) {
+        activeMemberResult = result
+    }
+
+    func isActiveMember(_ user: BoardObjectID) async throws(BoardError) -> Bool {
+        activeMemberCalls.append(user)
+        switch activeMemberResult {
+        case .success(let value): return value
+        case .failure(let error): throw error
+        }
+    }
 }
 
 /// A reply carrying these objects and comments, with no further page unless a cursor is given.

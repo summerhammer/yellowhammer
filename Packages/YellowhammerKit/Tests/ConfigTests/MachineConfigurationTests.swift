@@ -44,7 +44,6 @@ func fullFileLoads() throws {
     let expected = MachineConfiguration(
         linearClientID: "yellowhammer-client-id",
         linearCredential: try credential("keychain:linear"),
-        linearOperator: BoardObjectID(rawValue: "linear-user-1"),
         gitHubCredential: try credential("keychain:github"),
         cliAdapters: [
             CLIAdapterDeclaration(name: "claude", executable: "/opt/homebrew/bin/claude"),
@@ -75,7 +74,8 @@ func fullFileLoads() throws {
                 repoRole: .role(RepoRole(rawValue: "data-pipeline")),
                 route: try route("claude", "sonnet", "xhigh")
             )
-        ]
+        ],
+        operatorIdentity: BoardObjectID(rawValue: "linear-user-1")
     )
     #expect(configuration == expected)
 }
@@ -91,36 +91,28 @@ func alternativeTableSpellings() throws {
     """
     let configuration = try MachineConfiguration.parse(text, file: "config.toml")
     #expect(configuration.linearClientID == "yellowhammer-client-id")
-    #expect(configuration.linearOperator == nil)
+    #expect(configuration.operatorIdentity == nil)
     #expect(configuration.linearCredential == (try credential("keychain:linear")))
     #expect(configuration.gitHubCredential == (try credential("keychain:github")))
     #expect(configuration.routingTable == [RoutingEntry(route: try route("claude", "opus", "high"))])
 }
 
-@Test("[linear].operator is optional but must be a non-empty string when present")
-func linearOperatorValidation() throws {
-    let present = """
+@Test("[linear].operator must be a string when present")
+func linearOperatorTypeMismatch() {
+    let text = """
     [linear]
     credential = "keychain:linear"
     client_id = "yellowhammer-client-id"
-    operator = "linear-user-1"
+    operator = 42
     [github]
     credential = "keychain:github"
     """
-    #expect(try MachineConfiguration.parse(present, file: "config.toml").linearOperator
-            == BoardObjectID(rawValue: "linear-user-1"))
-    for (value, reason) in [
-        ("\"\"", ConfigurationError.Reason.emptyString),
-        ("42", .typeMismatch(expected: "string", found: "integer"))
-    ] {
-        let text = present.replacingOccurrences(of: "operator = \"linear-user-1\"", with: "operator = \(value)")
-        do {
-            _ = try MachineConfiguration.parse(text, file: "config.toml")
-            Issue.record("expected invalid operator to fail")
-        } catch {
-            #expect(error.key == "linear.operator")
-            #expect(error.reason == reason)
-        }
+    do {
+        _ = try MachineConfiguration.parse(text, file: "config.toml")
+        Issue.record("expected a non-string operator to fail")
+    } catch {
+        #expect(error.key == "linear.operator")
+        #expect(error.reason == .typeMismatch(expected: "string", found: "integer"))
     }
 }
 
@@ -169,6 +161,44 @@ func linearClientIDIsRequired(body: String, line: Int, reason: ConfigurationErro
         #expect(error.key == "linear.client_id", "\(error)")
         #expect(error.reason == reason, "\(error)")
     }
+}
+
+@Test("[linear].operator is the Operator identity's Linear user id, present, absent or empty")
+func linearOperatorIdentity() throws {
+    let present = """
+        [linear]
+        credential = "keychain:linear"
+        client_id = "yellowhammer-client-id"
+        operator = "user-123"
+
+        [github]
+        credential = "keychain:github"
+        """
+    let configured = try MachineConfiguration.parse(present, file: "config.toml")
+    #expect(configured.operatorIdentity == BoardObjectID(rawValue: "user-123"))
+
+    let absent = """
+        [linear]
+        credential = "keychain:linear"
+        client_id = "yellowhammer-client-id"
+
+        [github]
+        credential = "keychain:github"
+        """
+    let unconfigured = try MachineConfiguration.parse(absent, file: "config.toml")
+    #expect(unconfigured.operatorIdentity == nil)
+
+    let empty = """
+        [linear]
+        credential = "keychain:linear"
+        client_id = "yellowhammer-client-id"
+        operator = ""
+
+        [github]
+        credential = "keychain:github"
+        """
+    let emptyConfigured = try MachineConfiguration.parse(empty, file: "config.toml")
+    #expect(emptyConfigured.operatorIdentity == nil)
 }
 
 @Test("[github] still refuses a client_id key")

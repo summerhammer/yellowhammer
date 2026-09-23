@@ -15,7 +15,8 @@ import Journal
 /// Blocked, no re-create into Waiting on You and no repeated comment.
 enum AuthoringHalt {
     static func record(
-        feature: FeatureName, cause: AuthoringHaltCause, context: ActContext
+        feature: FeatureName, cause: AuthoringHaltCause, context: ActContext,
+        operatorIdentity: OperatorIdentity = .none
     ) async throws -> FeatureAuthoringOutcome {
         try context.journal.append(
             .featureAuthoringHalted(name: feature.rawValue, reasonKind: cause.kind, detail: cause.detail),
@@ -28,7 +29,8 @@ enum AuthoringHalt {
         if outcome.alreadyExpired { return .halted }
         let reopenKey = outcome.newlyOpened ? "feature:\(feature.rawValue):authoring-halt:\(outcome.record.id):reenter" : nil
         try await AuthoringStopBoard.post(
-            feature: feature, body: cause.description, context: context, reopenKey: reopenKey
+            feature: feature, body: cause.description, context: context, reopenKey: reopenKey,
+            operatorIdentity: operatorIdentity
         ) {
             try context.journal.recordAuthoringHaltIssue(feature: feature, issueID: $0)
         }

@@ -118,13 +118,15 @@ public enum ReadinessVerdict: Equatable, Sendable {
 public struct ReadinessCheck: Sendable {
     let provenance: any ProvenanceTesting
     let citations: any CitationResolving
-    /// The Operator's board identity for Waiting on You assignment, when configured.
-    let `operator`: BoardObjectID?
+    let operatorIdentity: OperatorIdentity
 
-    public init(provenance: any ProvenanceTesting, citations: any CitationResolving, operator: BoardObjectID? = nil) {
+    public init(
+        provenance: any ProvenanceTesting, citations: any CitationResolving,
+        operatorIdentity: OperatorIdentity = .none
+    ) {
         self.provenance = provenance
         self.citations = citations
-        self.operator = `operator`
+        self.operatorIdentity = operatorIdentity
     }
 
     /// Evaluates one Card: reconciles the board's copy of its Managed Block into the Journal first (an

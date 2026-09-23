@@ -44,7 +44,7 @@ func eventTypeRawValues() {
         "AttemptEnded", "RouteRetried", "BudgetEpochReset",
         "ExpiredCardLeasesSwept", "BoardStateReposted", "RepoLanesDerived", "RepoLaneStarted", "RepoLaneEnded",
         "ReadinessCheckPassed", "ReadinessCheckFailed", "CardDiverged", "TranscriptionStampVoided",
-        "ClauseMinted", "ClauseInvalidated", "ClauseDeleted", "ProtectedPathRefused",
+        "ClauseMinted", "ClauseInvalidated", "ClauseDeleted", "ProtectedPathRefused", "CardQuestionAsked",
         "CardRunStep", "CheckRan", "AttemptWorkPreserved", "FailureCauseRecorded", "LaneHoleRecorded",
         "CardReclaimed", "CardReclaimDeferred", "AgentCLIProcessSpawned", "RehearsalFixtureAnswered",
         "FeatureSelected", "FeatureAuthoringHalted", "FeatureAuthoringAccepted", "FeatureAuthored",

@@ -65,7 +65,9 @@ struct CardRunFailureTests {
         #expect(!(try cardRunLog(world.journal).contains(CardRunStep.attemptsExhausted.rawValue)))
     }
 
-    @Test("A worker's question ends the Attempt without consuming it: no Route excluded, the Card back to Ready")
+    @Test(
+        "A worker's question ends the Attempt without consuming it: no Route excluded, the Card to Waiting on You"
+    )
     func workerQuestionEndsTheAttemptWithoutExcludingTheRoute() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
@@ -77,7 +79,9 @@ struct CardRunFailureTests {
         let attempt = try #require(try world.attempts("BACK-1").first)
         #expect(attempt.result == "question")
         #expect(try world.journal.excludedRoutes(cardID: try #require(world.cardIDs["BACK-1"])).isEmpty)
-        #expect(try world.card("BACK-1").state == .todo)
+        let card = try world.card("BACK-1")
+        #expect(card.state == .waitingOnYou)
+        #expect(card.waitingReason == .question)
     }
 
     @Test("Zero candidate Routes Block the Card: no Attempt, and nothing is dispatched")

@@ -6,8 +6,11 @@ import Journal
 enum CardRunEnd: Sendable {
     /// The reviewer approved after a passing (or declared-none) Check.
     case approved(commit: String)
-    /// An Attempt-ending outcome: a failed run, a reported failure, or the worker's question.
+    /// An Attempt-ending outcome: a failed run or a reported failure.
     case ending(AttemptEnding)
+    /// The worker stopped to ask a question instead of guessing (roadmap P11.1): the Attempt ends
+    /// `question`, carrying the question text out to ``conclude`` for the Journal and the board.
+    case asked(question: String)
     /// The round budget ran out with the work still not approved — red from the Check, or changes the
     /// reviewer asked for — and the last Round was already recorded: `lens` is that Round's Lens. Ending
     /// the Attempt `rounds-exhausted` and deciding whether the Attempt budget blocks the Card is `conclude`'s.
@@ -15,8 +18,15 @@ enum CardRunEnd: Sendable {
 }
 
 /// A pass that ended the Attempt instead of yielding a result: thrown inside the sequence, caught by it.
+/// `question` carries the worker's question text out when `ending` is `.question`, nil otherwise.
 private struct PassStop: Error {
     let ending: AttemptEnding
+    let question: String?
+
+    init(ending: AttemptEnding, question: String? = nil) {
+        self.ending = ending
+        self.question = question
+    }
 }
 
 extension CardRun {
@@ -25,6 +35,9 @@ extension CardRun {
         do {
             return try await sequence(frame: frame)
         } catch let stop as PassStop {
+            if let question = stop.question {
+                return .asked(question: question)
+            }
             return .ending(stop.ending)
         }
     }
@@ -91,8 +104,8 @@ extension CardRun {
         switch work.outcome {
         case .completed(let commit, _):
             return (commit, worker.session)
-        case .question:
-            throw PassStop(ending: .question)
+        case .question(let text):
+            throw PassStop(ending: .question, question: text)
         case .failed(let reason):
             try recordAuthoringInvariantViolationIfNeeded(work.authoringInvariantViolation, frame: frame)
             throw PassStop(ending: .hardFailure(.reported(reason: reason)))

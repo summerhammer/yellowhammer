@@ -112,7 +112,7 @@ struct FeatureVerificationStoreTests {
 
         let journal = try fixture.open()
 
-        #expect(try journal.appliedMigrations().last == "v22-night-triaged")
+        #expect(try journal.appliedMigrations().last == "v23-card-question")
         let tables = try journal.tableNames()
         #expect(tables.contains("feature_verification"))
         #expect(tables.contains("clause_verification"))

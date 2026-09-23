@@ -22,8 +22,6 @@ public struct ActContext: Sendable {
     /// The Board Port, when this invocation was given one. The Engine never imports an adapter (MB1);
     /// `EngineCommand` is the one place this is wired.
     public let board: ActBoard?
-    /// The configured Operator's board identity, when available.
-    public let boardOperator: BoardObjectID?
     /// Resolved mainlines for this Project's repositories.
     public let mainlines: ResolvedMainlines
     /// The Workspace Port, when this invocation was given one. The Engine never imports an adapter
@@ -43,7 +41,6 @@ public struct ActContext: Sendable {
         outbox: Outbox? = nil,
         nightCard: NightCardMaintenance? = nil,
         board: ActBoard? = nil,
-        boardOperator: BoardObjectID? = nil,
         mainlines: ResolvedMainlines = ResolvedMainlines(),
         workspace: (any Workspace)? = nil,
         repositories: ProjectRepositories? = nil
@@ -57,7 +54,6 @@ public struct ActContext: Sendable {
         self.outbox = outbox
         self.nightCard = nightCard
         self.board = board
-        self.boardOperator = boardOperator
         self.mainlines = mainlines
         self.workspace = workspace
         self.repositories = repositories
@@ -89,7 +85,6 @@ public struct EngineInvocation: Sendable {
     /// The Board Port, when this invocation maintains a Night Card. The Engine never opens a Journal
     /// or imports an adapter (MB1/MB5); `EngineCommand` is the one place this is wired.
     public let board: ActBoard?
-    public let boardOperator: BoardObjectID?
     /// The Project's configured repositories, when provided.
     public let repositories: ProjectRepositories?
     public let mainlineRefresher: MainlineRefresher
@@ -109,7 +104,6 @@ public struct EngineInvocation: Sendable {
         closesNight: Bool = false,
         leasePolicy: LeasePolicy = .ruled,
         board: ActBoard? = nil,
-        boardOperator: BoardObjectID? = nil,
         repositories: ProjectRepositories? = nil,
         mainlineRefresher: MainlineRefresher = MainlineRefresher(),
         workspace: (any Workspace)? = nil
@@ -123,7 +117,6 @@ public struct EngineInvocation: Sendable {
         self.closesNight = closesNight
         self.leasePolicy = leasePolicy
         self.board = board
-        self.boardOperator = boardOperator
         self.repositories = repositories
         self.mainlineRefresher = mainlineRefresher
         self.workspace = workspace
@@ -144,7 +137,6 @@ public struct EngineInvocation: Sendable {
         closesNight: Bool = false,
         leasePolicy: LeasePolicy = .ruled,
         board: ActBoard? = nil,
-        boardOperator: BoardObjectID? = nil,
         repositories: ProjectRepositories? = nil,
         mainlineRefresher: MainlineRefresher = MainlineRefresher(),
         workspace: (any Workspace)? = nil,
@@ -159,7 +151,6 @@ public struct EngineInvocation: Sendable {
         self.closesNight = closesNight
         self.leasePolicy = leasePolicy
         self.board = board
-        self.boardOperator = boardOperator
         self.repositories = repositories
         self.mainlineRefresher = mainlineRefresher
         self.workspace = workspace
@@ -236,8 +227,7 @@ public struct EngineInvocation: Sendable {
             case .met:
                 let context = ActContext(
                     act: act, mode: mode, trigger: trigger, runID: runID, journal: journal, night: night,
-                    outbox: outbox, nightCard: nightCard, board: board, boardOperator: boardOperator,
-                    mainlines: resolvedMainlines,
+                    outbox: outbox, nightCard: nightCard, board: board, mainlines: resolvedMainlines,
                     workspace: workspace, repositories: repositories
                 )
                 try await withLeaseHeartbeat(

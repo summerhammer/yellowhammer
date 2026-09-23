@@ -52,6 +52,8 @@ public struct CardRun: CardRunner {
     /// OQ60): required, with no default, so production can never forget to wire the real
     /// ``AttemptWorktreeReset`` in.
     public let resetting: any AttemptResetting
+    /// The Operator's board identity for a worker's question's Waiting on You assignment (roadmap P11.1).
+    public let operatorIdentity: OperatorIdentity
 
     public init(
         resolver: RouteResolver,
@@ -61,7 +63,8 @@ public struct CardRun: CardRunner {
         reviewRoundsMax: Int,
         attemptsPerCard: Int,
         leasePolicy: LeasePolicy = .ruled,
-        resetting: any AttemptResetting
+        resetting: any AttemptResetting,
+        operatorIdentity: OperatorIdentity = .none
     ) {
         self.resolver = resolver
         self.dispatch = dispatch
@@ -71,6 +74,7 @@ public struct CardRun: CardRunner {
         self.attemptsPerCard = attemptsPerCard
         self.leasePolicy = leasePolicy
         self.resetting = resetting
+        self.operatorIdentity = operatorIdentity
     }
 
     public func run(

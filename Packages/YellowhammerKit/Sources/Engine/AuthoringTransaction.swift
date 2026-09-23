@@ -40,14 +40,16 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
     /// Transcribes a drafted contract from another repository's merged mainline before it is accepted
     /// into the Outbox (roadmap P9.6; spec: feature-authoring/author-an-architectural-brief).
     public let transcribing: any ContractTranscribing
+    public let operatorIdentity: OperatorIdentity
 
     public init(
         drafting: any FeatureBreakdownDrafting, citations: any CitationResolving,
-        transcribing: any ContractTranscribing
+        transcribing: any ContractTranscribing, operatorIdentity: OperatorIdentity = .none
     ) {
         self.drafting = drafting
         self.citations = citations
         self.transcribing = transcribing
+        self.operatorIdentity = operatorIdentity
     }
 
     public func author(_ selection: SelectedFeature, context: ActContext) async throws -> FeatureAuthoringOutcome {
@@ -81,7 +83,7 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
             return try await RefusalRecording.record(
                 feature: selection.name,
                 finding: RefusalFinding(uncitable: resolution.uncitable, reselectionDepth: 0),
-                context: context
+                context: context, operatorIdentity: operatorIdentity
             )
         }
 
@@ -92,7 +94,7 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         if !transcriptions.isReadable {
             return try await AuthoringHalt.record(
                 feature: selection.name, cause: .contractUnreadable(contracts: transcriptions.unreadable),
-                context: context
+                context: context, operatorIdentity: operatorIdentity
             )
         }
 

@@ -203,7 +203,9 @@ struct CardRunAttemptTests {
         var attempts = try world.attempts("BACK-1")
         #expect(attempts.count == 1)
         #expect(attempts[0].result == "question")
-        #expect(try world.card("BACK-1").state == .todo)
+        let firstCard = try world.card("BACK-1")
+        #expect(firstCard.state == .waitingOnYou)
+        #expect(firstCard.waitingReason == .question)
 
         // attemptsPerCard=1, but the question consumed none of it: the next run still dispatches.
         let secondLog = CallLog()
