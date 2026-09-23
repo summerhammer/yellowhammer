@@ -2,12 +2,16 @@ import Domain
 import Foundation
 import Journal
 
-/// The board-side half of a classified Waiting on You reply (roadmap P11.2), Journal-driven so it is
-/// crash-safe independently of the Delta Read that recorded it: every reply
+/// The board-side half of a classified Waiting on You reply (roadmap P11.2, P11.3), Journal-driven so
+/// it is crash-safe independently of the Delta Read that recorded it: every reply
 /// ``JournalStore/unappliedCardReplies()`` names is processed here, in id order, and marked applied only
 /// once its transition (an `answer` only) and its acknowledgement (every disposition) both returned
 /// without throwing. An Act killed between the two completes on the next build Act's own call; a
 /// resumed run posts no duplicate acknowledgement, since the Outbox key is idempotent on the comment id.
+///
+/// An `answer` whose Card's Cycle has already landed (roadmap P11.3) is banked instead of dispatched —
+/// lanes do not reopen — so this Act runs after landing too, from a step ``AuthorAct`` performs once no
+/// Delta Read is otherwise in the build Act's own path (``PostLandingReplies``).
 enum WaitingOnYouReplies {
     /// Applies every unapplied reply. Never throws for one reply's own board refusal or a Card Lease
     /// held by another run — those replies are simply left unapplied — but an unexpected Journal fault
@@ -36,8 +40,16 @@ enum WaitingOnYouReplies {
     /// Waiting on You / question (a later Act, or a hand-edit, may have moved it on already), releases
     /// the Lease, then acknowledges and marks applied. A Lease held by another run leaves the reply
     /// unapplied — retried by that run's own next build Act or this Project's next one.
+    ///
+    /// Once the Feature that put the Card in Waiting on You has landed (roadmap P11.3), lanes do not
+    /// reopen: the answer is banked instead of dispatched, and this never touches the Card Lease, the
+    /// Card's state, or the Worktree.
     private static func applyAnswer(reply: CardReplyRecord, card: CardRecord, context: ActContext) async throws {
         let journal = context.journal
+        if try journal.isCycleLanded(cycleID: card.cycleID) {
+            try await bankAnswer(reply: reply, card: card, context: context)
+            return
+        }
         switch try journal.claimCardLease(cardID: card.id, runID: context.runID) {
         case .held:
             return
@@ -56,6 +68,26 @@ enum WaitingOnYouReplies {
         _ = try journal.releaseCardLease(cardID: card.id, runID: context.runID)
         try await acknowledge(
             WaitingOnYouAcknowledgement.answer(), reply: reply, issueID: card.issueID, context: context
+        )
+        try journal.markCardReplyApplied(id: reply.id)
+    }
+
+    /// Banks an answer that arrived after the Feature landed (roadmap P11.3, OQ37): the Journal's own
+    /// idempotent ``JournalStore/bankCardReply(id:stamps:nightID:act:runID:now:)`` reuses the stamps a
+    /// retry after a crash first banked with, so the acknowledgement is always built from what the
+    /// Journal returns, never from freshly computed stamps. Whether this reply is a repeat is decided
+    /// from the Journal too: it is a repeat iff an earlier reply on the same Card is already banked.
+    private static func bankAnswer(reply: CardReplyRecord, card: CardRecord, context: ActContext) async throws {
+        let journal = context.journal
+        let priorBanked = try journal.bankedCardReplies(cardID: card.id).contains { $0.reply.id < reply.id }
+        let stamps = BankedReplyStamps.forCard(card, mainlines: context.mainlines)
+        let banked = try journal.bankCardReply(
+            id: reply.id, stamps: stamps, nightID: reply.nightID, act: context.act, runID: context.runID
+        )
+        let ackStamps = BankedReplyStamps.forAcknowledgement(card: card, stored: banked.stamps)
+        try await acknowledge(
+            WaitingOnYouAcknowledgement.banked(stamps: ackStamps, isRepeat: priorBanked),
+            reply: reply, issueID: card.issueID, context: context
         )
         try journal.markCardReplyApplied(id: reply.id)
     }

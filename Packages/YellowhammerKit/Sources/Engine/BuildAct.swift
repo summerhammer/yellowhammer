@@ -23,7 +23,9 @@ import Repositories
 ///
 /// A forced build with no Feature in flight, or whose in-flight Cycle already landed (roadmap P10.1;
 /// risks OQ8, once per Cycle), fires but does no work: it appends `.actIdle` and returns, because
-/// `EngineInvocation` only guards these when the trigger is not forced.
+/// `EngineInvocation` only guards these when the trigger is not forced. Once a Cycle has landed, this
+/// Act never reads the board again for a Card left Waiting on You in it — the author Act's own
+/// ``PostLandingReplies`` step (roadmap P11.3) does that instead, since only it still fires.
 public struct BuildAct: Sendable {
     public let cardRunner: any CardRunner
     /// The Readiness Check run before each Card is dispatched (P8.2); nil keeps the lane's pre-P8.2

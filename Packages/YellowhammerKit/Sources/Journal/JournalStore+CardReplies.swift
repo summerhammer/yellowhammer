@@ -184,7 +184,7 @@ extension JournalStore {
         }
     }
 
-    private static func cardReplyRecord(from row: Row) throws -> CardReplyRecord {
+    static func cardReplyRecord(from row: Row) throws -> CardReplyRecord {
         let id: Int64 = row["id"]
         guard let disposition = CardReplyDisposition(rawValue: row["disposition"] as String) else {
             throw JournalError.cardReplyUnreadable(id: id)

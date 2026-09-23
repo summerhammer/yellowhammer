@@ -127,6 +127,8 @@ extension JournalEvent {
             .cardQuestionAsked
         case .waitingOnYouReplyRecorded:
             .waitingOnYouReplyRecorded
+        case .waitingOnYouReplyBanked:
+            .waitingOnYouReplyBanked
         case .cardRunStep:
             .cardRunStep
         case .checkRan:

@@ -1,12 +1,16 @@
 import Foundation
+import Journal
 
 /// The Operator-facing acknowledgement comments for a human reply on a Card in Waiting on You (roadmap
-/// P11.2; spec: bounds/escalate-a-question-to-the-operator, OQ37). One per human comment, posted through
-/// the Outbox under the idempotent key `waiting-on-you-reply:<commentID>:ack`, with no `cardID` on the
-/// write — the acknowledgement is never gated by the Card Lease. The canonical copy is reproduced
-/// exactly, markdown included; the first line always states the consequence.
+/// P11.2, P11.3; spec: bounds/escalate-a-question-to-the-operator, board-projection/read-board-changes-
+/// by-delta, OQ37). One per human comment, posted through the Outbox under the idempotent key
+/// `waiting-on-you-reply:<commentID>:ack`, with no `cardID` on the write — the acknowledgement is never
+/// gated by the Card Lease. The canonical copy is reproduced exactly, markdown included; the first line
+/// always states the consequence.
 ///
-/// A fourth body — banked, posted only once the Feature lands — is P11.3's and is not here.
+/// A fourth body, ``banked(stamps:isRepeat:)``, is posted only once the Feature that put the Card in
+/// Waiting on You has landed (roadmap P11.3): nothing is dispatched, and the reply is recorded and
+/// stamped with the touched Repos' mainlines instead.
 enum WaitingOnYouAcknowledgement {
     /// (a) An answer: the Card left Waiting on You and is queued to resume.
     static func answer() -> String {
@@ -49,6 +53,40 @@ enum WaitingOnYouAcknowledgement {
         will not be carried into future Adoption dispatches. To proceed, either cancel this Card or \
         author replacement work in a new Feature.
         """
+    }
+
+    /// (c) An answer arriving after the Feature that put the Card in Waiting on You has landed (roadmap
+    /// P11.3, OQ37): banked rather than dispatched. `stamps` is what the Journal returned from banking
+    /// — never freshly computed — so a retry after a crash reports the same commits it first banked
+    /// with. `isRepeat` is true from the second banked reply on, and changes only the sentence naming
+    /// what happened to the reply; it is never a "you already answered" disclaimer.
+    static func banked(stamps: [MainlineStamp], isRepeat: Bool) -> String {
+        let clause = isRepeat
+            ? "Your reply has been appended to the previously banked replies in the Journal"
+            : "Your reply has been banked in the Journal"
+        return """
+        **Nothing runs; it is recorded and travels with the Card into Adoption.**
+
+        This Feature's Repo Lane and Cycle have landed; lanes do not reopen and open pull requests are \
+        not amended. \(clause) (\(renderStamps(stamps))).
+
+        The Card remains in `Waiting on You` and the silence clock is stopped. When this Feature's pull \
+        requests are merged, this Card will be carried forward as `Blocked` awaiting opportunistic \
+        Adoption by a successor Feature. Adoption is conditional on passing the Readiness Check at \
+        dispatch; if re-validation fails, the Card returns as a fresh `Waiting on You`.
+        """
+    }
+
+    /// One "commit `<sha>` on `<repo>`" clause per stamp, joined with ", "; an unresolved stamp (nil
+    /// commit) renders as "mainline unresolved on `<repo>`".
+    private static func renderStamps(_ stamps: [MainlineStamp]) -> String {
+        stamps.map { stamp in
+            if let commit = stamp.commit {
+                "commit `\(commit)` on `\(stamp.repository)`"
+            } else {
+                "mainline unresolved on `\(stamp.repository)`"
+            }
+        }.joined(separator: ", ")
     }
 
     /// The recorded question's text with newlines collapsed to spaces, truncated to 200 characters with

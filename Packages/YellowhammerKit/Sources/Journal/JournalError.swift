@@ -96,6 +96,9 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     case featureVerificationUnreadable(cycleID: Int64)
     /// The `card_reply` row does not decode; the Journal was written by something other than the engine.
     case cardReplyUnreadable(id: Int64)
+    /// Banking (``JournalStore/bankCardReply(id:stamps:nightID:act:runID:now:)``) was attempted against
+    /// a reply whose disposition is not `answer` (roadmap P11.3): only an answer is ever banked.
+    case cardReplyNotAnswer(id: Int64)
 
     public var description: String {
         return switch self {
@@ -202,6 +205,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
             "The Journal's verification row for Cycle \(cycleID) cannot be read"
         case .cardReplyUnreadable(let id):
             "The Journal's card_reply row \(id) cannot be read"
+        case .cardReplyNotAnswer(let id):
+            "Card reply \(id) is not an answer and cannot be banked"
         }
     }
 }
