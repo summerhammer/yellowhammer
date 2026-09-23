@@ -1299,7 +1299,7 @@ comment on the Delta Read).
 - **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Rehearsal tests cover first and repeated banked replies.
 
-### [ ] P11.4 `unanswered_nights_max`
+### [x] P11.4 `unanswered_nights_max`
 - **Work**
   - Count that Project's Nights while a Card waits. Past the bound, auto-Block with `unanswered`
     (question) or `undecided` (divergence), keeping the assignment and full reporting.
