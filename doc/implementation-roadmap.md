@@ -1241,7 +1241,7 @@ workflow-state group) and **G-8** (threaded-reply parent comment on the Delta Re
 - **Done when** — Fixture repositories with k = 0, k < N and k = N produce exactly the specified
   writes.
 
-### [ ] P10.9 Settle gesture (release)
+### [x] P10.9 Settle gesture (release)
 - **Work**
   - Provide the Operator's settle action per Project: keep in flight or release. On a Partial
     Landing, offer `release` only.
