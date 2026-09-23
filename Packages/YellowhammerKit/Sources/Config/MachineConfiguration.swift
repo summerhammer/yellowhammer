@@ -8,6 +8,8 @@ public struct MachineConfiguration: Equatable, Sendable {
     /// behind ``linearCredential``.
     public var linearClientID: String
     public var linearCredential: CredentialReference
+    /// The machine-wide Linear user assigned Waiting on You issues, when configured.
+    public var linearOperator: BoardObjectID?
     public var gitHubCredential: CredentialReference
     /// In file order.
     public var cliAdapters: [CLIAdapterDeclaration]
@@ -17,12 +19,14 @@ public struct MachineConfiguration: Equatable, Sendable {
     public init(
         linearClientID: String,
         linearCredential: CredentialReference,
+        linearOperator: BoardObjectID? = nil,
         gitHubCredential: CredentialReference,
         cliAdapters: [CLIAdapterDeclaration],
         routingTable: [RoutingEntry]
     ) {
         self.linearClientID = linearClientID
         self.linearCredential = linearCredential
+        self.linearOperator = linearOperator
         self.gitHubCredential = gitHubCredential
         self.cliAdapters = cliAdapters
         self.routingTable = routingTable

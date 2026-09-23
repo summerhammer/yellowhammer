@@ -36,15 +36,21 @@ extension ReadinessCheck {
     }
 
     /// Transitions the Card to Waiting on You under the given reason, through the board projection when
-    /// an Operator, Outbox and board are wired, and directly on the Journal otherwise.
+    /// an Outbox and board are wired, and directly on the Journal otherwise.
     private func transitionToWaitingOnYou(
         reason: WaitingReason, card: CardRecord, context: BuildActContext
     ) async throws -> CardRecord {
         let journal = context.act.journal
-        if let operatorID = self.operator, let outbox = context.act.outbox, let board = context.act.board {
+        if let outbox = context.act.outbox, let board = context.act.board {
             let scope = try await BoardStateScope.resolve(using: board.provisioning)
             let projection = BoardStateProjection(journal: journal, outbox: outbox, scope: scope)
-            switch try await projection.transition(card: card, to: .waitingOnYou(reason, operator: operatorID)) {
+            let outcome: BoardStateProjection.Outcome
+            if let operatorID = self.operator {
+                outcome = try await projection.transition(card: card, to: .waitingOnYou(reason, operator: operatorID))
+            } else {
+                outcome = try await projection.transitionUnassigned(card: card, reason: reason)
+            }
+            switch outcome {
             case .unchanged(let record), .posted(let record, _), .deferred(let record, _), .failed(let record, _):
                 return record
             }

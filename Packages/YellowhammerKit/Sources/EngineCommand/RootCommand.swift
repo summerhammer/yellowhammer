@@ -78,6 +78,7 @@ extension ActCommand {
             trigger: trigger,
             closesNight: closesNight,
             board: board,
+            boardOperator: configuration.machine.linearOperator,
             repositories: project.repositories,
             workspace: workspace,
             work: work
@@ -102,9 +103,7 @@ extension ActCommand {
                     mode: mode, configuration: configuration, project: project,
                     configurationDirectory: configurationDirectory
                 ),
-                // Open until P11: the Operator's board identity is not wired anywhere yet; Waiting on
-                // You assignment on a returned Feature needs it.
-                returnFeature: FeatureReturn(operator: nil),
+                returnFeature: FeatureReturn(operator: configuration.machine.linearOperator),
                 archiveCycle: CycleArchive()
             ).work
         case .author:
@@ -130,10 +129,9 @@ extension ActCommand {
             )
             return BuildAct(
                 cardRunner: cardRunner,
-                // Open until P11: the Operator's board identity is not wired anywhere yet; Waiting on
-                // You assignment on a Divergence needs it.
                 readiness: ReadinessCheck(
-                    provenance: ProvenanceDiffTester(), citations: MainlineReader(), operator: nil
+                    provenance: ProvenanceDiffTester(), citations: MainlineReader(),
+                    operator: configuration.machine.linearOperator
                 ),
                 // Bound in both modes (P8.10): a rehearsal Night writes no result files, so this simply
                 // finds none, and the lease-reclaim sweep falls to the event log and Crashed-Unknown.

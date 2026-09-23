@@ -10,7 +10,8 @@ import Testing
 // each kind uses. Never asserts model-authored content, only the wiring.
 
 private func stopContext(
-    _ journal: JournalStore, night: String, boards: NightCardTestBoards, previous: RunID? = nil
+    _ journal: JournalStore, night: String, boards: NightCardTestBoards, previous: RunID? = nil,
+    boardOperator: BoardObjectID? = nil
 ) throws -> (context: ActContext, runID: RunID) {
     if let previous {
         try journal.releaseActLease(runID: previous)
@@ -26,7 +27,8 @@ private func stopContext(
     let actBoard = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
     let context = ActContext(
         act: .author, mode: .rehearsal, trigger: .forced, runID: runID, journal: journal,
-        night: opening.night, outbox: outbox, board: actBoard, mainlines: selectionMainlines(),
+        night: opening.night, outbox: outbox, board: actBoard, boardOperator: boardOperator,
+        mainlines: selectionMainlines(),
         workspace: nil, repositories: selectionRepositories()
     )
     return (context, runID)
@@ -43,6 +45,23 @@ private let finding = RefusalFinding(
 @Suite("Authoring stops end to end (P9.8)")
 struct AuthoringStopTests {
     private func name(_ raw: String) throws -> FeatureName { try #require(FeatureName(rawValue: raw)) }
+
+    @Test("A configured Operator receives a halted Feature Issue; a missing identity leaves it unassigned")
+    func stopAssignment() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBuildActBoards()
+        let assigned = BoardObjectID(rawValue: "linear-user-1")
+        let (night1, run1) = try stopContext(
+            journal, night: "2026-09-15", boards: boards, boardOperator: assigned
+        )
+        _ = try await AuthoringHalt.record(feature: try name("FEAT-H"), cause: seam, context: night1)
+        let (night2, _) = try stopContext(journal, night: "2026-09-16", boards: boards, previous: run1)
+        _ = try await RefusalRecording.record(feature: try name("FEAT-R"), finding: finding, context: night2)
+        let issues = await boards.writing.liveIssues
+        #expect(issues.first { $0.title == "FEAT-H" }?.assignee == assigned)
+        #expect(issues.first { $0.title == "FEAT-R" }?.assignee == nil)
+    }
 
     @Test("A halt and a Refusal expire on the same clock: one Blocked / unanswered update each")
     func bothExpireOnOneClock() async throws {

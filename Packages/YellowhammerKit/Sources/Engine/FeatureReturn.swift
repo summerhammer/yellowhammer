@@ -23,9 +23,8 @@ public struct FeatureReturnFault: Error, Equatable, Sendable, CustomStringConver
 /// Idempotent across a retried land Act: the Journal transition and the Outbox writes it queues are all
 /// keyed so a repeat run changes nothing.
 public struct FeatureReturn: FeatureReturning, Sendable {
-    /// The Operator's board identity for the Waiting on You assignment. Open until P11: the Operator's
-    /// board identity is not wired anywhere yet, so this is nil in production and the Feature Issue is
-    /// moved to Waiting on You with no assignee (the same gap ``AuthoringStopBoard`` documents).
+    /// The Operator's board identity for the Waiting on You assignment. If absent, the Feature Issue
+    /// is still moved to Waiting on You without an assignee.
     let `operator`: BoardObjectID?
 
     public init(operator: BoardObjectID? = nil) {

@@ -44,6 +44,7 @@ func fullFileLoads() throws {
     let expected = MachineConfiguration(
         linearClientID: "yellowhammer-client-id",
         linearCredential: try credential("keychain:linear"),
+        linearOperator: BoardObjectID(rawValue: "linear-user-1"),
         gitHubCredential: try credential("keychain:github"),
         cliAdapters: [
             CLIAdapterDeclaration(name: "claude", executable: "/opt/homebrew/bin/claude"),
@@ -90,9 +91,37 @@ func alternativeTableSpellings() throws {
     """
     let configuration = try MachineConfiguration.parse(text, file: "config.toml")
     #expect(configuration.linearClientID == "yellowhammer-client-id")
+    #expect(configuration.linearOperator == nil)
     #expect(configuration.linearCredential == (try credential("keychain:linear")))
     #expect(configuration.gitHubCredential == (try credential("keychain:github")))
     #expect(configuration.routingTable == [RoutingEntry(route: try route("claude", "opus", "high"))])
+}
+
+@Test("[linear].operator is optional but must be a non-empty string when present")
+func linearOperatorValidation() throws {
+    let present = """
+    [linear]
+    credential = "keychain:linear"
+    client_id = "yellowhammer-client-id"
+    operator = "linear-user-1"
+    [github]
+    credential = "keychain:github"
+    """
+    #expect(try MachineConfiguration.parse(present, file: "config.toml").linearOperator
+            == BoardObjectID(rawValue: "linear-user-1"))
+    for (value, reason) in [
+        ("\"\"", ConfigurationError.Reason.emptyString),
+        ("42", .typeMismatch(expected: "string", found: "integer"))
+    ] {
+        let text = present.replacingOccurrences(of: "operator = \"linear-user-1\"", with: "operator = \(value)")
+        do {
+            _ = try MachineConfiguration.parse(text, file: "config.toml")
+            Issue.record("expected invalid operator to fail")
+        } catch {
+            #expect(error.key == "linear.operator")
+            #expect(error.reason == reason)
+        }
+    }
 }
 
 @Test("An unreadable file is a ConfigurationError")

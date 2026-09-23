@@ -23,8 +23,8 @@ enum AuthoringStopBoard {
 
         let createKey = "feature:\(feature.rawValue):halt:create"
         let draft = BoardIssueDraft(
-            team: scope.team, title: feature.rawValue, labels: [featureLabelID], workflowState: waitingOnYouID
-            // No assignee: the Operator's board identity is not wired until P11.
+            team: scope.team, title: feature.rawValue, labels: [featureLabelID], workflowState: waitingOnYouID,
+            assignee: context.boardOperator
         )
         let delivery = try await outbox.post(OutboxWrite(key: createKey, write: .createIssue(draft, parentKey: nil)))
 

@@ -118,7 +118,7 @@ public enum ReadinessVerdict: Equatable, Sendable {
 public struct ReadinessCheck: Sendable {
     let provenance: any ProvenanceTesting
     let citations: any CitationResolving
-    // Open until P11: wire the Operator's board identity once Waiting on You assignment needs it.
+    /// The Operator's board identity for Waiting on You assignment, when configured.
     let `operator`: BoardObjectID?
 
     public init(provenance: any ProvenanceTesting, citations: any CitationResolving, operator: BoardObjectID? = nil) {

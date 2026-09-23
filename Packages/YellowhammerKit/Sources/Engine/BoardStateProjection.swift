@@ -71,6 +71,17 @@ public struct BoardStateProjection: Sendable {
         )
     }
 
+    /// Moves a Card to Waiting on You when no Operator identity is configured. The workflow state is
+    /// still projected to the board; the existing assignee is left untouched.
+    public func transitionUnassigned(card: CardRecord, reason: WaitingReason) async throws -> Outcome {
+        let record = try journal.transitionCard(
+            cardID: card.id, to: .waitingOnYou, waitingReason: reason,
+            runID: outbox.runID, act: outbox.act, nightID: outbox.nightID
+        )
+        guard record.stateVersion != card.stateVersion else { return .unchanged(record) }
+        return try await post(record: record, state: .waitingOnYou, blockReason: nil, assignee: nil)
+    }
+
     /// Reposts every Card whose board projection has not caught up with its Journal state
     /// (``JournalStore/cardsWithUnpostedState()``) — the board state written on a Night a run crashed
     /// mid-Act, or deferred (`cardLeaseNotHeld`) by a caller that wrote its transition and released the
