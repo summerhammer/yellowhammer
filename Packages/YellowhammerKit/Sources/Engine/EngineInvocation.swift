@@ -246,7 +246,7 @@ public struct EngineInvocation: Sendable {
                     body: { try await work(context) }
                 )
             }
-            try await closeNightIfNeeded(night, card: nightCard)
+            try await closeNightIfNeeded(night, card: nightCard, outbox: outbox)
             _ = try? journal.append(.actEnded, act: act, runID: runID, nightID: night.id)
         } catch {
             _ = try? journal.append(
@@ -267,13 +267,20 @@ public struct EngineInvocation: Sendable {
         return result.mainlines
     }
 
-    private func closeNightIfNeeded(_ night: NightRecord, card: NightCardMaintenance?) async throws {
+    private func closeNightIfNeeded(
+        _ night: NightRecord, card: NightCardMaintenance?, outbox: Outbox?
+    ) async throws {
         guard closesNight, night.isOpen else { return }
         try journal.closeNight(id: night.id, reason: .nightEnd, act: act, runID: runID)
         // Completion needs the closed Night's completedAt and verdict.
         if let card, let closed = try journal.night(id: night.id) {
             _ = try await card.acceptCompletion(night: closed)
             _ = try await card.deliverCompletion(night: closed)
+        }
+        if let board, let outbox, let (feature, cycleID) = try journal.inFlightFeature() {
+            _ = try await FeatureSettleGesture.resetSettleState(
+                feature: feature, cycleID: cycleID, nightID: night.id, board: board, outbox: outbox
+            )
         }
     }
 }
