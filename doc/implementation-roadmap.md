@@ -1262,7 +1262,7 @@ comment on the Delta Read).
 
 ## Phase 11 — Escalation, Adoption & remaining Bounds
 
-### [ ] P11.1 Waiting on You from a worker's question
+### [x] P11.1 Waiting on You from a worker's question
 - **Work** — Move the Card to Waiting on You, assign the Operator, post the question as a comment,
   record the question in the Journal, set `waiting_reason = question`. No Round, no Attempt. Hold
   the Worktree. The lane continues.
