@@ -170,7 +170,8 @@ extension JournalStore {
             sql: """
             UPDATE card
             SET cycle_id = ?, authored_order = ?, state = ?, waiting_reason = NULL, block_reason = NULL,
-                state_version = state_version + 1, failed_adoptions = 0, consecutive_divergences = 0
+                state_version = state_version + 1, failed_adoptions = 0, consecutive_divergences = 0,
+                divergence_standing_night_id = NULL
             WHERE issue_id = ?
             """,
             arguments: [cycleID, adoption.order, CardState.todo.rawValue, adoption.cardIssueID]

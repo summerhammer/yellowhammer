@@ -15,7 +15,12 @@ public protocol FeatureSelecting: Sendable {
 /// Authors a validated ``SelectedFeature`` — the Feature Issue, its Cards and its adoptions (P9.4–P9.7).
 /// ``AuthoringTransaction`` is the P9.4 implementation.
 public protocol SelectedFeatureAuthoring: Sendable {
-    func author(_ selection: SelectedFeature, context: ActContext) async throws -> FeatureAuthoringOutcome
+    /// `reselectionDepth` is how many Features the re-selection walk (roadmap P11.6; bounds/
+    /// bound-re-selections) walked past before this one — 0 for the Night's first selection — carried
+    /// onto a thin-spec Refusal's ``RefusalFinding``.
+    func author(
+        _ selection: SelectedFeature, reselectionDepth: Int, context: ActContext
+    ) async throws -> FeatureAuthoringOutcome
 
     /// Finishes an authoring transaction an earlier Act accepted and did not complete, if there is one;
     /// nil when there is nothing to resume. Called before the selector runs, so a resume never selects
@@ -35,6 +40,9 @@ public enum FeatureSelectionError: Error, Sendable, Equatable {
     case multipleSpecificationSources([String])
     /// The Operator forced authoring for a Feature they named, but the selector chose a different one.
     case namedFeatureIgnored(named: FeatureName, selected: FeatureName)
+    /// The re-selection walk (roadmap P11.6; bounds/overview) got back a Feature it already
+    /// refused earlier this Night: the selector was handed the refused list and ignored it.
+    case reselectedFeatureAlreadyRefused(FeatureName)
 }
 
 extension FeatureSelectionError: CustomStringConvertible {
@@ -52,6 +60,11 @@ extension FeatureSelectionError: CustomStringConvertible {
             return """
                 The Operator forced authoring for Feature '\(named)', but selection chose '\(selected)' instead.
                 """
+        case .reselectedFeatureAlreadyRefused(let feature):
+            return """
+                The re-selection walk was handed Feature '\(feature)' again after it was already refused \
+                this Night.
+                """
         }
     }
 }
@@ -67,14 +80,19 @@ public struct FeatureSelection: FeatureAuthoring {
     /// stance as `AuthorAct`'s nil `authoring`.
     public let transaction: (any SelectedFeatureAuthoring)?
     public let operatorIdentity: OperatorIdentity
+    /// The re-selection walk's bound (roadmap P11.6; bounds/overview): how many Features a
+    /// Night may walk past, after the first selection, before authoring gives up. Defaults to the
+    /// glossary's own default of 2.
+    public let reselectionsMax: Int
 
     public init(
         selector: any FeatureSelecting, transaction: (any SelectedFeatureAuthoring)? = nil,
-        operatorIdentity: OperatorIdentity = .none
+        operatorIdentity: OperatorIdentity = .none, reselectionsMax: Int = 2
     ) {
         self.selector = selector
         self.transaction = transaction
         self.operatorIdentity = operatorIdentity
+        self.reselectionsMax = reselectionsMax
     }
 
     public func selectAndAuthor(_ context: ActContext) async throws -> FeatureAuthoringOutcome {
@@ -88,37 +106,89 @@ public struct FeatureSelection: FeatureAuthoring {
         let candidates = try context.journal.blockedCardsLeftByClosedFeatures().map {
             AdoptionCandidate(issueID: $0.issueID, repository: $0.repository)
         }
-        let request = FeatureSelectionRequest(
-            specificationSource: specSource,
-            specificationMainline: Self.specificationMainline(specSource, mainlines: context.mainlines),
-            repos: repositories.workingRepos,
-            mainlines: context.mainlines,
-            namedFeature: context.trigger.namedFeature,
-            adoptionCandidates: candidates
-        )
+        // The Operator named one Feature: the walk never re-selects (roadmap P11.6).
+        var walk = WalkProgress(depth: 0, refusedThisNight: [], allowsReselection: context.trigger.namedFeature == nil)
 
-        let outcome: FeatureSelectionOutcome
-        do {
-            outcome = try await selector.select(request, context: context)
-        } catch let fault as AuthoringDispatchFault {
-            // An authoring fault (roadmap P9.10, P9.11): no Feature was chosen and nothing was written to
-            // the board, so there is no halt, no Refusal and nothing to answer.
+        while true {
+            let request = FeatureSelectionRequest(
+                specificationSource: specSource,
+                specificationMainline: Self.specificationMainline(specSource, mainlines: context.mainlines),
+                repos: repositories.workingRepos,
+                mainlines: context.mainlines,
+                namedFeature: context.trigger.namedFeature,
+                adoptionCandidates: candidates,
+                refusedThisNight: walk.refusedThisNight
+            )
+
+            let outcome: FeatureSelectionOutcome
+            do {
+                outcome = try await selector.select(request, context: context)
+            } catch let fault as AuthoringDispatchFault {
+                // An authoring fault (roadmap P9.10, P9.11): no Feature was chosen and nothing was
+                // written to the board, so there is no halt, no Refusal and nothing to answer.
+                try context.journal.append(
+                    .featureSelectionFailed(reason: fault.reason),
+                    act: context.act, runID: context.runID, nightID: context.night.id
+                )
+                return .authoringRolledBack
+            }
+
+            switch outcome {
+            case .noSelectableFeature:
+                return .noWorkAvailable
+            case .halted(let feature, let cause):
+                return try await recordHalt(feature: feature, cause: cause, context: context)
+            case .selected(let selected):
+                if let stop = try await handleSelected(
+                    selected, repositories: repositories, candidates: candidates, walk: &walk, context: context
+                ) {
+                    return stop
+                }
+            }
+        }
+    }
+
+    /// The re-selection walk's mutable progress (roadmap P11.6): how deep it has gone, which Features it
+    /// has already refused this Night, and whether the trigger even allows re-selecting (never, for an
+    /// Operator-named Feature). Bundled to keep `handleSelected(_:repositories:candidates:walk:context:)`
+    /// within the parameter count limit.
+    private struct WalkProgress {
+        var depth: Int
+        var refusedThisNight: [FeatureName]
+        let allowsReselection: Bool
+    }
+
+    /// One `.selected` outcome of the re-selection walk (roadmap P11.6): validates and records it, then
+    /// either returns the outcome to stop the walk with, or advances `walk` and returns nil to keep
+    /// walking. Split out of `selectAndAuthor(_:)` to keep that function within the length limit.
+    private func handleSelected(
+        _ selected: SelectedFeature, repositories: ProjectRepositories, candidates: [AdoptionCandidate],
+        walk: inout WalkProgress, context: ActContext
+    ) async throws -> FeatureAuthoringOutcome? {
+        if walk.refusedThisNight.contains(selected.name) {
+            throw FeatureSelectionError.reselectedFeatureAlreadyRefused(selected.name)
+        }
+        let result = try await validateAndRecord(
+            selected, repositories: repositories, candidates: candidates, reselectionDepth: walk.depth,
+            context: context
+        )
+        guard case .refused = result, walk.allowsReselection else { return result }
+        guard walk.depth < reselectionsMax else {
             try context.journal.append(
-                .featureSelectionFailed(reason: fault.reason),
+                .reselectionBoundReached(depth: walk.depth, reselectionsMax: reselectionsMax),
                 act: context.act, runID: context.runID, nightID: context.night.id
             )
-            return .authoringRolledBack
+            return .refused
         }
-        switch outcome {
-        case .noSelectableFeature:
-            return .noWorkAvailable
-        case .halted(let feature, let cause):
-            return try await recordHalt(feature: feature, cause: cause, context: context)
-        case .selected(let selected):
-            return try await validateAndRecord(
-                selected, repositories: repositories, candidates: candidates, context: context
-            )
-        }
+        walk.depth += 1
+        try context.journal.append(
+            .featureReselected(
+                depth: walk.depth, afterRefusalOf: selected.name.rawValue, reselectionsMax: reselectionsMax
+            ),
+            act: context.act, runID: context.runID, nightID: context.night.id
+        )
+        walk.refusedThisNight.append(selected.name)
+        return nil
     }
 
     private static func specificationSource(_ repositories: ProjectRepositories) throws -> ProjectSpecificationSource {
@@ -148,7 +218,7 @@ public struct FeatureSelection: FeatureAuthoring {
     /// to real candidates before anything is recorded.
     private func validateAndRecord(
         _ selected: SelectedFeature, repositories: ProjectRepositories,
-        candidates: [AdoptionCandidate], context: ActContext
+        candidates: [AdoptionCandidate], reselectionDepth: Int, context: ActContext
     ) async throws -> FeatureAuthoringOutcome {
         if let named = context.trigger.namedFeature, named != selected.name {
             throw FeatureSelectionError.namedFeatureIgnored(named: named, selected: selected.name)
@@ -191,7 +261,7 @@ public struct FeatureSelection: FeatureAuthoring {
         guard let transaction else {
             throw EngineInvocationError.notImplemented(.author)
         }
-        return try await transaction.author(validated, context: context)
+        return try await transaction.author(validated, reselectionDepth: reselectionDepth, context: context)
     }
 
     /// Records a halt durably and routes it to Waiting on You, through the halt path

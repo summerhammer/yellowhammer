@@ -80,6 +80,11 @@ extension ActCommand {
             board: board,
             repositories: project.repositories,
             workspace: workspace,
+            nightCardBounds: NightCardMaintenance.Bounds(
+                reselectionsMax: project.bounds.reselectionsMax,
+                consecutiveRefusalsMax: project.bounds.consecutiveRefusalsMax,
+                failedAdoptionsMax: project.bounds.failedAdoptionsMax
+            ),
             work: work
         )
     }

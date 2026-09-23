@@ -90,11 +90,18 @@ final class AuthoringRig {
             outcome: .selected(try authoringSelection(adopting: adopted, sequence: sequence))
         )
         self.drafting = try drafting ?? ScriptedBreakdown(try authoringBreakdown())
-        selection = FeatureSelection(selector: selector, transaction: AuthoringTransaction(
-            drafting: self.drafting, citations: citations ?? FakeCitationResolver(),
-            transcribing: transcribing ?? FakeContractTranscriber(),
-            provenance: provenance ?? FakeProvenanceTester()
-        ))
+        selection = FeatureSelection(
+            selector: selector,
+            transaction: AuthoringTransaction(
+                drafting: self.drafting, citations: citations ?? FakeCitationResolver(),
+                transcribing: transcribing ?? FakeContractTranscriber(),
+                provenance: provenance ?? FakeProvenanceTester()
+            ),
+            // These fixtures share one `ScriptedFeatureSelector` that always answers the same Feature:
+            // the re-selection walk (roadmap P11.6) is exercised separately (FeatureSelectionTests.swift),
+            // so it is turned off here to keep every existing P9.x assertion about a single selection.
+            reselectionsMax: 0
+        )
     }
 
     /// A fresh author Act's context (a new run under the Act Lease). The previous run's Lease is released

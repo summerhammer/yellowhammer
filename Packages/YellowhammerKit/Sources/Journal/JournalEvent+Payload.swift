@@ -23,8 +23,7 @@ extension JournalEvent {
             ["reason": reason, "repository": repository]
         case .absentNightDetected(let nightStart):
             ["night_start": nightStart.rawValue]
-        case .authoringNoWorkAvailable:
-            nil
+        case .authoringNoWorkAvailable: nil
         case .authoringSkippedFeatureInFlight(let featureIssueID):
             ["feature_issue_id": featureIssueID]
         case .authoringPredecessorNotLanded(let featureIssueID, let repositories):
@@ -252,10 +251,8 @@ extension JournalEvent {
             ["issue_id": issueID, "cid": cid, "cause": cause]
         case .clauseDeleted(let issueID, let cid):
             ["issue_id": issueID, "cid": cid]
-        case .protectedPathRefused, .cardQuestionAsked:
-            waitingOnYouPayload
-        case .waitingOnYouReplyRecorded, .waitingOnYouReplyBanked:
-            waitingOnYouReplyPayload
+        case .protectedPathRefused, .cardQuestionAsked: waitingOnYouPayload
+        case .waitingOnYouReplyRecorded, .waitingOnYouReplyBanked: waitingOnYouReplyPayload
         case .cardRunStep(let cardID, let issueID, let step, let detail):
             {
                 var dict: [String: String] = ["card_id": String(cardID), "issue_id": issueID, "step": step.rawValue]
@@ -391,10 +388,13 @@ extension JournalEvent {
         case .refusalAnswered, .authoringHaltOpened, .authoringHaltRepeated, .authoringHaltExpired,
             .authoringHaltCleared:
             authoringStopPayload
-        case .featureSettled, .featureReleased, .settleValueNotHonoured:
-            settlePayload
+        case .featureSettled, .featureReleased, .settleValueNotHonoured: settlePayload
         case .cardUnansweredBoundFired: cardUnansweredBoundFiredPayload
         case .adoptionRefused, .cardAdopted, .adoptionUntestable: adoptionEventPayload
+        case .featureReselected: featureReselectedPayload
+        case .reselectionBoundReached: reselectionBoundReachedPayload
+        case .refusalPromotedToStandingItem: refusalPromotedToStandingItemPayload
+        case .cardPromotedToStandingItem: cardPromotedToStandingItemPayload
         }
     }
 }

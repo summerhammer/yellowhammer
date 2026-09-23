@@ -89,7 +89,7 @@ struct AdoptionRevalidationTests {
                 journal, nightStart: nightStart, boards: boards, previous: previous
             )
             let outcome = try await transaction.author(
-                try authoringSelection(adopting: ["CARD-OLD"]), context: context
+                try authoringSelection(adopting: ["CARD-OLD"]), reselectionDepth: 0, context: context
             )
             #expect(outcome == .authored)
             return runID

@@ -38,14 +38,18 @@ final class ScriptedSelectedFeatureAuthoring: SelectedFeatureAuthoring, Sendable
     private struct State {
         var selection: SelectedFeature?
         var callCount = 0
+        var lastReselectionDepth: Int?
     }
     private let state = Mutex(State())
 
     var lastSelection: SelectedFeature? { state.withLock { $0.selection } }
     var callCount: Int { state.withLock { $0.callCount } }
+    var lastReselectionDepth: Int? { state.withLock { $0.lastReselectionDepth } }
 
-    func author(_ selection: SelectedFeature, context: ActContext) async throws -> FeatureAuthoringOutcome {
-        state.withLock { $0.selection = selection; $0.callCount += 1 }
+    func author(
+        _ selection: SelectedFeature, reselectionDepth: Int, context: ActContext
+    ) async throws -> FeatureAuthoringOutcome {
+        state.withLock { $0.selection = selection; $0.callCount += 1; $0.lastReselectionDepth = reselectionDepth }
         return .authored
     }
 

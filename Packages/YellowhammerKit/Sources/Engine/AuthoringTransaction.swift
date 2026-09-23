@@ -45,27 +45,40 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
     /// Readiness Check runs at dispatch.
     public let provenance: any ProvenanceTesting
     public let operatorIdentity: OperatorIdentity
+    /// The refusal-drift promotion Bound (roadmap P11.6; bounds/overview): how many
+    /// consecutive Refusals a Feature may carry before it is promoted to a standing item. Defaults to
+    /// the glossary's own default of 3.
+    public let consecutiveRefusalsMax: Int
+    /// The Divergence promotion Bound (roadmap P11.6; bounds/overview): how many
+    /// consecutive failed Adoptions a Card may carry before it is promoted to a standing item. Defaults
+    /// to the glossary's own default of 2.
+    public let failedAdoptionsMax: Int
 
     public init(
         drafting: any FeatureBreakdownDrafting, citations: any CitationResolving,
         transcribing: any ContractTranscribing, provenance: any ProvenanceTesting,
-        operatorIdentity: OperatorIdentity = .none
+        operatorIdentity: OperatorIdentity = .none, consecutiveRefusalsMax: Int = 3, failedAdoptionsMax: Int = 2
     ) {
         self.drafting = drafting
         self.citations = citations
         self.transcribing = transcribing
         self.provenance = provenance
         self.operatorIdentity = operatorIdentity
+        self.consecutiveRefusalsMax = consecutiveRefusalsMax
+        self.failedAdoptionsMax = failedAdoptionsMax
     }
 
-    public func author(_ selection: SelectedFeature, context: ActContext) async throws -> FeatureAuthoringOutcome {
+    public func author(
+        _ selection: SelectedFeature, reselectionDepth: Int = 0, context: ActContext
+    ) async throws -> FeatureAuthoringOutcome {
         guard let outbox = context.outbox, let board = context.board else {
             throw AuthoringTransactionError.noBoard
         }
         // Every Card the selection tries to adopt is re-validated before the breakdown is drafted
         // (roadmap P11.5), so the Feature is sized without any Card whose Adoption is refused.
         let revalidated = try await AdoptionRevalidation.revalidate(
-            selection, provenance: provenance, context: context, operatorIdentity: operatorIdentity
+            selection, provenance: provenance, context: context, operatorIdentity: operatorIdentity,
+            failedAdoptionsMax: failedAdoptionsMax
         )
         let selection = revalidated.selection
         guard let breakdown = try await draft(selection, context: context) else {
@@ -83,11 +96,10 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         // here, before any board write this transaction would otherwise make.
         let resolution = await AuthoringCitations.resolve(breakdown, using: citations, context: context)
         if resolution.isThin {
-            // The backlog walk is P11.6's, so the re-selection depth is 0 until it lands.
             return try await RefusalRecording.record(
                 feature: selection.name,
-                finding: RefusalFinding(uncitable: resolution.uncitable, reselectionDepth: 0),
-                context: context, operatorIdentity: operatorIdentity
+                finding: RefusalFinding(uncitable: resolution.uncitable, reselectionDepth: reselectionDepth),
+                context: context, operatorIdentity: operatorIdentity, consecutiveRefusalsMax: consecutiveRefusalsMax
             )
         }
 

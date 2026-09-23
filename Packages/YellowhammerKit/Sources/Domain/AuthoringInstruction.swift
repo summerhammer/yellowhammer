@@ -15,6 +15,9 @@ public struct AuthoringInstruction: Equatable, Sendable {
     /// The Feature the Operator forced authoring for, when they named one.
     public let namedFeature: FeatureName?
     public let adoptionCandidates: [AdoptionCandidate]
+    /// Features refused earlier in this Night's re-selection walk (roadmap P11.6; bounds/
+    /// bound-re-selections): the selector must not choose one of these again.
+    public let refusedThisNight: [FeatureName]
     /// The validated Feature to break down; non-nil exactly for the breakdown pass.
     public let selectedFeature: SelectedFeature?
     /// The absolute path the CLI must write its result file to.
@@ -29,6 +32,7 @@ public struct AuthoringInstruction: Equatable, Sendable {
         mainlines: ResolvedMainlines,
         namedFeature: FeatureName?,
         adoptionCandidates: [AdoptionCandidate],
+        refusedThisNight: [FeatureName] = [],
         selectedFeature: SelectedFeature?,
         resultFilePath: String
     ) {
@@ -40,6 +44,7 @@ public struct AuthoringInstruction: Equatable, Sendable {
         self.mainlines = mainlines
         self.namedFeature = namedFeature
         self.adoptionCandidates = adoptionCandidates
+        self.refusedThisNight = refusedThisNight
         self.selectedFeature = selectedFeature
         self.resultFilePath = resultFilePath
     }
@@ -50,7 +55,7 @@ public struct AuthoringInstruction: Equatable, Sendable {
             pass: pass, route: route, specificationSource: specificationSource,
             specificationMainline: specificationMainline, repos: repos, mainlines: mainlines,
             namedFeature: namedFeature, adoptionCandidates: adoptionCandidates,
-            selectedFeature: selectedFeature, resultFilePath: path
+            refusedThisNight: refusedThisNight, selectedFeature: selectedFeature, resultFilePath: path
         )
     }
 }

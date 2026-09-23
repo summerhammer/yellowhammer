@@ -207,6 +207,14 @@ extension JournalEvent {
             .cardAdopted
         case .adoptionUntestable:
             .adoptionUntestable
+        case .featureReselected:
+            .featureReselected
+        case .reselectionBoundReached:
+            .reselectionBoundReached
+        case .refusalPromotedToStandingItem:
+            .refusalPromotedToStandingItem
+        case .cardPromotedToStandingItem:
+            .cardPromotedToStandingItem
         }
     }
 }

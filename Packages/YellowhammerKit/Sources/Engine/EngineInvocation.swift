@@ -91,6 +91,9 @@ public struct EngineInvocation: Sendable {
     /// The Workspace Port, when this invocation maintains Worktrees. The Engine never imports an
     /// adapter (MB1/MB5); `EngineCommand` is the one place this is wired.
     public let workspace: (any Workspace)?
+    /// The Night Summary's Bounds (roadmap P11.6): plain Ints, read from `project.bounds` only by
+    /// `EngineCommand` — the Engine never imports `Config`.
+    public let nightCardBounds: NightCardMaintenance.Bounds
     private let journal: JournalStore
     private let work: ActWork
 
@@ -106,7 +109,8 @@ public struct EngineInvocation: Sendable {
         board: ActBoard? = nil,
         repositories: ProjectRepositories? = nil,
         mainlineRefresher: MainlineRefresher = MainlineRefresher(),
-        workspace: (any Workspace)? = nil
+        workspace: (any Workspace)? = nil,
+        nightCardBounds: NightCardMaintenance.Bounds = NightCardMaintenance.Bounds()
     ) {
         self.act = act
         self.mode = mode
@@ -117,6 +121,7 @@ public struct EngineInvocation: Sendable {
         self.closesNight = closesNight
         self.leasePolicy = leasePolicy
         self.board = board
+        self.nightCardBounds = nightCardBounds
         self.repositories = repositories
         self.mainlineRefresher = mainlineRefresher
         self.workspace = workspace
@@ -140,6 +145,7 @@ public struct EngineInvocation: Sendable {
         repositories: ProjectRepositories? = nil,
         mainlineRefresher: MainlineRefresher = MainlineRefresher(),
         workspace: (any Workspace)? = nil,
+        nightCardBounds: NightCardMaintenance.Bounds = NightCardMaintenance.Bounds(),
         work: @escaping ActWork
     ) {
         self.act = act
@@ -151,6 +157,7 @@ public struct EngineInvocation: Sendable {
         self.closesNight = closesNight
         self.leasePolicy = leasePolicy
         self.board = board
+        self.nightCardBounds = nightCardBounds
         self.repositories = repositories
         self.mainlineRefresher = mainlineRefresher
         self.workspace = workspace
@@ -210,7 +217,7 @@ public struct EngineInvocation: Sendable {
             if let board {
                 let boxed = Outbox(journal: journal, board: board.writing, runID: runID, act: act, nightID: night.id)
                 let maintenance = NightCardMaintenance(
-                    journal: journal, outbox: boxed, provisioning: board.provisioning
+                    journal: journal, outbox: boxed, provisioning: board.provisioning, bounds: nightCardBounds
                 )
                 _ = try await maintenance.open(night: night)
                 night = try journal.night(id: night.id) ?? night

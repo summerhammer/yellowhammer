@@ -32,9 +32,12 @@ enum AuthoringBinding {
                 citations: MainlineReader(),
                 transcribing: MainlineReader(),
                 provenance: ProvenanceDiffTester(),
-                operatorIdentity: operatorIdentity
+                operatorIdentity: operatorIdentity,
+                consecutiveRefusalsMax: project.bounds.consecutiveRefusalsMax,
+                failedAdoptionsMax: project.bounds.failedAdoptionsMax
             ),
-            operatorIdentity: operatorIdentity
+            operatorIdentity: operatorIdentity,
+            reselectionsMax: project.bounds.reselectionsMax
         )
     }
 }

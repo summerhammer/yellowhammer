@@ -380,15 +380,18 @@ public enum JournalEvent: Equatable, Sendable {
     case adoptionRefused(
         cardID: Int64, issueID: String, nightID: Int64, featureName: String, staleBlocks: [AdoptionStaleBlock]
     )
-    /// A Card was adopted cleanly into a successor Feature (roadmap P11.5): moved from its prior Feature
-    /// into the adopting one, cold in a fresh Worktree, carrying its prior Block Reason for the record.
+    /// A Card was adopted cleanly into a successor Feature (P11.5): cold in a fresh Worktree.
     case cardAdopted(
         cardID: Int64, issueID: String, previousFeatureIssueID: String, newFeatureIssueID: String,
         priorBlockReason: String?, coldStartNote: String
     )
-    /// A Card a selection tried to adopt had untestable provenance (roadmap P11.5): not adopted this
-    /// Night, but not refused — no Divergence, no counter change, still a candidate for later.
+    /// A Card a selection tried to adopt had untestable provenance (P11.5): not adopted, not refused.
     case adoptionUntestable(cardID: Int64, issueID: String, featureName: String, reasons: [String])
+    /// P11.6, see FeatureSelection/JournalStore+Refusals/+AdoptionRefusal, the writers of these four.
+    case featureReselected(depth: Int, afterRefusalOf: String, reselectionsMax: Int)
+    case reselectionBoundReached(depth: Int, reselectionsMax: Int)
+    case refusalPromotedToStandingItem(feature: String, consecutiveRefusals: Int, consecutiveRefusalsMax: Int)
+    case cardPromotedToStandingItem(cardID: Int64, issueID: String, failedAdoptions: Int, failedAdoptionsMax: Int)
 
     // `type`, the exhaustive switch from a case to its `JournalEventType`, lives in
     // JournalEvent+Type.swift, split out to keep this file under the file length limit.
