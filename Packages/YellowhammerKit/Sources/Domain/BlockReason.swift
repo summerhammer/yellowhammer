@@ -1,4 +1,4 @@
-/// The six values a Blocked Card's Block Reason takes, distinguishing blocked-by-check from
+/// The values a Blocked Card's Block Reason takes, distinguishing blocked-by-check from
 /// blocked-by-reviewer and a hard failure from a host crash; a Cancelled Card carries none.
 public enum BlockReason: String, CaseIterable, Sendable {
     case blockedByReviewer = "blocked by reviewer"
@@ -10,4 +10,6 @@ public enum BlockReason: String, CaseIterable, Sendable {
     case hostCrash = "host crash"
     case unanswered = "unanswered"
     case undecided = "undecided"
+    /// Unfinished work carried forward when its still-running Feature is released.
+    case released = "released"
 }

@@ -65,6 +65,7 @@ struct FeatureSettleGestureTests {
     @Test("released on a running Feature: salvages, archives the Cycle, never archives the Feature Issue")
     func releasedOnARunningFeature() async throws {
         let world = try await makeSettleWorld()
+        let active = try await world.seedActiveCards()
         try world.holdWorktree(repository: "backend", pushed: true)
         try world.holdWorktree(repository: "mobile", pushed: false)
         try world.journal.recordPullRequest(
@@ -123,13 +124,37 @@ struct FeatureSettleGestureTests {
             Issue.record("expected featureReleased")
             return
         }
-        #expect(carried == ["BACK-2", "MOB-1"])
+        #expect(carried == ["BACK-2", "BACK-3", "MOB-1", "MOB-3"])
         #expect(accepted == ["BACK-1"])
         #expect(abandoned == ["backend"])
+        try await assertReleasedActiveCards(world, active: active, comment: comment.body)
 
         // The same author Act proceeds past the predecessor gate: the walk skips a released Feature.
         let walk = try world.journal.predecessorFeature()
         #expect(walk.predecessor == nil)
+    }
+
+    @Test("A live Card Lease prevents release until its holder lets go")
+    func releasedActiveCardHeldByAnotherRun() async throws {
+        let world = try await makeSettleWorld()
+        let active = try await world.seedActiveCards()
+        await world.seedFeatureIssueState(SettleValue.released.rawValue)
+        let context = try world.makeContext()
+        let holder = RunID()
+        _ = try world.journal.claimCardLease(cardID: active.todo, runID: holder)
+        let gesture = FeatureSettleGesture()
+
+        await #expect(throws: CycleArchiveFault.self) {
+            try await gesture.settle(feature: try inFlightFeature(world), cycleID: world.cycleID, context: context)
+        }
+        #expect(try world.journal.card(id: active.todo).state == .todo)
+        #expect(try world.journal.inFlightCycleID() == world.cycleID)
+        #expect(try world.journal.events(ofType: .featureReleased).isEmpty)
+
+        try world.journal.releaseCardLease(cardID: active.todo, runID: holder)
+        try await gesture.settle(feature: try inFlightFeature(world), cycleID: world.cycleID, context: context)
+        #expect(try world.journal.card(id: active.todo).blockReason == BlockReason.released.rawValue)
+        #expect(try world.journal.events(ofType: .featureReleased).count == 1)
     }
 
     @Test("released on a Partial Landing: worktree release is a no-op, abandoned repositories recorded")
@@ -208,15 +233,22 @@ struct FeatureSettleGestureTests {
     @Test("Releasing twice writes nothing more")
     func releasingTwiceIsIdempotent() async throws {
         let world = try await makeSettleWorld()
+        let active = try await world.seedActiveCards()
         await world.seedFeatureIssueState(SettleValue.released.rawValue)
         let context = try world.makeContext()
         let gesture = FeatureSettleGesture()
 
         try await gesture.settle(feature: try inFlightFeature(world), cycleID: world.cycleID, context: context)
+        let stateEvents = try world.journal.events(ofType: .cardStateTransitioned).count
+        let boardUpdates = await world.boards.writing.updateCalls
         let feature = try settleFeatureRecord(world.journal, featureID: world.featureID)
         try await gesture.settle(feature: feature, cycleID: world.cycleID, context: context)
 
         #expect(try world.journal.events(ofType: .featureReleased).count == 1)
+        #expect(try world.journal.events(ofType: .cardStateTransitioned).count == stateEvents)
+        #expect(await world.boards.writing.updateCalls == boardUpdates)
+        #expect(try world.journal.card(id: active.todo).stateVersion == 1)
+        #expect(try world.journal.card(id: active.inProgress).stateVersion == 1)
         #expect(await world.boards.writing.createCommentCalls == 1)
     }
 
@@ -225,6 +257,33 @@ struct FeatureSettleGestureTests {
     private func inFlightFeature(_ world: SettleWorld) throws -> FeatureRecord {
         try #require(try world.journal.inFlightFeature()).feature
     }
+}
+
+private func assertReleasedActiveCards(
+    _ world: SettleWorld, active: (todo: Int64, inProgress: Int64), comment: String
+) async throws {
+    for (cardID, epoch) in [(active.todo, 3), (active.inProgress, 4)] {
+        let card = try world.journal.card(id: cardID)
+        #expect(card.state == .blocked)
+        #expect(card.blockReason == BlockReason.released.rawValue)
+        #expect(card.budgetEpoch == epoch)
+        #expect(card.stateVersion == 1)
+        #expect(card.boardStateVersion == card.stateVersion)
+    }
+    for issueID in ["BACK-3", "MOB-3"] {
+        let issue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: issueID)))
+        #expect(issue.parent == nil)
+    }
+    #expect(try world.journal.attemptSummary(cardID: active.inProgress).roundCount == 1)
+    #expect(comment.contains("BACK-3"))
+    #expect(comment.contains("MOB-3"))
+    #expect(comment.contains(BlockReason.released.rawValue))
+
+    let adoptable = try world.journal.blockedCardsLeftByClosedFeatures().map(\.issueID)
+    #expect(adoptable.contains("BACK-3"))
+    #expect(adoptable.contains("MOB-3"))
+    #expect(!adoptable.contains("BACK-1"))
+    #expect(!adoptable.contains("MOB-2"))
 }
 
 @Suite("Author Act applies the settle seam (P10.9)")
