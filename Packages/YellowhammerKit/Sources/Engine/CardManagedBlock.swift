@@ -105,6 +105,19 @@ public struct AdoptionRefusalNotice: Equatable, Sendable {
     }
 }
 
+/// A Card's un-adopted standing (roadmap P12.1): rendered on the Card's own Managed Block header
+/// beside its state, from the same derivation the Night Summary's standing line reads
+/// (`JournalStore.unadoptedCards(asOf:)`), so the two figures never disagree.
+public struct UnadoptedStanding: Equatable, Sendable {
+    public var closedFeatureIssueID: String
+    public var elapsedNights: Int
+
+    public init(closedFeatureIssueID: String, elapsedNights: Int) {
+        self.closedFeatureIssueID = closedFeatureIssueID
+        self.elapsedNights = elapsedNights
+    }
+}
+
 public struct CardManagedBlock: Equatable, Sendable {
     public var kind: String
     public var repository: String
@@ -131,6 +144,9 @@ public struct CardManagedBlock: Equatable, Sendable {
     /// You under `divergence` because of it; nil otherwise, or once a later readiness Divergence
     /// supersedes it. A second refusal replaces this notice rather than stacking beside it.
     public var adoptionRefusalNotice: AdoptionRefusalNotice?
+    /// Set when this Card is left Blocked by a closed Feature (roadmap P12.1); nil for every other
+    /// Card, and nil ⇒ the rendered output is byte-identical to before this field existed.
+    public var unadoptedStanding: UnadoptedStanding?
 
     public static let footer = "_Managed by Yellowhammer. This block is rewritten from the Journal; " +
         "write outside it and your text is kept._"
@@ -149,7 +165,8 @@ public struct CardManagedBlock: Equatable, Sendable {
         attemptConsumption: AttemptConsumption? = nil,
         attemptsPerCard: Int? = nil,
         triagePromotion: TriagePromotion? = nil,
-        adoptionRefusalNotice: AdoptionRefusalNotice? = nil
+        adoptionRefusalNotice: AdoptionRefusalNotice? = nil,
+        unadoptedStanding: UnadoptedStanding? = nil
     ) {
         self.kind = kind
         self.repository = repository
@@ -165,6 +182,7 @@ public struct CardManagedBlock: Equatable, Sendable {
         self.attemptsPerCard = attemptsPerCard
         self.triagePromotion = triagePromotion
         self.adoptionRefusalNotice = adoptionRefusalNotice
+        self.unadoptedStanding = unadoptedStanding
     }
 
     public func render() -> String {
@@ -184,11 +202,16 @@ public struct CardManagedBlock: Equatable, Sendable {
         }
 
         // State line
-        let stateLine: String
+        var stateLine: String
         if let blockReason = blockReason {
             stateLine = "**State:** \(state.rawValue) — \(blockReason)"
         } else {
             stateLine = "**State:** \(state.rawValue)"
+        }
+        if let unadoptedStanding {
+            let nightWord = unadoptedStanding.elapsedNights == 1 ? "Night" : "Nights"
+            stateLine += " · un-adopted for \(unadoptedStanding.elapsedNights) \(nightWord) since Feature " +
+                "`\(unadoptedStanding.closedFeatureIssueID)` closed"
         }
         lines.append(stateLine)
         if let triagePromotion {

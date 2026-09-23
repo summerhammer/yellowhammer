@@ -110,9 +110,22 @@ public struct ManagedBlockMaintenance: Sendable {
             attempts: attempts,
             attemptConsumption: consumption,
             triagePromotion: try triagePromotion(card: card),
-            adoptionRefusalNotice: try adoptionRefusalNotice(card: card)
+            adoptionRefusalNotice: try adoptionRefusalNotice(card: card),
+            unadoptedStanding: try unadoptedStanding(card: card)
         )
         return managedBlock.render()
+    }
+
+    /// The Card's un-adopted standing (roadmap P12.1), `asOf` the latest recorded Night — read from the
+    /// same `JournalStore.unadoptedCards(asOf:)` derivation the Night Summary's standing line uses, so
+    /// the two figures can never disagree. Nil for every Card the derivation does not return.
+    private func unadoptedStanding(card: CardRecord) throws -> UnadoptedStanding? {
+        guard let latest = try journal.nights().last else { return nil }
+        guard let match = try journal.unadoptedCards(asOf: latest.nightStart).first(where: { $0.card.id == card.id })
+        else {
+            return nil
+        }
+        return UnadoptedStanding(closedFeatureIssueID: match.closedFeatureIssueID, elapsedNights: match.elapsedNights)
     }
 
     /// The Card's latest adoption refusal, rendered only while it is Waiting on You under `divergence`

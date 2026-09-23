@@ -23,45 +23,56 @@ public enum NightCardBlock {
         return lines.joined(separator: "\n")
     }
 
-    /// The block a Night Card is completed with: the same header, when it was completed, the Night's
-    /// verdict — the idle finding this phase can carry, or a placeholder until the Night Summary lands
-    /// (P12.1) — the quiet authoring findings this Night recorded (P9.1), and, when the Delta Read
-    /// found any, the Waiting on You anomalies this Night.
+    /// The Night Summary's `**Verdict:**` line rendered when nothing more specific is computed:
+    /// closed vocabulary, same shape `NightSummary.verdictLine(night:journal:)` produces, for the few
+    /// call sites (tests of other sections) that render a completed block without a Journal to compute
+    /// the real one from.
+    public static let defaultVerdictLine = "no decisions waiting · did not advance · closed"
+
+    /// The block a Night Card is completed with: the same header, when it was completed, the Night
+    /// Summary (roadmap P12.1) — a constant-time `**Verdict:**` line, then, while any exist, the quiet
+    /// authoring findings this Night recorded (P9.1), the Cards touched this Night and their
+    /// Dispositions, pull requests, answers banked on landed Cards, and the Waiting on You anomalies
+    /// the Delta Read found.
     public static func completed(
-        night: NightRecord, projectID: ProjectID, authoringFindings: [String] = [], anomalies: [String] = [],
-        mainlineConflicts: [String] = [], bounds: [String] = [], standingItems: [String] = []
+        night: NightRecord, projectID: ProjectID, verdictLine: String = defaultVerdictLine,
+        authoringFindings: [String] = [], cardLines: [String] = [], dispositionLines: [String] = [],
+        pullRequestLines: [String] = [], answerLines: [String] = [], anomalies: [String] = [],
+        crashesAndReclaims: [String] = [], exceptions: [String] = [],
+        bounds: [String] = [], standingItems: [String] = [], unadoptedCards: [String] = [],
+        inFlightFeature: [String] = []
     ) -> String {
         var lines = header(night: night, projectID: projectID)
         if let completedAt = night.completedAt {
             lines.append("**Completed:** \(iso8601(completedAt)) at `night_end`")
         }
         lines.append("")
-        switch night.verdict {
-        case .idle:
-            lines.append(
-                "**Verdict:** idle — nothing was selectable to author (`AuthoringNoWorkAvailable`). " +
-                "A quiet Night is not a failure."
-            )
-        case nil:
-            lines.append(
-                "**Verdict:** not yet computed — this build completes the Night Card with a placeholder; " +
-                "the Night Summary lands with the morning report."
-            )
-        }
+        lines.append("**Verdict:** \(verdictLine)")
         appendAuthoringFindings(authoringFindings, to: &lines)
-        appendMainlineConflicts(mainlineConflicts, to: &lines)
-        if !anomalies.isEmpty {
-            lines.append("")
-            lines.append("**Anomalies:**")
-            for anomaly in anomalies {
-                lines.append("- \(anomaly)")
-            }
-        }
+        appendSection("Cards", cardLines, to: &lines)
+        appendSection("Dispositions", dispositionLines, to: &lines)
+        appendSection("Pull requests", pullRequestLines, to: &lines)
+        appendSection("Answers on landed Cards", answerLines, to: &lines)
+        appendSection("Anomalies", anomalies, to: &lines)
+        appendSection("Crashes and reclaims", crashesAndReclaims, to: &lines)
+        appendSection("Exceptions", exceptions, to: &lines)
         appendBounds(bounds, to: &lines)
         appendStandingItems(standingItems, to: &lines)
+        appendSection("Standing: un-adopted Cards", unadoptedCards, to: &lines)
+        appendSection("Standing: unmerged in-flight Feature", inFlightFeature, to: &lines)
         lines.append("")
         lines.append(CardManagedBlock.footer)
         return lines.joined(separator: "\n")
+    }
+
+    /// Appends `**<title>:**` with one bullet per line, when there is anything to say.
+    private static func appendSection(_ title: String, _ items: [String], to lines: inout [String]) {
+        guard !items.isEmpty else { return }
+        lines.append("")
+        lines.append("**\(title):**")
+        for item in items {
+            lines.append("- \(item)")
+        }
     }
 
     /// The `**Bounds:**` section (roadmap P11.6; bounds overview): this Night's proximity to
@@ -95,15 +106,6 @@ public enum NightCardBlock {
         lines.append("**Authoring:**")
         for finding in findings {
             lines.append("- \(finding)")
-        }
-    }
-
-    private static func appendMainlineConflicts(_ conflicts: [String], to lines: inout [String]) {
-        guard !conflicts.isEmpty else { return }
-        lines.append("")
-        lines.append("**Mainline Conflicts:**")
-        for conflict in conflicts {
-            lines.append("- \(conflict)")
         }
     }
 
