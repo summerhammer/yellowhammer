@@ -1329,7 +1329,7 @@ comment on the Delta Read).
 - **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Rehearsal tests of adopt and refuse-to-adopt, with counters verified.
 
-### [ ] P11.6 Promotion and re-selection bounds
+### [x] P11.6 Promotion and re-selection bounds
 - **Work**
   - Refusal-drift promotion: consecutive refusals past the operator-set bound make a standing item.
     Nothing else changes.
