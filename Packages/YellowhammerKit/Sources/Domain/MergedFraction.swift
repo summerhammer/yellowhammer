@@ -9,7 +9,10 @@ public struct MergedFraction: Equatable, Hashable, Sendable {
     /// Total number of repositories touched by the Feature (`N`).
     public let totalCount: Int
 
+    // Spec-verbatim compatibility aliases; callers may still use k of N notation.
+    // swiftlint:disable:next identifier_name
     public var k: Int { mergedCount }
+    // swiftlint:disable:next identifier_name
     public var n: Int { totalCount }
 
     /// Whether all touched repositories have merged the Feature Branch.

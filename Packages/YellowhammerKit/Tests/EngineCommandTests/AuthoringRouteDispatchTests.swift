@@ -166,7 +166,9 @@ struct AuthoringRouteDispatchTests {
         #expect(outcome == .authoringRolledBack)
         #expect(dispatch.requests.map(\.route) == [primary, fallback])
         #expect(dispatch.requests.allSatisfy { $0.pass == .breakdown })
-        #expect(dispatch.requests.allSatisfy { $0.additionalReadableDirectories == ["/repos/backend", "/repos/mobile"] })
+        #expect(dispatch.requests.allSatisfy {
+            $0.additionalReadableDirectories == ["/repos/backend", "/repos/mobile"]
+        })
         #expect(try rig.journal.events(ofType: .featureBreakdownRejected).count == 1)
         #expect(try tableRowCount(rig.journal, table: "outbox") == 0)
     }
