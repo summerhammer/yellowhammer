@@ -33,6 +33,10 @@ public struct CardRecord: Equatable, Sendable {
     /// The Night this clock last counted, so a second Act of the same Night adds nothing; nil until the
     /// first advance after the Card most recently entered Waiting on You.
     public let unansweredLastCountedNightID: Int64?
+    /// How many Adoptions this Card has failed consecutively (roadmap P11.5; spec: feature-authoring/
+    /// author-the-cycle-and-card-dag, second story): reset to 0 by a clean Adoption. What
+    /// `failed_adoptions_max` will read (roadmap P11.6) — this milestone only keeps the count.
+    public let failedAdoptions: Int
 }
 
 // The reads the Act trigger predicates are evaluated from. They answer two questions and no others:
@@ -172,7 +176,8 @@ extension JournalStore {
             stateVersion: row["state_version"],
             boardStateVersion: row["board_state_version"],
             unansweredNights: row["unanswered_nights"],
-            unansweredLastCountedNightID: row["unanswered_last_counted_night_id"]
+            unansweredLastCountedNightID: row["unanswered_last_counted_night_id"],
+            failedAdoptions: row["failed_adoptions"]
         )
     }
 
@@ -343,7 +348,8 @@ extension CardRecord {
             stateVersion: stateVersion,
             boardStateVersion: boardStateVersion,
             unansweredNights: unansweredNights,
-            unansweredLastCountedNightID: unansweredLastCountedNightID
+            unansweredLastCountedNightID: unansweredLastCountedNightID,
+            failedAdoptions: failedAdoptions
         )
     }
 }

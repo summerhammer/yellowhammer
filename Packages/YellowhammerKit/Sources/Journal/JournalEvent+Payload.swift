@@ -5,8 +5,7 @@ extension JournalEvent {
     /// Encodes this event as a payload dictionary with sorted keys (for byte-stable storage).
     var payload: [String: String]? {
         switch self {
-        case .actStarted, .actEnded:
-            nil
+        case .actStarted, .actEnded: nil
         case .actIdle(let reason):
             ["reason": reason.rawValue]
         case .actIncomplete(let reason):
@@ -395,6 +394,7 @@ extension JournalEvent {
         case .featureSettled, .featureReleased, .settleValueNotHonoured:
             settlePayload
         case .cardUnansweredBoundFired: cardUnansweredBoundFiredPayload
+        case .adoptionRefused, .cardAdopted, .adoptionUntestable: adoptionEventPayload
         }
     }
 }

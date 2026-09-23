@@ -166,7 +166,8 @@ extension CardRun {
         let effectivePayloads = InstructionPayloads(
             wip: payloads.wip ?? frame.wipContext,
             answeredQuestion: payloads.answeredQuestion ?? frame.answeredQuestion,
-            bankedReplies: payloads.bankedReplies, roundFeedback: payloads.roundFeedback
+            bankedReplies: payloads.bankedReplies.isEmpty ? frame.bankedReplies : payloads.bankedReplies,
+            roundFeedback: payloads.roundFeedback
         )
         let request = AgentDispatchRequest(
             runID: frame.context.act.runID, issueID: frame.card.issueID, attemptID: attempt.id, route: route,

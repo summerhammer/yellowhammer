@@ -8,7 +8,8 @@ import Journal
 public enum FeatureMemberMarker: Hashable, Sendable {
     /// The Card has at least one banked reply and is still Waiting on You, or has been carried forward
     /// as Blocked after its Feature merged — an answer is recorded and waiting for opportunistic
-    /// Adoption by a successor Feature (roadmap P11.5, not yet joined here).
+    /// Adoption by a successor Feature (roadmap P11.5, joined at `AuthoringTransaction`/
+    /// `AdoptionRevalidation`, `CardRun+Frame`'s dispatch payload, and here as a read-time marker).
     case bankedAnswer
     /// The Card is Cancelled.
     case cancelled

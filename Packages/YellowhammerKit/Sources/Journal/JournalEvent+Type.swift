@@ -201,6 +201,12 @@ extension JournalEvent {
             .settleValueNotHonoured
         case .cardUnansweredBoundFired:
             .cardUnansweredBoundFired
+        case .adoptionRefused:
+            .adoptionRefused
+        case .cardAdopted:
+            .cardAdopted
+        case .adoptionUntestable:
+            .adoptionUntestable
         }
     }
 }

@@ -44,8 +44,8 @@ struct AuthoringPlanner {
     func plan() throws -> AuthoringPlan {
         var nextOrder: [String: Int] = [:]
         let featureClauses = Self.mint(citations.featureClauses)
-        let featureWrite = try featureCreate(clauses: featureClauses)
         let (adoptions, adoptionWrites) = try adopt(nextOrder: &nextOrder)
+        let featureWrite = try featureCreate(clauses: featureClauses, adoptions: adoptions)
         let (cards, cardWrites) = try create(nextOrder: &nextOrder)
         let uncitable = citations.uncitable.map {
             PlannedUncitableClause(
@@ -90,10 +90,11 @@ struct AuthoringPlanner {
         return id
     }
 
-    private func featureCreate(clauses: [PlannedClause]) throws -> OutboxWrite {
+    private func featureCreate(clauses: [PlannedClause], adoptions: [PlannedAdoption]) throws -> OutboxWrite {
         OutboxWrite(key: featureKey, write: .createIssue(
             BoardIssueDraft(
-                team: scope.team, title: selection.name.rawValue, description: featureDescription(clauses: clauses),
+                team: scope.team, title: selection.name.rawValue,
+                description: featureDescription(clauses: clauses, adoptions: adoptions),
                 labels: [try label("Feature")], workflowState: try scope.id(for: .todo)
             ),
             parentKey: nil
@@ -111,7 +112,10 @@ struct AuthoringPlanner {
             let order = nextOrder[row.repository, default: 0] + 1
             nextOrder[row.repository] = order
             let key = "adopt:\(prefix):\(issueID)"
-            planned.append(PlannedAdoption(key: key, cardIssueID: issueID, repository: row.repository, order: order))
+            planned.append(PlannedAdoption(
+                key: key, cardIssueID: issueID, repository: row.repository, order: order,
+                previousFeatureIssueID: previousParent
+            ))
             writes.append(OutboxWrite(key: key, write: .adoptIssue(
                 issue: BoardObjectID(rawValue: issueID), parentKey: featureKey,
                 undo: BoardIssueChange(parent: .set(BoardObjectID(rawValue: previousParent)))
@@ -158,7 +162,7 @@ struct AuthoringPlanner {
     /// later rewrite finds its delimiters; the prose sits outside it, where a rewrite preserves it. The
     /// Feature's carries the sequence and its reasoning when the selection is one step of a sequence. Its
     /// Definition of Done is authored as prose (outside the fence) — the checklist the Operator reads.
-    private func featureDescription(clauses: [PlannedClause]) -> String {
+    private func featureDescription(clauses: [PlannedClause], adoptions: [PlannedAdoption]) -> String {
         let checklist = Self.definitionOfDoneLines(clauses).joined(separator: "\n")
         var prose = """
             ## Definition of done
@@ -169,6 +173,17 @@ struct AuthoringPlanner {
 
             \(selection.reasoning)
             """
+        if !adoptions.isEmpty {
+            let lines = adoptions.map { "- \($0.cardIssueID), adopted from \($0.previousFeatureIssueID)" }
+                .joined(separator: "\n")
+            prose += """
+
+
+                ## Adopted Cards
+
+                \(lines)
+                """
+        }
         if let sequence = selection.sequence {
             prose += """
 

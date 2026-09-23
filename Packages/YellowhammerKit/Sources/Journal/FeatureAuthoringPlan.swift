@@ -118,12 +118,30 @@ public struct PlannedAdoption: Codable, Equatable, Sendable {
     public let cardIssueID: String
     public let repository: String
     public let order: Int
+    /// The Feature Issue id this Card belonged to before this Adoption (roadmap P11.5) — what
+    /// ``JournalEvent/cardAdopted(cardID:issueID:previousFeatureIssueID:newFeatureIssueID:priorBlockReason:coldStartNote:)``
+    /// records. Empty for a pre-P11.5 plan decoded from a legacy `featureAuthoringAccepted` event.
+    public let previousFeatureIssueID: String
 
-    public init(key: String, cardIssueID: String, repository: String, order: Int) {
+    public init(key: String, cardIssueID: String, repository: String, order: Int, previousFeatureIssueID: String = "") {
         self.key = key
         self.cardIssueID = cardIssueID
         self.repository = repository
         self.order = order
+        self.previousFeatureIssueID = previousFeatureIssueID
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case key, cardIssueID, repository, order, previousFeatureIssueID
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        key = try container.decode(String.self, forKey: .key)
+        cardIssueID = try container.decode(String.self, forKey: .cardIssueID)
+        repository = try container.decode(String.self, forKey: .repository)
+        order = try container.decode(Int.self, forKey: .order)
+        previousFeatureIssueID = try container.decodeIfPresent(String.self, forKey: .previousFeatureIssueID) ?? ""
     }
 }
 

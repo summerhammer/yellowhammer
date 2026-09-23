@@ -31,6 +31,7 @@ enum AuthoringBinding {
                 drafting: RoutedFeatureBreakdown(route: route),
                 citations: MainlineReader(),
                 transcribing: MainlineReader(),
+                provenance: ProvenanceDiffTester(),
                 operatorIdentity: operatorIdentity
             ),
             operatorIdentity: operatorIdentity

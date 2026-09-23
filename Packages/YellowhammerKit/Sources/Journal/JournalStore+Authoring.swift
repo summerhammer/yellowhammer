@@ -132,24 +132,71 @@ extension JournalStore {
             try Self.insertClauseRows(
                 db, plan.featureClauses, issueID: featureIssueID, level: "feature", timestamp: timestamp
             )
+            let stamp = EventStamp(act: act, runID: runID, nightID: nightID, now: now)
             for adoption in plan.adoptions {
-                try db.execute(
-                    sql: "UPDATE card SET cycle_id = ?, authored_order = ? WHERE issue_id = ?",
-                    arguments: [cycleID, adoption.order, adoption.cardIssueID]
-                )
-                guard db.changesCount == 1 else {
-                    throw JournalError.adoptedCardUnknown(issueID: adoption.cardIssueID)
-                }
+                try Self.adoptCard(db, adoption, cycleID: cycleID, featureIssueID: featureIssueID, stamp: stamp)
             }
 
             let payload = FeatureAuthoredPayload(
                 name: plan.name, groupKey: plan.groupKey, featureIssueID: featureIssueID, cycleID: cycleID,
                 cardCount: cards.count, adoptedCount: plan.adoptions.count
             )
-            let stamp = EventStamp(act: act, runID: runID, nightID: nightID, now: now)
             _ = try Self.insertEvent(db, .featureAuthored(payload), stamp: stamp)
             return cycleID
         }
+    }
+
+    /// Moves one adopted Card into the new Cycle (roadmap P11.5; spec: feature-authoring/
+    /// author-the-cycle-and-card-dag, second story): `cycle_id` and `authored_order` change, the Card
+    /// starts Todo cold in a fresh Worktree — bumping `state_version` and appending
+    /// `.cardStateTransitioned` — and its round history, attempts, exclusions and `budget_epoch` are left
+    /// exactly as they stood. A clean adoption is a clean pass, so the consecutive `failed_adoptions` and
+    /// `consecutive_divergences` counts reset to zero. The prior
+    /// Block Reason is carried onto `.cardAdopted`, since leaving Blocked clears the column.
+    private static func adoptCard(
+        _ db: Database, _ adoption: PlannedAdoption, cycleID: Int64, featureIssueID: String, stamp: EventStamp
+    ) throws {
+        guard
+            let row = try Row.fetchOne(
+                db, sql: "SELECT * FROM card WHERE issue_id = ?", arguments: [adoption.cardIssueID]
+            )
+        else {
+            throw JournalError.adoptedCardUnknown(issueID: adoption.cardIssueID)
+        }
+        let record = try Self.cardRecord(from: row)
+        let priorBlockReason = record.blockReason
+
+        try db.execute(
+            sql: """
+            UPDATE card
+            SET cycle_id = ?, authored_order = ?, state = ?, waiting_reason = NULL, block_reason = NULL,
+                state_version = state_version + 1, failed_adoptions = 0, consecutive_divergences = 0
+            WHERE issue_id = ?
+            """,
+            arguments: [cycleID, adoption.order, CardState.todo.rawValue, adoption.cardIssueID]
+        )
+        guard db.changesCount == 1 else {
+            throw JournalError.adoptedCardUnknown(issueID: adoption.cardIssueID)
+        }
+
+        _ = try Self.insertEvent(
+            db,
+            .cardStateTransitioned(
+                cardID: record.id, issueID: record.issueID, from: record.state, to: .todo,
+                waitingReason: nil, blockReason: nil
+            ),
+            stamp: stamp
+        )
+        let coldStartNote = "the Card starts cold in a fresh Worktree: the previous Worktree and its " +
+            "build state were released when its Feature closed"
+        _ = try Self.insertEvent(
+            db,
+            .cardAdopted(
+                cardID: record.id, issueID: record.issueID, previousFeatureIssueID: adoption.previousFeatureIssueID,
+                newFeatureIssueID: featureIssueID, priorBlockReason: priorBlockReason, coldStartNote: coldStartNote
+            ),
+            stamp: stamp
+        )
     }
 
     /// Inserts one newly authored Card's row and its citable clauses (roadmap P9.5).

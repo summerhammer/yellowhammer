@@ -154,7 +154,8 @@ struct AuthoringRouteDispatchTests {
         )])
         let transaction = AuthoringTransaction(
             drafting: RoutedFeatureBreakdown(route: authoringRoute(dispatch)),
-            citations: FakeCitationResolver(), transcribing: FakeContractTranscriber()
+            citations: FakeCitationResolver(), transcribing: FakeContractTranscriber(),
+            provenance: FakeProvenanceTester()
         )
         let selection = FeatureSelection(
             selector: ScriptedFeatureSelector(outcome: .selected(try authoringSelection())),

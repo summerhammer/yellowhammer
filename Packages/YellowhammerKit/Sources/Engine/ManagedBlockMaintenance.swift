@@ -109,9 +109,22 @@ public struct ManagedBlockMaintenance: Sendable {
             definitionOfDone: doDClauses,
             attempts: attempts,
             attemptConsumption: consumption,
-            triagePromotion: try triagePromotion(card: card)
+            triagePromotion: try triagePromotion(card: card),
+            adoptionRefusalNotice: try adoptionRefusalNotice(card: card)
         )
         return managedBlock.render()
+    }
+
+    /// The Card's latest adoption refusal, rendered only while it is Waiting on You under `divergence`
+    /// and that refusal is still the reason (roadmap P11.5): a later readiness Divergence, or leaving
+    /// Waiting on You for any reason, clears it.
+    private func adoptionRefusalNotice(card: CardRecord) throws -> AdoptionRefusalNotice? {
+        guard card.state == .waitingOnYou, card.waitingReason == .divergence,
+              let refusal = try journal.latestDivergenceIsAdoptionRefusal(cardID: card.id)
+        else {
+            return nil
+        }
+        return AdoptionRefusalNotice(featureName: refusal.featureName, staleBlocks: refusal.staleBlocks)
     }
 
     /// The promotion to show on the Card: only while it is Blocked, and only when the failure cause the

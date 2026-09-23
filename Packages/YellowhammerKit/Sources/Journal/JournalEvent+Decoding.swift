@@ -18,10 +18,8 @@ extension JournalEvent {
         reader: PayloadReader
     ) throws -> JournalEvent {
         switch type {
-        case .actStarted:
-            .actStarted
-        case .actEnded:
-            .actEnded
+        case .actStarted: .actStarted
+        case .actEnded: .actEnded
         case .actIdle:
             try Self.decodeActIdle(reader)
         case .actIncomplete:
@@ -235,6 +233,7 @@ extension JournalEvent {
             try Self.decodeAuthoringStop(type, reader)
         case .featureSettled, .featureReleased, .settleValueNotHonoured: try Self.decodeSettle(type, reader)
         case .cardUnansweredBoundFired: try Self.decodeCardUnansweredBoundFired(reader)
+        case .adoptionRefused, .cardAdopted, .adoptionUntestable: try Self.decodeAdoptionEvent(type, reader)
         }
     }
 

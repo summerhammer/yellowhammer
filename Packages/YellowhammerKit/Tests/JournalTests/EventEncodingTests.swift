@@ -54,7 +54,8 @@ func eventTypeRawValues() {
         "LandStep", "CycleLanded", "FeatureVerified", "FeatureReturned", "CycleArchived",
         "RefusalAnswered", "AuthoringHaltOpened", "AuthoringHaltRepeated", "AuthoringHaltExpired",
         "AuthoringHaltCleared", "FeatureClosedByMerge", "FeatureSettled", "FeatureReleased",
-        "SettleValueNotHonoured", "CardUnansweredBoundFired"
+        "SettleValueNotHonoured", "CardUnansweredBoundFired",
+        "AdoptionRefused", "CardAdopted", "AdoptionUntestable"
     ]
     let actual = JournalEventType.allCases.map { $0.rawValue }.sorted()
     #expect(actual == expected.sorted())
