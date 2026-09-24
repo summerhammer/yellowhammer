@@ -246,6 +246,19 @@ enum LinearGraphQL {
         }
         """
 
+    /// Reads an issue's current label ids, so a removal can be filtered to labels Linear will actually
+    /// accept removing (`issueUpdate` refuses the whole mutation if `removedLabelIds` names a label the
+    /// issue does not carry).
+    static let issueLabelsQuery = """
+        query YellowhammerIssueLabels($id: String!) {
+          issue(id: $id) {
+            id
+            labels { nodes { id } }
+            project { id }
+          }
+        }
+        """
+
     static let updateIssueQuery = """
         mutation YellowhammerUpdateIssue($id: String!, $input: IssueUpdateInput!) {
           issueUpdate(id: $id, input: $input) {

@@ -57,6 +57,25 @@ struct LinearCreatedAttachment: Decodable {
     let id: String
 }
 
+struct LinearIssueLabelsPayload: Decodable {
+    let issue: LinearIssueLabelsData?
+}
+
+struct LinearIssueLabelsData: Decodable {
+    let id: String
+    let labels: LinearIssueLabelsList
+    /// Nil when the issue belongs to no Linear project, which is outside every Project's scope.
+    let project: LinearProjectReference?
+}
+
+struct LinearIssueLabelsList: Decodable {
+    let nodes: [LinearIssueLabelNode]
+}
+
+struct LinearIssueLabelNode: Decodable {
+    let id: String
+}
+
 struct LinearUpdateIssuePayload: Decodable {
     let issueUpdate: LinearUpdateIssueData?
 }

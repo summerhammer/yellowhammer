@@ -61,17 +61,21 @@ struct LinearIssueUpdateTests {
         var change = BoardIssueChange()
         change.addLabels = [BoardObjectID(rawValue: "label-add")]
         change.removeLabels = [BoardObjectID(rawValue: "label-remove")]
+        let labelsJson = #"{"data":{"issue":{"id":"issue-1","# // glossary:ignore GL001
+            + #""labels":{"nodes":[{"id":"label-remove"}]},"# // glossary:ignore GL001
+            + #""project":{"id":"\#(Fixture.linearProjectID)"}}}}"#
         let json = #"{"data":{"issueUpdate":{"success":true,"issue":{"id":"issue-1","# // glossary:ignore GL001
             + #""description":null,"updatedAt":"2026-09-16T00:00:00Z"}}}}"#
         let transport = StubHTTPTransport([
             Fixture.token(),
+            Fixture.json(labelsJson),
             Fixture.json(json)
         ])
         let adapter = Fixture.adapter(transport)
 
         _ = try await adapter.updateIssue(issueID, change)
 
-        let variables = try Fixture.variables(transport.requests[1])
+        let variables = try Fixture.variables(transport.requests[2])
         guard let input = variables["input"] as? [String: Any] else {
             Issue.record("expected input in variables")
             return
