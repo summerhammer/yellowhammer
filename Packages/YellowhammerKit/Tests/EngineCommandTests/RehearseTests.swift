@@ -110,4 +110,47 @@ struct RehearseTests {
 
         #expect(command.resultFixtures == [.worker: .workerQuestion])
     }
+
+    @Test("arguments includes --night after --rehearsal and before --result-fixture")
+    func argumentsIncludesNightInDocumentedPosition() {
+        let invocation = RehearseActInvocation(
+            act: .build, project: "alpha", force: true, rehearsal: true,
+            night: NightStart(rawValue: "2026-01-10"),
+            resultFixtures: [.worker: .workerQuestion]
+        )
+
+        #expect(invocation.arguments == [
+            "--project", "alpha", "--force", "--rehearsal",
+            "--night", "2026-01-10",
+            "--result-fixture", "worker=worker-question.json"
+        ])
+    }
+
+    @Test("Rehearse.run forwards night, when given, to every Act's invocation")
+    func runForwardsNightToEveryAct() async throws {
+        let recorded = Mutex<[RehearseActInvocation]>([])
+        let rehearse = Rehearse(
+            configurationDirectory: URL(filePath: "/tmp/does-not-matter"),
+            output: { _ in },
+            runAct: { invocation, _ in recorded.withLock { $0.append(invocation) } }
+        )
+        let night = NightStart(rawValue: "2026-01-10")
+
+        try await rehearse.run(projectID: "alpha", night: night)
+
+        let invocations = recorded.withLock { $0 }
+        #expect(invocations.allSatisfy { $0.night == night })
+    }
+
+    @Test("Rehearse.command(for:) round-trips forwarded night into each Act command")
+    func commandRoundTripsForwardedNight() throws {
+        let invocation = RehearseActInvocation(
+            act: .build, project: "alpha", force: true, rehearsal: true,
+            night: NightStart(rawValue: "2026-01-10")
+        )
+
+        let command = try Rehearse.command(for: invocation)
+
+        #expect(command.night == NightStart(rawValue: "2026-01-10"))
+    }
 }

@@ -9,25 +9,29 @@ struct RehearseActInvocation: Equatable {
     let project: String
     let force: Bool
     let rehearsal: Bool
+    let night: NightStart?
     let resultFixtures: [RunPass: RehearsalResultFixture]
 
     init(
-        act: Act, project: String, force: Bool, rehearsal: Bool,
+        act: Act, project: String, force: Bool, rehearsal: Bool, night: NightStart? = nil,
         resultFixtures: [RunPass: RehearsalResultFixture] = [:]
     ) {
         self.act = act
         self.project = project
         self.force = force
         self.rehearsal = rehearsal
+        self.night = night
         self.resultFixtures = resultFixtures
     }
 }
 
 extension RehearseActInvocation {
-    /// The arguments `yh <act>` receives for this invocation. Fixtures are forwarded in a deterministic
-    /// order — sorted by pass raw value — so the emitted arguments are stable across runs.
+    /// The arguments `yh <act>` receives for this invocation. `--night` comes after `--rehearsal` and
+    /// before `--result-fixture`; fixtures are forwarded in a deterministic order — sorted by pass raw
+    /// value — so the emitted arguments are stable across runs.
     var arguments: [String] {
         ["--project", project] + (force ? ["--force"] : []) + (rehearsal ? ["--rehearsal"] : [])
+            + (night.map { ["--night", $0.rawValue] } ?? [])
             + resultFixtures.sorted { $0.key.rawValue < $1.key.rawValue }
                 .flatMap { ["--result-fixture", "\($0.key.rawValue)=\($0.value.rawValue)"] }
     }
@@ -71,12 +75,17 @@ struct Rehearse {
 
     /// Runs the author, build and land Acts in order for `projectID` (already resolved). Prints a line
     /// before and after each Act; on failure, prints which Act failed and rethrows without running the
-    /// Acts still queued. `resultFixtures` is forwarded, unchanged, to every Act.
-    func run(projectID: String, resultFixtures: [RunPass: RehearsalResultFixture] = [:]) async throws {
+    /// Acts still queued. `resultFixtures` is forwarded, unchanged, to every Act. `night`, when given,
+    /// is forwarded to every Act too — the rehearsal-only `--night` (P15.3), letting a suite run several
+    /// successive Nights in one session.
+    func run(
+        projectID: String, resultFixtures: [RunPass: RehearsalResultFixture] = [:], night: NightStart? = nil
+    ) async throws {
         for act in [Act.author, .build, .land] {
             output("rehearsal Night: running the \(act.rawValue) Act")
             let invocation = RehearseActInvocation(
-                act: act, project: projectID, force: true, rehearsal: true, resultFixtures: resultFixtures
+                act: act, project: projectID, force: true, rehearsal: true, night: night,
+                resultFixtures: resultFixtures
             )
             do {
                 try await runAct(invocation, configurationDirectory)

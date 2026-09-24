@@ -109,3 +109,35 @@ func nightWindowInstants() throws {
     #expect(endComponents.hour == 6)
     #expect(endComponents.minute == 0)
 }
+
+@Test("nightWindow(for:) matches nightWindow(at:) for an instant inside the same Night: overnight schedule")
+func nightWindowForMatchesNightWindowAtOvernight() throws {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = try #require(TimeZone(identifier: "Europe/Kyiv"))
+
+    let schedule = Schedule()
+
+    let components = DateComponents(year: 2026, month: 9, day: 15, hour: 23, minute: 0)
+    let at2300 = try #require(calendar.date(from: components))
+    let byInstant = schedule.nightWindow(at: at2300, calendar: calendar)
+
+    let byIdentity = schedule.nightWindow(for: byInstant.nightStart, calendar: calendar)
+
+    #expect(byIdentity == byInstant)
+}
+
+@Test("nightWindow(for:) matches nightWindow(at:) for an instant inside the same Night: same-day schedule")
+func nightWindowForMatchesNightWindowAtSameDay() throws {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = try #require(TimeZone(identifier: "Europe/Kyiv"))
+
+    let schedule = Schedule(nightStart: TimeOfDay(hour: 9, minute: 0)!, nightEnd: TimeOfDay(hour: 17, minute: 0)!)
+
+    let components = DateComponents(year: 2026, month: 9, day: 15, hour: 10, minute: 0)
+    let at1000 = try #require(calendar.date(from: components))
+    let byInstant = schedule.nightWindow(at: at1000, calendar: calendar)
+
+    let byIdentity = schedule.nightWindow(for: byInstant.nightStart, calendar: calendar)
+
+    #expect(byIdentity == byInstant)
+}

@@ -31,6 +31,7 @@ protocol ActCommand: AsyncParsableCommand {
     var project: String { get }
     var force: Bool { get }
     var rehearsal: Bool { get }
+    var night: NightStart? { get }
     var resultFixtures: [RunPass: RehearsalResultFixture] { get }
     func makeTrigger() throws -> ActTrigger
     func makeInvocation(
@@ -66,7 +67,7 @@ extension ActCommand {
         // Project's [schedule], which the generated land LaunchAgent's final firing (night_end plus the
         // Project's stagger offset) satisfies, and a forced land after night_end closes the Night the
         // same way.
-        let window = project.schedule.nightWindow(at: now)
+        let window = night.map { project.schedule.nightWindow(for: $0) } ?? project.schedule.nightWindow(at: now)
         let closesNight = Self.act == .land && now >= window.end
 
         let board = try bindBoard?(configuration, project)
@@ -195,6 +196,23 @@ private let rehearsalHelp: ArgumentHelp = """
 private let featureHelp: ArgumentHelp = """
     Author the Feature named here instead of selecting one (Force authoring). Implies --force.
     """
+let nightHelp: ArgumentHelp = """
+    Rehearsal only: run as part of the Night of this date (YYYY-MM-DD) instead of the Night the clock \
+    is in. Only the Night's identity moves; leases and timestamps stay on the wall clock. A land Act \
+    for a Night whose night_end has passed closes it.
+    """
+
+/// An Act command's check: refuses `--night` without `--rehearsal`, then a malformed date, exactly as
+/// `ResultFixtureOption.validate` does for `--result-fixture`.
+private func validateNight(_ raw: String?, rehearsal: Bool) throws {
+    guard let raw else { return }
+    guard rehearsal else {
+        throw ValidationError("--night is only valid alongside --rehearsal: a real Night is the Night the clock is in.")
+    }
+    guard NightStart(rawValue: raw) != nil else {
+        throw ValidationError("--night `\(raw)` must be `YYYY-MM-DD`.")
+    }
+}
 
 public struct AuthorCommand: ActCommand {
     public static let configuration = CommandConfiguration(
@@ -218,11 +236,20 @@ public struct AuthorCommand: ActCommand {
     @Option(name: .customLong("result-fixture"), parsing: .singleValue, help: ResultFixtureOption.help)
     public var resultFixtureOptions: [String] = []
 
+    @Option(name: .customLong("night"), help: nightHelp)
+    public var nightOption: String?
+
     // Not a stored property: `ParsableArguments` synthesizes `Decodable`, which a stored dictionary of
     // non-Decodable `RehearsalResultFixture` values would break. `validate()` has already parsed
     // `resultFixtureOptions` once to catch every refusal case, so re-parsing it here cannot fail.
     public var resultFixtures: [RunPass: RehearsalResultFixture] {
         (try? ResultFixtureOption.parse(resultFixtureOptions)) ?? [:]
+    }
+
+    // Not a stored property, for the same reason `resultFixtures` is not: `validate()` has already
+    // refused a malformed date, so re-parsing it here cannot fail.
+    public var night: NightStart? {
+        nightOption.flatMap { NightStart(rawValue: $0) }
     }
 
     public init() { }
@@ -244,6 +271,7 @@ public struct AuthorCommand: ActCommand {
             }
         }
         try ResultFixtureOption.validate(resultFixtureOptions, rehearsal: rehearsal)
+        try validateNight(nightOption, rehearsal: rehearsal)
     }
 }
 
@@ -266,6 +294,9 @@ public struct BuildCommand: ActCommand {
     @Option(name: .customLong("result-fixture"), parsing: .singleValue, help: ResultFixtureOption.help)
     public var resultFixtureOptions: [String] = []
 
+    @Option(name: .customLong("night"), help: nightHelp)
+    public var nightOption: String?
+
     // Not a stored property: `ParsableArguments` synthesizes `Decodable`, which a stored dictionary of
     // non-Decodable `RehearsalResultFixture` values would break. `validate()` has already parsed
     // `resultFixtureOptions` once to catch every refusal case, so re-parsing it here cannot fail.
@@ -273,10 +304,17 @@ public struct BuildCommand: ActCommand {
         (try? ResultFixtureOption.parse(resultFixtureOptions)) ?? [:]
     }
 
+    // Not a stored property, for the same reason `resultFixtures` is not: `validate()` has already
+    // refused a malformed date, so re-parsing it here cannot fail.
+    public var night: NightStart? {
+        nightOption.flatMap { NightStart(rawValue: $0) }
+    }
+
     public init() { }
 
     public mutating func validate() throws {
         try ResultFixtureOption.validate(resultFixtureOptions, rehearsal: rehearsal)
+        try validateNight(nightOption, rehearsal: rehearsal)
     }
 }
 
@@ -299,6 +337,9 @@ public struct LandCommand: ActCommand {
     @Option(name: .customLong("result-fixture"), parsing: .singleValue, help: ResultFixtureOption.help)
     public var resultFixtureOptions: [String] = []
 
+    @Option(name: .customLong("night"), help: nightHelp)
+    public var nightOption: String?
+
     // Not a stored property: `ParsableArguments` synthesizes `Decodable`, which a stored dictionary of
     // non-Decodable `RehearsalResultFixture` values would break. `validate()` has already parsed
     // `resultFixtureOptions` once to catch every refusal case, so re-parsing it here cannot fail.
@@ -306,9 +347,16 @@ public struct LandCommand: ActCommand {
         (try? ResultFixtureOption.parse(resultFixtureOptions)) ?? [:]
     }
 
+    // Not a stored property, for the same reason `resultFixtures` is not: `validate()` has already
+    // refused a malformed date, so re-parsing it here cannot fail.
+    public var night: NightStart? {
+        nightOption.flatMap { NightStart(rawValue: $0) }
+    }
+
     public init() { }
 
     public mutating func validate() throws {
         try ResultFixtureOption.validate(resultFixtureOptions, rehearsal: rehearsal)
+        try validateNight(nightOption, rehearsal: rehearsal)
     }
 }

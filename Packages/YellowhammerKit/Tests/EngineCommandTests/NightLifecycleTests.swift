@@ -342,3 +342,26 @@ func makeInvocationDecidesClosesNightFromTheSchedule() throws {
     #expect(!building.closesNight)
     #expect(building.nightStart == NightStart(rawValue: "2026-09-15"))
 }
+
+@Test("--night moves only the Night's identity; closesNight still follows the given Night's night_end")
+func makeInvocationWithNightOverridesIdentityNotClock() throws {
+    let directory = ConfigurationDirectory()
+    try directory.writeMachineFile()
+    try directory.writeValidProjectFile(id: "alpha")
+
+    // now is fixed; only --night should decide nightStart, regardless of what now's own Night is.
+    let now = try localDate(year: 2026, month: 9, day: 20, hour: 12)
+
+    let land = try LandCommand.parse(["--project", "alpha", "--rehearsal", "--night", "2026-01-10"])
+    let invocation = try land.makeInvocation(configurationDirectory: directory.url, now: now)
+    #expect(invocation.nightStart == NightStart(rawValue: "2026-01-10"))
+
+    // A land Act for a past date's Night, whose night_end (06:00 the next day) is long past `now`, closes it.
+    #expect(invocation.closesNight)
+
+    // A land Act for a future date's Night does not close it: its night_end has not happened yet.
+    let futureLand = try LandCommand.parse(["--project", "alpha", "--rehearsal", "--night", "2027-01-10"])
+    let futureInvocation = try futureLand.makeInvocation(configurationDirectory: directory.url, now: now)
+    #expect(futureInvocation.nightStart == NightStart(rawValue: "2027-01-10"))
+    #expect(!futureInvocation.closesNight)
+}
