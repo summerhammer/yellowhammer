@@ -1552,7 +1552,7 @@ comment on the Delta Read).
   Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — Staged scenarios give the same diagnoses as the CLI.
 
-### [ ] P14.7 Recalibrate
+### [x] P14.7 Recalibrate
 - **Work** — For the active Project: view Bounds and this Night's proximity, re-set Bounds, and start
   a rehearsal Night.
 - **Spec** — ooux/nav-flow.md → Global nav; risks.md OQ52 Face 2.
