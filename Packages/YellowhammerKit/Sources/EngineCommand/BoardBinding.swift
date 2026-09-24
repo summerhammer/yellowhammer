@@ -34,6 +34,19 @@ enum BoardBinding {
         return ActBoard(reading: adapter, writing: adapter, provisioning: adapter)
     }
 
+    /// Binds directly from an already-resolved Linear project id and client secret, for `yh setup`,
+    /// which already holds its own secret through its credentials seam. `linearProjectID` may be `""`
+    /// for the workspace-level calls (`workspaceMembers()`, `teams()`, project creation): those are not
+    /// scoped to a Linear project, so the binding's own linearProjectID is irrelevant to them.
+    static func provisioning(
+        machine: MachineConfiguration, linearProjectID: String, clientSecret: String
+    ) -> any BoardProvisioning {
+        LinearAdapter(
+            linearProjectID: linearProjectID,
+            credentials: LinearCredentials(clientID: machine.linearClientID, clientSecret: clientSecret)
+        )
+    }
+
     private static func makeLinearAdapter(
         machine: MachineConfiguration,
         project: ProjectConfiguration,

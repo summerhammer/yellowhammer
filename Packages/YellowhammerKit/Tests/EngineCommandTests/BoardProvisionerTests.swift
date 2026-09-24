@@ -2,89 +2,6 @@ import Domain
 import Engine
 import Testing
 
-/// An in-memory board: labels and workflow states per team, workspace labels visible to every team,
-/// and a count of every create it was asked for.
-actor FakeProvisioningBoard: BoardProvisioning {
-    private var project: BoardProjectScope?
-    private var states: [BoardObjectID: [BoardWorkflowState]] = [:]
-    private var teamLabels: [BoardObjectID: [BoardLabel]] = [:]
-    private var workspaceLabels: [BoardLabel] = []
-    private var nextID = 0
-    private(set) var creates = 0
-    private(set) var reads = 0
-    /// Errors thrown by the next call to ``linearProject()``, in order, consumed before it answers —
-    /// following ``FakeWritingBoard/refuseNext(_:)``'s pattern.
-    private var refusals: [BoardError] = []
-
-    init(project: BoardProjectScope?) {
-        self.project = project
-    }
-
-    func refuseNext(_ error: BoardError) {
-        refusals.append(error)
-    }
-
-    func seed(workspaceLabel name: String) {
-        workspaceLabels.append(BoardLabel(id: mint(), name: name, isGroup: false, parent: nil, team: nil))
-    }
-
-    func seed(label name: String, team: BoardObjectID, isGroup: Bool = false, parent: BoardObjectID? = nil) {
-        let label = BoardLabel(id: mint(), name: name, isGroup: isGroup, parent: parent, team: team)
-        teamLabels[team, default: []].append(label)
-    }
-
-    func seed(state name: String, team: BoardObjectID, category: BoardWorkflowStateCategory? = nil) {
-        states[team, default: []].append(BoardWorkflowState(id: mint(), name: name, category: category))
-    }
-
-    func linearProject() async throws(BoardError) -> BoardProjectScope {
-        reads += 1
-        if !refusals.isEmpty { throw refusals.removeFirst() }
-        guard let project else { throw .scopeNotFound("no such Linear project") }
-        return project
-    }
-
-    func createLinearProject(name: String, team: BoardObjectID) async throws(BoardError) -> BoardProjectScope {
-        creates += 1
-        let scope = BoardProjectScope(id: mint(), name: name, teams: [BoardTeam(id: team, key: "NEW", name: "New")])
-        project = scope
-        return scope
-    }
-
-    func workflowStates(team: BoardObjectID) async throws(BoardError) -> [BoardWorkflowState] {
-        reads += 1
-        return states[team, default: []]
-    }
-
-    func createWorkflowState(
-        name: String, category: BoardWorkflowStateCategory, team: BoardObjectID
-    ) async throws(BoardError) -> BoardWorkflowState {
-        creates += 1
-        let state = BoardWorkflowState(id: mint(), name: name, category: category)
-        states[team, default: []].append(state)
-        return state
-    }
-
-    func labels(team: BoardObjectID) async throws(BoardError) -> [BoardLabel] {
-        reads += 1
-        return teamLabels[team, default: []] + workspaceLabels
-    }
-
-    func createLabel(
-        name: String, team: BoardObjectID, isGroup: Bool, parent: BoardObjectID?
-    ) async throws(BoardError) -> BoardLabel {
-        creates += 1
-        let label = BoardLabel(id: mint(), name: name, isGroup: isGroup, parent: parent, team: team)
-        teamLabels[team, default: []].append(label)
-        return label
-    }
-
-    private func mint() -> BoardObjectID {
-        nextID += 1
-        return BoardObjectID(rawValue: "fake-\(nextID)")
-    }
-}
-
 private let engineering = BoardTeam(id: BoardObjectID(rawValue: "team-1"), key: "ENG", name: "Engineering")
 private let product = BoardTeam(id: BoardObjectID(rawValue: "team-2"), key: "PRD", name: "Product")
 
@@ -262,6 +179,19 @@ struct BoardProvisionerTests {
         }
         #expect(report.entries[0].outcome == .created)
         #expect(report.changes.count == 16)
+        #expect(report.linearProject?.id == BoardObjectID(rawValue: "fake-1"))
+    }
+
+    @Test("A re-read that keeps failing after creation still uses the created scope for provisioning")
+    func createdProjectIsUsedEvenWhenReReadKeepsFailing() async throws {
+        let board = FakeProvisioningBoard(project: nil)
+        await board.alwaysThrowScopeNotFound()
+
+        let report = try await provision(board, createIn: engineering.id)
+
+        #expect(report.linearProject?.id == BoardObjectID(rawValue: "fake-1"))
+        #expect(outcome(of: report, waitingOnYou) == .created)
+        #expect(await board.creates == 16)
     }
 
     @Test("Each team of the Linear project is provisioned on its own")

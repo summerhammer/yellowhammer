@@ -159,6 +159,26 @@ enum LinearGraphQL {
         }
         """
 
+    /// `includeDisabled: true` so deactivated members are reported, never filtered by the adapter
+    /// (Operator Identity Ruling, OQ66).
+    static let usersQuery = """
+        query YellowhammerUsers($first: Int!, $after: String) {
+          users(first: $first, after: $after, includeDisabled: true) {
+            pageInfo { hasNextPage endCursor }
+            nodes { id name displayName active app isMe }
+          }
+        }
+        """
+
+    static let teamsQuery = """
+        query YellowhammerTeams($first: Int!, $after: String) {
+          teams(first: $first, after: $after) {
+            pageInfo { hasNextPage endCursor }
+            nodes { id key name }
+          }
+        }
+        """
+
     static let labelsQuery = """
         query YellowhammerLabels($teamId: ID!, $first: Int!, $after: String) {
           issueLabels(filter: { or: [

@@ -5,6 +5,63 @@ import Foundation
 private let provisioningWorkflowStateColor = "#95a2b3"
 
 extension LinearAdapter: BoardProvisioning {
+    public func workspaceMembers() async throws(BoardError) -> [BoardMember] {
+        var allMembers: [BoardMember] = []
+        var after: String?
+
+        while true {
+            var variables: [String: any Sendable] = ["first": 250]
+            if let after {
+                variables["after"] = after
+            }
+            let payload: LinearUsersPayload = try await perform(LinearGraphQL.usersQuery, variables: variables)
+            allMembers.append(contentsOf: payload.users.nodes.map { node in
+                BoardMember(
+                    id: BoardObjectID(rawValue: node.id),
+                    name: node.name,
+                    displayName: node.displayName,
+                    isActive: node.active,
+                    isApp: node.app,
+                    isSelf: node.isMe
+                )
+            })
+            if !payload.users.pageInfo.hasNextPage {
+                break
+            }
+            guard let endCursor = payload.users.pageInfo.endCursor else {
+                throw .unreadableResponse("Linear indicated more results but provided no cursor")
+            }
+            after = endCursor
+        }
+
+        return allMembers
+    }
+
+    public func teams() async throws(BoardError) -> [BoardTeam] {
+        var allTeams: [BoardTeam] = []
+        var after: String?
+
+        while true {
+            var variables: [String: any Sendable] = ["first": 250]
+            if let after {
+                variables["after"] = after
+            }
+            let payload: LinearTeamsPayload = try await perform(LinearGraphQL.teamsQuery, variables: variables)
+            allTeams.append(contentsOf: payload.teams.nodes.map { node in
+                BoardTeam(id: BoardObjectID(rawValue: node.id), key: node.key, name: node.name)
+            })
+            if !payload.teams.pageInfo.hasNextPage {
+                break
+            }
+            guard let endCursor = payload.teams.pageInfo.endCursor else {
+                throw .unreadableResponse("Linear indicated more results but provided no cursor")
+            }
+            after = endCursor
+        }
+
+        return allTeams
+    }
+
     public func linearProject() async throws(BoardError) -> BoardProjectScope {
         let payload: LinearProjectPayload = try await perform(
             LinearGraphQL.projectQuery, variables: ["id": linearProjectID]
