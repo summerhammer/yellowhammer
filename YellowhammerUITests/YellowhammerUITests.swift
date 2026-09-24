@@ -47,6 +47,30 @@ final class ProjectScopeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["reader2"].exists)
     }
 
+    /// G-6 gives the app configuration and reading and gives Linear every decision (P14.8): a Project
+    /// window has Setup's configuration, the Journal account, Status and Recalibrate, and no Night Card,
+    /// Feature detail, Card detail or triage gesture — settle included — on any of them.
+    func testWindowHasOnlyTheScreensTheAppOwns() {
+        let window = app.windows["Owner"]
+        XCTAssertTrue(window.waitForExistence(timeout: 10))
+
+        let tabs = window.tabs
+        XCTAssertTrue(tabs.firstMatch.waitForExistence(timeout: 5))
+        let labels = tabs.allElementsBoundByIndex.map(\.label)
+        // Exactly these four: no Night Card, Feature detail or Card detail tab beside them.
+        XCTAssertEqual(labels, ["Configuration", "Journal", "Status", "Recalibrate"])
+
+        for label in labels {
+            tabs[label].click()
+            for gesture in ["Kept in Flight", "Released", "Settle", "Accept", "Adopt"] {
+                XCTAssertFalse(
+                    window.buttons[gesture].exists,
+                    "The \(label) screen offers the triage gesture \u{201C}\(gesture)\u{201D}, which is Linear's"
+                )
+            }
+        }
+    }
+
     /// A link that launches the app: `XCUIApplication.open(_:)` relaunches it by URL. A link to the
     /// already-running app cannot be driven from here — LaunchServices does not route a URL to an
     /// instance XCUITest launched, and starts a second one instead.
