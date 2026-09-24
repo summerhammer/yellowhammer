@@ -43,14 +43,16 @@ struct ProjectDetailView: View {
     }
 }
 
-/// The form itself, split out so it only ever runs with a non-nil draft: `model.draft` is unwrapped
-/// once here via `Binding($model.draft)`, never force-unwrapped field by field.
+/// The form itself, split out so it only ever runs with a non-nil draft. The draft binding falls back to
+/// the draft this body saw rather than unwrapping `model.draft`: `Binding($model.draft)` traps when a
+/// reload clears the draft while a field still reads it, as can happen mid-teardown.
 private struct ProjectDetailFormView: View {
     @Bindable var model: ProjectDetailModel
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        if let draft = Binding($model.draft) {
+        if let current = model.draft {
+            let draft = Binding(get: { model.draft ?? current }, set: { model.draft = $0 })
             VStack(spacing: 0) {
                 Form {
                     projectSection(draft)

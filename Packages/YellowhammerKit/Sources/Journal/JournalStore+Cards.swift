@@ -121,14 +121,20 @@ extension JournalStore {
     /// A Card by its issue id, or nil if not found.
     public func card(issueID: String) throws -> CardRecord? {
         try read { db in
-            let row = try Row.fetchOne(
-                db,
-                sql: "SELECT * FROM card WHERE issue_id = ?",
-                arguments: [issueID]
-            )
-            guard let row else { return nil }
-            return try Self.cardRecord(from: row)
+            try Self.card(db, issueID: issueID)
         }
+    }
+
+    /// Internal: same read as ``card(issueID:)``, over a `Database` a caller already holds open — so a
+    /// multi-table read (e.g. ``cardAccount(issueID:)``) can share one transaction with it.
+    static func card(_ db: Database, issueID: String) throws -> CardRecord? {
+        let row = try Row.fetchOne(
+            db,
+            sql: "SELECT * FROM card WHERE issue_id = ?",
+            arguments: [issueID]
+        )
+        guard let row else { return nil }
+        return try Self.cardRecord(from: row)
     }
 
     /// A Card by its Journal id. Throws JournalError.cardUnknown if not found.
