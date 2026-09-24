@@ -1517,7 +1517,7 @@ comment on the Delta Read).
 - **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
 - **Done when** — A clean account is fully set up through the app alone.
 
-### [ ] P14.3 Configuration editing
+### [x] P14.3 Configuration editing
 - **Work** — Edit Projects, Repos, Spec Source (shown read-only as "read — this Project never writes
   it"), Bounds, base Routing Table and per-Project overrides, as TOML file edits that keep the file
   valid under P2.3. Direct TOML editing stays supported.
