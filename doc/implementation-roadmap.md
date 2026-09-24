@@ -1592,7 +1592,7 @@ comment on the Delta Read).
   Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — A rehearsal Project can run against the scratch team repeatedly and be reset.
 
-### [ ] P15.2 `[DevOps]` Throwaway repositories and fixtures
+### [x] P15.2 `[DevOps]` Throwaway repositories and fixtures
 - **Work**
   - Scripted creation of throwaway local repositories (with local bare remotes) for a multi-repo
     Project, including a spec repository with addressable stories and goals.
