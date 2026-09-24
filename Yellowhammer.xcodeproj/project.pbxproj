@@ -11,6 +11,7 @@
 		5083DD59305674F500E6D6D3 /* Domain in Frameworks */ = {isa = PBXBuildFile; productRef = 5083DD58305674F500E6D6D3 /* Domain */; };
 		5083DD5B305674F500E6D6D3 /* EngineCommand in Frameworks */ = {isa = PBXBuildFile; productRef = 5083DD5A305674F500E6D6D3 /* EngineCommand */; };
 		508F4CD6306526DF00AFF241 /* Config in Frameworks */ = {isa = PBXBuildFile; productRef = 508F4CD5306526DF00AFF241 /* Config */; };
+		508F4D1930654D4000AFF241 /* Ledger in Frameworks */ = {isa = PBXBuildFile; productRef = 508F4D1830654D4000AFF241 /* Ledger */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -82,6 +83,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				508F4CD6306526DF00AFF241 /* Config in Frameworks */,
+				508F4D1930654D4000AFF241 /* Ledger in Frameworks */,
 				5083DD59305674F500E6D6D3 /* Domain in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -156,6 +158,7 @@
 			packageProductDependencies = (
 				5083DD58305674F500E6D6D3 /* Domain */,
 				508F4CD5306526DF00AFF241 /* Config */,
+				508F4D1830654D4000AFF241 /* Ledger */,
 			);
 			productName = Yellowhammer;
 			productReference = 5083DD343056702600E6D6D3 /* Yellowhammer.app */;
@@ -623,6 +626,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 5083DD57305674F500E6D6D3 /* XCLocalSwiftPackageReference "Packages/YellowhammerKit" */;
 			productName = Config;
+		};
+		508F4D1830654D4000AFF241 /* Ledger */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5083DD57305674F500E6D6D3 /* XCLocalSwiftPackageReference "Packages/YellowhammerKit" */;
+			productName = Ledger;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

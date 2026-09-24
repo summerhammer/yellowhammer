@@ -22,6 +22,7 @@ struct YellowhammerApp: App {
             CommandGroup(after: .appInfo) {
                 SetupMenuCommand()
                 BaseRoutingTableMenuCommand()
+                AgentCLIMenuCommand()
             }
         }
 
@@ -35,6 +36,13 @@ struct YellowhammerApp: App {
             BaseRoutingTableView()
         }
         .defaultSize(width: 560, height: 480)
+
+        // Not Project-scoped: the declared CLI Adapters and the Ledger are both machine-wide, so one
+        // Probe run serves every Project.
+        Window("Agent CLIs", id: AgentCLIMenuCommand.windowID) {
+            AgentCLIView()
+        }
+        .defaultSize(width: 640, height: 520)
     }
 }
 
@@ -59,5 +67,17 @@ private struct BaseRoutingTableMenuCommand: View {
 
     var body: some View {
         Button("Base Routing Table…") { openWindow(id: Self.windowID) }
+    }
+}
+
+/// A menu command needs its own `@Environment` to read `openWindow`: the App's `.commands` builder does
+/// not otherwise resolve scene environment values.
+private struct AgentCLIMenuCommand: View {
+    static let windowID = "agent-clis"
+
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("Agent CLIs…") { openWindow(id: Self.windowID) }
     }
 }
