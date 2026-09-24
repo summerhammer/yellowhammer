@@ -90,8 +90,9 @@ public enum OutboxClientID {
     public static func make(projectID: ProjectID, key: String) -> UUID {
         let digest = SHA256.hash(data: Data("yellowhammer-outbox|\(projectID.rawValue)|\(key)".utf8))
         var bytes = Array(digest.prefix(16))
-        // Version 5 (name-based) and the RFC 4122 variant, so the id reads as a well-formed UUID anywhere.
-        bytes[6] = (bytes[6] & 0x0F) | 0x50
+        // Stamped version 4 and the RFC 4122 variant, although the bytes are a digest, not random: Linear
+        // accepts a client-supplied id only in v4 form and refuses a v5 one ("id must be a UUID").
+        bytes[6] = (bytes[6] & 0x0F) | 0x40
         bytes[8] = (bytes[8] & 0x3F) | 0x80
         return UUID(uuid: (
             bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
