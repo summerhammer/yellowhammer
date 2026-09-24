@@ -21,7 +21,9 @@ public struct ValidateCommand: AsyncParsableCommand {
         let doctor = DoctorCommand.makeDoctor(
             configurationDirectory: configurationDirectory,
             homeDirectory: FileManager.default.homeDirectoryForCurrentUser,
-            options: DoctorRunOptions(fix: false, yes: false, probe: false, checks: [.configuration])
+            options: DoctorRunOptions(
+                fix: false, yes: false, probe: false, checks: [.configuration], projectFilter: nil
+            )
         )
         let findings = await doctor.run()
         if findings.contains(where: { $0.severity == .failure }) {

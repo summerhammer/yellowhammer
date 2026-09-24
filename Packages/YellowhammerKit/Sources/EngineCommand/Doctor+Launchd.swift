@@ -23,15 +23,20 @@ extension Doctor {
         guard FileManager.default.fileExists(atPath: plistURL.path(percentEncoded: false)) else {
             return finding(
                 .launchd, subject: label, .warning,
-                "\(subject) LaunchAgent \(label) is not installed; run `yh setup --install-jobs`"
+                "\(subject) LaunchAgent \(label) is not installed; run `yh setup --install-jobs`",
+                project: projectID
             )
         }
         guard await launchAgents.isLoaded(label: label) else {
             return finding(
                 .launchd, subject: label, .warning,
-                "\(subject) LaunchAgent \(label) is installed but not loaded" // glossary:ignore GL001
+                "\(subject) LaunchAgent \(label) is installed but not loaded", // glossary:ignore GL001
+                project: projectID
             )
         }
-        return finding(.launchd, subject: label, .pass, "\(subject) LaunchAgent \(label) is installed and loaded")
+        return finding(
+            .launchd, subject: label, .pass, "\(subject) LaunchAgent \(label) is installed and loaded",
+            project: projectID
+        )
     }
 }

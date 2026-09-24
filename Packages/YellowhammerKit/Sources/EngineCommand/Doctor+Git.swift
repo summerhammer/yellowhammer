@@ -11,12 +11,12 @@ extension Doctor {
         for project in configuration.projects {
             for repo in project.repos {
                 findings.append(await checkWorkTree(
-                    path: repo.path, subject: "Project \(project.id.rawValue) repo \(repo.name)"
+                    path: repo.path, subject: "Project \(project.id.rawValue) repo \(repo.name)", project: project.id
                 ))
             }
             if let specSource = project.specSource {
                 findings.append(await checkWorkTree(
-                    path: specSource, subject: "Project \(project.id.rawValue) spec source"
+                    path: specSource, subject: "Project \(project.id.rawValue) spec source", project: project.id
                 ))
             }
         }
@@ -37,16 +37,20 @@ extension Doctor {
         return finding(.git, subject: "git", .pass, "git \(version.description) meets the required 2.38")
     }
 
-    private func checkWorkTree(path: String, subject: String) async -> DoctorFinding {
+    private func checkWorkTree(path: String, subject: String, project: ProjectID) async -> DoctorFinding {
         let expanded = Doctor.expandTilde(path, homeDirectory: homeDirectory.path(percentEncoded: false))
         guard FileManager.default.fileExists(atPath: expanded) else {
-            return finding(.git, subject: subject, .failure, "\(subject) at \(expanded) does not exist")
+            return finding(
+                .git, subject: subject, .failure, "\(subject) at \(expanded) does not exist", project: project
+            )
         }
         let result = await git.run(["-C", expanded, "rev-parse", "--is-inside-work-tree"])
         guard result.isSuccess, result.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == "true" else {
-            return finding(.git, subject: subject, .failure, "\(subject) at \(expanded) is not a git repository")
+            return finding(
+                .git, subject: subject, .failure, "\(subject) at \(expanded) is not a git repository", project: project
+            )
         }
-        return finding(.git, subject: subject, .pass, "\(subject) at \(expanded) is a git repository")
+        return finding(.git, subject: subject, .pass, "\(subject) at \(expanded) is a git repository", project: project)
     }
 
     /// Expands a leading `~` against `homeDirectory`, never the real one. `~foo` (a named user) is

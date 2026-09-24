@@ -49,6 +49,10 @@ struct ProjectWindow: View {
                     CardAccountView(project: entry.id)
                         .id(entry.id)
                 }
+                Tab("Status", systemImage: "stethoscope") {
+                    ProjectStatusView(project: entry.id)
+                        .id(entry.id)
+                }
             }
         } else {
             fallbackContent

@@ -20,7 +20,8 @@ func makeDoctor(
     fix: Bool = false,
     yes: Bool = false,
     probe: Bool = false,
-    checks: [DoctorCheck] = DoctorCheck.allCases
+    checks: [DoctorCheck] = DoctorCheck.allCases,
+    projectFilter: ProjectID? = nil
 ) -> Doctor {
     Doctor(
         configurationDirectory: directory.url,
@@ -35,7 +36,8 @@ func makeDoctor(
         fix: fix,
         yes: yes,
         probe: probe,
-        checks: checks
+        checks: checks,
+        projectFilter: projectFilter
     )
 }
 

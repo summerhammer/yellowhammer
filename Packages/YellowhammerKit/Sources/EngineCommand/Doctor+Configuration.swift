@@ -1,5 +1,6 @@
 import Config
 import Domain
+import Foundation
 
 extension Doctor {
     /// Check 1: `Configuration.load(directory:)`. A machine-file error is a failure and stops every
@@ -21,16 +22,31 @@ extension Doctor {
 
         for invalid in configuration.invalidProjects {
             let errors = invalid.errors.map { "\($0)" }.joined(separator: "; ")
-            findings.append(finding(.configuration, subject: invalid.file, .failure, "\(invalid.file): \(errors)"))
+            findings.append(finding(
+                .configuration, subject: invalid.file, .failure, "\(invalid.file): \(errors)",
+                project: projectID(forInvalid: invalid)
+            ))
         }
         for project in configuration.projects {
             findings.append(finding(
                 .configuration, subject: project.id.rawValue, .pass,
-                "Project \(project.id) is valid" // glossary:ignore GL001
+                "Project \(project.id) is valid", // glossary:ignore GL001
+                project: project.id
             ))
         }
         findings.append(contentsOf: routingWarnings(configuration: configuration))
         return configuration
+    }
+
+    /// `invalid.id` when known, else the id parsed from the file's last path component
+    /// (`<id>.toml`), matching `Status.matchesFilter`'s rule — nil when neither is available.
+    private func projectID(forInvalid invalid: InvalidProject) -> ProjectID? {
+        if let id = invalid.id {
+            return id
+        }
+        let name = (invalid.file as NSString).lastPathComponent
+        guard name.hasSuffix(".toml") else { return nil }
+        return ProjectID(rawValue: String(name.dropLast(".toml".count)))
     }
 
     private func routingWarnings(configuration: Configuration) -> [DoctorFinding] {
@@ -44,7 +60,8 @@ extension Doctor {
             for warning in configuration.routingTable(for: project.id)?.warnings ?? [] {
                 warnings.append(finding(
                     .configuration, subject: project.id.rawValue, .warning,
-                    "Project \(project.id): \(warning)" // glossary:ignore GL001
+                    "Project \(project.id): \(warning)", // glossary:ignore GL001
+                    project: project.id
                 ))
             }
         }
