@@ -210,3 +210,50 @@ func breakdownDraftedWithContractDecodes() throws {
     #expect(contract.repository == "fixture-backend")
     #expect(contract.paths == ["contracts/fixture-api.json"])
 }
+
+@Test("The adopting selection fixture decodes with empty adopted_card_issue_ids (synthesized by RehearsalDispatch)")
+func selectionSelectedAdoptingDecodes() throws {
+    guard case .selection(let result) = try RehearsalResultFixture.selectionSelectedAdopting.decode(),
+        case .selected(let feature) = result.outcome
+    else {
+        Issue.record("expected selection .selected")
+        return
+    }
+    #expect(feature.repositories == ["fixture-backend", "fixture-web"])
+    #expect(feature.adoptedCardIssueIDs.isEmpty)
+}
+
+@Test("The three-repository selection fixture selects fixture-backend, fixture-web and fixture-mobile")
+func selectionSelectedThreeReposDecodes() throws {
+    guard case .selection(let result) = try RehearsalResultFixture.selectionSelectedThreeRepos.decode(),
+        case .selected(let feature) = result.outcome
+    else {
+        Issue.record("expected selection .selected")
+        return
+    }
+    #expect(feature.repositories == ["fixture-backend", "fixture-web", "fixture-mobile"])
+    #expect(feature.adoptedCardIssueIDs.isEmpty)
+}
+
+@Test("The three-repository breakdown fixture's Cards are ordered per repository, in file order")
+func breakdownDraftedThreeReposDecodes() throws {
+    guard case .breakdown(let result) = try RehearsalResultFixture.breakdownDraftedThreeRepos.decode(),
+        case .drafted(let breakdown) = result.outcome
+    else {
+        Issue.record("expected breakdown .drafted")
+        return
+    }
+    #expect(breakdown.definitionOfDone.count == 2)
+    #expect(breakdown.cards.count == 5)
+    let backendCards = breakdown.cards.filter { $0.repository == "fixture-backend" }
+    #expect(backendCards.map(\.title) == [
+        "Fixture Card: backend 1 of 3", "Fixture Card: backend 2 of 3", "Fixture Card: backend 3 of 3"
+    ])
+    #expect(backendCards.allSatisfy { $0.contracts.isEmpty })
+    let webCard = try #require(breakdown.cards.first { $0.repository == "fixture-web" })
+    #expect(webCard.contracts.count == 1)
+    #expect(webCard.contracts.first?.repository == "fixture-backend")
+    #expect(webCard.contracts.first?.paths == ["contracts/fixture-api.json"])
+    let mobileCard = try #require(breakdown.cards.first { $0.repository == "fixture-mobile" })
+    #expect(mobileCard.contracts.isEmpty)
+}

@@ -83,6 +83,29 @@ struct RehearseTests {
         ])
     }
 
+    @Test("arguments forwards Card-scoped fixtures after by-pass ones, sorted by (issue id, pass)")
+    func argumentsForwardsCardScopedFixturesSortedAfterByPass() {
+        let invocation = RehearseActInvocation(
+            act: .build, project: "alpha", force: true, rehearsal: true,
+            resultFixtures: RehearsalScript(
+                byPass: [.reviewer: .reviewerChangesRequested],
+                byCard: [
+                    CardPass(issueID: "WEB-1", pass: .worker): .workerQuestion,
+                    CardPass(issueID: "BACK-1", pass: .reviewer): .reviewerChangesRequested,
+                    CardPass(issueID: "BACK-1", pass: .architect): .architectFailed
+                ]
+            )
+        )
+
+        #expect(invocation.arguments == [
+            "--project", "alpha", "--force", "--rehearsal",
+            "--result-fixture", "reviewer=reviewer-changes-requested.json",
+            "--result-fixture", "architect@BACK-1=architect-failed.json",
+            "--result-fixture", "reviewer@BACK-1=reviewer-changes-requested.json",
+            "--result-fixture", "worker@WEB-1=worker-question.json"
+        ])
+    }
+
     @Test("Rehearse.run forwards the same fixtures to every Act's invocation")
     func runForwardsFixturesToEveryAct() async throws {
         let recorded = Mutex<[RehearseActInvocation]>([])
@@ -91,7 +114,7 @@ struct RehearseTests {
             output: { _ in },
             runAct: { invocation, _ in recorded.withLock { $0.append(invocation) } }
         )
-        let fixtures: [RunPass: RehearsalResultFixture] = [.worker: .workerQuestion]
+        let fixtures: RehearsalScript = [.worker: .workerQuestion]
 
         try await rehearse.run(projectID: "alpha", resultFixtures: fixtures)
 

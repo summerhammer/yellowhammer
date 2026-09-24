@@ -12,7 +12,7 @@ import Testing
 @Suite("Card run")
 struct CardRunTests {
     private func makeRun(
-        log: CallLog, script: [RunPass: RehearsalResultFixture] = [:], check: RepositoryCheckResult = .declaredNone,
+        log: CallLog, script: RehearsalScript = .empty, check: RepositoryCheckResult = .declaredNone,
         checks: [String: Check] = ["backend": .none], leasePolicy: LeasePolicy = .ruled,
         during: (@Sendable (RunPass) async throws -> Void)? = nil,
         resolver: RouteResolver = cardRunResolver(), reviewRoundsMax: Int = 2, attemptsPerCard: Int = 3

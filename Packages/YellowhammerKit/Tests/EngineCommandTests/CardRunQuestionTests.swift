@@ -16,11 +16,11 @@ private let questionText = "The DoD asks for a 40-hex commit, but the Worktree h
 /// id, so one lane can have one Card ask a question while another succeeds.
 private struct PerCardDispatch: AgentDispatch {
     let log: CallLog
-    let scripts: [String: [RunPass: RehearsalResultFixture]]
+    let scripts: [String: RehearsalScript]
 
     func dispatch(_ request: AgentDispatchRequest) async throws -> AgentDispatchReport {
         log.add("dispatch \(request.pass.rawValue) \(request.issueID)")
-        let script = scripts[request.issueID] ?? [:]
+        let script = scripts[request.issueID] ?? .empty
         return try await RehearsalDispatch(script: script).dispatch(request)
     }
 }

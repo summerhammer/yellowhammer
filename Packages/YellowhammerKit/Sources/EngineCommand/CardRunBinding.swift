@@ -15,7 +15,7 @@ enum CardRunBinding {
         configuration: Configuration,
         project: ProjectConfiguration,
         configurationDirectory: URL,
-        resultFixtures: [RunPass: RehearsalResultFixture] = [:]
+        resultFixtures: RehearsalScript = RehearsalScript.empty
     ) throws -> CardRun {
         let ledger = try LedgerStore.open(configurationDirectory: configurationDirectory)
         let resolver = try RoutingBinding.resolver(configuration: configuration, projectID: project.id, ledger: ledger)

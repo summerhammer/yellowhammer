@@ -13,7 +13,7 @@ enum DispatchBinding {
         configuration: Configuration,
         project: ProjectConfiguration,
         configurationDirectory: URL,
-        resultFixtures: [RunPass: RehearsalResultFixture] = [:]
+        resultFixtures: RehearsalScript = RehearsalScript.empty
     ) -> any AgentDispatch {
         switch mode {
         case .rehearsal:

@@ -14,7 +14,7 @@ import Testing
 @Suite("Card run endings")
 struct CardRunFailureTests {
     private func makeRun(
-        log: CallLog, script: [RunPass: RehearsalResultFixture] = [:], resolver: RouteResolver = cardRunResolver()
+        log: CallLog, script: RehearsalScript = .empty, resolver: RouteResolver = cardRunResolver()
     ) -> CardRun {
         CardRun(
             resolver: resolver, dispatch: LoggingDispatch(log: log, script: script),

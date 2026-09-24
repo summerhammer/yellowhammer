@@ -1,0 +1,68 @@
+{
+  "schema": "yellowhammer.result.breakdown",
+  "version": 1,
+  "outcome": "drafted",
+  "definition_of_done": [
+    { "text": "Fixture data: the fixture Feature is observable end to end.", "citation": "fixture-epic/fixture-story" },
+    { "text": "Fixture data: the fixture Feature's second behaviour is observable end to end.", "citation": "fixture-epic/fixture-story-2" }
+  ],
+  "cards": [
+    {
+      "repository": "fixture-backend",
+      "kind": "impl.fixture",
+      "title": "Fixture Card: backend 1 of 3",
+      "unit_of_work": "Fixture data: one unit of work in the fixture backend repository.",
+      "brief": "Fixture data: approach prose for the fixture backend Card 1 of 3.",
+      "definition_of_done": [
+        { "text": "Fixture data: the fixture backend Card 1 of 3's behaviour is covered.", "citation": "fixture-epic/fixture-story" }
+      ],
+      "contracts": []
+    },
+    {
+      "repository": "fixture-backend",
+      "kind": "impl.fixture",
+      "title": "Fixture Card: backend 2 of 3",
+      "unit_of_work": "Fixture data: one unit of work in the fixture backend repository.",
+      "brief": "Fixture data: approach prose for the fixture backend Card 2 of 3.",
+      "definition_of_done": [
+        { "text": "Fixture data: the fixture backend Card 2 of 3's behaviour is covered.", "citation": "fixture-epic/fixture-story-2" }
+      ],
+      "contracts": []
+    },
+    {
+      "repository": "fixture-backend",
+      "kind": "impl.fixture",
+      "title": "Fixture Card: backend 3 of 3",
+      "unit_of_work": "Fixture data: one unit of work in the fixture backend repository.",
+      "brief": "Fixture data: approach prose for the fixture backend Card 3 of 3.",
+      "definition_of_done": [
+        { "text": "Fixture data: the fixture backend Card 3 of 3's behaviour is covered.", "citation": "fixture-epic/fixture-story" }
+      ],
+      "contracts": []
+    },
+    {
+      "repository": "fixture-web",
+      "kind": "impl.fixture",
+      "title": "Fixture Card: rehearsal breakdown (web)",
+      "unit_of_work": "Fixture data: one unit of work in the fixture web repository.",
+      "brief": "Fixture data: approach prose for the fixture web Card.",
+      "definition_of_done": [
+        { "text": "Fixture data: the fixture web Card's behaviour is covered.", "citation": "fixture-epic/fixture-story-2" }
+      ],
+      "contracts": [
+        { "repository": "fixture-backend", "paths": ["contracts/fixture-api.json"] }
+      ]
+    },
+    {
+      "repository": "fixture-mobile",
+      "kind": "impl.fixture",
+      "title": "Fixture Card: rehearsal breakdown (mobile)",
+      "unit_of_work": "Fixture data: one unit of work in the fixture mobile repository.",
+      "brief": "Fixture data: approach prose for the fixture mobile Card.",
+      "definition_of_done": [
+        { "text": "Fixture data: the fixture mobile Card's behaviour is covered.", "citation": "fixture-epic/fixture-story" }
+      ],
+      "contracts": []
+    }
+  ]
+}

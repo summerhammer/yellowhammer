@@ -43,7 +43,7 @@ enum LandBinding {
         configuration: Configuration,
         project: ProjectConfiguration,
         configurationDirectory: URL,
-        resultFixtures: [RunPass: RehearsalResultFixture] = [:]
+        resultFixtures: RehearsalScript = RehearsalScript.empty
     ) throws -> FeatureVerification {
         let ledger = try LedgerStore.open(configurationDirectory: configurationDirectory)
         return FeatureVerification(
