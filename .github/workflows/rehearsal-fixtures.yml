@@ -1,0 +1,28 @@
+name: Rehearsal fixtures
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  rehearsal-fixtures:
+    name: Rehearsal fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      # This tool only ever operates on throwaway git repos under tempdirs, entirely offline —
+      # no Linear, no Keychain, no network. git ships on ubuntu-latest.
+      - name: Run unit tests
+        run: python3 -m unittest discover -s scripts/rehearsal-fixtures/tests -v
