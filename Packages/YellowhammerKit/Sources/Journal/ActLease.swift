@@ -177,7 +177,7 @@ extension JournalStore {
         try read { db in try Self.fetchActLease(db) }
     }
 
-    private static func fetchActLease(_ db: Database) throws -> ActLease? {
+    static func fetchActLease(_ db: Database) throws -> ActLease? {
         guard let row = try Row.fetchOne(db, sql: "SELECT * FROM act_lease WHERE id = 1") else {
             return nil
         }

@@ -166,6 +166,24 @@ extension JournalStore {
         }
     }
 
+    /// Every held (unreleased) Worktree of this Project, across all its Features, id order. A Journal
+    /// holds one Project's rows (ADR-002/003), so this needs no Project filter of its own — used by
+    /// explicit Project removal (roadmap P13.5; spec risks OQ52(1)) to find what removal must decide on.
+    public func heldWorktrees() throws -> [WorktreeRecord] {
+        try read { db in
+            let rows = try Row.fetchAll(
+                db, sql: "SELECT id FROM worktree WHERE released_at IS NULL ORDER BY id ASC"
+            )
+            return try rows.map { row in
+                let id: Int64 = row["id"]
+                guard let record = try Self.fetchWorktree(db, id: id) else {
+                    throw JournalError.worktreeUnreadable(id: id)
+                }
+                return record
+            }
+        }
+    }
+
     /// All Worktrees recorded for `featureID`, in id order, released ones included: callers filter on
     /// `isHeld`.
     public func worktrees(featureID: Int64) throws -> [WorktreeRecord] {

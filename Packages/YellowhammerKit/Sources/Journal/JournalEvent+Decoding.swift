@@ -241,6 +241,7 @@ extension JournalEvent {
         case .reselectionBoundReached: try Self.decodeReselectionBoundReached(reader)
         case .refusalPromotedToStandingItem: try Self.decodeRefusalPromotedToStandingItem(reader)
         case .cardPromotedToStandingItem: try Self.decodeCardPromotedToStandingItem(reader)
+        case .projectRemoved: try Self.decodeProjectRemoved(reader)
         }
     }
 

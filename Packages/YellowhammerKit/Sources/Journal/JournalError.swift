@@ -99,6 +99,9 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     /// Banking (``JournalStore/bankCardReply(id:stamps:nightID:act:runID:now:)``) was attempted against
     /// a reply whose disposition is not `answer` (roadmap P11.3): only an answer is ever banked.
     case cardReplyNotAnswer(id: Int64)
+    /// Explicit Project removal (roadmap P13.5; spec risks OQ52(1)) was refused: an Act of this Project
+    /// holds an active Act Lease, so removal wrote nothing.
+    case projectRemovalRefused(holder: ActLease)
 
     public var description: String {
         return switch self {
@@ -207,6 +210,9 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
             "The Journal's card_reply row \(id) cannot be read"
         case .cardReplyNotAnswer(let id):
             "Card reply \(id) is not an answer and cannot be banked"
+        case .projectRemovalRefused(let holder):
+            "Project removal refused: run \(holder.runID) holds the Act Lease for the \(holder.act.rawValue) Act " +
+                "until \(JournalStore.timestamp(holder.expiresAt))"
         }
     }
 }

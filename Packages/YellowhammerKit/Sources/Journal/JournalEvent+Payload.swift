@@ -399,6 +399,7 @@ extension JournalEvent {
         case .reselectionBoundReached: reselectionBoundReachedPayload
         case .refusalPromotedToStandingItem: refusalPromotedToStandingItemPayload
         case .cardPromotedToStandingItem: cardPromotedToStandingItemPayload
+        case .projectRemoved: projectRemovedPayload
         }
     }
 }

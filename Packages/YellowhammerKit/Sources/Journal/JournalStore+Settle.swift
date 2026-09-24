@@ -110,14 +110,19 @@ extension JournalStore {
     /// Sets `cycle.archived_at` for `cycleID` if it is still unset — a *released* Feature's Cycle is
     /// archived without `closed_by` (never a closure route; `released_at` is the marker), so this never
     /// reuses ``archiveCycleRow(_:cycleID:featureID:closedBy:now:)``.
-    private static func archiveCycleIfUnarchived(_ db: Database, cycleID: Int64, timestamp: String) throws {
+    /// Widened from `private` and made `@discardableResult` so
+    /// ``JournalStore/recordProjectRemoval(_:runID:now:)`` (P13.5) can archive a decommissioned in-flight
+    /// Cycle without duplicating this SQL. Returns whether this call archived the Cycle.
+    @discardableResult
+    static func archiveCycleIfUnarchived(_ db: Database, cycleID: Int64, timestamp: String) throws -> Bool {
         guard
             let cycleRow = try Row.fetchOne(db, sql: "SELECT archived_at FROM cycle WHERE id = ?", arguments: [cycleID])
         else {
             throw JournalError.cycleUnknown(cycleID: cycleID)
         }
-        guard (cycleRow["archived_at"] as String?) == nil else { return }
+        guard (cycleRow["archived_at"] as String?) == nil else { return false }
         try db.execute(sql: "UPDATE cycle SET archived_at = ? WHERE id = ?", arguments: [timestamp, cycleID])
+        return true
     }
 
     /// Sets `night.triaged_at` for `nightID` if it is still unset — first write wins, shared by both

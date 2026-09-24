@@ -266,7 +266,8 @@ extension JournalStore {
 
     // MARK: - Rows
 
-    private static func close(
+    /// `close`/`fetchOpenNights` widened from `private` for P13.5's `recordProjectRemoval`.
+    static func close(
         _ db: Database,
         night: NightRecord,
         reason: NightCloseReason,
@@ -325,7 +326,7 @@ extension JournalStore {
         ).map(decodeNight)
     }
 
-    private static func fetchOpenNights(_ db: Database, projectID: ProjectID) throws -> [NightRecord] {
+    static func fetchOpenNights(_ db: Database, projectID: ProjectID) throws -> [NightRecord] {
         let rows = try Row.fetchAll(
             db,
             sql: "SELECT * FROM night WHERE project_id = ? AND state = ? ORDER BY night_start ASC",

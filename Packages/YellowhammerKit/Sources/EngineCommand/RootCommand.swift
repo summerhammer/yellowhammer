@@ -12,7 +12,7 @@ public struct RootCommand: AsyncParsableCommand {
         abstract: "Yellowhammer Engine: runs one Act for one Project, then exits.",
         subcommands: [
             AuthorCommand.self, BuildCommand.self, LandCommand.self, ProbeCommand.self, SetupCommand.self,
-            DoctorCommand.self, ValidateCommand.self, StatusCommand.self
+            DoctorCommand.self, ValidateCommand.self, StatusCommand.self, ProjectCommand.self
         ],
         defaultSubcommand: nil
     )
