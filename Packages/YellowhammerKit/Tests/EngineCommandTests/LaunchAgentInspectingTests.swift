@@ -6,9 +6,9 @@ struct LaunchAgentInspectingTests {
     @Test("parseJobInfo reads the top-level runs and last exit code")
     func parseJobInfoReadsTopLevelFields() {
         let text = """
-            com.summerhammer.yellowhammer.alpha.build = {
+            dev.yellowhammer.alpha.build = {
             \tactive count = 1
-            \tpath = /Users/max/Library/LaunchAgents/com.summerhammer.yellowhammer.alpha.build.plist
+            \tpath = /Users/max/Library/LaunchAgents/dev.yellowhammer.alpha.build.plist
             \truns = 3
             \tlast exit code = 1
             \tspawn type = daemon
@@ -50,22 +50,22 @@ struct LaunchAgentInspectingTests {
     func parseDisabledLabelsReadsDisabled() {
         let text = """
             disabled services = {
-            \t\t"com.summerhammer.yellowhammer.alpha.author" => disabled
-            \t\t"com.summerhammer.yellowhammer.alpha.build" => enabled
+            \t\t"dev.yellowhammer.alpha.author" => disabled
+            \t\t"dev.yellowhammer.alpha.build" => enabled
             }
             """
         let labels = LaunchctlLaunchAgentControl.parseDisabledLabels(text)
-        #expect(labels == ["com.summerhammer.yellowhammer.alpha.author"])
+        #expect(labels == ["dev.yellowhammer.alpha.author"])
     }
 
     @Test("parseDisabledLabels also accepts '=> true' (older macOS)")
     func parseDisabledLabelsAcceptsTrue() {
         let text = """
-            \t\t"com.summerhammer.yellowhammer.alpha.land" => true
-            \t\t"com.summerhammer.yellowhammer.alpha.build" => false
+            \t\t"dev.yellowhammer.alpha.land" => true
+            \t\t"dev.yellowhammer.alpha.build" => false
             """
         let labels = LaunchctlLaunchAgentControl.parseDisabledLabels(text)
-        #expect(labels == ["com.summerhammer.yellowhammer.alpha.land"])
+        #expect(labels == ["dev.yellowhammer.alpha.land"])
     }
 
     @Test("parseDisabledLabels finds no labels in an empty dump")

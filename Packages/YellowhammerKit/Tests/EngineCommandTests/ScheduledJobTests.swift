@@ -17,8 +17,8 @@ struct ScheduledJobPlistTests {
             pathValue: "/usr/local/bin:/usr/bin:/bin"
         )
 
-        #expect(job.label == "com.summerhammer.yellowhammer.acme.author")
-        #expect(job.fileName == "com.summerhammer.yellowhammer.acme.author.plist")
+        #expect(job.label == "dev.yellowhammer.acme.author")
+        #expect(job.fileName == "dev.yellowhammer.acme.author.plist")
 
         let data = try job.plistData(homeDirectory: "/Users/fixture")
         var format = PropertyListSerialization.PropertyListFormat.xml
@@ -27,7 +27,7 @@ struct ScheduledJobPlistTests {
         )
 
         #expect(format == .xml)
-        #expect(decoded["Label"] as? String == "com.summerhammer.yellowhammer.acme.author")
+        #expect(decoded["Label"] as? String == "dev.yellowhammer.acme.author")
         #expect(decoded["ProgramArguments"] as? [String] == ["/usr/local/bin/yh", "author", "--project", "acme"])
 
         let intervals = try #require(decoded["StartCalendarInterval"] as? [[String: Int]])
@@ -72,7 +72,7 @@ struct ScheduledJobCronTests {
         // midnight sorts its post-midnight hours first, which is fine — cron itself is hour-order-blind.
         #expect(lines == [
             "PATH=/usr/local/bin:/usr/bin:/bin",
-            "# com.summerhammer.yellowhammer.acme.build",
+            "# dev.yellowhammer.acme.build",
             "0 0 * * * /usr/local/bin/yh build --project acme >> \(expectedLog) 2>&1",
             "15,45 22,23 * * * /usr/local/bin/yh build --project acme >> \(expectedLog) 2>&1"
         ])

@@ -17,7 +17,7 @@ extension Doctor {
     }
 
     private func launchdFinding(projectID: ProjectID, act: Act) async -> DoctorFinding {
-        let label = "com.summerhammer.yellowhammer.\(projectID.rawValue).\(act.rawValue)"
+        let label = "dev.yellowhammer.\(projectID.rawValue).\(act.rawValue)"
         let subject = "Project \(projectID.rawValue) \(act.rawValue)"
         let plistURL = launchAgentsDirectory.appending(component: "\(label).plist", directoryHint: .notDirectory)
         guard FileManager.default.fileExists(atPath: plistURL.path(percentEncoded: false)) else {

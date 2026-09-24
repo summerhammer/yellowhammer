@@ -14,7 +14,7 @@ struct DoctorLaunchdTests {
             .appending(component: "yh-doctor-home-\(UUID().uuidString)", directoryHint: .isDirectory)
         let agentsDirectory = home.appending(components: "Library", "LaunchAgents", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: agentsDirectory, withIntermediateDirectories: true)
-        let label = "com.summerhammer.yellowhammer.alpha.author"
+        let label = "dev.yellowhammer.alpha.author"
         try Data().write(to: agentsDirectory.appending(component: "\(label).plist"))
 
         let doctor = makeDoctor(
@@ -51,7 +51,7 @@ struct DoctorLaunchdTests {
             .appending(component: "yh-doctor-home-\(UUID().uuidString)", directoryHint: .isDirectory)
         let agentsDirectory = home.appending(components: "Library", "LaunchAgents", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: agentsDirectory, withIntermediateDirectories: true)
-        let label = "com.summerhammer.yellowhammer.alpha.build"
+        let label = "dev.yellowhammer.alpha.build"
         try Data().write(to: agentsDirectory.appending(component: "\(label).plist"))
 
         let doctor = makeDoctor(

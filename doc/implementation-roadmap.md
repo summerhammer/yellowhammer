@@ -1448,7 +1448,7 @@ comment on the Delta Read).
 ### [x] P13.2 Scheduled job generation
 - **Work**
   - Generate three `launchd` user LaunchAgents per Project
-    (`com.summerhammer.yellowhammer.<project>.<act>.plist`) invoking `yh <act> --project <id>`, with
+    (`dev.yellowhammer.<project>.<act>.plist`) invoking `yh <act> --project <id>`, with
     staggered calendar intervals across Projects.
   - `--install-jobs` installs and loads them. `--export-jobs` writes plists or cron lines without
     installing.

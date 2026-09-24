@@ -67,7 +67,7 @@ struct DoctorProjectFilterTests {
             .appending(component: "yh-doctor-home-\(UUID().uuidString)", directoryHint: .isDirectory)
         let agentsDirectory = home.appending(components: "Library", "LaunchAgents", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: agentsDirectory, withIntermediateDirectories: true)
-        let betaLabel = "com.summerhammer.yellowhammer.beta.author"
+        let betaLabel = "dev.yellowhammer.beta.author"
         try Data().write(to: agentsDirectory.appending(component: "\(betaLabel).plist"))
 
         let directory = ConfigurationDirectory()

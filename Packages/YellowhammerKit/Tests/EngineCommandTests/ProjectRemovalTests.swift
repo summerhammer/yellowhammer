@@ -77,7 +77,7 @@ final class RemovalHomeFixture {
         try FileManager.default.createDirectory(at: agents, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: logDirectory, withIntermediateDirectories: true)
         for act in Act.allCases {
-            let label = "com.summerhammer.yellowhammer.\(projectID).\(act.rawValue)"
+            let label = "dev.yellowhammer.\(projectID).\(act.rawValue)"
             if plists {
                 try Data().write(to: agents.appending(component: "\(label).plist", directoryHint: .notDirectory))
             }
@@ -99,7 +99,7 @@ final class RemovalHomeFixture {
     }
 
     func plistExists(projectID: String, act: Act) -> Bool {
-        let label = "com.summerhammer.yellowhammer.\(projectID).\(act.rawValue)"
+        let label = "dev.yellowhammer.\(projectID).\(act.rawValue)"
         let plistURL = url.appending(
             components: "Library", "LaunchAgents", "\(label).plist", directoryHint: .notDirectory
         )
@@ -237,7 +237,7 @@ func fullRehearsalRemovalSucceeds() async throws {
     #expect(succeeded)
     #expect(pushCalled.value == nil)
     for act in Act.allCases {
-        #expect(launchAgents.calls.contains(.bootout("com.summerhammer.yellowhammer.alpha.\(act.rawValue)")))
+        #expect(launchAgents.calls.contains(.bootout("dev.yellowhammer.alpha.\(act.rawValue)")))
         #expect(!home.plistExists(projectID: "alpha", act: act))
         #expect(!home.logExists(projectID: "alpha", act: act))
     }

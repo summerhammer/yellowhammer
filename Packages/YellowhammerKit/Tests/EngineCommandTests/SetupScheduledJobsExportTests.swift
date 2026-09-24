@@ -25,9 +25,9 @@ struct SetupScheduledJobsExportTests {
             atPath: exportDirectory.path(percentEncoded: false)
         )
         #expect(Set(files) == Set([
-            "com.summerhammer.yellowhammer.alpha.author.plist",
-            "com.summerhammer.yellowhammer.alpha.build.plist",
-            "com.summerhammer.yellowhammer.alpha.land.plist"
+            "dev.yellowhammer.alpha.author.plist",
+            "dev.yellowhammer.alpha.build.plist",
+            "dev.yellowhammer.alpha.land.plist"
         ]))
         #expect(launchAgents.calls.isEmpty)
     }

@@ -20,7 +20,7 @@ struct DoctorOrphansTests {
     func orphanFound() async throws {
         let agentsDirectory = try makeAgentsDirectory()
         let home = agentsDirectory.deletingLastPathComponent().deletingLastPathComponent()
-        try write("com.summerhammer.yellowhammer.ghost.author", in: agentsDirectory)
+        try write("dev.yellowhammer.ghost.author", in: agentsDirectory)
 
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
@@ -31,7 +31,7 @@ struct DoctorOrphansTests {
 
         #expect(findings.contains {
             $0.check == .orphans && $0.severity == .failure
-                && $0.subject == "com.summerhammer.yellowhammer.ghost.author"
+                && $0.subject == "dev.yellowhammer.ghost.author"
         })
     }
 
@@ -39,7 +39,7 @@ struct DoctorOrphansTests {
     func configuredProjectNotFlagged() async throws {
         let agentsDirectory = try makeAgentsDirectory()
         let home = agentsDirectory.deletingLastPathComponent().deletingLastPathComponent()
-        try write("com.summerhammer.yellowhammer.alpha.author", in: agentsDirectory)
+        try write("dev.yellowhammer.alpha.author", in: agentsDirectory)
 
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
@@ -55,7 +55,7 @@ struct DoctorOrphansTests {
     func invalidProjectFileNotFlagged() async throws {
         let agentsDirectory = try makeAgentsDirectory()
         let home = agentsDirectory.deletingLastPathComponent().deletingLastPathComponent()
-        try write("com.summerhammer.yellowhammer.broken.author", in: agentsDirectory)
+        try write("dev.yellowhammer.broken.author", in: agentsDirectory)
 
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
@@ -86,7 +86,7 @@ struct DoctorOrphansTests {
     func fixWithYesConfirmationRemoves() async throws {
         let agentsDirectory = try makeAgentsDirectory()
         let home = agentsDirectory.deletingLastPathComponent().deletingLastPathComponent()
-        let label = "com.summerhammer.yellowhammer.ghost.land"
+        let label = "dev.yellowhammer.ghost.land"
         try write(label, in: agentsDirectory)
 
         let directory = ConfigurationDirectory()
@@ -110,7 +110,7 @@ struct DoctorOrphansTests {
     func fixWithNoAnswerKeeps() async throws {
         let agentsDirectory = try makeAgentsDirectory()
         let home = agentsDirectory.deletingLastPathComponent().deletingLastPathComponent()
-        let label = "com.summerhammer.yellowhammer.ghost.land"
+        let label = "dev.yellowhammer.ghost.land"
         try write(label, in: agentsDirectory)
 
         let directory = ConfigurationDirectory()
@@ -133,7 +133,7 @@ struct DoctorOrphansTests {
     func fixWithEOFKeeps() async throws {
         let agentsDirectory = try makeAgentsDirectory()
         let home = agentsDirectory.deletingLastPathComponent().deletingLastPathComponent()
-        let label = "com.summerhammer.yellowhammer.ghost.land"
+        let label = "dev.yellowhammer.ghost.land"
         try write(label, in: agentsDirectory)
 
         let directory = ConfigurationDirectory()
@@ -156,7 +156,7 @@ struct DoctorOrphansTests {
     func fixYesFlagRemovesWithoutAsking() async throws {
         let agentsDirectory = try makeAgentsDirectory()
         let home = agentsDirectory.deletingLastPathComponent().deletingLastPathComponent()
-        let label = "com.summerhammer.yellowhammer.ghost.land"
+        let label = "dev.yellowhammer.ghost.land"
         try write(label, in: agentsDirectory)
 
         let directory = ConfigurationDirectory()

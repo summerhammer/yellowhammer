@@ -3,7 +3,7 @@ import Domain
 import Foundation
 
 extension Doctor {
-    /// Check 6: a LaunchAgent plist named `com.summerhammer.yellowhammer.<project>.<act>.plist` whose
+    /// Check 6: a LaunchAgent plist named `dev.yellowhammer.<project>.<act>.plist` whose
     /// Project id has no `<id>.toml` under `projects/` (valid or invalid — an invalid Project file is
     /// misconfigured, not removed) is orphaned: a manually deleted Project's leftover schedule.
     /// Unrelated files are ignored. With `--fix`, offers to unload and delete every orphan found; a
@@ -46,7 +46,7 @@ extension Doctor {
             atPath: directory.path(percentEncoded: false)
         )) ?? []
         var orphans: [String] = []
-        let prefix = "com.summerhammer.yellowhammer."
+        let prefix = "dev.yellowhammer."
         for name in names {
             guard name.hasSuffix(".plist"), name.hasPrefix(prefix) else { continue }
             let label = String(name.dropLast(".plist".count))

@@ -42,17 +42,17 @@ struct SetupScheduledJobsInstallTests {
             atPath: launchAgentsDirectory.path(percentEncoded: false)
         )
         #expect(Set(files) == Set([
-            "com.summerhammer.yellowhammer.alpha.author.plist",
-            "com.summerhammer.yellowhammer.alpha.build.plist",
-            "com.summerhammer.yellowhammer.alpha.land.plist",
-            "com.summerhammer.yellowhammer.beta.author.plist",
-            "com.summerhammer.yellowhammer.beta.build.plist",
-            "com.summerhammer.yellowhammer.beta.land.plist"
+            "dev.yellowhammer.alpha.author.plist",
+            "dev.yellowhammer.alpha.build.plist",
+            "dev.yellowhammer.alpha.land.plist",
+            "dev.yellowhammer.beta.author.plist",
+            "dev.yellowhammer.beta.build.plist",
+            "dev.yellowhammer.beta.land.plist"
         ]))
 
         // alpha (stagger index 0): author fires at 22:00. beta (stagger index 1): author fires at 22:03.
         let alphaDecoded = try decodePlist(
-            at: launchAgentsDirectory.appending(component: "com.summerhammer.yellowhammer.alpha.author.plist")
+            at: launchAgentsDirectory.appending(component: "dev.yellowhammer.alpha.author.plist")
         )
         let alphaProgramArguments = alphaDecoded["ProgramArguments"] as? [String]
         #expect(alphaProgramArguments == ["/usr/local/bin/yh", "author", "--project", "alpha"])
@@ -62,7 +62,7 @@ struct SetupScheduledJobsInstallTests {
         #expect(alphaPATH.contains("/opt/tools/bin"))
 
         let betaDecoded = try decodePlist(
-            at: launchAgentsDirectory.appending(component: "com.summerhammer.yellowhammer.beta.author.plist")
+            at: launchAgentsDirectory.appending(component: "dev.yellowhammer.beta.author.plist")
         )
         let betaIntervals = try #require(betaDecoded["StartCalendarInterval"] as? [[String: Int]])
         #expect(betaIntervals == [["Hour": 22, "Minute": 3]])
@@ -79,12 +79,12 @@ struct SetupScheduledJobsInstallTests {
             return nil
         }
         #expect(labels == [
-            "com.summerhammer.yellowhammer.alpha.author",
-            "com.summerhammer.yellowhammer.alpha.build",
-            "com.summerhammer.yellowhammer.alpha.land",
-            "com.summerhammer.yellowhammer.beta.author",
-            "com.summerhammer.yellowhammer.beta.build",
-            "com.summerhammer.yellowhammer.beta.land"
+            "dev.yellowhammer.alpha.author",
+            "dev.yellowhammer.alpha.build",
+            "dev.yellowhammer.alpha.land",
+            "dev.yellowhammer.beta.author",
+            "dev.yellowhammer.beta.build",
+            "dev.yellowhammer.beta.land"
         ])
         #expect(launchAgents.calls.count == 18)
     }
@@ -104,7 +104,7 @@ struct SetupScheduledJobsInstallTests {
         )
         try await setup1.run()
         let url = homeDirectory.appending(
-            components: "Library", "LaunchAgents", "com.summerhammer.yellowhammer.alpha.author.plist"
+            components: "Library", "LaunchAgents", "dev.yellowhammer.alpha.author.plist"
         )
         let bytesAfterFirst = try Data(contentsOf: url)
 
@@ -144,9 +144,9 @@ struct SetupScheduledJobsInstallTests {
             atPath: launchAgentsDirectory.path(percentEncoded: false)
         )
         #expect(Set(files) == Set([
-            "com.summerhammer.yellowhammer.beta.author.plist",
-            "com.summerhammer.yellowhammer.beta.build.plist",
-            "com.summerhammer.yellowhammer.beta.land.plist"
+            "dev.yellowhammer.beta.author.plist",
+            "dev.yellowhammer.beta.build.plist",
+            "dev.yellowhammer.beta.land.plist"
         ]))
     }
 
@@ -159,7 +159,7 @@ struct SetupScheduledJobsInstallTests {
         let arguments = makeArguments(operatorID: "user-op", installJobs: true)
         let homeDirectory = freshHomeDirectory()
         let launchAgents = RecordingLaunchAgentControl(
-            failingLabels: ["com.summerhammer.yellowhammer.alpha.author"]
+            failingLabels: ["dev.yellowhammer.alpha.author"]
         )
         let output = RecordingOutput()
         let setup = try makeSetup(
@@ -169,6 +169,6 @@ struct SetupScheduledJobsInstallTests {
 
         await #expect(throws: SetupError.self) { try await setup.run() }
 
-        #expect(output.lines.contains { $0.contains("could not load com.summerhammer.yellowhammer.alpha.author") })
+        #expect(output.lines.contains { $0.contains("could not load dev.yellowhammer.alpha.author") })
     }
 }

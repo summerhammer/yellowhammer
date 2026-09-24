@@ -61,6 +61,6 @@ extension Status {
     }
 
     static func launchAgentLabel(projectID: ProjectID, act: Act) -> String {
-        "com.summerhammer.yellowhammer.\(projectID.rawValue).\(act.rawValue)"
+        "dev.yellowhammer.\(projectID.rawValue).\(act.rawValue)"
     }
 }

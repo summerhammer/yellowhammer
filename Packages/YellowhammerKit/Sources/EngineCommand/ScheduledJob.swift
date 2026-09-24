@@ -15,9 +15,9 @@ struct ScheduledJob: Equatable {
     /// The `PATH` this job's `EnvironmentVariables` carries (see ``ScheduledJob/composePATH``).
     let pathValue: String
 
-    /// `com.summerhammer.yellowhammer.<project>.<act>`.
+    /// `dev.yellowhammer.<project>.<act>`.
     var label: String {
-        "com.summerhammer.yellowhammer.\(projectID.rawValue).\(act.rawValue)"
+        "dev.yellowhammer.\(projectID.rawValue).\(act.rawValue)"
     }
 
     /// `<label>.plist`.
