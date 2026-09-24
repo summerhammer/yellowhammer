@@ -137,6 +137,29 @@ struct UnansweredCardClockTests {
         #expect(card.blockReason == BlockReason.undecided.rawValue)
     }
 
+    @Test("A Partial Landing's unanswered Card spends its Nights through the author Act and auto-Blocks")
+    func partialLandingCardAdvancesThroughAuthorAct() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let world = try await makeReplyWorld(journal: journal, waitingReason: .question)
+        // Landed, never archived: Verification returned the Feature, and no build Act works it again.
+        try world.markCycleLanded()
+        #expect(try journal.landedCycleIDsWithWaitingOnYouCards() == [world.cycleID])
+
+        for nightStart in ["2026-09-21", "2026-09-22"] {
+            let night = try world.openNight(NightStart(rawValue: nightStart)!)
+            let context = world.context(night: night, reading: FakeReadingBoard([]), act: .author)
+            try await UnansweredCardClock.run(
+                cycleIDs: try journal.landedCycleIDsWithWaitingOnYouCards(), unansweredNightsMax: 1, context: context
+            )
+        }
+
+        let card = try world.card()
+        #expect(card.state == .blocked)
+        #expect(card.blockReason == BlockReason.unanswered.rawValue)
+        #expect(try journal.events(ofType: .cardUnansweredBoundFired).count == 1)
+    }
+
     @Test("A banked reply's Card never advances through the author Act's post-landing step")
     func bankedReplyNeverAdvancesThroughAuthorAct() async throws {
         let fixture = try OutboxJournalFixture()
