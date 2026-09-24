@@ -184,8 +184,8 @@ extension JournalStore {
     }
 
     /// The Card's current budget epoch and issue id, read fresh inside the caller's write transaction.
-    /// Throws `cardUnknown` when the Card does not exist, `attemptStillOpen` when it already has an
-    /// open Attempt — a Card is dispatched once at a time.
+    /// Throws `cardUnknown` when the Card does not exist, `attemptStillOpen` when it already has an open
+    /// Attempt — a Card is dispatched once at a time.
     private static func beginAttempt(_ db: Database, cardID: Int64) throws -> (budgetEpoch: Int, issueID: String) {
         guard let cardRow = try Row.fetchOne(
             db, sql: "SELECT budget_epoch, issue_id FROM card WHERE id = ?", arguments: [cardID]
@@ -290,41 +290,43 @@ extension JournalStore {
 
     /// A Card's whole Attempt and Round history, rebuilt from the Journal's rows alone.
     public func attemptHistory(cardID: Int64) throws -> AttemptHistory {
-        try read { db in
-            guard try Int.fetchOne(db, sql: "SELECT 1 FROM card WHERE id = ?", arguments: [cardID]) != nil else {
-                throw JournalError.cardUnknown(cardID: cardID)
-            }
+        try read { db in try Self.attemptHistory(db, cardID: cardID) }
+    }
 
-            let attemptRows = try Row.fetchAll(
-                db, sql: "SELECT id FROM attempt WHERE card_id = ? ORDER BY id ASC", arguments: [cardID]
-            )
-            let attempts = try attemptRows.map { row -> AttemptRecord in
-                let attemptID: Int64 = row["id"]
-                guard let record = try Self.fetchAttempt(db, attemptID: attemptID) else {
-                    throw JournalError.attemptUnreadable(id: attemptID)
-                }
-                return record
-            }
-
-            let exclusionRows = try Row.fetchAll(
-                db,
-                sql: """
-                SELECT route_cli, route_model, route_effort FROM route_exclusion
-                WHERE card_id = ? ORDER BY excluded_at ASC, route_cli ASC, route_model ASC, route_effort ASC
-                """,
-                arguments: [cardID]
-            )
-            let excludedRoutes: [Route] = try exclusionRows.map { row in
-                guard let route = Route(
-                    cli: row["route_cli"], model: row["route_model"], effort: row["route_effort"]
-                ) else {
-                    throw JournalError.routeExclusionUnreadable(cardID: cardID)
-                }
-                return route
-            }
-
-            return AttemptHistory(cardID: cardID, attempts: attempts, excludedRoutes: excludedRoutes)
+    /// Internal: same read as ``attemptHistory(cardID:)``, over a `Database` a caller already holds open.
+    static func attemptHistory(_ db: Database, cardID: Int64) throws -> AttemptHistory {
+        guard try Int.fetchOne(db, sql: "SELECT 1 FROM card WHERE id = ?", arguments: [cardID]) != nil else {
+            throw JournalError.cardUnknown(cardID: cardID)
         }
+        let attemptRows = try Row.fetchAll(
+            db, sql: "SELECT id FROM attempt WHERE card_id = ? ORDER BY id ASC", arguments: [cardID]
+        )
+        let attempts = try attemptRows.map { row -> AttemptRecord in
+            let attemptID: Int64 = row["id"]
+            guard let record = try Self.fetchAttempt(db, attemptID: attemptID) else {
+                throw JournalError.attemptUnreadable(id: attemptID)
+            }
+            return record
+        }
+
+        let exclusionRows = try Row.fetchAll(
+            db,
+            sql: """
+            SELECT route_cli, route_model, route_effort FROM route_exclusion
+            WHERE card_id = ? ORDER BY excluded_at ASC, route_cli ASC, route_model ASC, route_effort ASC
+            """,
+            arguments: [cardID]
+        )
+        let excludedRoutes: [Route] = try exclusionRows.map { row in
+            guard let route = Route(
+                cli: row["route_cli"], model: row["route_model"], effort: row["route_effort"]
+            ) else {
+                throw JournalError.routeExclusionUnreadable(cardID: cardID)
+            }
+            return route
+        }
+
+        return AttemptHistory(cardID: cardID, attempts: attempts, excludedRoutes: excludedRoutes)
     }
 
     /// Throws unless `attemptID` exists and is open.

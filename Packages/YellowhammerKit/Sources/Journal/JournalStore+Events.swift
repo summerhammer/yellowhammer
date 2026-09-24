@@ -43,47 +43,53 @@ extension JournalStore {
     /// Every event in append order, optionally only those of one type.
     public func events(ofType type: JournalEventType? = nil) throws -> [JournalEventRecord] {
         try read { db in
-            let rows: [Row]
-            if let type {
-                let sql = "SELECT * FROM event WHERE type = ? ORDER BY id ASC"
-                rows = try Row.fetchAll(db, sql: sql, arguments: [type.rawValue])
+            try Self.events(db, ofType: type)
+        }
+    }
+
+    /// Internal: same read as ``events(ofType:)``, over a `Database` a caller already holds open — so a
+    /// multi-table read (e.g. ``cardAccount(issueID:)``) can share one transaction with it.
+    static func events(_ db: Database, ofType type: JournalEventType? = nil) throws -> [JournalEventRecord] {
+        let rows: [Row]
+        if let type {
+            let sql = "SELECT * FROM event WHERE type = ? ORDER BY id ASC"
+            rows = try Row.fetchAll(db, sql: sql, arguments: [type.rawValue])
+        } else {
+            rows = try Row.fetchAll(db, sql: "SELECT * FROM event ORDER BY id ASC")
+        }
+        return try rows.map { row in
+            let id: Int64 = row["id"]
+            let typeRaw: String = row["type"]
+            guard let eventType = JournalEventType(rawValue: typeRaw) else {
+                throw JournalError.eventUnreadable(id: id)
+            }
+
+            let payloadJSON: String? = row["payload"]
+            let payload: [String: String]?
+            if let payloadJSON {
+                let data = payloadJSON.data(using: .utf8) ?? Data()
+                payload = try JSONDecoder().decode([String: String].self, from: data)
             } else {
-                rows = try Row.fetchAll(db, sql: "SELECT * FROM event ORDER BY id ASC")
+                payload = nil
             }
-            return try rows.map { row in
-                let id: Int64 = row["id"]
-                let typeRaw: String = row["type"]
-                guard let eventType = JournalEventType(rawValue: typeRaw) else {
-                    throw JournalError.eventUnreadable(id: id)
-                }
 
-                let payloadJSON: String? = row["payload"]
-                let payload: [String: String]?
-                if let payloadJSON {
-                    let data = payloadJSON.data(using: .utf8) ?? Data()
-                    payload = try JSONDecoder().decode([String: String].self, from: data)
-                } else {
-                    payload = nil
-                }
+            let event = try JournalEvent(type: eventType, payload: payload, rowID: id)
 
-                let event = try JournalEvent(type: eventType, payload: payload, rowID: id)
-
-                let act: Act? = (row["act"] as String?).flatMap { Act(rawValue: $0) }
-                let runID: RunID? = (row["run_id"] as String?).flatMap { RunID(rawValue: $0) }
-                let nightID: Int64? = row["night_id"]
-                let occurredAt = try Self.date(row["occurred_at"] as String? ?? "") {
-                    JournalError.eventUnreadable(id: id)
-                }
-
-                return JournalEventRecord(
-                    id: id,
-                    event: event,
-                    act: act,
-                    runID: runID,
-                    nightID: nightID,
-                    occurredAt: occurredAt
-                )
+            let act: Act? = (row["act"] as String?).flatMap { Act(rawValue: $0) }
+            let runID: RunID? = (row["run_id"] as String?).flatMap { RunID(rawValue: $0) }
+            let nightID: Int64? = row["night_id"]
+            let occurredAt = try Self.date(row["occurred_at"] as String? ?? "") {
+                JournalError.eventUnreadable(id: id)
             }
+
+            return JournalEventRecord(
+                id: id,
+                event: event,
+                act: act,
+                runID: runID,
+                nightID: nightID,
+                occurredAt: occurredAt
+            )
         }
     }
 

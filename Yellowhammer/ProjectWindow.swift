@@ -40,8 +40,16 @@ struct ProjectWindow: View {
 
     @ViewBuilder private var content: some View {
         if let entry = configured.entry(for: scopedProject) {
-            ProjectDetailView(project: entry.id)
-                .id(entry.id)
+            TabView {
+                Tab("Configuration", systemImage: "gearshape") {
+                    ProjectDetailView(project: entry.id)
+                        .id(entry.id)
+                }
+                Tab("Journal", systemImage: "book") {
+                    CardAccountView(project: entry.id)
+                        .id(entry.id)
+                }
+            }
         } else {
             fallbackContent
         }
