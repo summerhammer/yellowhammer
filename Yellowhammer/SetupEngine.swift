@@ -1,8 +1,10 @@
 import Foundation
 
 /// Runs the bundled `yh` non-interactively and streams its merged stdout/stderr. The app never does the
-/// Board work itself (ADR-001; the app links only Domain and Config) — this is the seam the Setup wizard
-/// runs `SetupInvocation`'s argument vectors against.
+/// Board work itself (ADR-001; the app links only Domain, Config and, read-only, Ledger) — this is the
+/// seam the Setup wizard runs `SetupInvocation`'s argument vectors against, and the seam the Agent CLIs
+/// window runs
+/// `yh probe <cli>` through: the app never probes and never writes the Ledger itself, only `yh` does.
 @MainActor
 final class SetupEngine {
     /// The launch argument naming a stub script to run instead of the bundled `yh`, for UI tests only
