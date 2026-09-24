@@ -1479,7 +1479,7 @@ comment on the Delta Read).
   Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — Each diagnosis is produced from a staged scenario.
 
-### [ ] P13.5 `yh project remove <id>`
+### [x] P13.5 `yh project remove <id>`
 - **Work**
   - Refuse while an Act of that Project holds an active lease.
   - Unload and delete the three LaunchAgents.
