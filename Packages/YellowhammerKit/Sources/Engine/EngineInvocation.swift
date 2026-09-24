@@ -107,6 +107,9 @@ public struct EngineInvocation: Sendable {
     /// Posts local Exception Notifications for `halted` and `closed` (roadmap P12.5). `.silent` by
     /// default, so no invocation spawns a process unless `EngineCommand` wires the real launcher in.
     public let notifier: ExceptionNotifier
+    /// Rehearsal-only (P15.3): when given, this run's `Outbox` kills its own process at the n-th
+    /// applied entry the switch names — never wired outside a rehearsal Night's `--rehearsal`.
+    public let outboxKill: RehearsalOutboxKill?
     /// Not `private`: the module-internal notification extension reads it (roadmap P12.5).
     let journal: JournalStore
     private let work: ActWork
@@ -127,7 +130,8 @@ public struct EngineInvocation: Sendable {
         nightCardBounds: NightCardMaintenance.Bounds = NightCardMaintenance.Bounds(),
         openingReadiness: ReadinessCheck? = nil,
         operatorIdentity: OperatorIdentity = .none,
-        notifier: ExceptionNotifier = .silent
+        notifier: ExceptionNotifier = .silent,
+        outboxKill: RehearsalOutboxKill? = nil
     ) {
         self.act = act
         self.mode = mode
@@ -145,6 +149,7 @@ public struct EngineInvocation: Sendable {
         self.workspace = workspace
         self.operatorIdentity = operatorIdentity
         self.notifier = notifier
+        self.outboxKill = outboxKill
         self.work = { _ in throw EngineInvocationError.notImplemented(act) }
     }
 
@@ -169,6 +174,7 @@ public struct EngineInvocation: Sendable {
         openingReadiness: ReadinessCheck? = nil,
         operatorIdentity: OperatorIdentity = .none,
         notifier: ExceptionNotifier = .silent,
+        outboxKill: RehearsalOutboxKill? = nil,
         work: @escaping ActWork
     ) {
         self.act = act
@@ -187,6 +193,7 @@ public struct EngineInvocation: Sendable {
         self.workspace = workspace
         self.operatorIdentity = operatorIdentity
         self.notifier = notifier
+        self.outboxKill = outboxKill
         self.work = work
     }
 
@@ -286,7 +293,14 @@ public struct EngineInvocation: Sendable {
     /// the Night afterwards, since `open` may have recorded its Night Card issue id.
     private func openNightCardIfNeeded(night: NightRecord) async throws -> (Outbox?, NightCardMaintenance?) {
         guard let board else { return (nil, nil) }
-        let boxed = Outbox(journal: journal, board: board.writing, runID: runID, act: act, nightID: night.id)
+        let boxed: Outbox
+        if let outboxKill {
+            boxed = Outbox(journal: journal, board: board.writing, runID: runID, act: act, nightID: night.id) {
+                outboxKill.interrupt($0)
+            }
+        } else {
+            boxed = Outbox(journal: journal, board: board.writing, runID: runID, act: act, nightID: night.id)
+        }
         let maintenance = NightCardMaintenance(
             journal: journal, outbox: boxed, provisioning: board.provisioning, bounds: nightCardBounds
         )

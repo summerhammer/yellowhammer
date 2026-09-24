@@ -10,11 +10,11 @@ struct RehearseActInvocation: Equatable {
     let force: Bool
     let rehearsal: Bool
     let night: NightStart?
-    let resultFixtures: [RunPass: RehearsalResultFixture]
+    let resultFixtures: RehearsalScript
 
     init(
         act: Act, project: String, force: Bool, rehearsal: Bool, night: NightStart? = nil,
-        resultFixtures: [RunPass: RehearsalResultFixture] = [:]
+        resultFixtures: RehearsalScript = RehearsalScript.empty
     ) {
         self.act = act
         self.project = project
@@ -27,13 +27,20 @@ struct RehearseActInvocation: Equatable {
 
 extension RehearseActInvocation {
     /// The arguments `yh <act>` receives for this invocation. `--night` comes after `--rehearsal` and
-    /// before `--result-fixture`; fixtures are forwarded in a deterministic order — sorted by pass raw
-    /// value — so the emitted arguments are stable across runs.
+    /// before `--result-fixture`; by-pass fixtures are forwarded first, sorted by pass raw value, then
+    /// Card-scoped fixtures, sorted by (Card issue id, pass raw value) — a deterministic order, so the
+    /// emitted arguments are stable across runs.
     var arguments: [String] {
-        ["--project", project] + (force ? ["--force"] : []) + (rehearsal ? ["--rehearsal"] : [])
+        let sortedByCard = resultFixtures.byCard.sorted {
+            ($0.key.issueID, $0.key.pass.rawValue) < ($1.key.issueID, $1.key.pass.rawValue)
+        }
+        return ["--project", project] + (force ? ["--force"] : []) + (rehearsal ? ["--rehearsal"] : [])
             + (night.map { ["--night", $0.rawValue] } ?? [])
-            + resultFixtures.sorted { $0.key.rawValue < $1.key.rawValue }
+            + resultFixtures.byPass.sorted { $0.key.rawValue < $1.key.rawValue }
                 .flatMap { ["--result-fixture", "\($0.key.rawValue)=\($0.value.rawValue)"] }
+            + sortedByCard.flatMap {
+                ["--result-fixture", "\($0.key.pass.rawValue)@\($0.key.issueID)=\($0.value.rawValue)"]
+            }
     }
 }
 
@@ -79,7 +86,7 @@ struct Rehearse {
     /// is forwarded to every Act too — the rehearsal-only `--night` (P15.3), letting a suite run several
     /// successive Nights in one session.
     func run(
-        projectID: String, resultFixtures: [RunPass: RehearsalResultFixture] = [:], night: NightStart? = nil
+        projectID: String, resultFixtures: RehearsalScript = RehearsalScript.empty, night: NightStart? = nil
     ) async throws {
         for act in [Act.author, .build, .land] {
             output("rehearsal Night: running the \(act.rawValue) Act")

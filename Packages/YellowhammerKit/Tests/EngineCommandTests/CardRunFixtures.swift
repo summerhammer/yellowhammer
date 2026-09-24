@@ -134,7 +134,7 @@ final class RequestLog: Sendable {
 /// pass, so a test can hold it open or interfere with the Card's Lease mid-run.
 struct LoggingDispatch: AgentDispatch {
     let log: CallLog
-    var script: [RunPass: RehearsalResultFixture] = [:]
+    var script: RehearsalScript = .empty
     var during: (@Sendable (RunPass) async throws -> Void)?
     /// Every request seen, in order, so a test can inspect the instruction, Route, Worktree and Attempt.
     let requests = RequestLog()

@@ -12,6 +12,14 @@ import Foundation
 /// calendar date of its `night_start`, and the Journal keys a Night on (project_id, night_start), so an
 /// end-to-end rehearsal suite exercising `unanswered_nights_max` arithmetic or the predecessor-ancestry
 /// gate across Nights needs Night 1, Night 2, Night 3 in sequence rather than one Night per wall-clock day.
+///
+/// The `YH_REHEARSAL_OUTBOX_KILL` environment variable (rehearsal-only, P15.3) is a kill switch for
+/// `Outbox` replay: `<n>` or `group:<n>` names the n-th Outbox entry this run applies to the board, of
+/// any kind or only one belonging to a group, and this run kills itself with `SIGKILL` the instant that
+/// write is applied — after the board has it, before the Journal records it, which is the one instant no
+/// external process can interrupt from outside. It exists because the spec's rehearsal-assertable list
+/// includes Outbox idempotency and replay after a killed run, and that gap is otherwise unexercisable.
+/// It changes nothing else: unset, or on a real Night (no `--rehearsal`), it is never even read.
 public struct RehearseCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "rehearse",
@@ -36,8 +44,8 @@ public struct RehearseCommand: AsyncParsableCommand {
     // Not a stored property: `ParsableArguments` synthesizes `Decodable`, which a stored dictionary of
     // non-Decodable `RehearsalResultFixture` values would break. `validate()` has already parsed
     // `resultFixtureOptions` once to catch every refusal case, so re-parsing it here cannot fail.
-    public var resultFixtures: [RunPass: RehearsalResultFixture] {
-        (try? ResultFixtureOption.parse(resultFixtureOptions)) ?? [:]
+    public var resultFixtures: RehearsalScript {
+        (try? ResultFixtureOption.parse(resultFixtureOptions)) ?? RehearsalScript.empty
     }
 
     // Not a stored property, for the same reason `resultFixtures` is not: `validate()` has already

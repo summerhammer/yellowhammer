@@ -14,7 +14,7 @@ enum AuthoringBinding {
         configuration: Configuration,
         project: ProjectConfiguration,
         configurationDirectory: URL,
-        resultFixtures: [RunPass: RehearsalResultFixture] = [:]
+        resultFixtures: RehearsalScript = RehearsalScript.empty
     ) throws -> FeatureSelection {
         let ledger = try LedgerStore.open(configurationDirectory: configurationDirectory)
         let resolver = try RoutingBinding.resolver(configuration: configuration, projectID: project.id, ledger: ledger)

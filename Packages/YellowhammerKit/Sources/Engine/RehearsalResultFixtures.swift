@@ -36,6 +36,21 @@ public enum RehearsalResultFixture: String, CaseIterable, Sendable {
     /// `contracts/fixture-api.json` from `fixture-backend`'s mainline — a rehearsal Night's Transcription
     /// Block exercise. Pairs with ``selectionSelectedWithContract``.
     case breakdownDraftedWithContract = "breakdown-drafted-with-contract.json"
+    /// Selects `fixture-backend` and `fixture-web`, like ``selectionSelectedWithContract``, but the file's
+    /// `adopted_card_issue_ids` is always `[]`: ``RehearsalDispatch`` synthesizes it from the request's
+    /// ``AuthoringInstruction/adoptionCandidates`` (P15.3), so a rehearsal Night can exercise adoption
+    /// without knowing a live Card's issue id in advance. Pairs with ``breakdownDraftedWithContract``.
+    case selectionSelectedAdopting = "selection-selected-adopting.json"
+    /// Like ``selectionSelectedWithContract``, but names three repositories — `fixture-backend`,
+    /// `fixture-web` and `fixture-mobile` — for a rehearsal Night exercising a three-repository Feature.
+    /// No adoptions. Pairs with ``breakdownDraftedThreeRepos``.
+    case selectionSelectedThreeRepos = "selection-selected-three-repos.json"
+    /// Five Cards across three repositories, citing two Feature-level Definition of Done clauses:
+    /// `fixture-backend` × 3 (no contracts), `fixture-web` × 1 (one contract, citing
+    /// `contracts/fixture-api.json` from `fixture-backend`'s mainline, like
+    /// ``breakdownDraftedWithContract``'s web Card), `fixture-mobile` × 1 (no contracts). Each Card's
+    /// authored order within its repository is the file's order. Pairs with ``selectionSelectedThreeRepos``.
+    case breakdownDraftedThreeRepos = "breakdown-drafted-three-repos.json"
     /// The land Act's verifier answers (roadmap P10.5). The file's single clause is a placeholder:
     /// the fixture cannot know the Feature's clause ids in advance, so ``RehearsalDispatch`` answers a
     /// `verifierReported` request by reporting every clause the request names as `met`.
@@ -50,9 +65,10 @@ public enum RehearsalResultFixture: String, CaseIterable, Sendable {
             .worker
         case .reviewerApproved, .reviewerChangesRequested:
             .reviewer
-        case .selectionSelected, .selectionNoSelectableFeature, .selectionFailed, .selectionSelectedWithContract:
+        case .selectionSelected, .selectionNoSelectableFeature, .selectionFailed, .selectionSelectedWithContract,
+             .selectionSelectedAdopting, .selectionSelectedThreeRepos:
             .selection
-        case .breakdownDrafted, .breakdownDraftedWithContract:
+        case .breakdownDrafted, .breakdownDraftedWithContract, .breakdownDraftedThreeRepos:
             .breakdown
         case .verifierReported, .verifierFailed:
             .verifier

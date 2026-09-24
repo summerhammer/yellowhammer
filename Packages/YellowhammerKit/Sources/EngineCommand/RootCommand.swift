@@ -32,14 +32,16 @@ protocol ActCommand: AsyncParsableCommand {
     var force: Bool { get }
     var rehearsal: Bool { get }
     var night: NightStart? { get }
-    var resultFixtures: [RunPass: RehearsalResultFixture] { get }
+    var resultFixtures: RehearsalScript { get }
     func makeTrigger() throws -> ActTrigger
+    // swiftlint:disable:next function_parameter_count
     func makeInvocation(
         configurationDirectory: URL,
         now: Date,
         bindBoard: ((Configuration, ProjectConfiguration) throws -> ActBoard)?,
         bindWorkspace: (() -> any Workspace)?,
-        notifier: ExceptionNotifier
+        notifier: ExceptionNotifier,
+        environment: [String: String]
     ) throws -> EngineInvocation
 }
 
@@ -53,7 +55,8 @@ extension ActCommand {
         now: Date = Date(),
         bindBoard: ((Configuration, ProjectConfiguration) throws -> ActBoard)? = nil,
         bindWorkspace: (() -> any Workspace)? = nil,
-        notifier: ExceptionNotifier = .silent
+        notifier: ExceptionNotifier = .silent,
+        environment: [String: String] = ProcessInfo.processInfo.environment
     ) throws -> EngineInvocation {
         let (configuration, project) = try ProjectResolution.resolve(
             projectArgument: project, configurationDirectory: configurationDirectory
@@ -62,6 +65,9 @@ extension ActCommand {
         let journal = try JournalStore.open(configurationDirectory: configurationDirectory, projectID: project.id)
         let mode: NightMode = rehearsal ? .rehearsal : .real
         let trigger = try makeTrigger()
+        // Rehearsal-only (P15.3): a real Night ignores this variable entirely, read only alongside
+        // --rehearsal. A malformed value fails the invocation before any Act work runs.
+        let outboxKill = try Self.outboxKill(rehearsal: rehearsal, environment: environment)
 
         // The land firing at night_end completes the Night; this is decided from the clock against the
         // Project's [schedule], which the generated land LaunchAgent's final firing (night_end plus the
@@ -105,14 +111,29 @@ extension ActCommand {
             ),
             operatorIdentity: operatorIdentity,
             notifier: notifier,
+            outboxKill: outboxKill,
             work: work
         )
+    }
+
+    /// Rehearsal-only `YH_REHEARSAL_OUTBOX_KILL` (P15.3): read, and refused if malformed, only when this
+    /// Act runs with `--rehearsal` — a real Night never even looks at the variable. Split out of
+    /// `makeInvocation` to keep that function within its length limit.
+    private static func outboxKill(rehearsal: Bool, environment: [String: String]) throws -> RehearsalOutboxKill? {
+        guard rehearsal, let raw = environment[outboxKillEnvironmentVariable] else { return nil }
+        guard let outboxKill = RehearsalOutboxKill(spec: raw) else {
+            throw ValidationError(
+                "\(outboxKillEnvironmentVariable) `\(raw)` must be `<n>` or `group:<n>`, with n a positive " +
+                "integer naming the n-th Outbox entry this run applies to the board before killing itself."
+            )
+        }
+        return outboxKill
     }
 
     /// This Act's own work. Split out of `makeInvocation` to keep that function within its length limit.
     private static func work(
         mode: NightMode, configuration: Configuration, project: ProjectConfiguration, configurationDirectory: URL,
-        resultFixtures: [RunPass: RehearsalResultFixture]
+        resultFixtures: RehearsalScript
     ) throws -> EngineInvocation.ActWork {
         switch Self.act {
         case .land:
@@ -196,6 +217,11 @@ private let rehearsalHelp: ArgumentHelp = """
 private let featureHelp: ArgumentHelp = """
     Author the Feature named here instead of selecting one (Force authoring). Implies --force.
     """
+/// Rehearsal-only (P15.3): read by `makeInvocation` only alongside `--rehearsal`. Documented in
+/// `RehearseCommand`'s doc comment, not in an `ArgumentHelp`, since it is an environment variable, not
+/// a flag.
+let outboxKillEnvironmentVariable = "YH_REHEARSAL_OUTBOX_KILL"
+
 let nightHelp: ArgumentHelp = """
     Rehearsal only: run as part of the Night of this date (YYYY-MM-DD) instead of the Night the clock \
     is in. Only the Night's identity moves; leases and timestamps stay on the wall clock. A land Act \
@@ -242,8 +268,8 @@ public struct AuthorCommand: ActCommand {
     // Not a stored property: `ParsableArguments` synthesizes `Decodable`, which a stored dictionary of
     // non-Decodable `RehearsalResultFixture` values would break. `validate()` has already parsed
     // `resultFixtureOptions` once to catch every refusal case, so re-parsing it here cannot fail.
-    public var resultFixtures: [RunPass: RehearsalResultFixture] {
-        (try? ResultFixtureOption.parse(resultFixtureOptions)) ?? [:]
+    public var resultFixtures: RehearsalScript {
+        (try? ResultFixtureOption.parse(resultFixtureOptions)) ?? RehearsalScript.empty
     }
 
     // Not a stored property, for the same reason `resultFixtures` is not: `validate()` has already
@@ -300,8 +326,8 @@ public struct BuildCommand: ActCommand {
     // Not a stored property: `ParsableArguments` synthesizes `Decodable`, which a stored dictionary of
     // non-Decodable `RehearsalResultFixture` values would break. `validate()` has already parsed
     // `resultFixtureOptions` once to catch every refusal case, so re-parsing it here cannot fail.
-    public var resultFixtures: [RunPass: RehearsalResultFixture] {
-        (try? ResultFixtureOption.parse(resultFixtureOptions)) ?? [:]
+    public var resultFixtures: RehearsalScript {
+        (try? ResultFixtureOption.parse(resultFixtureOptions)) ?? RehearsalScript.empty
     }
 
     // Not a stored property, for the same reason `resultFixtures` is not: `validate()` has already
@@ -343,8 +369,8 @@ public struct LandCommand: ActCommand {
     // Not a stored property: `ParsableArguments` synthesizes `Decodable`, which a stored dictionary of
     // non-Decodable `RehearsalResultFixture` values would break. `validate()` has already parsed
     // `resultFixtureOptions` once to catch every refusal case, so re-parsing it here cannot fail.
-    public var resultFixtures: [RunPass: RehearsalResultFixture] {
-        (try? ResultFixtureOption.parse(resultFixtureOptions)) ?? [:]
+    public var resultFixtures: RehearsalScript {
+        (try? ResultFixtureOption.parse(resultFixtureOptions)) ?? RehearsalScript.empty
     }
 
     // Not a stored property, for the same reason `resultFixtures` is not: `validate()` has already

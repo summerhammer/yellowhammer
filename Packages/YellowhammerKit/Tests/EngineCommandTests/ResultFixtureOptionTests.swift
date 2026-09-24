@@ -52,6 +52,48 @@ struct ResultFixtureOptionTests {
     func emptyArrayParsesToEmptyMap() throws {
         #expect(try ResultFixtureOption.parse([]).isEmpty)
     }
+
+    @Test("A Card-scoped entry parses into byCard, keyed by (issue id, pass)")
+    func cardScopedEntryParsesIntoByCard() throws {
+        let script = try ResultFixtureOption.parse(["worker@BACK-1=worker-question"])
+        #expect(script.byCard == [CardPass(issueID: "BACK-1", pass: .worker): .workerQuestion])
+        #expect(script.byPass.isEmpty)
+    }
+
+    @Test("A by-pass entry and a Card-scoped entry for the same pass coexist")
+    func byPassAndByCardCoexist() throws {
+        let script = try ResultFixtureOption.parse(["worker=worker-completed", "worker@BACK-1=worker-question"])
+        #expect(script.byPass == [.worker: .workerCompleted])
+        #expect(script.byCard == [CardPass(issueID: "BACK-1", pass: .worker): .workerQuestion])
+    }
+
+    @Test("The same (pass, Card issue id) named twice is refused")
+    func samePassAndCardTwiceIsRefused() {
+        #expect(throws: (any Error).self) {
+            try ResultFixtureOption.parse(["worker@BACK-1=worker-question", "worker@BACK-1=worker-failed"])
+        }
+    }
+
+    @Test("An empty Card issue id is refused", arguments: ["worker@=worker-question"])
+    func emptyCardIssueIDIsRefused(_ entry: String) {
+        #expect(throws: (any Error).self) {
+            try ResultFixtureOption.parse([entry])
+        }
+    }
+
+    @Test("A whitespace-bearing Card issue id is refused")
+    func whitespaceBearingCardIssueIDIsRefused() {
+        #expect(throws: (any Error).self) {
+            try ResultFixtureOption.parse(["worker@BACK 1=worker-question"])
+        }
+    }
+
+    @Test("A Card-scoped fixture whose declared pass differs from the named pass is refused")
+    func mismatchedPassCardScopedFixtureIsRefused() {
+        #expect(throws: (any Error).self) {
+            try ResultFixtureOption.parse(["worker@BACK-1=reviewer-approved"])
+        }
+    }
 }
 
 @Suite("--result-fixture on the Act commands")
@@ -92,6 +134,14 @@ struct ActCommandResultFixtureTests {
             "--result-fixture", "verifier=verifier-failed"
         ])
         #expect(command.resultFixtures == [.worker: .workerQuestion, .verifier: .verifierFailed])
+    }
+
+    @Test("A Card-scoped --result-fixture alongside --rehearsal parses on an Act command")
+    func cardScopedResultFixtureAlongsideRehearsalParses() throws {
+        let command = try BuildCommand.parse([
+            "--project", "alpha", "--rehearsal", "--result-fixture", "worker@BACK-1=worker-question"
+        ])
+        #expect(command.resultFixtures.byCard == [CardPass(issueID: "BACK-1", pass: .worker): .workerQuestion])
     }
 }
 

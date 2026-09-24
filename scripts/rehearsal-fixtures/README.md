@@ -39,14 +39,20 @@ Every commit is made with a fixed author/committer identity and fixed, determini
 wall-clock), and `GIT_CONFIG_GLOBAL=/dev/null` / `GIT_CONFIG_NOSYSTEM=1` so the developer's own
 git config never leaks in. Two builds of the same Project produce byte-identical SHAs.
 
-**Which bundled engine result fixture this pairs with:** the engine's bundled breakdown result
-fixture names repositories `fixture-backend` and `fixture-web` and cites the story
+**Which bundled engine result fixture this pairs with:** the engine's default breakdown result
+fixture (`breakdown-drafted-with-contract.json`, paired with `selection-selected-with-contract.json`)
+names repositories `fixture-backend` and `fixture-web` and cites the story
 `fixture-epic/fixture-story`; its fixture-web Card transcribes the contract path
 `contracts/fixture-api.json` from fixture-backend's mainline. This tool's `fixture-backend` and
 `fixture-web` repos, and its `fixture-epic/fixture-story` story (with acceptance criteria), are
 built to match that fixture exactly. `fixture-mobile` and the second story (`fixture-story-2`)
 exist so a Project can exercise more than one Repo/story without colliding with the bundled
-fixture's names.
+fixture's names — which is also what the three-repository fixture pair
+(`selection-selected-three-repos.json` / `breakdown-drafted-three-repos.json`, P15.3) exercises:
+five Cards across all three repos, citing both stories, with the same fixture-web/fixture-backend
+contract. `selection-selected-adopting.json` (P15.3, pairs with `breakdown-drafted-with-contract.json`)
+selects the same two repositories but leaves `adopted_card_issue_ids` for
+``RehearsalDispatch`` to synthesize from whichever Blocked Cards this tree's Project has left behind.
 
 `fixture-backend` additionally carries `migrations/0001_init.sql`, and `migrations/` is its one
 protected path (`protected_paths = ["migrations/"]` in `project-repos.toml`) — see *Protected
@@ -190,10 +196,14 @@ HEAD, and every scenario ref exists where it should. Prints `PASS`/`FAIL` per as
 
 ## Protected Paths refusal
 
-`fixture-backend`'s protected path is `migrations/`. To exercise the engine's Protected Paths
-refusal, give the fixture-web (or any) breakdown Card a declared scope naming a path under
-`migrations/` in `fixture-backend` — the engine should refuse to dispatch it. This tool does not
-create that Card itself; it only ships the repo layout the refusal test needs.
+`fixture-backend`'s protected path is `migrations/`. Only a Card's own repository's
+`protected_paths` are checked — the engine never reads another repository's — so exercising this
+refusal needs a **`fixture-backend`** Card, not a fixture-web (or any other repository's) one. A
+Card's declared scope for this check is not read from its authored Contracts: it is read from the
+`**Scope:**` line of the Card's Managed Block on the board (the Readiness Check reconciles the
+board's own copy), so give a `fixture-backend` Card's Managed Block a `**Scope:**` line naming a
+path under `migrations/` — the engine should refuse to dispatch it. This tool does not create that
+Card or its Managed Block itself; it only ships the repo layout the refusal test needs.
 
 ## Running the unit tests
 
