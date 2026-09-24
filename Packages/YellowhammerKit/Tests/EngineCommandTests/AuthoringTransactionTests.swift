@@ -51,6 +51,17 @@ struct AuthoringTransactionTests {
         #expect(rig.drafting.callCount == 1)
     }
 
+    @Test("finaliseAuthoring records the feature row's Feature Branch (yh-<project>-<feature>)")
+    func recordsFeatureBranch() async throws {
+        let rig = try await AuthoringRig()
+        let outcome = try await rig.run(rig.context())
+
+        #expect(outcome == .authored)
+        let (recorded, _) = try #require(try rig.journal.inFlightFeature())
+        let expected = FeatureBranch(project: rig.fixture.projectID.rawValue, feature: "FEAT-1")
+        #expect(recorded.branch == expected)
+    }
+
     @Test("The plan is recorded with the group's keys, and the group carries no Linear milestone or cycle write")
     func planKeysAreDeterministic() async throws {
         let rig = try await AuthoringRig()
