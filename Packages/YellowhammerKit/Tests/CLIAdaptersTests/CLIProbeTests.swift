@@ -92,8 +92,8 @@ struct CLIProbeTests {
         #expect(reason.contains("interactive"))
     }
 
-    @Test("A stub CLI that escapes its process group leaves no survivors, but fails containment")
-    func escapingStubFailsContainmentButLeavesNoSurvivors() async throws {
+    @Test("A stub CLI that escapes its process group is still contained by the abort path's descendant sweep")
+    func escapingStubIsContainedByDescendantSweep() async throws {
         let workDirectory = try makeWorkDirectory()
         defer { try? FileManager.default.removeItem(at: workDirectory) }
         let executable = try makeExecutable(StubProbeCLI.escapes, in: workDirectory)
@@ -103,20 +103,11 @@ struct CLIProbeTests {
             environment: ProcessInfo.processInfo.environment, workDirectory: workDirectory
         )
 
-        #expect(report.processContainment == .failed)
-        let reason = try #require(report.reason)
-        #expect(reason.contains("outlived its SIGKILL"))
-        #expect(reason.contains("outside the CLI's process group"))
-        #expect(reason.contains("ran in process group"))
-
-        // The reason names the real CLI leader pid, not the (different) pgid the escaped tool
-        // subprocess actually ran in — the bug this wording exists to avoid repeating.
-        for variant in ["sigterm", "sigkill"] {
-            let leaderFile = workDirectory.appendingPathComponent("worktree/.yh-probe-leader-\(variant)")
-            guard let leaderText = try? String(contentsOf: leaderFile, encoding: .utf8) else { continue }
-            let leaderPID = leaderText.trimmingCharacters(in: .whitespacesAndNewlines)
-            #expect(reason.contains("CLI's process group \(leaderPID)"))
-        }
+        // The escaped tool subprocess is a direct child of the CLI leader (`setsid` never changes
+        // `ppid`), so the abort path's descendant sweep (`AgentCLIProcess+Termination.swift`)
+        // finds and signals it directly, by pid identity, even though it moved to a new process
+        // group of its own. Containment now passes.
+        #expect(report.processContainment == .passed)
 
         // No orphan survives the probe: give the detached descendants a moment to actually die
         // after the probe's own SIGKILL, then confirm none of the recorded hold pids remain.

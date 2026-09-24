@@ -3,7 +3,9 @@ import Domain
 import Foundation
 
 /// One completed agent CLI run: the process identity the lifecycle observed, how it ended, and the
-/// dual-key completion verdict derived from that ending plus the result file.
+/// dual-key completion verdict derived from that ending plus the result file. `pid`/`processGroup`
+/// name the CLI leader only — on a forced termination, the descendants swept alongside it
+/// (``ProcessTree``) are not reported here; they are contained, not tracked past that.
 public struct AgentCLIRunReport: Equatable, Sendable {
     public let pid: pid_t
     /// Equal to `pid`: the CLI leads its own process group.
@@ -39,8 +41,12 @@ public enum AgentCLILaunchError: Error, Equatable, Sendable, CustomStringConvert
 
 /// Runs one agent CLI in its own process group inside the Worktree and applies the dual-key
 /// completion contract (spec: the CLI Adapter spawns via `posix_spawn` +
-/// `POSIX_SPAWN_SETPGROUP`; on timeout or engine-initiated abort it sends `SIGTERM` to the group,
-/// grants a grace window, then `SIGKILL`s the group).
+/// `POSIX_SPAWN_SETPGROUP`; on timeout or engine-initiated abort it sends `SIGTERM` to the
+/// group, grants a grace window, then `SIGKILL`s the group). Group signals alone are not enough:
+/// a real CLI's tool commands routinely escape into a new session or process group of their own
+/// (claude's Bash tool calls `setsid`; codex makes the tool command a group leader), so
+/// termination (`AgentCLIProcess+Termination.swift`) also snapshots and signals the CLI's
+/// descendant process tree directly, by pid identity — see ``ProcessTree``.
 public struct AgentCLIProcess: Sendable {
     /// Spec-mandated 3 s. Configurable only so tests can shorten it.
     public let gracePeriod: Duration
@@ -111,69 +117,10 @@ public struct AgentCLIProcess: Sendable {
         }
     }
 
-    private enum TerminationReason {
+    /// Why a run is being ended by Yellowhammer rather than the CLI's own exit — shared with
+    /// `AgentCLIProcess+Termination.swift`, where the actual signalling and reaping lives.
+    enum TerminationReason {
         case timedOut(after: Duration)
         case aborted
-    }
-
-    /// SIGTERM to the group, then up to `gracePeriod` waiting for both the leader to be reaped and
-    /// the group to vanish (`kill(-pgid, 0)` → ESRCH). Escalates to SIGKILL, reaps the leader if it
-    /// has not been already, and polls briefly for the group to vanish. The leader is reaped
-    /// exactly once on every path — no zombies.
-    private func terminate(pid: pid_t, reason: TerminationReason) async -> RunEnd {
-        ProcessGroup.signal(group: pid, SIGTERM)
-
-        let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: gracePeriod)
-        var reaped = false
-
-        while clock.now < deadline {
-            if groupIsGone(pid: pid, reaped: &reaped) {
-                return end(for: reason, forcedKill: false)
-            }
-            await Self.sleepThroughCancellation(for: pollInterval)
-        }
-        if groupIsGone(pid: pid, reaped: &reaped) {
-            return end(for: reason, forcedKill: false)
-        }
-
-        ProcessGroup.signal(group: pid, SIGKILL)
-        if !reaped {
-            ProcessGroup.reapBlocking(pid: pid)
-            reaped = true
-        }
-
-        let killDeadline = clock.now.advanced(by: .seconds(1))
-        while clock.now < killDeadline, ProcessGroup.isAlive(group: pid) {
-            await Self.sleepThroughCancellation(for: pollInterval)
-        }
-
-        return end(for: reason, forcedKill: true)
-    }
-
-    /// Sleeps for the whole of `duration` even when the calling task is cancelled. The abort path
-    /// runs *because* the dispatch task was cancelled, and there `Task.sleep` throws at once, which
-    /// would turn the grace and kill polls into a busy spin. An unstructured `Task` does not inherit
-    /// the caller's cancellation, so awaiting it waits out the full duration.
-    static func sleepThroughCancellation(for duration: Duration) async {
-        await Task { try? await Task.sleep(for: duration) }.value
-    }
-
-    /// Reaps the leader (once) if it has not been already, then reports whether the whole group —
-    /// leader included — is gone.
-    private func groupIsGone(pid: pid_t, reaped: inout Bool) -> Bool {
-        if !reaped, ProcessGroup.reapNonBlocking(pid: pid) != nil {
-            reaped = true
-        }
-        return reaped && !ProcessGroup.isAlive(group: pid)
-    }
-
-    private func end(for reason: TerminationReason, forcedKill: Bool) -> RunEnd {
-        switch reason {
-        case .timedOut(let after):
-            .timedOut(after: after, forcedKill: forcedKill)
-        case .aborted:
-            .aborted(forcedKill: forcedKill)
-        }
     }
 }
