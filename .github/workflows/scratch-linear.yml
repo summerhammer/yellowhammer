@@ -1,0 +1,29 @@
+name: Scratch Linear environment
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  scratch-linear:
+    name: Scratch Linear environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      # The tool itself needs the scratch workspace's Linear credentials (a Keychain item, per
+      # doc/linear-identity-runbook.md) and talks to the real scratch Linear workspace; CI runs only
+      # its own offline unit tests, against a fake transport (scripts/scratch-linear/README.md).
+      - name: Run unit tests
+        run: python3 -m unittest discover -s scripts/scratch-linear/tests -v

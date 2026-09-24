@@ -171,3 +171,10 @@ YH_LINEAR_CLIENT_ID=<scratch-client-id> \
 YH_LINEAR_PROJECT_ID=<scratch-linear-project-id> \
 swift test --package-path Packages/YellowhammerKit --filter BoardProvisionerScratchTests
 ```
+
+## Scratch environment (P15.1)
+
+Between rehearsal Night runs, the scratch Linear team's issues need archiving and each rehearsing
+Project's Journal needs clearing, without touching provisioning. See
+`../scripts/scratch-linear/README.md` for the runbook and `scripts/scratch-linear/scratch_linear.py`
+for the `check`/`reset` tool.
