@@ -53,7 +53,7 @@ extension NightSummary {
             "Retries on a different route: \(ratio(differentRetries, retries.count)); " +
                 "every retry different: \(everyRetry).",
             "`author_supplied_citation_count`: \(citationCount) (at this Night's close)."
-        ] + (try boundProximity(night: night, events: relevant, journal: journal, bounds: bounds))
+        ] + boundProximityLines(try boundProximity(night: night, events: relevant, journal: journal, bounds: bounds))
     }
 
     private static func ratio(_ numerator: Int, _ denominator: Int) -> String {

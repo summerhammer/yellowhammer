@@ -2,21 +2,85 @@ import Domain
 import Foundation
 import Journal
 
+/// One Project Bound's proximity at a Night's close: what the Bound allows (`value`), what this Night
+/// recorded against it (`observed`), and — when the Night Summary's line names what it counted — the
+/// `measure` phrase. Always in the same six-Bound order: `review_rounds_max`, `attempts_per_card`,
+/// `unanswered_nights_max`, `reselections_max`, `consecutive_refusals_max`, `failed_adoptions_max`.
+public struct BoundProximity: Sendable, Equatable {
+    public let name: String
+    public let value: Int
+    public let observed: Int
+    public let measure: String?
+
+    public init(name: String, value: Int, observed: Int, measure: String?) {
+        self.name = name
+        self.value = value
+        self.observed = observed
+        self.measure = measure
+    }
+}
+
 extension NightSummary {
+    /// The Project Bounds' proximity at this Night's close, read fresh from the Journal: every Night up
+    /// to and including this one, and only the events belonging to one of them — the same filtering
+    /// `instrumentedRateLines` applies before computing proximity, reused here for a caller (Recalibrate)
+    /// that never assembles a Night Summary itself.
+    public static func boundProximity(
+        night: NightRecord, journal: JournalStore, bounds: NightCardMaintenance.Bounds
+    ) throws -> [BoundProximity] {
+        let nights = try journal.nights().filter { $0.nightStart <= night.nightStart }
+        let priorNightIDs = Set(nights.map(\.id))
+        let events = try journal.events().filter { $0.nightID.map(priorNightIDs.contains) ?? false }
+        return try boundProximity(night: night, events: events, journal: journal, bounds: bounds)
+    }
+
     /// The Project Bounds' proximity at this Night's close. Card counters come from the immutable
     /// closure snapshot, while Attempt histories are cut at close.
     static func boundProximity(
         night: NightRecord, events: [JournalEventRecord], journal: JournalStore,
         bounds: NightCardMaintenance.Bounds
-    ) throws -> [String] {
+    ) throws -> [BoundProximity] {
         let current = events.filter { $0.nightID == night.id }
-        let cards = try touchedCards(events: current, journal: journal)
         let close = night.completedAt ?? Date.distantFuture
+        let (rounds, attempts) = try attemptCounters(current: current, journal: journal, close: close)
+        let cardCounts = try cardCounters(night: night, current: current, journal: journal)
+        let reselections = cardCounts.reselections
+        let refusals = cardCounts.refusals
+        let unanswered = cardCounts.unanswered
+        let failedAdoptions = cardCounts.failedAdoptions
+        return [
+            BoundProximity(
+                name: "review_rounds_max", value: bounds.reviewRoundsMax, observed: rounds,
+                measure: "highest Rounds in an Attempt"
+            ),
+            BoundProximity(
+                name: "attempts_per_card", value: bounds.attemptsPerCard, observed: attempts,
+                measure: "highest consumed in an epoch"
+            ),
+            BoundProximity(
+                name: "unanswered_nights_max", value: bounds.unansweredNightsMax, observed: unanswered,
+                measure: "highest Card count"
+            ),
+            BoundProximity(
+                name: "reselections_max", value: bounds.reselectionsMax, observed: reselections, measure: nil
+            ),
+            BoundProximity(
+                name: "consecutive_refusals_max", value: bounds.consecutiveRefusalsMax, observed: refusals, measure: nil
+            ),
+            BoundProximity(
+                name: "failed_adoptions_max", value: bounds.failedAdoptionsMax, observed: failedAdoptions, measure: nil
+            )
+        ]
+    }
+
+    /// `review_rounds_max`/`attempts_per_card`'s counters: the highest Rounds an Attempt reached, and the
+    /// highest Attempts consumed in one budget epoch, across every Card this Night touched.
+    private static func attemptCounters(
+        current: [JournalEventRecord], journal: JournalStore, close: Date
+    ) throws -> (rounds: Int, attempts: Int) {
+        let cards = try touchedCards(events: current, journal: journal)
         var rounds = 0
         var attempts = 0
-        let closedCounters = try journal.closingCardBoundCounters(nightID: night.id)
-        var unanswered = closedCounters?.unanswered ?? 0
-        var failedAdoptions = closedCounters?.failedAdoptions ?? 0
         for card in cards {
             let history = try journal.attemptHistory(cardID: card.id)
             let byEpoch = Dictionary(grouping: history.attempts.filter { $0.startedAt <= close }, by: \.budgetEpoch)
@@ -32,8 +96,29 @@ extension NightSummary {
                 rounds = max(rounds, attempt.rounds.filter { $0.createdAt <= close }.count)
             }
         }
+        return (rounds, attempts)
+    }
+
+    /// `reselections_max`/`consecutive_refusals_max`/`unanswered_nights_max`/`failed_adoptions_max`'s
+    /// counters, grouped to keep ``cardCounters(night:current:journal:)`` under SwiftLint's tuple-member
+    /// limit.
+    private struct CardCounts {
+        let reselections: Int
+        let refusals: Int
+        let unanswered: Int
+        let failedAdoptions: Int
+    }
+
+    /// The latter two of ``CardCounts`` start from the closing snapshot, and every counter is the
+    /// highest this Night's own events recorded.
+    private static func cardCounters(
+        night: NightRecord, current: [JournalEventRecord], journal: JournalStore
+    ) throws -> CardCounts {
+        let closedCounters = try journal.closingCardBoundCounters(nightID: night.id)
         var reselections = 0
         var refusals = 0
+        var unanswered = closedCounters?.unanswered ?? 0
+        var failedAdoptions = closedCounters?.failedAdoptions ?? 0
         for record in current {
             switch record.event {
             case .featureReselected(let depth, _, _): reselections = max(reselections, depth)
@@ -44,13 +129,17 @@ extension NightSummary {
             default: break
             }
         }
-        return [
-            "`review_rounds_max`: \(rounds) of \(bounds.reviewRoundsMax) (highest Rounds in an Attempt).",
-            "`attempts_per_card`: \(attempts) of \(bounds.attemptsPerCard) (highest consumed in an epoch).",
-            "`unanswered_nights_max`: \(unanswered) of \(bounds.unansweredNightsMax) (highest Card count).",
-            "`reselections_max`: \(reselections) of \(bounds.reselectionsMax).",
-            "`consecutive_refusals_max`: \(refusals) of \(bounds.consecutiveRefusalsMax).",
-            "`failed_adoptions_max`: \(failedAdoptions) of \(bounds.failedAdoptionsMax)."
-        ]
+        return CardCounts(
+            reselections: reselections, refusals: refusals, unanswered: unanswered, failedAdoptions: failedAdoptions
+        )
+    }
+
+    /// Renders ``BoundProximity`` values into the Night Summary's own lines, byte-identical to what this
+    /// file produced before the struct existed.
+    static func boundProximityLines(_ proximities: [BoundProximity]) -> [String] {
+        proximities.map { proximity in
+            let suffix = proximity.measure.map { " (\($0))" } ?? ""
+            return "`\(proximity.name)`: \(proximity.observed) of \(proximity.value)\(suffix)."
+        }
     }
 }

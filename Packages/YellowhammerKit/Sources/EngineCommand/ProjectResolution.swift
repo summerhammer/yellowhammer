@@ -45,4 +45,31 @@ enum ProjectResolution {
         }
         throw .projectNotFound(id: projectArgument, expectedFile: expectedFile)
     }
+
+    /// `recalibrate` and `rehearse`'s Project scoping: `--project` resolves as above when given; when
+    /// omitted, defaults to the sole configured Project, or refuses (listing the configured ids) when
+    /// more than one is configured.
+    static func resolveDefaultingToSoleProject(
+        projectArgument: String?,
+        configurationDirectory: URL
+    ) throws(ProjectResolutionError) -> (Configuration, ProjectConfiguration) {
+        if let projectArgument {
+            return try resolve(projectArgument: projectArgument, configurationDirectory: configurationDirectory)
+        }
+        let directory = configurationDirectory.path(percentEncoded: false)
+        let machineFile = configurationDirectory.appending(component: "config.toml", directoryHint: .notDirectory)
+        guard FileManager.default.fileExists(atPath: machineFile.path(percentEncoded: false)) else {
+            throw .uninitialized(directory: directory)
+        }
+        let configuration: Configuration
+        do {
+            configuration = try Configuration.load(directory: configurationDirectory)
+        } catch {
+            throw .machineConfigurationInvalid(error)
+        }
+        guard configuration.projects.count == 1, let project = configuration.projects.first else {
+            throw .projectRequired(ids: configuration.projects.map(\.id.rawValue).sorted())
+        }
+        return (configuration, project)
+    }
 }
