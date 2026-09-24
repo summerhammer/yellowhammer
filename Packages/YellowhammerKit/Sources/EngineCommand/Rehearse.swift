@@ -10,6 +10,13 @@ struct RehearseActInvocation: Equatable {
     let rehearsal: Bool
 }
 
+extension RehearseActInvocation {
+    /// The arguments `yh <act>` receives for this invocation.
+    var arguments: [String] {
+        ["--project", project] + (force ? ["--force"] : []) + (rehearsal ? ["--rehearsal"] : [])
+    }
+}
+
 /// `yh rehearse`'s orchestration: the author, build and land Acts, in that order, each through the same
 /// `ActCommand.run(configurationDirectory:)` path its own `yh <act>` invocation would take — its own
 /// `EngineInvocation`, its own Act-scoped Lease. Stops at the first Act that throws; later Acts do not
@@ -32,25 +39,17 @@ struct Rehearse {
     /// The real seam: builds and runs the ordinary `ActCommand` for `invocation.act`, forced and in
     /// Rehearsal mode — no new invocation path, no change to `closesNight` or clock logic.
     static func runRealAct(_ invocation: RehearseActInvocation, configurationDirectory: URL) async throws {
+        try await command(for: invocation).run(configurationDirectory: configurationDirectory)
+    }
+
+    /// The `ActCommand` `yh <act>` would build from `invocation.arguments`. Parsed, never built with
+    /// `init()` and assigned: a property wrapper left undecoded (AuthorCommand's `--feature`) traps
+    /// on first read, and parsing also runs the command's `validate()`, as the CLI path does.
+    static func command(for invocation: RehearseActInvocation) throws -> any ActCommand {
         switch invocation.act {
-        case .author:
-            var command = AuthorCommand()
-            command.project = invocation.project
-            command.force = invocation.force
-            command.rehearsal = invocation.rehearsal
-            try await command.run(configurationDirectory: configurationDirectory)
-        case .build:
-            var command = BuildCommand()
-            command.project = invocation.project
-            command.force = invocation.force
-            command.rehearsal = invocation.rehearsal
-            try await command.run(configurationDirectory: configurationDirectory)
-        case .land:
-            var command = LandCommand()
-            command.project = invocation.project
-            command.force = invocation.force
-            command.rehearsal = invocation.rehearsal
-            try await command.run(configurationDirectory: configurationDirectory)
+        case .author: try AuthorCommand.parse(invocation.arguments)
+        case .build: try BuildCommand.parse(invocation.arguments)
+        case .land: try LandCommand.parse(invocation.arguments)
         }
     }
 
