@@ -94,3 +94,38 @@ struct ActCommandResultFixtureTests {
         #expect(command.resultFixtures == [.worker: .workerQuestion, .verifier: .verifierFailed])
     }
 }
+
+@Suite("--night on the Act commands (P15.3)")
+struct ActCommandNightTests {
+    @Test("--night alongside --rehearsal parses into night")
+    func nightAlongsideRehearsalParses() throws {
+        let command = try AuthorCommand.parse(["--project", "alpha", "--rehearsal", "--night", "2026-01-10"])
+        #expect(command.night == NightStart(rawValue: "2026-01-10"))
+    }
+
+    @Test("--night without --rehearsal is refused on every Act command")
+    func nightWithoutRehearsalIsRefused() {
+        #expect(throws: (any Error).self) {
+            try AuthorCommand.parse(["--project", "alpha", "--night", "2026-01-10"])
+        }
+        #expect(throws: (any Error).self) {
+            try BuildCommand.parse(["--project", "alpha", "--night", "2026-01-10"])
+        }
+        #expect(throws: (any Error).self) {
+            try LandCommand.parse(["--project", "alpha", "--night", "2026-01-10"])
+        }
+    }
+
+    @Test("A malformed --night date is refused at parse time", arguments: ["not-a-date", "2026-13-40", "2026/01/10"])
+    func malformedNightIsRefused(_ raw: String) {
+        #expect(throws: (any Error).self) {
+            try AuthorCommand.parse(["--project", "alpha", "--rehearsal", "--night", raw])
+        }
+    }
+
+    @Test("Without --night, night is nil")
+    func withoutNightIsNil() throws {
+        let command = try BuildCommand.parse(["--project", "alpha", "--rehearsal"])
+        #expect(command.night == nil)
+    }
+}

@@ -18,9 +18,33 @@ extension Schedule {
     /// that started the previous evening, and a land Act after `night_end` can still close it.
     public func nightWindow(at now: Date, calendar: Calendar = .current) -> NightWindow {
         let todayAtStart = calendar.instant(of: nightStart, onDayOf: now)
-        let start = todayAtStart > now
-            ? calendar.date(byAdding: .day, value: -1, to: todayAtStart) ?? todayAtStart
-            : todayAtStart
+        let startDay = todayAtStart > now
+            ? calendar.date(byAdding: .day, value: -1, to: now) ?? now
+            : now
+        return window(startingOnDayOf: startDay, calendar: calendar)
+    }
+
+    /// The window of the Night whose `night_start` falls on `nightStart`'s date — rehearsal-only, so a
+    /// suite can run several successive Nights (Night 1, Night 2, Night 3) in one session instead of one
+    /// Night per wall-clock day. Only the Night's identity moves: leases, heartbeats and every timestamp
+    /// stay on the wall clock.
+    public func nightWindow(for identity: NightStart, calendar: Calendar = .current) -> NightWindow {
+        var components = DateComponents()
+        components.year = identity.year
+        components.month = identity.month
+        components.day = identity.day
+        let day = calendar.date(from: components) ?? Date()
+        return window(startingOnDayOf: day, calendar: calendar)
+    }
+
+    /// Whether `now` is at or past the `night_end` of the Night it belongs to.
+    public func isAtOrPastNightEnd(_ now: Date, calendar: Calendar = .current) -> Bool {
+        now >= nightWindow(at: now, calendar: calendar).end
+    }
+
+    /// The Night whose `night_start` falls on the same calendar day as `day` (any instant of that day).
+    private func window(startingOnDayOf day: Date, calendar: Calendar) -> NightWindow {
+        let start = calendar.instant(of: nightStart, onDayOf: day)
         let endsNextDay = nightEnd.minutesSinceMidnight <= nightStart.minutesSinceMidnight
         let sameDayEnd = calendar.instant(of: nightEnd, onDayOf: start)
         let end = endsNextDay
@@ -35,11 +59,6 @@ extension Schedule {
             preconditionFailure("\(calendar.identifier) produced a date NightStart cannot name: \(start)")
         }
         return NightWindow(nightStart: identity, start: start, end: end)
-    }
-
-    /// Whether `now` is at or past the `night_end` of the Night it belongs to.
-    public func isAtOrPastNightEnd(_ now: Date, calendar: Calendar = .current) -> Bool {
-        now >= nightWindow(at: now, calendar: calendar).end
     }
 }
 
