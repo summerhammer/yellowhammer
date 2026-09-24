@@ -109,7 +109,8 @@ let package = Package(
                 "GitHubAdapter",
                 "Repositories",
                 "CLIAdapters",
-                .product(name: "ArgumentParser", package: "swift-argument-parser")
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "Subprocess", package: "swift-subprocess")
             ]
         ),
         .testTarget(

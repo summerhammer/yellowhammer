@@ -13,6 +13,20 @@ enum SetupMode: Equatable {
     case interactive
 }
 
+/// The scheduled-jobs format `--export-jobs` writes.
+enum JobsFormat: Equatable {
+    case launchd
+    case cron
+}
+
+/// What `yh setup` does with the scheduled jobs it generates for every eligible Project.
+enum JobsRequest: Equatable {
+    /// Neither `--install-jobs` nor `--export-jobs` was given; interactive mode still asks.
+    case none
+    case install
+    case export(URL, format: JobsFormat)
+}
+
 /// `SetupCommand`'s raw options, parsed and cross-checked once. `SetupCommand.validate()` builds one
 /// and discards it; `SetupCommand.run()` builds one and hands it to `Setup`. One source of truth for
 /// every option-level ValidationError, so parsing and running can never disagree.
@@ -41,6 +55,7 @@ struct SetupOptions {
     let specSource: String?
     /// In `--repo` order.
     let repos: [RepoDeclaration]
+    let jobs: JobsRequest
 
     init(command: SetupCommand) throws {
         mode = try Self.parseMode(command)
@@ -53,6 +68,7 @@ struct SetupOptions {
         let (adapters, declaredNames) = try Self.parseCLIAdapters(command.cli)
         cliAdapters = adapters
         route = try Self.parseRoute(command: command, declaredNames: declaredNames)
+        jobs = try Self.parseJobsRequest(command)
 
         try Self.validateProjectOptionScope(command)
         if let rawProject = command.project {
@@ -94,6 +110,21 @@ struct SetupOptions {
             )
         }
         return .config(URL(filePath: configPath, directoryHint: .isDirectory))
+    }
+
+    /// `--install-jobs` and `--export-jobs` are mutually exclusive; `--cron` requires `--export-jobs`.
+    private static func parseJobsRequest(_ command: SetupCommand) throws -> JobsRequest {
+        if let exportPath = command.exportJobs {
+            guard !command.installJobs else {
+                throw ValidationError("--install-jobs and --export-jobs are mutually exclusive")
+            }
+            let directory = URL(filePath: exportPath, directoryHint: .isDirectory)
+            return .export(directory, format: command.cron ? .cron : .launchd)
+        }
+        guard !command.cron else {
+            throw ValidationError("--cron requires --export-jobs")
+        }
+        return command.installJobs ? .install : .none
     }
 
     private static func parseCredential(_ raw: String?, option: String) throws -> CredentialReference? {
