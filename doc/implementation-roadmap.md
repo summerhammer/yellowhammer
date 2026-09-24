@@ -1569,7 +1569,7 @@ comment on the Delta Read).
 - **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
 - **Done when** — Scope defined by G-6.
 
-### [ ] P14.9 Shell-not-host verification
+### [x] P14.9 Shell-not-host verification
 - **Work** — An automated check that runs a rehearsal Night with the app never launched, and another
   that quits the app mid-Act. Both Nights complete identically.
 - **Spec** — system-overview → Yellowhammer app (hard constraint).
