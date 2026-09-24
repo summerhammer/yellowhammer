@@ -30,4 +30,21 @@ public struct OperatorIdentity: Equatable, Sendable {
             return configured
         }
     }
+
+    /// The workspace members setup offers as Operator candidates: active, not an app, and not
+    /// Yellowhammer's own identity (Operator Identity Ruling, OQ66), sorted case-insensitively by
+    /// `displayName`, then `name`, then `id`. This is the policy; the adapter only reports flags.
+    public static func candidates(from members: [BoardMember]) -> [BoardMember] {
+        members
+            .filter { $0.isActive && !$0.isApp && !$0.isSelf }
+            .sorted { lhs, rhs in
+                let lhsDisplayName = lhs.displayName.lowercased()
+                let rhsDisplayName = rhs.displayName.lowercased()
+                if lhsDisplayName != rhsDisplayName { return lhsDisplayName < rhsDisplayName }
+                let lhsName = lhs.name.lowercased()
+                let rhsName = rhs.name.lowercased()
+                if lhsName != rhsName { return lhsName < rhsName }
+                return lhs.id.rawValue < rhs.id.rawValue
+            }
+    }
 }

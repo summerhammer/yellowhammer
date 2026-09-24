@@ -8,6 +8,13 @@ import Foundation
 /// an implementation translates and never decides. The Engine's provisioner reads presence on each run
 /// to ensure idempotency: running provisioning twice changes nothing on the second run.
 public protocol BoardProvisioning: Sendable {
+    /// Every member of the workspace, deactivated ones included, each flagged; the adapter does not
+    /// filter. Workspace-scoped, not Linear-project-scoped.
+    func workspaceMembers() async throws(BoardError) -> [BoardMember]
+
+    /// Every team in the workspace. Workspace-scoped, not Linear-project-scoped.
+    func teams() async throws(BoardError) -> [BoardTeam]
+
     /// The Linear project bound to this Project, as it exists on the board.
     /// Throws scopeNotFound when not visible to this identity.
     func linearProject() async throws(BoardError) -> BoardProjectScope
@@ -46,6 +53,31 @@ public struct BoardProjectScope: Hashable, Sendable {
         self.id = id
         self.name = name
         self.teams = teams
+    }
+}
+
+/// A workspace member as the board reports it (Operator Identity Ruling, OQ66): setup chooses the
+/// Operator identity from the active human members, excluding Yellowhammer's own identity, app/bot
+/// users, and deactivated users, with nothing preselected. The adapter reports the flags; it does not
+/// filter.
+public struct BoardMember: Hashable, Sendable {
+    public var id: BoardObjectID
+    public var name: String
+    public var displayName: String
+    public var isActive: Bool
+    public var isApp: Bool
+    /// True for the identity the adapter is authenticated as (Yellowhammer's own identity).
+    public var isSelf: Bool
+
+    public init(
+        id: BoardObjectID, name: String, displayName: String, isActive: Bool, isApp: Bool, isSelf: Bool
+    ) {
+        self.id = id
+        self.name = name
+        self.displayName = displayName
+        self.isActive = isActive
+        self.isApp = isApp
+        self.isSelf = isSelf
     }
 }
 

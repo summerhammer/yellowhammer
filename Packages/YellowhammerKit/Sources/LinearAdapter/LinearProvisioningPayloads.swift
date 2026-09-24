@@ -69,6 +69,34 @@ struct LinearWorkflowStateCreateData: Decodable {
     let workflowState: LinearWorkflowStateNode?
 }
 
+struct LinearUsersPayload: Decodable {
+    let users: LinearUsersConnection
+}
+
+struct LinearUsersConnection: Decodable {
+    let pageInfo: LinearPageInfo
+    let nodes: [LinearUserNode]
+}
+
+struct LinearUserNode: Decodable {
+    let id: String
+    let name: String
+    let displayName: String
+    let active: Bool
+    /// Distinguishes application accounts from humans (Operator Identity Ruling, OQ66).
+    let app: Bool
+    let isMe: Bool
+}
+
+struct LinearTeamsPayload: Decodable {
+    let teams: LinearTeamsListConnection
+}
+
+struct LinearTeamsListConnection: Decodable {
+    let pageInfo: LinearPageInfo
+    let nodes: [LinearTeamNode]
+}
+
 struct LinearLabelsPayload: Decodable {
     let issueLabels: LinearLabelsConnection
 }

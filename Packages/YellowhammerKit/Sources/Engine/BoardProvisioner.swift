@@ -96,12 +96,11 @@ public struct BoardProvisioner {
                 ))
                 return ProvisioningReport(entries: entries)
             }
-            _ = try await board.createLinearProject(name: projectName, team: createInTeam)
+            project = try await board.createLinearProject(name: projectName, team: createInTeam)
             entries.append(ProvisioningEntry(
                 subject: .linearProject(projectName),
                 outcome: .created
             ))
-            project = try await board.linearProject()
         }
 
         // Step 2: For each team, provision workflow state and label groups.
@@ -109,7 +108,7 @@ public struct BoardProvisioner {
             try await provisionTeam(board: board, team: team, groups: groups, into: &entries)
         }
 
-        return ProvisioningReport(entries: entries)
+        return ProvisioningReport(entries: entries, linearProject: project)
     }
 
     private static func provisionTeam(
@@ -293,9 +292,13 @@ public struct ProvisioningEntry: Sendable {
 /// The result of a provisioning run.
 public struct ProvisioningReport: Sendable {
     public var entries: [ProvisioningEntry]
+    /// The Linear project that was found or created, or nil when missing. Setup needs the created
+    /// project's id to write into the Project file.
+    public var linearProject: BoardProjectScope?
 
-    public init(entries: [ProvisioningEntry]) {
+    public init(entries: [ProvisioningEntry], linearProject: BoardProjectScope? = nil) {
         self.entries = entries
+        self.linearProject = linearProject
     }
 
     /// The entries where outcome is created.

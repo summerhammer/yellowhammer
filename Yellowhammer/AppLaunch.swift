@@ -2,14 +2,18 @@ import Domain
 import Foundation
 import SwiftUI
 
-/// Chooses, before any scene exists, between the window app and a headless notification post.
+/// Chooses, before any scene exists, between the window app and a headless launch.
 ///
-/// `yh` launches the app with `ExceptionNotification.postFlag` to post one local notification under
-/// the app's bundle identity; that launch must never open a window, so it cannot go through the
-/// SwiftUI `App` at all.
+/// `yh` launches the app with `ExceptionNotification.postFlag` to post one local notification, and
+/// `yh setup` launches it with `NotificationPermissionRequest.flag` to register local notification
+/// permission, both under the app's bundle identity; neither launch may open a window, so both are
+/// chosen before the SwiftUI `App` runs at all.
 @main
 enum AppLaunch {
     static func main() {
+        if CommandLine.arguments.contains(NotificationPermissionRequest.flag) {
+            HeadlessPermissionRequest.run()
+        }
         let notification: ExceptionNotification?
         do {
             notification = try ExceptionNotification(arguments: CommandLine.arguments)
