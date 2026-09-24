@@ -131,7 +131,7 @@ public struct AgentCLIProcess: Sendable {
             if groupIsGone(pid: pid, reaped: &reaped) {
                 return end(for: reason, forcedKill: false)
             }
-            try? await Task.sleep(for: pollInterval)
+            await Self.sleepThroughCancellation(for: pollInterval)
         }
         if groupIsGone(pid: pid, reaped: &reaped) {
             return end(for: reason, forcedKill: false)
@@ -145,10 +145,18 @@ public struct AgentCLIProcess: Sendable {
 
         let killDeadline = clock.now.advanced(by: .seconds(1))
         while clock.now < killDeadline, ProcessGroup.isAlive(group: pid) {
-            try? await Task.sleep(for: pollInterval)
+            await Self.sleepThroughCancellation(for: pollInterval)
         }
 
         return end(for: reason, forcedKill: true)
+    }
+
+    /// Sleeps for the whole of `duration` even when the calling task is cancelled. The abort path
+    /// runs *because* the dispatch task was cancelled, and there `Task.sleep` throws at once, which
+    /// would turn the grace and kill polls into a busy spin. An unstructured `Task` does not inherit
+    /// the caller's cancellation, so awaiting it waits out the full duration.
+    static func sleepThroughCancellation(for duration: Duration) async {
+        await Task { try? await Task.sleep(for: duration) }.value
     }
 
     /// Reaps the leader (once) if it has not been already, then reports whether the whole group —
