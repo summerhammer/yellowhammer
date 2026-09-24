@@ -12,11 +12,12 @@ enum DispatchBinding {
         mode: NightMode,
         configuration: Configuration,
         project: ProjectConfiguration,
-        configurationDirectory: URL
+        configurationDirectory: URL,
+        resultFixtures: [RunPass: RehearsalResultFixture] = [:]
     ) -> any AgentDispatch {
         switch mode {
         case .rehearsal:
-            return RehearsalDispatch()
+            return RehearsalDispatch(script: resultFixtures)
         case .real:
             var declared: [String: String] = [:]
             for adapter in configuration.machine.cliAdapters {

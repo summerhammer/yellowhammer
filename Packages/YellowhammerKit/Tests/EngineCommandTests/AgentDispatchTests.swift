@@ -199,4 +199,23 @@ struct CardRunBindingTests {
         #expect(cli.declaredExecutables == ["claude": "/opt/claude"])
         #expect(cli.runsDirectory == directory.appending(components: "runs", "proj", directoryHint: .isDirectory))
     }
+
+    @Test("A rehearsal Night's Dispatch answers a scripted pass from its scripted fixture (roadmap P15.2)")
+    func rehearsalDispatchAnswersScriptedFixture() async throws {
+        let projectID = try #require(ProjectID(rawValue: "proj"))
+        let (configuration, project) = try configuration(projectID: projectID)
+        let directory = FileManager.default.temporaryDirectory
+            .appending(component: "yh-cardrun-binding-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let dispatch = DispatchBinding.dispatch(
+            mode: .rehearsal, configuration: configuration, project: project, configurationDirectory: directory,
+            resultFixtures: [.worker: .workerQuestion]
+        )
+
+        let report = try await dispatch.dispatch(request(pass: .worker))
+
+        #expect(report.outcome == RehearsalResultFixture.workerQuestion.outcome())
+        #expect(report.origin == .rehearsalFixture(RehearsalResultFixture.workerQuestion.rawValue))
+    }
 }

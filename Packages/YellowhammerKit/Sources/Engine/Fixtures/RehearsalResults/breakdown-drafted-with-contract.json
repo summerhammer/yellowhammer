@@ -1,0 +1,34 @@
+{
+  "schema": "yellowhammer.result.breakdown",
+  "version": 1,
+  "outcome": "drafted",
+  "definition_of_done": [
+    { "text": "Fixture data: the fixture Feature is observable end to end.", "citation": "fixture-epic/fixture-story" }
+  ],
+  "cards": [
+    {
+      "repository": "fixture-backend",
+      "kind": "impl.fixture",
+      "title": "Fixture Card: rehearsal breakdown (backend)",
+      "unit_of_work": "Fixture data: one unit of work in the fixture backend repository.",
+      "brief": "Fixture data: approach prose for the fixture backend Card.",
+      "definition_of_done": [
+        { "text": "Fixture data: the fixture backend Card's behaviour is covered.", "citation": "fixture-epic/fixture-story" }
+      ],
+      "contracts": []
+    },
+    {
+      "repository": "fixture-web",
+      "kind": "impl.fixture",
+      "title": "Fixture Card: rehearsal breakdown (web)",
+      "unit_of_work": "Fixture data: one unit of work in the fixture web repository.",
+      "brief": "Fixture data: approach prose for the fixture web Card.",
+      "definition_of_done": [
+        { "text": "Fixture data: the fixture web Card's behaviour is covered.", "citation": "fixture-epic/fixture-story" }
+      ],
+      "contracts": [
+        { "repository": "fixture-backend", "paths": ["contracts/fixture-api.json"] }
+      ]
+    }
+  ]
+}

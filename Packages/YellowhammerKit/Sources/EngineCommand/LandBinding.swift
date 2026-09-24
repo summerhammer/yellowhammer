@@ -42,14 +42,15 @@ enum LandBinding {
         mode: NightMode,
         configuration: Configuration,
         project: ProjectConfiguration,
-        configurationDirectory: URL
+        configurationDirectory: URL,
+        resultFixtures: [RunPass: RehearsalResultFixture] = [:]
     ) throws -> FeatureVerification {
         let ledger = try LedgerStore.open(configurationDirectory: configurationDirectory)
         return FeatureVerification(
             resolver: try RoutingBinding.resolver(configuration: configuration, projectID: project.id, ledger: ledger),
             dispatch: DispatchBinding.dispatch(
                 mode: mode, configuration: configuration, project: project,
-                configurationDirectory: configurationDirectory
+                configurationDirectory: configurationDirectory, resultFixtures: resultFixtures
             ),
             citations: MainlineReader()
         )

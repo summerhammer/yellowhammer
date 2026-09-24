@@ -13,7 +13,8 @@ enum AuthoringBinding {
         mode: NightMode,
         configuration: Configuration,
         project: ProjectConfiguration,
-        configurationDirectory: URL
+        configurationDirectory: URL,
+        resultFixtures: [RunPass: RehearsalResultFixture] = [:]
     ) throws -> FeatureSelection {
         let ledger = try LedgerStore.open(configurationDirectory: configurationDirectory)
         let resolver = try RoutingBinding.resolver(configuration: configuration, projectID: project.id, ledger: ledger)
@@ -21,7 +22,7 @@ enum AuthoringBinding {
             resolver: resolver,
             dispatch: DispatchBinding.dispatch(
                 mode: mode, configuration: configuration, project: project,
-                configurationDirectory: configurationDirectory
+                configurationDirectory: configurationDirectory, resultFixtures: resultFixtures
             )
         )
         return FeatureSelection(

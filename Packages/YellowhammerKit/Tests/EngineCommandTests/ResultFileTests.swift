@@ -181,3 +181,32 @@ func unknownSchemaFailsValidation() throws {
 func everyRehearsalFixtureResolvesToExistingFile(_ fixture: RehearsalResultFixture) {
     #expect(FileManager.default.fileExists(atPath: fixture.url.path))
 }
+
+@Test("The with-contract selection fixture selects both fixture-backend and fixture-web")
+func selectionSelectedWithContractDecodes() throws {
+    guard case .selection(let result) = try RehearsalResultFixture.selectionSelectedWithContract.decode(),
+        case .selected(let feature) = result.outcome
+    else {
+        Issue.record("expected selection .selected")
+        return
+    }
+    #expect(feature.repositories == ["fixture-backend", "fixture-web"])
+}
+
+@Test("The with-contract breakdown fixture's fixture-web Card carries the fixture-backend contract")
+func breakdownDraftedWithContractDecodes() throws {
+    guard case .breakdown(let result) = try RehearsalResultFixture.breakdownDraftedWithContract.decode(),
+        case .drafted(let breakdown) = result.outcome
+    else {
+        Issue.record("expected breakdown .drafted")
+        return
+    }
+    #expect(breakdown.cards.count == 2)
+    let backendCard = try #require(breakdown.cards.first { $0.repository == "fixture-backend" })
+    #expect(backendCard.contracts.isEmpty)
+    let webCard = try #require(breakdown.cards.first { $0.repository == "fixture-web" })
+    #expect(webCard.contracts.count == 1)
+    let contract = try #require(webCard.contracts.first)
+    #expect(contract.repository == "fixture-backend")
+    #expect(contract.paths == ["contracts/fixture-api.json"])
+}

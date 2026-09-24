@@ -27,6 +27,15 @@ public enum RehearsalResultFixture: String, CaseIterable, Sendable {
     /// One Card in `fixture-backend` under Kind `impl.fixture`, citing `fixture-epic/fixture-story`; it
     /// pairs with ``selectionSelected``.
     case breakdownDrafted = "breakdown-drafted.json"
+    /// Like ``selectionSelected``, but names two repositories — `fixture-backend` and `fixture-web` —
+    /// so a rehearsal Night can exercise a Card carrying a Contract that crosses repositories. Pairs
+    /// with ``breakdownDraftedWithContract``.
+    case selectionSelectedWithContract = "selection-selected-with-contract.json"
+    /// Two Cards, both Kind `impl.fixture`, citing `fixture-epic/fixture-story`: one in `fixture-backend`
+    /// with no contracts, and one in `fixture-web` whose single contract cites
+    /// `contracts/fixture-api.json` from `fixture-backend`'s mainline — a rehearsal Night's Transcription
+    /// Block exercise. Pairs with ``selectionSelectedWithContract``.
+    case breakdownDraftedWithContract = "breakdown-drafted-with-contract.json"
     /// The land Act's verifier answers (roadmap P10.5). The file's single clause is a placeholder:
     /// the fixture cannot know the Feature's clause ids in advance, so ``RehearsalDispatch`` answers a
     /// `verifierReported` request by reporting every clause the request names as `met`.
@@ -41,9 +50,9 @@ public enum RehearsalResultFixture: String, CaseIterable, Sendable {
             .worker
         case .reviewerApproved, .reviewerChangesRequested:
             .reviewer
-        case .selectionSelected, .selectionNoSelectableFeature, .selectionFailed:
+        case .selectionSelected, .selectionNoSelectableFeature, .selectionFailed, .selectionSelectedWithContract:
             .selection
-        case .breakdownDrafted:
+        case .breakdownDrafted, .breakdownDraftedWithContract:
             .breakdown
         case .verifierReported, .verifierFailed:
             .verifier
