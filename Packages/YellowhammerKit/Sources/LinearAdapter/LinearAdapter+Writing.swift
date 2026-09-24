@@ -131,6 +131,18 @@ extension LinearAdapter: BoardWriting {
             throw .refused("nothing to update")
         }
 
+        var change = change
+        if !change.removeLabels.isEmpty {
+            let currentLabels = try await currentLabelIDs(of: issue)
+            change.removeLabels = change.removeLabels.filter { currentLabels.contains($0.rawValue) }
+        }
+        guard !change.isEmpty else {
+            // Every requested removal is already off the issue, and nothing else was asked for: Linear
+            // has nothing to do, so no `issueUpdate` is sent. The caller sees the same snapshot an
+            // applied no-op would have returned.
+            return try await issueDescription(issue)
+        }
+
         let input = Self.updateInput(for: change)
         let payload: LinearUpdateIssuePayload = try await perform(
             LinearGraphQL.updateIssueQuery, variables: ["id": issue.rawValue, "input": input]
@@ -149,6 +161,22 @@ extension LinearAdapter: BoardWriting {
             description: updatedIssue.description,
             updatedAt: updatedIssue.updatedAt
         )
+    }
+
+    /// The label ids currently on `issue`, so a requested removal can be filtered to labels Linear will
+    /// actually accept removing: `issueUpdate` refuses the whole mutation if `removedLabelIds` names a
+    /// label the issue does not carry.
+    private func currentLabelIDs(of issue: BoardObjectID) async throws(BoardError) -> Set<String> {
+        let payload: LinearIssueLabelsPayload = try await perform(
+            LinearGraphQL.issueLabelsQuery, variables: ["id": issue.rawValue]
+        )
+        guard let issueData = payload.issue else {
+            throw .scopeNotFound("the issue was not found")
+        }
+        guard issueData.project?.id == linearProjectID else {
+            throw .scopeNotFound("the issue is outside this Linear project")
+        }
+        return Set(issueData.labels.nodes.map(\.id))
     }
 
     /// Builds the input dictionary for a Linear issue update mutation, including only the given fields.
