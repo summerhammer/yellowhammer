@@ -1,3 +1,5 @@
+import Domain
+
 /// One `yh doctor`/`yh validate` check, in the fixed order they run.
 enum DoctorCheck: String, CaseIterable, Sendable {
     case configuration
@@ -32,4 +34,6 @@ struct DoctorFinding: Equatable, Sendable {
     let subject: String
     let severity: DoctorSeverity
     let message: String
+    /// The Project this finding is scoped to, or nil when it is machine-scoped.
+    let projectID: ProjectID?
 }

@@ -22,6 +22,8 @@ struct Doctor {
     let yes: Bool
     let probe: Bool
     let checks: [DoctorCheck]
+    /// Only report this Project's findings, plus machine-scoped ones, when set.
+    let projectFilter: ProjectID?
 
     var machineFileURL: URL {
         configurationDirectory.appending(component: "config.toml", directoryHint: .notDirectory)
@@ -38,8 +40,16 @@ struct Doctor {
     func run() async -> [DoctorFinding] {
         var findings: [DoctorFinding] = []
         guard let configuration = runConfigurationCheck(into: &findings) else {
-            printSummary(findings)
-            return findings
+            let kept = keptFindings(findings)
+            printSummary(kept)
+            return kept
+        }
+
+        if let projectFilter, !matchesKnownProject(projectFilter, configuration: configuration) {
+            findings.append(finding(
+                .configuration, subject: projectFilter.rawValue, .failure,
+                "no Project \(projectFilter.rawValue) in configuration" // glossary:ignore GL001
+            ))
         }
 
         if checks.contains(.probes) {
@@ -58,8 +68,29 @@ struct Doctor {
             findings += await runOrphansCheck(configuration: configuration)
         }
 
-        printSummary(findings)
-        return findings
+        let kept = keptFindings(findings)
+        printSummary(kept)
+        return kept
+    }
+
+    /// `--project` matches a valid Project by id, or an invalid one by id when known or by its
+    /// file's last path component (`<id>.toml`) otherwise — mirrors `Status.matchesFilter`.
+    private func matchesKnownProject(_ id: ProjectID, configuration: Configuration) -> Bool {
+        if configuration.projects.contains(where: { $0.id == id }) {
+            return true
+        }
+        return configuration.invalidProjects.contains { invalid in
+            if let invalidID = invalid.id {
+                return invalidID == id
+            }
+            return (invalid.file as NSString).lastPathComponent == "\(id.rawValue).toml"
+        }
+    }
+
+    /// Keeps only machine-scoped findings and findings scoped to `projectFilter`, when set.
+    private func keptFindings(_ findings: [DoctorFinding]) -> [DoctorFinding] {
+        guard let projectFilter else { return findings }
+        return findings.filter { $0.projectID == nil || $0.projectID == projectFilter }
     }
 
     private func printSummary(_ findings: [DoctorFinding]) {
@@ -72,8 +103,9 @@ struct Doctor {
     }
 
     func finding(
-        _ check: DoctorCheck, subject: String, _ severity: DoctorSeverity, _ message: String
+        _ check: DoctorCheck, subject: String, _ severity: DoctorSeverity, _ message: String,
+        project: ProjectID? = nil
     ) -> DoctorFinding {
-        DoctorFinding(check: check, subject: subject, severity: severity, message: message)
+        DoctorFinding(check: check, subject: subject, severity: severity, message: message, projectID: project)
     }
 }

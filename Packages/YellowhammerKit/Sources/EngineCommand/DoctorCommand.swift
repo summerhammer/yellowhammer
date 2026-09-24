@@ -6,7 +6,8 @@ import Repositories
 
 /// `yh doctor`: checks configuration, agent CLI probe eligibility, git, Linear authorization and the
 /// Operator identity, installed LaunchAgents, and orphaned LaunchAgents left behind by a manually
-/// deleted Project (spec: object-guide Project lifecycle, OQ52(1)).
+/// deleted Project (spec: object-guide Project lifecycle, OQ52(1)). `--project` narrows the report to
+/// one Project's findings plus the machine-scoped ones (spec risks.md OQ12 "Surface 3").
 public struct DoctorCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "doctor",
@@ -22,6 +23,9 @@ public struct DoctorCommand: AsyncParsableCommand {
     @Flag(help: "Probe every declared CLI Adapter before checking its route-target eligibility.")
     public var probe: Bool = false
 
+    @Option(help: "Only report this Project and machine-wide findings.")
+    public var project: String?
+
     public init() {}
 
     public func validate() throws {
@@ -36,15 +40,26 @@ public struct DoctorCommand: AsyncParsableCommand {
     }
 
     func run(configurationDirectory: URL) async throws {
+        let projectFilter = try resolvedProjectFilter()
         let doctor = Self.makeDoctor(
             configurationDirectory: configurationDirectory,
             homeDirectory: FileManager.default.homeDirectoryForCurrentUser,
-            options: DoctorRunOptions(fix: fix, yes: yes, probe: probe, checks: DoctorCheck.allCases)
+            options: DoctorRunOptions(
+                fix: fix, yes: yes, probe: probe, checks: DoctorCheck.allCases, projectFilter: projectFilter
+            )
         )
         let findings = await doctor.run()
         if findings.contains(where: { $0.severity == .failure }) {
             throw ExitCode(1)
         }
+    }
+
+    private func resolvedProjectFilter() throws -> ProjectID? {
+        guard let project else { return nil }
+        guard let id = ProjectID(rawValue: project) else {
+            throw ValidationError("--project \(project) is not a valid Project id")
+        }
+        return id
     }
 
     /// Shared by `ValidateCommand`: the real seams, differing only in which checks and options apply.
@@ -63,16 +78,18 @@ public struct DoctorCommand: AsyncParsableCommand {
             runProbe: { name in
                 try? await ProbeCommand.parse([name]).run(configurationDirectory: configurationDirectory)
             },
-            fix: options.fix, yes: options.yes, probe: options.probe, checks: options.checks
+            fix: options.fix, yes: options.yes, probe: options.probe, checks: options.checks,
+            projectFilter: options.projectFilter
         )
     }
 }
 
-/// `--fix`/`--yes`/`--probe` and which checks to run, grouped to keep `makeDoctor` within
-/// SwiftLint's parameter-count limit.
+/// `--fix`/`--yes`/`--probe`, which checks to run, and the `--project` filter, grouped to keep
+/// `makeDoctor` within SwiftLint's parameter-count limit.
 struct DoctorRunOptions {
     let fix: Bool
     let yes: Bool
     let probe: Bool
     let checks: [DoctorCheck]
+    let projectFilter: ProjectID?
 }
