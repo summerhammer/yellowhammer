@@ -19,7 +19,7 @@ struct ProjectWindow: View {
 
     var body: some View {
         content
-            .frame(minWidth: 480, minHeight: 320)
+            .frame(minWidth: 560, minHeight: 480)
             .navigationTitle(configured.entry(for: scopedProject)?.name ?? "Yellowhammer")
             .toolbar {
                 ToolbarItem(placement: .navigation) {
@@ -39,15 +39,17 @@ struct ProjectWindow: View {
     }
 
     @ViewBuilder private var content: some View {
+        if let entry = configured.entry(for: scopedProject) {
+            ProjectDetailView(project: entry.id)
+                .id(entry.id)
+        } else {
+            fallbackContent
+        }
+    }
+
+    @ViewBuilder private var fallbackContent: some View {
         VStack(spacing: 8) {
-            if let entry = configured.entry(for: scopedProject) {
-                Text(entry.name)
-                    .font(.title)
-                Text(entry.id.rawValue)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-            } else if let project {
+            if let project {
                 Text("No configured Project has the id \u{201C}\(project.rawValue)\u{201D}.")
             } else if let failure = configured.loadFailure {
                 Text("Yellowhammer can\u{2019}t read its configuration.")

@@ -21,6 +21,7 @@ struct YellowhammerApp: App {
         .commands {
             CommandGroup(after: .appInfo) {
                 SetupMenuCommand()
+                BaseRoutingTableMenuCommand()
             }
         }
 
@@ -28,6 +29,12 @@ struct YellowhammerApp: App {
         Window("Setup", id: SetupMenuCommand.windowID) {
             SetupWizardView()
         }
+
+        // Not Project-scoped: the base Routing Table is machine-wide, shared by every Project.
+        Window("Base Routing Table", id: BaseRoutingTableMenuCommand.windowID) {
+            BaseRoutingTableView()
+        }
+        .defaultSize(width: 560, height: 480)
     }
 }
 
@@ -40,5 +47,17 @@ private struct SetupMenuCommand: View {
 
     var body: some View {
         Button("Setup…") { openWindow(id: Self.windowID) } // glossary:ignore GL001
+    }
+}
+
+/// A menu command needs its own `@Environment` to read `openWindow`: the App's `.commands` builder does
+/// not otherwise resolve scene environment values.
+private struct BaseRoutingTableMenuCommand: View {
+    static let windowID = "base-routing-table"
+
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("Base Routing Table…") { openWindow(id: Self.windowID) }
     }
 }

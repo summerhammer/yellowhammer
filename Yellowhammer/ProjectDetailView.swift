@@ -1,0 +1,196 @@
+import AppKit
+import Config
+import Domain
+import SwiftUI
+
+/// A Project's configuration, editable end to end: name, Repos, Bounds and its own Routing Table
+/// overrides, plus the read-only Spec Source and a way into the machine-wide base Routing Table
+/// (P14.3). Setup holds this same Project detail; this view is the place the Operator comes back to
+/// edit it afterwards.
+///
+/// The app writes configuration only through ``Config/Configuration/save(_:to:in:replacing:)`` — the
+/// loader is the only validator, so a refusal here is always shown in the loader's own words.
+struct ProjectDetailView: View {
+    @State private var model: ProjectDetailModel
+
+    init(project: ProjectID) {
+        _model = State(initialValue: ProjectDetailModel(project: project))
+    }
+
+    var body: some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                model.reloadIfClean()
+            }
+    }
+
+    @ViewBuilder private var content: some View {
+        if model.draft != nil {
+            ProjectDetailFormView(model: model)
+        } else {
+            unavailable
+        }
+    }
+
+    private var unavailable: some View {
+        VStack(spacing: 8) {
+            Text(model.loadFailure ?? "This Project could not be loaded.")
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+        }
+        .multilineTextAlignment(.center)
+        .padding()
+    }
+}
+
+/// The form itself, split out so it only ever runs with a non-nil draft: `model.draft` is unwrapped
+/// once here via `Binding($model.draft)`, never force-unwrapped field by field.
+private struct ProjectDetailFormView: View {
+    @Bindable var model: ProjectDetailModel
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        if let draft = Binding($model.draft) {
+            VStack(spacing: 0) {
+                Form {
+                    projectSection(draft)
+                    if let specSource = draft.wrappedValue.specSource {
+                        specSourceSection(specSource)
+                    }
+                    reposSection(draft)
+                    boundsSection(draft)
+                    routingSection(draft)
+                }
+                .formStyle(.grouped)
+                Divider()
+                footer
+            }
+        } else {
+            Text("This Project could not be loaded.")
+        }
+    }
+
+    private func projectSection(_ draft: Binding<ProjectFileDraft>) -> some View {
+        Section("Project") {
+            LabeledContent("Id") {
+                Text(draft.wrappedValue.id.rawValue)
+                    .textSelection(.enabled)
+            }
+            TextField("Name", text: draft.name)
+                .accessibilityIdentifier("project-name") // glossary:ignore GL001
+            TextField("Linear project", text: draft.linearProject) // glossary:ignore GL001
+                .accessibilityIdentifier("project-linear-project") // glossary:ignore GL001
+        }
+    }
+
+    private func specSourceSection(_ specSource: String) -> some View {
+        Section("Spec Source") {
+            Text(specSource)
+                .textSelection(.enabled)
+                .accessibilityIdentifier("project-spec-source") // glossary:ignore GL001
+            Text("read \u{2014} this Project never writes it")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("project-spec-source-caption") // glossary:ignore GL001
+        }
+    }
+
+    private func reposSection(_ draft: Binding<ProjectFileDraft>) -> some View {
+        Section("Repos") {
+            ForEach(draft.wrappedValue.repos.indices, id: \.self) { index in
+                repoRow(draft, index: index)
+            }
+            Button("Add Repo") {
+                draft.wrappedValue.repos.append(RepoDraft(name: "", path: "", role: "", check: ""))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func repoRow(_ draft: Binding<ProjectFileDraft>, index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            TextField("Name", text: draft.repos[index].name)
+                .accessibilityIdentifier("repo-name")
+            TextField("Path", text: draft.repos[index].path)
+                .accessibilityIdentifier("repo-path")
+            TextField("Role", text: draft.repos[index].role)
+                .accessibilityIdentifier("repo-role")
+            TextField("Check (\u{201c}none\u{201d} declares no Check)", text: draft.repos[index].check)
+                .accessibilityIdentifier("repo-check")
+            TextField("Protected paths (comma-separated)", text: protectedPathsBinding(draft, index: index))
+                .accessibilityIdentifier("repo-protected-paths")
+            Button("Remove Repo", role: .destructive) {
+                draft.wrappedValue.repos.remove(at: index)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    /// Joins ``RepoDraft/protectedPaths`` for display and, on edit, splits on `,`, trims each piece and
+    /// drops empties, so a trailing or doubled comma never becomes a stray empty path.
+    private func protectedPathsBinding(_ draft: Binding<ProjectFileDraft>, index: Int) -> Binding<String> {
+        Binding(
+            get: { draft.wrappedValue.repos[index].protectedPaths.joined(separator: ", ") },
+            set: { newValue in
+                draft.wrappedValue.repos[index].protectedPaths = newValue
+                    .split(separator: ",")
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .filter { !$0.isEmpty }
+            }
+        )
+    }
+
+    private func boundsSection(_ draft: Binding<ProjectFileDraft>) -> some View {
+        Section("Bounds") {
+            boundField("review_rounds_max", draft.bounds.reviewRoundsMax)
+            boundField("attempts_per_card", draft.bounds.attemptsPerCard)
+            boundField("unanswered_nights_max", draft.bounds.unansweredNightsMax)
+            boundField("reselections_max", draft.bounds.reselectionsMax)
+            boundField("consecutive_refusals_max", draft.bounds.consecutiveRefusalsMax)
+            boundField("failed_adoptions_max", draft.bounds.failedAdoptionsMax)
+        }
+    }
+
+    private func boundField(_ key: String, _ value: Binding<String>) -> some View {
+        TextField(key, text: value)
+            .accessibilityIdentifier("bound-\(key)")
+    }
+
+    private func routingSection(_ draft: Binding<ProjectFileDraft>) -> some View {
+        Section("Routing overrides") {
+            RoutingEntriesEditor(entries: draft.routingOverrides)
+            Button("Base Routing Table\u{2026}") {
+                openWindow(id: "base-routing-table")
+            }
+            .accessibilityIdentifier("open-base-routing-table")
+        }
+    }
+
+    private var footer: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let failure = model.failure {
+                Text(failure)
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+                    .accessibilityIdentifier("configuration-save-failure")
+            }
+            Text(
+                "Saving rewrites \(model.file.path(percentEncoded: false)); comments and layout in it "
+                    + "are not kept. Editing the file directly stays supported."
+            )
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            HStack {
+                Spacer()
+                Button("Revert") { model.revert() }
+                    .disabled(!model.isDirty)
+                    .accessibilityIdentifier("configuration-revert")
+                Button("Save") { model.save() }
+                    .keyboardShortcut("s")
+                    .disabled(!model.isDirty)
+                    .accessibilityIdentifier("configuration-save")
+            }
+        }
+        .padding()
+    }
+}
