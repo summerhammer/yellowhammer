@@ -33,6 +33,15 @@ struct CLIProbeTests {
         return url.path
     }
 
+    /// Polls until `pid` is dead, up to 500 ms — a just-killed pid can be a zombie briefly, during
+    /// which `kill(pid, 0)` still succeeds.
+    private static func awaitDead(_ pid: pid_t) async {
+        for _ in 0..<25 {
+            if kill(pid, 0) == -1 && errno == ESRCH { return }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
     @Test("A fully healthy stub CLI passes every probe target")
     func healthyStubPassesEveryTarget() async throws {
         let workDirectory = try makeWorkDirectory()
@@ -117,6 +126,42 @@ struct CLIProbeTests {
             guard let text = try? String(contentsOf: holdsFile, encoding: .utf8) else { continue }
             let pids = text.split(separator: "\n").compactMap { pid_t($0.trimmingCharacters(in: .whitespaces)) }
             for pid in pids {
+                #expect(kill(pid, 0) == -1 && errno == ESRCH, "pid \(pid) (\(variant)) should be dead")
+            }
+        }
+    }
+
+    @Test("A stub CLI that daemonizes the hold script fails containment as never having been a descendant")
+    func daemonizingStubFailsContainmentAsNotADescendant() async throws {
+        let workDirectory = try makeWorkDirectory()
+        defer { try? FileManager.default.removeItem(at: workDirectory) }
+        let executable = try makeExecutable(StubProbeCLI.daemonizes, in: workDirectory)
+
+        let report = await makeProbe().run(
+            adapter: StubProbeAdapter(), route: Self.route, executable: executable,
+            environment: ProcessInfo.processInfo.environment, workDirectory: workDirectory
+        )
+
+        #expect(report.processContainment == .failed)
+        let reason = try #require(report.reason)
+        #expect(reason.contains("were not descendants of the CLI"))
+
+        // The reason names the real CLI leader pid, so it is unmistakable which run this is about.
+        for variant in ["sigterm", "sigkill"] {
+            let leaderFile = workDirectory.appendingPathComponent("worktree/.yh-probe-leader-\(variant)")
+            guard let leaderText = try? String(contentsOf: leaderFile, encoding: .utf8) else { continue }
+            let leaderPID = leaderText.trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(reason.contains("(pid \(leaderPID))"))
+        }
+
+        // No orphan survives the probe: a just-killed pid can be a zombie briefly (`kill(pid, 0)`
+        // still succeeds on one), so poll for real death rather than asserting immediately.
+        for variant in ["sigterm", "sigkill"] {
+            let holdsFile = workDirectory.appendingPathComponent("worktree/.yh-probe/holds-\(variant)")
+            guard let text = try? String(contentsOf: holdsFile, encoding: .utf8) else { continue }
+            let pids = text.split(separator: "\n").compactMap { pid_t($0.trimmingCharacters(in: .whitespaces)) }
+            for pid in pids {
+                await Self.awaitDead(pid)
                 #expect(kill(pid, 0) == -1 && errno == ESRCH, "pid \(pid) (\(variant)) should be dead")
             }
         }

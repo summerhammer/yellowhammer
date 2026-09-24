@@ -45,11 +45,17 @@ extension CLIProbe {
         let holdsFile = worktree.appendingPathComponent(".yh-probe/holds-\(variant)")
         let pids = await observeHoldPIDs(at: holdsFile, box: box)
 
-        // Record the hold pids' actual process group before cancelling. This is NOT assumed equal
-        // to the CLI leader's pid: a tool's shell command can run in a new process group of its own
-        // (observed for real with claude's Bash tool), which is exactly the escape this probe target
-        // exists to catch — so the leader pid is captured separately, from the run report itself.
+        // Record the hold pids' actual process group and their ancestry before cancelling — both
+        // are unreadable once a process is dead. The process group is NOT assumed equal to the CLI
+        // leader's pid: a tool's shell command can run in a new process group of its own (observed
+        // for real with claude's Bash tool), which is exactly the escape this probe target exists
+        // to catch. The ancestry decides the failure reason below: the abort path's descendant
+        // sweep (`AgentCLIProcess+Termination.swift`) now reaches every process that actually was a
+        // descendant of the CLI when the dispatch was aborted, however far it had escaped its
+        // process group — so a surviving hold pid can only mean it was NOT a descendant at that
+        // moment (already double-forked, or already reparented to `launchd`).
         let holdPGID: pid_t? = pids.first.map { getpgid($0) }
+        let holdAncestry: [pid_t] = pids.first.map { ProcessTree.ancestors(of: $0) } ?? []
 
         dispatchTask.cancel()
         _ = await dispatchTask.value
@@ -72,24 +78,29 @@ extension CLIProbe {
         _ = await Self.awaitDeath(of: survivors, within: .seconds(1), pollInterval: pollInterval)
 
         let reason = Self.containmentFailureReason(
-            variant: variant, survivors: survivors, holdPGID: holdPGID, leaderPID: leaderPID
+            variant: variant, survivors: survivors, holdPGID: holdPGID, leaderPID: leaderPID, ancestry: holdAncestry
         )
         return (.failed, reason)
     }
 
-    /// Names the leader pid and the survivors' actual process group. When they differ, says so
-    /// explicitly: the tool ran its subprocess outside the CLI's process group, so the group
-    /// SIGKILL never reached it.
+    /// Explains why a survivor escaped containment, now that the abort path's descendant sweep
+    /// (`AgentCLIProcess+Termination.swift`) reaches every process group escape: the only way a
+    /// survivor remains is that it was NOT a descendant of the CLI leader when the dispatch was
+    /// aborted — `ancestry` (the hold pid's parent chain, captured before cancelling) is what tells
+    /// that apart from the sweep itself failing to reach a process that WAS still a descendant.
     private static func containmentFailureReason(
-        variant: String, survivors: [pid_t], holdPGID: pid_t?, leaderPID: pid_t?
+        variant: String, survivors: [pid_t], holdPGID: pid_t?, leaderPID: pid_t?, ancestry: [pid_t]
     ) -> String {
         let pgidText = holdPGID.map(String.init) ?? "unknown"
-        if let holdPGID, let leaderPID, holdPGID != leaderPID {
-            return "\(variant): tool subprocess pids \(survivors) ran in process group \(holdPGID), "
-                + "outside the CLI's process group \(leaderPID), and outlived its SIGKILL"
+        guard let leaderPID else {
+            return "\(variant): pids \(survivors) (process group \(pgidText)) outlived the abort path"
         }
-        let leaderText = leaderPID.map(String.init) ?? pgidText
-        return "\(variant): pids \(survivors) (pgid \(pgidText)) outlived the process group \(leaderText)"
+        if ancestry.contains(leaderPID) {
+            return "\(variant): tool subprocess pids \(survivors) (process group \(pgidText)) were descendants "
+                + "of the CLI (pid \(leaderPID)) but outlived the abort path"
+        }
+        return "\(variant): tool subprocess pids \(survivors) (process group \(pgidText)) were not descendants "
+            + "of the CLI (pid \(leaderPID)) when the dispatch was aborted, so the abort path could not reach them"
     }
 
     private func observeHoldPIDs(at holdsFile: URL, box: ContainmentBox) async -> [pid_t] {

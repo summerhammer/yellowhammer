@@ -124,6 +124,19 @@ struct ProcessTreeTests {
         #expect(kill(pid, 0) == 0)
     }
 
+    @Test("ancestors(of:) walks pbi_ppid up to and including this test process")
+    func ancestorsIncludesThisTestProcess() throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        process.arguments = ["5"]
+        try process.run()
+        defer { process.terminate() }
+
+        let ancestors = ProcessTree.ancestors(of: process.processIdentifier)
+
+        #expect(ancestors.contains(getpid()))
+    }
+
     @Test("isGone is true once the process has been killed and reaped")
     func isGoneAfterKillAndReap() throws {
         let process = Process()
