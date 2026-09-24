@@ -1,5 +1,7 @@
 import ArgumentParser
 import Config
+import Domain
+import Engine
 import Foundation
 
 /// `yh rehearse`: runs a Rehearsal Night for one Project — the author, build and land Acts, in that
@@ -20,7 +22,21 @@ public struct RehearseCommand: AsyncParsableCommand {
     @Option(help: "The id of the Project to rehearse. Defaults to the sole configured Project.")
     public var project: String?
 
+    @Option(name: .customLong("result-fixture"), parsing: .singleValue, help: ResultFixtureOption.help)
+    public var resultFixtureOptions: [String] = []
+
+    // Not a stored property: `ParsableArguments` synthesizes `Decodable`, which a stored dictionary of
+    // non-Decodable `RehearsalResultFixture` values would break. `validate()` has already parsed
+    // `resultFixtureOptions` once to catch every refusal case, so re-parsing it here cannot fail.
+    public var resultFixtures: [RunPass: RehearsalResultFixture] {
+        (try? ResultFixtureOption.parse(resultFixtureOptions)) ?? [:]
+    }
+
     public init() {}
+
+    public func validate() throws {
+        _ = try ResultFixtureOption.parse(resultFixtureOptions)
+    }
 
     public func run() async throws {
         let homeDirectory = FileManager.default.homeDirectoryForCurrentUser
@@ -32,6 +48,6 @@ public struct RehearseCommand: AsyncParsableCommand {
             projectArgument: project, configurationDirectory: configurationDirectory
         )
         let rehearse = Rehearse(configurationDirectory: configurationDirectory, output: { print($0) })
-        try await rehearse.run(projectID: resolvedProject.id.rawValue)
+        try await rehearse.run(projectID: resolvedProject.id.rawValue, resultFixtures: resultFixtures)
     }
 }

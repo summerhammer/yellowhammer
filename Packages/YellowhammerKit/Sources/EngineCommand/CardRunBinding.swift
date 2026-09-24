@@ -14,13 +14,14 @@ enum CardRunBinding {
         mode: NightMode,
         configuration: Configuration,
         project: ProjectConfiguration,
-        configurationDirectory: URL
+        configurationDirectory: URL,
+        resultFixtures: [RunPass: RehearsalResultFixture] = [:]
     ) throws -> CardRun {
         let ledger = try LedgerStore.open(configurationDirectory: configurationDirectory)
         let resolver = try RoutingBinding.resolver(configuration: configuration, projectID: project.id, ledger: ledger)
         let dispatch = DispatchBinding.dispatch(
             mode: mode, configuration: configuration, project: project,
-            configurationDirectory: configurationDirectory
+            configurationDirectory: configurationDirectory, resultFixtures: resultFixtures
         )
         var checks: [String: Check] = [:]
         for repo in project.repos {

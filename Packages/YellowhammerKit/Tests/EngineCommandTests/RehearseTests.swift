@@ -1,5 +1,6 @@
 import Domain
 @testable import EngineCommand
+import Engine
 import Foundation
 import Synchronization
 import Testing
@@ -66,5 +67,47 @@ struct RehearseTests {
         #expect(command.rehearsal)
         // Reads every option, AuthorCommand's `--feature` included: an undecoded one traps here.
         #expect(try command.makeTrigger() == .forced)
+    }
+
+    @Test("arguments forwards --result-fixture pairs, sorted by pass raw value, for a deterministic order")
+    func argumentsForwardsResultFixturesSorted() {
+        let invocation = RehearseActInvocation(
+            act: .build, project: "alpha", force: true, rehearsal: true,
+            resultFixtures: [.reviewer: .reviewerChangesRequested, .architect: .architectFailed]
+        )
+
+        #expect(invocation.arguments == [
+            "--project", "alpha", "--force", "--rehearsal",
+            "--result-fixture", "architect=architect-failed.json",
+            "--result-fixture", "reviewer=reviewer-changes-requested.json"
+        ])
+    }
+
+    @Test("Rehearse.run forwards the same fixtures to every Act's invocation")
+    func runForwardsFixturesToEveryAct() async throws {
+        let recorded = Mutex<[RehearseActInvocation]>([])
+        let rehearse = Rehearse(
+            configurationDirectory: URL(filePath: "/tmp/does-not-matter"),
+            output: { _ in },
+            runAct: { invocation, _ in recorded.withLock { $0.append(invocation) } }
+        )
+        let fixtures: [RunPass: RehearsalResultFixture] = [.worker: .workerQuestion]
+
+        try await rehearse.run(projectID: "alpha", resultFixtures: fixtures)
+
+        let invocations = recorded.withLock { $0 }
+        #expect(invocations.allSatisfy { $0.resultFixtures == fixtures })
+    }
+
+    @Test("Rehearse.command(for:) round-trips forwarded fixtures into each Act command")
+    func commandRoundTripsForwardedFixtures() throws {
+        let invocation = RehearseActInvocation(
+            act: .build, project: "alpha", force: true, rehearsal: true,
+            resultFixtures: [.worker: .workerQuestion]
+        )
+
+        let command = try Rehearse.command(for: invocation)
+
+        #expect(command.resultFixtures == [.worker: .workerQuestion])
     }
 }

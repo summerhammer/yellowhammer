@@ -31,6 +31,7 @@ protocol ActCommand: AsyncParsableCommand {
     var project: String { get }
     var force: Bool { get }
     var rehearsal: Bool { get }
+    var resultFixtures: [RunPass: RehearsalResultFixture] { get }
     func makeTrigger() throws -> ActTrigger
     func makeInvocation(
         configurationDirectory: URL,
@@ -78,7 +79,7 @@ extension ActCommand {
         // (ADR-001): Engine itself never imports one.
         let work = try Self.work(
             mode: mode, configuration: configuration, project: project,
-            configurationDirectory: configurationDirectory
+            configurationDirectory: configurationDirectory, resultFixtures: resultFixtures
         )
         return EngineInvocation(
             act: Self.act,
@@ -109,7 +110,8 @@ extension ActCommand {
 
     /// This Act's own work. Split out of `makeInvocation` to keep that function within its length limit.
     private static func work(
-        mode: NightMode, configuration: Configuration, project: ProjectConfiguration, configurationDirectory: URL
+        mode: NightMode, configuration: Configuration, project: ProjectConfiguration, configurationDirectory: URL,
+        resultFixtures: [RunPass: RehearsalResultFixture]
     ) throws -> EngineInvocation.ActWork {
         switch Self.act {
         case .land:
@@ -123,7 +125,7 @@ extension ActCommand {
                 openPullRequest: LandBinding.pullRequest(configuration: configuration, project: project),
                 verification: try LandBinding.verification(
                     mode: mode, configuration: configuration, project: project,
-                    configurationDirectory: configurationDirectory
+                    configurationDirectory: configurationDirectory, resultFixtures: resultFixtures
                 ),
                 returnFeature: FeatureReturn(),
                 archiveCycle: CycleArchive()
@@ -139,7 +141,7 @@ extension ActCommand {
                 predecessorGate: PredecessorAncestryGate(closure: FeatureMergeClosure()),
                 authoring: try AuthoringBinding.authoring(
                     mode: mode, configuration: configuration, project: project,
-                    configurationDirectory: configurationDirectory
+                    configurationDirectory: configurationDirectory, resultFixtures: resultFixtures
                 ),
                 settle: FeatureSettleGesture(),
                 unansweredNightsMax: project.bounds.unansweredNightsMax
@@ -147,7 +149,7 @@ extension ActCommand {
         case .build:
             let cardRunner = try CardRunBinding.cardRunner(
                 mode: mode, configuration: configuration, project: project,
-                configurationDirectory: configurationDirectory
+                configurationDirectory: configurationDirectory, resultFixtures: resultFixtures
             )
             return BuildAct(
                 cardRunner: cardRunner,
@@ -213,6 +215,16 @@ public struct AuthorCommand: ActCommand {
     @Option(name: .long, help: featureHelp)
     public var feature: String?
 
+    @Option(name: .customLong("result-fixture"), parsing: .singleValue, help: ResultFixtureOption.help)
+    public var resultFixtureOptions: [String] = []
+
+    // Not a stored property: `ParsableArguments` synthesizes `Decodable`, which a stored dictionary of
+    // non-Decodable `RehearsalResultFixture` values would break. `validate()` has already parsed
+    // `resultFixtureOptions` once to catch every refusal case, so re-parsing it here cannot fail.
+    public var resultFixtures: [RunPass: RehearsalResultFixture] {
+        (try? ResultFixtureOption.parse(resultFixtureOptions)) ?? [:]
+    }
+
     public init() { }
 
     func makeTrigger() throws -> ActTrigger {
@@ -225,12 +237,13 @@ public struct AuthorCommand: ActCommand {
         return force ? .forced : .scheduled
     }
 
-    public func validate() throws {
+    public mutating func validate() throws {
         if let feature = feature {
             guard FeatureName(rawValue: feature) != nil else {
                 throw ValidationError("Feature name must not be empty or whitespace-only.")
             }
         }
+        try ResultFixtureOption.validate(resultFixtureOptions, rehearsal: rehearsal)
     }
 }
 
@@ -250,7 +263,21 @@ public struct BuildCommand: ActCommand {
     @Flag(name: .long, help: rehearsalHelp)
     public var rehearsal: Bool = false
 
+    @Option(name: .customLong("result-fixture"), parsing: .singleValue, help: ResultFixtureOption.help)
+    public var resultFixtureOptions: [String] = []
+
+    // Not a stored property: `ParsableArguments` synthesizes `Decodable`, which a stored dictionary of
+    // non-Decodable `RehearsalResultFixture` values would break. `validate()` has already parsed
+    // `resultFixtureOptions` once to catch every refusal case, so re-parsing it here cannot fail.
+    public var resultFixtures: [RunPass: RehearsalResultFixture] {
+        (try? ResultFixtureOption.parse(resultFixtureOptions)) ?? [:]
+    }
+
     public init() { }
+
+    public mutating func validate() throws {
+        try ResultFixtureOption.validate(resultFixtureOptions, rehearsal: rehearsal)
+    }
 }
 
 public struct LandCommand: ActCommand {
@@ -269,5 +296,19 @@ public struct LandCommand: ActCommand {
     @Flag(name: .long, help: rehearsalHelp)
     public var rehearsal: Bool = false
 
+    @Option(name: .customLong("result-fixture"), parsing: .singleValue, help: ResultFixtureOption.help)
+    public var resultFixtureOptions: [String] = []
+
+    // Not a stored property: `ParsableArguments` synthesizes `Decodable`, which a stored dictionary of
+    // non-Decodable `RehearsalResultFixture` values would break. `validate()` has already parsed
+    // `resultFixtureOptions` once to catch every refusal case, so re-parsing it here cannot fail.
+    public var resultFixtures: [RunPass: RehearsalResultFixture] {
+        (try? ResultFixtureOption.parse(resultFixtureOptions)) ?? [:]
+    }
+
     public init() { }
+
+    public mutating func validate() throws {
+        try ResultFixtureOption.validate(resultFixtureOptions, rehearsal: rehearsal)
+    }
 }
