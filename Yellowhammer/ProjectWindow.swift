@@ -7,6 +7,9 @@ import SwiftUI
 /// `project` is the window's own value: nil for a new window, which then shows the first configured
 /// Project until the Operator picks one. The app's screens hang off this window; there is no view
 /// above it and none that spans Projects.
+///
+/// The tabs are every screen G-6 gives the app — configuration and reading. The Night Card, Feature
+/// detail, Card detail and every triage gesture are Linear's, so none of them is a tab here (P14.8).
 struct ProjectWindow: View {
     @Binding var project: ProjectID?
     @State private var configured = ConfiguredProjects(entries: [], loadFailure: nil)
