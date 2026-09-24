@@ -1499,7 +1499,7 @@ comment on the Delta Read).
 > mid-Shift. It writes no Journal, holds no state, queue or triage step, and has no cross-Project
 > view. Gates **G-5** and **G-6** must be closed before P14.4–P14.8.
 
-### [ ] P14.1 App shell and Project scope
+### [x] P14.1 App shell and Project scope
 - **Work**
   - The app structure chosen in G-5.
   - Project Selector showing configured Project names only (no badges, roll-up words or counts).
