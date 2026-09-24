@@ -1510,7 +1510,7 @@ comment on the Delta Read).
 - **Done when** — The selector and deep link open the named Project. A UI test confirms no status is
   shown in the selector.
 
-### [ ] P14.2 Setup wizard
+### [x] P14.2 Setup wizard
 - **Work** — The app-side path for everything `yh setup` does (P13.1–P13.2), including notification
   permission status stated once, without nagging.
 - **Spec** — risks.md OQ13; system-overview → Notification behaviour.
