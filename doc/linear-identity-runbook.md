@@ -141,8 +141,8 @@ else is touched. The new Linear project's id must then be written to `linear_pro
 
 Then, **once per team** the Linear project belongs to (Projects sharing a team share the result):
 
-- the `Waiting on You`, `Kept in Flight` and `Released` workflow states (type `started`), each
-  matched by name, case-insensitively;
+- the `Waiting on You`, `Blocked`, `Kept in Flight` and `Released` workflow states (type
+  `started`), each matched by name, case-insensitively;
 - the label group `Object Type` with `Feature`, `Card`, `Night Card`;
 - the label group `Block Reason` with `blocked by reviewer`, `blocked by check`, `hard failure`,
   `host crash`, `unanswered`, `undecided`, `released` (`BlockReason.allCases`).

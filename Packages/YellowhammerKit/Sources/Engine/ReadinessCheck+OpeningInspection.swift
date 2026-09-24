@@ -50,7 +50,7 @@ extension ReadinessCheck {
     private func openingBoardStatus(card: CardRecord, object: BoardObject) -> OpeningCardReadiness {
         guard card.state == .todo else { return .notReady }
         guard !object.isTrashed, object.archivedAt == nil else { return .unknown }
-        if object.workflowState.name == CardState.cancelled.rawValue { return .notReady }
+        if object.workflowState.isCancelled { return .notReady }
         return object.workflowState.name == CardState.todo.rawValue ? .ready : .unknown
     }
 

@@ -47,10 +47,10 @@ points at are P15.2's concern, not this tool's.
      in Linear's settings). A `client_credentials` app can *see* every public team but belongs to
      none, and until it is a member Linear refuses its label creation with `FORBIDDEN`. Setup
      currently reports that refusal as "the Project's Linear project is not visible".
-   - **Create the three workflow states by hand if setup is refused them:** `Waiting on You`,
-     `Kept in Flight` and `Released`, all under **Started**. A same-named state in another
-     category (such as `Released` under Completed) is a collision and is never used. Whether team
-     membership also lifts this refusal is unconfirmed (yellowhammer-spec#58).
+   - **Create the four workflow states by hand if setup is refused them:** `Waiting on You`,
+     `Blocked`, `Kept in Flight` and `Released`, all under **Started**. A same-named state in
+     another category (such as `Released` under Completed) is a collision and is never used.
+     Whether team membership also lifts this refusal is unconfirmed (yellowhammer-spec#58).
    - A workspace label named `Feature` (one of Linear's defaults) collides with the `Object Type`
      group's `Feature`. Rename or delete it in the scratch workspace.
 

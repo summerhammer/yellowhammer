@@ -87,7 +87,11 @@ public actor LinearAdapter: Board {
             key: issue.identifier,
             title: issue.title,
             description: issue.description,
-            workflowState: BoardWorkflowState(id: BoardObjectID(rawValue: issue.state.id), name: issue.state.name),
+            workflowState: BoardWorkflowState(
+                id: BoardObjectID(rawValue: issue.state.id),
+                name: issue.state.name,
+                category: Self.category(of: issue.state.type)
+            ),
             labels: issue.labels.nodes.map(\.name),
             parent: issue.parent.map { BoardObjectID(rawValue: $0.id) },
             assignee: issue.assignee.map { BoardObjectID(rawValue: $0.id) },

@@ -14,6 +14,11 @@ let humanAuthor = BoardCommentAuthor(id: BoardObjectID(rawValue: "user-max"), na
 let stateTodo = BoardWorkflowState(id: BoardObjectID(rawValue: "s-todo"), name: "Todo")
 let stateBlocked = BoardWorkflowState(id: BoardObjectID(rawValue: "s-blocked"), name: "Blocked")
 let stateCancelled = BoardWorkflowState(id: BoardObjectID(rawValue: "s-cancelled"), name: "Cancelled")
+/// A real Linear team's own cancelled state: named `Canceled`, category `.cancelled` — not the
+/// glossary spelling `Cancelled` Yellowhammer provisions, so only the category resolves it.
+let stateCanceledByCategory = BoardWorkflowState(
+    id: BoardObjectID(rawValue: "s-canceled"), name: "Canceled", category: .cancelled
+)
 let stateWaiting = BoardWorkflowState(id: BoardObjectID(rawValue: "s-waiting"), name: "Waiting on You")
 
 // MARK: - Fixtures

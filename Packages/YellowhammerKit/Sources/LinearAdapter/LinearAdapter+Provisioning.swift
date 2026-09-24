@@ -150,8 +150,9 @@ extension LinearAdapter: BoardProvisioning {
     }
 
     /// Translates Linear's vendor `type` string into Yellowhammer's vocabulary. Linear spells its
-    /// cancelled type `canceled`; an unrecognized string maps to nil rather than guessing.
-    private static func category(of type: String?) -> BoardWorkflowStateCategory? {
+    /// cancelled type `canceled`; an unrecognized string maps to nil rather than guessing. Shared
+    /// with the issue queries' `boardObject(_:)` mapping so both translate `type` the same way.
+    static func category(of type: String?) -> BoardWorkflowStateCategory? {
         guard let type else { return nil }
         if type == "canceled" { return .cancelled }
         return BoardWorkflowStateCategory(rawValue: type)

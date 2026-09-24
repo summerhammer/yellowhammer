@@ -172,6 +172,32 @@ struct DeltaReadTests {
         #expect(try journal.events(ofType: .cardReopened).count == 1)
     }
 
+    @Test("A board state named 'Canceled' of category .cancelled marks the Card Cancelled; Todo reopens it")
+    func cancelledByCategoryRoundTrip() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let cardID = try insertCard(journal, issueID: "card-1", state: .blocked)
+        let board = FakeReadingBoard([
+            page(objects: [object("card-1", state: stateCanceledByCategory, updatedAt: 1)]),
+            page(objects: [object("card-1", state: stateTodo, updatedAt: 2)])
+        ])
+        let (read, _) = try deltaRead(journal, board: board)
+
+        guard case .read(let first) = try await read.perform() else {
+            Issue.record("expected a read")
+            return
+        }
+        #expect(first.cancelled.map(\.id) == [cardID])
+        #expect(try journal.card(id: cardID).state == .cancelled)
+
+        guard case .read(let reopened) = try await read.perform() else {
+            Issue.record("expected a read")
+            return
+        }
+        #expect(reopened.reopened.map(\.id) == [cardID])
+        #expect(try journal.card(id: cardID).state == .blocked)
+    }
+
     // MARK: - Re-stated and removed Cards
 
     @Test("A state the Journal did not write is reported, unless a write to that issue is still pending")

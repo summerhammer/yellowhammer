@@ -47,7 +47,7 @@ enum LinearGraphQL {
             pageInfo { hasNextPage endCursor }
             nodes {
               id identifier title description url createdAt updatedAt archivedAt trashed
-              state { id name }
+              state { id name type }
               labels { nodes { name } }
               parent { id }
               assignee { id }
@@ -73,7 +73,7 @@ enum LinearGraphQL {
             pageInfo { hasNextPage endCursor }
             nodes {
               id identifier title description url createdAt updatedAt archivedAt trashed
-              state { id name }
+              state { id name type }
               labels { nodes { name } }
               parent { id }
               assignee { id }
@@ -88,7 +88,7 @@ enum LinearGraphQL {
               parent { id }
               user { id name isMe }
               botActor { id name }
-              issue { id identifier state { id name } }
+              issue { id identifier state { id name type } }
             }
           }
         }
@@ -101,7 +101,7 @@ enum LinearGraphQL {
         query YellowhammerIssue($id: String!) {
           issue(id: $id) {
             id identifier title description url createdAt updatedAt archivedAt trashed
-            state { id name }
+            state { id name type }
             labels { nodes { name } }
             parent { id }
             assignee { id }

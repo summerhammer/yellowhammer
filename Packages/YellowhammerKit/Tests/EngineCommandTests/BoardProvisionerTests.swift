@@ -44,6 +44,11 @@ private func waitingOnYou(_ subject: ProvisioningEntry.Subject) -> Bool {
     return false
 }
 
+private func blocked(_ subject: ProvisioningEntry.Subject) -> Bool {
+    if case .workflowState(BoardProvisioner.blockedState, _) = subject { return true }
+    return false
+}
+
 private func keptInFlight(_ subject: ProvisioningEntry.Subject) -> Bool {
     if case .workflowState(SettleValue.keptInFlight.rawValue, _) = subject { return true }
     return false
@@ -56,14 +61,15 @@ private func released(_ subject: ProvisioningEntry.Subject) -> Bool {
 
 @Suite("Board provisioning")
 struct BoardProvisionerTests {
-    @Test("A bare team gets its three workflow states, both label groups and all ten labels, each reported")
+    @Test("A bare team gets its four workflow states, both label groups and all ten labels, each reported")
     func firstRunCreatesTheDeclaredSet() async throws {
         let board = board()
         let report = try await provision(board)
 
-        #expect(await board.creates == 15)
-        #expect(report.changes.count == 15)
+        #expect(await board.creates == 16)
+        #expect(report.changes.count == 16)
         #expect(outcome(of: report, waitingOnYou) == .created)
+        #expect(outcome(of: report, blocked) == .created)
         #expect(outcome(of: report, keptInFlight) == .created)
         #expect(outcome(of: report, released) == .created)
         #expect(outcome(of: report, objectTypeGroup) == .created)
@@ -76,6 +82,48 @@ struct BoardProvisionerTests {
         ] {
             #expect(outcome(of: report, label(name, in: "Block Reason")) == .created)
         }
+    }
+
+    @Test("Blocked is provisioned in category started, right after Waiting on You")
+    func blockedProvisionedAsStarted() async throws {
+        let board = board()
+        let report = try await provision(board)
+
+        #expect(outcome(of: report, blocked) == .created)
+        let states = report.entries.compactMap { entry -> String? in
+            if case .workflowState(let name, _) = entry.subject { return name }
+            return nil
+        }
+        let waitingIndex = try #require(states.firstIndex(of: "Waiting on You"))
+        let blockedIndex = try #require(states.firstIndex(of: BoardProvisioner.blockedState))
+        #expect(blockedIndex == waitingIndex + 1)
+        let created = try await board.workflowStates(team: engineering.id)
+        #expect(created.first { $0.name == BoardProvisioner.blockedState }?.category == .started)
+    }
+
+    @Test("An existing Blocked of another category is a collision, never reused")
+    func blockedOfAnotherCategoryCollides() async throws {
+        let board = board()
+        await board.seed(state: BoardProvisioner.blockedState, team: engineering.id, category: .unstarted)
+
+        let report = try await provision(board)
+
+        #expect(outcome(of: report, blocked) == .collision("team"))
+        let states = try await board.workflowStates(team: engineering.id)
+        #expect(states.filter { $0.name == BoardProvisioner.blockedState }.count == 1)
+    }
+
+    @Test("Re-running provisioning with Blocked already present reports no change")
+    func blockedAlreadyPresentIsIdempotent() async throws {
+        let board = board()
+        _ = try await provision(board)
+        let createsAfterFirstRun = await board.creates
+
+        let second = try await provision(board)
+
+        #expect(await board.creates == createsAfterFirstRun)
+        #expect(outcome(of: second, blocked) == .present)
+        #expect(!second.isChanged)
     }
 
     @Test("Provisioning twice changes nothing the second time")
@@ -136,8 +184,8 @@ struct BoardProvisionerTests {
                 return false
             }
             #expect(blocked.count == BlockReason.allCases.count)
-            // Waiting on You, Kept in Flight, Released, Object Type and its three labels
-            #expect(await board.creates == 7)
+            // Waiting on You, Blocked, Kept in Flight, Released, Object Type and its three labels
+            #expect(await board.creates == 8)
         }
     }
 
@@ -149,7 +197,7 @@ struct BoardProvisionerTests {
         let report = try await provision(board)
 
         #expect(outcome(of: report, waitingOnYou) == .present)
-        #expect(await board.creates == 14)
+        #expect(await board.creates == 15)
     }
 
     @Test("A missing Linear project with no team named is reported missing and nothing else is touched")
@@ -178,7 +226,7 @@ struct BoardProvisionerTests {
             return
         }
         #expect(report.entries[0].outcome == .created)
-        #expect(report.changes.count == 16)
+        #expect(report.changes.count == 17)
         #expect(report.linearProject?.id == BoardObjectID(rawValue: "fake-1"))
     }
 
@@ -191,7 +239,7 @@ struct BoardProvisionerTests {
 
         #expect(report.linearProject?.id == BoardObjectID(rawValue: "fake-1"))
         #expect(outcome(of: report, waitingOnYou) == .created)
-        #expect(await board.creates == 16)
+        #expect(await board.creates == 17)
     }
 
     @Test("Each team of the Linear project is provisioned on its own")
@@ -205,9 +253,9 @@ struct BoardProvisionerTests {
             if case .workflowState(_, let team) = entry.subject { return (team.key, entry.outcome) }
             return nil
         }
-        #expect(states.map(\.0) == ["ENG", "ENG", "ENG", "PRD", "PRD", "PRD"])
-        #expect(states.map(\.1) == [.present, .created, .created, .created, .created, .created])
-        #expect(await board.creates == 29)
+        #expect(states.map(\.0) == ["ENG", "ENG", "ENG", "ENG", "PRD", "PRD", "PRD", "PRD"])
+        #expect(states.map(\.1) == [.present, .created, .created, .created, .created, .created, .created, .created])
+        #expect(await board.creates == 31)
     }
 
     // MARK: - Override label groups (G-17, P7.6)
@@ -228,8 +276,8 @@ struct BoardProvisionerTests {
             using: board, projectName: "Yellowhammer", createIn: nil, routingTable: Self.table
         )
 
-        // 15 as before, plus three groups and 2 + 3 + 2 children.
-        #expect(await board.creates == 25)
+        // 16 as before, plus three groups and 2 + 3 + 2 children.
+        #expect(await board.creates == 26)
         for group in ["Override CLI", "Override Model", "Override Effort"] {
             #expect(outcome(of: report) { if case .labelGroup(group, _) = $0 { true } else { false } } == .created)
         }
@@ -295,7 +343,7 @@ struct BoardProvisionerTests {
         let board = board()
         let report = try await provision(board)
 
-        #expect(await board.creates == 15)
+        #expect(await board.creates == 16)
         #expect(report.entries.allSatisfy { subject in
             if case .labelGroup(let name, _) = subject.subject { return !name.hasPrefix("Override") }
             return true
