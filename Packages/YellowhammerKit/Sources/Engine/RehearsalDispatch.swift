@@ -1,4 +1,6 @@
 import Domain
+import Foundation
+import Repositories
 import Synchronization
 
 /// Which Card a Card-scoped rehearsal fixture answers (P15.3): the Card's board issue id — carried on
@@ -83,6 +85,8 @@ public final class RehearsalDispatch: AgentDispatch, Sendable {
             outcome = Self.verifierOutcome(for: request)
         } else if fixture.pass == .selection {
             outcome = Self.selectionOutcome(fixture: fixture, for: request)
+        } else if fixture.pass == .worker || fixture.pass == .reviewer {
+            outcome = await Self.commitAdjustedOutcome(fixture.outcome(), worktreePath: request.worktreePath)
         } else {
             outcome = fixture.outcome()
         }
@@ -132,5 +136,49 @@ public final class RehearsalDispatch: AgentDispatch, Sendable {
             repositories: selected.repositories, adoptedCardIssueIDs: adoptedCardIssueIDs
         )
         return .completed(.selection(SelectionResult(outcome: .selected(adjusted))))
+    }
+
+    /// A worker `completed` or reviewer `approved`/`changesRequested` fixture reports a commit it made
+    /// up — `worker-completed.json`'s `a1b2c3d4...` is a placeholder, not a real SHA. A rehearsal Night
+    /// never commits, so recording that placeholder as the Worktree's last known-good commit
+    /// (`CardRunEnd.approved`, `JournalStore.recordWorktreeKnownGood`) leaves a later reset-to-known-good
+    /// (a retry or Block in the same lane) failing on a commit that does not exist. Synthesized from the
+    /// request the same way ``verifierOutcome(for:)`` and ``selectionOutcome(fixture:for:)`` are: answered
+    /// with the actual HEAD of the request's Worktree, falling back to the fixture's own value only when
+    /// HEAD cannot be resolved (a test's plain directory, not a git work tree).
+    private static func commitAdjustedOutcome(_ outcome: RunOutcome, worktreePath: String) async -> RunOutcome {
+        guard case .completed(let result) = outcome else { return outcome }
+        switch result {
+        case .worker(let workerResult):
+            guard case .completed(let commit, let summary) = workerResult.outcome else { return outcome }
+            let head = await Self.resolvedHead(at: worktreePath) ?? commit
+            return .completed(.worker(WorkerResult(
+                outcome: .completed(commit: head, summary: summary),
+                authoringInvariantViolation: workerResult.authoringInvariantViolation
+            )))
+        case .reviewer(let reviewerResult):
+            switch reviewerResult.outcome {
+            case .approved(let judgedCommit, let summary):
+                let head = await Self.resolvedHead(at: worktreePath) ?? judgedCommit
+                return .completed(.reviewer(ReviewerResult(outcome: .approved(judgedCommit: head, summary: summary))))
+            case .changesRequested(let judgedCommit, let summary, let requestedChanges):
+                let head = await Self.resolvedHead(at: worktreePath) ?? judgedCommit
+                return .completed(.reviewer(ReviewerResult(outcome: .changesRequested(
+                    judgedCommit: head, summary: summary, requestedChanges: requestedChanges
+                ))))
+            }
+        default:
+            return outcome
+        }
+    }
+
+    /// `worktreePath`'s actual HEAD, or nil when it cannot be resolved — not a git work tree, or `git`
+    /// itself is unavailable. `git -C <path> rev-parse --verify HEAD^{commit}`, via the same
+    /// ``Repositories/GitRunner`` the Engine already runs every other git command through.
+    private static func resolvedHead(at worktreePath: String) async -> String? {
+        let result = await GitRunner().run(["rev-parse", "--verify", "HEAD^{commit}"], workingDirectory: worktreePath)
+        guard result.isSuccess else { return nil }
+        let trimmed = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

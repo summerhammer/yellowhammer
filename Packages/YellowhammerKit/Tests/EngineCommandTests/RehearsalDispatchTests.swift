@@ -1,15 +1,17 @@
 import Domain
 @testable import Engine
 import Foundation
+import Repositories
 import Testing
 
 // P15.3: a Card-scoped fixture (`byCard`) answers before a by-pass fixture (`byPass`), before the
 // default script; a selection fixture's `selected` answer honours the Operator's named Feature and,
-// for `selectionSelectedAdopting`, synthesizes its adoptions from the request.
+// for `selectionSelectedAdopting`, synthesizes its adoptions from the request; a worker/reviewer
+// fixture's placeholder commit is answered with the request's Worktree's real HEAD.
 
 private let route = Route(cli: "claude", model: "opus", effort: "high")!
 
-private func cardInstruction(issueID: String, pass: RunPass = .worker) -> AgentInstruction {
+private func cardInstruction(issueID: String, pass: RunPass = .worker, worktreePath: String) -> AgentInstruction {
     let repo = Repo(name: "fixture-backend", path: "/repos/fixture-backend", role: .backend)
     return .card(Instruction(
         pass: pass,
@@ -17,12 +19,11 @@ private func cardInstruction(issueID: String, pass: RunPass = .worker) -> AgentI
         brief: ArchitecturalBrief(prose: "Approach.", transcriptions: []),
         definitionOfDone: [],
         repository: InstructionRepository(
-            repo: repo, worktreePath: "/worktrees/fixture-backend/\(issueID)",
-            featureBranch: "feature/\(issueID)", check: .none
+            repo: repo, worktreePath: worktreePath, featureBranch: "feature/\(issueID)", check: .none
         ),
         route: route,
         payloads: .none,
-        resultFilePath: "/worktrees/fixture-backend/\(issueID)/.yellowhammer/result.json"
+        resultFilePath: "\(worktreePath)/.yellowhammer/result.json"
     ))
 }
 
@@ -41,10 +42,13 @@ private func authoringRequest(
     )
 }
 
-private func cardRequest(issueID: String, pass: RunPass = .worker) -> AgentDispatchRequest {
+private func cardRequest(
+    issueID: String, pass: RunPass = .worker, worktreePath: String = "/repos/fixture-backend"
+) -> AgentDispatchRequest {
     AgentDispatchRequest(
         runID: RunID(), issueID: issueID, attemptID: 1, route: route, pass: pass,
-        instruction: cardInstruction(issueID: issueID, pass: pass), worktreePath: "/repos/fixture-backend"
+        instruction: cardInstruction(issueID: issueID, pass: pass, worktreePath: worktreePath),
+        worktreePath: worktreePath
     )
 }
 
@@ -144,5 +148,70 @@ struct RehearsalDispatchScriptTests {
             return
         }
         #expect(selected.adoptedCardIssueIDs == ["BACK-1", "WEB-1"])
+    }
+
+    @Test("A worker completed fixture, dispatched against a real git Worktree, answers with its HEAD")
+    func workerCompletedAnswersWithRealWorktreeHead() async throws {
+        let temp = FileManager.default.temporaryDirectory
+            .appending(component: "yh-rehearsal-dispatch-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let git = GitRunner()
+        let head = try await initReconcilerGitRepo(at: temp, git: git)
+        let dispatch = RehearsalDispatch()
+
+        let report = try await dispatch.dispatch(
+            cardRequest(issueID: "BACK-1", pass: .worker, worktreePath: temp.path(percentEncoded: false))
+        )
+
+        guard case .completed(.worker(let result)) = report.outcome, case .completed(let commit, _) = result.outcome
+        else {
+            Issue.record("expected a completed worker result")
+            return
+        }
+        #expect(commit == head)
+        #expect(commit != "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678")
+    }
+
+    @Test("A worker completed fixture, dispatched against a plain directory, keeps the fixture's own commit")
+    func workerCompletedFallsBackToFixtureCommitWithoutAGitRepo() async throws {
+        let temp = FileManager.default.temporaryDirectory
+            .appending(component: "yh-rehearsal-dispatch-plain-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let dispatch = RehearsalDispatch()
+
+        let report = try await dispatch.dispatch(
+            cardRequest(issueID: "BACK-1", pass: .worker, worktreePath: temp.path(percentEncoded: false))
+        )
+
+        guard case .completed(.worker(let result)) = report.outcome, case .completed(let commit, _) = result.outcome
+        else {
+            Issue.record("expected a completed worker result")
+            return
+        }
+        #expect(commit == "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678")
+    }
+
+    @Test("A reviewer approved fixture answers with the Worktree's real HEAD too")
+    func reviewerApprovedAnswersWithRealWorktreeHead() async throws {
+        let temp = FileManager.default.temporaryDirectory
+            .appending(component: "yh-rehearsal-dispatch-reviewer-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let git = GitRunner()
+        let head = try await initReconcilerGitRepo(at: temp, git: git)
+        let dispatch = RehearsalDispatch()
+
+        let report = try await dispatch.dispatch(
+            cardRequest(issueID: "BACK-1", pass: .reviewer, worktreePath: temp.path(percentEncoded: false))
+        )
+
+        guard
+            case .completed(.reviewer(let result)) = report.outcome,
+            case .approved(let judgedCommit, _) = result.outcome
+        else {
+            Issue.record("expected an approved reviewer result")
+            return
+        }
+        #expect(judgedCommit == head)
     }
 }

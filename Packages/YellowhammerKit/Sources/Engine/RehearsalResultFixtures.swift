@@ -8,10 +8,17 @@ import Foundation
 public enum RehearsalResultFixture: String, CaseIterable, Sendable {
     case architectPlanned = "architect-planned.json"
     case architectFailed = "architect-failed.json"
+    /// The file's `commit` (`a1b2c3d4...`) is a placeholder, not a real SHA: ``RehearsalDispatch``
+    /// answers it with the request's Worktree's actual HEAD instead (P15.3), so a rehearsal Night never
+    /// records a commit that does not exist as a Worktree's last known-good.
     case workerCompleted = "worker-completed.json"
     case workerQuestion = "worker-question.json"
     case workerFailed = "worker-failed.json"
+    /// The file's `judged_commit` is a placeholder, answered with the request's Worktree's actual HEAD
+    /// instead, like ``workerCompleted``'s `commit` (P15.3).
     case reviewerApproved = "reviewer-approved.json"
+    /// The file's `judged_commit` is a placeholder, answered with the request's Worktree's actual HEAD
+    /// instead, like ``workerCompleted``'s `commit` (P15.3).
     case reviewerChangesRequested = "reviewer-changes-requested.json"
     /// Zero bytes: the Codex SIGTERM failure mode. Must fail ``ResultFile`` validation.
     case workerEmpty = "worker-empty.json"
