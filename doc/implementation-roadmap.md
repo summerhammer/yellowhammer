@@ -1545,7 +1545,7 @@ comment on the Delta Read).
 - **Done when** — Opening a Journal in the app while an Act writes it causes no write conflict and no
   modification.
 
-### [ ] P14.6 Status view
+### [x] P14.6 Status view
 - **Work** — The app equivalent of `yh status` (P13.4) and `yh doctor` findings, per Project.
 - **Spec** — risks.md OQ12 Surface 3.
 - **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`; cheap alternative Gemini
