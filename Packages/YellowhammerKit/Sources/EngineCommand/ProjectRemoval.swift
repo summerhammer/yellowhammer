@@ -94,8 +94,12 @@ struct ProjectRemoval {
         var featureIssueID: String?
         if let (feature, _) = try? journal.inFlightFeature() {
             featureIssueID = feature.issueID
+            let clientID = OutboxClientID.make(
+                projectID: project.id, salt: journal.outboxSalt, key: "project-removed:\(feature.issueID)"
+            )
+            let body = ProjectRemovalComment(projectID: project.id, mode: mode).body()
             await postRemovalComment(
-                feature: feature, project: project, mode: mode, bindBoard: boardWriting, failures: &failures
+                feature: feature, clientID: clientID, body: body, bindBoard: boardWriting, failures: &failures
             )
         }
 

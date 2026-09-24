@@ -83,12 +83,21 @@ public struct OutboxWrite: Equatable, Sendable {
     }
 }
 
-/// Deterministic client ids: the same Project and key always yield the same UUID, so a write replayed
-/// after a crash carries the id the board already knows. Two Projects never share one, because the
-/// Project id is in the digest.
+/// Deterministic client ids: the same Project, salt and key always yield the same UUID, so a write
+/// replayed after a crash carries the id the board already knows. Two Projects never share one, because
+/// the Project id is in the digest.
+///
+/// `salt` is the Journal's `outboxSalt` — empty for a Journal that already held Outbox entries when
+/// `v29-outbox-salt` ran, otherwise fixed for that Journal's life. It exists so a reset Project (Journal
+/// deleted, its Linear issues archived) gets a fresh Journal whose ids never recompute to the id of an
+/// issue the previous Journal already created and that is now archived: without the salt, replaying the
+/// same key after a reset would resolve to the archived issue and the write would land invisibly on it.
 public enum OutboxClientID {
-    public static func make(projectID: ProjectID, key: String) -> UUID {
-        let digest = SHA256.hash(data: Data("yellowhammer-outbox|\(projectID.rawValue)|\(key)".utf8))
+    public static func make(projectID: ProjectID, salt: String, key: String) -> UUID {
+        let input = salt.isEmpty
+            ? "yellowhammer-outbox|\(projectID.rawValue)|\(key)"
+            : "yellowhammer-outbox|\(projectID.rawValue)|\(salt)|\(key)"
+        let digest = SHA256.hash(data: Data(input.utf8))
         var bytes = Array(digest.prefix(16))
         // Stamped version 4 and the RFC 4122 variant, although the bytes are a digest, not random: Linear
         // accepts a client-supplied id only in v4 form and refuses a v5 one ("id must be a UUID").

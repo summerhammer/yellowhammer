@@ -35,15 +35,14 @@ private final class WorktreeRemovalOutcome {
 
 extension ProjectRemoval {
     /// Step 7: posts the deterministic ``ProjectRemovalComment`` on the in-flight Feature Issue.
-    /// Deterministic on `feature.issueID` (`OutboxClientID.make`), so a re-run after a partial failure
-    /// replays the same comment rather than duplicating it. A board error is a step failure.
+    /// Deterministic on `feature.issueID` (`OutboxClientID.make`, salted by the Journal that computed
+    /// `clientID`), so a re-run of the same Journal after a partial failure replays the same comment
+    /// rather than duplicating it. A board error is a step failure.
     func postRemovalComment(
-        feature: FeatureRecord, project: ProjectConfiguration, mode: NightMode,
+        feature: FeatureRecord, clientID: UUID, body: String,
         bindBoard: () throws -> any BoardWriting, failures: inout [String]
     ) async {
         let issue = BoardObjectID(rawValue: feature.issueID)
-        let clientID = OutboxClientID.make(projectID: project.id, key: "project-removed:\(feature.issueID)")
-        let body = ProjectRemovalComment(projectID: project.id, mode: mode).body()
         do {
             let board = try bindBoard()
             _ = try await board.createComment(on: issue, body: body, clientID: clientID)

@@ -114,6 +114,9 @@ enum JournalMigrations {
         migrator.registerMigration("v28-night-opening-board-snapshot") { db in
             try addNightOpeningBoardSnapshotColumn(db)
         }
+        migrator.registerMigration("v29-outbox-salt") { db in
+            try addOutboxSaltColumn(db)
+        }
         return migrator
     }
 }

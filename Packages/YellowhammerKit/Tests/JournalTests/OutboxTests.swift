@@ -71,7 +71,7 @@ func v5MigrationApplied() throws {
 
     let migrations = try journal.appliedMigrations()
     #expect(migrations.contains("v4-outbox-delivery"))
-    #expect(migrations.last == "v28-night-opening-board-snapshot")
+    #expect(migrations.last == "v29-outbox-salt")
 }
 
 @Test("Outbox table has new columns from v4 migration")
