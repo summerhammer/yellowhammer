@@ -11,7 +11,7 @@ extension Setup {
         machine: MachineConfiguration, secret: String, board: any BoardProvisioning
     ) async throws {
         switch options.mode {
-        case .config:
+        case .config, .printChoices:
             return
         case .initialize:
             guard let declaration = try optionProjectDeclaration() else { return }

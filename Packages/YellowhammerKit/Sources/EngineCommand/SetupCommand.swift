@@ -25,6 +25,12 @@ public struct SetupCommand: AsyncParsableCommand {
     @Option(name: .customLong("config"), help: "Adopt a prepared configuration directory; never prompts.")
     public var config: String?
 
+    @Flag(
+        name: .customLong("print-choices"),
+        help: "Print the Operator identity and team choices as JSON and exit; never prompts, writes nothing."
+    )
+    public var printChoices: Bool = false
+
     @Option(name: .customLong("linear-client-id"), help: "The registered Linear OAuth application's client id.")
     public var linearClientID: String?
 
