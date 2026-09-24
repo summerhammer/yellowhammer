@@ -13,6 +13,8 @@ protocol LaunchAgentControl: Sendable {
     func enable(label: String) async throws
     /// Loads the LaunchAgent at `plistURL` into the user's `gui` domain.
     func bootstrap(plistURL: URL) async throws
+    /// Whether `label` is currently loaded in the user's `gui` domain (`yh doctor`'s launchd check).
+    func isLoaded(label: String) async -> Bool
 }
 
 /// A `launchctl` failure: the command's own combined stdout/stderr, so the Operator sees what
@@ -41,6 +43,10 @@ struct LaunchctlLaunchAgentControl: LaunchAgentControl {
 
     func bootstrap(plistURL: URL) async throws {
         try await run(["bootstrap", "gui/\(uid)", plistURL.path(percentEncoded: false)])
+    }
+
+    func isLoaded(label: String) async -> Bool {
+        (try? await run(["print", "gui/\(uid)/\(label)"])) != nil
     }
 
     private func run(_ arguments: [String]) async throws {
