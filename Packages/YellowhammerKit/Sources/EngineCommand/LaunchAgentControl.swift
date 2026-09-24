@@ -23,6 +23,25 @@ struct LaunchctlError: Error, CustomStringConvertible {
     let description: String
 }
 
+/// One LaunchAgent's state as `launchctl print` reports it: the top-level (single-tab-indented)
+/// `runs` and `last exit code` fields. `lastExitCode` is nil for `(never exited)` or when the field is
+/// absent.
+struct LaunchctlJobInfo: Equatable, Sendable {
+    let runs: Int?
+    let lastExitCode: Int?
+}
+
+/// The read-only `launchctl` seam `yh status` needs: a label's current state and whether it is
+/// disabled. Kept separate from ``LaunchAgentControl`` — whose fakes only implement install/uninstall
+/// calls — so this addition never breaks an existing test fake.
+protocol LaunchAgentInspecting: Sendable {
+    /// This label's current state under `launchctl print gui/<uid>/<label>`, or nil when it fails
+    /// (typically: not currently loaded).
+    func jobInfo(label: String) async -> LaunchctlJobInfo?
+    /// Every label `launchctl print-disabled gui/<uid>` reports as disabled.
+    func disabledLabels() async -> Set<String>
+}
+
 /// Runs `/bin/launchctl` against the user's `gui/<uid>` domain via `Subprocess`.
 struct LaunchctlLaunchAgentControl: LaunchAgentControl {
     let launchctlPath: String
@@ -49,7 +68,8 @@ struct LaunchctlLaunchAgentControl: LaunchAgentControl {
         (try? await run(["print", "gui/\(uid)/\(label)"])) != nil
     }
 
-    private func run(_ arguments: [String]) async throws {
+    @discardableResult
+    private func run(_ arguments: [String]) async throws -> String {
         let result: ExecutionResult<Void, StringOutput<UTF8>, CombinedErrorOutput>
         do {
             result = try await Subprocess.run(
@@ -65,5 +85,55 @@ struct LaunchctlLaunchAgentControl: LaunchAgentControl {
                 description: "launchctl \(arguments.joined(separator: " ")) \(result.terminationStatus): \(combined)"
             )
         }
+        return result.standardOutput
+    }
+}
+
+extension LaunchctlLaunchAgentControl: LaunchAgentInspecting {
+    func jobInfo(label: String) async -> LaunchctlJobInfo? {
+        guard let output = try? await run(["print", "gui/\(uid)/\(label)"]) else { return nil }
+        return Self.parseJobInfo(output)
+    }
+
+    func disabledLabels() async -> Set<String> {
+        guard let output = try? await run(["print-disabled", "gui/\(uid)"]) else { return [] }
+        return Self.parseDisabledLabels(output)
+    }
+
+    /// Reads the first, top-level (single-tab-indented) `runs =` and `last exit code =` lines of a
+    /// `launchctl print` dump. Anything more deeply indented (a nested dictionary or array) is not a
+    /// top-level field and is ignored.
+    static func parseJobInfo(_ text: String) -> LaunchctlJobInfo {
+        var runs: Int?
+        var lastExitCode: Int?
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            guard line.hasPrefix("\t"), !line.hasPrefix("\t\t") else { continue }
+            let field = line.dropFirst()
+            guard let separator = field.range(of: " = ") else { continue }
+            let key = field[field.startIndex..<separator.lowerBound]
+            let value = field[separator.upperBound...].trimmingCharacters(in: .whitespaces)
+            if key == "runs", runs == nil {
+                runs = Int(value)
+            } else if key == "last exit code", lastExitCode == nil, value != "(never exited)" {
+                lastExitCode = Int(value)
+            }
+        }
+        return LaunchctlJobInfo(runs: runs, lastExitCode: lastExitCode)
+    }
+
+    /// Reads every `\t\t"<label>" => disabled` (or `=> true`, older macOS) line of a
+    /// `launchctl print-disabled` dump. `=> enabled`/`=> false` is not disabled.
+    static func parseDisabledLabels(_ text: String) -> Set<String> {
+        var labels = Set<String>()
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            guard line.hasPrefix("\t\t\"") else { continue }
+            let afterQuote = line.dropFirst(3)
+            guard let closingQuote = afterQuote.firstIndex(of: "\"") else { continue }
+            let label = afterQuote[afterQuote.startIndex..<closingQuote]
+            let rest = afterQuote[afterQuote.index(after: closingQuote)...]
+            guard rest.contains("=> disabled") || rest.contains("=> true") else { continue }
+            labels.insert(String(label))
+        }
+        return labels
     }
 }
