@@ -1445,7 +1445,7 @@ comment on the Delta Read).
 - **Done when** — On a clean user account, `yh setup --init` produces a configuration that passes
   validation, and provisioning is idempotent.
 
-### [ ] P13.2 Scheduled job generation
+### [x] P13.2 Scheduled job generation
 - **Work**
   - Generate three `launchd` user LaunchAgents per Project
     (`com.summerhammer.yellowhammer.<project>.<act>.plist`) invoking `yh <act> --project <id>`, with
