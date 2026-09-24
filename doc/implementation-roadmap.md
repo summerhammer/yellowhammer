@@ -1561,7 +1561,7 @@ comment on the Delta Read).
 - **Done when** — A rehearsal Night started from the app runs as a normal invocation that survives
   quitting the app.
 
-### [ ] P14.8 Nav Flow screens the app owns
+### [x] P14.8 Nav Flow screens the app owns
 - **Work** — Build whichever of Night Card, Feature detail and Card detail G-6 assigns to the app,
   without making the app where a decision is recorded.
 - **Spec** — ooux/nav-flow.md; ooux/sketch-sheets.md; ooux/cta-matrix.md.
