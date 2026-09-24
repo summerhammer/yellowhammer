@@ -53,6 +53,10 @@ struct ProjectWindow: View {
                     ProjectStatusView(project: entry.id)
                         .id(entry.id)
                 }
+                Tab("Recalibrate", systemImage: "slider.horizontal.3") {
+                    RecalibrateView(project: entry.id)
+                        .id(entry.id)
+                }
             }
         } else {
             fallbackContent

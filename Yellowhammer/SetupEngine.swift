@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 /// Runs the bundled `yh` non-interactively and streams its merged stdout/stderr. The app never does the
@@ -106,5 +107,72 @@ final class SetupEngine {
         for await _ in exited {}
         self.process = nil
         return process.terminationStatus
+    }
+
+    /// Where a rehearsal Night's log lives (P14.7): `~/Library/Logs/Yellowhammer/<projectID>.rehearse.log`,
+    /// matching the LaunchAgents' `<id>.<act>.log` naming — except under the UI-test stub override, where
+    /// the log is written next to the stub file instead, so a UI test never writes into the real user's
+    /// Logs.
+    static func rehearsalLogURL(projectID: String) -> URL {
+        let filename = "\(projectID).rehearse.log"
+        let arguments = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
+        if let stubPath = arguments[stubArgument] as? String {
+            return URL(filePath: stubPath).deletingLastPathComponent()
+                .appending(component: filename, directoryHint: .notDirectory)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appending(components: "Library", "Logs", "Yellowhammer", filename, directoryHint: .notDirectory)
+    }
+
+    /// Launches `arguments` fully detached from the app (P14.7's rehearsal Night): the app must remain
+    /// "shell, not host", so a Night launched from here must keep running with the app quit. `posix_spawn`s
+    /// `/bin/sh` with `POSIX_SPAWN_SETSID`, running a script that backgrounds the real command and exits at
+    /// once; only that shell is waited on, never the backgrounded grandchild, which is reparented to
+    /// `launchd` — no pipe the app owns, so quitting never sends it a signal, and nothing here is held past
+    /// this call ("nothing resident"). Throws on spawn failure or a non-zero shell exit.
+    func launchDetached(arguments: [String], logURL: URL) throws {
+        guard let plan = Self.launchPlan,
+              FileManager.default.isExecutableFile(atPath: plan.executable.path(percentEncoded: false))
+        else {
+            throw RunError.executableNotFound
+        }
+
+        do {
+            try FileManager.default.createDirectory(
+                at: logURL.deletingLastPathComponent(), withIntermediateDirectories: true
+            )
+        } catch {
+            throw RunError.launchFailed("could not create the log directory: \(error)")
+        }
+
+        let command = plan.executable.path(percentEncoded: false)
+        let backgroundScript = #"log="$1"; shift; "$@" </dev/null >>"$log" 2>&1 &"#
+        let shellArguments = ["/bin/sh", "-c", backgroundScript, "sh", logURL.path(percentEncoded: false), command]
+            + plan.leadingArguments + arguments
+
+        var argv: [UnsafeMutablePointer<CChar>?] = shellArguments.map { strdup($0) }
+        argv.append(nil)
+        defer { argv.forEach { free($0) } }
+
+        var attributes: posix_spawnattr_t?
+        posix_spawnattr_init(&attributes)
+        defer { posix_spawnattr_destroy(&attributes) }
+        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETSID))
+
+        var pid: pid_t = 0
+        let spawnResult = posix_spawn(&pid, "/bin/sh", nil, &attributes, argv, environ)
+        guard spawnResult == 0 else {
+            throw RunError.launchFailed("posix_spawn failed with errno \(spawnResult)")
+        }
+
+        var status: Int32 = 0
+        guard waitpid(pid, &status, 0) != -1 else {
+            throw RunError.launchFailed("waiting for the detached shell failed: errno \(errno)")
+        }
+        let exited = (status & 0x7f) == 0
+        let exitCode = (status >> 8) & 0xff
+        guard exited, exitCode == 0 else {
+            throw RunError.launchFailed("the detached shell did not exit cleanly (status \(status))")
+        }
     }
 }

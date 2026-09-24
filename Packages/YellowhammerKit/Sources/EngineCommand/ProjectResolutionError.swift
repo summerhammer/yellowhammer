@@ -11,6 +11,8 @@ public enum ProjectResolutionError: Error, Equatable, Sendable {
     case projectNotFound(id: String, expectedFile: String)
     /// The Project's file exists but the Project was refused at load.
     case projectInvalidated(id: ProjectID, file: String, errors: [ConfigurationError])
+    /// `--project` was omitted and more than one Project is configured, so none can be defaulted to.
+    case projectRequired(ids: [String])
 }
 
 extension ProjectResolutionError: CustomStringConvertible {
@@ -40,6 +42,8 @@ extension ProjectResolutionError: CustomStringConvertible {
                 \(lines)
                 Fix the configuration, or run `yh setup` or open Yellowhammer.app.
                 """
+        case .projectRequired(let ids):
+            return "--project <id> is required: more than one Project is configured (\(ids.joined(separator: ",")))."
         }
     }
 }
