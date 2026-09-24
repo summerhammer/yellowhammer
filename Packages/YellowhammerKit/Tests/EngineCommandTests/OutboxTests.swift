@@ -28,6 +28,16 @@ struct OutboxTests {
         #expect(UUID(uuidString: first.uuidString) == first)
     }
 
+    @Test("A client id is shaped as a version-4 UUID with the RFC 4122 variant, the only form Linear accepts")
+    func clientIDsAreVersion4() throws {
+        let alpha = try #require(ProjectID(rawValue: "alpha"))
+        for key in ["card:1:main:1:create", "night:2026-09-23:create", "comment:x:1:crash"] {
+            let bytes = OutboxClientID.make(projectID: alpha, key: key).uuid
+            #expect(bytes.6 >> 4 == 4)
+            #expect(bytes.8 >> 6 == 0b10)
+        }
+    }
+
     // MARK: - Accepting
 
     @Test("Accepting persists the write in the Journal and sends nothing to Linear")
