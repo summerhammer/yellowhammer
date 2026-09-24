@@ -1536,7 +1536,7 @@ comment on the Delta Read).
   Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — A Probe started from the app writes a Ledger row shown in the list.
 
-### [ ] P14.5 Journal reading (account behind a Card)
+### [x] P14.5 Journal reading (account behind a Card)
 - **Work** — Read-only display of a Card's account from its Project's Journal (Attempts, Rounds,
   routes, Check output). Opening the Journal read-only is enforced.
 - **Spec** — system-overview → Yellowhammer app; `CLAUDE.md` → Read-only on every Journal.
