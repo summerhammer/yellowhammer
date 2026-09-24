@@ -127,13 +127,32 @@ public struct ReadinessCheck: Sendable {
     /// Evaluates one Card: reconciles the board's copy of its Managed Block into the Journal first (an
     /// Operator's edit takes effect before readiness is judged against it), then checks structure,
     /// citations and provenance in that order.
+    ///
+    /// Any board write this check makes (a comment, a Divergence transition, a minted clause's
+    /// re-render) needs this Card's Lease, so it is claimed here rather than leaving every write deferred
+    /// until dispatch claims it. A Ready Card keeps it: the lane dispatches it next and the Card run
+    /// takes the Lease over. Any other verdict, or a fault, releases it here — the lane moves on without
+    /// the Card, and a Lease left behind would stop every other Act writing the Card until its TTL ran
+    /// out.
     public func evaluate(card: CardRecord, context: BuildActContext) async throws -> ReadinessVerdict {
         let journal = context.act.journal
+        let runID = context.act.runID
+        _ = try journal.claimCardLease(cardID: card.id, runID: runID)
+        let verdict: ReadinessVerdict
+        do {
+            verdict = try await judge(card: card, context: context)
+        } catch {
+            _ = try? journal.releaseCardLease(cardID: card.id, runID: runID)
+            throw error
+        }
+        if case .ready = verdict { return verdict }
+        _ = try journal.releaseCardLease(cardID: card.id, runID: runID)
+        return verdict
+    }
 
-        // Any board write this check makes (a comment, a Divergence transition, a minted clause's
-        // re-render) is about to run under this Card's Lease anyway — the lane is about to dispatch
-        // it — so it is claimed here rather than leaving every write deferred until dispatch claims it.
-        _ = try journal.claimCardLease(cardID: card.id, runID: context.act.runID)
+    /// The readiness judgement itself, under the Card Lease ``evaluate(card:context:)`` holds.
+    private func judge(card: CardRecord, context: BuildActContext) async throws -> ReadinessVerdict {
+        let journal = context.act.journal
 
         try await reconcileBoardCopy(card: card, context: context)
 
