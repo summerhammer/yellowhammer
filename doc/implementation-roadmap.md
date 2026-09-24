@@ -1460,7 +1460,7 @@ comment on the Delta Read).
 - **Done when** — Installed jobs fire `yh` on a developer machine at the scheduled times, and the
   event log shows each Act.
 
-### [ ] P13.3 `yh doctor` / `yh validate`
+### [x] P13.3 `yh doctor` / `yh validate`
 - **Work** — Validate configuration, run probes, check git repositories, verify Linear credentials,
   inspect `launchd` job status, detect orphaned LaunchAgents (`--fix` unloads and removes them after
   confirmation), and warn on routing entries with no fallback.
