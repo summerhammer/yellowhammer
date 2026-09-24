@@ -100,6 +100,47 @@ enum StubProbeCLI {
         """
     )
 
+    /// The worker pass backgrounds the hold script inside a subshell that exits at once —
+    /// `( perl ... & )` — rather than `wait`ing for it like ``escapes`` does. That immediate
+    /// subshell exit reparents the backgrounded (`setsid`) hold process to `launchd` (`ppid` 1)
+    /// well before the Probe ever cancels the dispatch, so by the time `runContainmentVariant`
+    /// records the hold pid's ancestry, the CLI leader is nowhere in that chain: the hold script
+    /// was never a descendant to begin with, and no descendant-tree walk — however it re-walks,
+    /// however many times — can ever be expected to find it.
+    static let daemonizes = shell(
+        """
+        if [ "$1" = "--version" ]; then
+            echo "stub-cli 9.9.9"
+            exit 0
+        fi
+        instruction="$1"
+        pass="$2"
+        resume="$3"
+        case "$pass" in
+            architect)
+                if [ -n "$resume" ]; then
+                    prior=$(cat .yh-probe-nonce 2>/dev/null)
+                    printf 'SESSION:stub-session\\n'
+                    printf 'RESULT:{"schema":"yellowhammer.result.architect","version":1,\
+        "outcome":"failed","reason":"%s"}\\n' "$prior"
+                else
+                    nonce=$(echo "$instruction" | grep -o 'yh-probe-[0-9a-f]\\{12\\}')
+                    echo "$nonce" > .yh-probe-nonce
+                    printf 'SESSION:stub-session\\n'
+                    printf 'RESULT:{"schema":"yellowhammer.result.architect","version":1,\
+        "outcome":"failed","reason":"%s"}\\n' "$nonce"
+                fi
+                ;;
+            worker)
+                variant=$(echo "$instruction" | grep -o 'yh-probe-hold.sh [a-z]*' | awk '{print $2}')
+                echo $$ > .yh-probe-leader-"$variant"
+                ( perl -MPOSIX -e 'POSIX::setsid(); exec { $ARGV[0] } @ARGV' /bin/sh yh-probe-hold.sh "$variant" & )
+                sleep 60
+                ;;
+        esac
+        """
+    )
+
     /// Exits 0 on the architect pass but never writes a `RESULT:` line, so no result file appears.
     static let cleanExitNoResult = shell(
         """

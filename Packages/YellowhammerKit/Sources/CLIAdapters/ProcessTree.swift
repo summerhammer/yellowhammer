@@ -55,6 +55,34 @@ enum ProcessTree {
         return result
     }
 
+    /// Every ancestor of `pid`, walking `pbi_ppid` upward: starts with `pid`'s own parent and
+    /// continues through each ancestor's parent in turn, stopping once pid 1 (`launchd`) is
+    /// reached (included in the result), pid 0 is reached, or a lookup fails (a process that has
+    /// already exited yields whatever prefix of the chain was still readable). Capped at 64 hops
+    /// so a corrupt or unexpected parent chain can never spin forever.
+    static func ancestors(of pid: pid_t) -> [pid_t] {
+        var result: [pid_t] = []
+        var current = pid
+        for _ in 0..<64 {
+            guard let parent = parentPID(of: current) else { break }
+            result.append(parent)
+            if parent <= 1 { break }
+            current = parent
+        }
+        return result
+    }
+
+    /// `pid`'s parent, or `nil` if the lookup fails (the process has already exited).
+    private static func parentPID(of pid: pid_t) -> pid_t? {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        let result = withUnsafeMutablePointer(to: &info) { pointer in
+            proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, pointer, size)
+        }
+        guard result == size else { return nil }
+        return pid_t(bitPattern: info.pbi_ppid)
+    }
+
     /// Whether `process` is gone: its identity can no longer be looked up, or the pid now
     /// belongs to a different process (a mismatched start time). The latter is pid reuse, not
     /// survival — the process this `TrackedProcess` named has already exited.
