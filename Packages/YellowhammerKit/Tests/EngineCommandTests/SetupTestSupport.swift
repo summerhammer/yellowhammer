@@ -89,11 +89,16 @@ func makeArguments(
     linearProject: String? = nil,
     linearTeam: String? = nil,
     specSource: String? = nil,
-    repo: [String] = []
+    repo: [String] = [],
+    installJobs: Bool = false,
+    exportJobs: String? = nil,
+    cron: Bool = false
 ) -> [String] {
     var arguments: [String] = []
     if initialize { arguments.append("--init") }
     if linearClientSecretStdin { arguments.append("--linear-client-secret-stdin") }
+    if installJobs { arguments.append("--install-jobs") }
+    if cron { arguments.append("--cron") }
     appendOption(&arguments, "--config", config)
     appendOption(&arguments, "--linear-client-id", linearClientID)
     appendOption(&arguments, "--route", route)
@@ -103,6 +108,7 @@ func makeArguments(
     appendOption(&arguments, "--linear-project", linearProject) // glossary:ignore GL001
     appendOption(&arguments, "--linear-team", linearTeam)
     appendOption(&arguments, "--spec-source", specSource)
+    appendOption(&arguments, "--export-jobs", exportJobs)
     appendRepeated(&arguments, "--cli", cli)
     appendRepeated(&arguments, "--fallback", fallback)
     appendRepeated(&arguments, "--repo", repo)
@@ -116,6 +122,45 @@ private func appendOption(_ arguments: inout [String], _ flag: String, _ value: 
 
 private func appendRepeated(_ arguments: inout [String], _ flag: String, _ values: [String]) {
     for value in values { arguments += [flag, value] }
+}
+
+/// A recording fake for ``LaunchAgentControl``: records every call, in order, and can be scripted to
+/// fail `enable`/`bootstrap` for a given label.
+final class RecordingLaunchAgentControl: LaunchAgentControl, @unchecked Sendable {
+    enum Call: Equatable {
+        case bootout(String)
+        case enable(String)
+        case bootstrap(String)
+    }
+
+    private let storage: Mutex<(calls: [Call], failingLabels: Set<String>)>
+
+    init(failingLabels: Set<String> = []) {
+        storage = Mutex((calls: [], failingLabels: failingLabels))
+    }
+
+    func bootout(label: String) async throws {
+        storage.withLock { $0.calls.append(.bootout(label)) }
+    }
+
+    func enable(label: String) async throws {
+        storage.withLock { $0.calls.append(.enable(label)) }
+        try failIfScripted(label: label)
+    }
+
+    func bootstrap(plistURL: URL) async throws {
+        let label = plistURL.deletingPathExtension().lastPathComponent
+        storage.withLock { $0.calls.append(.bootstrap(label)) }
+        try failIfScripted(label: label)
+    }
+
+    private func failIfScripted(label: String) throws {
+        let shouldFail = storage.withLock { $0.failingLabels.contains(label) }
+        guard shouldFail else { return }
+        throw LaunchctlError(description: "scripted failure for \(label)")
+    }
+
+    var calls: [Call] { storage.withLock { $0.calls } }
 }
 
 func makeBoard(
@@ -135,7 +180,13 @@ func makeSetup(
     credentials: RecordingCredentialStore = RecordingCredentialStore(seed: ["keychain:linear": "test-secret"]),
     output: RecordingOutput = RecordingOutput(),
     readStandardInputLine: @escaping () -> String? = { nil },
-    notifications: NotificationRegistrationStub = NotificationRegistrationStub(.allowed)
+    notifications: NotificationRegistrationStub = NotificationRegistrationStub(.allowed),
+    homeDirectory: URL = FileManager.default.temporaryDirectory
+        .appending(component: "yh-home-\(UUID().uuidString)", directoryHint: .isDirectory),
+    yhExecutablePath: String = "/usr/local/bin/yh",
+    setupTimePATH: String? = "/usr/bin:/bin",
+    fileExists: @escaping (String) -> Bool = { _ in false },
+    launchAgents: any LaunchAgentControl = RecordingLaunchAgentControl()
 ) throws -> Setup {
     let command = try SetupCommand.parse(arguments)
     let options = try SetupOptions(command: command)
@@ -147,6 +198,11 @@ func makeSetup(
         credentials: credentials,
         readStandardInputLine: readStandardInputLine,
         bindProvisioning: { _, _, _ in board },
-        registerNotifications: { await notifications.call() }
+        registerNotifications: { await notifications.call() },
+        homeDirectory: homeDirectory,
+        yhExecutablePath: yhExecutablePath,
+        setupTimePATH: setupTimePATH,
+        fileExists: fileExists,
+        launchAgents: launchAgents
     )
 }

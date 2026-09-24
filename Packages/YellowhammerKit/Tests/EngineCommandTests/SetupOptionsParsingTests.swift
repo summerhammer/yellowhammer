@@ -69,6 +69,36 @@ struct SetupOptionsParsingTests {
         #expect(throws: (any Error).self) { try SetupCommand.parse(arguments) }
     }
 
+    @Test("--install-jobs with --export-jobs is refused")
+    func installJobsWithExportJobsRefused() {
+        let arguments = makeArguments(operatorID: "user-op", installJobs: true, exportJobs: "/tmp/jobs")
+        #expect(throws: (any Error).self) { try SetupCommand.parse(arguments) }
+    }
+
+    @Test("--cron without --export-jobs is refused")
+    func cronWithoutExportJobsRefused() {
+        let arguments = makeArguments(operatorID: "user-op", cron: true)
+        #expect(throws: (any Error).self) { try SetupCommand.parse(arguments) }
+    }
+
+    @Test("--cron parses with --export-jobs, as .export(_, format: .cron)")
+    func cronParsesWithExportJobs() throws {
+        let arguments = makeArguments(operatorID: "user-op", exportJobs: "/tmp/jobs", cron: true)
+        let command = try SetupCommand.parse(arguments)
+        let options = try SetupOptions(command: command)
+        #expect(
+            options.jobs == .export(URL(filePath: "/tmp/jobs", directoryHint: .isDirectory), format: .cron)
+        )
+    }
+
+    @Test("--install-jobs alone parses as .install")
+    func installJobsAloneParses() throws {
+        let arguments = makeArguments(operatorID: "user-op", installJobs: true)
+        let command = try SetupCommand.parse(arguments)
+        let options = try SetupOptions(command: command)
+        #expect(options.jobs == .install)
+    }
+
     @Test("--config allows --operator and --linear-client-secret-stdin")
     func configAllowsOperatorAndStdin() throws {
         let arguments = makeArguments(

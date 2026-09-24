@@ -59,9 +59,10 @@ extension ActCommand {
         let mode: NightMode = rehearsal ? .rehearsal : .real
         let trigger = try makeTrigger()
 
-        // The land firing at night_end completes the Night; before P13.2 generates the LaunchAgents
-        // this is decided from the clock against the Project's [schedule], and a forced land after
-        // night_end closes the Night the same way.
+        // The land firing at night_end completes the Night; this is decided from the clock against the
+        // Project's [schedule], which the generated land LaunchAgent's final firing (night_end plus the
+        // Project's stagger offset) satisfies, and a forced land after night_end closes the Night the
+        // same way.
         let window = project.schedule.nightWindow(at: now)
         let closesNight = Self.act == .land && now >= window.end
 

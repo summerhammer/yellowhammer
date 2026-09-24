@@ -5,7 +5,8 @@ import Engine
 import Foundation
 
 /// `yh setup`: authorizes Yellowhammer's Linear identity, requires the Operator identity immediately
-/// after, provisions Linear per Project, registers local notification permission once, and warns about
+/// after, provisions Linear per Project, registers local notification permission once, generates each
+/// eligible Project's scheduled jobs (`--install-jobs`/`--export-jobs`/`--cron`), and warns about
 /// routing entries with no resilience (routing/overview, OQ13).
 ///
 /// Interactive by default: it prompts for whatever the options below did not already supply.
@@ -70,6 +71,18 @@ public struct SetupCommand: AsyncParsableCommand {
     @Option(name: .customLong("repo"), help: "A Repo, as `name,role,path,check`.")
     public var repo: [String] = []
 
+    @Flag(name: .customLong("install-jobs"), help: "Write and load every eligible Project's LaunchAgents.")
+    public var installJobs: Bool = false
+
+    @Option(
+        name: .customLong("export-jobs"),
+        help: "Write the scheduled jobs into this directory instead of loading them."
+    )
+    public var exportJobs: String?
+
+    @Flag(name: .customLong("cron"), help: "With --export-jobs, write a crontab file instead of plists.")
+    public var cron: Bool = false
+
     public init() {}
 
     public func validate() throws {
@@ -93,8 +106,26 @@ public struct SetupCommand: AsyncParsableCommand {
             bindProvisioning: { machine, linearProjectID, secret in
                 BoardBinding.provisioning(machine: machine, linearProjectID: linearProjectID, clientSecret: secret)
             },
-            registerNotifications: Self.registerNotifications
+            registerNotifications: Self.registerNotifications,
+            homeDirectory: FileManager.default.homeDirectoryForCurrentUser,
+            yhExecutablePath: Self.yhExecutablePath(),
+            setupTimePATH: ProcessInfo.processInfo.environment["PATH"],
+            fileExists: { FileManager.default.isExecutableFile(atPath: $0) },
+            launchAgents: LaunchctlLaunchAgentControl()
         ).run()
+    }
+
+    /// The absolute path to the `yh` binary currently running: the bundle's executable when running
+    /// inside the app-embedded `Contents/MacOS/yh`, otherwise `argv[0]` resolved against the current
+    /// directory.
+    private static func yhExecutablePath() -> String {
+        if let bundlePath = Bundle.main.executableURL?.resolvingSymlinksInPath().path {
+            return bundlePath
+        }
+        let argv0 = CommandLine.arguments[0]
+        guard !argv0.hasPrefix("/") else { return argv0 }
+        return URL(filePath: argv0, relativeTo: URL(filePath: FileManager.default.currentDirectoryPath))
+            .standardizedFileURL.path
     }
 
     private static func registerNotifications() async -> NotificationRegistration {

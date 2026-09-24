@@ -17,6 +17,19 @@ struct Setup {
     /// creation) — see ``BoardBinding/provisioning(machine:linearProjectID:clientSecret:)``.
     let bindProvisioning: (MachineConfiguration, String, String) throws -> any BoardProvisioning
     let registerNotifications: () async -> NotificationRegistration
+    /// Where `--install-jobs` writes LaunchAgents (`<homeDirectory>/Library/LaunchAgents`) and every
+    /// job's log path is expanded against. Tests inject a temp directory, never the real home.
+    let homeDirectory: URL
+    /// The resolved absolute path to the `yh` executable a generated job invokes.
+    let yhExecutablePath: String
+    /// The `PATH` the setup process itself ran with — the starting point ``ScheduledJob/composePATH``
+    /// composes from. `nil` when unset in the environment.
+    let setupTimePATH: String?
+    /// Whether a candidate tool path names an existing executable file, injected so PATH resolution
+    /// (`ProbeExecutable`) never touches the real filesystem in tests.
+    let fileExists: (String) -> Bool
+    /// `launchd`'s control surface for `--install-jobs`.
+    let launchAgents: any LaunchAgentControl
 
     var machineFileURL: URL {
         configurationDirectory.appending(component: "config.toml", directoryHint: .notDirectory)
@@ -26,9 +39,10 @@ struct Setup {
 
     /// With `--config`, adopts a prepared configuration directory first. Authorizes Yellowhammer's
     /// Linear identity, requires the Operator identity immediately after, provisions Linear per
-    /// Project, registers local notification permission once, and warns about routing entries with no
-    /// resilience. Throws with a clear message on any failure that stops setup; step 6's per-Project
-    /// failures are printed and accumulate into the final throw instead.
+    /// Project, generates each eligible Project's scheduled jobs, registers local notification
+    /// permission once, and warns about routing entries with no resilience. Throws with a clear message
+    /// on any failure that stops setup; step 6's per-Project failures are printed and accumulate into
+    /// the final throw instead.
     func run() async throws {
         if case .config(let source) = options.mode {
             try installPreparedConfiguration(from: source)
@@ -43,11 +57,16 @@ struct Setup {
         try await writeProjectsIfNeeded(machine: machine, secret: secret, board: board)
 
         let configuration = try validateConfiguration()
-        let provisioningFailed = await provisionProjects(configuration: configuration, machine: machine, secret: secret)
+        let provisioningFailedIDs = await provisionProjects(
+            configuration: configuration, machine: machine, secret: secret
+        )
+        let jobsFailed = await handleScheduledJobs(
+            configuration: configuration, machine: machine, provisioningFailedIDs: provisioningFailedIDs
+        )
         await reportNotifications()
         reportRoutingWarnings(configuration: configuration, machine: machine)
 
-        if !configuration.invalidProjects.isEmpty || provisioningFailed {
+        if !configuration.invalidProjects.isEmpty || !provisioningFailedIDs.isEmpty || jobsFailed {
             throw SetupError("setup finished with errors; see the output above")
         }
         output("Setup complete.")
