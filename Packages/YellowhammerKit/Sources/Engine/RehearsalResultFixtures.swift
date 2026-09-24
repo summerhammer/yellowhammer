@@ -75,29 +75,16 @@ public enum RehearsalResultFixture: String, CaseIterable, Sendable {
         }
     }
 
-    /// The fixture's location in the `Engine` module's resource bundle.
-    public var url: URL {
-        let fileName = (rawValue as NSString).deletingPathExtension
-        let fileExtension = (rawValue as NSString).pathExtension
-        guard
-            let url = Bundle.module.url(
-                forResource: fileName,
-                withExtension: fileExtension,
-                subdirectory: "Fixtures/RehearsalResults"
-            )
-        else {
-            preconditionFailure("RehearsalResultFixture(\(rawValue)) is missing from the Engine resource bundle")
-        }
-        return url
-    }
-
-    public func data() throws -> Data {
-        try Data(contentsOf: url)
+    /// This fixture's exact bytes, embedded in the binary (``contents``, in
+    /// `RehearsalResultFixtures+Contents.swift`) — never read from a resource bundle: a command-line
+    /// tool carries none at run time, so `yh` itself could never have read one from disk.
+    public func data() -> Data {
+        Data(contents.utf8)
     }
 
     /// Decodes this fixture against ``ResultFile``, as the engine would decode a live result file.
     public func decode() throws -> DispatchResult {
-        try ResultFile.decode(try data(), expecting: pass)
+        try ResultFile.decode(data(), expecting: pass)
     }
 
     /// What a rehearsal run of this fixture yields. A rehearsal Night never spawns a CLI: the
@@ -105,6 +92,6 @@ public enum RehearsalResultFixture: String, CaseIterable, Sendable {
     /// contract applies, so `workerEmpty` and `workerMalformed` are Crashed-Unknown exactly as a
     /// live run would be.
     public func outcome() -> RunOutcome {
-        RunOutcome.classify(end: .exited(status: 0), resultFileAt: url, pass: pass)
+        RunOutcome.classify(end: .exited(status: 0), resultFile: data(), pass: pass)
     }
 }

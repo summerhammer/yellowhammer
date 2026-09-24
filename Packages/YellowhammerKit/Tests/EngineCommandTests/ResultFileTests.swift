@@ -1,3 +1,4 @@
+import CryptoKit
 import Domain
 import Engine
 import Foundation
@@ -92,7 +93,7 @@ func malformedResultFileFailsValidation() throws {
 
 @Test("A worker file decoded expecting reviewer fails as .passMismatch")
 func passMismatchFailsValidation() throws {
-    let data = try RehearsalResultFixture.workerCompleted.data()
+    let data = RehearsalResultFixture.workerCompleted.data()
     #expect(throws: ResultFileError.passMismatch(expected: .reviewer, found: .worker)) {
         try ResultFile.decode(data, expecting: .reviewer)
     }
@@ -177,9 +178,50 @@ func unknownSchemaFailsValidation() throws {
     }
 }
 
-@Test("Every RehearsalResultFixture resolves to an existing file", arguments: RehearsalResultFixture.allCases)
-func everyRehearsalFixtureResolvesToExistingFile(_ fixture: RehearsalResultFixture) {
-    #expect(FileManager.default.fileExists(atPath: fixture.url.path))
+// P15.3 (live rehearsal fix): each fixture's bytes are embedded in the binary as a Swift string literal
+// (`RehearsalResultFixtures+Contents.swift`) — there is no resource bundle to resolve any more, so what
+// used to be "resolves to an existing file" is now "the embedded bytes match, exactly" (a SHA-256 pin
+// catches an accidental edit of a literal, byte-exact, including whitespace and the trailing newline).
+private let expectedFixtureDigests: [RehearsalResultFixture: String] = [
+    .architectPlanned: "403c590d8e581d66c6c02085755944f6fed363940dc36d498f73a90796b59f98",
+    .architectFailed: "db8cef6b8cf5ac5692f1873625da58d59573124409077df7e642898568b4d48c",
+    .workerCompleted: "501535b7c886b181028baf1a99f93af3c87a5ea3cc487ec599e6ab3da1511f0c",
+    .workerQuestion: "37bd66514d4169361524b0470bd4503a5c152847d72ddf2de93f1ee43b3eb5c4",
+    .workerFailed: "f2e00e9c19879f1b26dcf8418e3e6f06e48e64a790389c4de013b8dab7bb28d8",
+    .reviewerApproved: "21ad6ca67ab73188e3bf2a10d7e579ac482cb7e65d20798740560e013d9d8ca3",
+    .reviewerChangesRequested: "f6d0fcb2a5ea96a59d1058adec65ee36457aee747b9ad8db4615438daf91c3b7",
+    .workerEmpty: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    .workerMalformed: "b874c415fe379722db7186cb906e58e83de07da119ad63d598471a705aa1aa74",
+    .selectionSelected: "a1da06ea4e4fc901ff8a00dd58b5bcb5f33e62e93fb7981e4b20a5a5d7bf48bd",
+    .selectionNoSelectableFeature: "1b0ca854669f8da9d61661c90d39a68153933a711a50fde89bc66f176e5c9cfa",
+    .selectionFailed: "9358f2e2e905ba258e0c45ef7327d92d1637acce30ce78ed5c528337558a3630",
+    .breakdownDrafted: "92e63d7feb6c07f8adc724f7c873f1939956913e5399cdd855e928d07f3092a5",
+    .selectionSelectedWithContract: "5f4b186a8fcfe01056c17a02ceaac1267c6c548bef654e88239b966292e0cefa",
+    .breakdownDraftedWithContract: "fac62e5f3254c8309b82a3482e2ce69a04a8ee2d95198084f82da26b8bd94329",
+    .selectionSelectedAdopting: "db729b4453a7278d0e48f12f6defc0c1535e95009cb3690b3ada65c52f171633",
+    .selectionSelectedThreeRepos: "8fe7d6755672baecdb938a4c6c407c84be5a5f32507f6cdc7d157d24a043af15",
+    .breakdownDraftedThreeRepos: "8cbdcc03f685469d38d5bf64ac8901d63d0b9f2a03427d2d500b761f8f01fee0",
+    .verifierReported: "95acf13bc19f3b87b402fbf79a1a00854a55f09ba8ddab44fbf5ce8c440ca5e7",
+    .verifierFailed: "a52c4b637f685edb166e1914cb79b9f3cfd2f4ed5a9032fbf31dc181740d1a8d"
+]
+
+@Test(
+    "Every RehearsalResultFixture's embedded bytes match a pinned SHA-256",
+    arguments: RehearsalResultFixture.allCases
+)
+func everyRehearsalFixtureMatchesPinnedDigest(_ fixture: RehearsalResultFixture) throws {
+    let digest = SHA256.hash(data: fixture.data()).map { String(format: "%02x", $0) }.joined()
+    let expected = try #require(expectedFixtureDigests[fixture])
+    #expect(digest == expected)
+}
+
+@Test("workerEmpty is zero bytes and classifies Crashed-Unknown")
+func workerEmptyIsZeroBytesAndCrashedUnknown() {
+    #expect(RehearsalResultFixture.workerEmpty.data().isEmpty)
+    guard case .crashedUnknown = RehearsalResultFixture.workerEmpty.outcome() else {
+        Issue.record("expected workerEmpty to classify Crashed-Unknown")
+        return
+    }
 }
 
 @Test("The with-contract selection fixture selects both fixture-backend and fixture-web")

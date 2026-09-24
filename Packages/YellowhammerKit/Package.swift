@@ -71,8 +71,7 @@ let package = Package(
                 "Journal",
                 "Repositories",
                 .product(name: "Subprocess", package: "swift-subprocess")
-            ],
-            resources: [.copy("Fixtures")]
+            ]
         ),
         .target(
             name: "LinearAdapter",

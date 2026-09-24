@@ -1,9 +1,0 @@
-{
-  "schema": "yellowhammer.result.selection",
-  "version": 1,
-  "outcome": "selected",
-  "name": "Fixture Feature: rehearsal adoption",
-  "reasoning": "Fixture data: a rehearsal Night's selection answer, not a judgement about any specification.",
-  "repositories": ["fixture-backend", "fixture-web"],
-  "adopted_card_issue_ids": []
-}
