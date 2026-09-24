@@ -1470,7 +1470,7 @@ comment on the Delta Read).
 - **Done when** — Each check has a passing and a failing fixture. An orphaned agent is found and
   removed.
 
-### [ ] P13.4 `yh status`
+### [x] P13.4 `yh status`
 - **Work** — Per Project, on demand: last Journal run, `launchd` job state, sleep and wake history,
   and a diagnosis of a missed Night (sleep, missing or disabled job, pre-initialization crash). No
   cross-Project verdict.
