@@ -1,6 +1,0 @@
-{
-  "schema": "yellowhammer.result.worker",
-  "version": 1,
-  "outcome": "question",
-  "question": "The DoD asks for a 40-hex commit, but the Worktree has no commits yet. Should I create an empty commit first?"
-}

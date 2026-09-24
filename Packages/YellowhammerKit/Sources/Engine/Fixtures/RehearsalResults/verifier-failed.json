@@ -1,6 +1,0 @@
-{
-  "schema": "yellowhammer.result.verifier",
-  "version": 1,
-  "outcome": "failed",
-  "reason": "Fixture data: the verifier pass could not read the finished code."
-}
