@@ -1528,7 +1528,7 @@ comment on the Delta Read).
 - **Done when** — Edits made in the app round-trip through the loader. Invalid edits are refused
   with the loader's message.
 
-### [ ] P14.4 Agent CLI detail and Probe trigger
+### [x] P14.4 Agent CLI detail and Probe trigger
 - **Work** — List declared CLIs with their latest Probe Result from the Ledger, and run a Probe on
   demand.
 - **Spec** — system-overview → Yellowhammer app; `routing/add-an-agent-cli`.
