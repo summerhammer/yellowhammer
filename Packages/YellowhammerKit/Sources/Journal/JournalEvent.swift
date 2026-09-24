@@ -395,6 +395,12 @@ public enum JournalEvent: Equatable, Sendable {
     case reselectionBoundReached(depth: Int, reselectionsMax: Int)
     case refusalPromotedToStandingItem(feature: String, consecutiveRefusals: Int, consecutiveRefusalsMax: Int)
     case cardPromotedToStandingItem(cardID: Int64, issueID: String, failedAdoptions: Int, failedAdoptionsMax: Int)
+    /// Explicit Project removal completed (roadmap P13.5; spec risks OQ52(1)): appended once, whether or
+    /// not there was anything to close, archive or release. `featureIssueID` is the in-flight Feature
+    /// Issue commented on, nil when none was in flight. `removedWorktrees` and `keptWorktrees` are the
+    /// repositories whose held Worktree was removed and left in place respectively (a dirty Worktree in
+    /// rehearsal, say).
+    case projectRemoved(featureIssueID: String?, removedWorktrees: [String], keptWorktrees: [String])
 
     // `type`, the exhaustive switch from a case to its `JournalEventType`, lives in
     // JournalEvent+Type.swift, split out to keep this file under the file length limit.

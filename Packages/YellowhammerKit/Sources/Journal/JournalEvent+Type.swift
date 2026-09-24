@@ -217,6 +217,8 @@ extension JournalEvent {
             .refusalPromotedToStandingItem
         case .cardPromotedToStandingItem:
             .cardPromotedToStandingItem
+        case .projectRemoved:
+            .projectRemoved
         }
     }
 }
