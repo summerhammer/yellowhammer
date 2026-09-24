@@ -10,7 +10,6 @@ import SwiftUI
 struct ProjectWindow: View {
     @Binding var project: ProjectID?
     @State private var configured = ConfiguredProjects(entries: [], loadFailure: nil)
-    @State private var notificationsPost = true
     @Environment(\.openWindow) private var openWindow
 
     /// The Project this window shows: its own value, or the first configured one for a new window.
@@ -37,9 +36,6 @@ struct ProjectWindow: View {
             // Every window may take a deep link, so a link never opens a stray window of its own.
             .handlesExternalEvents(preferring: [ProjectDeepLink.scheme], allowing: [ProjectDeepLink.scheme])
             .onOpenURL(perform: open)
-            .task {
-                notificationsPost = await NotificationPermission.requestAtSetup()
-            }
     }
 
     @ViewBuilder private var content: some View {
@@ -59,19 +55,19 @@ struct ProjectWindow: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
+                setupButton
             } else {
                 Text("No Project is configured.")
-            }
-            if !notificationsPost {
-                Text(
-                    "Local notifications are off. Halted and closed Nights still reach you on the Night Card in Linear."
-                )
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+                setupButton
             }
         }
         .multilineTextAlignment(.center)
         .padding()
+    }
+
+    private var setupButton: some View {
+        Button("Set Up Yellowhammer…") { openWindow(id: "setup") } // glossary:ignore GL001
+            .accessibilityIdentifier("open-setup")
     }
 
     /// Scopes a new window to the linked Project, and otherwise brings forward that Project's window,

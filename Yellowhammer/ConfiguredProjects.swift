@@ -21,11 +21,11 @@ struct ConfiguredProjects: Equatable {
     /// The launch argument that points the app at another configuration directory, for UI tests
     /// (`-YellowhammerConfigurationDirectory <path>`). Only the argument domain is read, so it cannot
     /// persist through `defaults write`.
-    static let directoryArgument = "YellowhammerConfigurationDirectory"
+    static let directoryArgument = ConfigurationDirectory.argument
 
     static func load() -> ConfiguredProjects {
         do {
-            let configuration = try Configuration.load(directory: directory)
+            let configuration = try Configuration.load(directory: ConfigurationDirectory.current)
             let entries = configuration.projects
                 .map { Entry(id: $0.id, name: $0.name) }
                 .sorted {
@@ -43,13 +43,5 @@ struct ConfiguredProjects: Equatable {
 
     func entry(for id: ProjectID?) -> Entry? {
         entries.first { $0.id == id }
-    }
-
-    private static var directory: URL {
-        let arguments = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
-        if let path = arguments[directoryArgument] as? String {
-            return URL(filePath: path, directoryHint: .isDirectory)
-        }
-        return Configuration.defaultDirectoryURL(homeDirectory: FileManager.default.homeDirectoryForCurrentUser)
     }
 }

@@ -18,5 +18,27 @@ struct YellowhammerApp: App {
         WindowGroup(for: ProjectID.self) { $project in
             ProjectWindow(project: $project)
         }
+        .commands {
+            CommandGroup(after: .appInfo) {
+                SetupMenuCommand()
+            }
+        }
+
+        // Not Project-scoped: declaring a new Project happens here, never in a Project window.
+        Window("Setup", id: SetupMenuCommand.windowID) {
+            SetupWizardView()
+        }
+    }
+}
+
+/// A menu command needs its own `@Environment` to read `openWindow`: the App's `.commands` builder does
+/// not otherwise resolve scene environment values.
+private struct SetupMenuCommand: View {
+    static let windowID = "setup"
+
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("Setup…") { openWindow(id: Self.windowID) } // glossary:ignore GL001
     }
 }

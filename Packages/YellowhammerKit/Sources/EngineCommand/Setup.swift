@@ -44,6 +44,10 @@ struct Setup {
     /// on any failure that stops setup; step 6's per-Project failures are printed and accumulate into
     /// the final throw instead.
     func run() async throws {
+        if case .printChoices = options.mode {
+            try await printChoices()
+            return
+        }
         if case .config(let source) = options.mode {
             try installPreparedConfiguration(from: source)
         }
