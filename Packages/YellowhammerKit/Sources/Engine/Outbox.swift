@@ -66,7 +66,7 @@ public struct Outbox: Sendable {
 
     /// The client id a key resolves to in this Project: the same key always yields the same id.
     public func clientID(for key: String) -> UUID {
-        OutboxClientID.make(projectID: journal.projectID, key: key)
+        OutboxClientID.make(projectID: journal.projectID, salt: journal.outboxSalt, key: key)
     }
 
     // MARK: - Accepting

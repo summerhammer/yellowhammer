@@ -14,29 +14,8 @@ import Testing
 
 @Suite("Outbox")
 struct OutboxTests {
-    // MARK: - Client ids
-
-    @Test("The same Project and key always yield the same client id, and another Project never shares it")
-    func deterministicClientIDs() throws {
-        let alpha = try #require(ProjectID(rawValue: "alpha"))
-        let beta = try #require(ProjectID(rawValue: "beta"))
-
-        let first = OutboxClientID.make(projectID: alpha, key: "card:1:main:1:create")
-        #expect(first == OutboxClientID.make(projectID: alpha, key: "card:1:main:1:create"))
-        #expect(first != OutboxClientID.make(projectID: alpha, key: "card:1:main:2:create"))
-        #expect(first != OutboxClientID.make(projectID: beta, key: "card:1:main:1:create"))
-        #expect(UUID(uuidString: first.uuidString) == first)
-    }
-
-    @Test("A client id is shaped as a version-4 UUID with the RFC 4122 variant, the only form Linear accepts")
-    func clientIDsAreVersion4() throws {
-        let alpha = try #require(ProjectID(rawValue: "alpha"))
-        for key in ["card:1:main:1:create", "night:2026-09-23:create", "comment:x:1:crash"] {
-            let bytes = OutboxClientID.make(projectID: alpha, key: key).uuid
-            #expect(bytes.6 >> 4 == 4)
-            #expect(bytes.8 >> 6 == 0b10)
-        }
-    }
+    // Client id determinism, salting and shape moved to OutboxClientIDTests.swift (SwiftLint's
+    // type_body_length).
 
     // MARK: - Accepting
 

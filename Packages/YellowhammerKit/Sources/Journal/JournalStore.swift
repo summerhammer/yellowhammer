@@ -7,6 +7,11 @@ import GRDB
 public final class JournalStore: Sendable {
     public let projectID: ProjectID
     public let fileURL: URL
+    /// Salts this Journal's Outbox client ids (``OutboxClientID/make(projectID:salt:key:)``): empty for a
+    /// Journal that already had Outbox entries when `v29-outbox-salt` ran, otherwise a random value fixed
+    /// for the life of the Journal, read once here so a reset Project's fresh Journal never recomputes an
+    /// id that resolves to an issue archived under the previous one.
+    public let outboxSalt: String
     private let queue: DatabaseQueue
 
     /// How long a connection waits for SQLite's lock before failing with `SQLITE_BUSY`. The app reads
@@ -14,10 +19,18 @@ public final class JournalStore: Sendable {
     /// transaction; neither holds the lock for long.
     static let busyTimeout: TimeInterval = 5
 
-    private init(projectID: ProjectID, fileURL: URL, queue: DatabaseQueue) {
+    private init(projectID: ProjectID, fileURL: URL, queue: DatabaseQueue, outboxSalt: String) {
         self.projectID = projectID
         self.fileURL = fileURL
         self.queue = queue
+        self.outboxSalt = outboxSalt
+    }
+
+    /// The `project_state.outbox_salt` column, read once at open.
+    private static func readOutboxSalt(_ queue: DatabaseQueue) throws -> String {
+        try queue.read { db in
+            try String.fetchOne(db, sql: "SELECT outbox_salt FROM project_state WHERE id = 1") ?? ""
+        }
     }
 
     /// Returns `<configurationDirectory>/journals/<id>.db` (spec G-3 / OQ52). The Journal path is a
@@ -61,7 +74,7 @@ public final class JournalStore: Sendable {
 
         try JournalMigrations.migrator.migrate(queue)
 
-        return JournalStore(projectID: projectID, fileURL: fileURL, queue: queue)
+        return JournalStore(projectID: projectID, fileURL: fileURL, queue: queue, outboxSalt: try readOutboxSalt(queue))
     }
 
     /// The app's open: read-only, never migrates. Throws JournalError.schemaNewerThanKnown if the store has migrations this build does not know, and JournalError.schemaBehind if not fully migrated (only the engine migrates). Throws JournalError.missing if the file does not exist (never creates a file).
@@ -101,7 +114,7 @@ public final class JournalStore: Sendable {
             }
         }
 
-        return JournalStore(projectID: projectID, fileURL: fileURL, queue: queue)
+        return JournalStore(projectID: projectID, fileURL: fileURL, queue: queue, outboxSalt: try readOutboxSalt(queue))
     }
 
     /// Identifiers of the migrations this build knows, in order. Last one is the current schema version.

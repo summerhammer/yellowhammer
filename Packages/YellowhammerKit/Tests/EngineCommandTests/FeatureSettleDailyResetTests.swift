@@ -39,7 +39,9 @@ struct FeatureSettleDailyResetTests {
         }
 
         let expectedKey = "settle:\(world.cycleID):reset:\(context.night.id)"
-        let clientID = OutboxClientID.make(projectID: world.journal.projectID, key: expectedKey)
+        let clientID = OutboxClientID.make(
+            projectID: world.journal.projectID, salt: world.journal.outboxSalt, key: expectedKey
+        )
         let entry = try world.journal.outboxEntry(clientID: clientID)
         #expect(entry?.state == .applied)
     }
