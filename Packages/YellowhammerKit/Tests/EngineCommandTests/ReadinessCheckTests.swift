@@ -154,6 +154,25 @@ func briefMissingFailsReadiness() async throws {
 
     let attempts = try scenario.journal.attemptHistory(cardID: scenario.cardOne)
     #expect(attempts.attempts.isEmpty)
+    #expect(
+        try scenario.journal.currentCardLease(cardID: scenario.cardOne) == nil,
+        "a Card the lane moves past leaves no Card Lease held for the next Act to wait out"
+    )
+}
+
+@Test("A Ready Card keeps the Card Lease the check claimed, for the Card run to take over")
+func readyCardKeepsItsLease() async throws {
+    let scenario = try await makeReadinessScenario()
+    defer { cleanup(scenario) }
+    let readiness = ReadinessCheck(provenance: FakeProvenanceTester(), citations: FakeCitationResolver())
+
+    let verdict = try await directEvaluate(scenario, cardID: scenario.cardTwo, readiness: readiness)
+
+    guard case .ready = verdict else {
+        Issue.record("expected the second Card to be Ready, got \(verdict)")
+        return
+    }
+    #expect(try scenario.journal.currentCardLease(cardID: scenario.cardTwo) != nil)
 }
 
 @Test("A Card with a brief but no Definition of Done fails readiness")
