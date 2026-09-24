@@ -14,10 +14,12 @@ import Repositories
 ///    and human comments ride in its report for later phases to consume.
 /// 3. Derives Repo Lanes from the in-flight Feature's Cards, read fresh from the Journal after the
 ///    Delta Read, so Cancelled Cards (and a reclaimed Card's return to Ready) are already reflected.
-/// 4. Runs lanes concurrently, and each lane's Cards one at a time in authored order, through an
-///    injectable ``CardRunner`` (the per-Card run itself is P8.4, a later phase) — a Crashed-Unknown
-///    reclaim retries its Card's same Route once in this very pass, since the Card is back in Todo and
-///    that ending never excludes a Route.
+/// 4. Runs lanes concurrently. Each lane with runnable Cards and a bound Workspace first allocates its
+///    Repo's Worktree (``WorktreeAllocator``, graph-execution/allocate-a-worktree-per-graph-and-repo) —
+///    reusing one already held for this Feature and repository — before running its Cards one at a time
+///    in authored order, through an injectable ``CardRunner`` (the per-Card run itself is P8.4, a later
+///    phase) — a Crashed-Unknown reclaim retries its Card's same Route once in this very pass, since the
+///    Card is back in Todo and that ending never excludes a Route.
 /// 5. Writes back (delivers pending Outbox entries) and returns; the invocation records `ActEnded` and
 ///    releases the lease.
 ///
@@ -217,6 +219,18 @@ public struct BuildAct: Sendable {
             act: actContext.act, runID: actContext.runID, nightID: actContext.night.id
         )
 
+        if let allocationFailure = await allocateWorktree(
+            runnable: runnable, lane: lane, context: context, actContext: actContext
+        ) {
+            _ = try? actContext.journal.append(
+                .repoLaneEnded(
+                    repository: lane.repository, cardsRun: 0, failure: allocationFailure, cardsSkipped: 0
+                ),
+                act: actContext.act, runID: actContext.runID, nightID: actContext.night.id
+            )
+            return (lane.repository, allocationFailure)
+        }
+
         var cardsRun = 0
         var cardsSkipped = 0
         var failure: String?
@@ -250,6 +264,44 @@ public struct BuildAct: Sendable {
             act: actContext.act, runID: actContext.runID, nightID: actContext.night.id
         )
         return (lane.repository, failure)
+    }
+
+    /// Allocates this lane's Repo's Worktree (graph-execution/allocate-a-worktree-per-graph-and-repo)
+    /// before its first Card, when the lane has Cards to run and a Workspace is bound. Returns a
+    /// description of the failure when allocation cannot proceed; nil otherwise. Skips allocation
+    /// entirely — never returning a failure — when the lane has no runnable Cards or no Workspace is
+    /// bound, so a fake-runner test with no Workspace keeps behaving exactly as before.
+    private func allocateWorktree(
+        runnable: [CardRecord], lane: RepoLane, context: BuildActContext, actContext: ActContext
+    ) async -> String? {
+        guard !runnable.isEmpty, let workspace = actContext.workspace else { return nil }
+
+        guard let branch = context.feature.branch else {
+            return BuildActError.featureBranchUnrecorded(featureID: context.feature.id).description
+        }
+
+        // A Worktree already held for (Feature, repository) is reused with no Orca ADE call
+        // (``WorktreeAllocator/allocate(featureID:branch:repos:)``), so no configured ``Repo`` is
+        // needed to resolve it — only a fresh allocation needs the repository's path.
+        do {
+            if try actContext.journal.heldWorktree(featureID: context.feature.id, repository: lane.repository) != nil {
+                return nil
+            }
+        } catch {
+            return String(describing: error)
+        }
+
+        guard let repo = actContext.repositories?.workingRepo(named: lane.repository) else {
+            return "no configured repository named '\(lane.repository)' for Worktree allocation"
+        }
+
+        let allocator = WorktreeAllocator(workspace: workspace, journal: actContext.journal, runID: actContext.runID)
+        do {
+            _ = try await allocator.allocate(featureID: context.feature.id, branch: branch, repos: [repo])
+            return nil
+        } catch {
+            return String(describing: error)
+        }
     }
 
     /// Re-reads a Card just run and, when it is now Blocked or Waiting on You, appends
