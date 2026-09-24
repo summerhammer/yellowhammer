@@ -111,6 +111,70 @@ enum StubAgentCLI {
         """
     )
 
+    /// Codex shape: the leader itself honors SIGTERM and exits at once, but it spawned a child
+    /// into a new session (`setsid`) before that — a direct child (`setsid` never changes
+    /// `ppid`), so it is found by walking the leader's descendant tree, but outside the leader's
+    /// process group, so a group-only signal never reaches it. That child does NOT ignore
+    /// SIGTERM, so it dies from the descendant sweep's own signal, without ever needing SIGKILL.
+    static let leaderExitsOnTermLeavingEscapedChild = shell(
+        """
+        if [ "$3" = child ]; then
+            echo $$ > "$2/child"
+            exec sleep 60
+        fi
+        perl -MPOSIX -e 'POSIX::setsid(); exec { $ARGV[0] } @ARGV' "$0" "$1" "$2" child &
+        trap 'exit 0' TERM
+        echo ready > "$2/ready"
+        sleep 60
+        """
+    )
+
+    /// claude shape: the escaped (`setsid`) child ignores SIGTERM outright, so containing it
+    /// needs the SIGKILL escalation, sent by pid identity (never by process group, which the
+    /// child already escaped).
+    static let escapedChildIgnoresTerm = shell(
+        """
+        if [ "$3" = child ]; then
+            trap '' TERM
+            echo $$ > "$2/child"
+            exec sleep 60
+        fi
+        perl -MPOSIX -e 'POSIX::setsid(); exec { $ARGV[0] } @ARGV' "$0" "$1" "$2" child &
+        echo ready > "$2/ready"
+        sleep 60
+        """
+    )
+
+    /// The leader's own SIGTERM handler is what spawns the escaped, SIGTERM-ignoring child — so
+    /// it does not exist at the moment the first SIGTERM goes out, and can only be found by
+    /// walking the descendant tree again during the grace window. The handler then loops forever
+    /// instead of returning, so the leader stays alive (and walkable) throughout.
+    ///
+    /// Two things earn a comment here, both found empirically: `bash`'s trap only actually runs
+    /// between commands, or when a blocking `wait` is interrupted — never mid-syscall inside a
+    /// plain foreground `sleep`, and not reliably when the handler is a named shell function
+    /// either. So the handler is written inline, as a single trap string, and the leader
+    /// backgrounds its `sleep` and blocks in `wait` instead of running it in the foreground.
+    /// Second, the handler ignores TERM for itself before forking: `SIG_IGN` (unlike a caught
+    /// signal) survives `exec`, so the forked perl — and the script it `setsid`s and re-execs
+    /// into — is immune to a SIGTERM landing in the narrow window before its own
+    /// `trap '' TERM` line runs, exactly what the descendant sweep sends the instant it
+    /// discovers the new pid.
+    static let spawnsEscapedChildOnTerm = shell(
+        """
+        if [ "$3" = child ]; then
+            trap '' TERM
+            echo $$ > "$2/late"
+            exec sleep 60
+        fi
+        trap 'trap "" TERM; perl -MPOSIX -e "POSIX::setsid(); exec { \\$ARGV[0] } @ARGV" \
+            "$0" "$1" "$2" child & while :; do sleep 1; done' TERM
+        echo ready > "$2/ready"
+        sleep 60 &
+        wait
+        """
+    )
+
     /// Writes to both stdout and stderr, then completes cleanly.
     static let writesStdoutAndStderr = shell(
         """
