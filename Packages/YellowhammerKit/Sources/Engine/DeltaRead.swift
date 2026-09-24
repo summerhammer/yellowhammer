@@ -204,7 +204,7 @@ public struct DeltaRead: Sendable {
         pendingWrites: Set<String>,
         into report: inout DeltaReadReport
     ) throws -> Bool {
-        let boardSaysCancelled = boardState.name == CardState.cancelled.rawValue
+        let boardSaysCancelled = boardState.isCancelled
         switch (card.state, boardSaysCancelled) {
         case (.cancelled, true):
             return false

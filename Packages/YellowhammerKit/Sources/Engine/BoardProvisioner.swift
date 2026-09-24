@@ -8,8 +8,8 @@ import Foundation
 /// merged Routing Table's values when one is given, and refreshed by re-running provisioning after
 /// the table changes: a value it no longer names is never removed, because nothing ever clears an
 /// Override. The settle workflow-state group (`Kept in Flight`, `Released`) is provisioned alongside
-/// `Waiting on You`; a same-name state of another type is a collision, never reused (G-6 probe,
-/// 2026-09-23).
+/// `Waiting on You` and `Blocked`; a same-name state of another type is a collision, never reused
+/// (G-6 probe, 2026-09-23).
 public struct BoardProvisioner {
     /// The exact name of the workflow state Yellowhammer depends on, glossary-verbatim.
     public static let waitingOnYouState = "Waiting on You"
@@ -17,10 +17,10 @@ public struct BoardProvisioner {
     /// The category every workflow state Yellowhammer provisions is created with.
     private static let provisionedStateCategory: BoardWorkflowStateCategory = .started
 
-    /// The workflow states provisioned once per team, in this order: Waiting on You, then the
-    /// settle group in `SettleValue`'s declaration order.
+    /// The workflow states provisioned once per team, in this order: Waiting on You, Blocked, then
+    /// the settle group in `SettleValue`'s declaration order.
     private static var declaredWorkflowStates: [String] {
-        [waitingOnYouState] + SettleValue.allCases.map(\.rawValue)
+        [waitingOnYouState, blockedState] + SettleValue.allCases.map(\.rawValue)
     }
 
     /// The workflow state for unstarted work.

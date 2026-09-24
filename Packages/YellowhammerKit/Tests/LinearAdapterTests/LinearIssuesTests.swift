@@ -76,6 +76,34 @@ struct LinearIssuesTests {
         #expect(page.nextCursor == nil)
     }
 
+    @Test("A state's vendor type 'canceled' decodes to the cancelled category")
+    func cancelledCategoryDecodes() async throws {
+        let nodes = """
+            {"id":"issue-1","identifier":"ENG-123","title":"Add the thing","description":"Body",
+             "url":"https://linear.app/acme/issue/ENG-123","createdAt":"2026-09-01T10:00:00.000Z",
+             "updatedAt":"2026-09-15T22:30:15.250Z",
+             "state":{"id":"state-1","name":"Canceled","type":"canceled"},
+             "labels":{"nodes":[]},"parent":null}
+            """
+        let transport = StubHTTPTransport([Fixture.token(), Fixture.issues(nodes: nodes)])
+        let page = try await Fixture.adapter(transport).objects(updatedSince: nil)
+
+        let card = try #require(page.objects.first)
+        #expect(card.workflowState.name == "Canceled")
+        #expect(card.workflowState.category == .cancelled)
+        #expect(card.workflowState.isCancelled)
+    }
+
+    @Test("The issues query requests the workflow state's vendor type")
+    func issuesQueryRequestsType() async throws {
+        let transport = StubHTTPTransport([Fixture.token(), Fixture.issues()])
+        _ = try await Fixture.adapter(transport).objects(updatedSince: nil)
+
+        let body = try Fixture.body(transport.requests[1])
+        let query = try #require(body["query"] as? String)
+        #expect(query.contains("state { id name type }"))
+    }
+
     @Test("hasNextPage drives nextCursor, and the cursor is sent back as after")
     func cursorRoundTrips() async throws {
         let transport = StubHTTPTransport([

@@ -69,6 +69,13 @@ public struct BoardWorkflowState: Hashable, Sendable {
         self.name = name
         self.category = category
     }
+
+    /// True when the board itself says this state is cancelled — by category, or (a team may have
+    /// renamed its state without changing its type) by the exact name Yellowhammer provisions,
+    /// `Cancelled`. The one shared predicate every Cancelled comparison routes through.
+    public var isCancelled: Bool {
+        category == .cancelled || name == CardState.cancelled.rawValue
+    }
 }
 
 /// Yellowhammer's vocabulary for a workflow state's category, translated from the board's own by an

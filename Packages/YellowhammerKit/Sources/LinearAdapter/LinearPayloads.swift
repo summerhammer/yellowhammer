@@ -42,6 +42,7 @@ struct LinearIssuesPayload: Decodable {
     struct Node: Decodable {
         let id: String
         let name: String
+        let type: String?
     }
 
     struct Labels: Decodable {
@@ -129,5 +130,6 @@ struct LinearDeltaPayload: Decodable {
     struct DeltaCommentState: Decodable {
         let id: String
         let name: String
+        let type: String?
     }
 }

@@ -74,7 +74,8 @@ extension LinearAdapter {
             issueKey: comment.issue.identifier,
             issueWorkflowState: BoardWorkflowState(
                 id: BoardObjectID(rawValue: comment.issue.state.id),
-                name: comment.issue.state.name
+                name: comment.issue.state.name,
+                category: LinearAdapter.category(of: comment.issue.state.type)
             ),
             body: comment.body,
             parent: comment.parent.map { BoardObjectID(rawValue: $0.id) },
