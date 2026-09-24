@@ -17,6 +17,9 @@ actor FakeProvisioningBoard: BoardProvisioning {
     private var refusals: [BoardError] = []
     /// When true, ``linearProject()`` always throws `.scopeNotFound`, even after creation.
     private var alwaysScopeNotFound = false
+    /// Errors thrown by the next call to ``workspaceMembers()``, in order, consumed before it answers
+    /// (`yh doctor`'s Linear check exercises the authorization failure path).
+    private var workspaceMembersRefusals: [BoardError] = []
     var members: [BoardMember] = []
     var boardTeams: [BoardTeam] = []
 
@@ -24,7 +27,16 @@ actor FakeProvisioningBoard: BoardProvisioning {
         self.project = project
     }
 
-    func workspaceMembers() async throws(BoardError) -> [BoardMember] { members }
+    func refuseWorkspaceMembersNext(_ error: BoardError) {
+        workspaceMembersRefusals.append(error)
+    }
+
+    func workspaceMembers() async throws(BoardError) -> [BoardMember] {
+        if !workspaceMembersRefusals.isEmpty {
+            throw workspaceMembersRefusals.removeFirst()
+        }
+        return members
+    }
 
     func teams() async throws(BoardError) -> [BoardTeam] { boardTeams }
 

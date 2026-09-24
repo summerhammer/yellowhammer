@@ -133,14 +133,24 @@ final class RecordingLaunchAgentControl: LaunchAgentControl, @unchecked Sendable
         case bootstrap(String)
     }
 
-    private let storage: Mutex<(calls: [Call], failingLabels: Set<String>)>
+    private struct State {
+        var calls: [Call] = []
+        var failingLabels: Set<String>
+        var loadedLabels: Set<String>
+    }
 
-    init(failingLabels: Set<String> = []) {
-        storage = Mutex((calls: [], failingLabels: failingLabels))
+    private let storage: Mutex<State>
+
+    init(failingLabels: Set<String> = [], loadedLabels: Set<String> = []) {
+        storage = Mutex(State(failingLabels: failingLabels, loadedLabels: loadedLabels))
     }
 
     func bootout(label: String) async throws {
         storage.withLock { $0.calls.append(.bootout(label)) }
+    }
+
+    func isLoaded(label: String) async -> Bool {
+        storage.withLock { $0.loadedLabels.contains(label) }
     }
 
     func enable(label: String) async throws {
