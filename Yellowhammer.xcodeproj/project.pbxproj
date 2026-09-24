@@ -10,6 +10,7 @@
 		5083DD4E3056713700E6D6D3 /* yh in CopyFiles */ = {isa = PBXBuildFile; fileRef = 5083DD46305670D400E6D6D3 /* yh */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		5083DD59305674F500E6D6D3 /* Domain in Frameworks */ = {isa = PBXBuildFile; productRef = 5083DD58305674F500E6D6D3 /* Domain */; };
 		5083DD5B305674F500E6D6D3 /* EngineCommand in Frameworks */ = {isa = PBXBuildFile; productRef = 5083DD5A305674F500E6D6D3 /* EngineCommand */; };
+		508F4CD6306526DF00AFF241 /* Config in Frameworks */ = {isa = PBXBuildFile; productRef = 508F4CD5306526DF00AFF241 /* Config */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -19,6 +20,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 5083DD45305670D400E6D6D3;
 			remoteInfo = Engine;
+		};
+		508F4CDF3065273100AFF241 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5083DD2C3056702600E6D6D3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5083DD333056702600E6D6D3;
+			remoteInfo = Yellowhammer;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -47,6 +55,7 @@
 /* Begin PBXFileReference section */
 		5083DD343056702600E6D6D3 /* Yellowhammer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Yellowhammer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5083DD46305670D400E6D6D3 /* yh */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = yh; sourceTree = BUILT_PRODUCTS_DIR; };
+		508F4CDB3065273100AFF241 /* YellowhammerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = YellowhammerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -60,6 +69,11 @@
 			path = Engine;
 			sourceTree = "<group>";
 		};
+		508F4CDC3065273100AFF241 /* YellowhammerUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = YellowhammerUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -67,6 +81,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				508F4CD6306526DF00AFF241 /* Config in Frameworks */,
 				5083DD59305674F500E6D6D3 /* Domain in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -79,6 +94,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		508F4CD83065273100AFF241 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -87,6 +109,8 @@
 			children = (
 				5083DD363056702600E6D6D3 /* Yellowhammer */,
 				5083DD47305670D400E6D6D3 /* Engine */,
+				508F4CDC3065273100AFF241 /* YellowhammerUITests */,
+				508F4CD4306526DF00AFF241 /* Frameworks */,
 				5083DD353056702600E6D6D3 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -96,8 +120,16 @@
 			children = (
 				5083DD343056702600E6D6D3 /* Yellowhammer.app */,
 				5083DD46305670D400E6D6D3 /* yh */,
+				508F4CDB3065273100AFF241 /* YellowhammerUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		508F4CD4306526DF00AFF241 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -123,6 +155,7 @@
 			name = Yellowhammer;
 			packageProductDependencies = (
 				5083DD58305674F500E6D6D3 /* Domain */,
+				508F4CD5306526DF00AFF241 /* Config */,
 			);
 			productName = Yellowhammer;
 			productReference = 5083DD343056702600E6D6D3 /* Yellowhammer.app */;
@@ -151,6 +184,29 @@
 			productReference = 5083DD46305670D400E6D6D3 /* yh */;
 			productType = "com.apple.product-type.tool";
 		};
+		508F4CDA3065273100AFF241 /* YellowhammerUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 508F4CE13065273100AFF241 /* Build configuration list for PBXNativeTarget "YellowhammerUITests" */;
+			buildPhases = (
+				508F4CD73065273100AFF241 /* Sources */,
+				508F4CD83065273100AFF241 /* Frameworks */,
+				508F4CD93065273100AFF241 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				508F4CE03065273100AFF241 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				508F4CDC3065273100AFF241 /* YellowhammerUITests */,
+			);
+			name = YellowhammerUITests;
+			packageProductDependencies = (
+			);
+			productName = YellowhammerUITests;
+			productReference = 508F4CDB3065273100AFF241 /* YellowhammerUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -158,7 +214,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2660;
+				LastSwiftUpdateCheck = 2700;
 				LastUpgradeCheck = 2660;
 				TargetAttributes = {
 					5083DD333056702600E6D6D3 = {
@@ -166,6 +222,10 @@
 					};
 					5083DD45305670D400E6D6D3 = {
 						CreatedOnToolsVersion = 26.6;
+					};
+					508F4CDA3065273100AFF241 = {
+						CreatedOnToolsVersion = 27.0;
+						TestTargetID = 5083DD333056702600E6D6D3;
 					};
 				};
 			};
@@ -188,12 +248,20 @@
 			targets = (
 				5083DD333056702600E6D6D3 /* Yellowhammer */,
 				5083DD45305670D400E6D6D3 /* Engine */,
+				508F4CDA3065273100AFF241 /* YellowhammerUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		5083DD323056702600E6D6D3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		508F4CD93065273100AFF241 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -217,6 +285,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		508F4CD73065273100AFF241 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -224,6 +299,11 @@
 			isa = PBXTargetDependency;
 			target = 5083DD45305670D400E6D6D3 /* Engine */;
 			targetProxy = 5083DD5C305674F500E6D6D3 /* PBXContainerItemProxy */;
+		};
+		508F4CE03065273100AFF241 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5083DD333056702600E6D6D3 /* Yellowhammer */;
+			targetProxy = 508F4CDF3065273100AFF241 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -361,6 +441,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Support/Yellowhammer-Info.plist";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -392,6 +473,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Support/Yellowhammer-Info.plist";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -442,6 +524,44 @@
 			};
 			name = Release;
 		};
+		508F4CE23065273100AFF241 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = A2SJL2N487;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.yellowhammer.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = Yellowhammer;
+			};
+			name = Debug;
+		};
+		508F4CE33065273100AFF241 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = A2SJL2N487;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.yellowhammer.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = Yellowhammer;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -472,6 +592,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		508F4CE13065273100AFF241 /* Build configuration list for PBXNativeTarget "YellowhammerUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				508F4CE23065273100AFF241 /* Debug */,
+				508F4CE33065273100AFF241 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -489,6 +618,11 @@
 		5083DD5A305674F500E6D6D3 /* EngineCommand */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = EngineCommand;
+		};
+		508F4CD5306526DF00AFF241 /* Config */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5083DD57305674F500E6D6D3 /* XCLocalSwiftPackageReference "Packages/YellowhammerKit" */;
+			productName = Config;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
