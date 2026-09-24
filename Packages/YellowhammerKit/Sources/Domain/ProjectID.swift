@@ -20,3 +20,23 @@ public struct ProjectID: RawRepresentable, Hashable, Sendable {
 extension ProjectID: CustomStringConvertible {
     public var description: String { rawValue }
 }
+
+/// Encodes as its raw string, and refuses to decode an invalid one. The app scopes each window to a
+/// Project by this value, and SwiftUI encodes it to restore windows.
+extension ProjectID: Codable {
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        guard let id = ProjectID(rawValue: rawValue) else {
+            throw DecodingError.dataCorruptedError(
+                in: container, debugDescription: "Invalid Project id: \(rawValue)"
+            )
+        }
+        self = id
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
