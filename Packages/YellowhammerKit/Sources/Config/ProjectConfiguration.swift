@@ -115,7 +115,9 @@ extension ProjectConfiguration {
         try parse(text, file: file, fileStem: nil, declaredCLIAdapters: declaredCLIAdapters)
     }
 
-    private static func parse(
+    /// Also used by ``Configuration/load(directory:reading:as:)`` to parse a Project file's substituted
+    /// text against its filename's stem, without re-reading it from disk.
+    static func parse(
         _ text: String, file: String, fileStem: String?, declaredCLIAdapters: Set<String>?
     ) throws(ConfigurationError) -> ProjectConfiguration {
         let root = try TOMLParser.parse(text, file: file)

@@ -38,25 +38,30 @@ enum ConfigurationRendering {
     }
 
     /// A route rendered as the `"cli/model/effort"` shorthand ``ConfigurationDecoding/route(_:path:defaultEffort:)``
-    /// accepts.
-    static func route(_ route: Route) -> String {
-        quoted(route.description)
-    }
-
-    static func kindLine(_ kind: Kind) -> String? {
-        kind == .any ? nil : "kind = \(quoted(kind.description))"
-    }
-
-    static func repoRoleLine(_ match: RepoRoleMatch) -> String? {
-        switch match {
-        case .any: nil
-        case .role(let role): "repo_role = \(quoted(role.rawValue))"
+    /// accepts when every part is non-empty and none contains `/` (which the shorthand cannot carry);
+    /// otherwise the inline-table form `{ cli = "…", model = "…", effort = "…" }`, which the decoder
+    /// accepts for any string, including one holding a `/` (such as an OpenRouter model id).
+    static func route(_ route: RouteDraft) -> String {
+        let parts = [route.cli, route.model, route.effort]
+        if parts.allSatisfy({ !$0.isEmpty && !$0.contains("/") }) {
+            return quoted(parts.joined(separator: "/"))
         }
+        return "{ cli = \(quoted(route.cli)), model = \(quoted(route.model)), effort = \(quoted(route.effort)) }"
+    }
+
+    /// `kind = "…"`, omitted when `kind` is `""` (not set — the loader treats that as `*`).
+    static func kindLine(_ kind: String) -> String? {
+        kind.isEmpty ? nil : "kind = \(quoted(kind))"
+    }
+
+    /// `repo_role = "…"`, omitted when `repoRole` is `""` (not set — the loader treats that as any Repo Role).
+    static func repoRoleLine(_ repoRole: String) -> String? {
+        repoRole.isEmpty ? nil : "repo_role = \(quoted(repoRole))"
     }
 
     /// One `[[routing]]` entry, in the key order the decoder reads: `kind`, `repo_role`, `route`,
     /// `fallbacks`.
-    static func routingEntry(_ entry: RoutingEntry) -> String {
+    static func routingEntry(_ entry: RoutingEntryDraft) -> String {
         var lines = ["[[routing]]"]
         if let kindLine = kindLine(entry.kind) { lines.append(kindLine) }
         if let repoRoleLine = repoRoleLine(entry.repoRole) { lines.append(repoRoleLine) }
@@ -68,8 +73,57 @@ enum ConfigurationRendering {
         return lines.joined(separator: "\n")
     }
 
-    static func routingSection(_ entries: [RoutingEntry]) -> [String] {
+    static func routingSection(_ entries: [RoutingEntryDraft]) -> [String] {
         entries.map { routingEntry($0) }
+    }
+
+    // MARK: - Project file
+
+    static func renderedRepo(_ repo: RepoDraft) -> String {
+        var lines = ["[[repos]]"]
+        lines.append("name = \(quoted(repo.name))")
+        lines.append("path = \(quoted(repo.path))")
+        lines.append("role = \(quoted(repo.role))")
+        lines.append("check = \(quoted(repo.check))")
+        if !repo.protectedPaths.isEmpty {
+            let items = repo.protectedPaths.map { quoted($0) }.joined(separator: ", ")
+            lines.append("protected_paths = [\(items)]")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// A Bound rendered as the bare integer when its trimmed text parses as one, so the common case
+    /// stays an unquoted TOML integer; otherwise as a quoted string, so the loader reports its own
+    /// `typeMismatch` rather than the draft silently coercing (or refusing) a garbage value.
+    static func boundValue(_ string: String) -> String {
+        let trimmed = string.trimmingCharacters(in: .whitespaces)
+        if let integer = Int64(trimmed) {
+            return String(integer)
+        }
+        return quoted(string)
+    }
+
+    /// All six Bounds, explicit — see the spec citation on ``ConfigurationRendering``.
+    static func renderedLimits(_ bounds: BoundsDraft) -> String {
+        """
+        [limits]
+        review_rounds_max = \(boundValue(bounds.reviewRoundsMax))
+        attempts_per_card = \(boundValue(bounds.attemptsPerCard))
+        unanswered_nights_max = \(boundValue(bounds.unansweredNightsMax))
+        reselections_max = \(boundValue(bounds.reselectionsMax))
+        consecutive_refusals_max = \(boundValue(bounds.consecutiveRefusalsMax))
+        failed_adoptions_max = \(boundValue(bounds.failedAdoptionsMax))
+        """
+    }
+
+    /// All three `[schedule]` keys, explicit.
+    static func renderedSchedule(_ schedule: Schedule) -> String {
+        """
+        [schedule]
+        night_start = \(quoted(schedule.nightStart.description))
+        night_end = \(quoted(schedule.nightEnd.description))
+        build_every_minutes = \(schedule.buildEveryMinutes)
+        """
     }
 }
 
@@ -77,28 +131,7 @@ extension MachineConfiguration {
     /// Renders `[linear]`, `[github]`, one `[cli.<name>]` table per declared adapter and the base
     /// Routing Table, in the shape ``MachineConfigurationDecoder`` reads back.
     public var renderedTOML: String {
-        var sections: [String] = []
-
-        var linear = ["[linear]", "credential = \(ConfigurationRendering.quoted(linearCredential.rawValue))"]
-        linear.append("client_id = \(ConfigurationRendering.quoted(linearClientID))")
-        if let operatorIdentity {
-            linear.append("operator = \(ConfigurationRendering.quoted(operatorIdentity.rawValue))")
-        }
-        sections.append(linear.joined(separator: "\n"))
-
-        sections.append("[github]\ncredential = \(ConfigurationRendering.quoted(gitHubCredential.rawValue))")
-
-        for adapter in cliAdapters {
-            var lines = ["[cli.\(ConfigurationRendering.quotedKey(adapter.name))]"]
-            if let executable = adapter.executable {
-                lines.append("executable = \(ConfigurationRendering.quoted(executable))")
-            }
-            sections.append(lines.joined(separator: "\n"))
-        }
-
-        sections.append(contentsOf: ConfigurationRendering.routingSection(routingTable))
-
-        return sections.joined(separator: "\n\n") + "\n"
+        renderedTOML(routingTable: routingTable.map(RoutingEntryDraft.init))
     }
 
     /// A textual edit of an existing, hand-maintained `config.toml`: preserves every other line,
@@ -147,63 +180,6 @@ extension ProjectConfiguration {
     /// (all three keys, explicit) — see the spec citation on ``ConfigurationRendering`` — plus an
     /// optional `[github]` override and any Routing Table overrides.
     public var renderedTOML: String {
-        var sections: [String] = []
-
-        var top = ["id = \(ConfigurationRendering.quoted(id.rawValue))"]
-        top.append("name = \(ConfigurationRendering.quoted(name))")
-        top.append("linear_project = \(ConfigurationRendering.quoted(linearProject))") // glossary:ignore GL001
-        if let specSource {
-            top.append("spec_source = \(ConfigurationRendering.quoted(specSource))")
-        }
-        sections.append(top.joined(separator: "\n"))
-
-        if let gitHubCredential {
-            sections.append("[github]\ncredential = \(ConfigurationRendering.quoted(gitHubCredential.rawValue))")
-        }
-
-        for repo in repos {
-            sections.append(renderedRepo(repo))
-        }
-
-        sections.append(renderedLimits)
-        sections.append(renderedSchedule)
-
-        sections.append(contentsOf: ConfigurationRendering.routingSection(routingOverrides))
-
-        return sections.joined(separator: "\n\n") + "\n"
-    }
-
-    private func renderedRepo(_ repo: RepoDeclaration) -> String {
-        var lines = ["[[repos]]"]
-        lines.append("name = \(ConfigurationRendering.quoted(repo.name))")
-        lines.append("path = \(ConfigurationRendering.quoted(repo.path))")
-        lines.append("role = \(ConfigurationRendering.quoted(repo.role.rawValue))")
-        lines.append("check = \(ConfigurationRendering.quoted(repo.check.description))")
-        if !repo.protectedPaths.isEmpty {
-            let items = repo.protectedPaths.map { ConfigurationRendering.quoted($0) }.joined(separator: ", ")
-            lines.append("protected_paths = [\(items)]")
-        }
-        return lines.joined(separator: "\n")
-    }
-
-    private var renderedLimits: String {
-        """
-        [limits]
-        review_rounds_max = \(bounds.reviewRoundsMax)
-        attempts_per_card = \(bounds.attemptsPerCard)
-        unanswered_nights_max = \(bounds.unansweredNightsMax)
-        reselections_max = \(bounds.reselectionsMax)
-        consecutive_refusals_max = \(bounds.consecutiveRefusalsMax)
-        failed_adoptions_max = \(bounds.failedAdoptionsMax)
-        """
-    }
-
-    private var renderedSchedule: String {
-        """
-        [schedule]
-        night_start = \(ConfigurationRendering.quoted(schedule.nightStart.description))
-        night_end = \(ConfigurationRendering.quoted(schedule.nightEnd.description))
-        build_every_minutes = \(schedule.buildEveryMinutes)
-        """
+        ProjectFileDraft(self).renderedTOML
     }
 }

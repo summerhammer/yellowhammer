@@ -68,17 +68,32 @@ extension Configuration {
     /// A missing `projects` directory yields no Projects; what `yh` does about missing configuration
     /// is decided where an Act fires, not here.
     public static func load(directory: URL) throws(ConfigurationError) -> Configuration {
-        let machine = try MachineConfiguration.load(
-            contentsOf: directory.appending(component: "config.toml", directoryHint: .notDirectory)
-        )
+        try load(directory: directory, substitution: nil)
+    }
+
+    /// Loads `directory` exactly as ``load(directory:)`` does, except that wherever the loader would
+    /// read `file` from disk — `config.toml`, or any `projects/<id>.toml` — it uses `text` instead.
+    /// Used to validate an edit before it is written (``save(_:to:in:replacing:)``).
+    public static func load(
+        directory: URL, reading file: URL, as text: String
+    ) throws(ConfigurationError) -> Configuration {
+        try load(directory: directory, substitution: (file: file, text: text))
+    }
+
+    private static func load(
+        directory: URL, substitution: (file: URL, text: String)?
+    ) throws(ConfigurationError) -> Configuration {
+        let machineFileURL = directory.appending(component: "config.toml", directoryHint: .notDirectory)
+        let machine = try loadMachine(at: machineFileURL, substitution: substitution)
         let declaredCLIAdapters = Set(machine.cliAdapters.map(\.name))
+
         var decoded: [(file: String, configuration: ProjectConfiguration)] = []
         var invalid: [InvalidProject] = []
         for url in projectFileURLs(in: directory) {
             let file = url.path(percentEncoded: false)
             do {
-                let configuration = try ProjectConfiguration.load(
-                    contentsOf: url, declaredCLIAdapters: declaredCLIAdapters
+                let configuration = try loadProject(
+                    at: url, declaredCLIAdapters: declaredCLIAdapters, substitution: substitution
                 )
                 decoded.append((file, configuration))
             } catch {
@@ -110,6 +125,31 @@ extension Configuration {
             invalidProjects: invalid.sorted { $0.file < $1.file },
             routingTables: routingTables
         )
+    }
+
+    /// Reads `url`, or parses `substitution`'s text in its place when `url` is the substituted file.
+    private static func loadMachine(
+        at url: URL, substitution: (file: URL, text: String)?
+    ) throws(ConfigurationError) -> MachineConfiguration {
+        if let substitution, samePath(substitution.file, url) {
+            return try MachineConfiguration.parse(substitution.text, file: url.path(percentEncoded: false))
+        }
+        return try MachineConfiguration.load(contentsOf: url)
+    }
+
+    /// Reads `url`, or parses `substitution`'s text in its place when `url` is the substituted file.
+    private static func loadProject(
+        at url: URL, declaredCLIAdapters: Set<String>, substitution: (file: URL, text: String)?
+    ) throws(ConfigurationError) -> ProjectConfiguration {
+        if let substitution, samePath(substitution.file, url) {
+            return try ProjectConfiguration.parse(
+                substitution.text,
+                file: url.path(percentEncoded: false),
+                fileStem: url.deletingPathExtension().lastPathComponent,
+                declaredCLIAdapters: declaredCLIAdapters
+            )
+        }
+        return try ProjectConfiguration.load(contentsOf: url, declaredCLIAdapters: declaredCLIAdapters)
     }
 
     private static func projectFileURLs(in directory: URL) -> [URL] {
@@ -167,6 +207,12 @@ extension Configuration {
         return errors.mapValues { errors in
             errors.sorted { ($0.line, $0.description) < ($1.line, $1.description) }
         }
+    }
+
+    /// Whether two URLs name the same file, once standardized. Used to find the file a substituted
+    /// read (``load(directory:reading:as:)``) applies to.
+    private static func samePath(_ first: URL, _ second: URL) -> Bool {
+        first.standardizedFileURL.path(percentEncoded: false) == second.standardizedFileURL.path(percentEncoded: false)
     }
 
     /// Expands a leading `~` and removes `.`, `..` and a trailing slash. Purely lexical: the path
