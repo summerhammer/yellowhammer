@@ -145,7 +145,7 @@ Then, **once per team** the Linear project belongs to (Projects sharing a team s
   matched by name, case-insensitively;
 - the label group `Object Type` with `Feature`, `Card`, `Night Card`;
 - the label group `Block Reason` with `blocked by reviewer`, `blocked by check`, `hard failure`,
-  `unanswered`, `undecided`.
+  `host crash`, `unanswered`, `undecided`, `released` (`BlockReason.allCases`).
 
 Every item is reported `present`, `created`, `collision` or `blocked`. A label of the same name
 anywhere the team can see it — a workspace label, a team label, or a label in another group — is a

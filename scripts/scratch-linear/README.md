@@ -22,6 +22,16 @@ points at are P15.2's concern, not this tool's.
    `../../doc/linear-identity-runbook.md` → *Storing credentials* — the **scratch** app's secret,
    never production's:
 
+   First check whether the machine already has it. `-U` overwrites the item, so writing it again is
+   how a working secret gets lost:
+
+   ```sh
+   security find-generic-password -s dev.yellowhammer -a linear >/dev/null && echo present
+   ```
+
+   Only if it is absent (or known to be wrong), store it. Replace the whole placeholder, angle
+   brackets included, with the secret itself:
+
    ```sh
    security add-generic-password -U -s dev.yellowhammer -a linear -w '<scratch-client-secret>'
    ```
@@ -31,6 +41,18 @@ points at are P15.2's concern, not this tool's.
 
 2. Create the scratch Linear team by hand, in the scratch workspace's Linear UI. This tool and
    `yh setup` both only ever provision *inside* an existing team — neither one ever creates a team.
+   Then, in that team:
+
+   - **Add the app user as a team member** (team → Settings → Members, or the app's team access
+     in Linear's settings). A `client_credentials` app can *see* every public team but belongs to
+     none, and until it is a member Linear refuses its label creation with `FORBIDDEN`. Setup
+     currently reports that refusal as "the Project's Linear project is not visible".
+   - **Create the three workflow states by hand if setup is refused them:** `Waiting on You`,
+     `Kept in Flight` and `Released`, all under **Started**. A same-named state in another
+     category (such as `Released` under Completed) is a collision and is never used. Whether team
+     membership also lifts this refusal is unconfirmed (yellowhammer-spec#58).
+   - A workspace label named `Feature` (one of Linear's defaults) collides with the `Object Type`
+     group's `Feature`. Rename or delete it in the scratch workspace.
 
 3. For each rehearsing Project, generate its configuration and provision its Linear project inside
    the scratch team with `yh setup --init` (`Packages/YellowhammerKit/Sources/EngineCommand/
@@ -42,11 +64,15 @@ points at are P15.2's concern, not this tool's.
      --linear-client-id <scratch-client-id> \
      --cli claude \
      --route claude/sonnet/medium \
+     --operator <operator-linear-user-id> \
      --project rehearsal-a \
      --linear-team SCRATCH \
      --spec-source /path/to/throwaway/rehearsal-a-spec \
      --repo 'app,backend,/path/to/throwaway/rehearsal-a-app,swift build'
    ```
+
+   `yh setup --print-choices --linear-client-id <scratch-client-id>` lists the Operator candidates
+   and the teams the app can see, and writes nothing.
 
    This creates the Linear project inside team `SCRATCH` (since `--linear-project` was not given)
    and runs `Engine.BoardProvisioner` for it (workflow states, the `Object Type` and `Block Reason`
