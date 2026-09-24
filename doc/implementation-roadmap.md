@@ -1433,7 +1433,7 @@ comment on the Delta Read).
 
 ## Phase 13 — Setup & operations CLI
 
-### [ ] P13.1 `yh setup`
+### [x] P13.1 `yh setup`
 - **Work**
   - Interactive and non-interactive modes (`--init`, `--config <path>`).
   - Generate the machine-wide file and per-Project files with defaults.
