@@ -1580,7 +1580,7 @@ comment on the Delta Read).
 
 ## Phase 15 — Rehearsal environment & end-to-end rehearsal
 
-### [ ] P15.1 `[DevOps]` Scratch Linear environment
+### [x] P15.1 `[DevOps]` Scratch Linear environment
 - **Work**
   - One scratch Linear team shared by all rehearsing Projects, one scratch Linear project each.
   - Provisioning run against it (P5.3).
