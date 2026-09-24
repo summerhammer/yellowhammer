@@ -50,4 +50,21 @@ struct RehearseTests {
         #expect(output.lines.contains("rehearsal Night: the build Act failed"))
         #expect(!output.lines.contains { $0.contains("land Act") })
     }
+
+    @Test(
+        "The real seam builds each Act's command as `yh <act> --project --force --rehearsal` would",
+        arguments: [Act.author, .build, .land]
+    )
+    func realSeamBuildsParsedCommands(act: Act) throws {
+        let invocation = RehearseActInvocation(act: act, project: "alpha", force: true, rehearsal: true)
+
+        let command = try Rehearse.command(for: invocation)
+
+        #expect(type(of: command).act == act)
+        #expect(command.project == "alpha")
+        #expect(command.force)
+        #expect(command.rehearsal)
+        // Reads every option, AuthorCommand's `--feature` included: an undecoded one traps here.
+        #expect(try command.makeTrigger() == .forced)
+    }
 }
