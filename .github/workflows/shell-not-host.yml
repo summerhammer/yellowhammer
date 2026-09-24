@@ -1,0 +1,28 @@
+name: Shell-not-host harness
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  shell-not-host:
+    name: Shell-not-host harness
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      # The check itself needs a Mac, the built app and rehearsal Projects (scripts/shell-not-host/README.md);
+      # CI runs only the harness's own unit tests.
+      - name: Run unit tests
+        run: python3 -m unittest discover -s scripts/shell-not-host/tests -v
