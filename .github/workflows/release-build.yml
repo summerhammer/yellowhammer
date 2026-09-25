@@ -1,10 +1,11 @@
 name: Release build
 
-# Builds a signed, versioned Release .app from a tag (roadmap P16.2). Stops there:
-# notarization and stapling are P16.3, packaging (DMG/zip for distribution) is P16.4.
-# Never add a pull_request trigger: it would hand the signing secrets to code on any PR
-# branch. See doc/signing-identity.md for the secrets and their ownership, and
-# doc/release-build.md for the versioning scheme.
+# Builds a signed, versioned Release .app from a tag (roadmap P16.2), then submits it for
+# notarization, staples the ticket, and verifies the result (roadmap P16.3). Stops there:
+# packaging (DMG/zip for distribution, checksums, hosting) is P16.4.
+# Never add a pull_request trigger: it would hand the signing and notarization secrets to
+# code on any PR branch. See doc/signing-identity.md for the secrets and their ownership,
+# and doc/release-build.md for the versioning scheme and the notarization step.
 
 on:
   push:
@@ -27,7 +28,7 @@ jobs:
   release-build:
     name: Release build
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 75
     env:
       XCODE_VERSION: "26.6"
       DEVELOPER_TEAM_ID: A2SJL2N487
@@ -87,12 +88,17 @@ jobs:
             build/DerivedData/Build/Products/Release/Yellowhammer.app \
             "$MARKETING_VERSION" "$CURRENT_PROJECT_VERSION"
 
-      - name: Zip app bundle
+      - name: Notarize, staple and verify
+        env:
+          NOTARY_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
+          NOTARY_API_ISSUER_ID: ${{ secrets.NOTARY_API_ISSUER_ID }}
         run: |
-          mkdir -p build/artifacts
-          ditto -c -k --keepParent \
+          mkdir -p build/notarization build/artifacts
+          export NOTARIZED_ZIP_NAME="Yellowhammer-$MARKETING_VERSION-$CURRENT_PROJECT_VERSION.zip"
+          scripts/release/notarize.sh \
             build/DerivedData/Build/Products/Release/Yellowhammer.app \
-            "build/artifacts/Yellowhammer-$MARKETING_VERSION-$CURRENT_PROJECT_VERSION.zip"
+            build/notarization
+          cp "build/notarization/$NOTARIZED_ZIP_NAME" "build/artifacts/$NOTARIZED_ZIP_NAME"
 
       - name: Upload release build artifacts
         if: always()
@@ -102,6 +108,8 @@ jobs:
           path: |
             build/artifacts/
             build/xcodebuild.log
+            build/notarization/notarization-submit.json
+            build/notarization/notarization-log.json
 
       - name: Delete temporary keychain
         if: always()
