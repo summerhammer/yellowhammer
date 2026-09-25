@@ -2,14 +2,11 @@ name: Release signing
 
 # Proves the release job can sign with the Developer ID Application identity and
 # authenticate for notarization using CI secrets only (roadmap P16.1).
+# Never add a pull_request trigger: it would hand the signing secrets to code on any PR branch.
 # See doc/signing-identity.md for the secrets and their ownership.
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - scripts/release/setup-signing.sh
-      - .github/workflows/release-signing.yml
   schedule:
     - cron: '0 6 1 * *' # Monthly, so an expired credential is found before a release is.
 
