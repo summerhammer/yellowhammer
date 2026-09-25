@@ -663,28 +663,26 @@ class OperatorClient:
     MANAGED_START = "<!-- yh:managed:start -->"
     MANAGED_END = "<!-- yh:managed:end -->"
 
-    def replace_scope_line(self, issue_id, new_line):
+    def declare_scope(self, issue_id, new_line):
+        """The Operator declares a Card's scope: its `**Scope:** ` line inside the Managed Block, which
+        the build Act's Readiness Check reads back. Replaces the line the Engine rendered, or adds one
+        right after the start marker when the block has none yet — a freshly authored Card's block
+        carries only its Architectural Brief and Definition of Done."""
+        if not new_line.startswith(self.SCOPE_LINE_PREFIX):
+            new_line = self.SCOPE_LINE_PREFIX + new_line
         data = self.graphql("query($id: String!) { issue(id: $id) { description } }", {"id": issue_id})
         description = data["issue"]["description"] or ""
         start = description.find(self.MANAGED_START)
         end = description.find(self.MANAGED_END)
         if start == -1 or end == -1 or end < start:
             raise scratch_linear.LinearError(f"issue {issue_id}: no yh:managed block found")
-        block = description[start:end]
-        lines = block.split("\n")
-        replaced = False
-        new_lines = []
-        for line in lines:
-            if line.startswith(self.SCOPE_LINE_PREFIX):
-                new_lines.append(new_line if new_line.startswith(self.SCOPE_LINE_PREFIX) else self.SCOPE_LINE_PREFIX + new_line)
-                replaced = True
-            else:
-                new_lines.append(line)
-        if not replaced:
-            raise scratch_linear.LinearError(
-                f"issue {issue_id}: no {self.SCOPE_LINE_PREFIX!r} line found inside the managed block"
-            )
-        new_description = description[:start] + "\n".join(new_lines) + description[end:]
+        lines = description[start:end].split("\n")
+        scope_indices = [i for i, line in enumerate(lines) if line.strip().startswith(self.SCOPE_LINE_PREFIX)]
+        if scope_indices:
+            lines[scope_indices[0]] = new_line
+        else:
+            lines.insert(1, new_line)
+        new_description = description[:start] + "\n".join(lines) + description[end:]
         self.graphql(
             "mutation($id: String!, $description: String!) { "
             "issueUpdate(id: $id, input: {description: $description}) { success } }",

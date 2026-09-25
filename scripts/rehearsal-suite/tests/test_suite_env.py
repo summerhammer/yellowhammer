@@ -482,7 +482,7 @@ class OperatorClientTests(unittest.TestCase):
         with self.assertRaises(suite_env.scratch_linear.LinearError):
             client.move_to_state_of_type("ISSUE-1", "canceled")
 
-    def test_replace_scope_line_edits_only_the_fenced_line(self):
+    def test_declare_scope_replaces_only_the_fenced_line(self):
         description = (
             "Some intro text.\n"
             "<!-- yh:managed:start -->\n"
@@ -496,30 +496,42 @@ class OperatorClientTests(unittest.TestCase):
             (200, json.dumps({"data": {"issueUpdate": {"success": True}}})),
         ])
         client = suite_env.OperatorClient(transport, "key")
-        client.replace_scope_line("ISSUE-1", "**Scope:** migrations/0002_fixture.sql")
+        client.declare_scope("ISSUE-1", "**Scope:** migrations/0002_fixture.sql")
         new_description = transport.calls[1]["payload"]["variables"]["description"]
         self.assertIn("**Scope:** migrations/0002_fixture.sql", new_description)
         self.assertNotIn("old/path.sql", new_description)
+        self.assertEqual(new_description.count("**Scope:** "), 1)
         self.assertIn("Other managed line.", new_description)
         self.assertIn("Some intro text.", new_description)
         self.assertIn("Trailer text.", new_description)
 
-    def test_replace_scope_line_refuses_when_block_absent(self):
+    def test_declare_scope_refuses_when_block_absent(self):
         transport = FakeTransport([
             (200, json.dumps({"data": {"issue": {"description": "no managed block here"}}})),
         ])
         client = suite_env.OperatorClient(transport, "key")
         with self.assertRaises(suite_env.scratch_linear.LinearError):
-            client.replace_scope_line("ISSUE-1", "**Scope:** x")
+            client.declare_scope("ISSUE-1", "**Scope:** x")
 
-    def test_replace_scope_line_refuses_when_scope_line_absent(self):
-        description = "<!-- yh:managed:start -->\nNo scope line here.\n<!-- yh:managed:end -->\n"
+    def test_declare_scope_adds_the_line_to_a_freshly_authored_block(self):
+        # What authoring posts: the fence holds only the Architectural Brief and the Definition of Done.
+        description = (
+            "<!-- yh:managed:start -->\n\n### Architectural Brief\n\nApproach prose.\n\n"
+            "### Definition of Done\n\n- [ ] <!-- yh:clause:c1 --> Covered. (epic/story)\n"
+            "  <!-- yh:managed:end -->\n\nUnit of work."
+        )
         transport = FakeTransport([
             (200, json.dumps({"data": {"issue": {"description": description}}})),
+            (200, json.dumps({"data": {"issueUpdate": {"success": True}}})),
         ])
         client = suite_env.OperatorClient(transport, "key")
-        with self.assertRaises(suite_env.scratch_linear.LinearError):
-            client.replace_scope_line("ISSUE-1", "**Scope:** x")
+        client.declare_scope("ISSUE-1", "`migrations/0002_fixture.sql`")
+        new_description = transport.calls[1]["payload"]["variables"]["description"]
+        self.assertTrue(new_description.startswith(
+            "<!-- yh:managed:start -->\n**Scope:** `migrations/0002_fixture.sql`\n\n### Architectural Brief\n"
+        ))
+        self.assertIn("- [ ] <!-- yh:clause:c1 --> Covered. (epic/story)", new_description)
+        self.assertTrue(new_description.endswith("  <!-- yh:managed:end -->\n\nUnit of work."))
 
 
 # MARK: - Orca cleanup parsing

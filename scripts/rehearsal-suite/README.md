@@ -85,8 +85,9 @@ stands in for the Operator merging pull requests; `transcription-path-touched` f
 moving a transcribed contract.
 
 The Operator's board gestures use the Operator credential: a threaded reply to the Engine's question
-comment, moving a Card to the team's cancelled state and back to Todo, and replacing a Card's
-`**Scope:**` line in its Managed Block.
+comment, moving a Card to the team's cancelled state and back to Todo, and declaring a Card's scope
+with a `**Scope:**` line in its Managed Block — replacing the one the Engine rendered, or adding it
+to a freshly authored Card's block, which carries only its Architectural Brief and Definition of Done.
 
 ## Scenarios
 
