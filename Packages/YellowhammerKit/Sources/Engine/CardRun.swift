@@ -10,7 +10,8 @@ import Journal
 ///    that records an outcome; a lost Lease cancels the run and nothing is written as if it were complete.
 ///    A run the engine cancels (the Act Lease lost, a heartbeat failed) stops at the next Attempt boundary
 ///    without concluding the pass the cancellation aborted, and leaves the Card Lease to expire, so the
-///    Card is reclaimable and its Attempt budget is not spent on the engine's own stop.
+///    Card is reclaimable and its Attempt budget is not spent on the engine's own stop. An engine fault
+///    does the same once the Card is In Progress or has an open Attempt; before that it releases the Lease.
 /// 2. Resolves the Route and records the Attempt (``CardRouting``); zero candidates Block the Card and an
 ///    Override that cannot resolve is a Readiness Check failure, and either way nothing is dispatched.
 /// 3. Moves the Card to In Progress, then dispatches the architect, then the worker, in the lane's
@@ -110,7 +111,13 @@ public struct CardRun: CardRunner {
             // released Lease leaves an In Progress Card no sweep and no lane would ever pick up.
             throw error
         } catch {
-            _ = try? journal.releaseCardLease(cardID: card.id, runID: runID)
+            // An engine fault (a vendor or transport error, a spawn failure, a Journal write, a Worktree
+            // gone) releases the Lease only while the Card is untouched: still Todo, with no open Attempt.
+            // Once the run has moved it or opened an Attempt, the Card is reclaimable, and no partial state
+            // was written as if it were complete, only because the Lease is left to expire (issue #173).
+            if Self.releasesLeaseOnFault(card: card, journal: journal) {
+                _ = try? journal.releaseCardLease(cardID: card.id, runID: runID)
+            }
             throw error
         }
 
@@ -201,6 +208,17 @@ public struct CardRun: CardRunner {
         if error is CancellationError { return true }
         if case JournalError.actLeaseLost = error { return true }
         return false
+    }
+
+    /// Whether an engine fault may release the Card Lease: only when the Journal shows the Card still
+    /// Todo with no open Attempt, so a Repo Lane runs it again. A Card In Progress, or with an open
+    /// Attempt, is reclaimed only by the Expired Lease Sweep, which skips a Card with no Lease row. A
+    /// Journal that cannot say keeps the Lease: a Lease left over costs one TTL, a released one strands
+    /// the Card.
+    private static func releasesLeaseOnFault(card: CardRecord, journal: JournalStore) -> Bool {
+        guard let current = try? journal.card(id: card.id),
+            let history = try? journal.attemptHistory(cardID: card.id) else { return false }
+        return current.state == .todo && history.openAttempt == nil
     }
 
     func record(_ step: CardRunStep, card: CardRecord, context: BuildActContext, detail: String? = nil) throws {
