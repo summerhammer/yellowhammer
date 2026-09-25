@@ -11,22 +11,27 @@ actor LinearTokenSource {
     /// `scope` is required by the grant; omitting it fails `invalid_scope`.
     static let scope = "read,write"
 
+    static let retryDelay: Duration = .milliseconds(250)
+
     private let credentials: LinearCredentials
     private let transport: any HTTPTransport
     private let clock: @Sendable () -> Date
     private let skew: TimeInterval
+    private let sleep: @Sendable (Duration) async throws -> Void
     private var cached: (token: String, refreshAt: Date)?
 
     init(
         credentials: LinearCredentials,
         transport: any HTTPTransport,
         clock: @escaping @Sendable () -> Date,
-        skew: TimeInterval = 60
+        skew: TimeInterval = 60,
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.credentials = credentials
         self.transport = transport
         self.clock = clock
         self.skew = skew
+        self.sleep = sleep
     }
 
     /// The cached token while it is fresh; otherwise a new one.
@@ -67,8 +72,29 @@ actor LinearTokenSource {
             throw failure.transport(error)
         }
         guard (200..<300).contains(response.statusCode) else {
+            // Linear sometimes intermittently answers 400 invalid_client to valid credentials, then 200
+            // on an immediate retry (issue #160). Give a single invalid_client one retry after a short delay
+            // before treating it as a real credential failure.
+            if failure.isInvalidClient(data) {
+                try? await sleep(Self.retryDelay)
+                let retryData: Data
+                let retryResponse: HTTPURLResponse
+                do {
+                    (retryData, retryResponse) = try await transport.send(request)
+                } catch {
+                    throw failure.transport(error)
+                }
+                guard (200..<300).contains(retryResponse.statusCode) else {
+                    throw failure.tokenRefused(retryData, retryResponse)
+                }
+                return try decodeGrant(retryData)
+            }
             throw failure.tokenRefused(data, response)
         }
+        return try decodeGrant(data)
+    }
+
+    private func decodeGrant(_ data: Data) throws(BoardError) -> (String, Date) {
         let grant: LinearTokenGrant
         do {
             grant = try JSONDecoder().decode(LinearTokenGrant.self, from: data)

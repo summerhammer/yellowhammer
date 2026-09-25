@@ -1,6 +1,7 @@
 import Domain
 import Foundation
 import LinearAdapter
+import Synchronization
 import Testing
 
 @Suite("Linear failure translation")
@@ -68,14 +69,60 @@ struct LinearFailureTests {
 
     @Test("A refusal at the OAuth token endpoint is notAuthenticated")
     func tokenEndpointRefusal() async throws {
-        let error = try await failure([
-            Fixture.json(#"{"error":"invalid_client","error_description":"bad \#(Fixture.clientSecret)"}"#, status: 401)
-        ])
+        let reply = Fixture.json(
+            #"{"error":"invalid_client","error_description":"bad \#(Fixture.clientSecret)"}"#, status: 401
+        )
+        let error = try await failure([reply, reply])
         guard case .notAuthenticated(let message) = error else {
             Issue.record("expected notAuthenticated, got \(error)")
             return
         }
         #expect(message.contains("invalid_client"))
+    }
+
+    @Test("An intermittent invalid_client at the OAuth token endpoint retries once and succeeds")
+    func intermittentInvalidClientRetries() async throws {
+        let sleptDurations = Mutex<[Duration]>([])
+        let transport = StubHTTPTransport([
+            Fixture.json(#"{"error":"invalid_client","error_description":"temporary hiccup"}"#, status: 400),
+            Fixture.token("retried-token"),
+            Fixture.viewer
+        ])
+        let adapter = Fixture.adapter(transport, sleep: { duration in
+            sleptDurations.withLock { $0.append(duration) }
+        })
+        let identity = try await adapter.identity()
+        #expect(identity == BoardIdentity(id: BoardObjectID(rawValue: "app-user-id"), name: "Yellowhammer"))
+        #expect(sleptDurations.withLock { $0 } == [.milliseconds(250)])
+        #expect(transport.requests.count == 3)
+        #expect(transport.requests[0].url?.path == "/oauth/token")
+        #expect(transport.requests[1].url?.path == "/oauth/token")
+        #expect(transport.requests[2].url?.path == "/graphql")
+    }
+
+    @Test("A 5xx at the OAuth token endpoint is unreachable", arguments: [500, 502, 503, 504])
+    func tokenEndpoint5xx(statusCode: Int) async throws {
+        let error = try await failure([
+            Fixture.json("Service Unavailable", status: statusCode)
+        ])
+        guard case .unreachable(let message) = error else {
+            Issue.record("expected unreachable, got \(error)")
+            return
+        }
+        #expect(message.contains("\(statusCode)"))
+    }
+
+    @Test("A GraphQL 5xx is unreachable", arguments: [500, 502, 503, 504])
+    func graphQL5xx(statusCode: Int) async throws {
+        let error = try await failure([
+            Fixture.token(),
+            Fixture.json("Server Error", status: statusCode)
+        ])
+        guard case .unreachable(let message) = error else {
+            Issue.record("expected unreachable, got \(error)")
+            return
+        }
+        #expect(message.contains("\(statusCode)"))
     }
 
     @Test("A GraphQL entity-not-found for the Linear project is scopeNotFound")

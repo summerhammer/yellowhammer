@@ -150,6 +150,27 @@ struct OutboxTests {
         #expect(try journal.events(ofType: .boardWriteFailed).count == 1)
     }
 
+    @Test("An HTTP 503 transient failure leaves the entry pending rather than failed")
+    func http503LeavesEntryPending() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let board = FakeWritingBoard()
+        await board.refuseNext(.unreachable("Linear answered with HTTP 503"))
+        let outbox = try outbox(journal, board: board)
+        let write = OutboxWrite(key: "card:1:main:1:create", write: card("Card one"))
+
+        _ = try outbox.accept(write)
+        let delivery = try await outbox.deliverPending()
+
+        guard case .deferred(.transient(let reason)) = delivery.deliveries[0].outcome else {
+            Issue.record("expected transient deferral, got \(delivery.deliveries[0].outcome)")
+            return
+        }
+        #expect(reason.contains("503"))
+        #expect(try journal.pendingOutboxEntries().count == 1)
+        #expect(try journal.events(ofType: .boardWriteFailed).isEmpty)
+    }
+
     // MARK: - Leases
 
     @Test("A write on a Card whose Lease another run holds never reaches Linear")

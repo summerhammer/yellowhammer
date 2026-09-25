@@ -34,10 +34,17 @@ struct LinearFailure {
         if response.statusCode == 429 {
             return rateLimited(response)
         }
-        struct OAuthError: Decodable { let error: String? }
+        if (500..<600).contains(response.statusCode) {
+            return .unreachable(scrub("Linear answered with HTTP \(response.statusCode)"))
+        }
         let code = (try? JSONDecoder().decode(OAuthError.self, from: data))?.error.map { " (\($0))" } ?? ""
         let message = "Linear refused the client credentials with HTTP \(response.statusCode)\(code)"
         return .notAuthenticated(scrub(message))
+    }
+
+    /// Whether a token endpoint response reported `invalid_client`.
+    func isInvalidClient(_ data: Data) -> Bool {
+        (try? JSONDecoder().decode(OAuthError.self, from: data))?.error == "invalid_client"
     }
 
     /// A non-2xx GraphQL response. Nil when the status is a success.
@@ -49,6 +56,8 @@ struct LinearFailure {
             return .notAuthenticated(scrub("Linear refused the access token with HTTP \(response.statusCode)"))
         case 429:
             return rateLimited(response)
+        case 500..<600:
+            return .unreachable(scrub("Linear answered with HTTP \(response.statusCode)"))
         default:
             return graphQL(data, response) ?? .refused(scrub("Linear answered with HTTP \(response.statusCode)"))
         }
@@ -115,6 +124,10 @@ struct LinearFailure {
 
     private func scrub(_ message: String) -> String {
         secrets.filter { !$0.isEmpty }.reduce(message) { $0.replacingOccurrences(of: $1, with: "<redacted>") }
+    }
+
+    private struct OAuthError: Decodable {
+        let error: String?
     }
 
     struct Empty: Decodable {}
