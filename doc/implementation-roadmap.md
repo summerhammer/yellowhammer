@@ -1626,7 +1626,7 @@ comment on the Delta Read).
 - **Agent** — Fable 5.1 High or `gpt-6-astra high`.
 - **Done when** — The suite runs from a single command and passes on a developer machine.
 
-### [ ] P15.4 `[DevOps]` Rehearsal suite in automation
+### [x] P15.4 `[DevOps]` Rehearsal suite in automation
 - **Work** — Run P15.3 on a schedule on a self-hosted Apple Silicon runner with Orca ADE installed
   and scratch credentials available, or add it as a required manual release-checklist step when no
   such runner exists. Publish Journals and Night Card links as artifacts.
