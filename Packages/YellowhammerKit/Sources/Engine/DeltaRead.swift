@@ -239,8 +239,9 @@ public struct DeltaRead: Sendable {
     }
 
     /// An unknown board object labelled Card, read in Waiting on You: the Journal has no Card behind
-    /// it at all.
+    /// it at all. Archived or trashed issues are not on the Operator's board and are not anomalies.
     private func reportUnbackedWaitingOnYou(object: BoardObject, into report: inout DeltaReadReport) throws {
+        guard !object.isTrashed, object.archivedAt == nil else { return }
         guard object.workflowState.name == CardState.waitingOnYou.rawValue else { return }
         guard object.labels.contains(where: { $0.lowercased() == "card" }) else { return }
         let reason = "\(object.key) was read in Waiting on You with no Journal record behind it"
