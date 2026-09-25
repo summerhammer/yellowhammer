@@ -1,0 +1,41 @@
+name: Release scripts
+
+# Unit-tests and lints the release scripts (roadmap P16.2). Runs on ubuntu-latest and
+# uses no secrets: it never signs anything, only checks release-version.sh's tag
+# parsing and the shell scripts' style.
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/release/**'
+      - 'scripts/ci/tests/test_release_version.py'
+      - '.github/workflows/release-scripts.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/release/**'
+      - 'scripts/ci/tests/test_release_version.py'
+      - '.github/workflows/release-scripts.yml'
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release-scripts:
+    name: Test and lint release scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run unit tests
+        run: python3 -m unittest discover -s scripts/ci/tests -p 'test_release_version.py' -v
+
+      - name: Shellcheck release scripts
+        run: shellcheck scripts/release/*.sh

@@ -1,0 +1,110 @@
+name: Release build
+
+# Builds a signed, versioned Release .app from a tag (roadmap P16.2). Stops there:
+# notarization and stapling are P16.3, packaging (DMG/zip for distribution) is P16.4.
+# Never add a pull_request trigger: it would hand the signing secrets to code on any PR
+# branch. See doc/signing-identity.md for the secrets and their ownership, and
+# doc/release-build.md for the versioning scheme.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (e.g. v1.2.3)'
+        required: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release-build:
+    name: Release build
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      XCODE_VERSION: "26.6"
+      DEVELOPER_TEAM_ID: A2SJL2N487
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Resolve tag
+        env:
+          RESOLVED_TAG: ${{ inputs.tag || github.ref_name }}
+        run: echo "RELEASE_TAG=$RESOLVED_TAG" >> "$GITHUB_ENV"
+
+      - name: Compute release version
+        run: scripts/release/release-version.sh "$RELEASE_TAG"
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+
+      - name: Print versions
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Set up signing identity and notarization credential
+        env:
+          DEVELOPER_ID_P12_BASE64: ${{ secrets.DEVELOPER_ID_P12_BASE64 }}
+          DEVELOPER_ID_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          NOTARY_API_KEY_BASE64: ${{ secrets.NOTARY_API_KEY_BASE64 }}
+          NOTARY_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
+          NOTARY_API_ISSUER_ID: ${{ secrets.NOTARY_API_ISSUER_ID }}
+        run: scripts/release/setup-signing.sh
+
+      - name: Build Release app
+        run: |
+          set -o pipefail
+          mkdir -p build
+          xcodebuild \
+            -project Yellowhammer.xcodeproj \
+            -scheme Yellowhammer \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath build/DerivedData \
+            -clonedSourcePackagesDirPath build/SourcePackages \
+            MARKETING_VERSION="$MARKETING_VERSION" \
+            CURRENT_PROJECT_VERSION="$CURRENT_PROJECT_VERSION" \
+            OTHER_CODE_SIGN_FLAGS="--timestamp --keychain $KEYCHAIN_PATH" \
+            build | tee build/xcodebuild.log
+
+      - name: Verify release build
+        run: |
+          scripts/release/verify-release-build.sh \
+            build/DerivedData/Build/Products/Release/Yellowhammer.app \
+            "$MARKETING_VERSION" "$CURRENT_PROJECT_VERSION"
+
+      - name: Zip app bundle
+        run: |
+          mkdir -p build/artifacts
+          ditto -c -k --keepParent \
+            build/DerivedData/Build/Products/Release/Yellowhammer.app \
+            "build/artifacts/Yellowhammer-$MARKETING_VERSION-$CURRENT_PROJECT_VERSION.zip"
+
+      - name: Upload release build artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-build
+          path: |
+            build/artifacts/
+            build/xcodebuild.log
+
+      - name: Delete temporary keychain
+        if: always()
+        run: |
+          if [ -n "${KEYCHAIN_PATH:-}" ]; then security delete-keychain "$KEYCHAIN_PATH" || true; fi
+          rm -f "${NOTARY_API_KEY_PATH:-}"
