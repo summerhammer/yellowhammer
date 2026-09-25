@@ -8,12 +8,12 @@ and how to renew them. It never holds a secret.
 
 ## Ownership and expiry
 
-Fill this table when the credentials are provisioned, and update it on every renewal.
+Update this table on every renewal. Certificate SHA-1: `C8FF6169227A849009EF5C0F327A987B125FFABA` (G2 Sub-CA).
 
 | Credential | Apple team (ID) | Owner | Created | Expires | Renewal reminder |
 |---|---|---|---|---|---|
-| Developer ID Application certificate | A2SJL2N487 | _tbd_ (Account Holder) | _tbd_ | _tbd_ (5 years) | 60 days before expiry |
-| App Store Connect API key (notarization) | A2SJL2N487 | _tbd_ (Admin) | _tbd_ | does not expire; revoke on owner change | yearly review |
+| Developer ID Application certificate | A2SJL2N487 (SUMMER HAMMER LLC) | Max Rozdobudko (Account Holder) | 2026-09-25 | 2031-09-17 | 60 days before expiry |
+| App Store Connect API key (notarization) | A2SJL2N487 (SUMMER HAMMER LLC) | Max Rozdobudko | 2026-09-25 | does not expire; revoke on owner change | yearly review |
 
 - Only the Apple Developer **Account Holder** can create a Developer ID Application
   certificate. The team is limited to a small number of them, so renew rather than create.
