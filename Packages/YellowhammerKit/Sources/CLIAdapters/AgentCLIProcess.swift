@@ -4,14 +4,19 @@ import Foundation
 
 /// One completed agent CLI run: the process identity the lifecycle observed, how it ended, and the
 /// dual-key completion verdict derived from that ending plus the result file. `pid`/`processGroup`
-/// name the CLI leader only — on a forced termination, the descendants swept alongside it
-/// (``ProcessTree``) are not reported here; they are contained, not tracked past that.
+/// name the CLI leader only. On a forced termination, the descendants swept alongside it
+/// (``ProcessTree``) are contained but not reported (``leftovers`` is `[]`); on a normal exit, they
+/// are both swept and reported in ``leftovers`` (Normal-Exit Sweep Ruling).
 public struct AgentCLIRunReport: Equatable, Sendable {
     public let pid: pid_t
     /// Equal to `pid`: the CLI leads its own process group.
     public let processGroup: pid_t
     public let end: RunEnd
     public let outcome: RunOutcome
+    /// Background tool processes still running after a NORMAL exit, swept by identity (Normal-Exit
+    /// Sweep Ruling) — empty on a forced termination (timeout or abort), where `terminate()`
+    /// contains descendants but does not report them.
+    public let leftovers: [LeftoverProcess]
 }
 
 /// The process identity and ending of one run, before the dual-key completion verdict is applied.
@@ -22,6 +27,8 @@ public struct AgentCLIExecution: Equatable, Sendable {
     /// Equal to `pid`: the CLI leads its own process group.
     public let processGroup: pid_t
     public let end: RunEnd
+    /// See ``AgentCLIRunReport/leftovers``.
+    public let leftovers: [LeftoverProcess]
 }
 
 /// Why ``AgentCLIProcess/run(_:)`` could not even start a run.
@@ -46,22 +53,35 @@ public enum AgentCLILaunchError: Error, Equatable, Sendable, CustomStringConvert
 /// a real CLI's tool commands routinely escape into a new session or process group of their own
 /// (claude's Bash tool calls `setsid`; codex makes the tool command a group leader), so
 /// termination (`AgentCLIProcess+Termination.swift`) also snapshots and signals the CLI's
-/// descendant process tree directly, by pid identity — see ``ProcessTree``.
+/// descendant process tree directly, by pid identity — see ``ProcessTree``. A NORMAL exit gets the
+/// same treatment (Normal-Exit Sweep Ruling): macOS reparents a process's children to `launchd` at
+/// its *exit*, not at its reap, so a tree walk after the leader is reaped finds nothing — the
+/// running descendant snapshot below is what makes a post-exit sweep possible at all.
 public struct AgentCLIProcess: Sendable {
     /// Spec-mandated 3 s. Configurable only so tests can shorten it.
     public let gracePeriod: Duration
     public let pollInterval: Duration
+    /// How often `wait` re-walks the CLI's descendant tree while it is still alive, folding
+    /// results into a cumulative snapshot. Not a config key — an unnamed bound, tunable only from
+    /// tests. Must poll faster than a tool process's own lifetime for the normal-exit sweep to see
+    /// it before it (and its intermediate parent) exit.
+    public let snapshotInterval: Duration
 
-    public init(gracePeriod: Duration = .seconds(3), pollInterval: Duration = .milliseconds(20)) {
+    public init(
+        gracePeriod: Duration = .seconds(3), pollInterval: Duration = .milliseconds(20),
+        snapshotInterval: Duration = .milliseconds(100)
+    ) {
         self.gracePeriod = gracePeriod
         self.pollInterval = pollInterval
+        self.snapshotInterval = snapshotInterval
     }
 
     public func run(_ launch: AgentCLILaunch) async throws(AgentCLILaunchError) -> AgentCLIRunReport {
         let execution = try await execute(launch)
         let outcome = RunOutcome.classify(end: execution.end, resultFileAt: launch.resultFile, pass: launch.pass)
         return AgentCLIRunReport(
-            pid: execution.pid, processGroup: execution.processGroup, end: execution.end, outcome: outcome
+            pid: execution.pid, processGroup: execution.processGroup, end: execution.end, outcome: outcome,
+            leftovers: execution.leftovers
         )
     }
 
@@ -91,27 +111,41 @@ public struct AgentCLIProcess: Sendable {
             throw .spawnFailed(errno: errorCode, executable: launch.executable)
         }
 
-        let end = await wait(pid: pid, timeout: launch.timeout)
-        return AgentCLIExecution(pid: pid, processGroup: pid, end: end)
+        let (end, leftovers) = await wait(pid: pid, timeout: launch.timeout)
+        return AgentCLIExecution(pid: pid, processGroup: pid, end: end, leftovers: leftovers)
     }
 
     // MARK: - Waiting
 
     /// Polls `waitpid(WNOHANG)` in the calling task (never a detached one) so `Task.isCancelled`
-    /// stays observable, until the leader exits, the engine cancels, or `timeout` elapses.
-    private func wait(pid: pid_t, timeout: Duration) async -> RunEnd {
+    /// stays observable, until the leader exits, the engine cancels, or `timeout` elapses. While
+    /// the leader is alive, also re-walks its descendant tree every `snapshotInterval` (first walk
+    /// on the very first poll), folding results into a cumulative `Set` — a union across walks, not
+    /// "latest": a tool whose intermediate parent has already exited drops out of a later walk, but
+    /// a stale entry in the snapshot is harmless, because every signal against it is re-checked by
+    /// identity before it is sent. On a NORMAL exit, that snapshot is handed to
+    /// ``sweepAfterExit(tracked:)`` — the only place a normal exit's leftovers can still be found,
+    /// since macOS reparents children to `launchd` at exit, not at reap.
+    private func wait(pid: pid_t, timeout: Duration) async -> (RunEnd, [LeftoverProcess]) {
         let clock = ContinuousClock()
         let start = clock.now
+        var tracked = Set<ProcessTree.TrackedProcess>()
+        var lastSnapshot: ContinuousClock.Instant?
 
         while true {
+            if lastSnapshot == nil || clock.now - lastSnapshot! >= snapshotInterval {
+                tracked.formUnion(ProcessTree.descendants(of: pid))
+                lastSnapshot = clock.now
+            }
             if let end = ProcessGroup.reapNonBlocking(pid: pid) {
-                return end
+                let leftovers = await sweepAfterExit(tracked: tracked)
+                return (end, leftovers)
             }
             if Task.isCancelled {
-                return await terminate(pid: pid, reason: .aborted)
+                return (await terminate(pid: pid, reason: .aborted), [])
             }
             if clock.now - start >= timeout {
-                return await terminate(pid: pid, reason: .timedOut(after: timeout))
+                return (await terminate(pid: pid, reason: .timedOut(after: timeout)), [])
             }
             try? await Task.sleep(for: pollInterval)
         }
