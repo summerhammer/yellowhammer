@@ -8,6 +8,9 @@ import Journal
 /// 1. Claims the Card's Lease for this run, or skips the Card without dispatching when another run
 ///    holds it. The Lease is heartbeated for as long as the run lasts and revalidated before every write
 ///    that records an outcome; a lost Lease cancels the run and nothing is written as if it were complete.
+///    A run the engine cancels (the Act Lease lost, a heartbeat failed) stops at the next Attempt boundary
+///    without concluding the pass the cancellation aborted, and leaves the Card Lease to expire, so the
+///    Card is reclaimable and its Attempt budget is not spent on the engine's own stop.
 /// 2. Resolves the Route and records the Attempt (``CardRouting``); zero candidates Block the Card and an
 ///    Override that cannot resolve is a Readiness Check failure, and either way nothing is dispatched.
 /// 3. Moves the Card to In Progress, then dispatches the architect, then the worker, in the lane's
@@ -100,6 +103,12 @@ public struct CardRun: CardRunner {
             // Lease is another run's now, so this one releases nothing and leaves the Card for it.
             _ = try? record(.leaseLost, card: card, context: context)
             return
+        } catch let error where Self.leavesLeaseToExpire(error) {
+            // The engine stopped this run, not the Card: the Card is reclaimable, and no partial state
+            // was written as if it were complete. The Lease is left to expire, never released, so the
+            // next build Act's ExpiredLeaseSweep (P8.10) reclaims the Card and its open Attempt: a
+            // released Lease leaves an In Progress Card no sweep and no lane would ever pick up.
+            throw error
         } catch {
             _ = try? journal.releaseCardLease(cardID: card.id, runID: runID)
             throw error
@@ -128,6 +137,9 @@ public struct CardRun: CardRunner {
 
         var movedToInProgress = false
         while true {
+            // A cancelled run records no new Attempt: cancellation is the engine's (a lost Act Lease, a
+            // failed heartbeat), never the Card's, and a pass dispatched now would only abort at once.
+            try Task.checkCancellation()
             let outcome = try await routing.route(
                 card: frame.card, repoRole: frame.repository?.role, override: override,
                 checkDeclaredNone: checkDeclaredNone, attemptsPerCard: attemptsPerCard
@@ -144,6 +156,10 @@ public struct CardRun: CardRunner {
                     movedToInProgress = true
                 }
                 let end = try await runPasses(frame: frame)
+                // A pass the engine cancelled ends `.aborted`, which reads as Crashed-Unknown: concluding
+                // it would consume the Attempt and retry, spending the whole budget on the engine's own
+                // stop. The Attempt stays open instead, for the Expired Lease Sweep to classify.
+                try Task.checkCancellation()
                 switch try await conclude(end, frame: frame) {
                 case .stop:
                     return
@@ -177,6 +193,14 @@ public struct CardRun: CardRunner {
                 return
             }
         }
+    }
+
+    /// Whether `error` stopped the run from outside the Card — the run was cancelled, or the Act Lease
+    /// is gone — so the Card Lease must be left to expire rather than released (see ``run``).
+    private static func leavesLeaseToExpire(_ error: any Error) -> Bool {
+        if error is CancellationError { return true }
+        if case JournalError.actLeaseLost = error { return true }
+        return false
     }
 
     func record(_ step: CardRunStep, card: CardRecord, context: BuildActContext, detail: String? = nil) throws {
