@@ -175,6 +175,39 @@ enum StubAgentCLI {
         """
     )
 
+    /// Normal-exit shape (Normal-Exit Sweep Ruling): spawns a `setsid` background child that
+    /// writes its pid then sleeps long, gives the snapshot loop time to see it (longer than one
+    /// `snapshotInterval`), writes a valid result file, and exits 0 — leaving the escaped child
+    /// behind for the normal-exit sweep to find and signal.
+    static let leavesEscapedChildOnNormalExit = shell(
+        """
+        if [ "$3" = child ]; then
+            echo $$ > "$2/child"
+            exec sleep 30
+        fi
+        perl -MPOSIX -e 'POSIX::setsid(); exec { $ARGV[0] } @ARGV' "$0" "$1" "$2" child &
+        sleep 0.3
+        printf '%s' '\(validWorkerJSON)' > "$1"
+        exit 0
+        """
+    )
+
+    /// Same shape as ``leavesEscapedChildOnNormalExit``, but the escaped child ignores SIGTERM
+    /// outright — proving the normal-exit sweep escalates to SIGKILL exactly like the abort path.
+    static let normalExitLeavesTermIgnoringChild = shell(
+        """
+        if [ "$3" = child ]; then
+            trap '' TERM
+            echo $$ > "$2/child"
+            exec sleep 30
+        fi
+        perl -MPOSIX -e 'POSIX::setsid(); exec { $ARGV[0] } @ARGV' "$0" "$1" "$2" child &
+        sleep 0.3
+        printf '%s' '\(validWorkerJSON)' > "$1"
+        exit 0
+        """
+    )
+
     /// Writes to both stdout and stderr, then completes cleanly.
     static let writesStdoutAndStderr = shell(
         """

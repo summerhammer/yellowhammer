@@ -3,8 +3,10 @@ import Domain
 import Foundation
 
 /// The termination sweep `AgentCLIProcess.wait(pid:timeout:)` falls into on timeout or engine
-/// abort. Split out from `AgentCLIProcess.swift` because containing an escaped tool subprocess
-/// (see ``ProcessTree``) needs real logic, not just a group signal.
+/// abort (``terminate(pid:reason:)``), plus the normal-exit sweep it runs after every other exit
+/// (``sweepAfterExit(tracked:)`` — Normal-Exit Sweep Ruling). Split out from `AgentCLIProcess.swift`
+/// because containing an escaped tool subprocess (see ``ProcessTree``) needs real logic, not just a
+/// group signal.
 extension AgentCLIProcess {
     /// SIGTERMs the group and every descendant snapshotted (by ``ProcessTree``) just before that
     /// first signal — snapshotting first matters because some CLIs (codex) exit on SIGTERM
@@ -53,6 +55,85 @@ extension AgentCLIProcess {
         }
 
         return end(for: reason, forcedKill: true)
+    }
+
+    /// The normal-exit sweep (Normal-Exit Sweep Ruling): the CLI leader has already exited on its
+    /// own, so unlike ``terminate(pid:reason:)`` there is no leader left to route through — no
+    /// `terminate()`-style group signal (it would signal `-pgid` unconditionally, and check
+    /// `ProcessGroup.isAlive` against a leader pid that may already be recycled). `tracked` is the
+    /// cumulative descendant snapshot ``AgentCLIProcess/wait(pid:timeout:)`` took while the leader
+    /// was still alive — the only place these processes could ever be found, since macOS reparents
+    /// them to `launchd` at the leader's exit, not at its reap.
+    ///
+    /// Costs nothing when there is nothing to sweep: if every tracked process is already gone, this
+    /// returns `[]` at once — no signal, no grace wait. Otherwise SIGTERMs every live one by
+    /// identity, signals a process group only while a live tracked process is currently, freshly
+    /// confirmed to be in it, re-walks live tracked processes' own children during the grace window
+    /// (folding in and SIGTERMing new ones), then SIGKILLs survivors and polls briefly for them to
+    /// vanish. Returns every process that was alive at the start of the sweep or found during it.
+    func sweepAfterExit(tracked: Set<ProcessTree.TrackedProcess>) async -> [LeftoverProcess] {
+        var swept = tracked.filter { !ProcessTree.isGone($0) }
+        guard !swept.isEmpty else { return [] }
+
+        var tracked = tracked
+        Self.signal(swept, SIGTERM)
+        Self.signalGroups(of: swept, SIGTERM)
+
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: gracePeriod)
+        while clock.now < deadline {
+            let before = tracked
+            // leaderPID is never consulted: leaderReaped is always true here — the leader has
+            // already exited, so only live tracked processes' own children are walked.
+            Self.sweepForNewDescendants(leaderPID: 0, leaderReaped: true, tracked: &tracked)
+            swept.formUnion(tracked.subtracting(before))
+            if tracked.allSatisfy(ProcessTree.isGone) {
+                return Self.sortedLeftovers(swept)
+            }
+            await Self.sleepThroughCancellation(for: pollInterval)
+        }
+
+        let before = tracked
+        Self.sweepForNewDescendants(leaderPID: 0, leaderReaped: true, tracked: &tracked)
+        swept.formUnion(tracked.subtracting(before))
+
+        let survivors = tracked.filter { !ProcessTree.isGone($0) }
+        Self.signal(survivors, SIGKILL)
+        Self.signalGroups(of: survivors, SIGKILL)
+
+        let killDeadline = clock.now.advanced(by: .seconds(1))
+        while clock.now < killDeadline, !tracked.allSatisfy(ProcessTree.isGone) {
+            await Self.sleepThroughCancellation(for: pollInterval)
+        }
+
+        return Self.sortedLeftovers(swept)
+    }
+
+    /// Signals the process group of every process in `processes` currently, freshly confirmed to
+    /// still be a live, identity-matched member of that group — never the exited CLI leader's own
+    /// group on the strength of a stale snapshot alone.
+    private static func signalGroups(of processes: some Sequence<ProcessTree.TrackedProcess>, _ signal: Int32) {
+        var groups = Set<pid_t>()
+        for process in processes {
+            guard let current = ProcessTree.identity(of: process.pid), current == process else { continue }
+            groups.insert(current.processGroup)
+        }
+        for group in groups {
+            ProcessGroup.signal(group: group, signal)
+        }
+    }
+
+    /// `swept`, sorted by pid so the returned leftovers are deterministic, converted from a fresh
+    /// identity read (not the possibly-stale tracked snapshot) — a tool that called `setsid()` since
+    /// it was last tracked has a different pgid/session now.
+    private static func sortedLeftovers(_ swept: Set<ProcessTree.TrackedProcess>) -> [LeftoverProcess] {
+        swept.map { tracked in
+            let current = ProcessTree.identity(of: tracked.pid) ?? tracked
+            return LeftoverProcess(
+                pid: tracked.pid, commandName: current.commandName, processGroup: current.processGroup,
+                session: current.session
+            )
+        }.sorted { $0.pid < $1.pid }
     }
 
     /// Sends `signal` to every process in `processes`, by pid identity (``ProcessTree/signal``),

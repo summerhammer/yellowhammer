@@ -63,7 +63,8 @@ struct CLIAdapterDispatch: AgentDispatch {
         do {
             let report = try await runner.run(dispatch, adapter: adapter)
             return AgentDispatchReport(
-                outcome: report.outcome, session: report.session?.rawValue, origin: .agentCLIProcess
+                outcome: report.outcome, session: report.session?.rawValue, origin: .agentCLIProcess,
+                leftovers: report.leftovers
             )
         } catch let error as CLIAdapterError {
             throw AgentDispatchRefusal(reason: error.description)

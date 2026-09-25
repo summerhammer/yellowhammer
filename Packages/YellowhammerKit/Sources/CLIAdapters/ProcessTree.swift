@@ -9,10 +9,20 @@ import Foundation
 /// child of the CLI while the CLI is alive; walking the descendant tree finds it.
 enum ProcessTree {
     /// One process observed at a point in time: its pid, its process group (recorded for
-    /// reporting only — see ``signal(_:_:)``), and its start time, which stands in for identity.
-    struct TrackedProcess: Hashable, Sendable {
+    /// reporting only — see ``signal(_:_:)``), its session (recorded for reporting only, via
+    /// `getsid(pid)` — works cross-process on macOS; `-1` if the lookup fails), its command name
+    /// (recorded for reporting only, from `proc_bsdinfo.pbi_comm`/`pbi_name`), and its start time,
+    /// which stands in for identity.
+    ///
+    /// Identity — equality, hashing, and every liveness check — is pid plus start time ONLY.
+    /// `session` and `commandName` are along for reporting; they must never affect set membership,
+    /// because a tool that calls `setsid()` mid-run changes its session without becoming a new
+    /// process, and the same observed process must still collapse to one set entry.
+    struct TrackedProcess: Sendable {
         let pid: pid_t
         let processGroup: pid_t
+        let session: pid_t
+        let commandName: String
         let startSeconds: UInt64
         let startMicroseconds: UInt64
     }
@@ -29,9 +39,22 @@ enum ProcessTree {
         return TrackedProcess(
             pid: pid,
             processGroup: pid_t(bitPattern: info.pbi_pgid),
+            session: getsid(pid),
+            commandName: commandName(from: info),
             startSeconds: info.pbi_start_tvsec,
             startMicroseconds: info.pbi_start_tvusec
         )
+    }
+
+    /// `pbi_name` when the process registered one, else `pbi_comm` — both fixed-size C char
+    /// arrays, read up to the first NUL but never past the array, since a name filling the whole
+    /// array carries no terminator.
+    private static func commandName(from info: proc_bsdinfo) -> String {
+        func decode(_ bytes: UnsafeRawBufferPointer) -> String {
+            String(bytes: bytes.prefix { $0 != 0 }, encoding: .utf8) ?? ""
+        }
+        let name = withUnsafeBytes(of: info.pbi_name, decode)
+        return name.isEmpty ? withUnsafeBytes(of: info.pbi_comm, decode) : name
     }
 
     /// Every live descendant of `root`, found by walking `proc_listchildpids` breadth-first from
@@ -102,7 +125,7 @@ enum ProcessTree {
     }
 
     private static func sameProcess(_ lhs: TrackedProcess, _ rhs: TrackedProcess) -> Bool {
-        lhs.startSeconds == rhs.startSeconds && lhs.startMicroseconds == rhs.startMicroseconds
+        lhs.pid == rhs.pid && lhs.startSeconds == rhs.startSeconds && lhs.startMicroseconds == rhs.startMicroseconds
     }
 
     /// The live child pids of `ppid`. `proc_listchildpids`'s return value is a count of pids, not
@@ -125,5 +148,21 @@ enum ProcessTree {
             capacity *= 2
         }
         return []
+    }
+}
+
+extension ProcessTree.TrackedProcess: Hashable {
+    /// Identity is `pid` plus start time ONLY — see the doc comment on ``ProcessTree/TrackedProcess``.
+    /// `session` and `processGroup` are excluded on purpose: a tool that calls `setsid()` after being
+    /// snapshotted changes those fields without becoming a different process, and comparing them here
+    /// would let the same observed process appear twice in a `Set`.
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.pid == rhs.pid && lhs.startSeconds == rhs.startSeconds && lhs.startMicroseconds == rhs.startMicroseconds
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(pid)
+        hasher.combine(startSeconds)
+        hasher.combine(startMicroseconds)
     }
 }

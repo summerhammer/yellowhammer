@@ -114,7 +114,7 @@ struct ProcessTreeTests {
         let pid = process.processIdentifier
         let real = try #require(ProcessTree.identity(of: pid))
         let bogus = ProcessTree.TrackedProcess(
-            pid: real.pid, processGroup: real.processGroup,
+            pid: real.pid, processGroup: real.processGroup, session: real.session, commandName: real.commandName,
             startSeconds: real.startSeconds + 1, startMicroseconds: real.startMicroseconds
         )
 
@@ -135,6 +135,22 @@ struct ProcessTreeTests {
         let ancestors = ProcessTree.ancestors(of: process.processIdentifier)
 
         #expect(ancestors.contains(getpid()))
+    }
+
+    @Test("identity(of:) carries a session and a non-empty command name")
+    func identityCarriesSessionAndCommandName() throws {
+        let selfIdentity = try #require(ProcessTree.identity(of: getpid()))
+        #expect(selfIdentity.session != 0)
+        #expect(!selfIdentity.commandName.isEmpty)
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        process.arguments = ["5"]
+        try process.run()
+        defer { process.terminate() }
+
+        let child = try #require(ProcessTree.identity(of: process.processIdentifier))
+        #expect(!child.commandName.isEmpty)
     }
 
     @Test("isGone is true once the process has been killed and reaped")

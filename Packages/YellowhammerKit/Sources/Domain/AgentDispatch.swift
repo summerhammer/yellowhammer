@@ -68,11 +68,19 @@ public struct AgentDispatchReport: Equatable, Sendable {
     /// Conservative default: any report that doesn't say otherwise is taken to have spawned an agent
     /// CLI process, so existing fakes that construct a report need no change.
     public let origin: AgentDispatchOrigin
+    /// Background tool processes still running after a NORMAL exit, swept and reported by the
+    /// implementation (Normal-Exit Sweep Ruling). Defaulted so existing call sites and fakes compile
+    /// unchanged.
+    public let leftovers: [LeftoverProcess]
 
-    public init(outcome: RunOutcome, session: String? = nil, origin: AgentDispatchOrigin = .agentCLIProcess) {
+    public init(
+        outcome: RunOutcome, session: String? = nil, origin: AgentDispatchOrigin = .agentCLIProcess,
+        leftovers: [LeftoverProcess] = []
+    ) {
         self.outcome = outcome
         self.session = session
         self.origin = origin
+        self.leftovers = leftovers
     }
 }
 

@@ -39,6 +39,7 @@ struct AgentCLIProcessEscapeTests {
         let report = try await runner.run(fixture.launch(timeout: timeout))
 
         #expect(report.end == .timedOut(after: timeout, forcedKill: false))
+        #expect(report.leftovers.isEmpty)
 
         // Poll: the child may still be a zombie awaiting `launchd`'s reap, and `kill(pid, 0)` succeeds
         // on a zombie.
@@ -97,6 +98,7 @@ struct AgentCLIProcessEscapeTests {
         let report = try await task.value
 
         #expect(report.end == .aborted(forcedKill: true))
+        #expect(report.leftovers.isEmpty)
 
         let childPID = try #require(StubAgentCLI.readPID(at: fixture.scratch.appendingPathComponent("child")))
         await Self.awaitDead(childPID)
