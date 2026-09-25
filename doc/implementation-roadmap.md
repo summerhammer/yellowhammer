@@ -1668,7 +1668,7 @@ comment on the Delta Read).
 - **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — A tagged build produces a notarized, stapled artifact that passes all three checks.
 
-### [ ] P16.4 `[DevOps]` Packaging and distribution
+### [x] P16.4 `[DevOps]` Packaging and distribution
 - **Work**
   - Package the notarized `.app` for direct download (disk image or archive), with checksums.
   - Publish release notes that list the spec commit the release was built against and the story IDs
