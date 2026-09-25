@@ -17,11 +17,12 @@ public actor LinearAdapter: Board {
         linearProjectID: String,
         credentials: LinearCredentials,
         transport: any HTTPTransport = URLSessionHTTPTransport(),
-        clock: @escaping @Sendable () -> Date = { Date() }
+        clock: @escaping @Sendable () -> Date = { Date() },
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.linearProjectID = linearProjectID
         self.transport = transport
-        tokens = LinearTokenSource(credentials: credentials, transport: transport, clock: clock)
+        tokens = LinearTokenSource(credentials: credentials, transport: transport, clock: clock, sleep: sleep)
     }
 
     /// The outcome of a GraphQL request that may succeed, fail, or encounter a conflict on insert.

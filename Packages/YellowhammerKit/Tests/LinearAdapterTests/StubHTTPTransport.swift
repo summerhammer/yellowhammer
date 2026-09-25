@@ -98,10 +98,13 @@ enum Fixture {
     }
 
     static func adapter(
-        _ transport: StubHTTPTransport, clock: ManualClock = ManualClock()
+        _ transport: StubHTTPTransport,
+        clock: ManualClock = ManualClock(),
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { _ in }
     ) -> LinearAdapter {
         LinearAdapter(
-            linearProjectID: linearProjectID, credentials: credentials, transport: transport, clock: clock.read
+            linearProjectID: linearProjectID, credentials: credentials, transport: transport, clock: clock.read,
+            sleep: sleep
         )
     }
 

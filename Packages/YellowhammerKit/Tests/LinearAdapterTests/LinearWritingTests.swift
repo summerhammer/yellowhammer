@@ -188,4 +188,24 @@ struct LinearWritingTests {
             Issue.record("unexpected error: \(error)")
         }
     }
+
+    @Test("createIssue on HTTP 503 throws unreachable")
+    func createIssue503() async throws {
+        let clientID = UUID()
+        let draft = BoardIssueDraft(team: BoardObjectID(rawValue: "team-1"), title: "Test")
+        let transport = StubHTTPTransport([
+            Fixture.token(),
+            Fixture.json("Service Unavailable", status: 503)
+        ])
+        let adapter = Fixture.adapter(transport)
+
+        do {
+            _ = try await adapter.createIssue(draft, clientID: clientID)
+            Issue.record("expected unreachable")
+        } catch .unreachable(let message) {
+            #expect(message.contains("503"))
+        } catch {
+            Issue.record("unexpected error: \(error)")
+        }
+    }
 }
