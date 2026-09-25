@@ -1,0 +1,55 @@
+name: Rehearsal suite (live)
+
+# Dormant until a self-hosted Apple Silicon runner with Orca ADE and the scratch Linear
+# credentials is registered (P15.4). `workflow_dispatch` only — a `schedule` trigger with no
+# matching runner would just queue forever. Once such a runner exists, add:
+#
+#   on:
+#     schedule:
+#       - cron: "0 7 * * *"   # pick a time; this repo has no other opinion on cadence
+#     workflow_dispatch:
+#
+# and drop the manual step in doc/release-checklist.md in favour of this workflow's own
+# `release_gate.py check` (see the Job below), which already fails the job on a failed scenario.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  rehearsal-suite-live:
+    name: Rehearsal suite (live)
+    runs-on: [self-hosted, macOS, ARM64, orca-ade]
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build the app
+        run: |
+          xcodebuild -project Yellowhammer.xcodeproj -scheme Yellowhammer \
+            -derivedDataPath .build/app build
+
+      - name: Record rehearsal suite evidence
+        run: |
+          python3 scripts/rehearsal-suite/release_gate.py record \
+              --app .build/app/Build/Products/Debug/Yellowhammer.app --team YLH \
+              --evidence-directory .build/release-evidence
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rehearsal-suite-evidence
+          path: .build/release-evidence
+
+      - name: Check the verdict (fails the job on a failed scenario)
+        run: |
+          python3 scripts/rehearsal-suite/release_gate.py check \
+              --evidence-directory .build/release-evidence
