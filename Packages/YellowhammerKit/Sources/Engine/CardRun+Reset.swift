@@ -19,6 +19,8 @@ extension CardRun {
     /// WorktreeRecord fresh, so an earlier Card reaching Done in this run's own advance of
     /// `last_known_good_commit` is never missed.
     func attemptReset(priorAttemptID: Int64?, frame: CardRunFrame) async throws -> CardRunResetResult {
+        // A cancelled run neither fences nor resets: the next Act's reclaim of the Card does both.
+        try Task.checkCancellation()
         try frame.revalidateLease()
         guard let worktree = try frame.journal.heldWorktree(
             featureID: frame.context.feature.id, repository: frame.card.repository
