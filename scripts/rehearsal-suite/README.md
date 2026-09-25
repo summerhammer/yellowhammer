@@ -162,6 +162,30 @@ Every scenario starts from a reset Project. "Journal" means a read-only snapshot
     `yh validate` fails both, naming the conflict, and passes the valid one; the valid Project's
     rehearsal Night runs; an Act for a conflicting Project is refused at load and creates no Journal. *Stories:* `shift-scheduling/diagnose-the-installation`.
 
+## Release gate (P15.4)
+
+`release_gate.py` turns a suite run into release evidence, and that evidence into a pass/fail a
+release checklist can act on (`doc/release-checklist.md`):
+
+```sh
+python3 scripts/rehearsal-suite/release_gate.py record \
+    --app .build/app/Build/Products/Debug/Yellowhammer.app --team YLH \
+    --evidence-directory .build/release-evidence
+python3 scripts/rehearsal-suite/release_gate.py check --evidence-directory .build/release-evidence
+```
+
+`record` runs the suite (its own `--work-directory` nested inside `--evidence-directory`) and writes
+`suite.log`, a `journals/` copy of every Journal snapshot the run left behind, `night-cards.md`
+(every Night Card the run's Journals hold, linked through the scratch app credential — falling back
+to the bare issue id if the fetch fails), and `verdict.json` (commit sha, tree cleanliness, the
+scenarios selected, and a PASS/FAIL per scenario). `check` exits 0 only when `verdict.json` says
+every scenario passed, the tree was clean, and the recorded commit matches `--commit` (default
+`git rev-parse HEAD`) — a failed scenario, a subset run, or a stale evidence directory all fail it.
+
+There is no self-hosted runner yet, so this step is a manual release-checklist item today. The
+dormant `.github/workflows/rehearsal-suite-live.yml` (`workflow_dispatch` only) is ready to take it
+over once a self-hosted Apple Silicon runner with Orca ADE and the scratch credentials is registered.
+
 ## Running the unit tests
 
 ```sh
