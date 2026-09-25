@@ -324,12 +324,15 @@ def scenario_9(env, checks):
     ]
     checks.expect(not answered, f"no RehearsalFixtureAnswered for P (found {answered})")
 
+    # The lane that moved past P is the one in the refusal's own run. A build Act retried after a
+    # transient Linear failure runs the lane again with P already Waiting on You, so skips nothing.
     lane_ended = [
-        e for e in snap_after_build.events(type="RepoLaneEnded") if e["payload"].get("repository") == "fixture-backend"
+        e for e in snap_after_build.events(type="RepoLaneEnded")
+        if e["payload"].get("repository") == "fixture-backend" and e["run_id"] == refused[0]["run_id"]
     ]
-    checks.require(len(lane_ended) >= 1, "RepoLaneEnded recorded for fixture-backend")
+    checks.require(len(lane_ended) >= 1, "RepoLaneEnded recorded for fixture-backend in the refusal's run")
     skipped = int(lane_ended[-1]["payload"].get("cards_skipped", "0"))
-    checks.expect(skipped >= 1, f"RepoLaneEnded cards_skipped >= 1 (got {skipped})")
+    checks.expect(skipped >= 1, f"RepoLaneEnded cards_skipped >= 1 in the refusal's run (got {skipped})")
     other_backend = [c for c in backend_cards if c["issue_id"] != p_card["issue_id"]]
     other_backend_after = [
         c for c in snap_after_build.cards() if c["issue_id"] in {c2["issue_id"] for c2 in other_backend}
