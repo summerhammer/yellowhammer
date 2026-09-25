@@ -55,7 +55,10 @@ wait out a real ten-minute Lease TTL.
   reuse them. Before every scenario the suite rewrites the Project file (keeping its `linear_project`)
   with that scenario's `[limits]`, `check` commands and Protected Paths, and a Routing Table override of
   `claude/sonnet/medium` with fallback `claude/opus/high` — Verification never runs on a Route that wrote
-  the Cycle's code, so a single-Route table could never land.
+  the Cycle's code, so a single-Route table could never land. **These are real Projects, not sandboxed
+  ones**: they show up in the app and in `yh validate` like any other Project, and a routine
+  `yh setup --install-jobs` run on this machine would install LaunchAgents for them and schedule real,
+  non-rehearsal Nights against the fixture repos. See **Teardown** below.
 - **Fixture trees** under `--root` (default `~/Library/Caches/dev.yellowhammer/rehearsal-suite`), built
   with `scripts/rehearsal-fixtures/rehearsal_fixtures.py` at the same paths every run, and registered
   with Orca ADE (`orca repo add`) — Orca refuses a Worktree in a repository it does not know.
@@ -63,6 +66,40 @@ wait out a real ten-minute Lease TTL.
   removed (`orca worktree rm --force`), its scratch issues are archived and its Journal deleted
   (`scripts/scratch-linear/scratch_linear.py reset`), and its fixture tree is rebuilt.
 - Scenario 13 writes two conflicting Project files and removes them when it ends, pass or fail.
+
+## Teardown
+
+```sh
+python3 scripts/rehearsal-suite/rehearsal_suite.py teardown --app .build/app/Build/Products/Debug/Yellowhammer.app --team YLH
+```
+
+Removes everything a suite run leaves on the machine for `rehearsal-suite-a` and `rehearsal-suite-b`, so
+a later `yh setup --install-jobs` can never pick them up. Per Project, in order: (1) its non-primary Orca
+Worktrees, then its scratch Linear issues and Journal (`scratch_linear.py reset`); (2) `yh project remove
+<id> --yes`, which unloads/deletes any LaunchAgents, its Act logs, and `projects/<id>.toml`; (3) its
+fixture repositories' Orca ADE registrations (matched by the setup's resolved path falling under
+`--root/<id>`, never by name); (4) its Linear project, trashed (`projectDelete`, restorable — Linear
+deprecated `projectArchive` in its favor); (5) its fixture tree under `--root`. `--root` itself is removed
+at the end if it is then empty. The scratch team's own provisioning (its `Blocked` workflow state and the
+rest) is left — it is shared across every Project on the team, not owned by any one of them.
+
+Every step is idempotent: a step whose target is already gone is reported and skipped, not treated as a
+failure, so re-running `teardown` after a partial failure (network blip, a step interrupted) finishes the
+job. A missing Project file skips the scratch Linear reset and `yh project remove` for that Project (there
+is no `linear_project` to read and no Project to remove) but still unregisters its Orca setups and deletes
+its fixture tree. `--dry-run` performs every read-only lookup (Project files, Orca Worktrees, Orca setups,
+fixture directories) and prints exactly what each step would do, sending no mutation and deleting nothing.
+
+`projects/<id>.toml` is the only record of a Project's `linear_project`, and step 2 deletes it — so a
+step-1 or step-2 failure stops that Project's teardown right there (steps 3-5 do not run) and keeps the
+Project file, so a re-run can read `linear_project` again and finish the job. If step 4 (`projectDelete`)
+fails after step 2 already succeeded, the Project file is gone by then; the failure message names the
+Linear project id so the Operator can trash it by hand.
+
+Preflight (a built `yh`, Orca ready, no `yh` process running for a suite Project, the scratch app client
+resolves) fails fast with nothing changed. Otherwise a per-Project failure is recorded and teardown moves
+on to the next Project; the command prints a summary and exits `0` only if every step for every Project
+succeeded, `1` if anything failed, `2` if preflight itself failed.
 
 ## Nights
 

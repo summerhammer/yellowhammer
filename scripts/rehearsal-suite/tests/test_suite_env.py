@@ -968,5 +968,292 @@ class YhRunnerRetryTests(unittest.TestCase):
         self.assertEqual(self.counter_file.read_text(), "1\n")
 
 
+# MARK: - Teardown
+
+
+class FakeYhRunner:
+    """Stands in for `env.yh` in teardown tests: records `run_project_remove` calls without
+    running a process."""
+
+    def __init__(self, result=None):
+        self.calls = []
+        self._result = result or (0, "ok", Path("/tmp/project-remove.log"))
+
+    def run_project_remove(self, project_id, label=None):
+        self.calls.append(project_id)
+        return self._result
+
+
+class FakeAppClient:
+    """Stands in for `env.app_client`: records every `graphql` call, and either returns a fixed
+    response or raises a fixed error."""
+
+    def __init__(self, response=None, error=None):
+        self.calls = []
+        self._response = response if response is not None else {"projectDelete": {"success": True}}
+        self._error = error
+
+    def graphql(self, query, variables=None):
+        self.calls.append((query, variables))
+        if self._error:
+            raise self._error
+        return self._response
+
+
+def _setups_payload(setups):
+    return {"ok": True, "result": {"setups": setups}}
+
+
+class TeardownProjectTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / "root"
+        self.config_dir = Path(self.tmp.name) / "config"
+        self.env = suite_env.make_environment(
+            app=Path(self.tmp.name) / "App.app", team="YLH", root=self.root,
+            work_directory=Path(self.tmp.name) / "work", configuration_directory=self.config_dir,
+            act_timeout=60, transport=mock.Mock(),
+        )
+        self.env.yh = FakeYhRunner()
+        self.app_client = FakeAppClient()
+        self.env.app_client = self.app_client
+
+    def _write_project_file(self, project_id, linear_project_id):
+        path = suite_env.project_file_path(self.config_dir, project_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f'id = "{project_id}"\nlinear_project = "{linear_project_id}"\n')
+
+    def _write_fixture_tree(self, project_id):
+        project_dir = self.root / project_id
+        project_dir.mkdir(parents=True, exist_ok=True)
+        (project_dir / "marker").write_text("x")
+        return project_dir
+
+    def test_full_teardown_order_and_calls(self):
+        self._write_project_file("rehearsal-suite-a", "lp-a")
+        project_dir = self._write_fixture_tree("rehearsal-suite-a")
+        inside_setup_path = project_dir / "repos" / "fixture-backend"
+        setups = [
+            {"id": "s1", "path": str(inside_setup_path)},
+            {"id": "s2", "path": "/some/unrelated/repo"},
+        ]
+        reset_result = mock.Mock(returncode=0, stdout="", stderr="")
+        with mock.patch.object(suite_env.subprocess, "run", return_value=reset_result) as run_mock, \
+             mock.patch.object(suite_env, "orca_json") as orca_json_mock:
+            orca_json_mock.side_effect = lambda args, timeout=60: (
+                (0, _setups_payload(setups)) if args == ["project", "setups"] else (0, {"ok": True, "result": {}})
+            )
+            ok, messages = suite_env.teardown_project(self.env, "rehearsal-suite-a")
+
+        self.assertTrue(ok, messages)
+        run_mock.assert_called_once()  # scratch_linear.py reset
+        self.assertEqual(self.env.yh.calls, ["rehearsal-suite-a"])
+        orca_calls = [call.args[0] for call in orca_json_mock.call_args_list]
+        self.assertIn(["project", "setups"], orca_calls)
+        self.assertIn(["project", "setup-delete", "--setup", "s1"], orca_calls)
+        self.assertNotIn(["project", "setup-delete", "--setup", "s2"], orca_calls)
+        self.assertEqual(self.app_client.calls, [(suite_env.PROJECT_DELETE_MUTATION, {"id": "lp-a"})])
+        self.assertFalse(project_dir.exists())
+
+    def test_setups_outside_root_id_are_never_deleted(self):
+        self._write_project_file("rehearsal-suite-a", "lp-a")
+        project_dir = self._write_fixture_tree("rehearsal-suite-a")
+        setups = [{"id": "outside", "path": "/some/unrelated/repo"}]
+        reset_result = mock.Mock(returncode=0, stdout="", stderr="")
+        with mock.patch.object(suite_env.subprocess, "run", return_value=reset_result), \
+             mock.patch.object(suite_env, "orca_json") as orca_json_mock:
+            orca_json_mock.side_effect = lambda args, timeout=60: (
+                (0, _setups_payload(setups)) if args == ["project", "setups"] else (0, {"ok": True, "result": {}})
+            )
+            ok, _ = suite_env.teardown_project(self.env, "rehearsal-suite-a")
+        self.assertTrue(ok)
+        orca_calls = [call.args[0] for call in orca_json_mock.call_args_list]
+        self.assertEqual([c for c in orca_calls if c[:2] == ["project", "setup-delete"]], [])
+        self.assertFalse(project_dir.exists())  # unrelated to setups; still removed as this Project's fixture tree
+
+    def test_no_project_file_skips_reset_and_remove_but_still_unregisters_and_deletes_fixtures(self):
+        project_dir = self._write_fixture_tree("rehearsal-suite-b")
+        setups = [{"id": "s9", "path": str(project_dir / "repos" / "fixture-backend")}]
+        with mock.patch.object(suite_env.subprocess, "run") as run_mock, \
+             mock.patch.object(suite_env, "orca_json") as orca_json_mock:
+            orca_json_mock.side_effect = lambda args, timeout=60: (
+                (0, _setups_payload(setups)) if args == ["project", "setups"] else (0, {"ok": True, "result": {}})
+            )
+            ok, messages = suite_env.teardown_project(self.env, "rehearsal-suite-b")
+        self.assertTrue(ok, messages)
+        run_mock.assert_not_called()  # scratch_linear reset never runs: no Project file
+        self.assertEqual(self.env.yh.calls, [])  # yh project remove never runs
+        self.assertEqual(self.app_client.calls, [])  # no Linear project to delete
+        orca_calls = [call.args[0] for call in orca_json_mock.call_args_list]
+        self.assertIn(["project", "setup-delete", "--setup", "s9"], orca_calls)
+        self.assertFalse(project_dir.exists())
+
+    def test_project_delete_not_found_is_tolerated(self):
+        self._write_project_file("rehearsal-suite-a", "lp-a")
+        self.env.app_client = FakeAppClient(
+            error=suite_env.scratch_linear.LinearError(
+                "Linear GraphQL error: [{'message': 'Entity not found: Project'}]"
+            )
+        )
+        reset_result = mock.Mock(returncode=0, stdout="", stderr="")
+        with mock.patch.object(suite_env.subprocess, "run", return_value=reset_result), \
+             mock.patch.object(suite_env, "orca_json", return_value=(0, _setups_payload([]))):
+            ok, messages = suite_env.teardown_project(self.env, "rehearsal-suite-a")
+        self.assertTrue(ok, messages)
+        self.assertTrue(any("already gone" in message for message in messages))
+
+    def test_a_non_not_found_linear_error_is_a_failure(self):
+        self._write_project_file("rehearsal-suite-a", "lp-a")
+        self.env.app_client = FakeAppClient(
+            error=suite_env.scratch_linear.LinearError("Linear GraphQL error: rate limited")
+        )
+        reset_result = mock.Mock(returncode=0, stdout="", stderr="")
+        with mock.patch.object(suite_env.subprocess, "run", return_value=reset_result), \
+             mock.patch.object(suite_env, "orca_json", return_value=(0, _setups_payload([]))):
+            ok, messages = suite_env.teardown_project(self.env, "rehearsal-suite-a")
+        self.assertFalse(ok)
+        self.assertTrue(any("FAILED" in message for message in messages))
+
+    def test_a_bare_not_found_message_that_is_not_entity_not_found_is_a_failure(self):
+        # scratch_linear's own convention is "Entity not found"; a different "not found" phrasing
+        # (e.g. a generic HTTP 404 body) must not be silently tolerated.
+        self._write_project_file("rehearsal-suite-a", "lp-a")
+        self.env.app_client = FakeAppClient(
+            error=suite_env.scratch_linear.LinearError("Linear GraphQL request failed (HTTP 404 not found)")
+        )
+        reset_result = mock.Mock(returncode=0, stdout="", stderr="")
+        with mock.patch.object(suite_env.subprocess, "run", return_value=reset_result), \
+             mock.patch.object(suite_env, "orca_json", return_value=(0, _setups_payload([]))):
+            ok, messages = suite_env.teardown_project(self.env, "rehearsal-suite-a")
+        self.assertFalse(ok)
+        self.assertTrue(any("FAILED" in message for message in messages))
+
+    def test_project_delete_returning_success_false_is_a_failure(self):
+        self._write_project_file("rehearsal-suite-a", "lp-a")
+        self.env.app_client = FakeAppClient(response={"projectDelete": {"success": False}})
+        reset_result = mock.Mock(returncode=0, stdout="", stderr="")
+        with mock.patch.object(suite_env.subprocess, "run", return_value=reset_result), \
+             mock.patch.object(suite_env, "orca_json", return_value=(0, _setups_payload([]))):
+            ok, messages = suite_env.teardown_project(self.env, "rehearsal-suite-a")
+        self.assertFalse(ok)
+        self.assertTrue(any("FAILED" in message and "success=false" in message for message in messages))
+
+    def test_step_1_failure_stops_before_step_2_and_keeps_the_project_file(self):
+        self._write_project_file("rehearsal-suite-a", "lp-a")
+        project_dir = self._write_fixture_tree("rehearsal-suite-a")
+        reset_result = mock.Mock(returncode=2, stdout="", stderr="guard failed")
+        with mock.patch.object(suite_env.subprocess, "run", return_value=reset_result), \
+             mock.patch.object(suite_env, "orca_json") as orca_json_mock:
+            ok, messages = suite_env.teardown_project(self.env, "rehearsal-suite-a")
+        self.assertFalse(ok)
+        self.assertTrue(any("kept" in message for message in messages))
+        self.assertEqual(self.env.yh.calls, [])  # step 2 never ran
+        orca_json_mock.assert_not_called()  # steps 3-4 never ran
+        self.assertEqual(self.app_client.calls, [])
+        self.assertTrue(suite_env.project_file_path(self.config_dir, "rehearsal-suite-a").is_file())
+        self.assertTrue(project_dir.exists())  # step 5 never ran
+
+    def test_step_2_failure_stops_before_step_3_and_keeps_the_project_file(self):
+        self._write_project_file("rehearsal-suite-a", "lp-a")
+        project_dir = self._write_fixture_tree("rehearsal-suite-a")
+        reset_result = mock.Mock(returncode=0, stdout="", stderr="")
+        self.env.yh = FakeYhRunner(result=(1, "yh project remove failed", Path("/tmp/log")))
+        with mock.patch.object(suite_env.subprocess, "run", return_value=reset_result), \
+             mock.patch.object(suite_env, "orca_json") as orca_json_mock:
+            ok, messages = suite_env.teardown_project(self.env, "rehearsal-suite-a")
+        self.assertFalse(ok)
+        self.assertTrue(any("kept" in message for message in messages))
+        self.assertEqual(self.env.yh.calls, ["rehearsal-suite-a"])  # step 2 ran once
+        orca_json_mock.assert_not_called()  # steps 3-4 never ran
+        self.assertEqual(self.app_client.calls, [])
+        self.assertTrue(suite_env.project_file_path(self.config_dir, "rehearsal-suite-a").is_file())
+        self.assertTrue(project_dir.exists())  # step 5 never ran
+
+    def test_dry_run_makes_no_mutating_call_and_no_filesystem_change(self):
+        self._write_project_file("rehearsal-suite-a", "lp-a")
+        project_dir = self._write_fixture_tree("rehearsal-suite-a")
+        inside_setup_path = project_dir / "repos" / "fixture-backend"
+        setups = [{"id": "s1", "path": str(inside_setup_path)}]
+        with mock.patch.object(suite_env.subprocess, "run") as run_mock, \
+             mock.patch.object(suite_env, "orca_json", return_value=(0, _setups_payload(setups))) as orca_json_mock:
+            ok, messages = suite_env.teardown_project(self.env, "rehearsal-suite-a", dry_run=True)
+        self.assertTrue(ok, messages)
+        run_mock.assert_not_called()
+        self.assertEqual(self.env.yh.calls, [])
+        self.assertEqual(self.app_client.calls, [])
+        orca_json_mock.assert_called_once_with(["project", "setups"])  # a read, never setup-delete
+        self.assertTrue(project_dir.exists())
+        self.assertTrue(suite_env.project_file_path(self.config_dir, "rehearsal-suite-a").is_file())
+
+
+class TeardownTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / "root"
+        self.root.mkdir()
+        self.env = suite_env.make_environment(
+            app=Path(self.tmp.name) / "App.app", team="YLH", root=self.root,
+            work_directory=Path(self.tmp.name) / "work", configuration_directory=Path(self.tmp.name) / "config",
+            act_timeout=60, transport=mock.Mock(),
+        )
+
+    def test_a_failing_project_still_tears_down_the_other_and_overall_fails(self):
+        def fake_teardown_project(env, project_id, dry_run=False):
+            if project_id == "rehearsal-suite-a":
+                return False, ["FAILED: boom"]
+            return True, ["ok"]
+
+        with mock.patch.object(suite_env, "teardown_preflight"), \
+             mock.patch.object(suite_env, "teardown_project", side_effect=fake_teardown_project) as tp_mock:
+            overall_ok, results = suite_env.teardown(self.env)
+
+        self.assertFalse(overall_ok)
+        self.assertEqual(tp_mock.call_count, 2)
+        self.assertEqual({project_id for project_id, _, _ in results}, set(suite_env.SUITE_PROJECTS))
+
+    def test_preflight_failure_raises_and_teardown_project_is_never_called(self):
+        with mock.patch.object(suite_env, "teardown_preflight", side_effect=suite_env.SetupFailed("nope")), \
+             mock.patch.object(suite_env, "teardown_project") as tp_mock:
+            with self.assertRaises(suite_env.SetupFailed):
+                suite_env.teardown(self.env)
+        tp_mock.assert_not_called()
+
+    def test_root_is_removed_once_empty_after_a_real_teardown(self):
+        with mock.patch.object(suite_env, "teardown_preflight"), \
+             mock.patch.object(suite_env, "teardown_project", return_value=(True, [])):
+            suite_env.teardown(self.env)
+        self.assertFalse(self.root.exists())
+
+    def test_root_is_kept_on_a_dry_run(self):
+        with mock.patch.object(suite_env, "teardown_preflight"), \
+             mock.patch.object(suite_env, "teardown_project", return_value=(True, [])):
+            suite_env.teardown(self.env, dry_run=True)
+        self.assertTrue(self.root.exists())
+
+
+class RmtreeWithinRootTests(unittest.TestCase):
+    def test_refuses_a_path_outside_root(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name) / "root"
+        root.mkdir()
+        outside = Path(tmp.name) / "outside"
+        outside.mkdir()
+        with self.assertRaises(suite_env.SetupFailed):
+            suite_env._rmtree_within_root(outside, root)
+        self.assertTrue(outside.exists())
+
+    def test_removes_a_path_inside_root(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name) / "root"
+        target = root / "rehearsal-suite-a"
+        target.mkdir(parents=True)
+        suite_env._rmtree_within_root(target, root)
+        self.assertFalse(target.exists())
+
+
 if __name__ == "__main__":
     unittest.main()

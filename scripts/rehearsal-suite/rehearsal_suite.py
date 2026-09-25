@@ -121,6 +121,43 @@ def run_command(args):
 
     all_checks = [run_scenario(env, scenarios.SCENARIOS[number]) for number in numbers]
     overall_ok = print_summary(all_checks)
+    project_ids = ", ".join(suite_env.SUITE_PROJECTS)
+    print(
+        f"\nrehearsal-suite: {project_ids} remain installed in {configuration_directory / 'projects'}/ "
+        "— `yh setup --install-jobs` would schedule real Nights for them; "
+        "`rehearsal_suite.py teardown` removes them."
+    )
+    return 0 if overall_ok else 1
+
+
+def teardown_command(args):
+    root = args.root.expanduser().resolve()
+    configuration_directory = args.configuration_directory.expanduser().resolve()
+    work_directory = args.work_directory
+    if work_directory is None:
+        work_directory = Path(tempfile.mkdtemp(prefix="yh-rehearsal-suite-teardown-"))
+    else:
+        work_directory = work_directory.expanduser().resolve()
+        work_directory.mkdir(parents=True, exist_ok=True)
+    print(f"rehearsal-suite teardown: work directory: {work_directory}")
+
+    app = args.app.expanduser().resolve()
+    env = suite_env.make_environment(
+        app=app, team=args.team, root=root, work_directory=work_directory,
+        configuration_directory=configuration_directory, act_timeout=600.0,
+    )
+
+    try:
+        overall_ok, per_project_results = suite_env.teardown(env, dry_run=args.dry_run)
+    except suite_env.SetupFailed as error:
+        print(f"rehearsal-suite teardown: cannot run: {error}", file=sys.stderr)
+        return 2
+
+    print("\n=== Teardown summary ===")
+    for project_id, ok, messages in per_project_results:
+        print(f"{'PASS' if ok else 'FAIL'} {project_id}")
+        for message in messages:
+            print(f"    {message}")
     return 0 if overall_ok else 1
 
 
@@ -161,6 +198,29 @@ def parse_arguments(argv):
 
     subparsers.add_parser("list", help="print every scenario's number, title and Operator need")
 
+    teardown_parser = subparsers.add_parser(
+        "teardown", help="remove everything a suite run leaves on the machine (Projects, Linear projects, "
+        "Orca ADE registrations, fixture trees)"
+    )
+    teardown_parser.add_argument("--app", required=True, type=Path, help="a built Yellowhammer.app")
+    teardown_parser.add_argument("--team", required=True, help="the scratch Linear team's key")
+    teardown_parser.add_argument(
+        "--root", type=Path, default=suite_env.DEFAULT_ROOT,
+        help="where fixture trees were built (default: ~/Library/Caches/dev.yellowhammer/rehearsal-suite)",
+    )
+    teardown_parser.add_argument(
+        "--configuration-directory", type=Path, default=suite_env.DEFAULT_CONFIGURATION_DIRECTORY,
+        help="default ~/.config/yellowhammer (yh itself always reads this default)",
+    )
+    teardown_parser.add_argument(
+        "--work-directory", type=Path, default=None,
+        help="where the `yh project remove` log goes (default: a fresh temp dir)",
+    )
+    teardown_parser.add_argument(
+        "--dry-run", action="store_true",
+        help="report what would be removed; sends no mutation, deletes nothing",
+    )
+
     return parser.parse_args(argv)
 
 
@@ -168,6 +228,8 @@ def main(argv=None):
     args = parse_arguments(argv if argv is not None else sys.argv[1:])
     if args.command == "run":
         return run_command(args)
+    if args.command == "teardown":
+        return teardown_command(args)
     return list_command(args)
 
 
