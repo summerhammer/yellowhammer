@@ -26,11 +26,10 @@ enum DeferredCardStateReplay {
     static func run(context: ActContext) async throws {
         guard let outbox = context.outbox, let board = context.board else { return }
 
-        // A Card at state_version 0 never transitioned in the Journal — its authoring group created it
-        // on the board in Todo (``AuthoringTransaction+Plan``), so it has no deferred write of its own.
-        // `cardsWithUnpostedState()` counts `board_state_version IS NULL` as unposted, which every freshly
-        // authored Card is, so without this filter every author Act would re-post Todo for it.
-        let cards = try context.journal.cardsWithUnpostedState().filter { $0.stateVersion > 0 }
+        // `cardsWithUnpostedState()` leaves out a freshly authored Card (state_version 0): its authoring
+        // group created it on the board in Todo (``AuthoringTransaction+Plan``), so it has no deferred
+        // write of its own.
+        let cards = try context.journal.cardsWithUnpostedState()
         guard !cards.isEmpty else { return }
 
         let scope: BoardStateScope

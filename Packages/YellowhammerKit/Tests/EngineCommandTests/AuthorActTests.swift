@@ -118,8 +118,8 @@ struct AuthorActTests {
         let journal = try fixture.open()
         let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
-        // A freshly authored Card: Todo, state_version 0, board_state_version nil — unposted by
-        // `cardsWithUnpostedState()`'s own definition, but never transitioned, so nothing to replay.
+        // A freshly authored Card: Todo, state_version 0, board_state_version nil — never transitioned,
+        // so `cardsWithUnpostedState()` leaves it out and there is nothing to replay.
         let cardID = try insertReconcilerCard(
             journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .todo
         )
