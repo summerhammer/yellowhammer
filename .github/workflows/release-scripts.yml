@@ -1,9 +1,10 @@
 name: Release scripts
 
-# Unit-tests and lints the release scripts (roadmap P16.2, P16.3). Runs on ubuntu-latest
-# and uses no secrets: it never signs or notarizes anything, only checks
-# release-version.sh's tag parsing, notarize.sh against stubbed `xcrun`/`ditto`/
-# `codesign`/`spctl`, and the shell scripts' style.
+# Unit-tests and lints the release scripts (roadmap P16.2, P16.3, P16.4). Runs on
+# ubuntu-latest and uses no secrets: it never signs or notarizes anything, only checks
+# release-version.sh's tag parsing, notarize.sh and package-dmg.sh against stubbed
+# `xcrun`/`ditto`/`codesign`/`spctl`/`hdiutil`, release-notes.sh against a throwaway git
+# repository, and the shell scripts' style.
 
 on:
   pull_request:
@@ -11,6 +12,8 @@ on:
       - 'scripts/release/**'
       - 'scripts/ci/tests/test_release_version.py'
       - 'scripts/ci/tests/test_notarize.py'
+      - 'scripts/ci/tests/test_package_dmg.py'
+      - 'scripts/ci/tests/test_release_notes.py'
       - '.github/workflows/release-scripts.yml'
   push:
     branches:
@@ -19,6 +22,8 @@ on:
       - 'scripts/release/**'
       - 'scripts/ci/tests/test_release_version.py'
       - 'scripts/ci/tests/test_notarize.py'
+      - 'scripts/ci/tests/test_package_dmg.py'
+      - 'scripts/ci/tests/test_release_notes.py'
       - '.github/workflows/release-scripts.yml'
 
 permissions:
@@ -41,6 +46,8 @@ jobs:
         run: |
           python3 -m unittest discover -s scripts/ci/tests -p 'test_release_version.py' -v
           python3 -m unittest discover -s scripts/ci/tests -p 'test_notarize.py' -v
+          python3 -m unittest discover -s scripts/ci/tests -p 'test_package_dmg.py' -v
+          python3 -m unittest discover -s scripts/ci/tests -p 'test_release_notes.py' -v
 
       - name: Shellcheck release scripts
         run: shellcheck scripts/release/*.sh
