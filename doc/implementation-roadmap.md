@@ -1648,7 +1648,7 @@ comment on the Delta Read).
   Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — The release job can sign and authenticate for notarization without manual input.
 
-### [ ] P16.2 `[DevOps]` Release build configuration
+### [x] P16.2 `[DevOps]` Release build configuration
 - **Work**
   - Release configuration of both targets: hardened runtime, Developer ID signing, `yh` embedded in
     `Contents/MacOS` with Code Sign On Copy, `yh` Info.plist embedded so codesign uses its bundle
