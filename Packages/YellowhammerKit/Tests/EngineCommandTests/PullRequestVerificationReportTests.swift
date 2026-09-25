@@ -10,7 +10,9 @@ import Testing
 
 @Suite("Land Act pull request carries the Verification report (P10.5)")
 struct PullRequestVerificationReportTests {
-    private func openedBody(recording clauses: [ClauseVerificationRecord]?) async throws -> String {
+    private func openedBody(
+        recording clauses: [ClauseVerificationRecord]?, firstCardTitle: String? = nil
+    ) async throws -> String {
         let local = TestGitRepo(name: "pr-verify-local-\(UUID().uuidString.prefix(8))")
         await local.initRepo(defaultBranch: "main")
         _ = try await local.commit(message: "initial")
@@ -21,7 +23,7 @@ struct PullRequestVerificationReportTests {
         let env = try await Environment.make(repos: [repo])
         await env.board.seed(issue: "FEAT-1", description: nil)
         await env.board.seed(issue: "BACK-1", description: nil)
-        let (feature, cycleID) = try env.setUpFeature()
+        let (feature, cycleID) = try env.setUpFeature(firstCardTitle: firstCardTitle)
         if let clauses {
             try env.journal.recordFeatureVerification(NewFeatureVerification(
                 featureID: feature.id, cycleID: cycleID, route: "codex/gpt-5.4/high",
@@ -51,6 +53,50 @@ struct PullRequestVerificationReportTests {
         #expect(body.contains("## Verification, clause by clause"))
         #expect(body.contains("BACK-1 c1 · Returns 404. · Spec Citation (epic/story) · [Author-supplied] · met"))
         #expect(body.contains("auditable, not sound"))
+    }
+
+    @Test("An unmet clause from the Verification report names the Card by title, not issue id")
+    func unmetClauseFromReportNamesByTitle() async throws {
+        let local = TestGitRepo(name: "pr-verify-local-\(UUID().uuidString.prefix(8))")
+        await local.initRepo(defaultBranch: "main")
+        _ = try await local.commit(message: "initial")
+        _ = await local.run(["checkout", "-b", "yh-proj-feat"])
+        await local.addRemote(url: "git@github.com:summerhammer/backend.git")
+
+        let repo = Repo(name: "backend", path: local.path, role: .backend, defaultBranch: "main")
+        let env = try await Environment.make(repos: [repo])
+        await env.board.seed(issue: "FEAT-1", description: nil)
+        await env.board.seed(issue: "BACK-1", description: nil)
+        await env.board.seed(issue: "BACK-2", description: nil)
+        // A Card that is still Blocked, so the landing is partial and the body's unmet-clauses list
+        // renders — that is the only section drawing from `effectiveUnmetClauses`.
+        let (feature, cycleID) = try env.setUpFeature(firstCardTitle: "Fix the endpoint")
+        let featureID = feature.id
+        try insertReconcilerCard(
+            env.journal, cycleID: cycleID, issueID: "BACK-2", repository: "backend", state: .blocked
+        )
+        try env.journal.recordFeatureVerification(NewFeatureVerification(
+            featureID: featureID, cycleID: cycleID, route: "codex/gpt-5.4/high",
+            nightID: env.context.night.id, runID: env.runID, clauses: [
+                ClauseVerificationRecord(
+                    issueID: "BACK-1", cid: "c1", level: "card", text: "Returns 404.", locationID: "epic/story",
+                    citationProvenance: "Author-supplied", verdict: .unmet, whatWasChecked: "read the handler",
+                    interpretation: "path parameter", judgedBy: .agent
+                )
+            ]
+        ))
+        let url = "https://github.com/summerhammer/backend/pull/1"
+        let stub = StubPublicationAdapter(result: .success(.opened(url: url)))
+        let seam = FeatureBranchPullRequest(publication: stub, clock: { landEpoch })
+        let laneContext = LandActLaneContext(
+            act: env.context, feature: feature, cycleID: cycleID,
+            lane: RepoLane(repository: "backend", cards: try env.journal.cards(cycleID: cycleID))
+        )
+        _ = try await seam.open(laneContext, push: LanePushOutcome(pushed: true, commit: "deadbeef"), mergeOutcome: nil)
+        let body = try #require(await stub.calls.first?.body)
+
+        #expect(body.contains("- Fix the endpoint: \"Returns 404.\" (epic/story) — unmet"))
+        #expect(!body.contains("- BACK-1: \"Returns 404.\""))
     }
 
     @Test("With no Verification recorded the body has no report section")

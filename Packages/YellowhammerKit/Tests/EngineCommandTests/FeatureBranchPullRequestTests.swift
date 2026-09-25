@@ -83,7 +83,8 @@ struct FeatureBranchPullRequestTests {
         let body = try #require(calls.first?.body)
 
         // The hole Card, by title.
-        #expect(body.contains("BACK-2"))
+        #expect(body.contains("Fix the endpoint"))
+        #expect(!body.contains("BACK-2"))
         // Both clause texts, quoted with their Spec Citation, marked unmet.
         #expect(body.contains("The endpoint returns 404 for a missing id."))
         #expect(body.contains("feature-authoring/write-a-card#dod-1"))
@@ -107,7 +108,10 @@ struct FeatureBranchPullRequestTests {
         try journal.recordFeatureBranch(featureID: featureID, branch: landBranch)
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         try insertReconcilerCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .done)
-        try insertReconcilerCard(journal, cycleID: cycleID, issueID: "BACK-2", repository: "backend", state: .blocked)
+        try insertReconcilerCard(
+            journal, cycleID: cycleID, issueID: "BACK-2", repository: "backend", state: .blocked,
+            title: "Fix the endpoint"
+        )
         try insertReconcilerCard(
             journal, cycleID: cycleID, issueID: "BACK-3", repository: "backend", state: .waitingOnYou
         )

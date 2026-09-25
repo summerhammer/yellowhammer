@@ -9,11 +9,11 @@ import Testing
 @Suite("Feature Roll-up block (P12.3)")
 struct FeatureRollUpBlockTests {
     private func member(
-        _ issueID: String, repo: String, order: Int, state: CardState,
+        _ issueID: String, title: String? = nil, repo: String, order: Int, state: CardState,
         waitingReason: WaitingReason? = nil, blockReason: String? = nil,
         markers: Set<FeatureMemberMarker> = [], adoptedFrom: String? = nil
     ) -> RollUpMember {
-        RollUpMember(issueID: issueID, repository: repo, authoredOrder: order, state: state,
+        RollUpMember(issueID: issueID, title: title, repository: repo, authoredOrder: order, state: state,
                      waitingReason: waitingReason, blockReason: blockReason, markers: markers,
                      adoptedFromFeatureIssueID: adoptedFrom)
     }
@@ -86,15 +86,44 @@ struct FeatureRollUpBlockTests {
         #expect(rendered.contains("#### `backend` — finished"))
     }
 
-    @Test("Lane status is pushed when the Cycle has landed")
+    @Test("Lane status is pushed when its own repository is in pushedRepositories")
     func laneStatusPushed() {
+        let rollUp = FeatureRollUp(
+            members: [member("A", repo: "backend", order: 0, state: .done)],
+            lanesPushed: true, verificationPassed: true,
+            mergedFraction: MergedFraction(mergedCount: 1, totalCount: 1),
+            pushedRepositories: ["backend"], issueStanding: .authoring
+        )
+        let rendered = FeatureRollUpBlock(rollUp: rollUp).render()
+        #expect(rendered.contains("#### `backend` — pushed"))
+    }
+
+    @Test("Only the lane whose repository actually pushed is headed 'pushed'; the other reads 'finished'")
+    func onlyPushedLaneReadsPushed() {
+        let rollUp = FeatureRollUp(
+            members: [
+                member("A", repo: "backend", order: 0, state: .done),
+                member("B", repo: "mobile", order: 0, state: .done)
+            ],
+            lanesPushed: true, verificationPassed: true,
+            mergedFraction: MergedFraction(mergedCount: 1, totalCount: 2),
+            pushedRepositories: ["backend"], issueStanding: .authoring
+        )
+        let rendered = FeatureRollUpBlock(rollUp: rollUp).render()
+        #expect(rendered.contains("#### `backend` — pushed"))
+        #expect(rendered.contains("#### `mobile` — finished"))
+    }
+
+    @Test("The Cycle landed but pushedRepositories is empty (rehearsal): no lane is headed 'pushed'")
+    func rehearsalLandingNoLaneReadsPushed() {
         let rollUp = FeatureRollUp(
             members: [member("A", repo: "backend", order: 0, state: .done)],
             lanesPushed: true, verificationPassed: true,
             mergedFraction: MergedFraction(mergedCount: 1, totalCount: 1), issueStanding: .authoring
         )
         let rendered = FeatureRollUpBlock(rollUp: rollUp).render()
-        #expect(rendered.contains("#### `backend` — pushed"))
+        #expect(!rendered.contains("— pushed"))
+        #expect(rendered.contains("#### `backend` — finished"))
     }
 
     @Test("Adopted and banked-answer markers render on the Card line")
@@ -165,6 +194,46 @@ struct FeatureRollUpBlockTests {
         let rendered = FeatureRollUpBlock(rollUp: rollUp).render()
         #expect(!rendered.contains("#### `web`"))
         #expect(rendered.contains("- `W-1` [`web`] — Cancelled"))
+    }
+
+    @Test("A Blocked Card with a title renders by title, not issue id, with its reason")
+    func blockedRendersByTitle() {
+        let rollUp = FeatureRollUp(
+            members: [
+                member(
+                    "A", title: "Fix the login bug", repo: "backend", order: 0, state: .blocked,
+                    blockReason: "blocked by check"
+                )
+            ],
+            lanesPushed: false, verificationPassed: false, mergedFraction: noMerge(), issueStanding: .authoring
+        )
+        let rendered = FeatureRollUpBlock(rollUp: rollUp).render()
+        #expect(rendered.contains("- Fix the login bug — Blocked (blocked by check)"))
+        #expect(!rendered.contains("`A`"))
+    }
+
+    @Test("A Card with no title falls back to its backticked issue id")
+    func nilTitleFallsBackToIssueID() {
+        let rollUp = FeatureRollUp(
+            members: [member("A", repo: "backend", order: 0, state: .blocked, blockReason: "blocked by check")],
+            lanesPushed: false, verificationPassed: false, mergedFraction: noMerge(), issueStanding: .authoring
+        )
+        let rendered = FeatureRollUpBlock(rollUp: rollUp).render()
+        #expect(rendered.contains("- `A` — Blocked (blocked by check)"))
+    }
+
+    @Test("The Cancelled group renders by title, falling back to issue id when untitled")
+    func cancelledGroupRendersByTitle() {
+        let rollUp = FeatureRollUp(
+            members: [
+                member("W-1", title: "Deprecated widget", repo: "web", order: 0, state: .cancelled),
+                member("W-2", repo: "web", order: 1, state: .cancelled)
+            ],
+            lanesPushed: false, verificationPassed: false, mergedFraction: noMerge(), issueStanding: .authoring
+        )
+        let rendered = FeatureRollUpBlock(rollUp: rollUp).render()
+        #expect(rendered.contains("- Deprecated widget [`web`] — Cancelled"))
+        #expect(rendered.contains("- `W-2` [`web`] — Cancelled"))
     }
 
     @Test("Conflicts render on the header line, beside the bold sentence")

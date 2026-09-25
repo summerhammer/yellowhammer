@@ -100,12 +100,17 @@ public struct PullRequestBodyInput: Equatable, Sendable {
     /// written. When present the body carries it with its limitation, and the unmet list is derived
     /// from it (``effectiveUnmetClauses``) so the two cannot disagree; when nil the body is unchanged.
     public let verificationReport: VerificationReport?
+    /// Issue id → display name (a Card's title, or the Feature Issue's), for
+    /// ``effectiveUnmetClauses`` to resolve the report's issue ids by (issue #161; spec:
+    /// landing/announce-a-partial-landing). An id missing from this lookup renders as itself.
+    public let cardTitles: [String: String]
 
     public init(
         featureTitle: String, featureIssueURL: String?, nightID: Int64, nightTimestamp: String,
         repository: String, touchedRepositoryCount: Int, mergedCount: Int,
         cycleCards: [PullRequestBodyCard], mergeVerdict: PullRequestBodyMergeVerdict,
-        unmetClauses: [PullRequestBodyUnmetClause], verificationReport: VerificationReport? = nil
+        unmetClauses: [PullRequestBodyUnmetClause], verificationReport: VerificationReport? = nil,
+        cardTitles: [String: String] = [:]
     ) {
         self.featureTitle = featureTitle
         self.featureIssueURL = featureIssueURL
@@ -118,6 +123,7 @@ public struct PullRequestBodyInput: Equatable, Sendable {
         self.mergeVerdict = mergeVerdict
         self.unmetClauses = unmetClauses
         self.verificationReport = verificationReport
+        self.cardTitles = cardTitles
     }
 
     /// The unmet list the body prints: every clause the report did not find `met` (unmet and
@@ -125,7 +131,9 @@ public struct PullRequestBodyInput: Equatable, Sendable {
     public var effectiveUnmetClauses: [PullRequestBodyUnmetClause] {
         guard let verificationReport else { return unmetClauses }
         return verificationReport.unmetOrUnresolved.map {
-            PullRequestBodyUnmetClause(cardTitle: $0.issueID, text: $0.text, citation: $0.locationID)
+            PullRequestBodyUnmetClause(
+                cardTitle: cardTitles[$0.issueID] ?? $0.issueID, text: $0.text, citation: $0.locationID
+            )
         }
     }
 

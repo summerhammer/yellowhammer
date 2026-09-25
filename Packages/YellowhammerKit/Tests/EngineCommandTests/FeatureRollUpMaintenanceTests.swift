@@ -88,6 +88,44 @@ struct FeatureRollUpMaintenanceTests {
         #expect(description.contains(expected))
     }
 
+    @Test("Only the repository whose Worktree actually pushed is headed 'pushed' (issue #161 part 2)")
+    func onlyPushedRepositoryReadsPushedInBlock() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let world = try makeRollUpWorld(journal)
+        await world.board.seed(issue: "FEAT-1", description: ManagedBlockFence.initialDescription(rendered: ""))
+        let featureID = try insertGateFeature(
+            journal, issueID: "FEAT-1", branch: "yh-proj-feat", repositories: ["backend", "mobile"]
+        )
+        let cycleID = try gateCycleID(journal, featureID: featureID)
+        try insertRollUpCard(
+            journal, cycleID: cycleID, .init(issueID: "BACK-1", repository: "backend", order: 1, state: .done)
+        )
+        try insertRollUpCard(
+            journal, cycleID: cycleID, .init(issueID: "MOB-1", repository: "mobile", order: 1, state: .done)
+        )
+        // Only "backend" pushed; "mobile" landed (the Cycle landed) but its own push never happened —
+        // a rehearsal Night, or a real lane whose push failed, looks like this too.
+        let backendWorktree = try journal.recordWorktree(
+            featureID: featureID, repository: "backend", worktreeID: "wt-backend", path: "/tmp/backend",
+            runID: world.runID
+        )
+        try journal.recordWorktreePush(id: backendWorktree.id, commit: "deadbeef", runID: world.runID)
+        _ = try journal.recordWorktree(
+            featureID: featureID, repository: "mobile", worktreeID: "wt-mobile", path: "/tmp/mobile",
+            runID: world.runID
+        )
+        try journal.markCycleLanded(cycleID: cycleID, runID: world.runID)
+        let feature = try #require(try journal.feature(issueID: "FEAT-1"))
+        let maintenance = FeatureRollUpMaintenance(journal: journal, outbox: world.outbox)
+
+        _ = try await maintenance.maintain(feature: feature, cycleID: cycleID)
+
+        let description = try #require(await world.board.issue(BoardObjectID(rawValue: "FEAT-1"))?.description)
+        #expect(description.contains("#### `backend` — pushed"))
+        #expect(description.contains("#### `mobile` — finished"))
+    }
+
     @Test("Merged fraction alone reposts: 0 of 2 moves to 1 of 2 as ancestry is observed")
     func repostsOnMergedFraction() async throws {
         let fixture = try OutboxJournalFixture()

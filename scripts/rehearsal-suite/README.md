@@ -113,8 +113,8 @@ Every scenario starts from a reset Project. "Journal" means a read-only snapshot
    the `fixture-backend` lane, `attempts_per_card = 1`; the lane's middle Card answers its worker pass
    with `worker-failed`. It ends Blocked, a lane hole is recorded, and the Card after it still runs to
    Done. Land: the Cycle lands, is returned rather than archived, and the Feature Issue's Managed Block
-   on the board leads with `partial landing · … · 1 blocked` and names the blocked Card Blocked (by its
-   issue id: the Journal holds no Card title). *Stories:* `graph-execution/handle-a-block-mid-graph`, `landing/announce-a-partial-landing`.
+   on the board leads with `partial landing · … · 1 blocked` and names the blocked Card Blocked by its
+   title. *Stories:* `graph-execution/handle-a-block-mid-graph`, `landing/announce-a-partial-landing`.
 5. **Waiting on You answered before landing, and after landing (banked).** (a) The Card's worker asks
    (`worker-question`); it is Waiting on You with a recorded question; the Operator replies to the
    question comment; the next build Act records an `answer`, acknowledges it with "It runs on the next

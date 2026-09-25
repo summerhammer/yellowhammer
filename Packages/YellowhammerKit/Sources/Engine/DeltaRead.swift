@@ -163,6 +163,13 @@ public struct DeltaRead: Sendable {
         var card = card
         let boardState = object.workflowState
 
+        if !object.title.isEmpty, object.title != card.title {
+            // The Operator renamed the issue: the Journal's copy of the title (issue #161; spec:
+            // landing/announce-a-partial-landing) is kept current so the Roll-up and the
+            // partial-landing PR body name the Card by its current title.
+            card = try journal.updateCardTitle(cardID: card.id, title: object.title, runID: runID, now: clock())
+        }
+
         if object.isTrashed || (object.archivedAt != nil && card.state.isInPlay) {
             let how: RemovedCard.How = object.isTrashed ? .trashed : .archived
             report.removed.append(RemovedCard(card: card, how: how))

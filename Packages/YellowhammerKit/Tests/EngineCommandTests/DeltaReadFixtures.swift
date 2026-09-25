@@ -39,7 +39,8 @@ func deltaRead(
 /// Inserts a Feature → Cycle → Card chain and returns the Card's Journal id.
 @discardableResult
 func insertCard(
-    _ journal: JournalStore, issueID: String, state: CardState = .todo, repository: String = "backend"
+    _ journal: JournalStore, issueID: String, state: CardState = .todo, repository: String = "backend",
+    title: String? = nil
 ) throws -> Int64 {
     try journal.write { db in
         try db.execute(
@@ -54,21 +55,24 @@ func insertCard(
         let cycleID = db.lastInsertedRowID
         try db.execute(
             sql: """
-            INSERT INTO card (cycle_id, issue_id, repository, kind, authored_order, state, budget_epoch, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO card (cycle_id, issue_id, title, repository, kind, authored_order, state, budget_epoch,
+            created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            arguments: [cycleID, issueID, repository, "impl", 1, state.rawValue, 0, JournalStore.timestamp(deltaEpoch)]
+            arguments: [
+                cycleID, issueID, title, repository, "impl", 1, state.rawValue, 0, JournalStore.timestamp(deltaEpoch)
+            ]
         )
         return db.lastInsertedRowID
     }
 }
 
 func object(
-    _ id: String, state: BoardWorkflowState, description: String? = nil, updatedAt: TimeInterval = 10,
-    archivedAt: TimeInterval? = nil, isTrashed: Bool = false
+    _ id: String, title: String? = nil, state: BoardWorkflowState, description: String? = nil,
+    updatedAt: TimeInterval = 10, archivedAt: TimeInterval? = nil, isTrashed: Bool = false
 ) -> BoardObject {
     BoardObject(
-        id: BoardObjectID(rawValue: id), key: "ENG-\(id)", title: id, description: description,
+        id: BoardObjectID(rawValue: id), key: "ENG-\(id)", title: title ?? id, description: description,
         workflowState: state, labels: [], parent: nil, url: "https://linear.app/x/\(id)",
         createdAt: deltaEpoch, updatedAt: deltaEpoch.addingTimeInterval(updatedAt),
         archivedAt: archivedAt.map { deltaEpoch.addingTimeInterval($0) }, isTrashed: isTrashed

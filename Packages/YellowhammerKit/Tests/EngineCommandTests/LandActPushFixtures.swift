@@ -129,12 +129,14 @@ final class LandPushTestEnvironment {
     /// `secondRepository`, when given, adds a second lane's Card. Returns the resulting Feature record
     /// and its Cycle id, read back through `inFlightFeature()`.
     func setUpFeature(
-        branch: FeatureBranch = landBranch, secondRepository: String? = nil
+        branch: FeatureBranch = landBranch, secondRepository: String? = nil, firstCardTitle: String? = nil
     ) throws -> (feature: FeatureRecord, cycleID: Int64) {
         let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
         try journal.recordFeatureBranch(featureID: featureID, branch: branch)
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
-        try insertReconcilerCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .done)
+        try insertReconcilerCard(
+            journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .done, title: firstCardTitle
+        )
         if let secondRepository {
             try insertReconcilerCard(
                 journal, cycleID: cycleID, issueID: "MOB-1", repository: secondRepository, state: .done

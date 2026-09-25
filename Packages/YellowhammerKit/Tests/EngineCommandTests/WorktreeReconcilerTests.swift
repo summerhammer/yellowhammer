@@ -105,7 +105,8 @@ func insertReconcilerCycle(_ journal: JournalStore, featureID: Int64) throws -> 
 /// (the schema's uniqueness is per cycle and repository, not global).
 @discardableResult
 func insertReconcilerCard(
-    _ journal: JournalStore, cycleID: Int64, issueID: String, repository: String, state: CardState
+    _ journal: JournalStore, cycleID: Int64, issueID: String, repository: String, state: CardState,
+    title: String? = nil
 ) throws -> Int64 {
     try journal.write { db in
         let nextOrder = try Int.fetchOne(
@@ -115,11 +116,12 @@ func insertReconcilerCard(
         ) ?? 1
         try db.execute(
             sql: """
-            INSERT INTO card (cycle_id, issue_id, repository, kind, authored_order, state, budget_epoch, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO card (cycle_id, issue_id, title, repository, kind, authored_order, state, budget_epoch,
+            created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             arguments: [
-                cycleID, issueID, repository, "card", nextOrder, state.rawValue, 0,
+                cycleID, issueID, title, repository, "card", nextOrder, state.rawValue, 0,
                 JournalStore.timestamp(reconcilerEpoch)
             ]
         )

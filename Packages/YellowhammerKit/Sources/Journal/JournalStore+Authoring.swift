@@ -9,6 +9,9 @@ import GRDB
 /// One newly authored Card's Journal row, once the board has applied its create.
 public struct AuthoredCardRow: Equatable, Sendable {
     public let issueID: String
+    /// The plan's title for this Card (from ``PlannedCard/title``), recorded so the Roll-up and the
+    /// partial-landing PR body can name a Card that did not complete by title.
+    public let title: String
     public let repository: String
     public let kind: String
     public let order: Int
@@ -20,10 +23,11 @@ public struct AuthoredCardRow: Equatable, Sendable {
     public let transcriptions: [PlannedTranscription]
 
     public init(
-        issueID: String, repository: String, kind: String, order: Int, clauses: [PlannedClause] = [],
-        brief: String = "", transcriptions: [PlannedTranscription] = []
+        issueID: String, repository: String, kind: String, order: Int, title: String = "",
+        clauses: [PlannedClause] = [], brief: String = "", transcriptions: [PlannedTranscription] = []
     ) {
         self.issueID = issueID
+        self.title = title
         self.repository = repository
         self.kind = kind
         self.order = order
@@ -210,11 +214,12 @@ extension JournalStore {
     ) throws {
         try db.execute(
             sql: """
-            INSERT INTO card (cycle_id, issue_id, repository, kind, authored_order, state, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO card (cycle_id, issue_id, title, repository, kind, authored_order, state, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             arguments: [
-                cycleID, card.issueID, card.repository, card.kind, card.order, CardState.todo.rawValue, timestamp
+                cycleID, card.issueID, card.title, card.repository, card.kind, card.order,
+                CardState.todo.rawValue, timestamp
             ]
         )
         let cardID = db.lastInsertedRowID
