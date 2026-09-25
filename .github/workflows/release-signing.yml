@@ -1,0 +1,41 @@
+name: Release signing
+
+# Proves the release job can sign with the Developer ID Application identity and
+# authenticate for notarization using CI secrets only (roadmap P16.1).
+# See doc/signing-identity.md for the secrets and their ownership.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 1 * *' # Monthly, so an expired credential is found before a release is.
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  signing:
+    name: Sign and authenticate for notarization
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up signing identity and notarization credential
+        env:
+          DEVELOPER_ID_P12_BASE64: ${{ secrets.DEVELOPER_ID_P12_BASE64 }}
+          DEVELOPER_ID_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          NOTARY_API_KEY_BASE64: ${{ secrets.NOTARY_API_KEY_BASE64 }}
+          NOTARY_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
+          NOTARY_API_ISSUER_ID: ${{ secrets.NOTARY_API_ISSUER_ID }}
+        run: scripts/release/setup-signing.sh
+
+      - name: Delete temporary keychain
+        if: always()
+        run: |
+          if [ -n "${KEYCHAIN_PATH:-}" ]; then security delete-keychain "$KEYCHAIN_PATH" || true; fi
+          rm -f "${NOTARY_API_KEY_PATH:-}"
