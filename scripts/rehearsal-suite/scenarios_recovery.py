@@ -294,7 +294,7 @@ def scenario_9(env, checks):
     checks.require(len(backend_cards) >= 1, "at least one fixture-backend Card")
     p_card = backend_cards[0]
 
-    env.operator_client.replace_scope_line(p_card["issue_id"], "**Scope:** `migrations/0002_fixture.sql`")
+    env.operator_client.declare_scope(p_card["issue_id"], "**Scope:** `migrations/0002_fixture.sql`")
 
     returncode, output, log_path = env.yh.run_act(slug, "build", project_id, night=n1)
     checks.require(returncode == 0, f"build exits 0 (got {returncode}); see {log_path}")
