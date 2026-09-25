@@ -35,6 +35,7 @@ jobs:
     env:
       XCODE_VERSION: "26.6"
       DEVELOPER_TEAM_ID: A2SJL2N487
+      SPARKLE_PUBLIC_ED_KEY: ${{ vars.SPARKLE_PUBLIC_ED_KEY }}
 
     steps:
       - name: Checkout
@@ -83,13 +84,14 @@ jobs:
             MARKETING_VERSION="$MARKETING_VERSION" \
             CURRENT_PROJECT_VERSION="$CURRENT_PROJECT_VERSION" \
             OTHER_CODE_SIGN_FLAGS="--timestamp --keychain $KEYCHAIN_PATH" \
+            SPARKLE_PUBLIC_ED_KEY="$SPARKLE_PUBLIC_ED_KEY" \
             build | tee build/xcodebuild.log
 
       - name: Verify release build
         run: |
           scripts/release/verify-release-build.sh \
             build/DerivedData/Build/Products/Release/Yellowhammer.app \
-            "$MARKETING_VERSION" "$CURRENT_PROJECT_VERSION"
+            "$MARKETING_VERSION" "$CURRENT_PROJECT_VERSION" "$SPARKLE_PUBLIC_ED_KEY"
 
       - name: Notarize, staple and verify
         env:
@@ -117,6 +119,16 @@ jobs:
           # dmg-notarization-submit.json and dmg-notarization-log.json land in
           # build/artifacts/ directly — already covered by the artifact upload below.
 
+      - name: Sign the update and write the appcast
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          NOTARIZED_ZIP_NAME="Yellowhammer-$MARKETING_VERSION-$CURRENT_PROJECT_VERSION.zip"
+          scripts/release/appcast.sh \
+            "build/artifacts/$NOTARIZED_ZIP_NAME" \
+            "$MARKETING_VERSION" "$CURRENT_PROJECT_VERSION" "$RELEASE_TAG" \
+            build/artifacts
+
       - name: Write release notes
         run: scripts/release/release-notes.sh "$RELEASE_TAG" > build/artifacts/release-notes.md
 
@@ -127,6 +139,7 @@ jobs:
           if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" \
               build/artifacts/*.dmg build/artifacts/*.zip build/artifacts/SHA256SUMS \
+              build/artifacts/appcast.xml \
               --repo "$GITHUB_REPOSITORY" --clobber
             gh release edit "$RELEASE_TAG" \
               --repo "$GITHUB_REPOSITORY" \
@@ -135,6 +148,7 @@ jobs:
           else
             gh release create "$RELEASE_TAG" \
               build/artifacts/*.dmg build/artifacts/*.zip build/artifacts/SHA256SUMS \
+              build/artifacts/appcast.xml \
               --repo "$GITHUB_REPOSITORY" \
               --title "Yellowhammer $MARKETING_VERSION" \
               --notes-file build/artifacts/release-notes.md \

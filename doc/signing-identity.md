@@ -68,4 +68,5 @@ team; without it the script takes the first one.
 2. **API key** (on owner change or suspected leak): create a new key in App Store Connect,
    update the three `NOTARY_API_*` secrets and re-run `store-credentials`, run
    `release-signing.yml`, then revoke the old key.
-3. **Sparkle EdDSA key** is a separate credential and belongs to P16.5, not here.
+3. **Sparkle EdDSA key** is a separate credential and belongs to P16.5 — see
+   [doc/update-channel.md](update-channel.md), not here.
