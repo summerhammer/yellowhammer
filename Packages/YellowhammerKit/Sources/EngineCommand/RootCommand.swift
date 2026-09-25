@@ -203,7 +203,13 @@ extension ActCommand {
             bindWorkspace: { WorkspaceBinding.workspace() },
             notifier: .headlessApp()
         )
-        try await invocation.run()
+        // Only an Act command runs under signal handling (issue #151): a Ctrl-C at an interactive
+        // `setup` prompt, or any other subcommand, keeps the default disposition. `EngineInvocation`
+        // is `Sendable`, built from `self` above, so the async closure below never needs to capture
+        // `self` (an `ActCommand`, not itself required to be `Sendable`).
+        try await TerminationSignals.run {
+            try await invocation.run()
+        }
     }
 }
 
