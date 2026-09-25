@@ -1605,7 +1605,7 @@ comment on the Delta Read).
   Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — One command builds the full fixture set from nothing.
 
-### [ ] P15.3 Rehearsal scenario suite
+### [x] P15.3 Rehearsal scenario suite
 - **Work** — Scripted end-to-end rehearsal Nights, each asserting only rehearsal-assertable
   properties:
   1. Idle first Night (no actionable spec).
