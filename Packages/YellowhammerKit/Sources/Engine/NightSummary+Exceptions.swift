@@ -57,9 +57,19 @@ extension NightSummary {
                     "Card `\(issueID)`'s Lease, held by run `\(previousRunID)`, was reclaimed: the Card is " +
                         "reclaimable, and no partial state was written as if it were complete."
                 )
-            case .cardReclaimed(_, let issueID, let previousRunID, let attemptID, let outcome, let routeExcluded):
-                var line = "Card `\(issueID)`'s Lease, held by run `\(previousRunID)`, was reclaimed: the Card " +
-                    "is reclaimable, and no partial state was written as if it were complete."
+            case .cardReclaimed(
+                let cardID, let issueID, let previousRunID, let attemptID, let outcome, let routeExcluded
+            ):
+                let engineStop = try journal.engineStopCause(cardID: cardID, runID: previousRunID)
+                var line: String
+                if let engineStop {
+                    line = "Card `\(issueID)` was stopped by the engine: \(engineStop). Its Lease, held by run " +
+                        "`\(previousRunID)`, was left to expire and reclaimed: the Card is reclaimable, and no " +
+                        "partial state was written as if it were complete."
+                } else {
+                    line = "Card `\(issueID)`'s Lease, held by run `\(previousRunID)`, was reclaimed: the Card " +
+                        "is reclaimable, and no partial state was written as if it were complete."
+                }
                 if let attemptID, let outcome {
                     let excluded = routeExcluded ? "its Route excluded" : "its Route not excluded"
                     line += " Attempt `\(attemptID)` was classified \(outcome), \(excluded)."

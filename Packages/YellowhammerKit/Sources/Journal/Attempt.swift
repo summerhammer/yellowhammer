@@ -59,11 +59,10 @@ public struct AttemptHistory: Equatable, Sendable {
 
     /// The Block Reason for `epoch`, derived from a single source (Attempt, Block and Reset Ruling
     /// 2026-09-19, OQ58): the epoch's last ENDED, consuming Attempt — a `question` ending is skipped,
-    /// and so is any still-open Attempt. `rounds-exhausted` blocks by that Attempt's last Round's
-    /// Lens; a hard failure blocks `hard failure`; a Crashed-Unknown blocks `host crash`; no such
-    /// Attempt at all (nothing in this epoch was ever dispatched) blocks `hard failure`. Every Block
-    /// path — the Attempt budget spent, mid-run or found already spent, and a Route exclusion leaving
-    /// none to resolve — reads this one derivation.
+    /// and so is any still-open Attempt. `rounds-exhausted` blocks by that Attempt's last Round's Lens;
+    /// a hard failure blocks `hard failure`; a Crashed-Unknown blocks `host crash`, or `engine stop` when
+    /// its run recorded that the engine stopped it (OQ92); no such Attempt at all blocks `hard failure`.
+    /// Every Block path — budget spent, found already spent, or a Route exclusion leaving none — reads this.
     public func blockReason(inEpoch epoch: Int) -> BlockReason {
         guard let last = attempts.last(where: {
             $0.budgetEpoch == epoch && $0.endedAt != nil
@@ -77,7 +76,8 @@ public struct AttemptHistory: Equatable, Sendable {
             guard let lens = last.rounds.last?.lens else { return .hardFailure }
             return lens == .check ? .blockedByCheck : .blockedByReviewer
         case AttemptOutcome.crashedUnknown.rawValue:
-            return .hostCrash
+            return last.classification?.hasPrefix(AttemptEnding.engineStoppedClassificationPrefix) == true
+                ? .engineStop : .hostCrash
         default:
             return .hardFailure
         }

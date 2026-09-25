@@ -37,7 +37,18 @@ struct CardRunEngineFaultTests {
         #expect(!(try cardRunLog(world.journal)).contains(CardRunStep.leaseReleased.rawValue))
         #expect(try world.journal.currentCardLease(cardID: cardID)?.runID == world.runID)
 
-        try await expectNextSweepReclaims(world: world, cardID: cardID)
+        // The terminal step (OQ92): last, after the architect pass that ran before the worker's dispatch
+        // faulted, detail equal to the thrown fault's own description.
+        let steps = try cardRunSteps(world.journal, cardID: cardID)
+        let last = try #require(steps.last)
+        #expect(last.step == .leaseLeftToExpire)
+        let architectIndex = try #require(steps.firstIndex { $0.step == .architect })
+        #expect(steps.count - 1 > architectIndex)
+        #expect(last.detail == String(describing: EngineFault()))
+
+        try await expectNextSweepReclaims(
+            world: world, cardID: cardID, expectStoppedByEngine: true, expectReclaimedAttemptClassified: true
+        )
     }
 
     @Test("A Worktree gone between Attempts leaves the Card Lease to expire, and the next sweep reclaims the Card")
@@ -69,12 +80,31 @@ struct CardRunEngineFaultTests {
         #expect(try world.card("BACK-1").state == .inProgress)
         #expect(try world.journal.currentCardLease(cardID: cardID)?.runID == world.runID)
 
-        try await expectNextSweepReclaims(world: world, cardID: cardID)
+        // The terminal step (OQ92): last, after the worker pass that ended the first Attempt Crashed-
+        // Unknown, detail equal to the thrown fault's own description.
+        let steps = try cardRunSteps(world.journal, cardID: cardID)
+        let last = try #require(steps.last)
+        #expect(last.step == .leaseLeftToExpire)
+        let workerIndex = try #require(steps.firstIndex { $0.step == .worker })
+        #expect(steps.count - 1 > workerIndex)
+        #expect(last.detail == String(describing: missing))
+
+        try await expectNextSweepReclaims(world: world, cardID: cardID, expectStoppedByEngine: true)
     }
 
     /// A later build Act's Expired Lease Sweep, its clock past the Lease's TTL, reclaims the Card: it ends
     /// any open Attempt, reposts the Card to Ready (Todo), and releases the Lease again.
-    private func expectNextSweepReclaims(world: CardRunWorld, cardID: Int64) async throws {
+    ///
+    /// `expectStoppedByEngine`: when true, the dead run recorded `.leaseLeftToExpire` (OQ92), so the
+    /// reclaimed Attempt is still Crashed-Unknown — classification is unchanged — but its classification
+    /// carries the "stopped by the engine: " prefix (only true when the sweep had an open Attempt of
+    /// its own to classify — dispatch-fault leaves one open, the between-Attempts Worktree fault does
+    /// not, since CardRun itself already ended that Attempt before the fault struck), and the Night
+    /// Summary's own line says so either way, and avoids the word "crash".
+    private func expectNextSweepReclaims(
+        world: CardRunWorld, cardID: Int64, expectStoppedByEngine: Bool = false,
+        expectReclaimedAttemptClassified: Bool = false
+    ) async throws {
         let card = try world.card("BACK-1")
         let later = Date().addingTimeInterval(LeasePolicy.ruled.timeToLive + 60)
         let nextRunID = RunID()
@@ -92,6 +122,20 @@ struct CardRunEngineFaultTests {
         #expect(try world.card("BACK-1").state == .todo)
         #expect(try world.journal.attemptHistory(cardID: cardID).openAttempt == nil)
         #expect(try world.journal.currentCardLease(cardID: cardID) == nil)
+
+        if expectReclaimedAttemptClassified {
+            let history = try world.journal.attemptHistory(cardID: cardID)
+            let reclaimedAttempt = try #require(history.attempts.last)
+            #expect(reclaimedAttempt.result == AttemptOutcome.crashedUnknown.rawValue)
+            #expect(reclaimedAttempt.classification?.hasPrefix("stopped by the engine: ") == true)
+        }
+
+        guard expectStoppedByEngine else { return }
+        let lines = try NightSummary.crashesAndReclaimsLines(night: world.context.act.night, journal: world.journal)
+        let line = try #require(lines.first { $0.contains(card.issueID) })
+        #expect(line.contains("was stopped by the engine: "))
+        #expect(!line.lowercased().contains("crashed:"))
+        #expect(!line.lowercased().contains("a crash"))
     }
 }
 

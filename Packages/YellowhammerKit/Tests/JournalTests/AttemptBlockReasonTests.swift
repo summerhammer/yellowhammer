@@ -208,6 +208,42 @@ func questionEndingIsSkipped() throws {
     #expect(history.blockReason(inEpoch: 0) == .hardFailure)
 }
 
+@Test("A Crashed-Unknown final Attempt the engine stopped blocks engine stop, not host crash (OQ92)")
+func engineStoppedFinalBlocksEngineStop() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let cardID = try insertFixtureCard(journal)
+    let runID = RunID()
+    try claimLease(journal, runID: runID)
+    let attempt = try journal.recordAttempt(cardID: cardID, route: routeA, runID: runID, now: epoch)
+    _ = try journal.endAttempt(
+        attemptID: attempt.id, ending: .crashedUnknown(.engineStopped(cause: "heartbeat failed")), runID: runID,
+        act: .build, now: epoch.addingTimeInterval(1)
+    )
+
+    let history = try journal.attemptHistory(cardID: cardID)
+
+    #expect(history.blockReason(inEpoch: 0) == .engineStop)
+}
+
+@Test("A Crashed-Unknown final Attempt the sweep reclaimed with no engine-stop cause still blocks host crash")
+func reclaimedFinalStillBlocksHostCrash() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let cardID = try insertFixtureCard(journal)
+    let runID = RunID()
+    try claimLease(journal, runID: runID)
+    let attempt = try journal.recordAttempt(cardID: cardID, route: routeA, runID: runID, now: epoch)
+    _ = try journal.endAttempt(
+        attemptID: attempt.id, ending: .crashedUnknown(.reclaimed("no result file for the worker pass")),
+        runID: runID, act: .build, now: epoch.addingTimeInterval(1)
+    )
+
+    let history = try journal.attemptHistory(cardID: cardID)
+
+    #expect(history.blockReason(inEpoch: 0) == .hostCrash)
+}
+
 @Test("An open Attempt is skipped: the derivation reads the prior ended Attempt instead")
 func openAttemptIsSkipped() throws {
     let fixture = try JournalFixture()

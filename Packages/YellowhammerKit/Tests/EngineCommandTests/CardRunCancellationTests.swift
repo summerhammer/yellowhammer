@@ -43,7 +43,7 @@ struct CardRunCancellationTests {
             )
         }
 
-        try expectReclaimable(world: world, cardID: cardID, log: log)
+        try expectReclaimable(world: world, cardID: cardID, log: log, expectedDetail: "the run was cancelled")
     }
 
     @Test("An Act Lease lost mid-pass through the build Act: at most one Attempt, the Card reclaimable, not Blocked")
@@ -82,14 +82,18 @@ struct CardRunCancellationTests {
             try await invocation.run()
         }
 
-        try expectReclaimable(world: world, cardID: cardID, log: log)
+        // Reaches CardRun as a plain CancellationError (the outer heartbeat's own failure, not
+        // `JournalError.actLeaseLost` directly), so the recorded cause is the generic one.
+        try expectReclaimable(world: world, cardID: cardID, log: log, expectedDetail: "the run was cancelled")
         #expect(try journal.currentActLease()?.runID == other)
     }
 
     /// What a cancelled Card run leaves behind: the one Attempt the cancellation interrupted, nothing
     /// dispatched after it, the Card still In Progress (never Blocked, never Done), no reset run, and the
     /// Card Lease still this run's, left to expire for the next build Act's Expired Lease Sweep.
-    private func expectReclaimable(world: CardRunWorld, cardID: Int64, log: CallLog) throws {
+    private func expectReclaimable(
+        world: CardRunWorld, cardID: Int64, log: CallLog, expectedDetail: String? = nil
+    ) throws {
         #expect(log.all == ["dispatch architect", "dispatch worker"])
         #expect(try world.attempts("BACK-1").count == 1)
         #expect(try world.card("BACK-1").state == .inProgress)
@@ -99,6 +103,19 @@ struct CardRunCancellationTests {
         #expect(!story.contains("→ \(CardState.blocked.rawValue)"))
         #expect(!story.contains(CardRunStep.leaseReleased.rawValue))
         #expect(try world.journal.currentCardLease(cardID: cardID)?.runID == world.runID)
+
+        // The terminal step the engine's stop recorded (OQ92): last, after the worker pass, detail
+        // non-nil so the next Act's Expired Lease Sweep can tell this apart from a real crash.
+        let steps = try cardRunSteps(world.journal, cardID: cardID)
+        let last = try #require(steps.last)
+        #expect(last.step == .leaseLeftToExpire)
+        let workerIndex = try #require(steps.firstIndex { $0.step == .worker })
+        #expect(steps.count - 1 > workerIndex)
+        let detail = try #require(last.detail)
+        #expect(!detail.isEmpty)
+        if let expectedDetail {
+            #expect(detail == expectedDetail)
+        }
     }
 }
 

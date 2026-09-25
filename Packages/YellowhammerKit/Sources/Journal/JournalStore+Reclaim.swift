@@ -11,4 +11,21 @@ extension JournalStore {
     public func reclaimedCards(nightID: Int64) throws -> [JournalEventRecord] {
         try events(ofType: .cardReclaimed).filter { $0.nightID == nightID }
     }
+
+    /// The cause the dead run recorded when the engine stopped it and left `cardID`'s Lease to expire
+    /// (``CardRunStep/leaseLeftToExpire``, OQ92): the `detail` of the last such step for `runID`, or a
+    /// fallback account when the step carried none. `nil` when the run never recorded one — the wording
+    /// stays exactly as today (a crash, not an engine stop). Used by the Expired Lease Sweep and the
+    /// Night Summary, both from this one source.
+    public func engineStopCause(cardID: Int64, runID: RunID) throws -> String? {
+        var last: String??
+        for record in try events(ofType: .cardRunStep) where record.runID == runID {
+            guard case .cardRunStep(let recordCardID, _, let step, let detail) = record.event,
+                recordCardID == cardID, step == .leaseLeftToExpire
+            else { continue }
+            last = detail
+        }
+        guard let found = last else { return nil }
+        return found ?? "no cause recorded"
+    }
 }
