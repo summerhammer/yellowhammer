@@ -13,12 +13,14 @@ import Testing
 // this Night's Delta Reads found.
 
 private func anomalyObject(
-    _ id: String, labels: [String] = ["Card"], state: BoardWorkflowState = stateWaiting
+    _ id: String, labels: [String] = ["Card"], state: BoardWorkflowState = stateWaiting,
+    archivedAt: Date? = nil, isTrashed: Bool = false
 ) -> BoardObject {
     BoardObject(
         id: BoardObjectID(rawValue: id), key: "ENG-\(id)", title: id, description: nil,
         workflowState: state, labels: labels, parent: nil, url: "https://linear.app/x/\(id)",
-        createdAt: deltaEpoch, updatedAt: deltaEpoch.addingTimeInterval(10)
+        createdAt: deltaEpoch, updatedAt: deltaEpoch.addingTimeInterval(10),
+        archivedAt: archivedAt, isTrashed: isTrashed
     )
 }
 
@@ -63,6 +65,44 @@ struct WaitingOnYouAnomalyTests {
         }
 
         #expect(report.anomalies.isEmpty)
+        #expect(try journal.events(ofType: .waitingOnYouUnbacked).isEmpty)
+    }
+
+    @Test("An archived unknown object labelled Card in Waiting on You is not an anomaly")
+    func archivedObjectIsNotAnAnomaly() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let board = FakeReadingBoard([page(objects: [
+            anomalyObject("archived-1", archivedAt: deltaEpoch.addingTimeInterval(5))
+        ])])
+        let (read, _) = try deltaRead(journal, board: board)
+
+        guard case .read(let report) = try await read.perform() else {
+            Issue.record("expected a read")
+            return
+        }
+
+        #expect(report.anomalies.isEmpty)
+        #expect(report.unknownObjects.map(\.id.rawValue) == ["archived-1"])
+        #expect(try journal.events(ofType: .waitingOnYouUnbacked).isEmpty)
+    }
+
+    @Test("A trashed unknown object labelled Card in Waiting on You is not an anomaly")
+    func trashedObjectIsNotAnAnomaly() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let board = FakeReadingBoard([page(objects: [
+            anomalyObject("trashed-1", isTrashed: true)
+        ])])
+        let (read, _) = try deltaRead(journal, board: board)
+
+        guard case .read(let report) = try await read.perform() else {
+            Issue.record("expected a read")
+            return
+        }
+
+        #expect(report.anomalies.isEmpty)
+        #expect(report.unknownObjects.map(\.id.rawValue) == ["trashed-1"])
         #expect(try journal.events(ofType: .waitingOnYouUnbacked).isEmpty)
     }
 
