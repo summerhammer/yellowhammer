@@ -6,6 +6,10 @@ name: Release signing
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - scripts/release/setup-signing.sh
+      - .github/workflows/release-signing.yml
   schedule:
     - cron: '0 6 1 * *' # Monthly, so an expired credential is found before a release is.
 
