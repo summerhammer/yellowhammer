@@ -183,6 +183,11 @@ extension CardRun {
             try frame.record(Self.step(of: pass), detail: "route unavailable")
             throw PassStop(ending: .hardFailure(.reported(reason: "route unavailable: \(refusal)")))
         }
+        // The Normal-Exit Sweep Ruling's leftover accounting (issue #175): a non-zero self-exit is
+        // still a normal exit, so this runs before the `failedRun` check below, never after it.
+        try await sweepLeftovers(
+            report: report, attemptID: attempt.id, pass: pass, worktreePath: frame.worktree.path, frame: frame
+        )
         try frame.recordDispatchOrigin(report.origin, attemptID: attempt.id, pass: pass, cli: route.cli)
         try frame.record(Self.step(of: pass), detail: Self.describe(report.outcome))
         if let ending = AttemptEnding(failedRun: report.outcome) {

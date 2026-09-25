@@ -10,6 +10,8 @@ public struct CLIRunReport: Equatable, Sendable {
     public let session: CLISession?
     /// See ``AgentCLIRunReport/leftovers``.
     public let leftovers: [LeftoverProcess]
+    /// See ``AgentCLIRunReport/snapshot``.
+    public let snapshot: RunningSnapshot
 }
 
 /// Drives one CLI Adapter through a full pass: build the launch, run it, let the adapter collect
@@ -29,7 +31,7 @@ public struct CLIRunner: Sendable {
         let outcome = RunOutcome.classify(end: execution.end, resultFileAt: launch.resultFile, pass: dispatch.pass)
         return CLIRunReport(
             pid: execution.pid, end: execution.end, outcome: outcome, session: session,
-            leftovers: execution.leftovers
+            leftovers: execution.leftovers, snapshot: execution.snapshot
         )
     }
 }

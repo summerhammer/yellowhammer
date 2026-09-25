@@ -149,6 +149,8 @@ extension JournalEvent {
             .agentCLIProcessSpawned
         case .rehearsalFixtureAnswered:
             .rehearsalFixtureAnswered
+        case .leftoverProcessRecorded:
+            .leftoverProcessRecorded
         case .featureSelected:
             .featureSelected
         case .featureAuthoringHalted:

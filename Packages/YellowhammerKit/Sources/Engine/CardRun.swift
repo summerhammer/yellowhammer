@@ -56,6 +56,11 @@ public struct CardRun: CardRunner {
     /// OQ60): required, with no default, so production can never forget to wire the real
     /// ``AttemptWorktreeReset`` in.
     public let resetting: any AttemptResetting
+    /// The attributed Worktree fence (Normal-Exit Sweep Ruling, layer 2, issue #175), run after every
+    /// pass whose report carries a running snapshot. Defaulted to the real ``AttributedWorktreeFence``
+    /// and placed last: a fake ``AgentDispatch`` returns no snapshot, so a test never needs to touch
+    /// this, while production can never forget to wire the real fence in by omission.
+    public let normalExitFencing: any NormalExitFencing
 
     public init(
         resolver: RouteResolver,
@@ -65,7 +70,8 @@ public struct CardRun: CardRunner {
         reviewRoundsMax: Int,
         attemptsPerCard: Int,
         leasePolicy: LeasePolicy = .ruled,
-        resetting: any AttemptResetting
+        resetting: any AttemptResetting,
+        normalExitFencing: any NormalExitFencing = AttributedWorktreeFence()
     ) {
         self.resolver = resolver
         self.dispatch = dispatch
@@ -75,6 +81,7 @@ public struct CardRun: CardRunner {
         self.attemptsPerCard = attemptsPerCard
         self.leasePolicy = leasePolicy
         self.resetting = resetting
+        self.normalExitFencing = normalExitFencing
     }
 
     public func run(
@@ -236,6 +243,10 @@ public enum CardRunError: Error, Equatable, Sendable, CustomStringConvertible {
     case checkUnknown(repository: String)
     /// A pass came back with a result for another pass.
     case unexpectedResult(expected: RunPass, found: RunPass)
+    /// The attributed Worktree fence (Normal-Exit Sweep Ruling, layer 2, issue #175) found an
+    /// attributed process still holding the Worktree after its quiescence timeout: the Check or the
+    /// next pass must never start while a process this run spawned is still writing there.
+    case worktreeNotQuiescentAfterRun(path: String, remaining: Int)
 
     public var description: String {
         switch self {
@@ -245,6 +256,8 @@ public enum CardRunError: Error, Equatable, Sendable, CustomStringConvertible {
             "repository '\(repository)' has no Check declared to the Card run"
         case .unexpectedResult(let expected, let found):
             "the \(expected.rawValue) pass returned a \(found.rawValue) result"
+        case .worktreeNotQuiescentAfterRun(let path, let remaining):
+            "Worktree '\(path)' still holds \(remaining) attributed process(es) after the run"
         }
     }
 }

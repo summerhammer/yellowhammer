@@ -333,6 +333,20 @@ extension JournalEvent {
                 "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
                 "pass": pass.rawValue, "fixture": fixture
             ]
+        case .leftoverProcessRecorded(
+            let cardID, let issueID, let attemptID, let pass, let pid, let commandName, let disposition, let cwd
+        ):
+            {
+                var dict: [String: String] = [
+                    "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
+                    "pass": pass.rawValue, "pid": String(pid), "command_name": commandName,
+                    "disposition": disposition.rawValue
+                ]
+                if let cwd {
+                    dict["cwd"] = cwd
+                }
+                return dict
+            }()
         case .featureSelected(let payload):
             {
                 var dict: [String: String] = [
