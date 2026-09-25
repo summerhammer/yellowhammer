@@ -1,6 +1,6 @@
 import Darwin
 import Foundation
-import Repositories
+@testable import Repositories
 import Testing
 
 @Suite("Process fencing tests")
@@ -35,6 +35,36 @@ struct ProcessFencerTests {
         #expect(process.terminationStatus == SIGKILL)
 
         #expect(fencer.holders(of: worktree.path).isEmpty)
+    }
+
+    @Test("fence from a cancelled task still sleeps between sweeps of the process table")
+    func cancelledFenceDoesNotBusyWait() async throws {
+        let worktree = try Self.makeTempDir(name: "cancelled-fence")
+        defer { try? FileManager.default.removeItem(at: worktree) }
+
+        let process = try Self.launchSleep(currentDirectory: worktree)
+        defer { if process.isRunning { process.terminate() } }
+        try await Task.sleep(for: .milliseconds(150))
+
+        let sweeps = SweepCounter()
+        let fencer = ProcessFencer(
+            pollInterval: .milliseconds(50),
+            quiescenceTimeout: .milliseconds(500),
+            sendSignal: { _, _ in 0 },
+            didSweep: { sweeps.increment() }
+        )
+        let fence = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await fencer.fence(worktreePath: worktree.path)
+        }
+        let outcome = await fence.value
+
+        guard case .notQuiescent = outcome else {
+            Issue.record("expected .notQuiescent, got \(outcome)")
+            return
+        }
+        // 500 ms / 50 ms = 10 polls, plus the first and last sweeps. A busy-wait makes many more.
+        #expect(sweeps.count <= 15)
     }
 
     @Test("A process with an open file inside the Worktree, but cwd elsewhere, is a holder killed by fence")
@@ -193,4 +223,13 @@ struct ProcessFencerTests {
         try process.run()
         return process
     }
+}
+
+private final class SweepCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+
+    var count: Int { lock.withLock { value } }
+
+    func increment() { lock.withLock { value += 1 } }
 }

@@ -53,15 +53,33 @@ public struct ProcessFencer: Sendable {
     /// un-killable (e.g. a no-op) and exercise `notQuiescent` deterministically, without a process that
     /// genuinely survives `SIGKILL`.
     let sendSignal: @Sendable (pid_t, Int32) -> Int32
+    /// Called once per process-table sweep `fence(worktreePath:)` makes. Injectable so a test can
+    /// bound how often the table is walked.
+    let didSweep: @Sendable () -> Void
 
     public init(
         pollInterval: Duration = .milliseconds(50),
         quiescenceTimeout: Duration = .seconds(10),
         sendSignal: @escaping @Sendable (pid_t, Int32) -> Int32 = { kill($0, $1) }
     ) {
+        self.init(
+            pollInterval: pollInterval,
+            quiescenceTimeout: quiescenceTimeout,
+            sendSignal: sendSignal,
+            didSweep: {}
+        )
+    }
+
+    init(
+        pollInterval: Duration,
+        quiescenceTimeout: Duration,
+        sendSignal: @escaping @Sendable (pid_t, Int32) -> Int32,
+        didSweep: @escaping @Sendable () -> Void
+    ) {
         self.pollInterval = pollInterval
         self.quiescenceTimeout = quiescenceTimeout
         self.sendSignal = sendSignal
+        self.didSweep = didSweep
     }
 
     /// Every process whose current working directory or an open file lies inside
@@ -85,6 +103,11 @@ public struct ProcessFencer: Sendable {
     /// Kills every holder of `worktreePath` with `SIGKILL`, then polls until none remain or
     /// `quiescenceTimeout` elapses. A holder that appears during the wait is killed too and
     /// folded into the returned `killed` list.
+    ///
+    /// Fencing continues when the calling task is cancelled: a reset must still wait for the
+    /// Worktree to be quiescent. Each poll therefore sleeps in an unstructured task that does not
+    /// inherit the caller's cancellation, because a cancelled `Task.sleep` returns at once and the
+    /// loop would walk the process table without pausing for the whole timeout.
     public func fence(worktreePath: String) async -> FencingOutcome {
         let resolvedWorktreePath = Self.resolve(worktreePath)
         guard FileManager.default.fileExists(atPath: resolvedWorktreePath) else {
@@ -102,20 +125,26 @@ public struct ProcessFencer: Sendable {
             }
         }
 
-        killNewHolders(holders(of: resolvedWorktreePath))
+        func sweep() -> [WorktreeHolder] {
+            didSweep()
+            return holders(of: resolvedWorktreePath)
+        }
+
+        killNewHolders(sweep())
 
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: quiescenceTimeout)
         while clock.now < deadline {
-            try? await Task.sleep(for: pollInterval)
-            let found = holders(of: resolvedWorktreePath)
+            let pollInterval = pollInterval
+            await Task { try? await Task.sleep(for: pollInterval) }.value
+            let found = sweep()
             if found.isEmpty {
                 return .quiescent(killed: killed)
             }
             killNewHolders(found)
         }
 
-        let remaining = holders(of: resolvedWorktreePath)
+        let remaining = sweep()
         guard remaining.isEmpty else {
             return .notQuiescent(killed: killed, remaining: remaining)
         }
