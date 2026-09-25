@@ -130,15 +130,18 @@ extension CardRun {
             projection = BoardStateProjection(journal: journal, outbox: outbox, scope: scope)
         }
 
-        // The Journal stores no Card title. The Delta Read's board object carries one only when the Card
-        // changed since the last read, so an unchanged Card is titled by its issue id: a known gap.
+        // The Delta Read's board object carries the freshest title only when the Card changed since the
+        // last read; otherwise the Journal's own recorded title is used, falling back to the issue id
+        // for a Card the Journal has never reconciled a title for (issue #161; spec:
+        // landing/announce-a-partial-landing).
         let object = context.deltaRead?.cardChanges.first { $0.card.id == card.id }?.object
         var frame = CardRunFrame(
             card: card, context: context, readiness: readiness, lane: lane,
             repository: context.act.repositories?.workingRepo(named: card.repository), check: check,
             worktree: worktree, branch: branch, projection: projection,
             instructionCard: InstructionCard(
-                key: card.issueID, title: object?.title ?? card.issueID, description: object?.description
+                key: card.issueID, title: object?.title ?? card.title ?? card.issueID,
+                description: object?.description
             )
         )
         let banked = try journal.bankedCardReplies(cardID: card.id)

@@ -452,11 +452,12 @@ def scenario_4(env, checks):
     checks.expect(
         "partial landing" in description.lower(), "the Feature Issue's description leads with 'partial landing'"
     )
-    # The Roll-up names each Card by its issue id (the Journal holds no Card title), so the hole is
-    # named by M's id and its state, not its title.
+    # The Roll-up names each Card by its title (the Journal now records one, reconciled by the Delta
+    # Read), so the hole is named by M's title and its state, not its issue id.
+    m_title = m_after["title"]
     checks.expect(
-        f"`{m_card['issue_id']}` — Blocked" in description,
-        f"the Feature Issue's Roll-up names M ({m_card['issue_id']}) as Blocked",
+        f"{m_title} — Blocked" in description,
+        f"the Feature Issue's Roll-up names M ({m_title}) as Blocked",
     )
     checks.expect(
         "1 blocked" in description.lower(), "the Roll-up sentence counts the one blocked Card"

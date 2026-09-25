@@ -167,8 +167,13 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
         let bodyCards = try bodyCards(cards, journal: journal, cycleID: context.cycleID)
         let unmetClauses = try unmetClauses(cards, journal: journal)
         // Verification runs before this body is written (roadmap P10.5); when it recorded a report,
-        // the body carries it and derives its unmet list from it.
+        // the body carries it and derives its unmet list from it. That list names issue ids, not
+        // titles (VerificationReport carries no Card), so the renderer is handed this Cycle's own
+        // issue id → display name lookup to resolve them (issue #161; spec:
+        // landing/announce-a-partial-landing).
         let report = try journal.featureVerification(cycleID: context.cycleID).map(VerificationReport.init(record:))
+        var cardTitles = Dictionary(uniqueKeysWithValues: cards.map { ($0.issueID, $0.displayTitle) })
+        cardTitles[context.feature.issueID] = featureTitle
 
         let mergeVerdict = PullRequestBodyMergeVerdict(
             conflict: mergeOutcome?.conflict ?? false,
@@ -189,7 +194,8 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
             cycleCards: bodyCards,
             mergeVerdict: mergeVerdict,
             unmetClauses: unmetClauses,
-            verificationReport: report
+            verificationReport: report,
+            cardTitles: cardTitles
         )
         return (PullRequestBody.render(input), input.isPartialLanding)
     }
@@ -205,7 +211,7 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
         return try cards.map { card in
             let summary = try journal.attemptSummary(cardID: card.id)
             return PullRequestBodyCard(
-                title: card.issueID,
+                title: card.displayTitle,
                 repository: card.repository,
                 state: card.state,
                 routeSummary: summary.routeSummary,
@@ -235,7 +241,7 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
                     ? "\(clause.text) (invalidated: \(clause.invalidatedCause ?? "unspecified"))"
                     : clause.text
                 unmetClauses.append(
-                    PullRequestBodyUnmetClause(cardTitle: card.issueID, text: text, citation: clause.locationID)
+                    PullRequestBodyUnmetClause(cardTitle: card.displayTitle, text: text, citation: clause.locationID)
                 )
             }
         }

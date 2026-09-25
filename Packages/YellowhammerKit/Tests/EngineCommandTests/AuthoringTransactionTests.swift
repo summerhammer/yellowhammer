@@ -41,6 +41,7 @@ struct AuthoringTransactionTests {
         let rows = try cardRows(rig.journal)
         #expect(rows.map(\.repository) == ["backend", "backend", "mobile"])
         #expect(rows.map(\.authoredOrder) == [1, 2, 1])
+        #expect(rows.map(\.title) == ["Backend one", "Backend two", "Mobile one"])
         #expect(rows.allSatisfy { $0.state == .todo && $0.cycleID == cycleID && $0.kind == "impl.boilerplate" })
         #expect(Set(rows.map(\.issueID)) == Set(cards.map(\.id.rawValue)))
 

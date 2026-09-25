@@ -28,6 +28,9 @@ public enum FeatureIssueStanding: Sendable {
 /// row in the Managed Block, without requiring a full Journal `CardRecord` in a pure unit test.
 public struct RollUpMember: Equatable, Sendable {
     public var issueID: String
+    /// The board's title for this Card, nil when the Journal has not recorded one yet. The Managed
+    /// Block names this Card by title when present, falling back to its backticked issue id otherwise.
+    public var title: String?
     public var repository: String
     public var authoredOrder: Int
     public var state: CardState
@@ -42,6 +45,7 @@ public struct RollUpMember: Equatable, Sendable {
 
     public init(
         issueID: String,
+        title: String? = nil,
         repository: String,
         authoredOrder: Int,
         state: CardState,
@@ -51,6 +55,7 @@ public struct RollUpMember: Equatable, Sendable {
         adoptedFromFeatureIssueID: String? = nil
     ) {
         self.issueID = issueID
+        self.title = title
         self.repository = repository
         self.authoredOrder = authoredOrder
         self.state = state
@@ -59,6 +64,13 @@ public struct RollUpMember: Equatable, Sendable {
         self.markers = markers
         self.adoptedFromFeatureIssueID = adoptedFromFeatureIssueID
     }
+
+    /// This Card's title, or nil when the Journal has not recorded a non-empty one — the caller falls
+    /// back to the backticked issue id.
+    public var nonEmptyTitle: String? {
+        guard let title, !title.isEmpty else { return nil }
+        return title
+    }
 }
 
 /// A Feature's derived Roll-up (glossary → Roll-up; spec: board-projection/maintain-the-managed-block,
@@ -66,11 +78,17 @@ public struct RollUpMember: Equatable, Sendable {
 /// `conflictsSuffix` are always in agreement with the inputs that produced them.
 public struct FeatureRollUp: Sendable {
     public let members: [RollUpMember]
-    /// Whether every Repo Lane has finished and pushed — the Cycle has landed.
+    /// Whether every Repo Lane has finished — the Cycle has landed. This selects the closed half of
+    /// the lattice; it says nothing about whether any lane's push succeeded (a rehearsal Night lands
+    /// but never pushes, and a real lane's push can fail) — that is ``pushedRepositories``.
     public let lanesPushed: Bool
     public let verificationPassed: Bool
     public let mergedFraction: MergedFraction
     public let conflictingRepositories: [String]
+    /// The repositories whose lane actually pushed (issue #161 part 2): a lane's own
+    /// `#### \`repo\` — pushed` heading is true of this set, never of `lanesPushed` alone, which is
+    /// Cycle-wide, not per-lane.
+    public let pushedRepositories: Set<String>
     public let issueStanding: FeatureIssueStanding
 
     /// The word, or nil ("absent") when every member Card is Cancelled.
@@ -87,6 +105,7 @@ public struct FeatureRollUp: Sendable {
         verificationPassed: Bool,
         mergedFraction: MergedFraction,
         conflictingRepositories: [String] = [],
+        pushedRepositories: Set<String> = [],
         issueStanding: FeatureIssueStanding
     ) {
         self.members = members
@@ -94,6 +113,7 @@ public struct FeatureRollUp: Sendable {
         self.verificationPassed = verificationPassed
         self.mergedFraction = mergedFraction
         self.conflictingRepositories = conflictingRepositories
+        self.pushedRepositories = pushedRepositories
         self.issueStanding = issueStanding
 
         let (state, sentence) = Self.compute(

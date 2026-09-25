@@ -38,9 +38,17 @@ public struct FeatureRollUpMaintenance: Sendable {
             verificationPassed: try verificationPassed(cycleID: cycleID),
             mergedFraction: MergedFraction(mergedCount: observation?.merged.count ?? 0, totalCount: totalRepositories),
             conflictingRepositories: Array(conflicts.keys),
+            pushedRepositories: try pushedRepositories(featureID: feature.id),
             issueStanding: .authoring
         )
         return try await post(issueID: feature.issueID, rollUp: rollUp)
+    }
+
+    /// Every repository whose Worktree for this Feature recorded a push (issue #161 part 2): a
+    /// released Worktree still counts (``JournalStore/worktrees(featureID:)`` returns released rows
+    /// too), so a lane that pushed and was already cleaned up still reads "pushed".
+    private func pushedRepositories(featureID: Int64) throws -> Set<String> {
+        Set(try journal.worktrees(featureID: featureID).filter { $0.pushedCommit != nil }.map(\.repository))
     }
 
     /// Maintains a Refusal or Authoring Halt's Feature Issue: no Cycle, no member Cards, so the
@@ -158,9 +166,10 @@ public struct FeatureRollUpMaintenance: Sendable {
         let adoptions = try latestAdoptions(newFeatureIssueID: feature.issueID)
         return cards.map { card in
             RollUpMember(
-                issueID: card.issueID, repository: card.repository, authoredOrder: card.authoredOrder,
-                state: card.state, waitingReason: card.waitingReason, blockReason: card.blockReason,
-                markers: markers[card.id] ?? [], adoptedFromFeatureIssueID: adoptions[card.id]
+                issueID: card.issueID, title: card.title, repository: card.repository,
+                authoredOrder: card.authoredOrder, state: card.state, waitingReason: card.waitingReason,
+                blockReason: card.blockReason, markers: markers[card.id] ?? [],
+                adoptedFromFeatureIssueID: adoptions[card.id]
             )
         }
     }

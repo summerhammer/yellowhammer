@@ -10,6 +10,10 @@ public struct CardRecord: Equatable, Sendable {
     public let id: Int64
     public let cycleID: Int64
     public let issueID: String
+    /// The board's title for this Card, nil until the Delta Read first reconciles it (Cards authored
+    /// before V30 have no recorded title). Renders the Roll-up and the partial-landing PR body's
+    /// hole listing; ``displayTitle`` falls back to the issue id when this is nil or empty.
+    public let title: String?
     public let repository: String
     public let kind: String
     public let authoredOrder: Int
@@ -42,6 +46,14 @@ public struct CardRecord: Equatable, Sendable {
     /// visibility only, never a state, counter or budget change — nil until promoted, cleared by every
     /// reset of `failed_adoptions` so a fresh count starts unpromoted.
     public let divergenceStandingNightID: Int64?
+
+    /// The Card's title, or its issue id when no title is recorded yet (Cards authored before V30, or
+    /// not yet reconciled against the board). What the Roll-up and the partial-landing PR body name a
+    /// Card by (issue #161; spec: landing/announce-a-partial-landing).
+    public var displayTitle: String {
+        guard let title, !title.isEmpty else { return issueID }
+        return title
+    }
 }
 
 // The reads the Act trigger predicates are evaluated from. They answer two questions and no others:
@@ -175,6 +187,7 @@ extension JournalStore {
             id: id,
             cycleID: row["cycle_id"],
             issueID: row["issue_id"],
+            title: row["title"],
             repository: row["repository"],
             kind: row["kind"],
             authoredOrder: row["authored_order"],
@@ -348,6 +361,7 @@ extension CardRecord {
             id: id,
             cycleID: cycleID,
             issueID: issueID,
+            title: title,
             repository: repository,
             kind: kind,
             authoredOrder: authoredOrder,

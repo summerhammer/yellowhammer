@@ -117,6 +117,9 @@ enum JournalMigrations {
         migrator.registerMigration("v29-outbox-salt") { db in
             try addOutboxSaltColumn(db)
         }
+        migrator.registerMigration("v30-card-title") { db in
+            try addCardTitleColumn(db)
+        }
         return migrator
     }
 }

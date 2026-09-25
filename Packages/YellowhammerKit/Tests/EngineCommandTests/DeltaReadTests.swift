@@ -231,6 +231,25 @@ struct DeltaReadTests {
         #expect(try journal.card(issueID: "card-1")?.state == .blocked)
     }
 
+    @Test("A changed Card whose board title differs from the Journal's updates the Journal's title")
+    func boardTitleChangeUpdatesJournal() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        try insertCard(journal, issueID: "card-1", state: .todo, title: "Old title")
+        let board = FakeReadingBoard([
+            page(objects: [object("card-1", title: "New title", state: stateTodo)])
+        ])
+        let (read, _) = try deltaRead(journal, board: board)
+
+        guard case .read(let report) = try await read.perform() else {
+            Issue.record("expected a read")
+            return
+        }
+
+        #expect(try journal.card(issueID: "card-1")?.title == "New title")
+        #expect(report.cardChanges.map(\.card.title) == ["New title"])
+    }
+
     @Test("A Card the Operator deleted is reported as removed; a Done Card Linear archived is not")
     func removedCards() async throws {
         let fixture = try OutboxJournalFixture()

@@ -49,7 +49,7 @@ public struct FeatureRollUpBlock {
         for repository in orderedRepositories {
             let cards = sortedBySeverity(byRepository[repository] ?? [])
             lines.append("")
-            lines.append("#### `\(repository)` — \(laneStatus(for: cards))")
+            lines.append("#### `\(repository)` — \(laneStatus(for: cards, repository: repository))")
             lines.append(contentsOf: cards.map(renderCardLine))
         }
         return lines
@@ -67,14 +67,23 @@ public struct FeatureRollUpBlock {
         }
     }
 
-    private func laneStatus(for cards: [RollUpMember]) -> String {
-        guard !rollUp.lanesPushed else { return "pushed" }
+    /// "pushed" only for a lane whose own Worktree recorded a push (issue #161 part 2) — `lanesPushed`
+    /// alone (the Cycle landed) is Cycle-wide and does not distinguish a rehearsal Night, which lands
+    /// but never pushes, or a real lane whose push failed, from one that actually reached the remote.
+    private func laneStatus(for cards: [RollUpMember], repository: String) -> String {
+        guard !rollUp.pushedRepositories.contains(repository) else { return "pushed" }
         let hasUnfinished = cards.contains { $0.state == .todo || $0.state == .inProgress }
         return hasUnfinished ? "running" : "finished"
     }
 
     private func renderCardLine(_ card: RollUpMember) -> String {
-        "- `\(card.issueID)` — \(card.state.rawValue)\(reasonSuffix(card))\(markerSuffix(card))"
+        "- \(Self.name(card)) — \(card.state.rawValue)\(reasonSuffix(card))\(markerSuffix(card))"
+    }
+
+    /// A Card's rendered name (issue #161; spec: landing/announce-a-partial-landing): its title when
+    /// the Journal has recorded one, falling back to its backticked issue id otherwise.
+    private static func name(_ card: RollUpMember) -> String {
+        card.nonEmptyTitle ?? "`\(card.issueID)`"
     }
 
     private func reasonSuffix(_ card: RollUpMember) -> String {
@@ -112,7 +121,7 @@ public struct FeatureRollUpBlock {
 
         var lines = ["", "#### Cancelled"]
         for card in cancelled {
-            lines.append("- `\(card.issueID)` [`\(card.repository)`] — Cancelled\(markerSuffix(card))")
+            lines.append("- \(Self.name(card)) [`\(card.repository)`] — Cancelled\(markerSuffix(card))")
         }
         return lines
     }

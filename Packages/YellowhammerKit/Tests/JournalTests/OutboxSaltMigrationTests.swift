@@ -83,7 +83,7 @@ struct OutboxSaltMigrationTests {
 
         let journal = try fixture.open()
 
-        #expect(try journal.appliedMigrations().last == "v29-outbox-salt")
+        #expect(try journal.appliedMigrations().last == "v30-card-title")
         #expect(journal.outboxSalt.isEmpty)
     }
 

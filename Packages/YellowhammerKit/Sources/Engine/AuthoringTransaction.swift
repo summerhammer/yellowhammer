@@ -209,7 +209,7 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         let cards = try plan.cards.map {
             AuthoredCardRow(
                 issueID: try createdID($0.key), repository: $0.repository, kind: $0.kind, order: $0.order,
-                clauses: $0.clauses, brief: $0.brief, transcriptions: $0.transcriptions
+                title: $0.title, clauses: $0.clauses, brief: $0.brief, transcriptions: $0.transcriptions
             )
         }
         try journal.finaliseAuthoring(
