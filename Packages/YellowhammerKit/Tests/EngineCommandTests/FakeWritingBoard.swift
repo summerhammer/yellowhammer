@@ -37,7 +37,16 @@ actor FakeWritingBoard: BoardWriting {
         case loseResponse
     }
 
+    /// One write the Engine made to an existing issue, in the order it reached the board.
+    enum Write: Equatable, Sendable {
+        case update(BoardIssueChange)
+        case archive
+    }
+
     private(set) var issues: [BoardObjectID: Issue] = [:]
+    /// Every `updateIssue` and `archiveIssue` that was applied, in order — what a linked
+    /// ``FakeReadingBoard`` overlays on its scripted pages, and what ``writes(to:)`` reports.
+    private(set) var writeLog: [(issue: BoardObjectID, write: Write)] = []
     private(set) var comments: [Comment] = []
     private(set) var attachments: [Attachment] = []
     private var issueClientIDs: [UUID: BoardObjectID] = [:]
@@ -111,6 +120,12 @@ actor FakeWritingBoard: BoardWriting {
     }
 
     func issue(_ id: BoardObjectID) -> Issue? { issues[id] }
+
+    /// Every write applied to `issue` after the first `since` entries of the log — empty when none
+    /// reached it. For a test asserting the Engine left an Operator's gesture alone.
+    func writes(to issue: BoardObjectID, since: Int = 0) -> [Write] {
+        writeLog.dropFirst(since).filter { $0.issue == issue }.map(\.write)
+    }
 
     // MARK: - BoardWriting
 
@@ -194,6 +209,7 @@ actor FakeWritingBoard: BoardWriting {
         guard let found = issues[issue] else { throw .scopeNotFound("no such issue") }
         let updated = Self.applying(change, to: found, now: now)
         issues[issue] = updated
+        writeLog.append((issue, .update(change)))
         return BoardDescriptionSnapshot(id: issue, description: updated.description, updatedAt: updated.updatedAt)
     }
 
@@ -225,6 +241,7 @@ actor FakeWritingBoard: BoardWriting {
         try consumeRefusal()
         guard issues[issue] != nil else { throw .scopeNotFound("no such issue") }
         issues[issue]?.archived = true
+        writeLog.append((issue, .archive))
     }
 
     // MARK: - Private

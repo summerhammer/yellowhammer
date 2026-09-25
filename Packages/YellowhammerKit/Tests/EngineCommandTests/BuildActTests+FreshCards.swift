@@ -31,8 +31,10 @@ extension BuildActTests {
 
         let boards = try await makeBuildActBoards()
         let webIssue = await boards.writing.seed(issue: "WEB-1", description: nil)
-        // The Operator moved it to the team's own cancelled state, as a real Linear team names it.
+        // The Operator moved it to the team's own cancelled state, as a real Linear team names it. Read
+        // through the writing board, so a repost of Todo would land over the Cancel as it does on Linear.
         let reading = FakeReadingBoard([page(objects: [object("WEB-1", state: stateCanceledByCategory)])])
+        try await reading.readThrough(boards)
         let board = ActBoard(reading: reading, writing: boards.writing, provisioning: boards.provisioning)
 
         let recorder = RecordingCardRunner()
@@ -51,7 +53,7 @@ extension BuildActTests {
             return
         }
         #expect(posted == 0)
-        #expect(await boards.writing.issue(webIssue)?.workflowState == nil)
+        #expect(await boards.writing.writes(to: webIssue).isEmpty)
 
         #expect(events.filter { $0.type == .cardCancelled }.count == 1)
         #expect(try journal.card(id: webCard).state == .cancelled)
