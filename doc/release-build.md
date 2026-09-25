@@ -45,8 +45,10 @@ This needs the Developer ID Application identity in your keychain — see
 
 `.github/workflows/release-build.yml` runs on every `v*` tag push (and on
 `workflow_dispatch` for a chosen tag), signs with the same CI secrets as
-`release-signing.yml`, builds Release, verifies it, notarizes and staples it, and
-uploads the zipped `.app`. Packaging (DMG, checksums, hosting) is P16.4.
+`release-signing.yml`, builds Release, verifies it, notarizes and staples it, packages a
+signed and notarized DMG, and publishes a GitHub release with the DMG, the zipped
+`.app`, checksums and release notes — see
+[Packaging and distribution](#packaging-and-distribution-p164) below.
 
 ## Notarization, stapling and verification (P16.3)
 
@@ -96,3 +98,67 @@ scripts/release/notarize.sh build/DerivedData/Build/Products/Release/Yellowhamme
 
 A rejection fails the script; `build/notarization/notarization-log.json` is the file to
 read — its `issues` array names what Apple objected to.
+
+## Packaging and distribution (P16.4)
+
+After notarization, `scripts/release/package-dmg.sh <path-to-app> <out-dir> <dmg-basename>
+[extra-file-in-out-dir]...` builds the distributable disk image:
+
+1. Stages the `.app` plus an `Applications -> /Applications` symlink in a scratch
+   directory, then builds a compressed, APFS-formatted DMG with `hdiutil create`.
+2. **Signs the DMG itself**, separately from the app inside it, with the Developer ID
+   Application identity (`SIGNING_IDENTITY`, falling back to `"Developer ID
+   Application"`) and a secure timestamp. This matters because Gatekeeper's assessment
+   of a double-clicked disk image looks at the DMG's own signature, not just the app it
+   contains — an unsigned DMG holding a notarized app still trips a warning.
+3. Submits the signed DMG for notarization and staples the ticket, using the same
+   `xcrun notarytool` auth convention as `notarize.sh` (`NOTARY_API_KEY_PATH` in CI,
+   the `NOTARY_PROFILE` keychain profile locally). The full submit response and log land
+   in `<out-dir>/dmg-notarization-submit.json` and `<out-dir>/dmg-notarization-log.json`.
+4. Verifies the result the same way `verify-notarized.sh` verifies the app:
+   `codesign --verify --strict`, `spctl --assess --type open --context
+   context:primary-signature` reporting `source=Notarized Developer ID`, and `xcrun
+   stapler validate`.
+5. Writes `<out-dir>/SHA256SUMS` with `shasum -a 256` over the DMG and any extra files
+   passed in (the notarized zip, when given as a fourth argument), using bare file names
+   so `shasum -a 256 -c SHA256SUMS` verifies correctly when run from the folder holding
+   the downloaded files.
+
+`scripts/release/release-notes.sh <tag> [<previous-tag>]` derives release notes from the
+`Spec: <epic>/<story> @ <sha>` trailer lines (see CLAUDE.md) on every commit between the
+previous release and this one — `<previous-tag>` defaults to the most recent `v*` tag
+reachable from `<tag>^`, or the root commit if there is none. It prints Markdown naming
+the spec commit the release was built against (the newest cited spec sha), the sorted,
+de-duplicated list of story IDs touched, and — when more than one distinct spec sha was
+cited — the full list of those shas, plus a reminder to verify the download against
+`SHA256SUMS`.
+
+In CI, `.github/workflows/release-build.yml` runs both after notarizing and stapling the
+app: it packages the DMG into `build/artifacts` (alongside the notarized zip, so both
+land in `SHA256SUMS`), writes `build/artifacts/release-notes.md`, and then publishes a
+GitHub release for the tag with `gh release create` — the DMG, the zip and
+`SHA256SUMS` as assets, the release notes as the body, `--verify-tag` to require the
+Git tag exist and match, and `--prerelease` when the tag carries a pre-release suffix.
+Re-running the job for the same tag (`workflow_dispatch`) is idempotent: if the release
+already exists, it uploads with `gh release upload --clobber` and updates the notes with
+`gh release edit --notes-file` instead of trying to create it again. The job grants
+itself `contents: write` to do this; the workflow's top-level permission stays
+`contents: read`.
+
+### Where the release is hosted
+
+Releases are published to this repository's own GitHub Releases
+(`summerhammer/yellowhammer`). The repository is currently private, so downloading a
+release — DMG, zip or `SHA256SUMS` — requires access to the repository; there is no
+separate public distribution point yet.
+
+### Manual acceptance check
+
+The roadmap's P16.4 done-criterion is verified by hand, on a clean Apple Silicon Mac:
+
+1. Download the DMG (and `SHA256SUMS`) from the GitHub release.
+2. `shasum -a 256 -c SHA256SUMS` in the download folder — the DMG line must report `OK`.
+3. Open the DMG, drag `Yellowhammer.app` to `/Applications`, and launch it — Gatekeeper
+   must not show a warning (neither on opening the DMG nor launching the app).
+4. `spctl --assess -v /Applications/Yellowhammer.app` must report `source=Notarized
+   Developer ID`.

@@ -1,11 +1,12 @@
 name: Release build
 
-# Builds a signed, versioned Release .app from a tag (roadmap P16.2), then submits it for
-# notarization, staples the ticket, and verifies the result (roadmap P16.3). Stops there:
-# packaging (DMG/zip for distribution, checksums, hosting) is P16.4.
+# Builds a signed, versioned Release .app from a tag (roadmap P16.2), submits it for
+# notarization, staples the ticket, and verifies the result (roadmap P16.3), then
+# packages a signed, notarized DMG plus checksums and publishes a GitHub release
+# (roadmap P16.4).
 # Never add a pull_request trigger: it would hand the signing and notarization secrets to
 # code on any PR branch. See doc/signing-identity.md for the secrets and their ownership,
-# and doc/release-build.md for the versioning scheme and the notarization step.
+# and doc/release-build.md for the versioning scheme, the notarization step and packaging.
 
 on:
   push:
@@ -28,7 +29,9 @@ jobs:
   release-build:
     name: Release build
     runs-on: macos-26
-    timeout-minutes: 75
+    timeout-minutes: 110
+    permissions:
+      contents: write
     env:
       XCODE_VERSION: "26.6"
       DEVELOPER_TEAM_ID: A2SJL2N487
@@ -99,6 +102,44 @@ jobs:
             build/DerivedData/Build/Products/Release/Yellowhammer.app \
             build/notarization
           cp "build/notarization/$NOTARIZED_ZIP_NAME" "build/artifacts/$NOTARIZED_ZIP_NAME"
+
+      - name: Package disk image
+        env:
+          NOTARY_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
+          NOTARY_API_ISSUER_ID: ${{ secrets.NOTARY_API_ISSUER_ID }}
+        run: |
+          NOTARIZED_ZIP_NAME="Yellowhammer-$MARKETING_VERSION-$CURRENT_PROJECT_VERSION.zip"
+          scripts/release/package-dmg.sh \
+            build/DerivedData/Build/Products/Release/Yellowhammer.app \
+            build/artifacts \
+            "Yellowhammer-$MARKETING_VERSION-$CURRENT_PROJECT_VERSION" \
+            "build/artifacts/$NOTARIZED_ZIP_NAME"
+          # dmg-notarization-submit.json and dmg-notarization-log.json land in
+          # build/artifacts/ directly — already covered by the artifact upload below.
+
+      - name: Write release notes
+        run: scripts/release/release-notes.sh "$RELEASE_TAG" > build/artifacts/release-notes.md
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" \
+              build/artifacts/*.dmg build/artifacts/*.zip build/artifacts/SHA256SUMS \
+              --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Yellowhammer $MARKETING_VERSION" \
+              --notes-file build/artifacts/release-notes.md
+          else
+            gh release create "$RELEASE_TAG" \
+              build/artifacts/*.dmg build/artifacts/*.zip build/artifacts/SHA256SUMS \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Yellowhammer $MARKETING_VERSION" \
+              --notes-file build/artifacts/release-notes.md \
+              --verify-tag
+          fi
 
       - name: Upload release build artifacts
         if: always()
