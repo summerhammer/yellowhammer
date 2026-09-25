@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Verify a Release build carries the expected version and is validly Developer ID signed,
-# in both the app and the embedded engine (Contents/MacOS/yh). Used by release jobs after
+# in both the app and the embedded engine (Contents/MacOS/yh), and that the update channel
+# (roadmap P16.5) is provisioned: a real EdDSA public key is baked into the app's Info.plist
+# and no automatic check/update flag is on. Used by release jobs after
 # `xcodebuild ... -configuration Release`.
 #
-# Usage: verify-release-build.sh <path-to-app> <marketing-version> <build-number>
+# Usage: verify-release-build.sh <path-to-app> <marketing-version> <build-number> <sparkle-public-ed-key>
 set -euo pipefail
 
 fail() {
@@ -11,15 +13,17 @@ fail() {
 	exit 1
 }
 
-[ $# -eq 3 ] || fail "Usage: $0 <path-to-app> <marketing-version> <build-number>"
+[ $# -eq 4 ] || fail "Usage: $0 <path-to-app> <marketing-version> <build-number> <sparkle-public-ed-key>"
 
 APP_PATH="$1"
 MARKETING_VERSION="$2"
 BUILD_NUMBER="$3"
+SPARKLE_PUBLIC_ED_KEY="$4"
 YH_PATH="$APP_PATH/Contents/MacOS/yh"
 
 [ -d "$APP_PATH" ] || fail "App bundle does not exist: $APP_PATH"
 [ -f "$YH_PATH" ] || fail "Engine binary not found at Contents/MacOS/yh in $APP_PATH"
+[ -n "$SPARKLE_PUBLIC_ED_KEY" ] || fail "SPARKLE_PUBLIC_ED_KEY is empty: a Release build must ship a real Sparkle EdDSA public key (see doc/update-channel.md)"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -117,4 +121,19 @@ check_arm64_only "$YH_PATH" "embedded yh"
 "$SCRIPT_DIR/../ci/verify_app_bundle.sh" "$APP_PATH" \
 	|| fail "verify_app_bundle.sh failed for $APP_PATH"
 
-echo "Release build check passed: $APP_PATH ($MARKETING_VERSION, build $BUILD_NUMBER) and its embedded yh are Developer ID signed, hardened, arm64-only, and unentitled for debugging."
+# --- Update channel (G-14): a real public key is baked in, never a silent/automatic update ---
+app_public_ed_key=$(/usr/libexec/PlistBuddy -c "Print SUPublicEDKey" "$APP_PATH/Contents/Info.plist" 2>/dev/null) \
+	|| fail "could not read SUPublicEDKey from $APP_PATH/Contents/Info.plist"
+[ -n "$app_public_ed_key" ] \
+	|| fail "SUPublicEDKey is empty in $APP_PATH/Contents/Info.plist: the update channel has no signing key baked in"
+[ "$app_public_ed_key" = "$SPARKLE_PUBLIC_ED_KEY" ] \
+	|| fail "SUPublicEDKey in $APP_PATH/Contents/Info.plist does not match the provisioned SPARKLE_PUBLIC_ED_KEY"
+
+for key in SUEnableAutomaticChecks SUAutomaticallyUpdate SUAllowsAutomaticUpdates; do
+	value=$(/usr/libexec/PlistBuddy -c "Print $key" "$APP_PATH/Contents/Info.plist" 2>/dev/null) \
+		|| fail "could not read $key from $APP_PATH/Contents/Info.plist"
+	[ "$value" = "false" ] \
+		|| fail "$key is '$value' in $APP_PATH/Contents/Info.plist, expected false: updates are user-initiated only (G-14)"
+done
+
+echo "Release build check passed: $APP_PATH ($MARKETING_VERSION, build $BUILD_NUMBER) and its embedded yh are Developer ID signed, hardened, arm64-only, and unentitled for debugging. Update channel: a Sparkle EdDSA public key is baked in and no automatic check/update flag is set."

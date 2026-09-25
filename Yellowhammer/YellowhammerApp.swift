@@ -6,6 +6,7 @@
 //
 
 import Domain
+import Sparkle
 import SwiftUI
 
 /// The window app (Decision Gates Ruling, G-5). `AppLaunch` starts it for every launch that is not a
@@ -14,6 +15,21 @@ import SwiftUI
 /// Every window is scoped to one Project by its value; the Operator may open as many as they like,
 /// one per Project, and `yellowhammer://project/<id>` opens the named one.
 struct YellowhammerApp: App {
+    /// Sparkle 2, user-initiated only (Decision Gates Ruling G-14): started once for the app's
+    /// lifetime here, never in the headless launches (`AppLaunch` routes those to
+    /// `HeadlessPost`/`HeadlessPermissionRequest` before `YellowhammerApp.main()` ever runs, so no
+    /// update machinery exists on that path). Nothing resident beyond what Sparkle itself keeps
+    /// while the app is open — no background check is scheduled (`SUEnableAutomaticChecks = NO`).
+    private let updaterController: SPUStandardUpdaterController
+
+    init() {
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: UpdaterDelegate(),
+            userDriverDelegate: nil
+        )
+    }
+
     var body: some Scene {
         WindowGroup(for: ProjectID.self) { $project in
             ProjectWindow(project: $project)
@@ -23,6 +39,7 @@ struct YellowhammerApp: App {
                 SetupMenuCommand()
                 BaseRoutingTableMenuCommand()
                 AgentCLIMenuCommand()
+                CheckForUpdatesMenuCommand(updater: updaterController.updater)
             }
         }
 
@@ -79,5 +96,19 @@ private struct AgentCLIMenuCommand: View {
 
     var body: some View {
         Button("Agent CLIs…") { openWindow(id: Self.windowID) }
+    }
+}
+
+/// Sparkle's documented KVO-compliant `canCheckForUpdates`, observed so the menu item disables
+/// itself while a check is already running instead of letting the Operator start a second one.
+private struct CheckForUpdatesMenuCommand: View {
+    let updater: SPUUpdater
+
+    @State private var canCheckForUpdates = false
+
+    var body: some View {
+        Button("Check for Updates…") { updater.checkForUpdates() }
+            .disabled(!canCheckForUpdates)
+            .onReceive(updater.publisher(for: \.canCheckForUpdates)) { canCheckForUpdates = $0 }
     }
 }

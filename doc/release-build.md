@@ -33,13 +33,17 @@ CFBundleVersion to decide whether an update is newer, and commit count only grow
 eval "$(scripts/release/release-version.sh v1.2.3)"
 xcodebuild -project Yellowhammer.xcodeproj -scheme Yellowhammer -configuration Release \
   -destination 'generic/platform=macOS' -derivedDataPath build/DerivedData \
-  MARKETING_VERSION="$MARKETING_VERSION" CURRENT_PROJECT_VERSION="$CURRENT_PROJECT_VERSION" build
+  -clonedSourcePackagesDirPath build/SourcePackages \
+  MARKETING_VERSION="$MARKETING_VERSION" CURRENT_PROJECT_VERSION="$CURRENT_PROJECT_VERSION" \
+  SPARKLE_PUBLIC_ED_KEY="$SPARKLE_PUBLIC_ED_KEY" build
 scripts/release/verify-release-build.sh build/DerivedData/Build/Products/Release/Yellowhammer.app \
-  "$MARKETING_VERSION" "$CURRENT_PROJECT_VERSION"
+  "$MARKETING_VERSION" "$CURRENT_PROJECT_VERSION" "$SPARKLE_PUBLIC_ED_KEY"
 ```
 
 This needs the Developer ID Application identity in your keychain — see
-[doc/signing-identity.md](signing-identity.md) for installing it on a release machine.
+[doc/signing-identity.md](signing-identity.md) for installing it on a release machine — and a
+provisioned update channel key (`SPARKLE_PUBLIC_ED_KEY` in your environment) — see
+[doc/update-channel.md](update-channel.md).
 
 ## CI
 

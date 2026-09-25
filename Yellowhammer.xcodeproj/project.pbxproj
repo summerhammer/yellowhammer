@@ -13,6 +13,7 @@
 		508F4CD6306526DF00AFF241 /* Config in Frameworks */ = {isa = PBXBuildFile; productRef = 508F4CD5306526DF00AFF241 /* Config */; };
 		508F4D1930654D4000AFF241 /* Ledger in Frameworks */ = {isa = PBXBuildFile; productRef = 508F4D1830654D4000AFF241 /* Ledger */; };
 		508F4D1B30654FE700AFF241 /* Journal in Frameworks */ = {isa = PBXBuildFile; productRef = 508F4D1A30654FE700AFF241 /* Journal */; };
+		A1B2C3D4306E000100AABBCC /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4306E000200AABBCC /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -86,6 +87,7 @@
 				508F4CD6306526DF00AFF241 /* Config in Frameworks */,
 				508F4D1930654D4000AFF241 /* Ledger in Frameworks */,
 				508F4D1B30654FE700AFF241 /* Journal in Frameworks */,
+				A1B2C3D4306E000100AABBCC /* Sparkle in Frameworks */,
 				5083DD59305674F500E6D6D3 /* Domain in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -162,6 +164,7 @@
 				508F4CD5306526DF00AFF241 /* Config */,
 				508F4D1830654D4000AFF241 /* Ledger */,
 				508F4D1A30654FE700AFF241 /* Journal */,
+				A1B2C3D4306E000200AABBCC /* Sparkle */,
 			);
 			productName = Yellowhammer;
 			productReference = 5083DD343056702600E6D6D3 /* Yellowhammer.app */;
@@ -246,6 +249,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				5083DD57305674F500E6D6D3 /* XCLocalSwiftPackageReference "Packages/YellowhammerKit" */,
+				A1B2C3D4306E000300AABBCC /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 5083DD353056702600E6D6D3 /* Products */;
@@ -376,6 +380,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				SPARKLE_PUBLIC_ED_KEY = "";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -436,6 +441,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
+				SPARKLE_PUBLIC_ED_KEY = "";
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;
@@ -624,6 +630,17 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		A1B2C3D4306E000300AABBCC /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.7.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		5083DD58305674F500E6D6D3 /* Domain */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -647,6 +664,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 5083DD57305674F500E6D6D3 /* XCLocalSwiftPackageReference "Packages/YellowhammerKit" */;
 			productName = Journal;
+		};
+		A1B2C3D4306E000200AABBCC /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D4306E000300AABBCC /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
