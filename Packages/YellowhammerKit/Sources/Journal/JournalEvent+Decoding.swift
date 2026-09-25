@@ -174,6 +174,8 @@ extension JournalEvent {
             try Self.decodeAgentCLIProcessSpawned(reader)
         case .rehearsalFixtureAnswered:
             try Self.decodeRehearsalFixtureAnswered(reader)
+        case .leftoverProcessRecorded:
+            try Self.decodeLeftoverProcessRecorded(reader)
         case .featureSelected:
             try Self.decodeFeatureSelected(reader)
         case .featureAuthoringHalted:

@@ -17,6 +17,12 @@ public struct AgentCLIRunReport: Equatable, Sendable {
     /// Sweep Ruling) — empty on a forced termination (timeout or abort), where `terminate()`
     /// contains descendants but does not report them.
     public let leftovers: [LeftoverProcess]
+    /// The running snapshot this run's lifecycle captured (Normal-Exit Sweep Ruling): the CLI's
+    /// descendant tree, walked while its leader was still alive, that the attributed Worktree
+    /// fence uses to tell this run's processes apart from an unrelated one sharing the Worktree.
+    /// Present on every ending — normal exit, timeout, or abort — since the cumulative descendant
+    /// walk that feeds it runs regardless of how the run ends.
+    public let snapshot: RunningSnapshot
 }
 
 /// The process identity and ending of one run, before the dual-key completion verdict is applied.
@@ -29,6 +35,8 @@ public struct AgentCLIExecution: Equatable, Sendable {
     public let end: RunEnd
     /// See ``AgentCLIRunReport/leftovers``.
     public let leftovers: [LeftoverProcess]
+    /// See ``AgentCLIRunReport/snapshot``.
+    public let snapshot: RunningSnapshot
 }
 
 /// Why ``AgentCLIProcess/run(_:)`` could not even start a run.
@@ -81,7 +89,7 @@ public struct AgentCLIProcess: Sendable {
         let outcome = RunOutcome.classify(end: execution.end, resultFileAt: launch.resultFile, pass: launch.pass)
         return AgentCLIRunReport(
             pid: execution.pid, processGroup: execution.processGroup, end: execution.end, outcome: outcome,
-            leftovers: execution.leftovers
+            leftovers: execution.leftovers, snapshot: execution.snapshot
         )
     }
 
@@ -95,6 +103,13 @@ public struct AgentCLIProcess: Sendable {
             throw .worktreeMissing(launch.worktreePath)
         }
 
+        // Captured before the spawn, so every process the run starts is strictly later (rule 2 of the
+        // attributed fence compares against this).
+        var dispatchedAtTV = timeval()
+        gettimeofday(&dispatchedAtTV, nil)
+        let dispatchedAt = ProcessStartTime(
+            seconds: UInt64(dispatchedAtTV.tv_sec), microseconds: UInt64(dispatchedAtTV.tv_usec)
+        )
         let spawnOutcome = ProcessGroup.spawn(
             executable: launch.executable,
             arguments: launch.arguments,
@@ -111,11 +126,21 @@ public struct AgentCLIProcess: Sendable {
             throw .spawnFailed(errno: errorCode, executable: launch.executable)
         }
 
-        let (end, leftovers) = await wait(pid: pid, timeout: launch.timeout)
-        return AgentCLIExecution(pid: pid, processGroup: pid, end: end, leftovers: leftovers)
+        let result = await self.wait(pid: pid, timeout: launch.timeout, dispatchedAt: dispatchedAt)
+        return AgentCLIExecution(
+            pid: pid, processGroup: pid, end: result.end, leftovers: result.leftovers, snapshot: result.snapshot
+        )
     }
 
     // MARK: - Waiting
+
+    /// How ``wait(pid:timeout:dispatchedAt:)`` ended: the run's ending, what a normal exit swept, and
+    /// the running snapshot.
+    private struct WaitResult {
+        let end: RunEnd
+        let leftovers: [LeftoverProcess]
+        let snapshot: RunningSnapshot
+    }
 
     /// Polls `waitpid(WNOHANG)` in the calling task (never a detached one) so `Task.isCancelled`
     /// stays observable, until the leader exits, the engine cancels, or `timeout` elapses. While
@@ -126,11 +151,15 @@ public struct AgentCLIProcess: Sendable {
     /// identity before it is sent. On a NORMAL exit, that snapshot is handed to
     /// ``sweepAfterExit(tracked:)`` — the only place a normal exit's leftovers can still be found,
     /// since macOS reparents children to `launchd` at exit, not at reap.
-    private func wait(pid: pid_t, timeout: Duration) async -> (RunEnd, [LeftoverProcess]) {
+    private func wait(pid: pid_t, timeout: Duration, dispatchedAt: ProcessStartTime) async -> WaitResult {
         let clock = ContinuousClock()
         let start = clock.now
         var tracked = Set<ProcessTree.TrackedProcess>()
         var lastSnapshot: ContinuousClock.Instant?
+
+        func snapshot() -> RunningSnapshot {
+            Self.makeSnapshot(leaderPID: pid, dispatchedAt: dispatchedAt, tracked: tracked)
+        }
 
         while true {
             if lastSnapshot == nil || clock.now - lastSnapshot! >= snapshotInterval {
@@ -139,16 +168,68 @@ public struct AgentCLIProcess: Sendable {
             }
             if let end = ProcessGroup.reapNonBlocking(pid: pid) {
                 let leftovers = await sweepAfterExit(tracked: tracked)
-                return (end, leftovers)
+                return WaitResult(end: end, leftovers: leftovers, snapshot: snapshot())
             }
             if Task.isCancelled {
-                return (await terminate(pid: pid, reason: .aborted), [])
+                let end = await terminate(pid: pid, reason: .aborted)
+                return WaitResult(end: end, leftovers: [], snapshot: snapshot())
             }
             if clock.now - start >= timeout {
-                return (await terminate(pid: pid, reason: .timedOut(after: timeout)), [])
+                let end = await terminate(pid: pid, reason: .timedOut(after: timeout))
+                return WaitResult(end: end, leftovers: [], snapshot: snapshot())
             }
             try? await Task.sleep(for: pollInterval)
         }
+    }
+
+    /// Builds the running snapshot from the cumulative descendant walk `wait` accumulated, plus
+    /// the CLI leader's own process group. Each tracked process is re-identified fresh (`ProcessTree.identity`)
+    /// the same way ``sortedLeftovers(_:)`` does — a stale `tracked` entry may carry an outdated
+    /// process group or session (e.g. after `setsid()`), so both the recorded and the current
+    /// group/session are folded into ``RunningSnapshot/processGroups``/``sessions`` when the
+    /// process is still identifiable; an entry that has already exited keeps only what was
+    /// recorded when it was last seen alive.
+    static func makeSnapshot(
+        leaderPID: pid_t, dispatchedAt: ProcessStartTime, tracked: Set<ProcessTree.TrackedProcess>
+    ) -> RunningSnapshot {
+        var processes: [SnapshotProcess] = []
+        var groups = Set<pid_t>()
+        var sessions = Set<pid_t>()
+
+        func fold(_ tracked: ProcessTree.TrackedProcess) {
+            let current = ProcessTree.identity(of: tracked.pid)
+            let matchesTracked = current.map {
+                $0.pid == tracked.pid && $0.startSeconds == tracked.startSeconds
+                    && $0.startMicroseconds == tracked.startMicroseconds
+            } ?? false
+            processes.append(SnapshotProcess(
+                pid: tracked.pid,
+                startTime: ProcessStartTime(seconds: tracked.startSeconds, microseconds: tracked.startMicroseconds),
+                processGroup: tracked.processGroup, session: tracked.session, commandName: tracked.commandName
+            ))
+            groups.insert(tracked.processGroup)
+            sessions.insert(tracked.session)
+            if matchesTracked, let current {
+                groups.insert(current.processGroup)
+                sessions.insert(current.session)
+            }
+        }
+
+        // The leader itself is not re-read: on a normal exit it is already reaped, and its pid may
+        // name another process by now. Its group is added by pid; its session is the engine's.
+        for process in tracked {
+            fold(process)
+        }
+        groups.insert(leaderPID)
+
+        let engineGroup = getpgrp()
+        let engineSession = getsid(0)
+        groups = groups.filter { $0 > 1 && $0 != engineGroup }
+        sessions = sessions.filter { $0 > 1 && $0 != engineSession }
+
+        return RunningSnapshot(
+            dispatchedAt: dispatchedAt, processes: processes, processGroups: groups, sessions: sessions
+        )
     }
 
     /// Why a run is being ended by Yellowhammer rather than the CLI's own exit — shared with

@@ -72,15 +72,20 @@ public struct AgentDispatchReport: Equatable, Sendable {
     /// implementation (Normal-Exit Sweep Ruling). Defaulted so existing call sites and fakes compile
     /// unchanged.
     public let leftovers: [LeftoverProcess]
+    /// The running snapshot this run's process lifecycle captured (Normal-Exit Sweep Ruling), for
+    /// the attributed Worktree fence to consume. `nil` when no agent CLI run's snapshot is
+    /// available — a fake, or a rehearsal fixture answering in place of a real run.
+    public let snapshot: RunningSnapshot?
 
     public init(
         outcome: RunOutcome, session: String? = nil, origin: AgentDispatchOrigin = .agentCLIProcess,
-        leftovers: [LeftoverProcess] = []
+        leftovers: [LeftoverProcess] = [], snapshot: RunningSnapshot? = nil
     ) {
         self.outcome = outcome
         self.session = session
         self.origin = origin
         self.leftovers = leftovers
+        self.snapshot = snapshot
     }
 }
 

@@ -38,7 +38,7 @@ public enum NightCardBlock {
         night: NightRecord, projectID: ProjectID, verdictLine: String = defaultVerdictLine,
         authoringFindings: [String] = [], cardLines: [String] = [], dispositionLines: [String] = [],
         pullRequestLines: [String] = [], answerLines: [String] = [], anomalies: [String] = [],
-        crashesAndReclaims: [String] = [], exceptions: [String] = [],
+        crashesAndReclaims: [String] = [], leftoverProcesses: [String] = [], exceptions: [String] = [],
         bounds: [String] = [], standingItems: [String] = [], unadoptedCards: [String] = [],
         inFlightFeature: [String] = [], instrumentedRates: [String] = []
     ) -> String {
@@ -55,6 +55,7 @@ public enum NightCardBlock {
         appendSection("Answers on landed Cards", answerLines, to: &lines)
         appendSection("Anomalies", anomalies, to: &lines)
         appendSection("Crashes and reclaims", crashesAndReclaims, to: &lines)
+        appendSection("Leftover processes", leftoverProcesses, to: &lines)
         appendSection("Exceptions", exceptions, to: &lines)
         appendBounds(bounds, to: &lines)
         appendStandingItems(standingItems, to: &lines)

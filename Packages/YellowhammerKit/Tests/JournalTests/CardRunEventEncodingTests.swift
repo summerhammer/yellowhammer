@@ -82,3 +82,39 @@ func failureCauseRecordedRoundTrips() throws {
 
     #expect(try journal.events(ofType: .failureCauseRecorded).map(\.event) == [event])
 }
+
+@Test("leftoverProcessRecorded event round-trips for every disposition, with and without a cwd")
+func leftoverProcessRecordedRoundTrips() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appending(component: "yh-journal-leftover-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let journal = try JournalStore.open(
+        configurationDirectory: directory, projectID: try #require(ProjectID(rawValue: "fixture"))
+    )
+    let run = RunID()
+    let epoch = Date(timeIntervalSince1970: 1_800_000_000)
+    let events: [JournalEvent] = [
+        .leftoverProcessRecorded(
+            cardID: 7, issueID: "BACK-1", attemptID: 3, pass: .worker, pid: 4242, commandName: "node",
+            disposition: .sweptByRunningSnapshot, cwd: nil
+        ),
+        .leftoverProcessRecorded(
+            cardID: 7, issueID: "BACK-1", attemptID: 3, pass: .worker, pid: 4343, commandName: "python3",
+            disposition: .sweptByWorktreeFence, cwd: nil
+        ),
+        .leftoverProcessRecorded(
+            cardID: 7, issueID: "BACK-1", attemptID: 3, pass: .worker, pid: 4444, commandName: "sleep",
+            disposition: .leftRunningUnattributed, cwd: "/tmp/yh-wt-backend"
+        )
+    ]
+
+    for event in events {
+        try journal.append(event, act: .build, runID: run, now: epoch)
+    }
+    let records = try journal.events(ofType: .leftoverProcessRecorded)
+
+    #expect(records.map(\.event) == events)
+    #expect(Set(events.compactMap { event -> LeftoverProcessDisposition? in
+        if case .leftoverProcessRecorded(_, _, _, _, _, _, let disposition, _) = event { disposition } else { nil }
+    }) == Set(LeftoverProcessDisposition.allCases))
+}

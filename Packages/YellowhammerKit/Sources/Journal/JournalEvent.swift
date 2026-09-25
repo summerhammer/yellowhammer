@@ -269,6 +269,15 @@ public enum JournalEvent: Equatable, Sendable {
     /// A rehearsal Night's pass was answered from a fixture instead of spawning an agent CLI process
     /// (system-overview, Environment Differences, P8.11): one of the three rehearsal boundaries held.
     case rehearsalFixtureAnswered(cardID: Int64, issueID: String, attemptID: Int64, pass: RunPass, fixture: String)
+    /// One process a Card run's leftover accounting named (Normal-Exit Sweep Ruling, issue #175):
+    /// swept by the agent CLI process lifecycle's own identity sweep, killed by the attributed
+    /// Worktree fence, or found holding the Worktree but left running because it could not be
+    /// attributed to this run. `cwd` is the process's working directory when the fence recorded it
+    /// unattributed; nil otherwise (a swept process's cwd is not recorded).
+    case leftoverProcessRecorded(
+        cardID: Int64, issueID: String, attemptID: Int64, pass: RunPass, pid: Int32, commandName: String,
+        disposition: LeftoverProcessDisposition, cwd: String?
+    )
     /// The author Act's selection (roadmap P9.3) selected exactly one Feature and validated it:
     /// repositories resolved to this Project's own, adoption candidates narrowed to real ones.
     case featureSelected(FeatureSelectedPayload)

@@ -118,6 +118,7 @@ public struct NightCardMaintenance: Sendable {
         let answerLines = try NightSummary.answerLines(night: night, journal: journal)
         let anomalies = try NightSummary.anomalyLines(night: night, journal: journal)
         let crashesAndReclaims = try NightSummary.crashesAndReclaimsLines(night: night, journal: journal)
+        let leftoverProcesses = try NightSummary.leftoverProcessLines(night: night, journal: journal)
         let exceptions = try NightSummary.exceptionLines(night: night, journal: journal)
         let boundsLines = try self.boundsLines(night: night)
         let standingItems = try standingItemLines()
@@ -128,6 +129,7 @@ public struct NightCardMaintenance: Sendable {
             night: night, projectID: journal.projectID, verdictLine: verdict, authoringFindings: findings,
             cardLines: cardLines, dispositionLines: dispositionLines, pullRequestLines: pullRequestLines,
             answerLines: answerLines, anomalies: anomalies, crashesAndReclaims: crashesAndReclaims,
+            leftoverProcesses: leftoverProcesses,
             exceptions: exceptions, bounds: boundsLines, standingItems: standingItems,
             unadoptedCards: unadoptedCards, inFlightFeature: inFlightFeature,
             instrumentedRates: instrumentedRates
@@ -160,10 +162,11 @@ public struct NightCardMaintenance: Sendable {
     }
 
     // `anomalyLines(night:journal:)`, `crashesAndReclaimsLines(night:journal:)`,
-    // `exceptionLines(night:journal:)`, `unadoptedCardLines(night:journal:)` and
-    // `inFlightFeatureLines(night:journal:)` — which folds the old, per-Night `**Mainline Conflicts:**`
-    // section into the standing unmerged-in-flight-Feature line — live on `NightSummary`
-    // (NightSummary+Exceptions.swift, NightSummary+StandingLines.swift).
+    // `exceptionLines(night:journal:)`, `unadoptedCardLines(night:journal:)`,
+    // `leftoverProcessLines(night:journal:)` and `inFlightFeatureLines(night:journal:)` — which folds
+    // the old, per-Night `**Mainline Conflicts:**` section into the standing unmerged-in-flight-Feature
+    // line — live on `NightSummary` (NightSummary+Exceptions.swift, NightSummary+Leftovers.swift,
+    // NightSummary+StandingLines.swift).
 
     // `boundsLines(night:)` and `standingItemLines()` live in NightCardMaintenance+Bounds.swift.
     // `recordAuthoring(night:)`, `authoringLines(night:)`, `authoringLine(for:)` and

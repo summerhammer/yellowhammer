@@ -48,6 +48,22 @@ extension JournalEvent {
         )
     }
 
+    static func decodeLeftoverProcessRecorded(_ reader: PayloadReader) throws -> JournalEvent {
+        guard let disposition = LeftoverProcessDisposition(rawValue: try reader.require("disposition")) else {
+            throw JournalError.eventUnreadable(id: reader.rowID)
+        }
+        return .leftoverProcessRecorded(
+            cardID: try reader.int64("card_id"),
+            issueID: try reader.require("issue_id"),
+            attemptID: try reader.int64("attempt_id"),
+            pass: try reader.pass("pass"),
+            pid: Int32(try reader.int("pid")),
+            commandName: try reader.require("command_name"),
+            disposition: disposition,
+            cwd: reader.payload?["cwd"]
+        )
+    }
+
     static func decodeCheckRan(_ reader: PayloadReader) throws -> JournalEvent {
         guard let result = CheckRunResult(rawValue: try reader.require("result")) else {
             throw JournalError.eventUnreadable(id: reader.rowID)
