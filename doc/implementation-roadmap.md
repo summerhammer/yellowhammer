@@ -1638,7 +1638,7 @@ comment on the Delta Read).
 
 ## Phase 16 — Release engineering & first production Night
 
-### [ ] P16.1 `[DevOps]` Signing identity and secrets
+### [x] P16.1 `[DevOps]` Signing identity and secrets
 - **Work**
   - Provision the Developer ID Application certificate and a notarization credential (App Store
     Connect API key or equivalent) in the release machine's keychain and in CI secrets.
