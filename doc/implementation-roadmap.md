@@ -1660,7 +1660,7 @@ comment on the Delta Read).
 - **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — A Release build from a tag carries the tag's version in both the app and `yh`.
 
-### [ ] P16.3 `[DevOps]` Notarization, stapling and verification
+### [x] P16.3 `[DevOps]` Notarization, stapling and verification
 - **Work** — A release job that: builds Release, signs, packages, submits for notarization, waits for
   the result, staples the ticket, and verifies with `codesign --verify --deep --strict`, `spctl
   --assess`, and `stapler validate`. It fails on any rejection and archives the notarization log.
