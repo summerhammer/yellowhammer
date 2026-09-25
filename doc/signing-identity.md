@@ -12,8 +12,8 @@ Fill this table when the credentials are provisioned, and update it on every ren
 
 | Credential | Apple team (ID) | Owner | Created | Expires | Renewal reminder |
 |---|---|---|---|---|---|
-| Developer ID Application certificate | _tbd_ | _tbd_ (Account Holder) | _tbd_ | _tbd_ (5 years) | 60 days before expiry |
-| App Store Connect API key (notarization) | _tbd_ | _tbd_ (Admin) | _tbd_ | does not expire; revoke on owner change | yearly review |
+| Developer ID Application certificate | A2SJL2N487 | _tbd_ (Account Holder) | _tbd_ | _tbd_ (5 years) | 60 days before expiry |
+| App Store Connect API key (notarization) | A2SJL2N487 | _tbd_ (Admin) | _tbd_ | does not expire; revoke on owner change | yearly review |
 
 - Only the Apple Developer **Account Holder** can create a Developer ID Application
   certificate. The team is limited to a small number of them, so renew rather than create.
@@ -52,7 +52,7 @@ A release job runs the same script before it builds.
 3. Check both without manual input:
 
    ```sh
-   DEVELOPER_TEAM_ID=<TEAMID> scripts/release/setup-signing.sh --verify-only
+   DEVELOPER_TEAM_ID=A2SJL2N487 scripts/release/setup-signing.sh --verify-only
    ```
 
 Set `DEVELOPER_TEAM_ID` whenever the keychain holds Developer ID identities of more than one
