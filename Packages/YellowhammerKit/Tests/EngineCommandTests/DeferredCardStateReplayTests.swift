@@ -52,7 +52,7 @@ struct DeferredCardStateReplayTests {
         #expect(try journal.events(ofType: .boardStateReposted).isEmpty)
     }
 
-    @Test("A Card at state_version 0 is never replayed, even though it is unposted")
+    @Test("A Card at state_version 0 is never replayed: it has no board write of its own")
     func stateVersionZeroIsFiltered() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
@@ -61,7 +61,8 @@ struct DeferredCardStateReplayTests {
         let cardID = try insertFixtureCard(journal, issueID: "issue-1")
         let context = try replayContext(journal, board: boards)
 
-        #expect(try journal.cardsWithUnpostedState().map(\.id) == [cardID])
+        #expect(try journal.card(id: cardID).boardStateVersion == nil)
+        #expect(try journal.cardsWithUnpostedState().isEmpty)
 
         try await DeferredCardStateReplay.run(context: context)
 

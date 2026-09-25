@@ -75,7 +75,7 @@ struct BuildActTests {
         let backend1 = try insertReconcilerCard(
             journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .todo
         )
-        _ = try insertReconcilerCard(
+        let backend2 = try insertReconcilerCard(
             journal, cycleID: cycleID, issueID: "BACK-2", repository: "backend", state: .todo
         )
         let backend3 = try insertReconcilerCard(
@@ -88,10 +88,18 @@ struct BuildActTests {
             journal, cycleID: cycleID, issueID: "MOB-2", repository: "mobile", state: .todo
         )
 
-        // Every Card but BACK-2 is already posted to the board; only BACK-2 is left for repost to post.
+        // Every Card but BACK-2 is already posted to the board; only BACK-2 is left for repost to post:
+        // Blocked and back to Todo in the Journal, and the board never confirmed either write.
         for cardID in [backend1, backend3, mobile1, mobile2] {
             try journal.recordCardBoardState(cardID: cardID, version: 0, runID: runID, now: buildActEpoch)
         }
+        _ = try journal.transitionCard(
+            cardID: backend2, to: .blocked, blockReason: .unanswered, runID: runID, act: .build, nightID: nil,
+            now: buildActEpoch
+        )
+        _ = try journal.transitionCard(
+            cardID: backend2, to: .todo, runID: runID, act: .build, nightID: nil, now: buildActEpoch
+        )
         // repost() now claims each unposted Card's Lease itself for the replay (#81); no pre-claim needed.
 
         // A dead run's expired Card Lease on BACK-1: claimed, then never heartbeated past the TTL (600s).

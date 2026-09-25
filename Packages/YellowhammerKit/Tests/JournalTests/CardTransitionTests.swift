@@ -261,6 +261,23 @@ struct CardTransitionTests {
         #expect(try journal.cardsWithUnpostedState().isEmpty)
     }
 
+    @Test("A freshly authored Card, never transitioned, is not among cards with unposted state")
+    func freshlyAuthoredCardExcludedFromUnpostedState() throws {
+        let fixture = try JournalFixture()
+        let journal = try fixture.open()
+        let (cardID, runID) = try fixtureCard(journal)
+        #expect(try journal.card(id: cardID).stateVersion == 0)
+        #expect(try journal.card(id: cardID).boardStateVersion == nil)
+
+        #expect(try journal.cardsWithUnpostedState().isEmpty)
+
+        // Its first Journal transition is a write of its own, and is unposted until the board confirms it.
+        _ = try journal.transitionCard(
+            cardID: cardID, to: .inProgress, runID: runID, act: .build, nightID: nil, now: epoch
+        )
+        #expect(try journal.cardsWithUnpostedState().map(\.id) == [cardID])
+    }
+
     @Test("v7-card-state-version is a registered and applied migration")
     func migrationIsRegisteredAndApplied() throws {
         let fixture = try JournalFixture()

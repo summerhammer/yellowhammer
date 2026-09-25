@@ -136,16 +136,22 @@ extension JournalStore {
         }
     }
 
-    /// Every Card whose board projection has not caught up with its Journal state: not Cancelled, and
-    /// either never confirmed on the board or confirmed at an earlier version. Ordered by id, which is
-    /// what ``BoardStateProjection/repost()`` replays after a crash.
+    /// Every Card whose board projection has not caught up with its Journal state: not Cancelled,
+    /// transitioned at least once, and either never confirmed on the board or confirmed at an earlier
+    /// version. Ordered by id, which is what ``BoardStateProjection/repost()`` replays after a crash.
+    ///
+    /// A Card at `state_version` 0 never transitioned in the Journal: its authoring group created it on
+    /// the board in Todo, so it has no write of its own to post. Reposting Todo for it would overwrite
+    /// whatever the Operator did to it on the board before the first build Act read it — a Cancel
+    /// among them, which the Delta Read would then never see.
     public func cardsWithUnpostedState() throws -> [CardRecord] {
         try read { db in
             let rows = try Row.fetchAll(
                 db,
                 sql: """
                 SELECT * FROM card
-                WHERE state != ? AND (board_state_version IS NULL OR board_state_version < state_version)
+                WHERE state != ? AND state_version > 0
+                  AND (board_state_version IS NULL OR board_state_version < state_version)
                 ORDER BY id ASC
                 """,
                 arguments: [CardState.cancelled.rawValue]
