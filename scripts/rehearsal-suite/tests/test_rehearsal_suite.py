@@ -175,6 +175,58 @@ class RunCommandExitCodeTests(unittest.TestCase):
             exit_code = rehearsal_suite.run_command(args)
         self.assertEqual(exit_code, 1)
 
+    def test_run_prints_the_teardown_hint_pass_or_fail(self):
+        args = mock.Mock(
+            scenario=[1], root=Path("/tmp/root"), configuration_directory=Path("/tmp/config"),
+            work_directory=None, app=Path("/tmp/app"), team="YLH", act_timeout=60,
+        )
+        failing_checks = rehearsal_suite.ChecksRecorder(1, "Idle first Night")
+        with redirect_stdout(io.StringIO()):
+            failing_checks.expect(False, "broke")
+        with mock.patch.object(suite_env, "preflight"), \
+             mock.patch.object(suite_env, "ensure_project"), \
+             mock.patch.object(rehearsal_suite, "run_scenario", return_value=failing_checks), \
+             redirect_stdout(io.StringIO()) as buffer:
+            rehearsal_suite.run_command(args)
+        output = buffer.getvalue()
+        self.assertIn("rehearsal_suite.py teardown", output)
+        self.assertIn("rehearsal-suite-a", output)
+        self.assertIn("--install-jobs", output)
+
+
+class TeardownCommandTests(unittest.TestCase):
+    def _args(self, dry_run=False):
+        return mock.Mock(
+            app=Path("/tmp/app"), team="YLH", root=Path("/tmp/root"),
+            configuration_directory=Path("/tmp/config"), work_directory=None, dry_run=dry_run,
+        )
+
+    def test_preflight_failure_is_exit_code_2(self):
+        with mock.patch.object(suite_env, "teardown", side_effect=suite_env.SetupFailed("boom")), \
+             redirect_stdout(io.StringIO()):
+            exit_code = rehearsal_suite.teardown_command(self._args())
+        self.assertEqual(exit_code, 2)
+
+    def test_all_clean_is_exit_code_0(self):
+        with mock.patch.object(
+            suite_env, "teardown", return_value=(True, [("rehearsal-suite-a", True, ["ok"])])
+        ), redirect_stdout(io.StringIO()):
+            exit_code = rehearsal_suite.teardown_command(self._args())
+        self.assertEqual(exit_code, 0)
+
+    def test_a_failed_project_is_exit_code_1(self):
+        with mock.patch.object(
+            suite_env, "teardown", return_value=(False, [("rehearsal-suite-a", False, ["FAILED: boom"])])
+        ), redirect_stdout(io.StringIO()):
+            exit_code = rehearsal_suite.teardown_command(self._args())
+        self.assertEqual(exit_code, 1)
+
+    def test_dry_run_flag_is_passed_through(self):
+        with mock.patch.object(suite_env, "teardown", return_value=(True, [])) as teardown_mock, \
+             redirect_stdout(io.StringIO()):
+            rehearsal_suite.teardown_command(self._args(dry_run=True))
+        self.assertTrue(teardown_mock.call_args.kwargs["dry_run"])
+
 
 class ParseArgumentsTests(unittest.TestCase):
     def test_run_requires_app_and_team(self):
@@ -190,6 +242,21 @@ class ParseArgumentsTests(unittest.TestCase):
     def test_list_needs_no_arguments(self):
         args = rehearsal_suite.parse_arguments(["list"])
         self.assertEqual(args.command, "list")
+
+    def test_teardown_requires_app_and_team(self):
+        with self.assertRaises(SystemExit):
+            rehearsal_suite.parse_arguments(["teardown"])
+
+    def test_teardown_parses_dry_run(self):
+        args = rehearsal_suite.parse_arguments(
+            ["teardown", "--app", "/tmp/App.app", "--team", "YLH", "--dry-run"]
+        )
+        self.assertEqual(args.command, "teardown")
+        self.assertTrue(args.dry_run)
+
+    def test_teardown_dry_run_defaults_to_false(self):
+        args = rehearsal_suite.parse_arguments(["teardown", "--app", "/tmp/App.app", "--team", "YLH"])
+        self.assertFalse(args.dry_run)
 
 
 if __name__ == "__main__":

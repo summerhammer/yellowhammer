@@ -448,6 +448,14 @@ class YhRunner:
     def run_setup(self, scenario, args, label="setup"):
         return self.run(scenario, label, ["setup", *args])
 
+    def run_project_remove(self, project_id, label=None):
+        """`yh project remove <id> --yes`: unloads/deletes the Project's LaunchAgents (if any were
+        installed), its Act logs, and `projects/<id>.toml`. Logged under the `_teardown` scenario."""
+        return self.run(
+            "_teardown", label or f"project-remove-{project_id}",
+            ["project", "remove", project_id, "--yes"], retry=False,
+        )
+
 
 # MARK: - Journal snapshot
 
@@ -544,6 +552,22 @@ query($id: ID!, $after: String) {
   }
 }
 """
+
+#: `projectDelete` trashes a Linear project (restorable); Linear deprecated `projectArchive` in its
+#: favor. This is the one write `teardown` sends to Linear, through the scratch app's own credential.
+PROJECT_DELETE_MUTATION = "mutation($id: String!) { projectDelete(id: $id) { success } }"
+
+
+def delete_linear_project(client, linear_project_id):
+    data = client.graphql(PROJECT_DELETE_MUTATION, {"id": linear_project_id})
+    return bool(data.get("projectDelete", {}).get("success"))
+
+
+def _is_not_found_error(error):
+    """Whether a `LinearError` looks like Linear reporting the object is already gone — tolerated by
+    `teardown`, never raised as a failure. Matches `scratch_linear`'s own convention
+    (`"Entity not found"`); a bare "not found" elsewhere in a message is not enough."""
+    return "entity not found" in str(error).lower()
 
 
 class LinearReader:
@@ -865,20 +889,32 @@ def ensure_project(env, project_id):
         raise SetupFailed(f"yh setup --init --project {project_id} failed; see {log_path}\n{output}")
 
 
-def reset_project(env, project_id):
-    """The suite's reset, per the README: remove this Project's Orca Worktrees, archive its scratch
-    issues and delete its Journal, then rebuild its fixture tree and re-register it with Orca ADE.
-    Returns the rebuilt manifest."""
+def _removable_worktrees(env, project_id):
+    """Non-primary Orca Worktrees of this Project's fixture repositories — empty when the fixture
+    tree, or a repository's clone, doesn't exist yet. Read-only: does not remove anything."""
     manifest_path = fixture_manifest_path(env.root, project_id)
-    if manifest_path.is_file():
-        manifest = load_fixture_manifest(env.root, project_id)
-        for repo in manifest["repos"]:
-            clone_path = repo["path"]
-            if Path(clone_path).exists():
-                for worktree in orca_worktree_list(clone_path):
-                    if is_primary_checkout(worktree, clone_path):
-                        continue
-                    orca_worktree_rm(worktree["id"])
+    if not manifest_path.is_file():
+        return []
+    manifest = load_fixture_manifest(env.root, project_id)
+    removable = []
+    for repo in manifest["repos"]:
+        clone_path = repo["path"]
+        if not Path(clone_path).exists():
+            continue
+        for worktree in orca_worktree_list(clone_path):
+            if is_primary_checkout(worktree, clone_path):
+                continue
+            removable.append(worktree)
+    return removable
+
+
+def _reset_worktrees_and_scratch_linear(env, project_id):
+    """The suite's existing reset minus the rebuild: removes this Project's non-primary Orca
+    Worktrees, then runs `scratch_linear.py reset` (archives its scratch issues, deletes its
+    Journal). Shared by `reset_project` (which then rebuilds the fixture tree and re-registers it)
+    and `teardown` (which does not rebuild)."""
+    for worktree in _removable_worktrees(env, project_id):
+        orca_worktree_rm(worktree["id"])
 
     reset_args = [
         sys.executable, str(SCRIPTS_DIR / "scratch-linear" / "scratch_linear.py"),
@@ -890,6 +926,13 @@ def reset_project(env, project_id):
         raise SetupFailed(
             f"scratch_linear.py reset --project {project_id} failed: {result.stderr or result.stdout}"
         )
+
+
+def reset_project(env, project_id):
+    """The suite's reset, per the README: remove this Project's Orca Worktrees, archive its scratch
+    issues and delete its Journal, then rebuild its fixture tree and re-register it with Orca ADE.
+    Returns the rebuilt manifest."""
+    _reset_worktrees_and_scratch_linear(env, project_id)
 
     manifest = build_fixture_tree(env.root, project_id, force=True)
     for repo in manifest["repos"]:
@@ -940,23 +983,9 @@ def _running_yh_processes():
     return result.stdout.splitlines()
 
 
-def preflight(env, selected_scenario_numbers):
-    """Every guard the README's Prerequisites lists, in order; the first failure raises
-    `SetupFailed` before anything is changed."""
-    yh_path = env.yh_executable
-    if not yh_path.is_file():
-        raise SetupFailed(f"no yh executable at {yh_path}: build Yellowhammer.app first")
-
-    if not orca_status_ready():
-        raise SetupFailed("orca status does not report the runtime ready")
-
-    git_result = subprocess.run(["git", "--version"], capture_output=True, text=True)
-    if git_result.returncode != 0:
-        raise SetupFailed("git is not installed or not on PATH")
-    match = re.search(r"(\d+)\.(\d+)(?:\.(\d+))?", git_result.stdout)
-    if not match or (int(match.group(1)), int(match.group(2))) < (2, 38):
-        raise SetupFailed(f"git 2.38 or later is required; found: {git_result.stdout.strip()}")
-
+def resolve_app_client(env):
+    """Builds the scratch app's Linear client and resolves the scratch team, setting
+    `env.app_client`, `env.team_id` and `env.linear`. Shared by `preflight` and `teardown_preflight`."""
     machine = scratch_linear.load_machine_config(env.configuration_directory)
     try:
         client_id = scratch_linear.resolve_client_id(_NoOverrideArgs(), machine)
@@ -975,6 +1004,26 @@ def preflight(env, selected_scenario_numbers):
     env.team_id = team["id"]
     env.linear = LinearReader(app_client)
 
+
+def preflight(env, selected_scenario_numbers):
+    """Every guard the README's Prerequisites lists, in order; the first failure raises
+    `SetupFailed` before anything is changed."""
+    yh_path = env.yh_executable
+    if not yh_path.is_file():
+        raise SetupFailed(f"no yh executable at {yh_path}: build Yellowhammer.app first")
+
+    if not orca_status_ready():
+        raise SetupFailed("orca status does not report the runtime ready")
+
+    git_result = subprocess.run(["git", "--version"], capture_output=True, text=True)
+    if git_result.returncode != 0:
+        raise SetupFailed("git is not installed or not on PATH")
+    match = re.search(r"(\d+)\.(\d+)(?:\.(\d+))?", git_result.stdout)
+    if not match or (int(match.group(1)), int(match.group(2))) < (2, 38):
+        raise SetupFailed(f"git 2.38 or later is required; found: {git_result.stdout.strip()}")
+
+    resolve_app_client(env)
+
     if selected_scenario_numbers & {5, 9, 11}:
         try:
             operator_key = scratch_linear.keychain_secret("linear-rehearsal-operator")
@@ -982,7 +1031,7 @@ def preflight(env, selected_scenario_numbers):
             raise SetupFailed(str(error)) from error
         operator_client = OperatorClient(env.transport, operator_key)
         try:
-            app_viewer_id = app_client.graphql("query { viewer { id } }")["viewer"]["id"]
+            app_viewer_id = env.app_client.graphql("query { viewer { id } }")["viewer"]["id"]
             operator_viewer_id = operator_client.viewer_id()
         except scratch_linear.LinearError as error:
             raise SetupFailed(f"could not resolve the Operator credential's viewer: {error}") from error
@@ -1016,6 +1065,234 @@ def preflight(env, selected_scenario_numbers):
                 )
             _sleep(DEAD_RUN_LEASE_POLL_SECONDS)
             waited += DEAD_RUN_LEASE_POLL_SECONDS
+
+
+# MARK: - Teardown (P15.3 follow-up, GitHub issue #162 item 1)
+#
+# A suite run's `yh setup --init` Projects are real Projects: reused across runs, and left on disk
+# indefinitely. A later routine `yh setup --install-jobs` would install LaunchAgents for them and
+# schedule real (non-rehearsal) Nights against fixture repos. `teardown` removes everything a suite
+# run leaves on the machine for each `SUITE_PROJECTS` id: its Orca Worktrees, its scratch Linear
+# issues and Journal, its Project file and Act logs (`yh project remove`), its Orca ADE repository
+# registrations, its Linear project, and its fixture tree. Every step is idempotent — it skips
+# cleanly when its target is already gone — so a re-run after a partial failure finishes the job.
+
+
+def teardown_preflight(env):
+    """Every guard `teardown` needs before touching anything: a `yh` executable, Orca ready, no `yh`
+    process running for a suite Project, and the scratch app client resolves. The first failure
+    raises `SetupFailed` before anything is changed."""
+    yh_path = env.yh_executable
+    if not yh_path.is_file():
+        raise SetupFailed(f"no yh executable at {yh_path}: build Yellowhammer.app first")
+
+    if not orca_status_ready():
+        raise SetupFailed("orca status does not report the runtime ready")
+
+    for line in _running_yh_processes():
+        for project_id in SUITE_PROJECTS:
+            if f"--project {project_id}" in line and "/yh " in line + " ":
+                raise SetupFailed(f"a yh process is already running for {project_id}: {line.strip()}")
+
+    resolve_app_client(env)
+
+
+def _is_within(path, root):
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def _orca_setups_under(project_root):
+    """`orca project setups`, filtered to the setups whose resolved `path` is inside
+    `project_root` — matched by path containment, never by `displayName`. Read-only."""
+    returncode, payload = orca_json(["project", "setups"])
+    if not payload.get("ok"):
+        raise SetupFailed(f"orca project setups failed: {payload.get('error')}")
+    result = payload.get("result") or {}
+    setups = result.get("setups") or []
+    matched = []
+    for setup in setups:
+        path = setup.get("path")
+        if not path:
+            continue
+        if _is_within(Path(path).resolve(), project_root):
+            matched.append(setup)
+    return matched
+
+
+def _orca_setup_delete(setup_id):
+    returncode, payload = orca_json(["project", "setup-delete", "--setup", str(setup_id)])
+    if not payload.get("ok"):
+        raise SetupFailed(f"orca project setup-delete --setup {setup_id} failed: {payload.get('error')}")
+
+
+def _rmtree_within_root(path, root):
+    """`shutil.rmtree`, refusing to remove anything outside `root` — a defense against a runaway
+    teardown, never expected to trigger for a suite Project id."""
+    resolved_root = root.resolve()
+    resolved_path = path.resolve()
+    if resolved_path != resolved_root and not _is_within(resolved_path, resolved_root):
+        raise SetupFailed(f"refusing to remove {resolved_path}: not inside root {resolved_root}")
+    shutil.rmtree(resolved_path)
+
+
+def teardown_project(env, project_id, *, dry_run=False):
+    """Tears down everything a suite run leaves behind for one Project, in order: (1) its non-primary
+    Orca Worktrees and its scratch Linear issues/Journal, (2) its Project file and Act logs (`yh
+    project remove`), (3) its Orca ADE repository registrations, (4) its Linear project (trashed,
+    restorable), (5) its fixture tree. Every step is idempotent. Never raises for a per-step failure;
+    returns `(ok, messages)`.
+
+    Steps 1 and 2 are re-run-safety gates: `projects/<id>.toml` is the only record of this Project's
+    `linear_project`, and step 2 deletes it. So a step-1 failure or a step-2 failure stops this
+    Project's teardown right there (steps 3-5 do not run) and keeps the Project file — a re-run can
+    then read `linear_project` again and finish the job. Once step 2 has succeeded the file is gone,
+    so a step-4 failure from there on names the Linear project id for the Operator to trash by hand."""
+    messages = []
+    ok = True
+
+    def fail(message):
+        nonlocal ok
+        ok = False
+        messages.append(f"FAILED: {message}")
+
+    def info(message):
+        messages.append(message)
+
+    project_file = project_file_path(env.configuration_directory, project_id)
+    has_project_file = project_file.is_file()
+    linear_project_id = None
+    if has_project_file:
+        try:
+            linear_project_id = scratch_linear.load_linear_project_id(env.configuration_directory, project_id)
+        except scratch_linear.ProjectError as error:
+            info(f"{project_id}: could not read linear_project from the Project file: {error}")
+
+    # Step 1: non-primary Orca Worktrees, then scratch Linear reset (archives issues, deletes the Journal).
+    if has_project_file:
+        if dry_run:
+            removable = [worktree["id"] for worktree in _removable_worktrees(env, project_id)]
+            if removable:
+                info(f"{project_id}: would remove Orca Worktree(s) {removable}")
+            else:
+                info(f"{project_id}: no non-primary Orca Worktrees to remove")
+            info(
+                f"{project_id}: would run scratch_linear.py reset --team {env.team} --project {project_id} "
+                "(archives scratch issues, deletes the Journal)"
+            )
+        else:
+            try:
+                _reset_worktrees_and_scratch_linear(env, project_id)
+                info(f"{project_id}: removed Orca Worktrees; archived scratch issues and deleted the Journal")
+            except SetupFailed as error:
+                fail(
+                    f"{project_id}: scratch Linear reset: {error}; the Project file was kept so a re-run "
+                    "can finish this Project's teardown"
+                )
+                return ok, messages
+    else:
+        info(f"{project_id}: no Project file; skipping Orca Worktree removal and the scratch Linear reset")
+
+    # Step 2: `yh project remove` (LaunchAgents, Act logs, projects/<id>.toml).
+    if has_project_file:
+        if dry_run:
+            info(f"{project_id}: would run `yh project remove {project_id} --yes`")
+        else:
+            returncode, output, log_path = env.yh.run_project_remove(project_id)
+            if returncode != 0:
+                fail(
+                    f"{project_id}: yh project remove failed; see {log_path}\n{output}\n"
+                    "the Project file was kept so a re-run can finish this Project's teardown"
+                )
+                return ok, messages
+            info(f"{project_id}: yh project remove succeeded")
+    else:
+        info(f"{project_id}: no Project file; skipping yh project remove")
+
+    # Step 3: unregister this Project's fixture repositories from Orca ADE.
+    project_root = (env.root / project_id).resolve()
+    try:
+        setups = _orca_setups_under(project_root)
+    except SetupFailed as error:
+        fail(f"{project_id}: could not list Orca setups: {error}")
+        setups = []
+    for setup in setups:
+        setup_id = setup.get("id")
+        path = setup.get("path")
+        if dry_run:
+            info(f"{project_id}: would unregister Orca setup {setup_id} ({path})")
+            continue
+        try:
+            _orca_setup_delete(setup_id)
+            info(f"{project_id}: unregistered Orca setup {setup_id} ({path})")
+        except SetupFailed as error:
+            fail(f"{project_id}: {error}")
+
+    # Step 4: trash the Linear project (restorable; tolerates it already being gone). By the time this
+    # step can run, either there was never a `linear_project` to delete, or steps 1-2 already succeeded
+    # and the Project file is gone — so a failure here names the id for the Operator to trash by hand.
+    if linear_project_id:
+        if dry_run:
+            info(f"{project_id}: would trash Linear project {linear_project_id} (projectDelete)")
+        else:
+            try:
+                success = delete_linear_project(env.app_client, linear_project_id)
+            except scratch_linear.LinearError as error:
+                if _is_not_found_error(error):
+                    info(f"{project_id}: Linear project {linear_project_id} already gone")
+                else:
+                    fail(
+                        f"{project_id}: projectDelete {linear_project_id} failed: {error}; "
+                        f"the Project file is already gone — trash Linear project {linear_project_id} "
+                        "by hand"
+                    )
+            else:
+                if success:
+                    info(f"{project_id}: trashed Linear project {linear_project_id}")
+                else:
+                    fail(
+                        f"{project_id}: projectDelete {linear_project_id} returned success=false; "
+                        f"the Project file is already gone — trash Linear project {linear_project_id} "
+                        "by hand"
+                    )
+    else:
+        info(f"{project_id}: no linear_project to delete")
+
+    # Step 5: the fixture tree.
+    if project_root.is_dir():
+        if dry_run:
+            info(f"{project_id}: would remove the fixture tree {project_root}")
+        else:
+            try:
+                _rmtree_within_root(project_root, env.root)
+                info(f"{project_id}: removed the fixture tree {project_root}")
+            except SetupFailed as error:
+                fail(f"{project_id}: {error}")
+    else:
+        info(f"{project_id}: no fixture tree at {project_root}")
+
+    return ok, messages
+
+
+def teardown(env, *, dry_run=False):
+    """Tears down every suite Project, after `teardown_preflight`. Continues past a per-Project
+    failure so every Project gets a teardown attempt; removes `env.root` at the end if it is then
+    empty. Returns `(overall_ok, per_project_results)`, where `per_project_results` is a list of
+    `(project_id, ok, messages)`. Raises `SetupFailed` only from `teardown_preflight`, before
+    anything is changed."""
+    teardown_preflight(env)
+    overall_ok = True
+    per_project_results = []
+    for project_id in SUITE_PROJECTS:
+        ok, messages = teardown_project(env, project_id, dry_run=dry_run)
+        overall_ok = overall_ok and ok
+        per_project_results.append((project_id, ok, messages))
+    if not dry_run and env.root.is_dir() and not any(env.root.iterdir()):
+        env.root.rmdir()
+    return overall_ok, per_project_results
 
 
 # MARK: - A one-shot hold Check (scenario 7): a repo's `check` that sleeps once a HOLD marker exists
