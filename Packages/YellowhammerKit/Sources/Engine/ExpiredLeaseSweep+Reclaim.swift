@@ -7,8 +7,8 @@ import Journal
 
 extension ExpiredLeaseSweep {
     /// One Card's reclaim, after its Lease is already claimed under this run: the Pre-Reclaim Quiescence
-    /// Gate, defensive classification of the dead run's open Attempt, the repost with its crash comment,
-    /// and the `.cardReclaimed` event. Never throws for a not-quiescent Worktree — it appends
+    /// Gate, defensive classification of the dead run's open Attempt, the repost with its reclaim
+    /// comment, and the `.cardReclaimed` event. Never throws for a not-quiescent Worktree — it appends
     /// `.cardReclaimDeferred` instead and returns, leaving the Attempt open and the Card as is, for the
     /// next Act to try again. The two events are distinct so the Night Summary never confuses a
     /// deferral with a real reclaim that happened to find no open Attempt.
@@ -25,8 +25,15 @@ extension ExpiredLeaseSweep {
             return
         }
 
-        let outcome = try endOpenAttemptIfAny(card: card, featureID: featureID, previousRunID: previousRunID, now: now)
-        try await repost(card: card, previousRunID: previousRunID, expiredAt: expiredAt, outcome: outcome, now: now)
+        let engineStop = try journal.engineStopCause(cardID: card.id, runID: previousRunID)
+        let outcome = try endOpenAttemptIfAny(
+            card: card, featureID: featureID, previousRunID: previousRunID, engineStop: engineStop, now: now
+        )
+        try await repost(
+            card: card,
+            context: ReclaimContext(previousRunID: previousRunID, expiredAt: expiredAt, engineStop: engineStop),
+            outcome: outcome, now: now
+        )
 
         try journal.append(
             .cardReclaimed(
@@ -67,13 +74,15 @@ extension ExpiredLeaseSweep {
     /// reviewer's known-good commit on a classified success. No open Attempt is not an error: the run may
     /// have died before recording one, or between Attempts.
     private func endOpenAttemptIfAny(
-        card: CardRecord, featureID: Int64, previousRunID: RunID, now: Date
+        card: CardRecord, featureID: Int64, previousRunID: RunID, engineStop: String?, now: Date
     ) throws -> ReclaimEnding {
         var result = ReclaimEnding()
         guard let open = try journal.attemptHistory(cardID: card.id).openAttempt else { return result }
         result.attemptID = open.id
 
-        let classification = try classify(card: card, attempt: open, previousRunID: previousRunID)
+        let classification = try classify(
+            card: card, attempt: open, previousRunID: previousRunID, engineStop: engineStop
+        )
         try journal.endAttempt(
             attemptID: open.id, ending: classification.ending, runID: runID, act: act, nightID: nightID, now: now
         )
@@ -88,11 +97,19 @@ extension ExpiredLeaseSweep {
         return result
     }
 
-    /// Reposts an In Progress Card back to Ready (or Done, on a classified success) with the crash
+    /// What led to this reclaim, beyond the Card itself: the dead run, when its Lease expired, and the
+    /// cause it recorded if the engine stopped it (OQ92).
+    private struct ReclaimContext {
+        let previousRunID: RunID
+        let expiredAt: Date
+        let engineStop: String?
+    }
+
+    /// Reposts an In Progress Card back to Ready (or Done, on a classified success) with the reclaim
     /// comment. A Card that is not In Progress — already Done, Blocked, Waiting on You, Todo or
     /// Cancelled — is left exactly as it is; only the reclaim is recorded.
     private func repost(
-        card: CardRecord, previousRunID: RunID, expiredAt: Date, outcome: ReclaimEnding, now: Date
+        card: CardRecord, context reclaim: ReclaimContext, outcome: ReclaimEnding, now: Date
     ) async throws {
         let currentCard = try journal.card(id: card.id)
         guard currentCard.state == .inProgress else { return }
@@ -106,33 +123,45 @@ extension ExpiredLeaseSweep {
             )
         }
         guard let outbox = projection?.outbox else { return }
-        try await postCrashComment(
+        try await postReclaimComment(
             outbox: outbox, card: currentCard,
             context: CrashCommentContext(
-                previousRunID: previousRunID, expiredAt: expiredAt, attemptID: outcome.attemptID,
-                consumedHow: outcome.consumedHow, destination: outcome.isSuccess ? "Done" : "Ready"
+                previousRunID: reclaim.previousRunID, expiredAt: reclaim.expiredAt, engineStop: reclaim.engineStop,
+                attemptID: outcome.attemptID, consumedHow: outcome.consumedHow,
+                destination: outcome.isSuccess ? "Done" : "Ready"
             )
         )
     }
 
-    /// What the crash comment names, beyond the Card and the Outbox it posts through.
+    /// What the reclaim comment names, beyond the Card and the Outbox it posts through.
     private struct CrashCommentContext {
         let previousRunID: RunID
         let expiredAt: Date
+        /// Non-nil when the dead run recorded that the engine stopped it (OQ92): the comment then says
+        /// so instead of leaving the cause unstated.
+        let engineStop: String?
         let attemptID: Int64?
         let consumedHow: String?
         let destination: String
     }
 
-    /// Posts the crash comment through the Outbox, `cardID` deliberately nil: the Card Lease is released
-    /// right after the reclaim, and a deferred delivery at write-back must not be refused for a Lease
-    /// this run no longer holds — the Act Lease still fences it. Keyed for idempotency across a replay.
-    private func postCrashComment(outbox: Outbox, card: CardRecord, context: CrashCommentContext) async throws {
-        var body = """
-            Yellowhammer reclaimed this Card: the Card is reclaimable, and no partial state was written \
-            as if it were complete. Run \(context.previousRunID.rawValue) held this Card's Lease, which \
-            expired at \(context.expiredAt.formatted(.iso8601)), and never released it.
-            """
+    /// Posts the reclaim comment through the Outbox, `cardID` deliberately nil: the Card Lease is
+    /// released right after the reclaim, and a deferred delivery at write-back must not be refused for a
+    /// Lease this run no longer holds — the Act Lease still fences it. Keyed for idempotency across a
+    /// replay. Always opens with the mandated sentence: "the Card is reclaimable, and no partial state
+    /// was written as if it were complete." When the dead run recorded that the engine stopped it, the
+    /// body says so and never says "crash"; otherwise the wording is byte-for-byte what it always was.
+    private func postReclaimComment(outbox: Outbox, card: CardRecord, context: CrashCommentContext) async throws {
+        var body = "Yellowhammer reclaimed this Card: the Card is reclaimable, and no partial state was " +
+            "written as if it were complete. "
+        if let engineStop = context.engineStop {
+            body += "Run \(context.previousRunID.rawValue) held this Card's Lease and was stopped by the " +
+                "engine: \(engineStop); the Lease was left to expire at " +
+                "\(context.expiredAt.formatted(.iso8601))."
+        } else {
+            body += "Run \(context.previousRunID.rawValue) held this Card's Lease, which expired at " +
+                "\(context.expiredAt.formatted(.iso8601)), and never released it."
+        }
         if let attemptID = context.attemptID, let consumedHow = context.consumedHow {
             body += " Attempt \(attemptID): \(consumedHow)."
         }
@@ -154,13 +183,16 @@ extension ExpiredLeaseSweep {
     /// schema-conforming result file of the dead run's last pass that ends the Attempt, else the event
     /// log's last recorded pass step for it, else Crashed-Unknown.
     private func classify(
-        card: CardRecord, attempt: AttemptRecord, previousRunID: RunID
+        card: CardRecord, attempt: AttemptRecord, previousRunID: RunID, engineStop: String?
     ) throws -> Classification {
         if let ending = try classifyFromResultFile(card: card, attempt: attempt, previousRunID: previousRunID) {
             return ending
         }
         if let status = try lastFailedExitStatus(card: card, previousRunID: previousRunID) {
             return Classification(ending: .hardFailure(.exitStatus(status)), knownGoodCommit: nil)
+        }
+        if let engineStop {
+            return Classification(ending: .crashedUnknown(.engineStopped(cause: engineStop)), knownGoodCommit: nil)
         }
         let reason = try crashedUnknownReason(card: card, previousRunID: previousRunID)
         return Classification(ending: .crashedUnknown(.reclaimed(reason)), knownGoodCommit: nil)

@@ -66,8 +66,8 @@ struct BoardProvisionerTests {
         let board = board()
         let report = try await provision(board)
 
-        #expect(await board.creates == 16)
-        #expect(report.changes.count == 16)
+        #expect(await board.creates == 17)
+        #expect(report.changes.count == 17)
         #expect(outcome(of: report, waitingOnYou) == .created)
         #expect(outcome(of: report, blocked) == .created)
         #expect(outcome(of: report, keptInFlight) == .created)
@@ -78,7 +78,8 @@ struct BoardProvisionerTests {
             #expect(outcome(of: report, label(name, in: "Object Type")) == .created)
         }
         for name in [
-            "blocked by reviewer", "blocked by check", "hard failure", "host crash", "unanswered", "undecided"
+            "blocked by reviewer", "blocked by check", "hard failure", "host crash", "engine stop", "unanswered",
+            "undecided"
         ] {
             #expect(outcome(of: report, label(name, in: "Block Reason")) == .created)
         }
@@ -197,7 +198,7 @@ struct BoardProvisionerTests {
         let report = try await provision(board)
 
         #expect(outcome(of: report, waitingOnYou) == .present)
-        #expect(await board.creates == 15)
+        #expect(await board.creates == 16)
     }
 
     @Test("A missing Linear project with no team named is reported missing and nothing else is touched")
@@ -226,7 +227,7 @@ struct BoardProvisionerTests {
             return
         }
         #expect(report.entries[0].outcome == .created)
-        #expect(report.changes.count == 17)
+        #expect(report.changes.count == 18)
         #expect(report.linearProject?.id == BoardObjectID(rawValue: "fake-1"))
     }
 
@@ -239,7 +240,7 @@ struct BoardProvisionerTests {
 
         #expect(report.linearProject?.id == BoardObjectID(rawValue: "fake-1"))
         #expect(outcome(of: report, waitingOnYou) == .created)
-        #expect(await board.creates == 17)
+        #expect(await board.creates == 18)
     }
 
     @Test("Each team of the Linear project is provisioned on its own")
@@ -255,7 +256,7 @@ struct BoardProvisionerTests {
         }
         #expect(states.map(\.0) == ["ENG", "ENG", "ENG", "ENG", "PRD", "PRD", "PRD", "PRD"])
         #expect(states.map(\.1) == [.present, .created, .created, .created, .created, .created, .created, .created])
-        #expect(await board.creates == 31)
+        #expect(await board.creates == 33)
     }
 
     // MARK: - Override label groups (G-17, P7.6)
@@ -276,8 +277,8 @@ struct BoardProvisionerTests {
             using: board, projectName: "Yellowhammer", createIn: nil, routingTable: Self.table
         )
 
-        // 16 as before, plus three groups and 2 + 3 + 2 children.
-        #expect(await board.creates == 26)
+        // 17 as before, plus three groups and 2 + 3 + 2 children.
+        #expect(await board.creates == 27)
         for group in ["Override CLI", "Override Model", "Override Effort"] {
             #expect(outcome(of: report) { if case .labelGroup(group, _) = $0 { true } else { false } } == .created)
         }
@@ -343,7 +344,7 @@ struct BoardProvisionerTests {
         let board = board()
         let report = try await provision(board)
 
-        #expect(await board.creates == 16)
+        #expect(await board.creates == 17)
         #expect(report.entries.allSatisfy { subject in
             if case .labelGroup(let name, _) = subject.subject { return !name.hasPrefix("Override") }
             return true

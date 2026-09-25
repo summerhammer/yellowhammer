@@ -43,6 +43,10 @@ public enum CrashedUnknownCause: Equatable, Sendable {
     /// step recorded either (loop-state/reclaim-an-expired-lease, P8.10). `String` is a short,
     /// Operator-facing account of what was missing, e.g. "no result file for the worker pass".
     case reclaimed(String)
+    /// A later Act reclaimed a run that recorded, via ``CardRunStep/leaseLeftToExpire``, that the
+    /// engine stopped it and left its Lease to expire — not a dying host. Same Crashed-Unknown
+    /// classification; `String` is the recorded cause (OQ92).
+    case engineStopped(cause: String)
 }
 
 /// The dual-key completion verdict of one CLI run: an Attempt completes only with exit status

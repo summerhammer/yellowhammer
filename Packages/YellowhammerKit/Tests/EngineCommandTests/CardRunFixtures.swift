@@ -115,6 +115,15 @@ func cardRunLog(_ journal: JournalStore) throws -> [String] {
     }
 }
 
+/// One Card's `cardRunStep` events, in append order, as `(step, detail)`.
+func cardRunSteps(_ journal: JournalStore, cardID: Int64) throws -> [(step: CardRunStep, detail: String?)] {
+    try journal.events(ofType: .cardRunStep).compactMap { record in
+        guard case .cardRunStep(let recordCardID, _, let step, let detail) = record.event, recordCardID == cardID
+        else { return nil }
+        return (step, detail)
+    }
+}
+
 /// An ordered record of what the Dispatch seam and the Check saw, shared by the fakes.
 final class CallLog: Sendable {
     private let entries = Mutex<[String]>([])

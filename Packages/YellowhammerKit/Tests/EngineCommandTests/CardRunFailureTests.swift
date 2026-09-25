@@ -143,5 +143,8 @@ struct CardRunFailureTests {
         }
         #expect(try world.attempts("MOB-1").isEmpty)
         #expect(try world.journal.currentCardLease(cardID: card.id) == nil)
+        // The Card was still Ready/Todo when the fault struck: the Lease was released, not left to
+        // expire, so nothing needs the next Act's Expired Lease Sweep (issue #173).
+        #expect(!(try cardRunSteps(world.journal, cardID: card.id)).contains { $0.step == .leaseLeftToExpire })
     }
 }

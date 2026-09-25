@@ -20,6 +20,11 @@ public enum CardRunStep: String, CaseIterable, Sendable {
     case leaseReleased = "lease-released"
     /// This run lost the Card's Lease mid-run; nothing was written as if it were complete.
     case leaseLost = "lease-lost"
+    /// The engine stopped this run — the run was cancelled, the Act Lease was lost, or an engine fault
+    /// struck while the Card was In Progress or had an open Attempt — and left the Card Lease to expire
+    /// rather than release it. The detail is the cause. Written best-effort, like `.leaseLost`, and read
+    /// by the Expired Lease Sweep for wording only, never for classification (OQ92).
+    case leaseLeftToExpire = "lease-left-to-expire"
     /// The Round budget ran out with the work still not approved — the run stopped without dispatching the
     /// reviewer again, on either Lens. The detail is the raw value of the Lens whose Round was the last;
     /// the Attempt this step belongs to ends `rounds-exhausted`, and the Card blocks only once the Attempt

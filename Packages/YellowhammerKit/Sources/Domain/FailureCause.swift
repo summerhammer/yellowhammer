@@ -33,7 +33,9 @@ public struct FailureCause: Equatable, Sendable {
             detail = "terminated"
         case .crashedUnknown(.signaled(let signal)):
             detail = "signaled \(signal)"
-        case .crashedUnknown(.reclaimed):
+        case .crashedUnknown(.reclaimed), .crashedUnknown(.engineStopped):
+            // Classification is unchanged by OQ92: an engine stop counts as the same structural cause as
+            // any other reclaimed Crashed-Unknown, so recurrence still counts across the two.
             detail = "reclaimed"
         }
         self.canonical = "\(outcome)|\(detail)"

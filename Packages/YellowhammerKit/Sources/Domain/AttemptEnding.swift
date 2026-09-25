@@ -107,6 +107,8 @@ extension AttemptEnding {
             "signaled \(signal)"
         case .crashedUnknown(.reclaimed(let reason)):
             "reclaimed: \(reason)"
+        case .crashedUnknown(.engineStopped(let cause)):
+            "\(AttemptEnding.engineStoppedClassificationPrefix)\(cause)"
         case .question:
             "asked a question"
         case .cancelled:
@@ -124,6 +126,8 @@ extension AttemptEnding {
             "consumed; route excluded (hard failure)"
         case .roundsExhausted:
             "consumed; route excluded (rounds-exhausted)"
+        case .crashedUnknown(.engineStopped):
+            "consumed; route not excluded (Crashed-Unknown, stopped by the engine)"
         case .crashedUnknown:
             "consumed; route not excluded (Crashed-Unknown)"
         case .question:
@@ -132,6 +136,11 @@ extension AttemptEnding {
             "not consumed (Card cancelled)"
         }
     }
+
+    /// The prefix `classification` uses for ``CrashedUnknownCause/engineStopped(cause:)``, so
+    /// ``Journal/AttemptHistory/blockReason(inEpoch:)`` can recognize it from the stored string alone,
+    /// reading one source rather than re-deriving the wording (OQ92).
+    public static let engineStoppedClassificationPrefix = "stopped by the engine: "
 
     /// Maps a failed run's dual-key classification onto an ending. `nil` for a completed run: its
     /// ending is decided later, by the reviewer's or Check's verdict, not by the run itself.

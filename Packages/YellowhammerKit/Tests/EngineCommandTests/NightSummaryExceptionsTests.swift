@@ -22,14 +22,17 @@ private func openNightForExceptionsTest(
     return try #require(try journal.currentNight())
 }
 
-/// Inserts a bare Card fixture (no Feature/Cycle context needed), returning its Journal id.
+/// Inserts a bare Card fixture (no Feature/Cycle context needed), returning its Journal id. Its own
+/// Feature, named `featureIssueID`, so a test that inserts more than one Card can give each its own.
 @discardableResult
-private func insertExceptionsCard(_ journal: JournalStore, issueID: String = "CARD-1") throws -> Int64 {
+private func insertExceptionsCard(
+    _ journal: JournalStore, issueID: String = "CARD-1", featureIssueID: String = "FEAT-1"
+) throws -> Int64 {
     try journal.write { db in
         let timestamp = JournalStore.timestamp(Date())
         try db.execute(
             sql: "INSERT INTO feature (issue_id, state, created_at) VALUES (?, ?, ?)",
-            arguments: ["FEAT-1", "selected", timestamp]
+            arguments: [featureIssueID, "selected", timestamp]
         )
         let featureID = db.lastInsertedRowID
         try db.execute(
@@ -113,6 +116,50 @@ struct NightSummaryExceptionsTests {
         let lines = try NightSummary.crashesAndReclaimsLines(night: night, journal: journal)
         #expect(lines[0].contains("the Card is reclaimable, and no partial state was written as if it were complete"))
         #expect(lines[0].contains("Attempt `7` was classified Crashed-Unknown, its Route not excluded."))
+    }
+
+    @Test("Two reclaimed Cards: one whose run was stopped by the engine, one an ordinary crash — each its own line")
+    func cardReclaimedDistinguishesEngineStopFromCrash() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let stoppedCardID = try insertExceptionsCard(journal, issueID: "CARD-1", featureIssueID: "FEAT-1")
+        let crashedCardID = try insertExceptionsCard(journal, issueID: "CARD-2", featureIssueID: "FEAT-2")
+        let stoppedRun = RunID()
+        let crashedRun = RunID()
+        let night = try await openNightForExceptionsTest(journal: journal, board: board) { context in
+            try journal.append(
+                .cardRunStep(
+                    cardID: stoppedCardID, issueID: "CARD-1", step: .leaseLeftToExpire, detail: "heartbeat failed"
+                ),
+                act: context.act, runID: stoppedRun, nightID: context.night.id
+            )
+            try journal.append(
+                .cardReclaimed(
+                    cardID: stoppedCardID, issueID: "CARD-1", previousRunID: stoppedRun, attemptID: 1,
+                    outcome: "Crashed-Unknown", routeExcluded: false
+                ),
+                act: context.act, runID: context.runID, nightID: context.night.id
+            )
+            try journal.append(
+                .cardReclaimed(
+                    cardID: crashedCardID, issueID: "CARD-2", previousRunID: crashedRun, attemptID: 2,
+                    outcome: "Crashed-Unknown", routeExcluded: false
+                ),
+                act: context.act, runID: context.runID, nightID: context.night.id
+            )
+        }
+
+        let lines = try NightSummary.crashesAndReclaimsLines(night: night, journal: journal)
+        #expect(lines.count == 2)
+        let mandatedWording = "the Card is reclaimable, and no partial state was written as if it were complete"
+        let stoppedLine = try #require(lines.first { $0.contains("`CARD-1`") })
+        #expect(stoppedLine.contains("was stopped by the engine: heartbeat failed"))
+        #expect(stoppedLine.contains(mandatedWording))
+        let crashedLine = try #require(lines.first { $0.contains("`CARD-2`") })
+        #expect(!crashedLine.contains("stopped by the engine"))
+        #expect(crashedLine.contains(mandatedWording))
     }
 
     @Test("Expired Card Leases swept names every swept Card")

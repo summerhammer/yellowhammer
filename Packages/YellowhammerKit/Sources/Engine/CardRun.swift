@@ -115,7 +115,10 @@ public struct CardRun: CardRunner {
             // The engine stopped this run, not the Card: the Card is reclaimable, and no partial state
             // was written as if it were complete. The Lease is left to expire, never released, so the
             // next build Act's ExpiredLeaseSweep (P8.10) reclaims the Card and its open Attempt: a
-            // released Lease leaves an In Progress Card no sweep and no lane would ever pick up.
+            // released Lease leaves an In Progress Card no sweep and no lane would ever pick up. The
+            // terminal step is best-effort, like `.leaseLost` — `journal.append` does not revalidate the
+            // Act Lease, so it still works after the Act Lease is gone (OQ92).
+            _ = try? record(.leaseLeftToExpire, card: card, context: context, detail: Self.engineStopCause(error))
             throw error
         } catch {
             // An engine fault (a vendor or transport error, a spawn failure, a Journal write, a Worktree
@@ -124,6 +127,8 @@ public struct CardRun: CardRunner {
             // the Card reclaimable, with no partial state written as if it were complete (issue #173).
             if Self.releasesLeaseOnFault(card: card, journal: journal) {
                 _ = try? journal.releaseCardLease(cardID: card.id, runID: runID)
+            } else {
+                _ = try? record(.leaseLeftToExpire, card: card, context: context, detail: Self.engineStopCause(error))
             }
             throw error
         }
@@ -215,6 +220,14 @@ public struct CardRun: CardRunner {
         if error is CancellationError { return true }
         if case JournalError.actLeaseLost = error { return true }
         return false
+    }
+
+    /// The Operator-facing cause recorded alongside ``CardRunStep/leaseLeftToExpire`` (OQ92): a
+    /// cancellation names itself; anything else is described as given — `JournalError.actLeaseLost`'s
+    /// description already reads "Run X no longer holds the Project: ...".
+    static func engineStopCause(_ error: any Error) -> String {
+        if error is CancellationError { return "the run was cancelled" }
+        return String(describing: error)
     }
 
     /// Whether an engine fault may release the Card Lease: only when the Journal shows the Card neither

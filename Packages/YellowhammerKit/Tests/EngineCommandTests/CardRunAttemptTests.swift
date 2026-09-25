@@ -155,6 +155,41 @@ struct CardRunAttemptTests {
         #expect(consumption.routesFailed == 0)
     }
 
+    // MARK: - d'. a prior Attempt the engine stopped blocks `engine stop`, not `host crash` (OQ92)
+
+    @Test("A prior Attempt the engine stopped, with the budget already spent, Blocks engine stop, not host crash")
+    func priorEngineStoppedAttemptBlocksEngineStop() async throws {
+        let fixture = try OutboxJournalFixture()
+        let world = try await makeCardRunWorld(journal: try fixture.open())
+        let cardID = try #require(world.cardIDs["BACK-1"])
+        let log = CallLog()
+        // A dead run's Attempt the Expired Lease Sweep already classified as engine-stopped, seeded
+        // directly rather than through a full reclaim (loop-state/reclaim-an-expired-lease, P8.10).
+        let seeded = try world.journal.recordAttempt(
+            cardID: cardID, route: cardRunOpus, runID: world.runID, act: .build, nightID: world.context.act.night.id
+        )
+        _ = try world.journal.endAttempt(
+            attemptID: seeded.id, ending: .crashedUnknown(.engineStopped(cause: "heartbeat failed")),
+            runID: world.runID, act: .build, nightID: world.context.act.night.id
+        )
+        let run = CardRun(
+            resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log, script: .empty),
+            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 1,
+            resetting: RecordingAttemptResetting(log: log)
+        )
+
+        try await run.run("BACK-1", in: world)
+
+        // The budget was already spent before this run dispatched anything: only the pre-Block reset
+        // ran (OQ60), never architect or worker.
+        #expect(log.all == ["reset"])
+        let card = try world.card("BACK-1")
+        #expect(card.state == .blocked)
+        #expect(card.blockReason == BlockReason.engineStop.rawValue)
+        let steps = try cardRunLog(world.journal)
+        #expect(steps.contains(CardRunStep.attemptsExhausted.rawValue))
+    }
+
     // MARK: - e. both budgets: a Round consumes no Attempt, an Attempt consumes no Round
 
     @Test("Rounds-exhausted retries on a different Route while the Attempt budget has room, then Blocks by reviewer")
