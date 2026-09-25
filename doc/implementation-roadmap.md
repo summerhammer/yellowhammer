@@ -1680,7 +1680,7 @@ comment on the Delta Read).
 - **Done when** — A downloaded artifact installs on a clean Apple Silicon Mac with no Gatekeeper
   warning.
 
-### [ ] P16.5 `[DevOps]` Update channel
+### [x] P16.5 `[DevOps]` Update channel
 - **Work** — Implement the update channel decided in G-14.
 - **Gate** — G-14.
 - **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`; cheap alternative Gemini
