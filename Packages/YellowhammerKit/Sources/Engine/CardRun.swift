@@ -112,9 +112,9 @@ public struct CardRun: CardRunner {
             throw error
         } catch {
             // An engine fault (a vendor or transport error, a spawn failure, a Journal write, a Worktree
-            // gone) releases the Lease only while the Card is untouched: still Todo, with no open Attempt.
-            // Once the run has moved it or opened an Attempt, the Card is reclaimable, and no partial state
-            // was written as if it were complete, only because the Lease is left to expire (issue #173).
+            // gone) leaves the Lease to expire once the Card is In Progress or has an open Attempt: only the
+            // Expired Lease Sweep reclaims such a Card, and it skips one with no Lease row. That is what keeps
+            // the Card reclaimable, with no partial state written as if it were complete (issue #173).
             if Self.releasesLeaseOnFault(card: card, journal: journal) {
                 _ = try? journal.releaseCardLease(cardID: card.id, runID: runID)
             }
@@ -210,15 +210,14 @@ public struct CardRun: CardRunner {
         return false
     }
 
-    /// Whether an engine fault may release the Card Lease: only when the Journal shows the Card still
-    /// Todo with no open Attempt, so a Repo Lane runs it again. A Card In Progress, or with an open
-    /// Attempt, is reclaimed only by the Expired Lease Sweep, which skips a Card with no Lease row. A
-    /// Journal that cannot say keeps the Lease: a Lease left over costs one TTL, a released one strands
-    /// the Card.
+    /// Whether an engine fault may release the Card Lease: only when the Journal shows the Card neither
+    /// In Progress nor holding an open Attempt. Such a Card is reclaimed only by the Expired Lease Sweep,
+    /// which skips a Card with no Lease row. A Journal that cannot say keeps the Lease: a Lease left
+    /// over costs one TTL, a released one strands the Card.
     private static func releasesLeaseOnFault(card: CardRecord, journal: JournalStore) -> Bool {
         guard let current = try? journal.card(id: card.id),
             let history = try? journal.attemptHistory(cardID: card.id) else { return false }
-        return current.state == .todo && history.openAttempt == nil
+        return current.state != .inProgress && history.openAttempt == nil
     }
 
     func record(_ step: CardRunStep, card: CardRecord, context: BuildActContext, detail: String? = nil) throws {
