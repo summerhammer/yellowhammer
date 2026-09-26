@@ -10,8 +10,7 @@ these tests never touch a real macOS system and run on ubuntu-latest.
 import json
 import os
 import plistlib
-import shutil
-import subprocess
+import signal
 import tempfile
 import unittest
 from pathlib import Path
@@ -29,6 +28,8 @@ APP_BUILD = "42"
 PROJECT = "proj"
 PRODUCTION_CLIENT_ID = "client-abc"
 ORCA_VERSION = "1.4.195"
+
+_UNSET = object()
 
 
 class ScriptedRun:
@@ -57,32 +58,32 @@ def starts_with(*prefix):
     return lambda argv: list(argv[: len(prefix)]) == prefix
 
 
-class FakeJournalLock:
-    """A stand-in for the injectable `journal_lock` factory: records `("acquired", path)` /
-    `("released", path)` into a shared list instead of actually shelling out to `sqlite3`."""
+class FakeSignal:
+    """A stand-in for the injectable `signal` callable (`os.kill`'s signature): records every
+    call as `("signal", pid, sig)` into a shared events list — the same list other fakes (like
+    the osascript quit handler) append `("quit",)` markers to, so cross-action ordering (e.g.
+    "SIGCONT comes after the quit") can be asserted from one sequence. Raises
+    `ProcessLookupError` for any signal listed in `raise_on`. `state(pid)` answers the fake
+    `ps -o stat=`: `T` once SIGSTOP'd, `S` otherwise, and no process when SIGSTOP raised or when
+    `gone_after_quit` and the app has been quit."""
 
-    def __init__(self, events, fail_message=None):
+    def __init__(self, events, raise_on=None, gone_after_quit=False):
         self.events = events
-        self.fail_message = fail_message
+        self.raise_on = set(raise_on or ())
+        self.gone_after_quit = gone_after_quit
 
-    def __call__(self, path):
-        if self.fail_message is not None:
-            raise vi.JournalLockError(self.fail_message)
-        return _FakeJournalLockContext(self.events, path)
+    def __call__(self, pid, sig):
+        self.events.append(("signal", pid, sig))
+        if sig in self.raise_on:
+            raise ProcessLookupError(f"no such process: {pid}")
 
-
-class _FakeJournalLockContext:
-    def __init__(self, events, path):
-        self.events = events
-        self.path = str(path)
-
-    def __enter__(self):
-        self.events.append(("acquired", self.path))
-        return self
-
-    def __exit__(self, exc_type, exc, tb):
-        self.events.append(("released", self.path))
-        return False
+    def state(self, _pid):
+        if signal.SIGSTOP in self.raise_on:
+            return None
+        if self.gone_after_quit and ("quit",) in self.events:
+            return None
+        sent = [event[2] for event in self.events if event[0] == "signal" and event[2] != 0]
+        return "T" if sent and sent[-1] == signal.SIGSTOP else "S"
 
 
 def make_launchctl_print_handler(scripts, default="state = waiting\nruns = 0\nlast exit code = 0\n"):
@@ -131,8 +132,15 @@ class VerifyInstalledTestCase(unittest.TestCase):
         self.prompts = ["y"]
         self.sleeps = []
         self.now = 0.0
-        self.lock_events = []
-        self.journal_lock = FakeJournalLock(self.lock_events)
+        self.events = []
+        self.signal = FakeSignal(self.events)
+        self.active_signal = self.signal
+
+        def ps_stat_handler(argv):
+            state = self.active_signal.state(int(argv[-1]))
+            return (0, f"{state}\n", "") if state else (1, "", "")
+
+        self.run.on(starts_with("ps", "-o", "stat="), ps_stat_handler)
 
     def tearDown(self):
         self.temp_dir.cleanup()
@@ -163,7 +171,7 @@ class VerifyInstalledTestCase(unittest.TestCase):
         self.sleeps.append(seconds)
         self.now += seconds
 
-    def make_verifier(self, act="build", act_timeout=5.0, journal_lock=None):
+    def make_verifier(self, act="build", act_timeout=5.0, signal_fn=None):
         return vi.Verifier(
             app=self.app_path,
             project=PROJECT,
@@ -179,15 +187,12 @@ class VerifyInstalledTestCase(unittest.TestCase):
             uid=501,
             user="operator",
             min_orca_version=ORCA_VERSION,
-            journal_lock=journal_lock if journal_lock is not None else self.journal_lock,
+            signal=self._activate(signal_fn),
         )
 
-    def write_journal_file(self):
-        journal_dir = self.home / ".config" / "yellowhammer" / "journals"
-        journal_dir.mkdir(parents=True, exist_ok=True)
-        journal_path = journal_dir / f"{PROJECT}.db"
-        journal_path.write_text("")
-        return journal_path
+    def _activate(self, signal_fn):
+        self.active_signal = signal_fn if signal_fn is not None else self.signal
+        return self.active_signal
 
     def write_plist(self, act, path=None, args_rest=None, path_env=None):
         label = f"dev.yellowhammer.{PROJECT}.{act}"
@@ -206,6 +211,66 @@ class VerifyInstalledTestCase(unittest.TestCase):
     def write_all_plists(self, path_env="/usr/bin:/bin"):
         for act in vi.ACTS:
             self.write_plist(act, path_env=path_env if act == "build" else None)
+
+    def install_manual_window_app_fake(self):
+        """Wires `ps -axo`, `open -a` and `osascript` (quit) to a shared `present` flag the test
+        controls explicitly: `open` sets it, the osascript handler clears it and records a
+        `("quit",)` marker into `self.events` so ordering against signal calls is assertable."""
+        state = {"present": False}
+
+        def ps_axo_handler(_argv):
+            if state["present"]:
+                return (0, f"4321 {self.app_path}/Contents/MacOS/Yellowhammer\n", "")
+            return (0, "", "")
+
+        def open_handler(_argv):
+            state["present"] = True
+            return (0, "", "")
+
+        def quit_handler(_argv):
+            state["present"] = False
+            self.events.append(("quit",))
+            return (0, "", "")
+
+        self.run.handlers.insert(0, (starts_with("ps", "-axo"), ps_axo_handler))
+        self.run.on(starts_with("open", "-a"), open_handler)
+        self.run.on(starts_with("osascript"), quit_handler)
+        return state
+
+    def install_ephemeral_window_app_fake(self):
+        """For tests where 5b never reaches the osascript quit: `open` marks the app present,
+        the *next* `ps -axo` poll reports it present exactly once and then clears it — so the
+        next attempt's "wait for the previous app to exit" loop proceeds immediately without a
+        real quit ever happening."""
+        state = {"present": False, "unread": False}
+
+        def ps_axo_handler(_argv):
+            if state["present"] and state["unread"]:
+                state["unread"] = False
+                return (0, f"4321 {self.app_path}/Contents/MacOS/Yellowhammer\n", "")
+            state["present"] = False
+            return (0, "", "")
+
+        def open_handler(_argv):
+            state["present"] = True
+            state["unread"] = True
+            return (0, "", "")
+
+        self.run.handlers.insert(0, (starts_with("ps", "-axo"), ps_axo_handler))
+        self.run.on(starts_with("open", "-a"), open_handler)
+        return state
+
+    def signal_calls(self, sig=_UNSET):
+        """The `(pid, sig)` pairs recorded for signal events, in call order. Defaults to only
+        SIGSTOP/SIGCONT (skipping the liveness check's signal-0 calls and the `("quit",)`
+        markers `self.events` also carries); pass an explicit `sig` (including `0`) to filter to
+        just that one."""
+        wanted = (signal.SIGSTOP, signal.SIGCONT) if sig is _UNSET else (sig,)
+        return [
+            (event[1], event[2])
+            for event in self.events
+            if event[0] == "signal" and event[2] in wanted
+        ]
 
     def write_config_toml(self, client_id=PRODUCTION_CLIENT_ID):
         config_dir = self.home / ".config" / "yellowhammer"
@@ -501,81 +566,38 @@ class VerifyInstalledTestCase(unittest.TestCase):
         self.assertFalse(passed)
         self.assertIn("appeared during an unattended Act", reason)
 
-    def test_shell_not_host_5b_inconclusive_after_three_tries(self):
-        self.write_all_plists()
-        label = f"dev.yellowhammer.{PROJECT}.build"
-        window_pids = {"present": False}
+    def launchctl_handler_per_attempt(self, second_call_response):
+        """Builds a `launchctl print` handler for 5b tests: calls 1–2 are 5a's baseline and
+        immediate-finish; from call 3 on, each attempt gets two calls — a baseline (`waiting`,
+        `runs = 1 + attempt`) and `second_call_response(runs)` for whatever the test wants that
+        attempt's poll to show."""
+        counters = {"n": 0}
 
-        def ps_axo_handler(_argv):
-            if window_pids["present"]:
-                return (0, f"4321 {self.app_path}/Contents/MacOS/Yellowhammer\n", "")
-            return (0, "", "")
-
-        self.run.handlers.insert(0, (starts_with("ps", "-axo"), ps_axo_handler))
-
-        calls = {"n": 0}
-
-        def launchctl_print_handler(_argv):
-            calls["n"] += 1
-            n = calls["n"]
-            if n == 1:
-                # 5a baseline.
+        def handler(_argv):
+            counters["n"] += 1
+            call = counters["n"]
+            if call == 1:
                 return (0, "state = waiting\nruns = 0\nlast exit code = 0\n", "")
-            if n == 2:
-                # 5a: finishes immediately (state not running, runs incremented).
+            if call == 2:
                 return (0, "state = waiting\nruns = 1\nlast exit code = 0\n", "")
-            # 5b (every attempt): a pid that does not exist on this machine, so os.kill(pid, 0)
-            # always raises and the job is never observed "overlapping" the app's quit.
-            return (0, "state = running\n\tpid = 999999999\nruns = 1\n", "")
+            idx = call - 3
+            attempt, step = divmod(idx, 2)
+            base_runs = 1 + attempt
+            if step == 0:
+                return (0, f"state = waiting\nruns = {base_runs}\nlast exit code = 0\n", "")
+            return (0, second_call_response(base_runs), "")
 
-        self.run.on(starts_with("launchctl", "print"), launchctl_print_handler)
-        self.run.on(starts_with("launchctl", "kickstart"), (0, "", ""))
-
-        def open_handler(_argv):
-            window_pids["present"] = True
-            return (0, "", "")
-
-        self.run.on(starts_with("open", "-a"), open_handler)
-
-        def quit_handler(_argv):
-            window_pids["present"] = False
-            return (0, "", "")
-
-        self.run.on(starts_with("osascript"), quit_handler)
-
-        journal_path = self.write_journal_file()
-        verifier = self.make_verifier(act_timeout=2.0)
-        verifier.evidence_directory.mkdir(parents=True)
-        passed, reason = verifier.check_shell_not_host([])
-        self.assertFalse(passed)
-        self.assertIn("inconclusive", reason)
-        # Every one of the three attempts acquired and released the lock — no leak.
-        self.assertEqual(
-            self.lock_events,
-            [
-                ("acquired", str(journal_path)), ("released", str(journal_path)),
-                ("acquired", str(journal_path)), ("released", str(journal_path)),
-                ("acquired", str(journal_path)), ("released", str(journal_path)),
-            ],
-        )
+        return handler
 
     def test_shell_not_host_full_pass(self):
         self.write_all_plists()
-        label = f"dev.yellowhammer.{PROJECT}.build"
-        window_pids = {"present": False}
+        self.install_manual_window_app_fake()
 
-        def ps_axo_handler(_argv):
-            if window_pids["present"]:
-                return (0, f"4321 {self.app_path}/Contents/MacOS/Yellowhammer\n", "")
-            return (0, "", "")
-
-        self.run.handlers.insert(0, (starts_with("ps", "-axo"), ps_axo_handler))
-
-        state = {"n": 0}
+        counters = {"n": 0}
 
         def launchctl_handler(_argv):
-            state["n"] += 1
-            call = state["n"]
+            counters["n"] += 1
+            call = counters["n"]
             if call == 1:
                 # 5a baseline.
                 return (0, "state = waiting\nruns = 0\nlast exit code = 0\n", "")
@@ -586,222 +608,361 @@ class VerifyInstalledTestCase(unittest.TestCase):
                 # 5b baseline.
                 return (0, "state = waiting\nruns = 1\nlast exit code = 0\n", "")
             if call == 4:
-                # 5b: waiting for pid — job still running, using this test's own pid so
-                # os.kill(pid, 0) succeeds (this process definitely exists).
-                return (0, f"state = running\n\tpid = {os.getpid()}\nruns = 1\n", "")
-            # 5b post-quit: finished cleanly.
+                # 5b: waiting for a running pid — found on the first poll.
+                return (0, "state = running\n\tpid = 4242\nruns = 1\n", "")
+            # 5b post-resume: finished cleanly.
             return (0, "state = waiting\nruns = 2\nlast exit code = 0\n", "")
 
         self.run.on(starts_with("launchctl", "print"), launchctl_handler)
         self.run.on(starts_with("launchctl", "kickstart"), (0, "", ""))
 
-        def open_handler(_argv):
-            window_pids["present"] = True
-            return (0, "", "")
-
-        self.run.on(starts_with("open", "-a"), open_handler)
-
-        def quit_handler(_argv):
-            window_pids["present"] = False
-            return (0, "", "")
-
-        self.run.on(starts_with("osascript"), quit_handler)
-
-        journal_path = self.write_journal_file()
         verifier = self.make_verifier(act_timeout=2.0)
         verifier.evidence_directory.mkdir(parents=True)
         passed, reason = verifier.check_shell_not_host([])
         self.assertTrue(passed, reason)
-        # Acquired before the kickstart-and-quit sequence, released after the app quit.
-        self.assertEqual(
-            self.lock_events, [("acquired", str(journal_path)), ("released", str(journal_path))]
+        # kickstart -> SIGSTOP -> osascript quit -> app gone -> SIGCONT -> finished exit 0.
+        self.assertEqual(self.signal_calls(), [(4242, signal.SIGSTOP), (4242, signal.SIGCONT)])
+        quit_index = self.events.index(("quit",))
+        sigcont_index = next(
+            i for i, e in enumerate(self.events) if e == ("signal", 4242, signal.SIGCONT)
         )
+        self.assertLess(quit_index, sigcont_index)
+
+    def test_shell_not_host_5b_retries_when_act_finishes_before_pause(self):
+        self.write_all_plists()
+        self.install_ephemeral_window_app_fake()
+
+        def second_call_response(base_runs):
+            # The Act finished (runs incremented, no pid, not running) before ever being seen
+            # in the `running` state — inconclusive, not a defect.
+            return f"state = waiting\nruns = {base_runs + 1}\nlast exit code = 0\n"
+
+        self.run.on(
+            starts_with("launchctl", "print"),
+            self.launchctl_handler_per_attempt(second_call_response),
+        )
+        self.run.on(starts_with("launchctl", "kickstart"), (0, "", ""))
+
+        verifier = self.make_verifier(act_timeout=2.0)
+        verifier.evidence_directory.mkdir(parents=True)
+        passed, reason = verifier.check_shell_not_host([])
+        self.assertFalse(passed)
+        self.assertIn("finished before it could be paused", reason)
+        self.assertIn("inconclusive", reason)
+        # Never got far enough to send a signal.
+        self.assertEqual(self.events, [])
+
+    def test_shell_not_host_5b_retries_when_sigstop_raises(self):
+        self.write_all_plists()
+        self.install_ephemeral_window_app_fake()
+
+        def second_call_response(base_runs):
+            return f"state = running\n\tpid = 4242\nruns = {base_runs}\n"
+
+        self.run.on(
+            starts_with("launchctl", "print"),
+            self.launchctl_handler_per_attempt(second_call_response),
+        )
+        self.run.on(starts_with("launchctl", "kickstart"), (0, "", ""))
+
+        signal_fn = FakeSignal(self.events, raise_on={signal.SIGSTOP})
+        verifier = self.make_verifier(act_timeout=2.0, signal_fn=signal_fn)
+        verifier.evidence_directory.mkdir(parents=True)
+        passed, reason = verifier.check_shell_not_host([])
+        self.assertFalse(passed)
+        self.assertIn("exited before it could be paused", reason)
+        self.assertIn("inconclusive", reason)
+        # Every attempt tried to pause the pid it found, and never got as far as resuming.
+        self.assertEqual(self.signal_calls(signal.SIGSTOP), [(4242, signal.SIGSTOP)] * 3)
+        self.assertEqual(self.signal_calls(signal.SIGCONT), [])
+
+    def test_shell_not_host_5b_retries_when_the_paused_pid_is_a_zombie(self):
+        # The Act exited just before SIGSTOP: SIGSTOP and kill(pid, 0) both succeed on the zombie,
+        # so only `ps` can tell it was never really paused. That must never count as an overlap.
+        self.write_all_plists()
+        self.install_ephemeral_window_app_fake()
+
+        def second_call_response(base_runs):
+            return f"state = running\n\tpid = 4242\nruns = {base_runs}\n"
+
+        self.run.on(
+            starts_with("launchctl", "print"),
+            self.launchctl_handler_per_attempt(second_call_response),
+        )
+        self.run.on(starts_with("launchctl", "kickstart"), (0, "", ""))
+
+        signal_fn = FakeSignal(self.events)
+        signal_fn.state = lambda _pid: "Z"
+        verifier = self.make_verifier(act_timeout=2.0, signal_fn=signal_fn)
+        verifier.evidence_directory.mkdir(parents=True)
+        passed, reason = verifier.check_shell_not_host([])
+        self.assertFalse(passed)
+        self.assertIn("inconclusive", reason)
+        # No attempt quit the app on the strength of a zombie, and every pause was undone.
+        self.assertNotIn(("quit",), self.events)
+        self.assertEqual(len(self.signal_calls(signal.SIGCONT)), 3)
 
     def test_shell_not_host_5b_fails_when_osascript_lacks_automation_permission(self):
         self.write_all_plists()
-        window_pids = {"present": False}
+        self.install_manual_window_app_fake()
 
-        def ps_axo_handler(_argv):
-            if window_pids["present"]:
-                return (0, f"4321 {self.app_path}/Contents/MacOS/Yellowhammer\n", "")
-            return (0, "", "")
-
-        self.run.handlers.insert(0, (starts_with("ps", "-axo"), ps_axo_handler))
-
-        state = {"n": 0}
+        counters = {"n": 0}
 
         def launchctl_handler(_argv):
-            state["n"] += 1
-            call = state["n"]
+            counters["n"] += 1
+            call = counters["n"]
             if call == 1:
                 return (0, "state = waiting\nruns = 0\nlast exit code = 0\n", "")
             if call == 2:
                 return (0, "state = waiting\nruns = 1\nlast exit code = 0\n", "")
             if call == 3:
                 return (0, "state = waiting\nruns = 1\nlast exit code = 0\n", "")
-            return (0, f"state = running\n\tpid = {os.getpid()}\nruns = 1\n", "")
+            return (0, "state = running\n\tpid = 4242\nruns = 1\n", "")
 
         self.run.on(starts_with("launchctl", "print"), launchctl_handler)
         self.run.on(starts_with("launchctl", "kickstart"), (0, "", ""))
-
-        def open_handler(_argv):
-            window_pids["present"] = True
-            return (0, "", "")
-
-        self.run.on(starts_with("open", "-a"), open_handler)
-        self.run.on(
-            starts_with("osascript"),
-            (1, "", "execution error: Not authorized to send Apple events (-1743)"),
+        self.run.handlers.insert(
+            0,
+            (
+                starts_with("osascript"),
+                (1, "", "execution error: Not authorized to send Apple events (-1743)"),
+            ),
         )
 
-        journal_path = self.write_journal_file()
         verifier = self.make_verifier(act_timeout=2.0)
         verifier.evidence_directory.mkdir(parents=True)
         passed, reason = verifier.check_shell_not_host([])
         self.assertFalse(passed)
         self.assertIn("Automation", reason)
         self.assertIn("-1743", reason)
-        # The lock is released even though 5b failed mid-way — no leaked lock.
-        self.assertEqual(
-            self.lock_events, [("acquired", str(journal_path)), ("released", str(journal_path))]
-        )
+        # SIGCONT is still sent even though osascript failed mid-way — no leaked pause.
+        self.assertEqual(self.signal_calls(), [(4242, signal.SIGSTOP), (4242, signal.SIGCONT)])
 
-    def test_shell_not_host_5b_fails_when_journal_missing(self):
-        # No self.write_journal_file() — checks 3/5a are supposed to have created it.
+    def test_shell_not_host_5b_retries_when_app_does_not_quit_within_pause_timeout(self):
         self.write_all_plists()
-        window_pids = {"present": False}
-
-        def ps_axo_handler(_argv):
-            if window_pids["present"]:
-                return (0, f"4321 {self.app_path}/Contents/MacOS/Yellowhammer\n", "")
-            return (0, "", "")
-
-        self.run.handlers.insert(0, (starts_with("ps", "-axo"), ps_axo_handler))
-
-        kickstart_calls = {"n": 0}
-
-        def kickstart_handler(_argv):
-            kickstart_calls["n"] += 1
-            return (0, "", "")
-
-        state = {"n": 0}
-
-        def launchctl_handler(_argv):
-            state["n"] += 1
-            call = state["n"]
-            if call == 1:
-                # 5a baseline.
-                return (0, "state = waiting\nruns = 0\nlast exit code = 0\n", "")
-            # 5a: finishes immediately.
-            return (0, "state = waiting\nruns = 1\nlast exit code = 0\n", "")
-
-        self.run.on(starts_with("launchctl", "print"), launchctl_handler)
-        self.run.on(starts_with("launchctl", "kickstart"), kickstart_handler)
-
-        def open_handler(_argv):
-            window_pids["present"] = True
-            return (0, "", "")
-
-        self.run.on(starts_with("open", "-a"), open_handler)
-
-        verifier = self.make_verifier(act_timeout=2.0)
-        verifier.evidence_directory.mkdir(parents=True)
-        passed, reason = verifier.check_shell_not_host([])
-        self.assertFalse(passed)
-        self.assertIn("does not exist", reason)
-        # 5a's own kickstart is the only one — 5b never got as far as firing the Act.
-        self.assertEqual(kickstart_calls["n"], 1)
-        self.assertEqual(self.lock_events, [])
-
-    def test_shell_not_host_5b_retries_when_app_does_not_quit_within_lock_budget(self):
-        self.write_all_plists()
-        # The app quits, but slowly: it lingers for 10 `ps` polls (5s of fake sleeps) after
-        # osascript returns — past the lock budget, so each attempt retries.
-        window_pids = {"present": False, "lingering": None}
+        # The app quits, but slowly: it lingers well past the 10s pause-quit timeout after
+        # osascript returns, then clears during the *next* attempt's own initial wait.
+        state = {"present": False, "linger": None}
         opened_while_running = []
 
         def ps_axo_handler(_argv):
-            if window_pids["lingering"] is not None:
-                window_pids["lingering"] -= 1
-                if window_pids["lingering"] <= 0:
-                    window_pids["present"] = False
-                    window_pids["lingering"] = None
-            if window_pids["present"]:
+            if state["linger"] is not None:
+                out = (
+                    (0, f"4321 {self.app_path}/Contents/MacOS/Yellowhammer\n", "")
+                    if state["present"] else (0, "", "")
+                )
+                state["linger"] -= 1
+                if state["linger"] <= 0:
+                    state["present"] = False
+                    state["linger"] = None
+                return out
+            if state["present"]:
                 return (0, f"4321 {self.app_path}/Contents/MacOS/Yellowhammer\n", "")
             return (0, "", "")
 
         self.run.handlers.insert(0, (starts_with("ps", "-axo"), ps_axo_handler))
 
-        state = {"n": 0}
-
-        def launchctl_handler(_argv):
-            state["n"] += 1
-            call = state["n"]
-            if call == 1:
-                # 5a baseline.
-                return (0, "state = waiting\nruns = 0\nlast exit code = 0\n", "")
-            if call == 2:
-                # 5a: finishes immediately.
-                return (0, "state = waiting\nruns = 1\nlast exit code = 0\n", "")
-            # 5b (every attempt): job running throughout.
-            return (0, f"state = running\n\tpid = {os.getpid()}\nruns = 1\n", "")
-
-        self.run.on(starts_with("launchctl", "print"), launchctl_handler)
-        self.run.on(starts_with("launchctl", "kickstart"), (0, "", ""))
-
         def open_handler(_argv):
             # LaunchServices fails with -600 when the app is still quitting.
-            if window_pids["present"]:
+            if state["present"]:
                 opened_while_running.append(True)
                 return (1, "", "_LSOpenURLsWithCompletionHandler() failed ... with error -600.\n")
-            window_pids["present"] = True
+            state["present"] = True
             return (0, "", "")
 
         self.run.on(starts_with("open", "-a"), open_handler)
 
         def quit_handler(_argv):
-            window_pids["lingering"] = 10
+            # 25 polls (12.5s of fake sleeps) outlasts the 10s/20-poll pause-quit timeout, but
+            # clears well before the next attempt's own 20s wait would time out.
+            state["linger"] = 25
+            self.events.append(("quit",))
             return (0, "", "")
 
         self.run.on(starts_with("osascript"), quit_handler)
 
-        journal_path = self.write_journal_file()
+        def second_call_response(base_runs):
+            return f"state = running\n\tpid = 4242\nruns = {base_runs}\n"
+
+        self.run.on(
+            starts_with("launchctl", "print"),
+            self.launchctl_handler_per_attempt(second_call_response),
+        )
+        self.run.on(starts_with("launchctl", "kickstart"), (0, "", ""))
+
         verifier = self.make_verifier(act_timeout=2.0)
         verifier.evidence_directory.mkdir(parents=True)
         passed, reason = verifier.check_shell_not_host([])
         self.assertFalse(passed)
-        self.assertIn("hold budget", reason)
-        # Each attempt waited for the previous app to exit before opening it again.
+        self.assertIn(f"{vi.PAUSE_QUIT_TIMEOUT_SECONDS}s", reason)
+        self.assertIn("paused", reason)
+        # Every attempt paused, quit, and resumed — never left the Act stopped.
+        self.assertEqual(self.signal_calls(signal.SIGSTOP), [(4242, signal.SIGSTOP)] * 3)
+        self.assertEqual(self.signal_calls(signal.SIGCONT), [(4242, signal.SIGCONT)] * 3)
+        # Never opened the app again while a previous attempt's was still quitting.
         self.assertEqual(opened_while_running, [])
-        # Three attempts, each acquiring and releasing the lock — never leaked.
-        self.assertEqual(
-            self.lock_events,
-            [
-                ("acquired", str(journal_path)), ("released", str(journal_path)),
-                ("acquired", str(journal_path)), ("released", str(journal_path)),
-                ("acquired", str(journal_path)), ("released", str(journal_path)),
-            ],
-        )
 
-    def test_journal_lock_real_sqlite3_implementation(self):
-        if shutil.which("sqlite3") is None:
-            self.skipTest("sqlite3 not on PATH")
-        db_path = self.root / "journal-lock-test.db"
-        subprocess.run(["sqlite3", str(db_path), "CREATE TABLE t (x INTEGER);"], check=True)
+    def test_shell_not_host_5b_waits_for_earlier_attempt_app_before_opening(self):
+        # Exercises `_run_5b_once` directly (not through `check_shell_not_host`, which runs 5a
+        # first and 5a itself refuses to start with the window app already present) — this is
+        # specifically 5b's own "wait for an earlier attempt's app to quit" step at the top of
+        # `_run_5b_once`.
+        self.write_all_plists()
+        label = f"dev.yellowhammer.{PROJECT}.build"
+        # Simulate a leftover window app from an earlier attempt still quitting when this attempt
+        # begins: present for the first 6 `ps` polls, then gone.
+        state = {"present": True, "linger": 6}
+        opened_while_running = []
 
-        with vi.default_journal_lock(db_path):
-            result = subprocess.run(
-                ["sqlite3", str(db_path), ".timeout 100", "INSERT INTO t VALUES (1);"],
-                capture_output=True, text=True,
-            )
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("locked", (result.stderr or "").lower())
+        def ps_axo_handler(_argv):
+            if state["linger"] is not None:
+                out = (
+                    (0, f"4321 {self.app_path}/Contents/MacOS/Yellowhammer\n", "")
+                    if state["present"] else (0, "", "")
+                )
+                state["linger"] -= 1
+                if state["linger"] <= 0:
+                    state["present"] = False
+                    state["linger"] = None
+                return out
+            if state["present"]:
+                return (0, f"4321 {self.app_path}/Contents/MacOS/Yellowhammer\n", "")
+            return (0, "", "")
 
-        result = subprocess.run(
-            ["sqlite3", str(db_path), ".timeout 100", "INSERT INTO t VALUES (1);"],
-            capture_output=True, text=True,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
+        self.run.handlers.insert(0, (starts_with("ps", "-axo"), ps_axo_handler))
+
+        def open_handler(_argv):
+            if state["present"]:
+                opened_while_running.append(True)
+                return (1, "", "_LSOpenURLsWithCompletionHandler() failed ... with error -600.\n")
+            state["present"] = True
+            return (0, "", "")
+
+        self.run.on(starts_with("open", "-a"), open_handler)
+
+        def quit_handler(_argv):
+            state["present"] = False
+            self.events.append(("quit",))
+            return (0, "", "")
+
+        self.run.on(starts_with("osascript"), quit_handler)
+
+        counters = {"n": 0}
+
+        def launchctl_handler(_argv):
+            counters["n"] += 1
+            call = counters["n"]
+            if call == 1:
+                # 5b baseline.
+                return (0, "state = waiting\nruns = 1\nlast exit code = 0\n", "")
+            if call == 2:
+                return (0, "state = running\n\tpid = 4242\nruns = 1\n", "")
+            return (0, "state = waiting\nruns = 2\nlast exit code = 0\n", "")
+
+        self.run.on(starts_with("launchctl", "print"), launchctl_handler)
+        self.run.on(starts_with("launchctl", "kickstart"), (0, "", ""))
+
+        verifier = self.make_verifier(act_timeout=2.0)
+        verifier.evidence_directory.mkdir(parents=True)
+        status, reason = verifier._run_5b_once(label, [])
+        self.assertEqual(status, "pass", reason)
+        self.assertEqual(opened_while_running, [])
+
+    def test_shell_not_host_5b_fails_when_act_gone_after_quit(self):
+        self.write_all_plists()
+        self.install_manual_window_app_fake()
+
+        counters = {"n": 0}
+
+        def launchctl_handler(_argv):
+            counters["n"] += 1
+            call = counters["n"]
+            if call == 1:
+                return (0, "state = waiting\nruns = 0\nlast exit code = 0\n", "")
+            if call == 2:
+                return (0, "state = waiting\nruns = 1\nlast exit code = 0\n", "")
+            if call == 3:
+                return (0, "state = waiting\nruns = 1\nlast exit code = 0\n", "")
+            return (0, "state = running\n\tpid = 4242\nruns = 1\n", "")
+
+        self.run.on(starts_with("launchctl", "print"), launchctl_handler)
+        self.run.on(starts_with("launchctl", "kickstart"), (0, "", ""))
+
+        # The liveness check (signal 0) raises: quitting the app killed the paused Act.
+        signal_fn = FakeSignal(self.events, gone_after_quit=True)
+        verifier = self.make_verifier(act_timeout=2.0, signal_fn=signal_fn)
+        verifier.evidence_directory.mkdir(parents=True)
+        passed, reason = verifier.check_shell_not_host([])
+        self.assertFalse(passed)
+        self.assertIn("gone after the window app quit", reason)
+        self.assertIn("5b (quit mid-Act)", reason)
+        # Not a retry: this is exactly the defect the check exists to catch.
+        self.assertNotIn("inconclusive", reason)
+        # SIGCONT was still attempted even though the pid was already gone (and swallowed).
+        self.assertEqual(self.signal_calls(signal.SIGSTOP), [(4242, signal.SIGSTOP)])
+        self.assertEqual(self.signal_calls(signal.SIGCONT), [(4242, signal.SIGCONT)])
+
+    def test_shell_not_host_5b_xpcproxy_pid_is_not_paused(self):
+        self.write_all_plists()
+        self.install_manual_window_app_fake()
+
+        counters = {"n": 0}
+
+        def launchctl_handler(_argv):
+            counters["n"] += 1
+            call = counters["n"]
+            if call == 1:
+                return (0, "state = waiting\nruns = 0\nlast exit code = 0\n", "")
+            if call == 2:
+                return (0, "state = waiting\nruns = 1\nlast exit code = 0\n", "")
+            if call == 3:
+                return (0, "state = waiting\nruns = 1\nlast exit code = 0\n", "")
+            if call == 4:
+                # xpcproxy reports a pid too — launchd's spawn trampoline, not yet yh.
+                return (0, "state = xpcproxy\n\tpid = 999\nruns = 1\n", "")
+            if call == 5:
+                return (0, "state = running\n\tpid = 4242\nruns = 1\n", "")
+            return (0, "state = waiting\nruns = 2\nlast exit code = 0\n", "")
+
+        self.run.on(starts_with("launchctl", "print"), launchctl_handler)
+        self.run.on(starts_with("launchctl", "kickstart"), (0, "", ""))
+
+        verifier = self.make_verifier(act_timeout=2.0)
+        verifier.evidence_directory.mkdir(parents=True)
+        passed, reason = verifier.check_shell_not_host([])
+        self.assertTrue(passed, reason)
+        self.assertEqual(self.signal_calls(signal.SIGSTOP), [(4242, signal.SIGSTOP)])
+        self.assertEqual(self.signal_calls(signal.SIGCONT), [(4242, signal.SIGCONT)])
+
+    def test_shell_not_host_5b_fails_on_nonzero_exit_after_resume(self):
+        self.write_all_plists()
+        self.install_manual_window_app_fake()
+
+        counters = {"n": 0}
+
+        def launchctl_handler(_argv):
+            counters["n"] += 1
+            call = counters["n"]
+            if call == 1:
+                return (0, "state = waiting\nruns = 0\nlast exit code = 0\n", "")
+            if call == 2:
+                return (0, "state = waiting\nruns = 1\nlast exit code = 0\n", "")
+            if call == 3:
+                return (0, "state = waiting\nruns = 1\nlast exit code = 0\n", "")
+            if call == 4:
+                return (0, "state = running\n\tpid = 4242\nruns = 1\n", "")
+            return (0, "state = waiting\nruns = 2\nlast exit code = 1\n", "")
+
+        self.run.on(starts_with("launchctl", "print"), launchctl_handler)
+        self.run.on(starts_with("launchctl", "kickstart"), (0, "", ""))
+
+        verifier = self.make_verifier(act_timeout=2.0)
+        verifier.evidence_directory.mkdir(parents=True)
+        passed, reason = verifier.check_shell_not_host([])
+        self.assertFalse(passed)
+        self.assertIn("last exit code", reason)
+        self.assertEqual(self.signal_calls(signal.SIGSTOP), [(4242, signal.SIGSTOP)])
+        self.assertEqual(self.signal_calls(signal.SIGCONT), [(4242, signal.SIGCONT)])
 
     # -- record: crashed check --
 
