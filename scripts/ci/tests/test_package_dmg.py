@@ -28,6 +28,13 @@ fi
 exit "${FAKE_HDIUTIL_EXIT:-0}"
 """
 
+# `ditto` is macOS-only; CI runs on ubuntu, so fake it with a recursive copy.
+FAKE_DITTO = r"""#!/usr/bin/env bash
+set -euo pipefail
+echo "ditto $*" >> "$INVOCATIONS_FILE"
+cp -R "$1" "$2"
+"""
+
 FAKE_CODESIGN = r"""#!/usr/bin/env bash
 set -euo pipefail
 echo "codesign $*" >> "$INVOCATIONS_FILE"
@@ -98,6 +105,7 @@ class TestPackageDmg(unittest.TestCase):
         self.fake_bin = self.root / "fake-bin"
         self.fake_bin.mkdir()
         _write_fake(self.fake_bin / "hdiutil", FAKE_HDIUTIL)
+        _write_fake(self.fake_bin / "ditto", FAKE_DITTO)
         _write_fake(self.fake_bin / "codesign", FAKE_CODESIGN)
         _write_fake(self.fake_bin / "spctl", FAKE_SPCTL)
         _write_fake(self.fake_bin / "xcrun", FAKE_XCRUN)
