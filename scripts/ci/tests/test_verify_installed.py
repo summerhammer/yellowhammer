@@ -283,7 +283,8 @@ class VerifyInstalledTestCase(unittest.TestCase):
             label: [
                 f"state = waiting\nruns = 5\nlast exit code = 0\n\tprogram = {self.yh_path}\n",
                 "state = waiting\nruns = 5\nlast exit code = 0\n",
-                "state = running\n\tpid = 4242\nruns = 5\n",
+                "state = xpcproxy\n\tpid = 4242\nruns = 6\nlast exit code = (never exited)\n",
+                "state = running\n\tpid = 4242\nruns = 6\n",
                 "state = waiting\nruns = 6\nlast exit code = 0\n",
             ]
         }
