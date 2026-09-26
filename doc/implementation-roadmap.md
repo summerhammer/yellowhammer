@@ -1705,7 +1705,7 @@ comment on the Delta Read).
   instrumentation (check 2). Getting to green also fixed check 5b's overlap (#193, #195, #196) and
   doctor's launchd reading (#194), and filed #197. Runs again for every release (P16.7).
 
-### [ ] P16.7 Release checklist
+### [x] P16.7 Release checklist
 - **Work** — A written checklist run for every release: CI green; probe drift check (P7.5) green;
   rehearsal suite (P15.3/P15.4) green; notarization verified; installed-product verification (P16.6)
   done; release notes with spec commit and story IDs; spec conflicts from P1.1 checked for new
@@ -1718,7 +1718,8 @@ comment on the Delta Read).
   shipped before the checklist, did **not** pass. Passed: 1.4 (spec 7a3ed29; P1.1 conflict 7 is
   still open), 1.5 ("none cited" confirmed for a fix-only range), 3.1, 3.2 and 3.3. Failed: 1.1,
   because CI on the tagged commit 955abc7 was cancelled. Not run: 1.2 and 1.3, which need the
-  release machine, so 3.4 is partial (no rehearsal evidence is attached). So the first release that uses the checklist is the next tag. The scheduled
+  release machine, so 3.4 is partial (no rehearsal evidence is attached). Marked done on the
+  Operator's call, without re-running v0.1.1's gates; the next tag is the first to run it in full. The scheduled
   probe drift workflow cannot probe on a hosted runner (#199).
 
 ### [ ] P16.8 First production Night
