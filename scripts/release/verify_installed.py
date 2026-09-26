@@ -330,6 +330,13 @@ class Verifier:
 
     # -- check 3: launchd jobs --
 
+    @staticmethod
+    def _finished(parsed, before_runs):
+        """True once the fired run has exited: `runs` passed the baseline and launchd holds no
+        pid. A state other than `running` is not enough — launchd reports `xpcproxy` (and other
+        transitional states) with a pid while the process is still starting."""
+        return (parsed.get("runs") or 0) > before_runs and parsed.get("pid") is None and parsed.get("state") != "running"
+
     def _kickstart_and_wait(self, label, log, tag, on_poll=None):
         """Kickstarts `label` and polls `launchctl print` every 0.5s until it reports finished
         (state not `running` and `runs` incremented past the baseline) or `--act-timeout`
@@ -369,7 +376,7 @@ class Verifier:
                 log.append(f"launchctl print gui/{self.uid}/{label} ({tag} t={elapsed}): {self._summarize(parsed)}")
                 last_summary = summary
 
-            if parsed.get("state") != "running" and (parsed.get("runs") or 0) > before_runs:
+            if self._finished(parsed, before_runs):
                 log.append(f"$ launchctl print gui/{self.uid}/{label} ({tag} final, t={elapsed})\n{out}")
                 if parsed.get("last_exit_code") != 0:
                     return False, f"{label} last exit code {parsed.get('last_exit_code')}"
@@ -606,7 +613,7 @@ class Verifier:
                     f"{self._summarize(parsed)}"
                 )
                 last_summary = summary
-            if parsed.get("state") != "running" and (parsed.get("runs") or 0) > before_runs:
+            if self._finished(parsed, before_runs):
                 log.append(f"$ launchctl print gui/{self.uid}/{label} (5b post-quit final, t={elapsed})\n{out}")
                 if parsed.get("last_exit_code") != 0:
                     return "fail", f"{label} last exit code {parsed.get('last_exit_code')}"
