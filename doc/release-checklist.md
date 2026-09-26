@@ -125,9 +125,12 @@ the spec from this repo.
 the tag is pushed. Create the tag locally first, because the script needs it:
 
 ```sh
-git tag "$TAG"
+git tag -a "$TAG" -m "Yellowhammer $VERSION"
 scripts/release/release-notes.sh "$TAG"
 ```
+
+If the release commit changes after this, delete the local tag (`git tag -d "$TAG"`) and tag the
+new commit, so that the notes you read match the tag you push.
 
 The notes must name the spec commit the release was built against and list its story IDs. If they
 say `Built against spec commit: none cited`, confirm that no commit in the range implements spec'd
