@@ -15,6 +15,7 @@ on:
       - 'scripts/ci/tests/test_package_dmg.py'
       - 'scripts/ci/tests/test_release_notes.py'
       - 'scripts/ci/tests/test_appcast.py'
+      - 'scripts/ci/tests/test_verify_installed.py'
       - '.github/workflows/release-scripts.yml'
   push:
     branches:
@@ -26,6 +27,7 @@ on:
       - 'scripts/ci/tests/test_package_dmg.py'
       - 'scripts/ci/tests/test_release_notes.py'
       - 'scripts/ci/tests/test_appcast.py'
+      - 'scripts/ci/tests/test_verify_installed.py'
       - '.github/workflows/release-scripts.yml'
 
 permissions:
@@ -51,6 +53,7 @@ jobs:
           python3 -m unittest discover -s scripts/ci/tests -p 'test_package_dmg.py' -v
           python3 -m unittest discover -s scripts/ci/tests -p 'test_release_notes.py' -v
           python3 -m unittest discover -s scripts/ci/tests -p 'test_appcast.py' -v
+          python3 -m unittest discover -s scripts/ci/tests -p 'test_verify_installed.py' -v
 
       - name: Shellcheck release scripts
         run: shellcheck scripts/release/*.sh

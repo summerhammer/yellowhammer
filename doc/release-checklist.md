@@ -1,8 +1,9 @@
 # Release checklist
 
 This file starts the release checklist named by roadmap item P16.7, which will add the remaining
-items (CI green, the probe drift check, notarization, installed-product verification, release
-notes, spec conflict re-checks). Only the rehearsal suite step (P15.4) is here so far.
+items (CI green, the probe drift check, notarization, release notes, spec conflict re-checks).
+The rehearsal suite step (P15.4), update channel provisioning (P16.5) and installed-product
+verification (P16.6) are here so far.
 
 ## Rehearsal suite green on the release commit
 
@@ -44,3 +45,20 @@ Before the first tagged release, and on every Sparkle key rotation, confirm the 
 variable `SPARKLE_PUBLIC_ED_KEY` and secret `SPARKLE_ED_PRIVATE_KEY` are set — see
 [doc/update-channel.md](update-channel.md). `scripts/release/verify-release-build.sh` fails the
 release job if the public key is empty or missing from the built app.
+
+## Installed-product verification (P16.6)
+
+Required. Run on a clean Apple Silicon Mac with the published release artifact, following
+[doc/installed-product-verification.md](installed-product-verification.md):
+
+```sh
+python3 scripts/release/verify_installed.py record \
+    --app /Applications/Yellowhammer.app --project <verification Project id> \
+    --production-linear-client-id <production client id> \
+    --evidence-directory ~/yh-evidence-<version>
+python3 scripts/release/verify_installed.py check \
+    --evidence-directory ~/yh-evidence-<version> --version <version>
+```
+
+A nonzero exit from `check` blocks the release. Attach the zipped evidence directory to the GitHub
+release as `installed-verification-<version>.zip`.
