@@ -10,6 +10,8 @@ these tests never touch a real macOS system and run on ubuntu-latest.
 import json
 import os
 import plistlib
+import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -53,6 +55,34 @@ class ScriptedRun:
 def starts_with(*prefix):
     prefix = list(prefix)
     return lambda argv: list(argv[: len(prefix)]) == prefix
+
+
+class FakeJournalLock:
+    """A stand-in for the injectable `journal_lock` factory: records `("acquired", path)` /
+    `("released", path)` into a shared list instead of actually shelling out to `sqlite3`."""
+
+    def __init__(self, events, fail_message=None):
+        self.events = events
+        self.fail_message = fail_message
+
+    def __call__(self, path):
+        if self.fail_message is not None:
+            raise vi.JournalLockError(self.fail_message)
+        return _FakeJournalLockContext(self.events, path)
+
+
+class _FakeJournalLockContext:
+    def __init__(self, events, path):
+        self.events = events
+        self.path = str(path)
+
+    def __enter__(self):
+        self.events.append(("acquired", self.path))
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self.events.append(("released", self.path))
+        return False
 
 
 def make_launchctl_print_handler(scripts, default="state = waiting\nruns = 0\nlast exit code = 0\n"):
@@ -100,6 +130,9 @@ class VerifyInstalledTestCase(unittest.TestCase):
 
         self.prompts = ["y"]
         self.sleeps = []
+        self.now = 0.0
+        self.lock_events = []
+        self.journal_lock = FakeJournalLock(self.lock_events)
 
     def tearDown(self):
         self.temp_dir.cleanup()
@@ -128,8 +161,9 @@ class VerifyInstalledTestCase(unittest.TestCase):
 
     def sleep(self, seconds):
         self.sleeps.append(seconds)
+        self.now += seconds
 
-    def make_verifier(self, act="build", act_timeout=5.0):
+    def make_verifier(self, act="build", act_timeout=5.0, journal_lock=None):
         return vi.Verifier(
             app=self.app_path,
             project=PROJECT,
@@ -140,11 +174,20 @@ class VerifyInstalledTestCase(unittest.TestCase):
             run=self.run,
             prompt=self.prompt,
             sleep=self.sleep,
+            clock=lambda: self.now,
             home=self.home,
             uid=501,
             user="operator",
             min_orca_version=ORCA_VERSION,
+            journal_lock=journal_lock if journal_lock is not None else self.journal_lock,
         )
+
+    def write_journal_file(self):
+        journal_dir = self.home / ".config" / "yellowhammer" / "journals"
+        journal_dir.mkdir(parents=True, exist_ok=True)
+        journal_path = journal_dir / f"{PROJECT}.db"
+        journal_path.write_text("")
+        return journal_path
 
     def write_plist(self, act, path=None, args_rest=None, path_env=None):
         label = f"dev.yellowhammer.{PROJECT}.{act}"
@@ -500,11 +543,21 @@ class VerifyInstalledTestCase(unittest.TestCase):
 
         self.run.on(starts_with("osascript"), quit_handler)
 
+        journal_path = self.write_journal_file()
         verifier = self.make_verifier(act_timeout=2.0)
         verifier.evidence_directory.mkdir(parents=True)
         passed, reason = verifier.check_shell_not_host([])
         self.assertFalse(passed)
         self.assertIn("inconclusive", reason)
+        # Every one of the three attempts acquired and released the lock — no leak.
+        self.assertEqual(
+            self.lock_events,
+            [
+                ("acquired", str(journal_path)), ("released", str(journal_path)),
+                ("acquired", str(journal_path)), ("released", str(journal_path)),
+                ("acquired", str(journal_path)), ("released", str(journal_path)),
+            ],
+        )
 
     def test_shell_not_host_full_pass(self):
         self.write_all_plists()
@@ -554,10 +607,15 @@ class VerifyInstalledTestCase(unittest.TestCase):
 
         self.run.on(starts_with("osascript"), quit_handler)
 
+        journal_path = self.write_journal_file()
         verifier = self.make_verifier(act_timeout=2.0)
         verifier.evidence_directory.mkdir(parents=True)
         passed, reason = verifier.check_shell_not_host([])
         self.assertTrue(passed, reason)
+        # Acquired before the kickstart-and-quit sequence, released after the app quit.
+        self.assertEqual(
+            self.lock_events, [("acquired", str(journal_path)), ("released", str(journal_path))]
+        )
 
     def test_shell_not_host_5b_fails_when_osascript_lacks_automation_permission(self):
         self.write_all_plists()
@@ -596,12 +654,136 @@ class VerifyInstalledTestCase(unittest.TestCase):
             (1, "", "execution error: Not authorized to send Apple events (-1743)"),
         )
 
+        journal_path = self.write_journal_file()
         verifier = self.make_verifier(act_timeout=2.0)
         verifier.evidence_directory.mkdir(parents=True)
         passed, reason = verifier.check_shell_not_host([])
         self.assertFalse(passed)
         self.assertIn("Automation", reason)
         self.assertIn("-1743", reason)
+        # The lock is released even though 5b failed mid-way — no leaked lock.
+        self.assertEqual(
+            self.lock_events, [("acquired", str(journal_path)), ("released", str(journal_path))]
+        )
+
+    def test_shell_not_host_5b_fails_when_journal_missing(self):
+        # No self.write_journal_file() — checks 3/5a are supposed to have created it.
+        self.write_all_plists()
+        window_pids = {"present": False}
+
+        def ps_axo_handler(_argv):
+            if window_pids["present"]:
+                return (0, f"4321 {self.app_path}/Contents/MacOS/Yellowhammer\n", "")
+            return (0, "", "")
+
+        self.run.handlers.insert(0, (starts_with("ps", "-axo"), ps_axo_handler))
+
+        kickstart_calls = {"n": 0}
+
+        def kickstart_handler(_argv):
+            kickstart_calls["n"] += 1
+            return (0, "", "")
+
+        state = {"n": 0}
+
+        def launchctl_handler(_argv):
+            state["n"] += 1
+            call = state["n"]
+            if call == 1:
+                # 5a baseline.
+                return (0, "state = waiting\nruns = 0\nlast exit code = 0\n", "")
+            # 5a: finishes immediately.
+            return (0, "state = waiting\nruns = 1\nlast exit code = 0\n", "")
+
+        self.run.on(starts_with("launchctl", "print"), launchctl_handler)
+        self.run.on(starts_with("launchctl", "kickstart"), kickstart_handler)
+
+        def open_handler(_argv):
+            window_pids["present"] = True
+            return (0, "", "")
+
+        self.run.on(starts_with("open", "-a"), open_handler)
+
+        verifier = self.make_verifier(act_timeout=2.0)
+        verifier.evidence_directory.mkdir(parents=True)
+        passed, reason = verifier.check_shell_not_host([])
+        self.assertFalse(passed)
+        self.assertIn("does not exist", reason)
+        # 5a's own kickstart is the only one — 5b never got as far as firing the Act.
+        self.assertEqual(kickstart_calls["n"], 1)
+        self.assertEqual(self.lock_events, [])
+
+    def test_shell_not_host_5b_retries_when_app_does_not_quit_within_lock_budget(self):
+        self.write_all_plists()
+        window_pids = {"present": False}
+
+        def ps_axo_handler(_argv):
+            if window_pids["present"]:
+                return (0, f"4321 {self.app_path}/Contents/MacOS/Yellowhammer\n", "")
+            return (0, "", "")
+
+        self.run.handlers.insert(0, (starts_with("ps", "-axo"), ps_axo_handler))
+
+        state = {"n": 0}
+
+        def launchctl_handler(_argv):
+            state["n"] += 1
+            call = state["n"]
+            if call == 1:
+                # 5a baseline.
+                return (0, "state = waiting\nruns = 0\nlast exit code = 0\n", "")
+            if call == 2:
+                # 5a: finishes immediately.
+                return (0, "state = waiting\nruns = 1\nlast exit code = 0\n", "")
+            # 5b (every attempt): job running throughout — the app never quits.
+            return (0, f"state = running\n\tpid = {os.getpid()}\nruns = 1\n", "")
+
+        self.run.on(starts_with("launchctl", "print"), launchctl_handler)
+        self.run.on(starts_with("launchctl", "kickstart"), (0, "", ""))
+
+        def open_handler(_argv):
+            window_pids["present"] = True
+            return (0, "", "")
+
+        self.run.on(starts_with("open", "-a"), open_handler)
+        # osascript "succeeds" but the window app never actually quits.
+        self.run.on(starts_with("osascript"), (0, "", ""))
+
+        journal_path = self.write_journal_file()
+        verifier = self.make_verifier(act_timeout=2.0)
+        verifier.evidence_directory.mkdir(parents=True)
+        passed, reason = verifier.check_shell_not_host([])
+        self.assertFalse(passed)
+        self.assertIn("hold budget", reason)
+        # Three attempts, each acquiring and releasing the lock — never leaked.
+        self.assertEqual(
+            self.lock_events,
+            [
+                ("acquired", str(journal_path)), ("released", str(journal_path)),
+                ("acquired", str(journal_path)), ("released", str(journal_path)),
+                ("acquired", str(journal_path)), ("released", str(journal_path)),
+            ],
+        )
+
+    def test_journal_lock_real_sqlite3_implementation(self):
+        if shutil.which("sqlite3") is None:
+            self.skipTest("sqlite3 not on PATH")
+        db_path = self.root / "journal-lock-test.db"
+        subprocess.run(["sqlite3", str(db_path), "CREATE TABLE t (x INTEGER);"], check=True)
+
+        with vi.default_journal_lock(db_path):
+            result = subprocess.run(
+                ["sqlite3", str(db_path), ".timeout 100", "INSERT INTO t VALUES (1);"],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("locked", (result.stderr or "").lower())
+
+        result = subprocess.run(
+            ["sqlite3", str(db_path), ".timeout 100", "INSERT INTO t VALUES (1);"],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     # -- record: crashed check --
 
