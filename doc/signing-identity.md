@@ -14,6 +14,7 @@ Update this table on every renewal. Certificate SHA-1: `C8FF6169227A849009EF5C0F
 |---|---|---|---|---|---|
 | Developer ID Application certificate | A2SJL2N487 (SUMMER HAMMER LLC) | Max Rozdobudko (Account Holder) | 2026-09-25 | 2031-09-17 | 60 days before expiry |
 | App Store Connect API key (notarization) | A2SJL2N487 (SUMMER HAMMER LLC) | Max Rozdobudko | 2026-09-25 | does not expire; revoke on owner change | yearly review |
+| Sparkle EdDSA signing key | n/a (Ed25519) | Max Rozdobudko | 2026-09-25 | does not expire; rotate on owner change | yearly review |
 
 - Only the Apple Developer **Account Holder** can create a Developer ID Application
   certificate. The team is limited to a small number of them, so renew rather than create.
@@ -68,5 +69,6 @@ team; without it the script takes the first one.
 2. **API key** (on owner change or suspected leak): create a new key in App Store Connect,
    update the three `NOTARY_API_*` secrets and re-run `store-credentials`, run
    `release-signing.yml`, then revoke the old key.
-3. **Sparkle EdDSA key** is a separate credential and belongs to P16.5 — see
-   [doc/update-channel.md](update-channel.md), not here.
+3. **Sparkle EdDSA key** (P16.5): backed up in the password manager under `sparkle-project.org`
+   and stored in the release machine's login Keychain. See [doc/update-channel.md](update-channel.md)
+   for key generation and the safe one-release transition required for key rotation.
