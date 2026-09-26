@@ -1687,7 +1687,7 @@ comment on the Delta Read).
   Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — Defined by G-14.
 
-### [ ] P16.6 `[DevOps]` Installed-product verification
+### [x] P16.6 `[DevOps]` Installed-product verification
 - **Work** — On a clean Apple Silicon Mac with the release artifact:
   1. `Contents/MacOS/yh` runs under a bare environment.
   2. The headless notification post works from the installed bundle identity.
@@ -1698,6 +1698,9 @@ comment on the Delta Read).
 - **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`; cheap alternative Gemini
   Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — The checklist is completed and recorded for the release.
+- **Status** — `scripts/release/verify_installed.py` and `doc/installed-product-verification.md`
+  shipped; the first recorded run is owed with v0.1.0 on a clean Mac holding the production
+  Linear identity, and is a release-checklist step.
 
 ### [ ] P16.7 Release checklist
 - **Work** — A written checklist run for every release: CI green; probe drift check (P7.5) green;
