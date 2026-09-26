@@ -711,6 +711,15 @@ class Verifier:
             self.sleep(0.5)
 
     def _run_5b_once(self, label, log):
+        # A previous attempt may have left the app still quitting; `open -a` on an app that is
+        # shutting down fails with LaunchServices error -600.
+        elapsed = 0.0
+        while self._window_app_pid() is not None:
+            if elapsed >= 20.0:
+                return "fail", "the window app from an earlier attempt never quit within 20s"
+            self.sleep(0.5)
+            elapsed += 0.5
+
         code, out, err = self.run(["open", "-a", str(self.app_path)])
         log.append(f"$ open -a {self.app_path}\n{out}\n{err}")
         if code != 0:

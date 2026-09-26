@@ -715,9 +715,17 @@ class VerifyInstalledTestCase(unittest.TestCase):
 
     def test_shell_not_host_5b_retries_when_app_does_not_quit_within_lock_budget(self):
         self.write_all_plists()
-        window_pids = {"present": False}
+        # The app quits, but slowly: it lingers for 10 `ps` polls (5s of fake sleeps) after
+        # osascript returns — past the lock budget, so each attempt retries.
+        window_pids = {"present": False, "lingering": None}
+        opened_while_running = []
 
         def ps_axo_handler(_argv):
+            if window_pids["lingering"] is not None:
+                window_pids["lingering"] -= 1
+                if window_pids["lingering"] <= 0:
+                    window_pids["present"] = False
+                    window_pids["lingering"] = None
             if window_pids["present"]:
                 return (0, f"4321 {self.app_path}/Contents/MacOS/Yellowhammer\n", "")
             return (0, "", "")
@@ -735,19 +743,27 @@ class VerifyInstalledTestCase(unittest.TestCase):
             if call == 2:
                 # 5a: finishes immediately.
                 return (0, "state = waiting\nruns = 1\nlast exit code = 0\n", "")
-            # 5b (every attempt): job running throughout — the app never quits.
+            # 5b (every attempt): job running throughout.
             return (0, f"state = running\n\tpid = {os.getpid()}\nruns = 1\n", "")
 
         self.run.on(starts_with("launchctl", "print"), launchctl_handler)
         self.run.on(starts_with("launchctl", "kickstart"), (0, "", ""))
 
         def open_handler(_argv):
+            # LaunchServices fails with -600 when the app is still quitting.
+            if window_pids["present"]:
+                opened_while_running.append(True)
+                return (1, "", "_LSOpenURLsWithCompletionHandler() failed ... with error -600.\n")
             window_pids["present"] = True
             return (0, "", "")
 
         self.run.on(starts_with("open", "-a"), open_handler)
-        # osascript "succeeds" but the window app never actually quits.
-        self.run.on(starts_with("osascript"), (0, "", ""))
+
+        def quit_handler(_argv):
+            window_pids["lingering"] = 10
+            return (0, "", "")
+
+        self.run.on(starts_with("osascript"), quit_handler)
 
         journal_path = self.write_journal_file()
         verifier = self.make_verifier(act_timeout=2.0)
@@ -755,6 +771,8 @@ class VerifyInstalledTestCase(unittest.TestCase):
         passed, reason = verifier.check_shell_not_host([])
         self.assertFalse(passed)
         self.assertIn("hold budget", reason)
+        # Each attempt waited for the previous app to exit before opening it again.
+        self.assertEqual(opened_while_running, [])
         # Three attempts, each acquiring and releasing the lock — never leaked.
         self.assertEqual(
             self.lock_events,
