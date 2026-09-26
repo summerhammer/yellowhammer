@@ -36,6 +36,7 @@ xcodebuild -project Yellowhammer.xcodeproj -scheme Yellowhammer -configuration R
   -clonedSourcePackagesDirPath build/SourcePackages \
   MARKETING_VERSION="$MARKETING_VERSION" CURRENT_PROJECT_VERSION="$CURRENT_PROJECT_VERSION" \
   SPARKLE_PUBLIC_ED_KEY="$SPARKLE_PUBLIC_ED_KEY" build
+scripts/release/sign-sparkle.sh build/DerivedData/Build/Products/Release/Yellowhammer.app
 scripts/release/verify-release-build.sh build/DerivedData/Build/Products/Release/Yellowhammer.app \
   "$MARKETING_VERSION" "$CURRENT_PROJECT_VERSION" "$SPARKLE_PUBLIC_ED_KEY"
 ```
