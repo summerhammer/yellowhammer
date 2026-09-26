@@ -390,7 +390,8 @@ class Verifier:
         sampled = {"comm": None}
 
         def on_poll(parsed, _elapsed):
-            if parsed.get("pid") is not None and sampled["comm"] is None:
+            # Only once `running`: under `xpcproxy` the pid is launchd's spawn trampoline, not yet yh.
+            if parsed.get("state") == "running" and parsed.get("pid") is not None and sampled["comm"] is None:
                 _pcode, pout, _perr = self.run(["ps", "-o", "comm=", "-p", str(parsed["pid"])])
                 sampled["comm"] = pout.strip()
             return True, ""
