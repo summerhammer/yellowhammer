@@ -28,6 +28,7 @@ struct ScheduledJobPlistTests {
 
         #expect(format == .xml)
         #expect(decoded["Label"] as? String == "dev.yellowhammer.acme.author")
+        #expect(decoded["AssociatedBundleIdentifiers"] as? [String] == ["dev.yellowhammer"])
         #expect(decoded["ProgramArguments"] as? [String] == ["/usr/local/bin/yh", "author", "--project", "acme"])
 
         let intervals = try #require(decoded["StartCalendarInterval"] as? [[String: Int]])
