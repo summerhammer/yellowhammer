@@ -41,8 +41,8 @@ import json
 import os
 import plistlib
 import re
-import select
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -66,12 +66,15 @@ LOG_FILENAMES = {
 
 TOTAL_CHECKS = 5
 
-# The engine opens the Journal with GRDB busyMode `.timeout(5s)`: an Act that finds the
-# Journal write-locked waits up to 5s before failing with SQLITE_BUSY. Check 5b holds the
-# Journal's write lock across the window it needs the fired Act to still be running in, so it
-# must release well under 5s — exceeding it would make the Act fail on SQLITE_BUSY, which would
-# be the tool's fault, not a real defect.
-JOURNAL_LOCK_HOLD_BUDGET_SECONDS = 3.5
+# The Act on the verification Project is idle and finishes in well under a second, so check 5b
+# polls `launchctl print` fast to catch its pid before it exits.
+PID_POLL_SECONDS = 0.05
+
+# How long check 5b waits for the window app to quit while the Act is paused (SIGSTOP'd). A
+# paused Act could in rare cases be holding the Journal's write lock, and the app cannot quit
+# while the Journal is write-locked (measured on the Mac mini) — so if the app has not quit in
+# this long, resume the Act and retry rather than wait indefinitely.
+PAUSE_QUIT_TIMEOUT_SECONDS = 10.0
 
 
 def utc_now_iso():
@@ -83,87 +86,6 @@ def default_run(argv, env=None, timeout=None):
     signature instead."""
     result = subprocess.run(argv, capture_output=True, text=True, env=env, timeout=timeout)
     return result.returncode, result.stdout, result.stderr
-
-
-class JournalLockError(RuntimeError):
-    """Raised when the Journal's write lock could not be acquired."""
-
-
-class _Sqlite3JournalLock:
-    """Holds an `EXCLUSIVE` write lock on a Journal by driving a `sqlite3` subprocess
-    interactively: `BEGIN EXCLUSIVE` on entry, confirmed by reading back a sentinel row, and
-    `COMMIT` + `.quit` on exit. This is what makes check 5b's overlap certain instead of a
-    race — an Act that opens the same Journal blocks on this lock (up to the engine's 5s
-    busy timeout) instead of finishing before the app has had a chance to quit."""
-
-    def __init__(self, path, acquire_timeout=5.0, release_timeout=5.0):
-        self.path = str(path)
-        self.acquire_timeout = acquire_timeout
-        self.release_timeout = release_timeout
-        self._process = None
-
-    def __enter__(self):
-        self._process = subprocess.Popen(
-            ["sqlite3", self.path],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            text=True, bufsize=1,
-        )
-        try:
-            self._process.stdin.write("BEGIN EXCLUSIVE;\nSELECT 'locked';\n")
-            self._process.stdin.flush()
-            line = self._read_line(self.acquire_timeout)
-        except Exception as error:  # noqa: BLE001 - surfaced as JournalLockError below
-            self._kill()
-            raise JournalLockError(f"sqlite3 on {self.path} raised: {error}") from error
-        if line is None or "locked" not in line:
-            stderr = self._process.stderr.read() if self._process.stderr else ""
-            self._kill()
-            raise JournalLockError(
-                f"sqlite3 did not confirm the lock on {self.path}"
-                + (f": {stderr.strip()}" if stderr.strip() else "")
-            )
-        return self
-
-    def __exit__(self, exc_type, exc, tb):
-        try:
-            if self._process is not None and self._process.poll() is None:
-                self._process.stdin.write("COMMIT;\n.quit\n")
-                self._process.stdin.flush()
-                self._process.wait(timeout=self.release_timeout)
-        except Exception:  # noqa: BLE001 - the lock must never leak a process
-            pass
-        finally:
-            self._kill()
-        return False
-
-    def _read_line(self, timeout):
-        ready, _, _ = select.select([self._process.stdout], [], [], timeout)
-        if not ready:
-            return None
-        return self._process.stdout.readline()
-
-    def _kill(self):
-        if self._process is None:
-            return
-        try:
-            if self._process.poll() is None:
-                self._process.kill()
-                self._process.wait(timeout=1)
-        except Exception:  # noqa: BLE001 - best-effort cleanup
-            pass
-        finally:
-            for pipe in (self._process.stdin, self._process.stdout, self._process.stderr):
-                try:
-                    if pipe is not None:
-                        pipe.close()
-                except Exception:  # noqa: BLE001 - best-effort cleanup
-                    pass
-
-
-def default_journal_lock(path):
-    """The real Journal lock: tests inject a fake with the same `path -> context manager`
-    signature instead."""
-    return _Sqlite3JournalLock(path)
 
 
 def load_min_orca_version(repo_root=REPO_ROOT):
@@ -221,8 +143,8 @@ class Verifier:
         uid=None,
         user=None,
         min_orca_version=None,
-        journal_lock=None,
         clock=None,
+        signal=None,
     ):
         self.app_path = Path(os.path.realpath(str(app)))
         self.project = project
@@ -238,8 +160,10 @@ class Verifier:
         self.uid = uid if uid is not None else os.getuid()
         self.user = user or os.environ.get("USER", "")
         self.min_orca_version = min_orca_version or load_min_orca_version()
-        self.journal_lock = journal_lock or default_journal_lock
         self.clock = clock or time.monotonic
+        # `signal` here is the constructor parameter (a fake in tests), not the `signal` module —
+        # the module is still used unshadowed everywhere else (e.g. `signal.SIGSTOP`).
+        self.signal = signal or os.kill
 
         self.yh_path = self.app_path / "Contents" / "MacOS" / "yh"
         self.yh_realpath = os.path.realpath(str(self.yh_path))
@@ -294,10 +218,6 @@ class Verifier:
             f"pid={parsed.get('pid')} state={parsed.get('state')} "
             f"runs={parsed.get('runs')} last_exit_code={parsed.get('last_exit_code')}"
         )
-
-    def _journal_path(self):
-        """`~/.config/yellowhammer/journals/<project>.db` (spec G-3 / OQ52)."""
-        return self.home / ".config" / "yellowhammer" / "journals" / f"{self.project}.db"
 
     def _window_app_pid(self):
         code, out, err = self.run(["ps", "-axo", "pid=,args="])
@@ -625,90 +545,36 @@ class Verifier:
 
         return self._kickstart_and_wait(label, log, "5a", on_poll=on_poll)
 
-    def _run_5b_locked(self, label, log, locked_at):
-        """Runs while the Journal's write lock is held: kickstarts `label`, waits for its pid,
-        quits the window app, and waits for the app to exit. Bounded by
-        `JOURNAL_LOCK_HOLD_BUDGET_SECONDS` throughout, measured on `self.clock` from `locked_at`
-        rather than by counting sleeps: the `launchctl`, `ps` and `osascript` calls take real time
-        too, and the engine's busy timeout is wall-clock. Returns
-        `(status, reason, job_pid, before_runs)`; `status` is `"overlapped"` only
-        when the app quit and the Act's pid was still alive at that moment."""
-        before_code, before_out, _before_err = self._launchctl_print(label)
-        log.append(f"$ launchctl print gui/{self.uid}/{label} (5b baseline)\n{before_out}")
-        if before_code != 0:
-            return "fail", f"{label} not loaded before firing (exit {before_code})", None, None
-        before_runs = self._parse_launchctl(before_out).get("runs") or 0
-
-        kickstart_code = self._kickstart(label)
-        if kickstart_code != 0:
-            return (
-                "fail", f"launchctl kickstart gui/{self.uid}/{label} exited {kickstart_code}",
-                None, before_runs,
-            )
-
-        def held():
-            return self.clock() - locked_at
-
-        job_pid = None
+    def _wait_post_resume(self, label, log, before_runs, tag):
+        """After the Act is resumed (or was never paused), waits for it to finish and checks its
+        exit code. Returns `(status, reason)` with `status` `"pass"` or `"fail"` (never
+        `"retry"` — an Act that ran to completion is decisive either way)."""
         last_summary = None
-        while job_pid is None:
+        elapsed = 0.0
+        while elapsed <= self.act_timeout:
             code, out, _err = self._launchctl_print(label)
             parsed = self._parse_launchctl(out)
             summary = (parsed.get("pid"), parsed.get("state"), parsed.get("runs"))
             if summary != last_summary:
                 log.append(
-                    f"launchctl print gui/{self.uid}/{label} (5b waiting for pid, held={held():.1f}): "
+                    f"launchctl print gui/{self.uid}/{label} ({tag} t={elapsed}): "
                     f"{self._summarize(parsed)}"
                 )
                 last_summary = summary
-            job_pid = parsed.get("pid")
-            if job_pid is not None:
-                log.append(f"$ launchctl print gui/{self.uid}/{label} (5b pid found, held={held():.1f})\n{out}")
-                break
-            if held() >= JOURNAL_LOCK_HOLD_BUDGET_SECONDS:
-                return (
-                    "fail",
-                    f"{label} pid never appeared within the Journal lock's "
-                    f"{JOURNAL_LOCK_HOLD_BUDGET_SECONDS}s hold budget",
-                    None, before_runs,
-                )
+            if self._finished(parsed, before_runs):
+                log.append(f"$ launchctl print gui/{self.uid}/{label} ({tag} final, t={elapsed})\n{out}")
+                if parsed.get("last_exit_code") != 0:
+                    return "fail", f"{label} last exit code {parsed.get('last_exit_code')}"
+                return "pass", ""
             self.sleep(0.5)
+            elapsed += 0.5
+        return "fail", f"{label} did not finish within {self.act_timeout}s ({tag})"
 
-        code, out, err = self.run(["osascript", "-e", 'tell application id "dev.yellowhammer" to quit'])
-        log.append(f"$ osascript -e 'tell application id \"dev.yellowhammer\" to quit'\n{out}\n{err}")
-        if code != 0:
-            return (
-                "fail",
-                f"osascript exited {code} trying to quit the app; the calling app (e.g. Terminal) "
-                "probably lacks Automation permission to control Yellowhammer — grant it in "
-                "System Settings → Privacy & Security → Automation "
-                f"(stderr: {err.strip()})",
-                job_pid, before_runs,
-            )
-
-        while True:
-            if self._window_app_pid() is None:
-                try:
-                    os.kill(job_pid, 0)
-                    overlapped = True
-                except OSError:
-                    overlapped = False
-                if not overlapped:
-                    return (
-                        "retry",
-                        "the Act finished while the Journal was locked; inconclusive — it did "
-                        "not block on the Journal's write lock as expected",
-                        job_pid, before_runs,
-                    )
-                return "overlapped", "", job_pid, before_runs
-            if held() >= JOURNAL_LOCK_HOLD_BUDGET_SECONDS:
-                return (
-                    "retry",
-                    "the window app did not quit within the Journal lock's "
-                    f"{JOURNAL_LOCK_HOLD_BUDGET_SECONDS}s hold budget",
-                    job_pid, before_runs,
-                )
-            self.sleep(0.5)
+    def _process_state(self, pid):
+        """`ps` STAT for `pid` (`T` stopped, `Z` zombie, ...), or None when there is no such process."""
+        code, out, _err = self.run(["ps", "-o", "stat=", "-p", str(pid)])
+        state = (out or "").strip()
+        return state if code == 0 and state else None
 
     def _run_5b_once(self, label, log):
         # A previous attempt may have left the app still quitting; `open -a` on an app that is
@@ -732,58 +598,111 @@ class Verifier:
             self.sleep(0.5)
             elapsed += 0.5
 
-        journal_path = self._journal_path()
-        if not journal_path.is_file():
-            return "fail", (
-                f"the Journal {journal_path} does not exist; checks 3 and 5a fire an Act first "
-                "and should have created it"
-            )
+        before_code, before_out, _before_err = self._launchctl_print(label)
+        log.append(f"$ launchctl print gui/{self.uid}/{label} (5b baseline)\n{before_out}")
+        if before_code != 0:
+            return "fail", f"{label} not loaded before firing (exit {before_code})"
+        before_runs = self._parse_launchctl(before_out).get("runs") or 0
 
-        try:
-            lock = self.journal_lock(journal_path)
-        except JournalLockError as error:
-            return "fail", f"could not acquire the Journal lock: {error}"
+        kickstart_code = self._kickstart(label)
+        if kickstart_code != 0:
+            return "fail", f"launchctl kickstart gui/{self.uid}/{label} exited {kickstart_code}"
 
-        try:
-            with lock:
-                locked_at = self.clock()
-                log.append(f"journal lock acquired: {journal_path}")
-                try:
-                    status, reason, job_pid, before_runs = self._run_5b_locked(label, log, locked_at)
-                finally:
-                    log.append(f"journal lock released: {journal_path} (held {self.clock() - locked_at:.1f}s)")
-        except JournalLockError as error:
-            return "fail", f"could not acquire the Journal lock: {error}"
-
-        if status != "overlapped":
-            return status, reason
-
-        # Post-quit, outside the lock: the Act may have been blocked on the Journal for up to
-        # the lock's hold budget; it must now finish with exit code 0.
+        # Poll fast for a *running* pid — the Act lives well under a second. `xpcproxy` reports a
+        # pid too, but that pid is launchd's spawn trampoline, not yet yh (see `_fire_act_and_wait`).
+        job_pid = None
         last_summary = None
         elapsed = 0.0
         while elapsed <= self.act_timeout:
             code, out, _err = self._launchctl_print(label)
+            if code != 0:
+                return "fail", f"launchctl print gui/{self.uid}/{label} exited {code}"
             parsed = self._parse_launchctl(out)
             summary = (parsed.get("pid"), parsed.get("state"), parsed.get("runs"))
             if summary != last_summary:
                 log.append(
-                    f"launchctl print gui/{self.uid}/{label} (5b post-quit t={elapsed}): "
+                    f"launchctl print gui/{self.uid}/{label} (5b waiting for running pid, t={elapsed}): "
                     f"{self._summarize(parsed)}"
                 )
                 last_summary = summary
             if self._finished(parsed, before_runs):
-                log.append(f"$ launchctl print gui/{self.uid}/{label} (5b post-quit final, t={elapsed})\n{out}")
-                if parsed.get("last_exit_code") != 0:
-                    return "fail", f"{label} last exit code {parsed.get('last_exit_code')}"
-                return "pass", ""
-            self.sleep(0.5)
-            elapsed += 0.5
-        return "fail", f"{label} did not finish within {self.act_timeout}s after quitting"
+                log.append(f"$ launchctl print gui/{self.uid}/{label} (5b final, t={elapsed})\n{out}")
+                return "retry", "the Act finished before it could be paused; inconclusive"
+            if parsed.get("state") == "running" and parsed.get("pid") is not None:
+                job_pid = parsed["pid"]
+                log.append(f"$ launchctl print gui/{self.uid}/{label} (5b running pid found, t={elapsed})\n{out}")
+                break
+            self.sleep(PID_POLL_SECONDS)
+            elapsed += PID_POLL_SECONDS
+        if job_pid is None:
+            return "fail", (
+                f"{label} never reported a running pid or finished within {self.act_timeout}s"
+            )
+
+        # Pause the Act immediately, and always resume it before returning — a paused process
+        # left behind would wedge every later attempt (and the real Project's schedule).
+        try:
+            self.signal(job_pid, signal.SIGSTOP)
+        except ProcessLookupError:
+            return "retry", "the Act exited before it could be paused; inconclusive"
+        log.append(f"paused Act pid {job_pid}")
+        paused_at = self.clock()
+
+        try:
+            # A job that exited just before SIGSTOP is a zombie until launchd reaps it, and both
+            # SIGSTOP and kill(pid, 0) succeed on a zombie: require the Act to be really stopped.
+            state = None
+            for _ in range(20):
+                state = self._process_state(job_pid)
+                if state is None or state.startswith(("T", "Z")):
+                    break
+                self.sleep(PID_POLL_SECONDS)
+            log.append(f"ps state of Act pid {job_pid} after SIGSTOP: {state}")
+            if state is None or not state.startswith("T"):
+                return "retry", "the Act exited before it could be paused; inconclusive"
+
+            code, out, err = self.run(["osascript", "-e", 'tell application id "dev.yellowhammer" to quit'])
+            log.append(f"$ osascript -e 'tell application id \"dev.yellowhammer\" to quit'\n{out}\n{err}")
+            if code != 0:
+                return "fail", (
+                    f"osascript exited {code} trying to quit the app; the calling app (e.g. "
+                    "Terminal) probably lacks Automation permission to control Yellowhammer — "
+                    "grant it in System Settings → Privacy & Security → Automation "
+                    f"(stderr: {err.strip()})"
+                )
+
+            quit_elapsed = 0.0
+            while self._window_app_pid() is not None:
+                if quit_elapsed >= PAUSE_QUIT_TIMEOUT_SECONDS:
+                    return "retry", (
+                        "the window app did not quit within "
+                        f"{PAUSE_QUIT_TIMEOUT_SECONDS}s while the Act was paused"
+                    )
+                self.sleep(0.5)
+                quit_elapsed += 0.5
+
+            # The app is gone. The paused Act's pid must still be alive — a SIGSTOP'd process
+            # cannot exit on its own, so if it's gone, quitting the app killed it: exactly the
+            # defect this check exists to catch, and not a retryable inconclusive.
+            state = self._process_state(job_pid)
+            log.append(f"ps state of Act pid {job_pid} after the app quit: {state}")
+            if state is None or not state.startswith("T"):
+                return "fail", (
+                    f"the Act (pid {job_pid}) was gone after the window app quit, while paused — "
+                    f"quitting the app killed it (ps state {state})"
+                )
+        finally:
+            try:
+                self.signal(job_pid, signal.SIGCONT)
+            except ProcessLookupError:
+                pass
+            log.append(f"resumed Act pid {job_pid} (paused {self.clock() - paused_at:.1f}s)")
+
+        return self._wait_post_resume(label, log, before_runs, "5b post-quit")
 
     def _check_5b(self, log):
         label = self._label()
-        last_reason = "the Act finished while the Journal was locked; inconclusive"
+        last_reason = "the Act finished before it could be paused; inconclusive"
         for _attempt in range(3):
             status, reason = self._run_5b_once(label, log)
             if status == "pass":
