@@ -288,12 +288,23 @@ class VerifyInstalledTestCase(unittest.TestCase):
                 "state = waiting\nruns = 6\nlast exit code = 0\n",
             ]
         }
-        self.run.on(
-            starts_with("launchctl", "print"),
-            make_launchctl_print_handler(scripts, default=self.default_loaded_program_output()),
-        )
+        print_handler = make_launchctl_print_handler(scripts, default=self.default_loaded_program_output())
+        last_print = {"out": ""}
+
+        def recording_print_handler(argv):
+            response = print_handler(argv)
+            last_print["out"] = response[1]
+            return response
+
+        def ps_handler(_argv):
+            # Under `xpcproxy` the pid is launchd's spawn trampoline, which has not exec'd yh yet.
+            if "state = xpcproxy" in last_print["out"]:
+                return (0, "/usr/libexec/xpcproxy\n", "")
+            return (0, f"{self.yh_path}\n", "")
+
+        self.run.on(starts_with("launchctl", "print"), recording_print_handler)
         self.run.on(starts_with("launchctl", "kickstart"), (0, "", ""))
-        self.run.on(starts_with("ps", "-o", "comm="), (0, f"{self.yh_path}\n", ""))
+        self.run.on(starts_with("ps", "-o", "comm="), ps_handler)
         verifier = self.make_verifier()
         verifier.evidence_directory.mkdir(parents=True)
         passed, reason = verifier.check_launchd([])
