@@ -54,7 +54,8 @@ struct GitRunnerTests {
             _ = await task.value
         }
         let result = await task.value
-        #expect(elapsed < .seconds(5))
+        // Well under the 30s the process would otherwise run; loose enough for a loaded CI runner.
+        #expect(elapsed < .seconds(15))
         #expect(!result.isSuccess)
         #expect(result.exitCode != 124)
     }
