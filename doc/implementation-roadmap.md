@@ -1713,6 +1713,13 @@ comment on the Delta Read).
 - **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`; cheap alternative Gemini
   Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — The checklist is committed and used for the first release.
+- **Status** — `doc/release-checklist.md` is complete. It runs every gate it can before the tag,
+  because pushing the tag publishes the release. A dry run on 2026-09-26 against v0.1.1, which
+  shipped before the checklist, did **not** pass. Passed: 1.4 (spec 7a3ed29; P1.1 conflict 7 is
+  still open), 1.5 ("none cited" confirmed for a fix-only range), 3.1, 3.2 and 3.3. Failed: 1.1,
+  because CI on the tagged commit 955abc7 was cancelled. Not run: 1.2 and 1.3, which need the
+  release machine. So the first release that uses the checklist is the next tag. The scheduled
+  probe drift workflow cannot probe on a hosted runner (#199).
 
 ### [ ] P16.8 First production Night
 - **Work**
