@@ -100,10 +100,22 @@ jobs:
       - name: Resolve dependencies
         run: swift package --package-path Packages/YellowhammerKit resolve
 
+      # These suites spawn real process trees and assert wall-clock bounds (grace periods,
+      # prompt cancellation, sweeps). On the hosted runner's few cores, sharing the process
+      # with the other ~2000 parallel tests starves them 10-15 s past those bounds, so they
+      # run on their own, serially, after everything else.
       - name: Run tests
+        env:
+          PROCESS_SUITES: ProcessTreeTests|AgentCLIProcess|ProcessFencer|WorktreeCheckTests|TerminationSignalsTests
         run: |
           mkdir -p build/test-results
-          swift test --package-path Packages/YellowhammerKit --parallel --xunit-output build/test-results/tests.xml 2>&1 | tee build/test-results/test.log
+          swift test --package-path Packages/YellowhammerKit --parallel --skip "$PROCESS_SUITES" --xunit-output build/test-results/tests.xml 2>&1 | tee build/test-results/test.log
+
+      - name: Run process-timing tests
+        env:
+          PROCESS_SUITES: ProcessTreeTests|AgentCLIProcess|ProcessFencer|WorktreeCheckTests|TerminationSignalsTests
+        run: |
+          swift test --package-path Packages/YellowhammerKit --no-parallel --filter "$PROCESS_SUITES" --xunit-output build/test-results/process-tests.xml 2>&1 | tee build/test-results/process-test.log
 
       - name: Upload test results
         if: always()
