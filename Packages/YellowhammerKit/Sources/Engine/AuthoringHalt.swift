@@ -26,7 +26,9 @@ enum AuthoringHalt {
             nightID: context.night.id, act: context.act, runID: context.runID
         )
         if outcome.alreadyExpired { return .halted }
-        let reopenKey = outcome.newlyOpened ? "feature:\(feature.rawValue):authoring-halt:\(outcome.record.id):reenter" : nil
+        let reopenKey = outcome.newlyOpened
+            ? "feature:\(feature.rawValue):authoring-halt:\(outcome.record.id):reenter"
+            : nil
         try await AuthoringStopBoard.post(
             feature: feature, body: cause.description, context: context, reopenKey: reopenKey
         ) {
