@@ -3,7 +3,7 @@ import Foundation
 @testable import Repositories
 import Testing
 
-@Suite("Process fencing tests")
+@Suite("Process fencing tests", .timeLimit(.minutes(1)))
 struct ProcessFencerTests {
 
     @Test("A process with cwd inside the Worktree is a holder and is killed by fence")

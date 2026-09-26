@@ -6,7 +6,7 @@ import Testing
 
 /// Exercises the running snapshot (Normal-Exit Sweep Ruling) a normal-exit run captures for the
 /// attributed Worktree fence to consume (issue #175).
-@Suite("Agent CLI running snapshot")
+@Suite("Agent CLI running snapshot", .timeLimit(.minutes(1)))
 struct AgentCLIProcessRunningSnapshotTests {
     @Test("A normal exit's snapshot brackets its processes' start times and excludes the engine's own group/session")
     func normalExitSnapshotShape() async throws {

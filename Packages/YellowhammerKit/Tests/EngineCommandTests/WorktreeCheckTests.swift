@@ -8,7 +8,7 @@ import Testing
 // in a rehearsal Night, and a green here says nothing about any repository's Check: a fixture green is not a
 // green.
 
-@Suite("Worktree Check runner")
+@Suite("Worktree Check runner", .timeLimit(.minutes(1)))
 struct WorktreeCheckTests {
     private func makeDirectory() throws -> URL {
         let directory = FileManager.default.temporaryDirectory

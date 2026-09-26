@@ -5,7 +5,7 @@ import Testing
 
 /// Exercises ``ProcessTree`` directly, against real spawned processes — never the stub CLI
 /// fixtures, which live at a higher level (`AgentCLIProcessEscapeTests`).
-@Suite("ProcessTree")
+@Suite("ProcessTree", .timeLimit(.minutes(1)))
 struct ProcessTreeTests {
     /// A script whose top-level invocation forks a direct child (`child`), which itself forks a
     /// grandchild into a brand-new session (`setsid`) — the exact shape a CLI's tool subprocess

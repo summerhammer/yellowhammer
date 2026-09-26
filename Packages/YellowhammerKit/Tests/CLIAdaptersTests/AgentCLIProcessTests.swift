@@ -4,7 +4,7 @@ import Domain
 import Foundation
 import Testing
 
-@Suite("Agent CLI process lifecycle")
+@Suite("Agent CLI process lifecycle", .timeLimit(.minutes(1)))
 struct AgentCLIProcessTests {
 
     @Test("Clean exit with a valid result file completes")

@@ -8,7 +8,7 @@ import Testing
 /// commands routinely escape the CLI's process group (`setsid`, or a new group leader), and these
 /// scenarios prove the escaped tool is still contained — on timeout, on engine abort, and even
 /// when it is spawned only after the first SIGTERM has already gone out.
-@Suite("Agent CLI process escape containment")
+@Suite("Agent CLI process escape containment", .timeLimit(.minutes(1)))
 struct AgentCLIProcessEscapeTests {
     /// Polls (never sleeps a fixed duration) until `url` exists, or fails the test via `#require`.
     private static func awaitFile(_ url: URL, timeout: Duration = .seconds(2)) async throws {

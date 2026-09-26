@@ -8,7 +8,7 @@ import Testing
 /// background tool processes it started (claude's Bash tool `setsid`s; codex makes tools group
 /// leaders) are reparented to `launchd` at the leader's *exit* — not at its reap — so they can only
 /// ever be found by a snapshot taken while the leader was still alive.
-@Suite("Agent CLI normal-exit sweep")
+@Suite("Agent CLI normal-exit sweep", .timeLimit(.minutes(1)))
 struct AgentCLIProcessNormalExitSweepTests {
     /// Polls until `pid` is dead, up to 500 ms — a generous bound for a process that has already
     /// been signalled by the time this is called.

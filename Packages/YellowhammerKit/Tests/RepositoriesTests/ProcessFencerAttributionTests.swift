@@ -4,7 +4,7 @@ import Foundation
 @testable import Repositories
 import Testing
 
-@Suite("Attributed Worktree fence tests (Normal-Exit Sweep Ruling)")
+@Suite("Attributed Worktree fence tests (Normal-Exit Sweep Ruling)", .timeLimit(.minutes(1)))
 struct ProcessFencerAttributionTests {
 
     @Test("A holder whose pid and start time are in the snapshot is killed (rule 1)")

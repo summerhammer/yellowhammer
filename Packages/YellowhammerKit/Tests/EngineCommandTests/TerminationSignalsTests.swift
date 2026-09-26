@@ -20,7 +20,7 @@ import Testing
 // sends a signal), so a signal sent here could in principle land during another suite's narrow
 // install/restore window; not observed, and out of scope to engineer around (see the brief's Open
 // points in the report).
-@Suite("Termination signals", .serialized)
+@Suite("Termination signals", .serialized, .timeLimit(.minutes(1)))
 struct TerminationSignalsTests {
     // MARK: - Plumbing
 
