@@ -2,19 +2,9 @@ name: CI
 
 on:
   pull_request:
-    paths-ignore:
-      - 'doc/**'
-      - 'docs/**'
-      - '*.md'
-      - 'LICENSE'
   push:
     branches:
       - main
-    paths-ignore:
-      - 'doc/**'
-      - 'docs/**'
-      - '*.md'
-      - 'LICENSE'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -29,8 +19,49 @@ defaults:
     shell: bash
 
 jobs:
+  # Lint, Test and Build are required checks on main. A workflow skipped by `paths-ignore`
+  # never reports them, so a docs-only PR waits on them forever; a job skipped by `if:`
+  # reports "Skipped", which satisfies the ruleset. So the workflow always runs, and this
+  # job decides whether anything but documentation changed.
+  changes:
+    name: Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Filter out documentation-only changes
+        id: filter
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [[ -z "$BASE" || "$BASE" =~ ^0+$ ]] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "No usable base commit; running everything."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Same set the old `paths-ignore` skipped: doc/**, docs/**, root-level *.md, LICENSE.
+          code_files=$(git diff --name-only "$BASE...$HEAD" | grep -Ev '^(docs?/|[^/]+\.md$|LICENSE$)' || true)
+          if [[ -n "$code_files" ]]; then
+            echo "Non-documentation changes:"
+            echo "$code_files"
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Documentation-only change; Lint, Test and Build are skipped."
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
   lint:
     name: Lint
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -70,6 +101,8 @@ jobs:
 
   test:
     name: Test
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: macos-26
     timeout-minutes: 30
     env:
@@ -126,6 +159,8 @@ jobs:
 
   build:
     name: Build
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: macos-26
     timeout-minutes: 30
     env:
