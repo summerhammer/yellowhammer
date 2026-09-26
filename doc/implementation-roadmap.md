@@ -1699,8 +1699,11 @@ comment on the Delta Read).
   Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — The checklist is completed and recorded for the release.
 - **Status** — `scripts/release/verify_installed.py` and `doc/installed-product-verification.md`
-  shipped; the first recorded run is owed with v0.1.0 on a clean Mac holding the production
-  Linear identity, and is a release-checklist step.
+  shipped. First recorded run: **v0.1.1 green** on 2026-09-26, on a Mac mini M4 holding the
+  production Linear identity (tool at e356038), evidence attached to the v0.1.1 release as
+  `installed-verification-0.1.1.zip`. v0.1.0 failed it: its binaries shipped with coverage
+  instrumentation (check 2). Getting to green also fixed check 5b's overlap (#193, #195, #196) and
+  doctor's launchd reading (#194), and filed #197. Runs again for every release (P16.7).
 
 ### [ ] P16.7 Release checklist
 - **Work** — A written checklist run for every release: CI green; probe drift check (P7.5) green;
