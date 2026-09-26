@@ -34,13 +34,17 @@ extension RehearseActInvocation {
         let sortedByCard = resultFixtures.byCard.sorted {
             ($0.key.issueID, $0.key.pass.rawValue) < ($1.key.issueID, $1.key.pass.rawValue)
         }
-        return ["--project", project] + (force ? ["--force"] : []) + (rehearsal ? ["--rehearsal"] : [])
-            + (night.map { ["--night", $0.rawValue] } ?? [])
-            + resultFixtures.byPass.sorted { $0.key.rawValue < $1.key.rawValue }
-                .flatMap { ["--result-fixture", "\($0.key.rawValue)=\($0.value.rawValue)"] }
-            + sortedByCard.flatMap {
-                ["--result-fixture", "\($0.key.pass.rawValue)@\($0.key.issueID)=\($0.value.rawValue)"]
-            }
+        var arguments: [String] = ["--project", project]
+        if force { arguments.append("--force") }
+        if rehearsal { arguments.append("--rehearsal") }
+        if let night { arguments += ["--night", night.rawValue] }
+        for (pass, fixture) in resultFixtures.byPass.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
+            arguments += ["--result-fixture", "\(pass.rawValue)=\(fixture.rawValue)"]
+        }
+        for (key, fixture) in sortedByCard {
+            arguments += ["--result-fixture", "\(key.pass.rawValue)@\(key.issueID)=\(fixture.rawValue)"]
+        }
+        return arguments
     }
 }
 
