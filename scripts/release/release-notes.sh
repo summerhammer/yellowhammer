@@ -13,7 +13,7 @@ set -euo pipefail
 
 fail() { echo "error: $*" >&2; exit 1; }
 
-[ $# -ge 1 ] && [ $# -le 2 ] || fail "Usage: $0 <tag> [<previous-tag>]"
+if [ $# -lt 1 ] || [ $# -gt 2 ]; then fail "Usage: $0 <tag> [<previous-tag>]"; fi
 
 tag="$1"
 previous_tag="${2:-}"
