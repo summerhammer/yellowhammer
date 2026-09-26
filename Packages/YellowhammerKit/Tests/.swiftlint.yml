@@ -1,0 +1,11 @@
+# Test suites group many @Tests around shared fixtures; a long suite is not the
+# smell type_body_length and file_length guard against in production code.
+# Merged onto the root .swiftlint.yml. CI lints --strict, so the warning
+# threshold is the gate.
+type_body_length:
+  warning: 500
+  error: 800
+
+file_length:
+  warning: 800
+  error: 1200
