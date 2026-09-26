@@ -12,11 +12,11 @@ struct ProcessFencerAttributionTests {
         let worktree = try Self.makeTempDir(name: "rule1")
         defer { try? FileManager.default.removeItem(at: worktree) }
 
-        let process = try Self.launchSleep(currentDirectory: worktree)
-        defer { if process.isRunning { process.terminate() } }
+        let child = try Self.launchSleep(currentDirectory: worktree)
+        defer { child.terminateAndReap() }
         try await Task.sleep(for: .milliseconds(150))
 
-        let identity = try #require(ProcessIdentity.identity(of: process.processIdentifier))
+        let identity = try #require(ProcessIdentity.identity(of: child.pid))
         let snapshot = RunningSnapshot(
             dispatchedAt: ProcessStartTime(seconds: 0, microseconds: 0),
             processes: [
@@ -34,10 +34,10 @@ struct ProcessFencerAttributionTests {
             Issue.record("expected .quiescent, got \(outcome)")
             return
         }
-        #expect(killed.contains { $0.pid == process.processIdentifier })
+        #expect(killed.contains { $0.pid == child.pid })
 
-        process.waitUntilExit()
-        #expect(process.terminationStatus == SIGKILL)
+        let status = await child.waitForExit()
+        #expect(status == .signalled(SIGKILL))
     }
 
     @Test("Rule 2: a holder in a recorded group started after dispatch is killed; an unrecorded holder is left alive")
@@ -47,11 +47,11 @@ struct ProcessFencerAttributionTests {
 
         let dispatchedAt = Self.now()
         let grouped = try Self.launchGroupedSleep(currentDirectory: worktree)
-        defer { Self.cleanUp(grouped) }
+        defer { grouped.terminateAndReap() }
         try await Task.sleep(for: .milliseconds(150))
 
         let ungrouped = try Self.launchSleep(currentDirectory: worktree)
-        defer { if ungrouped.isRunning { ungrouped.terminate() } }
+        defer { ungrouped.terminateAndReap() }
         try await Task.sleep(for: .milliseconds(150))
 
         let groupedIdentity = try #require(ProcessIdentity.identity(of: grouped.pid))
@@ -67,12 +67,10 @@ struct ProcessFencerAttributionTests {
             return
         }
         #expect(killed.contains { $0.pid == grouped.pid })
-        #expect(unattributed.contains { $0.pid == ungrouped.processIdentifier })
-        #expect(!unattributed.first { $0.pid == ungrouped.processIdentifier }!.commandName.isEmpty)
+        #expect(unattributed.contains { $0.pid == ungrouped.pid })
+        #expect(!unattributed.first { $0.pid == ungrouped.pid }!.commandName.isEmpty)
 
         #expect(ungrouped.isRunning)
-        ungrouped.terminate()
-        ungrouped.waitUntilExit()
     }
 
     @Test("Rule 2 time guard: a holder in a recorded group but started before dispatch is not killed")
@@ -81,7 +79,7 @@ struct ProcessFencerAttributionTests {
         defer { try? FileManager.default.removeItem(at: worktree) }
 
         let grouped = try Self.launchGroupedSleep(currentDirectory: worktree)
-        defer { Self.cleanUp(grouped) }
+        defer { grouped.terminateAndReap() }
         try await Task.sleep(for: .milliseconds(150))
         let dispatchedAt = Self.now()
 
@@ -109,7 +107,7 @@ struct ProcessFencerAttributionTests {
         defer { try? FileManager.default.removeItem(at: worktree) }
 
         let shell = try Self.launchShellWithBackgroundChild(currentDirectory: worktree)
-        defer { Self.cleanUp(shell) }
+        defer { shell.terminateAndReap() }
         try await Task.sleep(for: .milliseconds(200))
 
         let shellIdentity = try #require(ProcessIdentity.identity(of: shell.pid))
@@ -168,81 +166,27 @@ struct ProcessFencerAttributionTests {
         return url
     }
 
-    private static func launchSleep(currentDirectory: URL, seconds: Int = 300) throws -> Process {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/sleep")
-        process.arguments = ["\(seconds)"]
-        process.currentDirectoryURL = currentDirectory
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        process.standardInput = FileHandle.nullDevice
-        try process.run()
-        return process
+    private static func launchSleep(currentDirectory: URL, seconds: Int = 300) throws -> SpawnedChild {
+        try SpawnedChild.spawn(
+            executable: "/bin/sleep", arguments: ["\(seconds)"], currentDirectory: currentDirectory
+        )
     }
 
-    /// A `sleep` spawned via `posix_spawn` with `POSIX_SPAWN_SETPGROUP`/`setpgroup(0)`, so it is
-    /// the leader of its own new process group — unlike `Process`, which shares the runner's group.
-    private struct GroupedProcess {
-        let pid: pid_t
-    }
-
-    private static func launchGroupedSleep(currentDirectory: URL, seconds: Int = 300) throws -> GroupedProcess {
-        var fileActions: posix_spawn_file_actions_t?
-        posix_spawn_file_actions_init(&fileActions)
-        defer { posix_spawn_file_actions_destroy(&fileActions) }
-        posix_spawn_file_actions_addchdir(&fileActions, currentDirectory.path)
-
-        var attr: posix_spawnattr_t?
-        posix_spawnattr_init(&attr)
-        defer { posix_spawnattr_destroy(&attr) }
-        posix_spawnattr_setflags(&attr, Int16(POSIX_SPAWN_SETPGROUP))
-        posix_spawnattr_setpgroup(&attr, 0)
-
-        let executable = "/bin/sleep"
-        var argv: [UnsafeMutablePointer<CChar>?] = [strdup(executable), strdup("\(seconds)"), nil]
-        defer { argv.forEach { free($0) } }
-        var envp: [UnsafeMutablePointer<CChar>?] = [nil]
-
-        var pid: pid_t = 0
-        let rc = posix_spawn(&pid, executable, &fileActions, &attr, &argv, &envp)
-        guard rc == 0 else { throw TestSetupError.spawnFailed(rc) }
-        return GroupedProcess(pid: pid)
+    /// A `sleep` spawned as the leader of its own new process group — unlike `Process`, which
+    /// shares the runner's group.
+    private static func launchGroupedSleep(currentDirectory: URL, seconds: Int = 300) throws -> SpawnedChild {
+        try SpawnedChild.spawn(
+            executable: "/bin/sleep", arguments: ["\(seconds)"], currentDirectory: currentDirectory,
+            newProcessGroup: true
+        )
     }
 
     /// `/bin/sh -c 'sleep 300 & wait'`, group-leadered, so the shell itself and its backgrounded
     /// `sleep` child both hold the Worktree by cwd, but only the shell is ever in the snapshot.
-    private static func launchShellWithBackgroundChild(currentDirectory: URL) throws -> GroupedProcess {
-        var fileActions: posix_spawn_file_actions_t?
-        posix_spawn_file_actions_init(&fileActions)
-        defer { posix_spawn_file_actions_destroy(&fileActions) }
-        posix_spawn_file_actions_addchdir(&fileActions, currentDirectory.path)
-
-        var attr: posix_spawnattr_t?
-        posix_spawnattr_init(&attr)
-        defer { posix_spawnattr_destroy(&attr) }
-        posix_spawnattr_setflags(&attr, Int16(POSIX_SPAWN_SETPGROUP))
-        posix_spawnattr_setpgroup(&attr, 0)
-
-        let executable = "/bin/sh"
-        var argv: [UnsafeMutablePointer<CChar>?] = [
-            strdup(executable), strdup("-c"), strdup("sleep 300 & wait"), nil
-        ]
-        defer { argv.forEach { free($0) } }
-        var envp: [UnsafeMutablePointer<CChar>?] = [nil]
-
-        var pid: pid_t = 0
-        let rc = posix_spawn(&pid, executable, &fileActions, &attr, &argv, &envp)
-        guard rc == 0 else { throw TestSetupError.spawnFailed(rc) }
-        return GroupedProcess(pid: pid)
-    }
-
-    private static func cleanUp(_ process: GroupedProcess) {
-        kill(-process.pid, SIGKILL)
-        var status: Int32 = 0
-        waitpid(process.pid, &status, 0)
-    }
-
-    private enum TestSetupError: Error {
-        case spawnFailed(Int32)
+    private static func launchShellWithBackgroundChild(currentDirectory: URL) throws -> SpawnedChild {
+        try SpawnedChild.spawn(
+            executable: "/bin/sh", arguments: ["-c", "sleep 300 & wait"], currentDirectory: currentDirectory,
+            newProcessGroup: true
+        )
     }
 }
