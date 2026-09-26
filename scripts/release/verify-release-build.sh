@@ -127,6 +127,21 @@ APP_EXECUTABLE_NAME=$(/usr/libexec/PlistBuddy -c "Print CFBundleExecutable" "$AP
 check_arm64_only "$APP_PATH/Contents/MacOS/$APP_EXECUTABLE_NAME" "app"
 check_arm64_only "$YH_PATH" "embedded yh"
 
+# --- No code-coverage instrumentation ---
+# The scheme Xcode generates builds with CLANG_COVERAGE_MAPPING=YES unless the build overrides it,
+# and an instrumented binary writes default.profraw into its working directory on every run.
+check_no_coverage() {
+	local path="$1" label="$2"
+	local symbols
+	symbols=$(nm "$path" 2>&1) || fail "nm failed for $label: $path"
+	[[ "$symbols" == *___llvm_profile_runtime* ]] \
+		&& fail "$label is built with code-coverage instrumentation; build with CLANG_COVERAGE_MAPPING=NO: $path"
+	return 0
+}
+
+check_no_coverage "$APP_PATH/Contents/MacOS/$APP_EXECUTABLE_NAME" "app"
+check_no_coverage "$YH_PATH" "embedded yh"
+
 # --- Deep verification, reusing the CI bundle check for the embed + strict verify ---
 "$SCRIPT_DIR/../ci/verify_app_bundle.sh" "$APP_PATH" \
 	|| fail "verify_app_bundle.sh failed for $APP_PATH"
