@@ -137,18 +137,25 @@ jobs:
       # prompt cancellation, sweeps). On the hosted runner's few cores, sharing the process
       # with the other ~2000 parallel tests starves them 10-15 s past those bounds, so they
       # run on their own, serially, after everything else.
+      #
+      # Both steps run `swift test` under `script`, a pseudo-terminal: through a plain pipe its
+      # output is block-buffered and only lands when the process exits, so a hung run left an
+      # empty log and never named the test it hung in. Each step has its own timeout, well
+      # above its usual time (~3 min and ~40 s), so a hang fails in minutes, not at the job's 30.
       - name: Run tests
+        timeout-minutes: 12
         env:
           PROCESS_SUITES: ProcessTreeTests|AgentCLIProcess|ProcessFencer|WorktreeCheckTests|TerminationSignalsTests
         run: |
           mkdir -p build/test-results
-          swift test --package-path Packages/YellowhammerKit --parallel --skip "$PROCESS_SUITES" --xunit-output build/test-results/tests.xml 2>&1 | tee build/test-results/test.log
+          script -q /dev/null swift test --package-path Packages/YellowhammerKit --parallel --skip "$PROCESS_SUITES" --xunit-output build/test-results/tests.xml </dev/null 2>&1 | tee build/test-results/test.log
 
       - name: Run process-timing tests
+        timeout-minutes: 5
         env:
           PROCESS_SUITES: ProcessTreeTests|AgentCLIProcess|ProcessFencer|WorktreeCheckTests|TerminationSignalsTests
         run: |
-          swift test --package-path Packages/YellowhammerKit --no-parallel --filter "$PROCESS_SUITES" --xunit-output build/test-results/process-tests.xml 2>&1 | tee build/test-results/process-test.log
+          script -q /dev/null swift test --package-path Packages/YellowhammerKit --no-parallel --filter "$PROCESS_SUITES" --xunit-output build/test-results/process-tests.xml </dev/null 2>&1 | tee build/test-results/process-test.log
 
       - name: Upload test results
         if: always()
