@@ -68,13 +68,17 @@ struct LaunchctlLaunchAgentControl: LaunchAgentControl {
         (try? await run(["print", "gui/\(uid)/\(label)"])) != nil
     }
 
+    /// `launchctl print` for a job that has run grows well past 4 KiB, and Subprocess throws when
+    /// output exceeds its limit, which `isLoaded` and `jobInfo` would read as "not loaded".
+    static let outputLimit = 1024 * 1024
+
     @discardableResult
     private func run(_ arguments: [String]) async throws -> String {
         let result: ExecutionResult<Void, StringOutput<UTF8>, CombinedErrorOutput>
         do {
             result = try await Subprocess.run(
                 .path(FilePath(launchctlPath)), arguments: Arguments(arguments),
-                output: .string(limit: 4096), error: .combinedWithOutput
+                output: .string(limit: Self.outputLimit), error: .combinedWithOutput
             )
         } catch {
             throw LaunchctlError(description: "launchctl \(arguments.joined(separator: " ")): \(error)")
