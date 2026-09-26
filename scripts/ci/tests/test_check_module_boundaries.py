@@ -466,9 +466,12 @@ class TestMB3RealPbxproj(unittest.TestCase):
 
         # Find the Yellowhammer app target's packageProductDependencies and add EngineCommand
         # Simple string replacement - add EngineCommand before the closing paren
+        # Anchor on the app's Domain entry, not the whole list, so products added later do not break it
+        anchor = 'packageProductDependencies = (\n\t\t\t\t5083DD58305674F500E6D6D3 /* Domain */,\n'
+        self.assertEqual(content.count(anchor), 1, "App target's Domain dependency not found in pbxproj")
         modified = content.replace(
-            'packageProductDependencies = (\n\t\t\t\t5083DD58305674F500E6D6D3 /* Domain */,\n\t\t\t);',
-            'packageProductDependencies = (\n\t\t\t\t5083DD58305674F500E6D6D3 /* Domain */,\n\t\t\t\t5083DD5A305674F500E6D6D3 /* EngineCommand */,\n\t\t\t);'
+            anchor,
+            anchor + '\t\t\t\t5083DD5A305674F500E6D6D3 /* EngineCommand */,\n'
         )
 
         with open(pbxproj_dest, 'w') as f:
