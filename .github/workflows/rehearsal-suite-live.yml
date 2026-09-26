@@ -11,6 +11,12 @@ name: Rehearsal suite (live)
 #
 # and drop the manual step in doc/release-checklist.md in favour of this workflow's own
 # `release_gate.py check` (see the Job below), which already fails the job on a failed scenario.
+#
+# SECURITY WARNING: This workflow runs on a self-hosted runner (`runs-on: [self-hosted, ...]`).
+# Because this repository is public, NEVER add a `pull_request` or `pull_request_target` trigger
+# to this file. Running arbitrary code from untrusted forks on a self-hosted runner allows remote
+# code execution on the host machine. Triggers must remain restricted to `workflow_dispatch` or
+# controlled `schedule` runs.
 
 on:
   workflow_dispatch:
