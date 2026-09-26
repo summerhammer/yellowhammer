@@ -46,6 +46,13 @@ variable `SPARKLE_PUBLIC_ED_KEY` and secret `SPARKLE_ED_PRIVATE_KEY` are set —
 [doc/update-channel.md](update-channel.md). `scripts/release/verify-release-build.sh` fails the
 release job if the public key is empty or missing from the built app.
 
+### Known install-on-quit window (P16.5 / #188)
+
+Sparkle gates the update download against live Leases, but once downloaded, Sparkle installs on
+app quit without a second Lease check. Checks are manual and infrequent; operators who initiate a
+check should install immediately rather than leaving an update staged across later scheduled
+Acts. See [doc/update-channel.md](update-channel.md#known-unclosed-gap-a-lease-claimed-after-the-check-is-not-caught).
+
 ## Installed-product verification (P16.6)
 
 Required. Run on a clean Apple Silicon Mac with the published release artifact, following
