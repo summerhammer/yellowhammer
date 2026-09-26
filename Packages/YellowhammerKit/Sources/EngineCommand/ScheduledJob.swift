@@ -37,12 +37,15 @@ extension ScheduledJob {
     ///
     /// Carries `Label`, `ProgramArguments`, `StartCalendarInterval` (one `{Hour, Minute}` dictionary per
     /// firing) and `EnvironmentVariables` (`PATH` only), plus `StandardOutPath`/`StandardErrorPath`.
+    /// `AssociatedBundleIdentifiers` names the app, so Login Items lists the job under Yellowhammer
+    /// rather than under the signing team's name.
     /// Deliberately omits `RunAtLoad`, `KeepAlive` and `ProcessType`: this is a scheduled one-shot, and
     /// `ProcessType Background` would throttle the agent CLI it dispatches.
     func plistData(homeDirectory: String) throws -> Data {
         let log = logPath(homeDirectory: homeDirectory)
         let plist: [String: Any] = [
             "Label": label,
+            "AssociatedBundleIdentifiers": ["dev.yellowhammer"],
             "ProgramArguments": [yhExecutablePath, act.rawValue, "--project", projectID.rawValue],
             "StartCalendarInterval": firings.map { ["Hour": $0.hour, "Minute": $0.minute] },
             "EnvironmentVariables": ["PATH": pathValue],
