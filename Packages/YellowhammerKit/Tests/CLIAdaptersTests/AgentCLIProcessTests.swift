@@ -183,6 +183,10 @@ struct AgentCLIProcessTests {
 
         let childFile = fixture.scratch.appendingPathComponent("child")
         if let childPID = StubAgentCLI.readPID(at: childFile) {
+            // SIGKILLed, but it stays a zombie until launchd reaps it; poll, as the other tests do.
+            for _ in 0..<100 where !StubAgentCLI.isDead(childPID) {
+                try await Task.sleep(for: .milliseconds(20))
+            }
             #expect(StubAgentCLI.isDead(childPID))
         }
     }
