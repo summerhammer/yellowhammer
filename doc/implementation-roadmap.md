@@ -1718,7 +1718,7 @@ comment on the Delta Read).
   shipped before the checklist, did **not** pass. Passed: 1.4 (spec 7a3ed29; P1.1 conflict 7 is
   still open), 1.5 ("none cited" confirmed for a fix-only range), 3.1, 3.2 and 3.3. Failed: 1.1,
   because CI on the tagged commit 955abc7 was cancelled. Not run: 1.2 and 1.3, which need the
-  release machine. So the first release that uses the checklist is the next tag. The scheduled
+  release machine, so 3.4 is partial (no rehearsal evidence is attached). So the first release that uses the checklist is the next tag. The scheduled
   probe drift workflow cannot probe on a hosted runner (#199).
 
 ### [ ] P16.8 First production Night
