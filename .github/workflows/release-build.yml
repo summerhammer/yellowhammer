@@ -87,6 +87,9 @@ jobs:
             SPARKLE_PUBLIC_ED_KEY="$SPARKLE_PUBLIC_ED_KEY" \
             build | tee build/xcodebuild.log
 
+      - name: Sign embedded Sparkle helpers
+        run: scripts/release/sign-sparkle.sh build/DerivedData/Build/Products/Release/Yellowhammer.app
+
       - name: Verify release build
         run: |
           scripts/release/verify-release-build.sh \

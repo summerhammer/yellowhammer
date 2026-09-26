@@ -12,7 +12,7 @@
 # named by NOTARY_PROFILE (default: yellowhammer-notary).
 #
 # Environment:
-#   SIGNING_IDENTITY       codesign identity for the DMG (default: "Developer ID Application")
+#   SIGNING_IDENTITY       codesign identity for the DMG (default: "Developer ID Application: SUMMER HAMMER LLC (A2SJL2N487)")
 #   KEYCHAIN_PATH           optional; passed to codesign as --keychain
 #   NOTARY_API_KEY_PATH     path to the .p8 API key (CI only; triggers --key auth)
 #   NOTARY_API_KEY_ID       key ID of that API key (required with NOTARY_API_KEY_PATH)
@@ -54,7 +54,7 @@ else
 	notary_auth=(--keychain-profile "${NOTARY_PROFILE:-yellowhammer-notary}")
 fi
 
-signing_identity="${SIGNING_IDENTITY:-Developer ID Application}"
+signing_identity="${SIGNING_IDENTITY:-Developer ID Application: SUMMER HAMMER LLC (A2SJL2N487)}"
 codesign_args=(--force --sign "$signing_identity" --timestamp)
 if [ -n "${KEYCHAIN_PATH:-}" ]; then
 	codesign_args+=(--keychain "$KEYCHAIN_PATH")

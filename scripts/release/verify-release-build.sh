@@ -90,6 +90,16 @@ check_signature() {
 check_signature "$APP_PATH" "dev.yellowhammer" "app"
 check_signature "$YH_PATH" "dev.yellowhammer.engine" "embedded yh"
 
+# Sparkle's nested helpers ship ad-hoc signed; scripts/release/sign-sparkle.sh re-signs them.
+SPARKLE_PATH="$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B"
+for helper in Autoupdate Updater.app XPCServices/Downloader.xpc XPCServices/Installer.xpc; do
+	helper_info=$(codesign -dvv "$SPARKLE_PATH/$helper" 2>&1) || fail "codesign -dvv failed for Sparkle $helper"
+	echo "$helper_info" | grep -q '^Authority=Developer ID Application:' \
+		|| fail "Sparkle $helper is not Developer ID signed; run scripts/release/sign-sparkle.sh"
+	echo "$helper_info" | grep -q '^Timestamp=' \
+		|| fail "Sparkle $helper has no secure timestamp; run scripts/release/sign-sparkle.sh"
+done
+
 # --- No get-task-allow entitlement ---
 check_no_get_task_allow() {
 	local path="$1" label="$2"

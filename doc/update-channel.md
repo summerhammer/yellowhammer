@@ -74,10 +74,10 @@ close it.
    paste the key itself into a shell command or leave it in shell history:
 
    ```sh
-   key_file="$(mktemp)"
+   key_dir="$(mktemp -d)"; key_file="$key_dir/sparkle-private-key"
    build/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_keys -x "$key_file"
    gh secret set SPARKLE_ED_PRIVATE_KEY --repo summerhammer/yellowhammer < "$key_file"
-   rm -f "$key_file"
+   rm -rf "$key_dir"
    ```
 
 3. Set the public key as a repository **variable** (not a secret — it ships inside the app and
