@@ -11,13 +11,13 @@ struct ProcessFencerTests {
         let worktree = try Self.makeTempDir(name: "cwd-holder-1")
         defer { try? FileManager.default.removeItem(at: worktree) }
 
-        let process = try Self.launchSleep(currentDirectory: worktree)
-        defer { if process.isRunning { process.terminate() } }
+        let child = try Self.launchSleep(currentDirectory: worktree)
+        defer { child.terminateAndReap() }
         try await Task.sleep(for: .milliseconds(150))
 
         let fencer = ProcessFencer()
         let found = fencer.holders(of: worktree.path)
-        let holder = try #require(found.first { $0.pid == process.processIdentifier })
+        let holder = try #require(found.first { $0.pid == child.pid })
         guard case .workingDirectory = holder.reason else {
             Issue.record("expected .workingDirectory, got \(holder.reason)")
             return
@@ -28,11 +28,10 @@ struct ProcessFencerTests {
             Issue.record("expected .quiescent, got \(outcome)")
             return
         }
-        #expect(killed.contains { $0.pid == process.processIdentifier })
+        #expect(killed.contains { $0.pid == child.pid })
 
-        process.waitUntilExit()
-        #expect(process.terminationReason == .uncaughtSignal)
-        #expect(process.terminationStatus == SIGKILL)
+        let status = await child.waitForExit()
+        #expect(status == .signalled(SIGKILL))
 
         #expect(fencer.holders(of: worktree.path).isEmpty)
     }
@@ -42,8 +41,8 @@ struct ProcessFencerTests {
         let worktree = try Self.makeTempDir(name: "cancelled-fence")
         defer { try? FileManager.default.removeItem(at: worktree) }
 
-        let process = try Self.launchSleep(currentDirectory: worktree)
-        defer { if process.isRunning { process.terminate() } }
+        let child = try Self.launchSleep(currentDirectory: worktree)
+        defer { child.terminateAndReap() }
         try await Task.sleep(for: .milliseconds(150))
 
         let sweeps = SweepCounter()
@@ -76,13 +75,13 @@ struct ProcessFencerTests {
         #expect(FileManager.default.createFile(atPath: watchedFile.path, contents: Data()))
         let resolvedFile = Self.realResolve(watchedFile.path)
 
-        let process = try Self.launchTailF(file: watchedFile, currentDirectory: FileManager.default.temporaryDirectory)
-        defer { if process.isRunning { process.terminate() } }
+        let child = try Self.launchTailF(file: watchedFile, currentDirectory: FileManager.default.temporaryDirectory)
+        defer { child.terminateAndReap() }
         try await Task.sleep(for: .milliseconds(150))
 
         let fencer = ProcessFencer()
         let found = fencer.holders(of: worktree.path)
-        let holder = try #require(found.first { $0.pid == process.processIdentifier })
+        let holder = try #require(found.first { $0.pid == child.pid })
         guard case .openFile(let path) = holder.reason else {
             Issue.record("expected .openFile, got \(holder.reason)")
             return
@@ -94,11 +93,10 @@ struct ProcessFencerTests {
             Issue.record("expected .quiescent, got \(outcome)")
             return
         }
-        #expect(killed.contains { $0.pid == process.processIdentifier })
+        #expect(killed.contains { $0.pid == child.pid })
 
-        process.waitUntilExit()
-        #expect(process.terminationReason == .uncaughtSignal)
-        #expect(process.terminationStatus == SIGKILL)
+        let status = await child.waitForExit()
+        #expect(status == .signalled(SIGKILL))
 
         #expect(fencer.holders(of: worktree.path).isEmpty)
     }
@@ -111,19 +109,14 @@ struct ProcessFencerTests {
         try FileManager.default.createDirectory(at: sibling, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: sibling) }
 
-        let process = try Self.launchSleep(currentDirectory: sibling)
-        defer {
-            if process.isRunning {
-                process.terminate()
-                process.waitUntilExit()
-            }
-        }
+        let child = try Self.launchSleep(currentDirectory: sibling)
+        defer { child.terminateAndReap() }
         try await Task.sleep(for: .milliseconds(150))
 
         let fencer = ProcessFencer()
         let found = fencer.holders(of: worktree.path)
-        #expect(found.contains { $0.pid == process.processIdentifier } == false)
-        #expect(process.isRunning)
+        #expect(found.contains { $0.pid == child.pid } == false)
+        #expect(child.isRunning)
     }
 
     @Test("fence on a clean Worktree returns .quiescent immediately with nothing killed")
@@ -168,8 +161,8 @@ struct ProcessFencerTests {
         let worktree = try Self.makeTempDir(name: "quiescence-6")
         defer { try? FileManager.default.removeItem(at: worktree) }
 
-        let process = try Self.launchSleep(currentDirectory: worktree)
-        defer { if process.isRunning { process.terminate() } }
+        let child = try Self.launchSleep(currentDirectory: worktree)
+        defer { child.terminateAndReap() }
         try await Task.sleep(for: .milliseconds(150))
 
         let fencer = ProcessFencer(pollInterval: .milliseconds(50), quiescenceTimeout: .seconds(2))
@@ -181,8 +174,8 @@ struct ProcessFencerTests {
         }
         #expect(fencer.holders(of: worktree.path).isEmpty)
 
-        process.waitUntilExit()
-        #expect(process.terminationReason == .uncaughtSignal)
+        let status = await child.waitForExit()
+        #expect(status == .signalled(SIGKILL))
     }
 
     // MARK: - Fixtures
@@ -200,28 +193,16 @@ struct ProcessFencerTests {
         return String(cString: resolved)
     }
 
-    private static func launchSleep(currentDirectory: URL, seconds: Int = 300) throws -> Process {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/sleep")
-        process.arguments = ["\(seconds)"]
-        process.currentDirectoryURL = currentDirectory
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        process.standardInput = FileHandle.nullDevice
-        try process.run()
-        return process
+    private static func launchSleep(currentDirectory: URL, seconds: Int = 300) throws -> SpawnedChild {
+        try SpawnedChild.spawn(
+            executable: "/bin/sleep", arguments: ["\(seconds)"], currentDirectory: currentDirectory
+        )
     }
 
-    private static func launchTailF(file: URL, currentDirectory: URL) throws -> Process {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/tail")
-        process.arguments = ["-f", file.path]
-        process.currentDirectoryURL = currentDirectory
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        process.standardInput = FileHandle.nullDevice
-        try process.run()
-        return process
+    private static func launchTailF(file: URL, currentDirectory: URL) throws -> SpawnedChild {
+        try SpawnedChild.spawn(
+            executable: "/usr/bin/tail", arguments: ["-f", file.path], currentDirectory: currentDirectory
+        )
     }
 }
 
