@@ -85,6 +85,7 @@ jobs:
             CURRENT_PROJECT_VERSION="$CURRENT_PROJECT_VERSION" \
             OTHER_CODE_SIGN_FLAGS="--timestamp --keychain $KEYCHAIN_PATH" \
             SPARKLE_PUBLIC_ED_KEY="$SPARKLE_PUBLIC_ED_KEY" \
+            CLANG_COVERAGE_MAPPING=NO \
             build | tee build/xcodebuild.log
 
       - name: Sign embedded Sparkle helpers
