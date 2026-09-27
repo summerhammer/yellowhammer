@@ -10,24 +10,28 @@ on:
   pull_request:
     paths:
       - 'scripts/release/**'
+      - 'scripts/ci/check_conventional_commits.py'
       - 'scripts/ci/tests/test_release_version.py'
       - 'scripts/ci/tests/test_notarize.py'
       - 'scripts/ci/tests/test_package_dmg.py'
       - 'scripts/ci/tests/test_release_notes.py'
       - 'scripts/ci/tests/test_appcast.py'
       - 'scripts/ci/tests/test_verify_installed.py'
+      - 'scripts/ci/tests/test_check_conventional_commits.py'
       - '.github/workflows/release-scripts.yml'
   push:
     branches:
       - main
     paths:
       - 'scripts/release/**'
+      - 'scripts/ci/check_conventional_commits.py'
       - 'scripts/ci/tests/test_release_version.py'
       - 'scripts/ci/tests/test_notarize.py'
       - 'scripts/ci/tests/test_package_dmg.py'
       - 'scripts/ci/tests/test_release_notes.py'
       - 'scripts/ci/tests/test_appcast.py'
       - 'scripts/ci/tests/test_verify_installed.py'
+      - 'scripts/ci/tests/test_check_conventional_commits.py'
       - '.github/workflows/release-scripts.yml'
 
 permissions:
@@ -54,6 +58,7 @@ jobs:
           python3 -m unittest discover -s scripts/ci/tests -p 'test_release_notes.py' -v
           python3 -m unittest discover -s scripts/ci/tests -p 'test_appcast.py' -v
           python3 -m unittest discover -s scripts/ci/tests -p 'test_verify_installed.py' -v
+          python3 -m unittest discover -s scripts/ci/tests -p 'test_check_conventional_commits.py' -v
 
       - name: Shellcheck release scripts
         run: shellcheck scripts/release/*.sh
