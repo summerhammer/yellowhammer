@@ -60,10 +60,6 @@ def _load_module(name, path):
 scratch_linear = _load_module("scratch_linear", SCRIPTS_DIR / "scratch-linear" / "scratch_linear.py")
 
 
-class _NoOverrideArgs:
-    client_id = None
-
-
 # MARK: - git
 
 
@@ -181,10 +177,16 @@ def collect_night_cards(groups):
     return entries
 
 
-def build_linear_client(configuration_directory, transport=None, secret_reader=None):
+class _NoOverrideArgs:
+    yh = None
+
+
+def build_linear_client(configuration_directory, transport=None, keychain_reader=None):
     transport = transport or scratch_linear.HTTPTransport()
-    secret_reader = secret_reader or scratch_linear.keychain_secret
-    return scratch_linear.build_client(configuration_directory, _NoOverrideArgs(), transport, secret_reader)
+    keychain_reader = keychain_reader or scratch_linear.keychain_token_pair
+    return scratch_linear.build_client(
+        configuration_directory, _NoOverrideArgs(), transport, keychain_reader=keychain_reader
+    )
 
 
 def resolve_night_card_links(issue_ids, configuration_directory=None, transport=None):

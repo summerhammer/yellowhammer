@@ -4,12 +4,20 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import release_gate  # noqa: E402
+
+#: A fresh Installation token pair (P17.8): the Keychain's own JSON shape.
+FRESH_PAIR = {
+    "access_token": "token",
+    "refresh_token": "refresh",
+    "expires_at": (datetime.now(timezone.utc) + timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+}
 
 
 def make_summary_lines(results):
@@ -41,14 +49,11 @@ class FakeProcess:
 
 
 class FakeTransport:
-    """Answers the token POST and every GraphQL POST with a fixed url per issue id."""
+    """Answers every GraphQL POST with a fixed url per issue id."""
 
     def __init__(self, urls=None, fail_ids=frozenset()):
         self.urls = urls or {}
         self.fail_ids = fail_ids
-
-    def post_form(self, url, fields):
-        return 200, json.dumps({"access_token": "token"})
 
     def post_json(self, url, payload, headers=None):
         variables = payload.get("variables", {})
@@ -109,10 +114,10 @@ class NightCardLinkTests(unittest.TestCase):
         transport = FakeTransport(fail_ids={"issue-2"})
         with tempfile.TemporaryDirectory() as configuration_directory:
             configuration_directory = Path(configuration_directory)
-            (configuration_directory / "config.toml").write_text(
-                '[linear]\nclient_id = "client"\ncredential = "keychain:linear"\n'
-            )
-            with mock.patch.object(release_gate.scratch_linear, "keychain_secret", return_value="secret"):
+            (configuration_directory / "config.toml").write_text('[linear]\ncredential = "keychain:linear"\n')
+            with mock.patch.object(
+                release_gate.scratch_linear, "keychain_token_pair", return_value=FRESH_PAIR
+            ):
                 links = release_gate.resolve_night_card_links(
                     ["issue-1", "issue-2"], configuration_directory=configuration_directory,
                     transport=transport,
@@ -123,10 +128,8 @@ class NightCardLinkTests(unittest.TestCase):
     def test_no_credential_falls_back_every_issue_to_its_bare_id(self):
         with tempfile.TemporaryDirectory() as configuration_directory:
             configuration_directory = Path(configuration_directory)  # no config.toml at all
-            with mock.patch.object(
-                release_gate.scratch_linear, "keychain_secret",
-                side_effect=release_gate.scratch_linear.SetupFailed("no credential"),
-            ):
+            with mock.patch.object(release_gate.scratch_linear, "keychain_token_pair", return_value=None), \
+                 mock.patch.object(release_gate.scratch_linear, "resolve_yh_path", return_value=Path("/usr/bin/true")):
                 links = release_gate.resolve_night_card_links(
                     ["issue-1"], configuration_directory=configuration_directory, transport=FakeTransport(),
                 )

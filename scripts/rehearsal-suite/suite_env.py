@@ -969,10 +969,6 @@ def write_scenario_project_file(
 # MARK: - Preflight
 
 
-class _NoOverrideArgs:
-    client_id = None
-
-
 #: How long preflight waits for an Act lease a dead run left behind: one ten-minute TTL, plus margin.
 DEAD_RUN_LEASE_WAIT_SECONDS = 660.0
 DEAD_RUN_LEASE_POLL_SECONDS = 15.0
@@ -988,12 +984,13 @@ def resolve_app_client(env):
     `env.app_client`, `env.team_id` and `env.linear`. Shared by `preflight` and `teardown_preflight`."""
     machine = scratch_linear.load_machine_config(env.configuration_directory)
     try:
-        client_id = scratch_linear.resolve_client_id(_NoOverrideArgs(), machine)
-        account = scratch_linear.parse_credential_reference(machine.credential)
-        secret = scratch_linear.keychain_secret(account)
+        token = scratch_linear.resolve_access_token(
+            env.configuration_directory, machine, lambda: env.yh_executable,
+            keychain_reader=scratch_linear.keychain_token_pair,
+        )
     except scratch_linear.SetupFailed as error:
         raise SetupFailed(str(error)) from error
-    app_client = scratch_linear.LinearClient(env.transport, client_id, secret)
+    app_client = scratch_linear.LinearClient(env.transport, token)
     try:
         team = scratch_linear.find_team(app_client, env.team)
     except scratch_linear.LinearError as error:

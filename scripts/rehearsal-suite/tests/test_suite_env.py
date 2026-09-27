@@ -5,13 +5,21 @@ import sys
 import tempfile
 import tomllib
 import unittest
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import suite_env  # noqa: E402
+
+#: A fresh Installation token pair (P17.8): `resolve_app_client` reads this through
+#: `scratch_linear.keychain_token_pair`, never a plain secret.
+FRESH_APP_PAIR = {
+    "access_token": "app-token",
+    "refresh_token": "app-refresh",
+    "expires_at": (datetime.now(timezone.utc) + timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+}
 
 
 # MARK: - Project TOML rendering
@@ -334,7 +342,7 @@ class ReadOperatorIdentityTests(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         config_dir = Path(tmp.name)
-        (config_dir / "config.toml").write_text('[linear]\nclient_id = "cid"\n')
+        (config_dir / "config.toml").write_text('[linear]\ncredential = "keychain:linear"\n')
         self.assertIsNone(suite_env.read_operator_identity(config_dir))
 
 
@@ -716,11 +724,11 @@ class PreflightOrderingTests(unittest.TestCase):
 
     def test_team_not_found_fails(self):
         self._make_yh_executable()
-        (self.configuration_directory / "config.toml").write_text('[linear]\nclient_id = "cid"\n')
+        (self.configuration_directory / "config.toml").write_text('[linear]\ncredential = "keychain:linear"\n')
         git_result = mock.Mock(returncode=0, stdout="git version 2.40.0\n")
         with mock.patch.object(suite_env, "orca_status_ready", return_value=True), \
              mock.patch.object(suite_env.subprocess, "run", return_value=git_result), \
-             mock.patch.object(suite_env.scratch_linear, "keychain_secret", return_value="secret"), \
+             mock.patch.object(suite_env.scratch_linear, "keychain_token_pair", return_value=FRESH_APP_PAIR), \
              mock.patch.object(suite_env.scratch_linear, "find_team", return_value=None):
             with self.assertRaises(suite_env.SetupFailed) as ctx:
                 suite_env.preflight(self.env, set())
@@ -728,25 +736,27 @@ class PreflightOrderingTests(unittest.TestCase):
 
     def test_operator_credential_only_checked_when_needed(self):
         self._make_yh_executable()
-        (self.configuration_directory / "config.toml").write_text('[linear]\nclient_id = "cid"\n')
+        (self.configuration_directory / "config.toml").write_text('[linear]\ncredential = "keychain:linear"\n')
         git_result = mock.Mock(returncode=0, stdout="git version 2.40.0\n")
         with mock.patch.object(suite_env, "orca_status_ready", return_value=True), \
              mock.patch.object(suite_env.subprocess, "run", return_value=git_result), \
-             mock.patch.object(suite_env.scratch_linear, "keychain_secret", return_value="secret") as secret_mock, \
+             mock.patch.object(suite_env.scratch_linear, "keychain_token_pair", return_value=FRESH_APP_PAIR), \
+             mock.patch.object(suite_env.scratch_linear, "keychain_secret") as secret_mock, \
              mock.patch.object(suite_env.scratch_linear, "find_team", return_value={"id": "team-1", "key": "YLH"}), \
              mock.patch.object(suite_env, "_running_yh_processes", return_value=[]), \
              mock.patch.object(suite_env.scratch_linear, "journal_lease_active", return_value=False):
             suite_env.preflight(self.env, {1, 2})
-        secret_mock.assert_called_once_with("linear")
+        secret_mock.assert_not_called()
 
     def test_operator_credential_checked_for_scenario_5(self):
         self._make_yh_executable()
-        (self.configuration_directory / "config.toml").write_text('[linear]\nclient_id = "cid"\n')
+        (self.configuration_directory / "config.toml").write_text('[linear]\ncredential = "keychain:linear"\n')
         git_result = mock.Mock(returncode=0, stdout="git version 2.40.0\n")
         with mock.patch.object(suite_env, "orca_status_ready", return_value=True), \
              mock.patch.object(suite_env.subprocess, "run", return_value=git_result), \
+             mock.patch.object(suite_env.scratch_linear, "keychain_token_pair", return_value=FRESH_APP_PAIR), \
              mock.patch.object(
-                 suite_env.scratch_linear, "keychain_secret", side_effect=["app-secret", "operator-key"]
+                 suite_env.scratch_linear, "keychain_secret", side_effect=["operator-key"]
              ) as secret_mock, \
              mock.patch.object(suite_env.scratch_linear, "find_team", return_value={"id": "team-1", "key": "YLH"}), \
              mock.patch.object(suite_env.OperatorClient, "viewer_id", return_value="human-1"), \
@@ -754,16 +764,17 @@ class PreflightOrderingTests(unittest.TestCase):
              mock.patch.object(suite_env, "_running_yh_processes", return_value=[]), \
              mock.patch.object(suite_env.scratch_linear, "journal_lease_active", return_value=False):
             suite_env.preflight(self.env, {5})
-        self.assertEqual(secret_mock.call_count, 2)
+        self.assertEqual(secret_mock.call_count, 1)
 
     def test_operator_credential_same_viewer_as_app_fails(self):
         self._make_yh_executable()
-        (self.configuration_directory / "config.toml").write_text('[linear]\nclient_id = "cid"\n')
+        (self.configuration_directory / "config.toml").write_text('[linear]\ncredential = "keychain:linear"\n')
         git_result = mock.Mock(returncode=0, stdout="git version 2.40.0\n")
         with mock.patch.object(suite_env, "orca_status_ready", return_value=True), \
              mock.patch.object(suite_env.subprocess, "run", return_value=git_result), \
+             mock.patch.object(suite_env.scratch_linear, "keychain_token_pair", return_value=FRESH_APP_PAIR), \
              mock.patch.object(
-                 suite_env.scratch_linear, "keychain_secret", side_effect=["app-secret", "operator-key"]
+                 suite_env.scratch_linear, "keychain_secret", side_effect=["operator-key"]
              ), \
              mock.patch.object(suite_env.scratch_linear, "find_team", return_value={"id": "team-1", "key": "YLH"}), \
              mock.patch.object(suite_env.OperatorClient, "viewer_id", return_value="same-1"), \
@@ -776,11 +787,11 @@ class PreflightOrderingTests(unittest.TestCase):
 
     def _preflight_with_lease(self, lease_active):
         self._make_yh_executable()
-        (self.configuration_directory / "config.toml").write_text('[linear]\nclient_id = "cid"\n')
+        (self.configuration_directory / "config.toml").write_text('[linear]\ncredential = "keychain:linear"\n')
         git_result = mock.Mock(returncode=0, stdout="git version 2.40.0\n")
         with mock.patch.object(suite_env, "orca_status_ready", return_value=True), \
              mock.patch.object(suite_env.subprocess, "run", return_value=git_result), \
-             mock.patch.object(suite_env.scratch_linear, "keychain_secret", return_value="secret"), \
+             mock.patch.object(suite_env.scratch_linear, "keychain_token_pair", return_value=FRESH_APP_PAIR), \
              mock.patch.object(suite_env.scratch_linear, "find_team", return_value={"id": "team-1", "key": "YLH"}), \
              mock.patch.object(suite_env, "_running_yh_processes", return_value=[]), \
              mock.patch.object(suite_env.scratch_linear, "journal_lease_active", side_effect=lease_active), \

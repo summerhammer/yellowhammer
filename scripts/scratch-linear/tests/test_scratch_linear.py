@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
-Unit tests for scratch_linear.py — fully offline, a fake HTTP transport records every request and
-no test ever touches the network or the Keychain.
+Unit tests for scratch_linear.py — fully offline, a fake HTTP transport records every GraphQL
+request and a fake Keychain reader stands in for `security`; no test ever touches the network or
+the real Keychain, and `yh` (the refresh fallback) is `/usr/bin/true` — a real, harmless binary,
+never actually consulted for its output.
 """
 
 import importlib.util
@@ -21,24 +23,17 @@ scratch_linear = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(scratch_linear)
 
 
-SECRET = "s3cr3t-value-never-printed"
 TOKEN = "tok3n-value-never-printed"
+TRUE_BINARY = "/usr/bin/true"
 
 
 class FakeTransport:
-    """Records every request. `token_status`/`token_body` script the OAuth endpoint; `graphql_script`
-    is a list of (matcher, response) pairs consumed... actually a callable taking (query, variables)
-    and returning a dict payload (or raising to simulate an HTTP-level failure)."""
+    """Records every GraphQL request. `graphql_handler` is a callable taking (query, variables)
+    and returning a (status, body-dict) pair (or raising to simulate an HTTP-level failure)."""
 
-    def __init__(self, graphql_handler, token_status=200, token_body=None):
+    def __init__(self, graphql_handler):
         self.requests = []
-        self.token_status = token_status
-        self.token_body = token_body if token_body is not None else {"access_token": TOKEN}
         self.graphql_handler = graphql_handler
-
-    def post_form(self, url, fields):
-        self.requests.append(("form", url, fields, None))
-        return self.token_status, json.dumps(self.token_body)
 
     def post_json(self, url, payload, headers=None):
         self.requests.append(("json", url, payload, headers))
@@ -52,9 +47,37 @@ def data_response(data):
     return 200, {"data": data}
 
 
+def fresh_pair(token=TOKEN, hours_remaining=24):
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=hours_remaining)
+    return {
+        "access_token": token,
+        "refresh_token": "refresh-value-never-printed",
+        "expires_at": expires_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+
+
+def stale_pair(token=TOKEN):
+    return fresh_pair(token=token, hours_remaining=1)
+
+
+class FakeKeychain:
+    """A stand-in for `security find-generic-password`: `pairs` is a list consumed in order, one
+    per call — so a test can script "stale, then fresh after a refresh" or "always missing"."""
+
+    def __init__(self, pairs):
+        self._pairs = list(pairs)
+        self.calls = 0
+
+    def __call__(self, account):
+        self.calls += 1
+        if not self._pairs:
+            return None
+        return self._pairs.pop(0) if len(self._pairs) > 1 else self._pairs[0]
+
+
 class Args:
     def __init__(self, **kwargs):
-        self.client_id = kwargs.pop("client_id", None)
+        self.yh = kwargs.pop("yh", TRUE_BINARY)
         self.__dict__.update(kwargs)
 
 
@@ -63,11 +86,8 @@ def write_toml(path, text):
     path.write_text(text)
 
 
-def write_machine_config(directory, client_id="scratch-client-id", credential="keychain:linear"):
-    write_toml(
-        directory / "config.toml",
-        f'[linear]\nclient_id = "{client_id}"\ncredential = "{credential}"\n',
-    )
+def write_machine_config(directory, credential="keychain:linear"):
+    write_toml(directory / "config.toml", f'[linear]\ncredential = "{credential}"\n')
 
 
 def write_project(directory, project_id, linear_project_id):
@@ -118,12 +138,13 @@ class ScratchLinearTestCase(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.configuration_directory = Path(self._tmp.name)
         write_machine_config(self.configuration_directory)
+        self.keychain = FakeKeychain([fresh_pair()])
 
     def run_command(self, func, args):
         stdout, stderr = io.StringIO(), io.StringIO()
         with redirect_stdout(stdout), redirect_stderr(stderr):
             try:
-                code = func(args, self.configuration_directory, self.transport, lambda account: SECRET)
+                code = func(args, self.configuration_directory, self.transport, keychain_reader=self.keychain)
             except scratch_linear.SetupFailed as error:
                 print(f"scratch-linear: cannot run: {error}", file=stderr)
                 code = 2
@@ -133,23 +154,8 @@ class ScratchLinearTestCase(unittest.TestCase):
         self.transport = FakeTransport(handler)
 
 
-class TokenRequestTests(ScratchLinearTestCase):
-    def test_token_request_form_fields(self):
-        def handler(query, variables):
-            return data_response({"teams": {"nodes": [TEAM]}})
-        self.set_graphql_handler(handler)
-        args = Args(team="SCRATCH", project=None)
-        self.run_command(scratch_linear.check_command, args)
-        form_requests = [r for r in self.transport.requests if r[0] == "form"]
-        self.assertEqual(len(form_requests), 1)
-        _, url, fields, _ = form_requests[0]
-        self.assertEqual(url, scratch_linear.TOKEN_URL)
-        self.assertEqual(fields["client_id"], "scratch-client-id")
-        self.assertEqual(fields["client_secret"], SECRET)
-        self.assertEqual(fields["grant_type"], "client_credentials")
-        self.assertEqual(fields["scope"], "read,write")
-
-    def test_graphql_uses_bearer_token(self):
+class BearerTokenTests(ScratchLinearTestCase):
+    def test_graphql_uses_bearer_token_from_the_keychain(self):
         def handler(query, variables):
             return data_response({"teams": {"nodes": [TEAM]}})
         self.set_graphql_handler(handler)
@@ -160,27 +166,59 @@ class TokenRequestTests(ScratchLinearTestCase):
         _, _, _, headers = json_requests[0]
         self.assertEqual(headers["Authorization"], f"Bearer {TOKEN}")
 
+    def test_stale_token_refreshes_then_reads_the_new_pair(self):
+        """A stale pair triggers `yh doctor --check linear --json` (here, a no-op `/usr/bin/true`),
+        then one re-read of the Keychain, which answers with a fresh pair naming a new token."""
+        self.keychain = FakeKeychain([stale_pair(token="old-token"), fresh_pair(token="new-token")])
 
-class SecretNeverPrintedTests(ScratchLinearTestCase):
-    def test_secret_never_in_output_on_success(self):
+        def handler(query, variables):
+            return data_response({"teams": {"nodes": [TEAM]}})
+        self.set_graphql_handler(handler)
+        args = Args(team="SCRATCH", project=None)
+        self.run_command(scratch_linear.check_command, args)
+        _, _, _, headers = [r for r in self.transport.requests if r[0] == "json"][0]
+        self.assertEqual(headers["Authorization"], "Bearer new-token")
+        self.assertEqual(self.keychain.calls, 2)
+
+    def test_still_stale_after_refresh_is_setup_failed(self):
+        self.keychain = FakeKeychain([stale_pair()])
+
+        def handler(query, variables):
+            raise AssertionError("no request should be sent with no working token")
+        self.set_graphql_handler(handler)
+        args = Args(team="SCRATCH", project=None)
+        code, out, err = self.run_command(scratch_linear.check_command, args)
+        self.assertEqual(code, 2)
+        self.assertIn("no working Linear installation on this Mac; run yh setup --install-linear", err)
+
+    def test_missing_pair_is_setup_failed(self):
+        self.keychain = FakeKeychain([])
+
+        def handler(query, variables):
+            raise AssertionError("no request should be sent with no token pair at all")
+        self.set_graphql_handler(handler)
+        args = Args(team="SCRATCH", project=None)
+        code, out, err = self.run_command(scratch_linear.check_command, args)
+        self.assertEqual(code, 2)
+        self.assertIn("no working Linear installation on this Mac", err)
+
+
+class TokenNeverPrintedTests(ScratchLinearTestCase):
+    def test_token_never_in_output_on_success(self):
         def handler(query, variables):
             return data_response({"teams": {"nodes": [TEAM]}})
         self.set_graphql_handler(handler)
         args = Args(team="SCRATCH", project=None)
         code, out, err = self.run_command(scratch_linear.check_command, args)
-        self.assertNotIn(SECRET, out)
-        self.assertNotIn(SECRET, err)
         self.assertNotIn(TOKEN, out)
         self.assertNotIn(TOKEN, err)
 
-    def test_secret_never_in_output_on_graphql_error(self):
+    def test_token_never_in_output_on_graphql_error(self):
         def handler(query, variables):
             return 200, {"errors": [{"message": "boom"}]}
         self.set_graphql_handler(handler)
         args = Args(team="SCRATCH", project=None)
         code, out, err = self.run_command(scratch_linear.check_command, args)
-        self.assertNotIn(SECRET, out)
-        self.assertNotIn(SECRET, err)
         self.assertNotIn(TOKEN, out)
         self.assertNotIn(TOKEN, err)
         self.assertEqual(code, 1)
@@ -543,18 +581,7 @@ class InvalidProjectIdTests(unittest.TestCase):
         self.assertEqual(context.exception.code, 2)
 
 
-class CredentialAndClientIdTests(ScratchLinearTestCase):
-    def test_missing_client_id_is_setup_failed(self):
-        write_toml(self.configuration_directory / "config.toml", '[linear]\ncredential = "keychain:linear"\n')
-
-        def handler(query, variables):
-            raise AssertionError("no request should be sent without a client id")
-        self.set_graphql_handler(handler)
-        args = Args(team="SCRATCH", project=None)
-        code, out, err = self.run_command(scratch_linear.check_command, args)
-        self.assertEqual(code, 2)
-        self.assertIn("no Linear client id", err)
-
+class CredentialReferenceTests(ScratchLinearTestCase):
     def test_unsupported_credential_reference_is_setup_failed(self):
         write_machine_config(self.configuration_directory, credential="env:LINEAR_SECRET")
 

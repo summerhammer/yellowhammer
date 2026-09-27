@@ -26,7 +26,6 @@ import verify_installed as vi  # noqa: E402
 APP_VERSION = "1.2.3"
 APP_BUILD = "42"
 PROJECT = "proj"
-PRODUCTION_CLIENT_ID = "client-abc"
 ORCA_VERSION = "1.4.195"
 
 _UNSET = object()
@@ -175,7 +174,6 @@ class VerifyInstalledTestCase(unittest.TestCase):
         return vi.Verifier(
             app=self.app_path,
             project=PROJECT,
-            production_linear_client_id=PRODUCTION_CLIENT_ID,
             evidence_directory=self.evidence_directory,
             act=act,
             act_timeout=act_timeout,
@@ -272,11 +270,11 @@ class VerifyInstalledTestCase(unittest.TestCase):
             if event[0] == "signal" and event[2] in wanted
         ]
 
-    def write_config_toml(self, client_id=PRODUCTION_CLIENT_ID):
+    def write_config_toml(self):
         config_dir = self.home / ".config" / "yellowhammer"
         config_dir.mkdir(parents=True)
         (config_dir / "config.toml").write_text(
-            f'[general]\nsomething = "x"\n\n[linear]\nclient_id = "{client_id}"\n'
+            '[general]\nsomething = "x"\n\n[linear]\ncredential = "keychain:linear"\n'
         )
 
     def setup_orca(self, bin_dir, version=ORCA_VERSION):
@@ -499,21 +497,6 @@ class VerifyInstalledTestCase(unittest.TestCase):
         passed, reason = verifier.check_doctor([])
         self.assertFalse(passed)
         self.assertIn("probes:", reason)
-
-    def test_doctor_fails_on_client_id_mismatch(self):
-        path_env = str(self.root / "path-bin")
-        self.write_all_plists(path_env=path_env)
-        self.write_config_toml(client_id="wrong-client")
-        self.setup_orca(Path(path_env))
-        self.run.on(
-            starts_with("env", "-i"),
-            (0, "[pass] probes: ok\n[pass] linear: Linear authorization succeeded\n", ""),
-        )
-        verifier = self.make_verifier()
-        verifier.evidence_directory.mkdir(parents=True)
-        passed, reason = verifier.check_doctor([])
-        self.assertFalse(passed)
-        self.assertIn("client_id", reason)
 
     def test_doctor_fails_on_old_orca(self):
         path_env = str(self.root / "path-bin")
