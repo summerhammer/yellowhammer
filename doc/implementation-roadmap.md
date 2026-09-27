@@ -1791,7 +1791,7 @@ depends on and that never shipped.
 - **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
 - **Done when** — Stub-transport tests cover each request shape and each refusal.
 
-### [ ] P17.4 Token pair, refresh lock and lazy binding
+### [x] P17.4 Token pair, refresh lock and lazy binding
 - **Work** — The token pair in the Keychain behind `linear_credential`; the workspace and app user
   IDs in `config.toml`; a machine-wide lock holding no state around read → refresh-if-stale →
   write; a configuration naming a client id is a named failure; the Act reads the Keychain at its
