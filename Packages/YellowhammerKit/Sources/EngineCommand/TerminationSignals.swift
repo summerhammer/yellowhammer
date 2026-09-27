@@ -29,6 +29,16 @@ enum TerminationSignals {
         case signalled(Int32, count: Int)
     }
 
+    /// Tracks whether a real signal has ever landed on this process. Once a real signal has landed,
+    /// restoring `SIG_DFL` is permanently unsafe: `sigaction`'s `postsig` re-reads the disposition
+    /// table at the moment it delivers a signal to a thread, not at `kill()` time, so a restore that
+    /// lands in the window between the kqueue event firing and `postsig` running on the signal's chosen
+    /// thread would still hand that same signal to the default action — killing the process out from
+    /// under the graceful path that was already handling it. Once a signal is truly observed on the
+    /// process, restoring `SIG_DFL` is permanently avoided so subsequent runs (e.g. later tests in the
+    /// same test host process) cannot trip the default termination action.
+    private static let processObservedRealSignal = Mutex(false)
+
     /// Runs `body` in an unstructured `Task`, with `SIGTERM`/`SIGINT` handlers installed only for the
     /// duration. On the first signal, cancels the body's `Task` and starts `deadline`; if the body has
     /// not finished by then, `exit` is invoked with `128 + signal number` and this function does not
@@ -38,7 +48,7 @@ enum TerminationSignals {
     /// coalesced pair is a first-then-second, exactly as two separate deliveries would be.
     ///
     /// When the body finishes on its own, the signal sources are cancelled. Both dispositions are
-    /// restored to `SIG_DFL` unless a real signal actually landed on this run — see the `defer` block
+    /// restored to `SIG_DFL` unless a real signal actually landed on this process — see the `defer` block
     /// below for why an unconditional restore is unsafe.
     ///
     /// `exit` never actually returns in production (`_exit`), but is typed to return `Void` — not
@@ -60,10 +70,6 @@ enum TerminationSignals {
         let coordinator = Coordinator(deadline: deadline, exit: exit)
         let termSource = DispatchSource.makeSignalSource(signal: SIGTERM, queue: coordinator.signalQueue)
         let intSource = DispatchSource.makeSignalSource(signal: SIGINT, queue: coordinator.signalQueue)
-        // Set only from inside the real `DispatchSource` event handlers below — never from
-        // `signalHook`'s seam — so it tracks a signal that actually landed on this process, not a
-        // test driving `deliver` directly. See the `defer` block for why that distinction matters.
-        let realSignalLanded = Mutex(false)
 
         // Install the no-op handler *before* creating and resuming the DispatchSources: a
         // `DispatchSource` for a signal observes delivery through the kernel's normal signal
@@ -75,11 +81,11 @@ enum TerminationSignals {
         Self.installNoOpHandler(SIGTERM)
         Self.installNoOpHandler(SIGINT)
         termSource.setEventHandler { [termSource] in
-            realSignalLanded.withLock { $0 = true }
+            Self.processObservedRealSignal.withLock { $0 = true }
             for _ in 0..<max(1, termSource.data) { coordinator.deliver(SIGTERM) }
         }
         intSource.setEventHandler { [intSource] in
-            realSignalLanded.withLock { $0 = true }
+            Self.processObservedRealSignal.withLock { $0 = true }
             for _ in 0..<max(1, intSource.data) { coordinator.deliver(SIGINT) }
         }
         termSource.resume()
@@ -96,15 +102,15 @@ enum TerminationSignals {
             termSource.cancel()
             intSource.cancel()
             coordinator.cancelDeadline()
-            // Restored to `SIG_DFL` unless a real signal actually landed on this run: `sigaction`'s
+            // Restored to `SIG_DFL` unless a real signal actually landed on this process: `sigaction`'s
             // `postsig` re-reads the disposition table at the moment it delivers a signal to a
             // thread, not at `kill()` time, so a restore that lands in the (sub-millisecond) window
             // between the kqueue event firing and `postsig` running on the signal's chosen thread
             // would still hand that same signal to the default action — killing the process out from
             // under the graceful path that was already handling it (found empirically: this raced
-            // the test host to death about 1 run in 4). Once a signal is truly observed there is
-            // nothing left to protect by restoring `SIG_DFL` before `yh` exits moments later anyway.
-            if !realSignalLanded.withLock({ $0 }) {
+            // the test host to death about 1 run in 4). Once a signal is truly observed on the process
+            // there is nothing left to protect by restoring `SIG_DFL` before the process exits anyway.
+            if !Self.processObservedRealSignal.withLock({ $0 }) {
                 Self.restoreDefault(SIGTERM)
                 Self.restoreDefault(SIGINT)
             }

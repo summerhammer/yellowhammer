@@ -119,32 +119,6 @@ struct TerminationSignalsTests {
         #expect(exitCalls.withLock { $0 } == [Int32(128 + SIGTERM)])
     }
 
-    @Test("A real SIGTERM, delivered through kill(getpid(), _), is observed by the installed handler")
-    func realSignalIsObservedByHandler() async throws {
-        let cancelled = Mutex(false)
-        let exitCalls = Mutex<[Int32]>([])
-
-        try? await TerminationSignals.run(
-            deadline: .seconds(5),
-            exit: { code in exitCalls.withLock { $0.append(code) } },
-            body: {
-                // The handler can only be installed by the time this body runs: sending the real signal
-                // from inside it is the proof that the DispatchSource + `sigaction` wiring works, not a
-                // race against installation.
-                #expect(kill(getpid(), SIGTERM) == 0)
-                let deadline = ContinuousClock.now.advanced(by: .seconds(5))
-                while !Task.isCancelled {
-                    guard ContinuousClock.now < deadline else { break }
-                    try? await Task.sleep(for: .milliseconds(5))
-                }
-                cancelled.withLock { $0 = Task.isCancelled }
-            }
-        )
-
-        #expect(cancelled.withLock { $0 })
-        #expect(exitCalls.withLock { $0 }.isEmpty)
-    }
-
     @Test("A body ended by a signal throws a clear, non-CancellationError describing the interruption")
     func interruptedErrorDescribesTheSignal() async throws {
         let bodyStarted = DispatchSemaphore(value: 0)
@@ -170,6 +144,32 @@ struct TerminationSignalsTests {
                 }
             )
         }
+    }
+
+    @Test("A real SIGTERM, delivered through kill(getpid(), _), is observed by the installed handler")
+    func realSignalIsObservedByHandler() async throws {
+        let cancelled = Mutex(false)
+        let exitCalls = Mutex<[Int32]>([])
+
+        try? await TerminationSignals.run(
+            deadline: .seconds(5),
+            exit: { code in exitCalls.withLock { $0.append(code) } },
+            body: {
+                // The handler can only be installed by the time this body runs: sending the real signal
+                // from inside it is the proof that the DispatchSource + `sigaction` wiring works, not a
+                // race against installation.
+                #expect(kill(getpid(), SIGTERM) == 0)
+                let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+                while !Task.isCancelled {
+                    guard ContinuousClock.now < deadline else { break }
+                    try? await Task.sleep(for: .milliseconds(5))
+                }
+                cancelled.withLock { $0 = Task.isCancelled }
+            }
+        )
+
+        #expect(cancelled.withLock { $0 })
+        #expect(exitCalls.withLock { $0 }.isEmpty)
     }
 }
 
