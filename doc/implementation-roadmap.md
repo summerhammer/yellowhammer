@@ -1866,7 +1866,7 @@ depends on and that never shipped.
   Open elsewhere: spec gaps found while building Phase 17 are in yellowhammer-spec#70; the
   whole-target `EngineCommandTests` crash is #215.
 
-### [ ] P17.9 Remote admin approval through the Code Relay
+### [x] P17.9 Remote admin approval through the Code Relay
 - **Work** — A non-admin Operator installs the Linear app without an admin at the Mac:
   - `yh setup --install-linear --remote` (and the app's "Request approval from an admin…") gets a
     session from the Code Relay at `app.yellowhammer.dev`, shows the approval link to send to an
@@ -1883,6 +1883,16 @@ depends on and that never shipped.
 - **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`.
 - **Done when** — An installation approved through the Relay link stores its token pair and passes
   `yh doctor`, live.
+- **Status** — Live on 2026-09-27 (Debug build, scratch workspace `summerhammer`, stdout redirected
+  to a file):
+  - `yh setup --install-linear --remote` printed the approval link, and the admin approved from
+    the link.
+  - The Mac exchanged the code and stored a new pair, keeping the same workspace and app user.
+  - `yh doctor` passed.
+  - The session read `404 expired` afterwards, so the code was consumed.
+
+  Only an admin approved: the scratch workspace has no non-admin member (L8 stays deferred). The
+  run found stdout block-buffered under a pipe, which hid the link; this is fixed here.
 
 ---
 
