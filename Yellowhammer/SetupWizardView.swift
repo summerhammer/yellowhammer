@@ -92,13 +92,7 @@ private struct SetupLinearStepView: View {
                         + "by a workspace admin."
                 )
                 .foregroundStyle(.secondary)
-                if model.configExists {
-                    Text("The machine file is kept: its credential reference is unchanged.")
-                        .foregroundStyle(.secondary)
-                } else {
-                    TextField("Linear credential reference", text: $model.linearCredential) // glossary:ignore GL001
-                        .accessibilityIdentifier("setup-linear-credential")
-                }
+                linearInstallContent
             }
             if !model.configExists {
                 DisclosureGroup("Advanced", isExpanded: $model.showAdvanced) {
@@ -112,6 +106,48 @@ private struct SetupLinearStepView: View {
                         .textSelection(.enabled)
                 }
             }
+        }
+        .task { await model.checkExistingLinearInstallation() }
+    }
+
+    @ViewBuilder private var linearInstallContent: some View {
+        switch model.linearInstallPhase {
+        case .checking:
+            ProgressView("Checking for an existing installation…")
+                .accessibilityIdentifier("setup-linear-checking")
+        case .notInstalled:
+            Button("Install in Linear…") { model.startLinearInstall() } // glossary:ignore GL001
+                .accessibilityIdentifier("setup-linear-install")
+        case .installing(let adminStatement):
+            if !adminStatement.isEmpty {
+                Text(adminStatement).font(.callout)
+            }
+            ProgressView()
+        case .awaitingApproval(let adminStatement):
+            if !adminStatement.isEmpty {
+                Text(adminStatement).font(.callout)
+            }
+            Text("Waiting for a workspace admin to approve in the browser…") // glossary:ignore GL001
+                .accessibilityIdentifier("setup-linear-awaiting")
+            Button("Cancel") { model.cancelLinearInstall() }
+        case .portsBusy(let text, let ports):
+            Text(text).accessibilityIdentifier("setup-linear-ports-busy")
+            ForEach(ports, id: \.port) { port in
+                Text("Port \(port.port)\(port.command.map { " — \($0)" } ?? "")")
+                    .font(.system(.footnote, design: .monospaced))
+            }
+            HStack {
+                Button("Retry") { model.startLinearInstall() } // glossary:ignore GL001
+                    .accessibilityIdentifier("setup-linear-retry")
+                Button("Cancel") { model.cancelLinearInstall() }
+            }
+        case .failed(let text):
+            Text(text).accessibilityIdentifier("setup-linear-failed")
+            Button("Install again") { model.startLinearInstall() } // glossary:ignore GL001
+                .accessibilityIdentifier("setup-linear-install")
+        case .installed(let workspaceName):
+            Text(workspaceName.map { "Installed in the Linear workspace \($0)." } ?? "Installed.")
+                .accessibilityIdentifier("setup-linear-installed")
         }
     }
 }
