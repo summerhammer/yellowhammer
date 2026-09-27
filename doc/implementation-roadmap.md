@@ -1856,10 +1856,12 @@ depends on and that never shipped.
      "Install again"; the browser round-trip ended with "Installed in the Linear workspace
      summerhammer." (The wizard keeps its state until the app quits.)
 - **Remaining**
-  2. **`launchd`-fired Keychain write.** The pair installed at 2026-09-27 14:11Z expires
-     2026-09-28 14:11Z; the first scheduled Act after that (the 22:00 Night) must refresh it and write
-     the Keychain **without a prompt**. Check the item's `mdat` moved, a new `expires_at`, no
-     `errSecInteractionNotAllowed`, and that `yh doctor` passes. Run nothing that refreshes before it.
+  2. **`launchd`-fired Keychain write.** P17.9's live run re-installed through the Code Relay, which
+     revoked the earlier pair (L10). The new pair, written 2026-09-27 19:22Z, expires
+     2026-09-28 19:22Z, so it is refreshable from 17:22Z. The 22:00 EEST Night (19:00Z) must refresh
+     it and write the Keychain **without a prompt**. Check the item's `mdat` moved, a new
+     `expires_at`, no `errSecInteractionNotAllowed`, and that `yh doctor` passes. From 17:22Z, run
+     nothing that refreshes before the Night.
   5. Then mark P17.8 `[x]`.
   Open elsewhere: spec gaps found while building Phase 17 are in yellowhammer-spec#70; the
   whole-target `EngineCommandTests` crash is #215.
