@@ -1842,9 +1842,29 @@ depends on and that never shipped.
   workspace `summerhammer`): install through the browser, `yh doctor` pass, a rehearsal Act under
   the installed identity; revocation (L6) halted the next two Acts at the preflight, with one
   notification attempt for the Night, and doctor failed with the fix; re-install (L7) kept the same
-  app user ID and the next Act ran. **Still owed:** pending Outbox writes replaying after a
-  re-install, live (the preflight halt left none; unit-tested only), and a `launchd`-fired `yh`
-  writing a refreshed pair to the Keychain without a prompt.
+  app user ID and the next Act ran. Left `[ ]` until the steps below are done.
+- **Remaining** — run on an installed **release** build (not Debug: the Debug build's coverage
+  instrumentation fails the headless notification post, `default.profraw` on a read-only file
+  system), e.g. alongside P16.8:
+  1. **Outbox replay after re-install, live.** Revoke the installation **mid-Act**, after the
+     preflight (e.g. revoke while a build Act is dispatching), so that a board write is refused and
+     left pending. Confirm that write stays pending in the Journal, re-install with
+     `yh setup --install-linear`, and confirm the next Act applies it under its unchanged client
+     id. The preflight halt in the 2026-09-27 run left nothing pending to replay.
+  2. **`launchd`-fired Keychain write.** With the installed app's LaunchAgents running, let the
+     access token come within 2 hours of expiry (it lasts 24 hours), and confirm a scheduled Act
+     refreshes it and writes the new pair to the Keychain **without a Keychain prompt**. Check the
+     item's modification date, and that the next Act and `yh doctor` still pass. P16.6 only
+     exercised Keychain reads.
+  3. **Halted notification from the installed app.** In the revocation run of step 1, confirm the
+     first authorization halt of the Night actually posts the local notification ("Linear refused
+     Yellowhammer's sign-in …") and a second halt that Night does not.
+  4. **The app's Setup view, by hand.** Install from `Yellowhammer.app`'s Setup view: the browser
+     round-trip, the workspace name shown, then "Install again" after a revocation. The UI tests
+     only cover it with a stubbed `yh`.
+  5. Then mark P17.8 `[x]`.
+  Open elsewhere: spec gaps found while building Phase 17 are in yellowhammer-spec#70; the
+  whole-target `EngineCommandTests` crash is #215.
 
 ---
 
