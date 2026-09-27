@@ -1,16 +1,23 @@
 /// The local Exception Notification for one Project's Night, posted by a one-shot headless launch of
 /// `Yellowhammer.app` (morning-report/notify-the-operator-of-exceptions).
 ///
-/// It accelerates a record that already exists: every event it announces is on the Night Card first.
-/// Only *halted* and *closed* post locally — *opened* is recorded on the Night Card and posts nothing
-/// (Decision Gates Ruling, G-10) — so `Event` has no `opened` case. Each notification names its
-/// Project, and there is no combined notification across Projects.
+/// It accelerates a record that already exists: every event it announces is on the Night Card first —
+/// with one exception (OQ71, Halted-Without-Night-Card Notification Ruling): when a halted Act has no
+/// Night Card to record on (none is open, or the halted comment write is aborted or permanently
+/// failed), the local notification still posts as `.haltedUnrecorded`, since nothing else will tell the
+/// Operator this Night halted. Only *halted*, *haltedUnrecorded* and *closed* post locally — *opened*
+/// is recorded on the Night Card and posts nothing (Decision Gates Ruling, G-10) — so `Event` has no
+/// `opened` case. Each notification names its Project, and there is no combined notification across
+/// Projects.
 ///
 /// `arguments` and `init(arguments:)` are the launch contract between `yh` and the app.
 public struct ExceptionNotification: Hashable, Sendable {
     public enum Event: Hashable, Sendable {
         /// The Night halted; `reason` names why.
         case halted(reason: String)
+        /// The Night halted and nothing was recorded on the Night Card first (OQ71): either no Night
+        /// Card is open, or the halted comment write was aborted or permanently failed.
+        case haltedUnrecorded
         case closed
     }
 
@@ -24,7 +31,7 @@ public struct ExceptionNotification: Hashable, Sendable {
         case unknownEvent(String)
         /// A halted Night must name why it halted.
         case missingReason
-        /// Only a halted Night carries a reason.
+        /// Only `halted` carries a reason — `haltedUnrecorded` is a halted Night too, but names none.
         case unexpectedReason
     }
 
@@ -45,6 +52,8 @@ public struct ExceptionNotification: Hashable, Sendable {
         switch event {
         case .halted(let reason):
             arguments += ["--event", "halted", "--reason", reason]
+        case .haltedUnrecorded:
+            arguments += ["--event", "halted-unrecorded"]
         case .closed:
             arguments += ["--event", "closed"]
         }
@@ -63,16 +72,26 @@ public struct ExceptionNotification: Hashable, Sendable {
         guard let project = ProjectID(rawValue: projectValue) else {
             throw .invalidProject(projectValue)
         }
+        let event = try Self.event(from: options)
+        self.init(project: project, event: event)
+    }
+
+    /// The `Event` named by `--event`, validated against the `--reason` the same options carry —
+    /// split out of `init(arguments:)` to keep it under the cyclomatic-complexity limit.
+    private static func event(from options: [String: String]) throws(ArgumentError) -> Event {
         let reason = options["--reason"]
         switch options["--event"] {
         case nil:
             throw .missingEvent
         case "halted":
             guard let reason, !reason.allSatisfy(\.isWhitespace) else { throw .missingReason }
-            self.init(project: project, event: .halted(reason: reason))
+            return .halted(reason: reason)
+        case "halted-unrecorded":
+            guard reason == nil else { throw .unexpectedReason }
+            return .haltedUnrecorded
         case "closed":
             guard reason == nil else { throw .unexpectedReason }
-            self.init(project: project, event: .closed)
+            return .closed
         case let other?:
             throw .unknownEvent(other)
         }
@@ -101,6 +120,9 @@ public struct ExceptionNotification: Hashable, Sendable {
     public var body: String {
         switch event {
         case .halted(let reason): "Night halted: \(reason)"
+        case .haltedUnrecorded:
+            "\(project.rawValue) halted before its Night Card could be opened — nothing is recorded " +
+                "on the board for this Night. Check the Journal or run yh status."
         case .closed: "Night closed"
         }
     }
