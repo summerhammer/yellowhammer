@@ -1,6 +1,6 @@
 # Yellowhammer — Implementation Roadmap
 
-Built against `../yellowhammer-spec` @ `bfb7314` (2026-09-20).
+Built against `../yellowhammer-spec` @ `bfb7314` (2026-09-20); Phase 17 against `7a3ed29` (2026-09-26).
 
 Steps marked **Amended 2026-09-20** were re-opened by the spec's *Authoring Halt Ruling*
 (`risks.md` → Authoring Halt Ruling — 2026-09-20; OQ61–OQ64), written against the P9.1–P9.7 pull
@@ -69,6 +69,7 @@ disagreement is a defect in this file.
 | 14 | Yellowhammer app | The shell: setup, configuration, probes, Journal reading, notifications |
 | 15 | Rehearsal environment & end-to-end rehearsal | Scratch Linear team, throwaway repos, full rehearsal Nights |
 | 16 | Release engineering & first production Night | Signing, notarization, packaging, install check, go-live |
+| 17 | Linear App Installation | One public Linear app installed per workspace with PKCE; refresh, authorization halt |
 
 ---
 
@@ -448,6 +449,8 @@ comment on the Delta Read).
 - **Agent** — Sonnet 5 Medium.
 - **Done when** — A token for the app identity can be obtained from each workspace, and a comment
   it writes triggers the Operator's inbox notification.
+- **Amended 2026-09-27** — the `client_credentials` identity is withdrawn for one public app
+  installed per workspace with PKCE (OQ93, ADR-005); corrected in P17.3, P17.4 and P17.8.
 
 ### [x] P5.2 Board adapter: authenticated GraphQL access
 - **Work**
@@ -460,6 +463,8 @@ comment on the Delta Read).
 - **Agent** — Opus 5 Medium.
 - **Done when** — Adapter tests against the scratch workspace read a Linear project's issues.
   Nothing outside the adapter refers to a Linear type.
+- **Amended 2026-09-27** — authentication becomes the App Installation's refreshed token pair, and
+  an authorization refusal is told apart from `FORBIDDEN`; corrected in P17.3.
 
 ### [x] P5.3 Linear provisioning (setup-time)
 - **Work**
@@ -476,6 +481,7 @@ comment on the Delta Read).
 - **Agent** — Opus 5 Medium.
 - **Done when** — Running provisioning twice against the scratch team changes nothing the second
   time. A label-name collision is reported and not overwritten.
+- **Amended 2026-09-27** — the membership-first check (OQ80) was never built; corrected in P17.2.
 
 ### [x] P5.4 Outbox
 - **Work**
@@ -505,6 +511,8 @@ comment on the Delta Read).
 - **Done when** — Rehearsal-assertable tests: replay after a killed run creates no duplicate issue
   or comment; a stale-lease write never reaches Linear; broken delimiters abort safely; a forced
   mid-transaction failure leaves no partial board.
+- **Amended 2026-09-27** — an authorization-refused write stays pending instead of failing
+  permanently (OQ93 item 5); corrected in P17.5.
 
 ### [x] P5.5 Delta Read
 - **Work**
@@ -1311,6 +1319,8 @@ comment on the Delta Read).
 - **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
 - **Done when** — Rehearsal-assertable bound arithmetic with `unanswered_nights_max = 1`, including
   the stopped-Project case (no Acts, no change).
+- **Amended 2026-09-27** — a Night whose Acts all halted on Linear authorization spends none of the
+  bound (OQ93 item 13); corrected in P17.5.
 
 ### [x] P11.5 Adoption
 - **Work**
@@ -1428,6 +1438,8 @@ comment on the Delta Read).
 - **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — With notifications disabled or the app missing, an Act completes and logs the
   failure.
+- **Amended 2026-09-27** — a halted Act with no Night Card must still post (OQ71), and an
+  authorization halt posts once per Night (OQ93 item 12); corrected in P17.1 and P17.5.
 
 ---
 
@@ -1444,6 +1456,8 @@ comment on the Delta Read).
 - **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — On a clean user account, `yh setup --init` produces a configuration that passes
   validation, and provisioning is idempotent.
+- **Amended 2026-09-27** — the Linear step becomes the browser App Installation (OQ93, OQ94);
+  corrected in P17.6.
 
 ### [x] P13.2 Scheduled job generation
 - **Work**
@@ -1469,6 +1483,8 @@ comment on the Delta Read).
   Flash 3.8 Medium or `gpt-5.6-luna medium`.
 - **Done when** — Each check has a passing and a failing fixture. An orphaned agent is found and
   removed.
+- **Amended 2026-09-27** — the Linear check becomes check 4 of
+  `shift-scheduling/diagnose-the-installation`; corrected in P17.6.
 
 ### [x] P13.4 `yh status`
 - **Work** — Per Project, on demand: last Journal run, `launchd` job state, sleep and wake history,
@@ -1516,6 +1532,7 @@ comment on the Delta Read).
 - **Spec** — risks.md OQ13; system-overview → Notification behaviour.
 - **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
 - **Done when** — A clean account is fully set up through the app alone.
+- **Amended 2026-09-27** — the Linear step becomes the browser App Installation; corrected in P17.7.
 
 ### [x] P14.3 Configuration editing
 - **Work** — Edit Projects, Repos, Spec Source (shown read-only as "read — this Project never writes
@@ -1739,6 +1756,91 @@ comment on the Delta Read).
 
 ---
 
+## Phase 17 — Linear App Installation
+
+The `client_credentials` identity, an OAuth app each Operator registered and whose secret they
+pasted into setup, is withdrawn. Yellowhammer owns one public Linear app, installed once per
+workspace by a workspace admin through the browser (risks.md → Linear App Installation Ruling —
+2026-09-26, OQ93, OQ94; ADR-005). P17.1 and P17.2 build two earlier rulings the installation
+depends on and that never shipped.
+
+### [ ] P17.1 Halted notification without a Night Card
+- **Work** — A halted Act posts the local notification when no Night Card exists, or when the write
+  recording the halt was aborted or permanently failed; a pending write counts as recorded.
+- **Spec** — `morning-report/notify-the-operator-of-exceptions`; risks.md OQ71.
+- **Amends** — P12.5.
+- **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
+- **Done when** — Each of the three cases has a test; the copy names the missing Night Card.
+
+### [ ] P17.2 Membership-first provisioning check
+- **Work** — Before any create, check per Project's Linear team that the app user is a member;
+  report the fix and re-verify. Only a refusal surviving membership gets the create-by-hand
+  guideline. Report the step that could not be done and finish the rest.
+- **Spec** — `board-projection/provision-the-board`; risks.md OQ80, OQ93 item 15.
+- **Amends** — P5.3.
+- **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
+- **Done when** — A non-member team is reported before any create; `FORBIDDEN` never reads as "not
+  visible".
+
+### [ ] P17.3 Installation client, refresh and error split in the adapter
+- **Work** — The authorization URL (PKCE `S256`, `actor=app`, `read,write`, exact loopback
+  redirect), the code exchange with no client secret, refresh ahead of expiry, one refresh and one
+  retry on `401`, and an authorization refusal told apart from `FORBIDDEN` and network errors.
+- **Spec** — `board-projection/install-the-linear-app`; ADR-005; risks.md OQ93 items 1, 2, 4, 5.
+- **Amends** — P5.1, P5.2.
+- **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
+- **Done when** — Stub-transport tests cover each request shape and each refusal.
+
+### [ ] P17.4 Token pair, refresh lock and lazy binding
+- **Work** — The token pair in the Keychain behind `linear_credential`; the workspace and app user
+  IDs in `config.toml`; a machine-wide lock holding no state around read → refresh-if-stale →
+  write; a configuration naming a client id is a named failure; the Act reads the Keychain at its
+  first Linear call.
+- **Spec** — `board-projection/install-the-linear-app`; risks.md OQ93 items 3, 11.
+- **Amends** — P5.1.
+- **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
+- **Done when** — Two processes refreshing at once make one token request.
+
+### [ ] P17.5 Authorization halt
+- **Work** — An authorization failure halts the Act; accepted Outbox writes stay pending; the first
+  such halt of a Night posts, later ones record only; a Night whose Acts all halted this way spends
+  none of `unanswered_nights_max`.
+- **Spec** — `board-projection/install-the-linear-app`; `bounds/bound-unanswered-nights`;
+  `morning-report/notify-the-operator-of-exceptions`; risks.md OQ93 items 5, 12, 13.
+- **Amends** — P5.4, P11.4, P12.5.
+- **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
+- **Done when** — Tests show one notification per Night, pending writes, and no clock spent.
+
+### [ ] P17.6 Installation in `yh setup` and `yh doctor`
+- **Work** — The browser install on the first free port of three, stopping before the browser when
+  all are busy; the admin statement and team recommendation first; the workspace name shown; a
+  different workspace refused; the doctor's Linear check.
+- **Spec** — `board-projection/install-the-linear-app`;
+  `shift-scheduling/diagnose-the-installation`; risks.md OQ93 items 6, 14, 15, OQ94.
+- **Amends** — P13.1, P13.3.
+- **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
+- **Done when** — Setup installs into the scratch workspace with no client id asked for.
+
+### [ ] P17.7 Installation in the app's Setup view
+- **Work** — The Linear step drives `yh setup`'s install and shows its progress, the busy-port
+  Retry/Cancel, the failure copy and the workspace name; an authorization failure shows until
+  re-installed.
+- **Spec** — `board-projection/install-the-linear-app`; risks.md OQ93 item 5, OQ94.
+- **Amends** — P14.2.
+- **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
+- **Done when** — A clean account installs through the app alone.
+
+### [ ] P17.8 `[DevOps]` Scratch tooling and live verification
+- **Work** — Scratch scripts and live tests use the installed token pair under the same lock; the
+  scratch workspace is re-installed; install, revoke and re-install are run live; a `launchd`-fired
+  Act writes the refreshed pair without a prompt.
+- **Spec** — Linear App Installation investigation → Probe Results (L6, L7).
+- **Amends** — P5.1.
+- **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`.
+- **Done when** — Revocation halts the next Act and re-installation replays pending writes, live.
+
+---
+
 ## Traceability: story → steps
 
 | Story ID | Steps |
@@ -1750,7 +1852,8 @@ comment on the Delta Read).
 | `loop-state/reclaim-an-expired-lease` | P8.10, P6.8 |
 | `loop-state/reconcile-worktrees-at-act-start` | P6.8, P6.9, P6.6 |
 | `loop-state/record-failure-cause-recurrence` | P8.8 |
-| `board-projection/write-board-updates-through-the-outbox` | P5.4 |
+| `board-projection/write-board-updates-through-the-outbox` | P5.4, P17.5 |
+| `board-projection/install-the-linear-app` | P17.3, P17.4, P17.5, P17.6, P17.7, P17.8 |
 | `board-projection/read-board-changes-by-delta` | P5.5, P11.2, P11.3 |
 | `board-projection/maintain-the-managed-block` | P5.6, P9.10, P12.3, P11.3 |
 | `board-projection/check-card-readiness-at-dispatch` | P8.2, P6.4 |
