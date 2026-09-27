@@ -298,7 +298,7 @@ public struct Outbox: Sendable {
                 return try fail(attempted, reason: "\(reason) (after \(attempted.attemptCount) attempts)")
             }
             return OutboxDelivery(entry: attempted, outcome: .deferred(.transient(reason)))
-        case .notAuthenticated, .refused, .scopeNotFound:
+        case .notAuthenticated, .refused, .scopeNotFound, .forbidden:
             return try fail(entry, reason: String(describing: error))
         }
     }

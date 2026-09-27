@@ -12,6 +12,18 @@ actor FakeProvisioningBoard: BoardProvisioning {
     private var nextID = 0
     private(set) var creates = 0
     private(set) var reads = 0
+
+    /// Scripted behaviour for one create, keyed by the workflow state or label name (P17.2, OQ80).
+    enum Script: Sendable {
+        case refuse(BoardError)
+    }
+    private var scripts: [String: Script] = [:]
+
+    /// The next `createWorkflowState` or `createLabel` naming `nameOrChild` throws `script`'s error,
+    /// once, instead of creating.
+    func script(_ script: Script, for nameOrChild: String) {
+        scripts[nameOrChild] = script
+    }
     /// Errors thrown by the next call to ``linearProject()``, in order, consumed before it answers —
     /// following ``FakeWritingBoard/refuseNext(_:)``'s pattern.
     private var refusals: [BoardError] = []
@@ -22,6 +34,11 @@ actor FakeProvisioningBoard: BoardProvisioning {
     private var workspaceMembersRefusals: [BoardError] = []
     var members: [BoardMember] = []
     var boardTeams: [BoardTeam] = []
+    /// Teams excluded from ``memberTeams()``'s default — permissive membership in every team of the
+    /// bound Linear project, so most tests need no setup at all.
+    private var excludedMemberTeams: Set<BoardObjectID> = []
+    /// Errors thrown by the next call to ``memberTeams()``, in order, consumed before it answers.
+    private var memberTeamsRefusals: [BoardError] = []
 
     init(project: BoardProjectScope?) {
         self.project = project
@@ -39,6 +56,23 @@ actor FakeProvisioningBoard: BoardProvisioning {
     }
 
     func teams() async throws(BoardError) -> [BoardTeam] { boardTeams }
+
+    /// Excludes `team` from ``memberTeams()`` — the app is installed and can see the team read-only,
+    /// but is not a member of it.
+    func excludeMembership(of team: BoardObjectID) { excludedMemberTeams.insert(team) }
+
+    func refuseMemberTeamsNext(_ error: BoardError) {
+        memberTeamsRefusals.append(error)
+    }
+
+    /// Permissive by default: every team of the bound Linear project, plus every workspace team set
+    /// with ``setTeams(_:)`` (so a Project not yet created, resolving a team by key through
+    /// `teams()`, is still a member of it by default) — minus any explicitly excluded.
+    func memberTeams() async throws(BoardError) -> [BoardObjectID] {
+        if !memberTeamsRefusals.isEmpty { throw memberTeamsRefusals.removeFirst() }
+        let allTeams = Set((project?.teams.map(\.id) ?? []) + boardTeams.map(\.id))
+        return allTeams.filter { !excludedMemberTeams.contains($0) }
+    }
 
     func setMembers(_ members: [BoardMember]) { self.members = members }
     func setTeams(_ teams: [BoardTeam]) { boardTeams = teams }
@@ -86,6 +120,10 @@ actor FakeProvisioningBoard: BoardProvisioning {
         name: String, category: BoardWorkflowStateCategory, team: BoardObjectID
     ) async throws(BoardError) -> BoardWorkflowState {
         creates += 1
+        if case .refuse(let error)? = scripts[name] {
+            scripts[name] = nil
+            throw error
+        }
         let state = BoardWorkflowState(id: mint(), name: name, category: category)
         states[team, default: []].append(state)
         return state
@@ -100,6 +138,10 @@ actor FakeProvisioningBoard: BoardProvisioning {
         name: String, team: BoardObjectID, isGroup: Bool, parent: BoardObjectID?
     ) async throws(BoardError) -> BoardLabel {
         creates += 1
+        if case .refuse(let error)? = scripts[name] {
+            scripts[name] = nil
+            throw error
+        }
         let label = BoardLabel(id: mint(), name: name, isGroup: isGroup, parent: parent, team: team)
         teamLabels[team, default: []].append(label)
         return label

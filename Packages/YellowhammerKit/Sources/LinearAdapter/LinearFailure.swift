@@ -52,8 +52,10 @@ struct LinearFailure {
         switch response.statusCode {
         case 200..<300:
             return nil
-        case 401, 403:
+        case 401:
             return .notAuthenticated(scrub("Linear refused the access token with HTTP \(response.statusCode)"))
+        case 403:
+            return .forbidden(scrub("Linear refused permission with HTTP \(response.statusCode)"))
         case 429:
             return rateLimited(response)
         case 500..<600:
@@ -81,8 +83,17 @@ struct LinearFailure {
         if codes.contains(where: { ["AUTHENTICATION_ERROR", "UNAUTHENTICATED"].contains($0) }) {
             return .notAuthenticated(scrub("Linear refused the access token"))
         }
+        // "not found" is checked first: Linear answers some missing-entity reads with code `FORBIDDEN`
+        // too (its own read-permission model conflates "does not exist" with "you may not see it"), so
+        // an explicit "not found" message always wins that ambiguity. Only once the message names no
+        // missing entity does a `FORBIDDEN` code or "not allowed" wording read as a permission refusal
+        // (the story's own live example: "You are not allowed to create workflow states for this
+        // team", code `FORBIDDEN`) — Board Provisioning Ruling, OQ80.
         if let notFound = errors.first(where: isNotFound) {
             return .scopeNotFound(scrub("Linear reports \(plain(notFound))"))
+        }
+        if let forbidden = errors.first(where: isForbidden) {
+            return .forbidden(scrub("Linear reports \(plain(forbidden))"))
         }
         return .refused(scrub("Linear reports \(errors.first.map(plain) ?? "an unnamed error")"))
     }
@@ -91,11 +102,19 @@ struct LinearFailure {
         .rateLimited(retryAfter: LinearBudget.retryAfter(response), budget: LinearBudget.parse(response))
     }
 
-    private func isNotFound(_ error: LinearGraphQLError) -> Bool {
-        let text = [error.message, error.extensions?.type, error.extensions?.code]
+    private func isForbidden(_ error: LinearGraphQLError) -> Bool {
+        if error.extensions?.code?.uppercased() == "FORBIDDEN" { return true }
+        let text = [error.message, error.extensions?.type]
             .compactMap { $0?.lowercased() }
             .joined(separator: " ")
-        return text.contains("not found") || text.contains("forbidden")
+        return text.contains("not allowed") || text.contains("forbidden")
+    }
+
+    private func isNotFound(_ error: LinearGraphQLError) -> Bool {
+        let text = [error.message, error.extensions?.type]
+            .compactMap { $0?.lowercased() }
+            .joined(separator: " ")
+        return text.contains("not found")
     }
 
     /// The vendor message as one plain line, bounded in length.

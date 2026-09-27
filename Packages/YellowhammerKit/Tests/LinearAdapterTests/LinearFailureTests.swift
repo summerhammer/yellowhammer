@@ -139,6 +139,29 @@ struct LinearFailureTests {
         }
     }
 
+    @Test("A GraphQL FORBIDDEN code is forbidden, never scopeNotFound")
+    func graphQLForbidden() async throws {
+        let body = #"""
+            {"errors":[{"message":"You are not allowed to create workflow states for this team",
+              "extensions":{"code":"FORBIDDEN"}}]}
+            """#
+        let error = try await failure([Fixture.token(), Fixture.json(body)])
+        guard case .forbidden(let message) = error else {
+            Issue.record("expected forbidden, got \(error)")
+            return
+        }
+        #expect(message.contains("not allowed"))
+    }
+
+    @Test("HTTP 403 is forbidden, not notAuthenticated")
+    func http403() async throws {
+        let error = try await failure([Fixture.token(), Fixture.json(#"{"errors":[]}"#, status: 403)])
+        guard case .forbidden = error else {
+            Issue.record("expected forbidden, got \(error)")
+            return
+        }
+    }
+
     @Test("Another GraphQL error is refused, with a translated message that never echoes the token")
     func otherGraphQLError() async throws {
         let body = #"{"errors":[{"message":"Bad \#(Fixture.accessToken)","extensions":{"code":"INVALID_INPUT"}}]}"#

@@ -187,6 +187,9 @@ struct BoardProvisionerTests {
             #expect(blocked.count == BlockReason.allCases.count)
             // Waiting on You, Blocked, Kept in Flight, Released, Object Type and its three labels
             #expect(await board.creates == 8)
+            // An ordinary name collision is never a create-by-hand item: renaming the colliding label
+            // is the fix, not creating anything (P17.2 must not conflate this with a permission refusal).
+            #expect(!report.hasUnfinishedSteps)
         }
     }
 
@@ -337,6 +340,89 @@ struct BoardProvisionerTests {
         )
         #expect(!after.isChanged)
         #expect(try await board.labels(team: engineering.id).contains { $0.name == "o3" })
+    }
+
+    // MARK: - Membership first and refusals (P17.2, OQ80)
+
+    @Test("A team the app is not a member of gets no create attempt; another team is still provisioned")
+    func notAMemberTeamIsSkippedEntirely() async throws {
+        let board = board(teams: [engineering, product])
+        await board.excludeMembership(of: engineering.id)
+
+        let report = try await provision(board)
+
+        #expect(outcome(of: report) { if case .team(engineering) = $0 { true } else { false } } == .notAMember("ENG"))
+        // Nothing at all was attempted in ENG: no workflow-state or label entries for it.
+        #expect(!report.entries.contains { subject in
+            if case .workflowState(_, let team) = subject.subject, team == engineering { return true }
+            return false
+        })
+        // PRD, unaffected, still gets its full declared set.
+        let prdStates = report.entries.filter { entry in
+            if case .workflowState(_, let team) = entry.subject { return team == product }
+            return false
+        }
+        #expect(prdStates.count == 4)
+        #expect(prdStates.allSatisfy { $0.outcome == .created })
+        // No create call reached the board for ENG at all: only PRD's 4 states + 2 groups + 10 labels.
+        #expect(await board.creates == 17)
+        #expect(report.hasUnfinishedSteps)
+        #expect(report.createByHandGuideline?.contains("team ENG") == true)
+    }
+
+    @Test("A permission refusal on a create while the app is a member is reported, and the rest still runs")
+    func permissionRefusalWhileMemberStillRunsTheRest() async throws {
+        let board = board()
+        await board.script(.refuse(.forbidden("You are not allowed to create workflow states for this team")),
+                            for: BoardProvisioner.blockedState)
+
+        let report = try await provision(board)
+
+        #expect(outcome(of: report, blocked) == .permissionRefused(
+            "You are not allowed to create workflow states for this team"
+        ))
+        // Every other declared item in the team still got created.
+        #expect(outcome(of: report, waitingOnYou) == .created)
+        #expect(outcome(of: report, keptInFlight) == .created)
+        #expect(outcome(of: report, released) == .created)
+        #expect(outcome(of: report, objectTypeGroup) == .created)
+        #expect(report.hasUnfinishedSteps)
+        #expect(report.createByHandGuideline?.contains("Blocked") == true)
+        // The guideline lists only the missing item, not everything already created.
+        #expect(report.createByHandGuideline?.contains("Waiting on You") == false)
+    }
+
+    @Test("A permission refusal creating a label group refuses its children too, without attempting them")
+    func groupCreationRefusalRefusesChildrenWithoutAttempt() async throws {
+        let board = board()
+        await board.script(.refuse(.forbidden("not allowed")), for: BoardProvisioner.objectTypeGroup)
+
+        let report = try await provision(board)
+
+        #expect(outcome(of: report, objectTypeGroup) == .permissionRefused("not allowed"))
+        for name in ["Feature", "Card", "Night Card"] {
+            guard case .permissionRefused? = outcome(of: report, label(name, in: "Object Type")) else {
+                Issue.record("expected permissionRefused for \(name)")
+                continue
+            }
+        }
+        // The next group is unaffected: Block Reason still runs to completion.
+        #expect(outcome(of: report, blockReasonGroup) == .created)
+        // Only the refused group and its three children are unfinished.
+        #expect(report.unfinished.count == 4)
+        // 4 states + the refused Object Type attempt + Block Reason's group and 8 children.
+        #expect(await board.creates == 14)
+    }
+
+    @Test("A fully provisioned member team reports no changes, unaffected by the membership check")
+    func fullyProvisionedMemberTeamIsIdempotentWithMembershipCheck() async throws {
+        let board = board()
+        _ = try await provision(board)
+
+        let second = try await provision(board)
+
+        #expect(!second.isChanged)
+        #expect(!second.hasUnfinishedSteps)
     }
 
     @Test("Without a Routing Table the Override groups are not touched")

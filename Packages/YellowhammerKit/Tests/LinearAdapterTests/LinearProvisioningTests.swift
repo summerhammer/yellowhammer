@@ -235,4 +235,66 @@ struct LinearProvisioningTests {
             Issue.record("unexpected error type: \(error)")
         }
     }
+
+    // MARK: - memberTeams (P17.2, OQ80)
+
+    @Test("memberTeams reads viewer.teamMemberships, decoding each team's id")
+    func memberTeamsDecodesIDs() async throws {
+        let transport = StubHTTPTransport([
+            Fixture.token(),
+            Fixture.json("""
+                {"data":{"viewer":{"teamMemberships":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[
+                  {"team":{"id":"team-1"}}, {"team":{"id":"team-2"}}
+                ]}}}}
+                """)
+        ])
+        let adapter = Fixture.adapter(transport)
+
+        let teamIDs = try await adapter.memberTeams()
+
+        #expect(teamIDs == [BoardObjectID(rawValue: "team-1"), BoardObjectID(rawValue: "team-2")])
+        let variables = try Fixture.variables(transport.requests[1])
+        #expect(variables["first"] as? Int == 250)
+    }
+
+    @Test("memberTeams paginates with endCursor")
+    func memberTeamsPaginate() async throws {
+        let transport = StubHTTPTransport([
+            Fixture.token(),
+            Fixture.json("""
+                {"data":{"viewer":{"teamMemberships":{"pageInfo":{"hasNextPage":true,"endCursor":"cursor-a"},"nodes":[
+                  {"team":{"id":"team-1"}}
+                ]}}}}
+                """),
+            Fixture.json("""
+                {"data":{"viewer":{"teamMemberships":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[
+                  {"team":{"id":"team-2"}}
+                ]}}}}
+                """)
+        ])
+        let adapter = Fixture.adapter(transport)
+
+        let teamIDs = try await adapter.memberTeams()
+
+        #expect(teamIDs == [BoardObjectID(rawValue: "team-1"), BoardObjectID(rawValue: "team-2")])
+        #expect(try Fixture.variables(transport.requests[2])["after"] as? String == "cursor-a")
+    }
+
+    @Test("memberTeams translates a GraphQL error through LinearFailure")
+    func memberTeamsErrorTranslates() async throws {
+        let transport = StubHTTPTransport([
+            Fixture.token(),
+            Fixture.json(#"{"errors":[{"message":"nope","extensions":{"code":"FORBIDDEN"}}]}"#)
+        ])
+        let adapter = Fixture.adapter(transport)
+
+        do {
+            _ = try await adapter.memberTeams()
+            Issue.record("expected forbidden")
+        } catch .forbidden {
+            // Expected
+        } catch {
+            Issue.record("unexpected error type: \(error)")
+        }
+    }
 }

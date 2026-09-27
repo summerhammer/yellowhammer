@@ -15,6 +15,12 @@ public protocol BoardProvisioning: Sendable {
     /// Every team in the workspace. Workspace-scoped, not Linear-project-scoped.
     func teams() async throws(BoardError) -> [BoardTeam]
 
+    /// The teams Yellowhammer's own identity is a **member** of (Board Provisioning Ruling, OQ80): a
+    /// team the App Installation did not select is invisible to this identity and never appears here,
+    /// whether or not `teams()` can see it read-only. Setup checks membership before any create in a
+    /// team.
+    func memberTeams() async throws(BoardError) -> [BoardObjectID]
+
     /// The Linear project bound to this Project, as it exists on the board.
     /// Throws scopeNotFound when not visible to this identity.
     func linearProject() async throws(BoardError) -> BoardProjectScope

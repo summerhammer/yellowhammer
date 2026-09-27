@@ -2,6 +2,7 @@ import ArgumentParser
 import Config
 import Domain
 @testable import EngineCommand
+import Engine
 import Foundation
 import Testing
 
@@ -94,6 +95,51 @@ struct SetupTests {
         let setup2 = try makeSetup(arguments: arguments, directory: directory, board: board)
         try await setup2.run()
         #expect(await board.creates == createsAfterFirst)
+    }
+
+    @Test("--linear-team on a team the app can see but is not a member of refuses, with no create")
+    func linearTeamVisibleButNotAMemberRefuses() async throws {
+        let directory = ConfigurationDirectory()
+        let board = await makeBoard(project: nil)
+        await board.excludeMembership(of: engineeringTeam.id)
+        let arguments = makeArguments(
+            operatorID: "user-op", project: "demo", linearTeam: "ENG",
+            specSource: "~/dev/demo-spec", repo: ["backend,backend,~/dev/demo-backend,swift test"]
+        )
+        let setup = try makeSetup(arguments: arguments, directory: directory, board: board)
+
+        await #expect(throws: (any Error).self) { try await setup.run() }
+
+        #expect(await board.creates == 0)
+        #expect(!FileManager.default.fileExists(
+            atPath: directory.url.appending(components: "projects", "demo.toml").path(percentEncoded: false)
+        ))
+    }
+
+    @Test("A permission refusal is listed once more, consolidated, as the last block of setup's output")
+    func unfinishedProvisioningIsConsolidatedAtTheEnd() async throws {
+        let directory = ConfigurationDirectory()
+        let board = await makeBoard(
+            project: BoardProjectScope(id: BoardObjectID(rawValue: "proj-1"), name: "demo", teams: [engineeringTeam])
+        )
+        await board.script(.refuse(.forbidden("not allowed")), for: BoardProvisioner.blockedState)
+        let arguments = makeArguments(
+            operatorID: "user-op", project: "demo", linearProject: "proj-1",
+            specSource: "~/dev/demo-spec", repo: ["backend,backend,~/dev/demo-backend,swift test"]
+        )
+        let output = RecordingOutput()
+        let setup = try makeSetup(arguments: arguments, directory: directory, board: board, output: output)
+
+        try await setup.run()
+
+        let consolidatedIndex = try #require(output.lines.firstIndex(of: "Unfinished provisioning steps:"))
+        let perProjectIndex = try #require(output.lines.firstIndex(of: "Project demo:")) // glossary:ignore GL001
+        #expect(consolidatedIndex > perProjectIndex)
+        #expect(output.lines[(consolidatedIndex + 1)...].contains { $0.contains("permission refused") })
+        #expect(output.lines[(consolidatedIndex + 1)...].contains { $0.contains("Blocked") })
+        // The guideline is the last content line before "Setup complete.": nothing else follows it.
+        #expect(output.lines.last == "Setup complete.")
+        #expect(output.lines[output.lines.count - 2].contains("category started"))
     }
 
     @Test("An absent operator throws, listing the candidates, with no Project file and no provisioning")

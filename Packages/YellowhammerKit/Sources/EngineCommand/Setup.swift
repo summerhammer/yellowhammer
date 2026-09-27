@@ -61,7 +61,7 @@ struct Setup {
         try await writeProjectsIfNeeded(machine: machine, secret: secret, board: board)
 
         let configuration = try validateConfiguration()
-        let provisioningFailedIDs = await provisionProjects(
+        let (provisioningFailedIDs, unfinishedProvisioning) = await provisionProjects(
             configuration: configuration, machine: machine, secret: secret
         )
         let jobsFailed = await handleScheduledJobs(
@@ -69,6 +69,8 @@ struct Setup {
         )
         await reportNotifications()
         reportRoutingWarnings(configuration: configuration, machine: machine)
+        // The story's consolidated list, last: every unfinished provisioning step across every Project.
+        reportUnfinishedProvisioning(unfinishedProvisioning)
 
         if !configuration.invalidProjects.isEmpty || !provisioningFailedIDs.isEmpty || jobsFailed {
             throw SetupError("setup finished with errors; see the output above")

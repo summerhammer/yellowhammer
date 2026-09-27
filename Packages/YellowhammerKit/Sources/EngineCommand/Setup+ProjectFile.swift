@@ -113,8 +113,22 @@ extension Setup {
             throw SetupError("Linear authorization failed: \(error)")
         }
         guard let team = teams.first(where: { $0.key.lowercased() == key.lowercased() }) else {
-            let known = teams.map(\.key).joined(separator: ", ")
-            throw SetupError("no team keyed \"\(key)\"; known teams: \(known)")
+            // A team the App Installation never selected is invisible — Linear returns no such team —
+            // and is reported as a membership problem, the same cause as any other not-a-member team,
+            // never as a missing or misspelled key (Board Provisioning Ruling, OQ80): the Operator may
+            // have typed the key exactly right, on a team the app just cannot see yet.
+            throw SetupError(Self.notAMemberMessage(key: key))
+        }
+        // Creating the Linear project is itself a create in this team (Board Provisioning Ruling,
+        // OQ80): membership is checked before it, on the same terms as any other create.
+        let memberTeamIDs: Set<BoardObjectID>
+        do {
+            memberTeamIDs = Set(try await board.memberTeams())
+        } catch {
+            throw SetupError("Linear authorization failed: \(error)")
+        }
+        guard memberTeamIDs.contains(team.id) else {
+            throw SetupError(Self.notAMemberMessage(key: key))
         }
         // Created directly, not through `BoardProvisioner`: this board is bound to no Linear project, so
         // the provisioner's opening `linearProject()` read would ask Linear for an empty id. Step 6
@@ -123,9 +137,24 @@ extension Setup {
             let created = try await board.createLinearProject(name: name, team: team.id)
             output("created Linear project \"\(created.name)\" in team \(team.key)") // glossary:ignore GL001
             return created.id.rawValue
+        } catch .forbidden(let reason) {
+            // A permission refusal, named by step and team — never reported as the Linear project
+            // being invisible (Refusals Ruling).
+            throw SetupError(
+                "permission refused creating the Linear project in team \"\(key)\": \(reason)" // glossary:ignore GL001
+            )
         } catch {
             let message = "could not create the Linear project in team \"\(key)\": \(error)" // glossary:ignore GL001
             throw SetupError(message)
         }
+    }
+
+    /// The membership fix (Board Provisioning Ruling, OQ80): named the same way whether the team is
+    /// invisible (the App Installation never selected it) or merely not a membership, since the
+    /// Operator cannot tell those apart and the fix is identical either way.
+    private static func notAMemberMessage(key: String) -> String {
+        "the Yellowhammer app is not a member of team \"\(key)\" " + // glossary:ignore GL001
+            "(or that team is not visible to it): add Yellowhammer as a member in the team's " +
+            "Settings → Members, then re-run setup"
     }
 }
