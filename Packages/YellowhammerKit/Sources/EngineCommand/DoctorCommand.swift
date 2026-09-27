@@ -70,8 +70,8 @@ public struct DoctorCommand: AsyncParsableCommand {
             output: { print($0) },
             console: RealSetupConsole(),
             credentials: KeychainSetupCredentialStore(),
-            bindProvisioning: { machine, linearProjectID, secret in
-                BoardBinding.provisioning(machine: machine, linearProjectID: linearProjectID, clientSecret: secret)
+            bindProvisioning: { machine, linearProjectID in
+                BoardBinding.provisioning(machine: machine, linearProjectID: linearProjectID)
             },
             launchAgents: LaunchctlLaunchAgentControl(),
             git: GitRunner(),

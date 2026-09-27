@@ -26,7 +26,8 @@ let selfMember = BoardMember(
     isActive: true, isApp: false, isSelf: true
 )
 
-/// Records every credential written, and answers reads from a seed or what was written.
+/// Answers Installation-token-presence reads from a seed — `SetupCredentialStore` is presence-only
+/// (P17.4): it never stores.
 final class RecordingCredentialStore: SetupCredentialStore {
     private let storage: Mutex<[String: String]>
 
@@ -36,10 +37,6 @@ final class RecordingCredentialStore: SetupCredentialStore {
 
     func secret(for reference: CredentialReference) -> String? {
         storage.withLock { $0[reference.rawValue] }
-    }
-
-    func store(_ secret: String, for reference: CredentialReference) throws {
-        storage.withLock { $0[reference.rawValue] = secret }
     }
 }
 
@@ -78,12 +75,10 @@ final class NotificationRegistrationStub: Sendable {
 func makeArguments(
     initialize: Bool = true,
     config: String? = nil,
-    linearClientID: String? = "yellowhammer-client-id",
     cli: [String] = [],
     route: String? = nil,
     fallback: [String] = [],
     operatorID: String? = nil,
-    linearClientSecretStdin: Bool = false,
     project: String? = nil,
     projectName: String? = nil,
     linearProject: String? = nil,
@@ -96,11 +91,9 @@ func makeArguments(
 ) -> [String] {
     var arguments: [String] = []
     if initialize { arguments.append("--init") }
-    if linearClientSecretStdin { arguments.append("--linear-client-secret-stdin") }
     if installJobs { arguments.append("--install-jobs") }
     if cron { arguments.append("--cron") }
     appendOption(&arguments, "--config", config)
-    appendOption(&arguments, "--linear-client-id", linearClientID)
     appendOption(&arguments, "--route", route)
     appendOption(&arguments, "--operator", operatorID)
     appendOption(&arguments, "--project", project) // glossary:ignore GL001
@@ -189,7 +182,6 @@ func makeSetup(
     console: ScriptedConsole = ScriptedConsole(),
     credentials: RecordingCredentialStore = RecordingCredentialStore(seed: ["keychain:linear": "test-secret"]),
     output: RecordingOutput = RecordingOutput(),
-    readStandardInputLine: @escaping () -> String? = { nil },
     notifications: NotificationRegistrationStub = NotificationRegistrationStub(.allowed),
     homeDirectory: URL = FileManager.default.temporaryDirectory
         .appending(component: "yh-home-\(UUID().uuidString)", directoryHint: .isDirectory),
@@ -206,8 +198,7 @@ func makeSetup(
         output: { output.record($0) },
         console: console,
         credentials: credentials,
-        readStandardInputLine: readStandardInputLine,
-        bindProvisioning: { _, _, _ in board },
+        bindProvisioning: { _, _ in board },
         registerNotifications: { await notifications.call() },
         homeDirectory: homeDirectory,
         yhExecutablePath: yhExecutablePath,

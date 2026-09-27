@@ -158,6 +158,50 @@ extension MachineConfiguration {
         return lines.joined(separator: "\n")
     }
 
+    /// A textual edit of an existing, hand-maintained `config.toml`: preserves every other line,
+    /// including comments. Replaces existing `[linear].workspace`/`.app_user` lines, or inserts them
+    /// right after the `[linear]` header when absent (P17.6 writes these once the Installation
+    /// succeeds). Applying it twice equals applying it once.
+    public static func settingLinearInstallation(
+        workspace: BoardObjectID, appUser: BoardObjectID, inFileText text: String
+    ) -> String {
+        var lines = text.components(separatedBy: "\n")
+        guard let linearHeaderIndex = lines.firstIndex(where: { isTableHeader($0, named: "linear") }) else {
+            return text
+        }
+
+        var searchIndex = linearHeaderIndex + 1
+        var workspaceLineIndex: Int?
+        var appUserLineIndex: Int?
+        while searchIndex < lines.count, !isAnyTableHeader(lines[searchIndex]) {
+            if isKeyAssignment(lines[searchIndex], key: "workspace") {
+                workspaceLineIndex = searchIndex
+            } else if isKeyAssignment(lines[searchIndex], key: "app_user") {
+                appUserLineIndex = searchIndex
+            }
+            searchIndex += 1
+        }
+
+        let workspaceLine = "workspace = \(ConfigurationRendering.quoted(workspace.rawValue))"
+        let appUserLine = "app_user = \(ConfigurationRendering.quoted(appUser.rawValue))"
+
+        if let workspaceLineIndex {
+            lines[workspaceLineIndex] = workspaceLine
+        } else {
+            lines.insert(workspaceLine, at: linearHeaderIndex + 1)
+            appUserLineIndex = appUserLineIndex.map { $0 + 1 }
+        }
+        if let appUserLineIndex {
+            lines[appUserLineIndex] = appUserLine
+        } else {
+            // Right after `workspace` if it was just inserted or already present, else right after the header.
+            let insertAt = lines.firstIndex(where: { isKeyAssignment($0, key: "workspace") }).map { $0 + 1 }
+                ?? linearHeaderIndex + 1
+            lines.insert(appUserLine, at: insertAt)
+        }
+        return lines.joined(separator: "\n")
+    }
+
     private static func isTableHeader(_ line: String, named name: String) -> Bool {
         line.trimmingCharacters(in: .whitespaces) == "[\(name)]"
     }

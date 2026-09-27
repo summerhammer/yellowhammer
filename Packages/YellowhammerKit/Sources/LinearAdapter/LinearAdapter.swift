@@ -4,34 +4,18 @@ import Foundation
 /// The Linear implementation of the Board Port, bound at construction to one Project's Linear project.
 ///
 /// It authenticates as Yellowhammer's Linear App Installation (ADR-005) — an application-actor identity,
-/// never an Operator's personal API key — records the budget every response reports, and translates
-/// every failure into ``BoardError``. It translates and never decides: no Outbox, no Lease; the one
-/// exception is `send`'s single retry after a forced token refresh on an unauthorized response, which is
+/// never an Operator's personal API key, and never a client secret (the withdrawn client-credentials
+/// mode was removed in P17.4) — records the budget every response reports, and translates every
+/// failure into ``BoardError``. It translates and never decides: no Outbox, no Lease; the one exception
+/// is `send`'s single retry after a forced token refresh on an unauthorized response, which is
 /// transport-level recovery, not a board decision.
-///
-/// The client-credentials `init(linearProjectID:credentials:...)` is transitional (P17.3): P17.4 deletes
-/// it once setup and every caller are wired to `init(linearProjectID:tokenStore:...)`.
 public actor LinearAdapter: Board {
     let linearProjectID: String
     private let transport: any HTTPTransport
-    private let tokens: any LinearTokenProviding
+    private let tokens: LinearInstallationTokenSource
 
     public private(set) var latestBudget: BoardBudget?
 
-    public init(
-        linearProjectID: String,
-        credentials: LinearCredentials,
-        transport: any HTTPTransport = URLSessionHTTPTransport(),
-        clock: @escaping @Sendable () -> Date = { Date() },
-        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
-    ) {
-        self.linearProjectID = linearProjectID
-        self.transport = transport
-        tokens = LinearTokenSource(credentials: credentials, transport: transport, clock: clock, sleep: sleep)
-    }
-
-    /// The Installation's own token source (ADR-005): the durable replacement for the client-credentials
-    /// mode above.
     public init(
         linearProjectID: String,
         tokenStore: LinearTokenStore,
@@ -160,8 +144,8 @@ public actor LinearAdapter: Board {
         }
         // GraphQL errors are judged before the payload: a failed query may carry a `data` too partial to decode.
         if let refusal = failure.status(data, response) ?? failure.graphQL(data, response) {
-            if case .notAuthenticated = refusal, !isRetry,
-               let recovered = try await tokens.recoverFromUnauthorized(rejected: token) {
+            if case .notAuthenticated = refusal, !isRetry {
+                let recovered = try await tokens.recoverFromUnauthorized(rejected: token)
                 return try await send(query, variables: variables, token: recovered, isRetry: true)
             }
             throw refusal

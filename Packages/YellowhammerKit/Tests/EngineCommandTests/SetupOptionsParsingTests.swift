@@ -56,14 +56,13 @@ struct SetupOptionsParsingTests {
     }
 
     @Test("--config with a generating option is refused", arguments: [
-        makeArguments(initialize: false, config: "/tmp/prepared", linearClientID: "id"),
-        makeArguments(initialize: false, config: "/tmp/prepared", linearClientID: nil, cli: ["claude"]),
-        makeArguments(initialize: false, config: "/tmp/prepared", linearClientID: nil, route: "claude/sonnet/medium"),
+        makeArguments(initialize: false, config: "/tmp/prepared", cli: ["claude"]),
+        makeArguments(initialize: false, config: "/tmp/prepared", route: "claude/sonnet/medium"),
         makeArguments(
-            initialize: false, config: "/tmp/prepared", linearClientID: nil,
-            cli: ["claude"], route: "claude/sonnet/medium", fallback: ["claude/opus/high"]
+            initialize: false, config: "/tmp/prepared", cli: ["claude"], route: "claude/sonnet/medium",
+            fallback: ["claude/opus/high"]
         ),
-        makeArguments(initialize: false, config: "/tmp/prepared", linearClientID: nil, project: "demo")
+        makeArguments(initialize: false, config: "/tmp/prepared", project: "demo")
     ])
     func configWithGeneratingOptionRefused(arguments: [String]) {
         #expect(throws: (any Error).self) { try SetupCommand.parse(arguments) }
@@ -99,11 +98,10 @@ struct SetupOptionsParsingTests {
         #expect(options.jobs == .install)
     }
 
-    @Test("--config allows --operator and --linear-client-secret-stdin")
-    func configAllowsOperatorAndStdin() throws {
+    @Test("--config allows --operator")
+    func configAllowsOperator() throws {
         let arguments = makeArguments(
-            initialize: false, config: "/tmp/prepared", linearClientID: nil,
-            operatorID: "user-op", linearClientSecretStdin: true
+            initialize: false, config: "/tmp/prepared", operatorID: "user-op"
         )
         let command = try SetupCommand.parse(arguments)
         let options = try SetupOptions(command: command)

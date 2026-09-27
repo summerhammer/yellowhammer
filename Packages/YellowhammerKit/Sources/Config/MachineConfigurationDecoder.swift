@@ -20,8 +20,9 @@ struct MachineConfigurationDecoder {
         var routingDecoding = decoding
         routingDecoding.declaredCLIAdapters = Set(cliAdapters.map(\.name))
         return MachineConfiguration(
-            linearClientID: linear.clientID,
             linearCredential: linear.credential,
+            linearWorkspace: linear.workspace,
+            linearAppUser: linear.appUser,
             gitHubCredential: gitHubCredential,
             cliAdapters: cliAdapters,
             routingTable: try routingDecoding.routingTable(in: root),
@@ -31,17 +32,19 @@ struct MachineConfigurationDecoder {
 
     // MARK: - Sections
 
-    /// `[linear]`'s decoded fields: the credential, the registered application's non-empty `client_id`,
-    /// and the optional Operator identity (`operator`).
+    /// `[linear]`'s decoded fields: the credential, the Installation's workspace and app user ids (nil
+    /// until installed), and the optional Operator identity (`operator`).
     private struct LinearSection {
-        let clientID: String
         let credential: CredentialReference
+        let workspace: BoardObjectID?
+        let appUser: BoardObjectID?
         let operatorIdentity: BoardObjectID?
     }
 
-    /// `[linear]`: the credential, the registered application's non-empty `client_id`, and the optional
-    /// Operator identity (`operator`). An absent or empty `operator` decodes to nil — never a load-time
-    /// validation failure (Operator Identity Ruling — 2026-09-23).
+    /// `[linear]`: the credential, the Installation's `workspace`/`app_user` (both nil until P17.6
+    /// installs one), and the optional Operator identity (`operator`). An absent or empty `operator`
+    /// decodes to nil — never a load-time validation failure (Operator Identity Ruling — 2026-09-23).
+    /// A `client_id` key — the withdrawn client-credentials setup — is a named load failure (P17.4).
     ///
     /// Decoded here rather than through ``ConfigurationDecoding/credential(in:table:)``, which must keep
     /// refusing every key but `credential` in `[github]`.
@@ -50,16 +53,26 @@ struct MachineConfigurationDecoder {
             throw decoding.error(line: 1, key: "linear", .missingTable)
         }
         let table = try decoding.table(value, key: "linear")
-        try decoding.rejectUnknownKeys(in: table, path: "linear", allowed: ["client_id", "credential", "operator"])
+        if let legacy = table["client_id"] {
+            throw decoding.error(line: legacy.line, key: "linear.client_id", .legacyLinearClientID)
+        }
+        try decoding.rejectUnknownKeys(
+            in: table, path: "linear", allowed: ["credential", "workspace", "app_user", "operator"]
+        )
         let credentialString = try decoding.requiredString("credential", in: table, path: "linear")
         guard let credential = CredentialReference(credentialString) else {
             let line = table["credential"]?.line ?? table.line
             throw decoding.error(line: line, key: "linear.credential", .emptyString)
         }
-        let clientID = try decoding.requiredString("client_id", in: table, path: "linear")
+        let workspaceString = try decoding.optionalString("workspace", in: table, path: "linear", allowEmpty: true)
+        let workspace = workspaceString.flatMap { $0.isEmpty ? nil : BoardObjectID(rawValue: $0) }
+        let appUserString = try decoding.optionalString("app_user", in: table, path: "linear", allowEmpty: true)
+        let appUser = appUserString.flatMap { $0.isEmpty ? nil : BoardObjectID(rawValue: $0) }
         let operatorString = try decoding.optionalString("operator", in: table, path: "linear", allowEmpty: true)
         let operatorIdentity = operatorString.flatMap { $0.isEmpty ? nil : BoardObjectID(rawValue: $0) }
-        return LinearSection(clientID: clientID, credential: credential, operatorIdentity: operatorIdentity)
+        return LinearSection(
+            credential: credential, workspace: workspace, appUser: appUser, operatorIdentity: operatorIdentity
+        )
     }
 
     private func cliAdapters(in root: TOMLTable) throws(ConfigurationError) -> [CLIAdapterDeclaration] {

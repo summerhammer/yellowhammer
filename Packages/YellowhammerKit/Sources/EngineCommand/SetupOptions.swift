@@ -41,7 +41,6 @@ struct SetupOptions {
     static let defaultGitHubCredential = "keychain:github"
 
     let mode: SetupMode
-    let linearClientID: String?
     let linearCredential: CredentialReference?
     let githubCredential: CredentialReference?
     /// In `--cli` order.
@@ -49,7 +48,6 @@ struct SetupOptions {
     /// The base Routing Table's one entry (kind `*`, repo_role `*`), built from `--route`/`--fallback`.
     let route: RoutingEntry?
     let operatorID: BoardObjectID?
-    let linearClientSecretStdin: Bool
     let projectID: ProjectID?
     let projectName: String?
     let linearProjectID: String?
@@ -61,11 +59,9 @@ struct SetupOptions {
 
     init(command: SetupCommand) throws {
         mode = try Self.parseMode(command)
-        linearClientID = command.linearClientID
         linearCredential = try Self.parseCredential(command.linearCredential, option: "--linear-credential")
         githubCredential = try Self.parseCredential(command.githubCredential, option: "--github-credential")
         operatorID = command.operatorID.map { BoardObjectID(rawValue: $0) }
-        linearClientSecretStdin = command.linearClientSecretStdin
 
         let (adapters, declaredNames) = try Self.parseCLIAdapters(command.cli)
         cliAdapters = adapters
@@ -107,12 +103,12 @@ struct SetupOptions {
         guard !command.initialize else {
             throw ValidationError("--config and --init are mutually exclusive")
         }
-        let generating = command.linearClientID != nil || !command.cli.isEmpty || command.route != nil
+        let generating = !command.cli.isEmpty || command.route != nil
             || !command.fallback.isEmpty || command.project != nil
         guard !generating else {
             throw ValidationError(
                 "--config cannot be combined with " // glossary:ignore GL001
-                    + "--linear-client-id, --cli, --route, --fallback or --project" // glossary:ignore GL001
+                    + "--cli, --route, --fallback or --project" // glossary:ignore GL001
             )
         }
         return .config(URL(filePath: configPath, directoryHint: .isDirectory))

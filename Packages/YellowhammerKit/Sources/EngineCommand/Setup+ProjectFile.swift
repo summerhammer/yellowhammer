@@ -8,16 +8,16 @@ extension Setup {
     /// ``ProjectDeclaration`` from the options under `--init`, or loops interactive prompts, and writes
     /// each through the one shared path.
     func writeProjectsIfNeeded(
-        machine: MachineConfiguration, secret: String, board: any BoardProvisioning
+        machine: MachineConfiguration, board: any BoardProvisioning
     ) async throws {
         switch options.mode {
         case .config, .printChoices:
             return
         case .initialize:
             guard let declaration = try optionProjectDeclaration() else { return }
-            try await writeProject(declaration, machine: machine, secret: secret, board: board)
+            try await writeProject(declaration, machine: machine, board: board)
         case .interactive:
-            try await interactiveProjectLoop(machine: machine, secret: secret, board: board)
+            try await interactiveProjectLoop(machine: machine, board: board)
         }
     }
 
@@ -41,7 +41,7 @@ extension Setup {
     /// must not leave an orphan Linear project), resolves the Linear project — creating it in a team
     /// when asked — and writes the file.
     func writeProject(
-        _ declaration: ProjectDeclaration, machine: MachineConfiguration, secret: String, board: any BoardProvisioning
+        _ declaration: ProjectDeclaration, machine: MachineConfiguration, board: any BoardProvisioning
     ) async throws {
         let projectFileURL = configurationDirectory.appending(
             components: "projects", "\(declaration.id.rawValue).toml", directoryHint: .notDirectory

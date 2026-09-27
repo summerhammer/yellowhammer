@@ -53,7 +53,6 @@ public struct SetupInvocation: Equatable, Sendable {
         case export(directory: String, cron: Bool)
     }
 
-    public var linearClientID: String?
     public var linearCredential: String?
     public var githubCredential: String?
     /// `"name"` or `"name=executable"`, in `--cli` order.
@@ -62,30 +61,25 @@ public struct SetupInvocation: Equatable, Sendable {
     /// `"cli/model/effort"`, in `--fallback` order.
     public var fallbacks: [String]
     public var operatorID: String?
-    public var passesSecretOnStandardInput: Bool
     public var project: Project?
     public var jobs: Jobs
 
     public init(
-        linearClientID: String? = nil,
         linearCredential: String? = nil,
         githubCredential: String? = nil,
         cliAdapters: [String] = [],
         route: String? = nil,
         fallbacks: [String] = [],
         operatorID: String? = nil,
-        passesSecretOnStandardInput: Bool = false,
         project: Project? = nil,
         jobs: Jobs = .notNow
     ) {
-        self.linearClientID = linearClientID
         self.linearCredential = linearCredential
         self.githubCredential = githubCredential
         self.cliAdapters = cliAdapters
         self.route = route
         self.fallbacks = fallbacks
         self.operatorID = operatorID
-        self.passesSecretOnStandardInput = passesSecretOnStandardInput
         self.project = project
         self.jobs = jobs
     }
@@ -93,14 +87,12 @@ public struct SetupInvocation: Equatable, Sendable {
     /// `["setup", "--init", ...]`, the app's non-interactive `yh setup` invocation.
     public func arguments() throws(SetupInvocationError) -> [String] {
         var arguments = ["setup", "--init"]
-        Self.appendOption(&arguments, "--linear-client-id", linearClientID)
         Self.appendOption(&arguments, "--linear-credential", linearCredential)
         Self.appendOption(&arguments, "--github-credential", githubCredential)
         Self.appendRepeated(&arguments, "--cli", cliAdapters)
         Self.appendOption(&arguments, "--route", route)
         Self.appendRepeated(&arguments, "--fallback", fallbacks)
         Self.appendOption(&arguments, "--operator", operatorID)
-        if passesSecretOnStandardInput { arguments.append("--linear-client-secret-stdin") }
         if let project {
             arguments += ["--project", project.id]
             Self.appendOption(&arguments, "--project-name", project.name)
@@ -129,14 +121,11 @@ public struct SetupInvocation: Equatable, Sendable {
 
     /// `["setup", "--print-choices", ...]`: never prompts, writes no configuration file.
     public static func choicesArguments(
-        linearClientID: String?, linearCredential: String?, githubCredential: String?,
-        passesSecretOnStandardInput: Bool
+        linearCredential: String?, githubCredential: String?
     ) -> [String] {
         var arguments = ["setup", "--print-choices"] // glossary:ignore GL001
-        appendOption(&arguments, "--linear-client-id", linearClientID)
         appendOption(&arguments, "--linear-credential", linearCredential)
         appendOption(&arguments, "--github-credential", githubCredential)
-        if passesSecretOnStandardInput { arguments.append("--linear-client-secret-stdin") }
         return arguments
     }
 

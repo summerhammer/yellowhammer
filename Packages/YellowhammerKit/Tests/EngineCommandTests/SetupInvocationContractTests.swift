@@ -12,14 +12,12 @@ struct SetupInvocationContractTests {
     @Test("A full --init invocation parses back to the matching SetupOptions") // glossary:ignore GL001
     func fullInitInvocationParsesBack() throws {
         let invocation = SetupInvocation(
-            linearClientID: "client-id",
             linearCredential: "keychain:linear",
             githubCredential: "keychain:github",
             cliAdapters: ["claude"],
             route: "claude/sonnet/medium",
             fallbacks: ["claude/opus/high"],
             operatorID: "user-op",
-            passesSecretOnStandardInput: true,
             project: SetupInvocation.Project(
                 id: "demo", name: "Demo", linearProject: .existing("proj-1"),
                 specSource: "~/dev/demo-spec",
@@ -35,14 +33,12 @@ struct SetupInvocationContractTests {
         let options = try SetupOptions(command: command)
 
         #expect(options.mode == .initialize)
-        #expect(options.linearClientID == "client-id")
         #expect(options.linearCredential == CredentialReference("keychain:linear"))
         #expect(options.githubCredential == CredentialReference("keychain:github"))
         #expect(options.cliAdapters == [CLIAdapterDeclaration(name: "claude")])
         #expect(options.route?.route == Route(cli: "claude", model: "sonnet", effort: "medium"))
         #expect(options.route?.fallbacks ?? [] == [Route(cli: "claude", model: "opus", effort: "high")])
         #expect(options.operatorID == BoardObjectID(rawValue: "user-op"))
-        #expect(options.linearClientSecretStdin == true)
         #expect(options.projectID == ProjectID(rawValue: "demo"))
         #expect(options.projectName == "Demo")
         #expect(options.linearProjectID == "proj-1")
@@ -74,18 +70,15 @@ struct SetupInvocationContractTests {
     @Test("choicesArguments parses back as --print-choices, no Project or generating options") // glossary:ignore GL001
     func choicesArgumentsParsesBack() throws {
         let arguments = Array(SetupInvocation.choicesArguments(
-            linearClientID: "client-id", linearCredential: "keychain:linear",
-            githubCredential: "keychain:github", passesSecretOnStandardInput: true
+            linearCredential: "keychain:linear", githubCredential: "keychain:github"
         ).dropFirst())
 
         let command = try SetupCommand.parse(arguments)
         let options = try SetupOptions(command: command)
 
         #expect(options.mode == .printChoices)
-        #expect(options.linearClientID == "client-id")
         #expect(options.linearCredential == CredentialReference("keychain:linear"))
         #expect(options.githubCredential == CredentialReference("keychain:github"))
-        #expect(options.linearClientSecretStdin == true)
         #expect(options.projectID == nil)
     }
 }

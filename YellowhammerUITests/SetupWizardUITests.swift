@@ -97,7 +97,6 @@ final class SetupWizardUITests: XCTestCase {
         XCTAssertEqual(value(after: "--project", in: recorded), "demo") // glossary:ignore GL001
         XCTAssertEqual(value(after: "--repo", in: recorded), "backend,spec,~/dev/backend,none")
         XCTAssertTrue(recorded.contains("--install-jobs"))
-        XCTAssertTrue(recorded.contains("--linear-client-secret-stdin"))
     }
 
     func testOperatorStepContinueIsDisabledUntilACandidateIsPicked() throws {

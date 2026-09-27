@@ -12,9 +12,8 @@ struct SetupInteractiveTests {
     func interactiveCleanRun() async throws {
         let directory = ConfigurationDirectory()
         let board = await makeBoard(members: [operatorMember, secondCandidateMember])
-        let arguments = makeArguments(initialize: false, linearClientID: nil)
+        let arguments = makeArguments(initialize: false)
         let console = ScriptedConsole(answers: [
-            "yellowhammer-client-id", // Linear client id
             "", // Linear credential -> default
             "", // GitHub credential -> default
             "", // CLI Adapters -> none
@@ -39,7 +38,7 @@ struct SetupInteractiveTests {
         let directory = ConfigurationDirectory()
         let board = await makeBoard(project: nil, teams: [engineeringTeam, productTeam])
         let arguments = makeArguments(
-            initialize: false, linearClientID: "yellowhammer-client-id", operatorID: "user-op"
+            initialize: false, operatorID: "user-op"
         )
         let console = ScriptedConsole(answers: [
             "", "", "", "", // Linear/GitHub credential, CLI Adapters, catch-all route
@@ -71,29 +70,28 @@ struct SetupInteractiveTests {
         #expect(await board.creates >= 1)
     }
 
-    @Test("With a missing secret, interactive mode calls askSecret and stores the result")
-    func interactiveMissingSecretAsks() async throws {
+    @Test("No Installation token pair yet: interactive mode throws, naming the fix, and never prompts")
+    func interactiveMissingInstallationThrows() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
         let board = await makeBoard()
-        let arguments = makeArguments(initialize: false, linearClientID: nil, operatorID: "user-op")
-        let console = ScriptedConsole(answers: ["n"], secretAnswers: ["a-secret-from-console"])
+        let arguments = makeArguments(initialize: false, operatorID: "user-op")
+        let console = ScriptedConsole(answers: ["n"])
         let credentials = RecordingCredentialStore()
         let setup = try makeSetup(
             arguments: arguments, directory: directory, board: board, console: console, credentials: credentials
         )
 
-        try await setup.run()
+        await #expect(throws: SetupError.self) { try await setup.run() }
 
-        #expect(console.prompts.contains("Linear client secret: "))
-        #expect(credentials.secret(for: CredentialReference("keychain:linear")!) == "a-secret-from-console")
+        #expect(console.prompts.isEmpty)
     }
 
     @Test("EOF at the Operator prompt throws and writes no Project file")
     func eofAtOperatorPromptThrows() async throws {
         let directory = ConfigurationDirectory()
         let board = await makeBoard(members: [operatorMember, secondCandidateMember])
-        let arguments = makeArguments(initialize: false, linearClientID: "yellowhammer-client-id")
+        let arguments = makeArguments(initialize: false)
         let console = ScriptedConsole(answers: ["", "", "", ""])
         let setup = try makeSetup(arguments: arguments, directory: directory, board: board, console: console)
 

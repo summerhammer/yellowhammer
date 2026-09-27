@@ -31,11 +31,9 @@ public struct SetupCommand: AsyncParsableCommand {
     )
     public var printChoices: Bool = false
 
-    @Option(name: .customLong("linear-client-id"), help: "The registered Linear OAuth application's client id.")
-    public var linearClientID: String?
-
     @Option(
-        name: .customLong("linear-credential"), help: "Reference to the Linear client secret (default keychain:linear)."
+        name: .customLong("linear-credential"),
+        help: "Reference to the Linear Installation's stored tokens (default keychain:linear)."
     )
     public var linearCredential: String?
 
@@ -55,9 +53,6 @@ public struct SetupCommand: AsyncParsableCommand {
 
     @Option(name: .customLong("operator"), help: "The Operator identity's Linear user id.")
     public var operatorID: String?
-
-    @Flag(name: .customLong("linear-client-secret-stdin"), help: "Read the Linear client secret from stdin.")
-    public var linearClientSecretStdin: Bool = false
 
     @Option(help: "The id of a Project to generate.")
     public var project: String?
@@ -108,9 +103,8 @@ public struct SetupCommand: AsyncParsableCommand {
             output: { print($0) },
             console: RealSetupConsole(),
             credentials: KeychainSetupCredentialStore(),
-            readStandardInputLine: { readLine() },
-            bindProvisioning: { machine, linearProjectID, secret in
-                BoardBinding.provisioning(machine: machine, linearProjectID: linearProjectID, clientSecret: secret)
+            bindProvisioning: { machine, linearProjectID in
+                BoardBinding.provisioning(machine: machine, linearProjectID: linearProjectID)
             },
             registerNotifications: Self.registerNotifications,
             homeDirectory: FileManager.default.homeDirectoryForCurrentUser,

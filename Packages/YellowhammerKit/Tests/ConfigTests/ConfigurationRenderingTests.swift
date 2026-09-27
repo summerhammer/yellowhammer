@@ -96,7 +96,6 @@ func projectRendersExplicitDefaultBounds() throws {
 @Test("A minimal machine file (no operator, no CLI adapters, no routing) round-trips")
 func machineMinimalRoundTrip() throws {
     let machine = MachineConfiguration(
-        linearClientID: "yellowhammer-client-id",
         linearCredential: try credential("keychain:linear"),
         gitHubCredential: try credential("keychain:github"),
         cliAdapters: [],
@@ -109,7 +108,6 @@ func machineMinimalRoundTrip() throws {
 @Test("A full machine file with an operator, CLI tables with/without executable, and routing fallbacks")
 func machineFullRoundTrip() throws {
     let machine = MachineConfiguration(
-        linearClientID: "yellowhammer-client-id",
         linearCredential: try credential("keychain:linear"),
         gitHubCredential: try credential("keychain:github"),
         cliAdapters: [
@@ -139,7 +137,6 @@ func settingOperatorInsertsWhenAbsent() throws {
     let text = """
         [linear]
         credential = "keychain:linear"
-        client_id = "yellowhammer-client-id"
 
         [github]
         credential = "keychain:github"
@@ -157,7 +154,6 @@ func settingOperatorReplacesWhenPresent() throws {
         [linear]
         credential = "keychain:linear" # do not touch
         operator = "old-user"
-        client_id = "yellowhammer-client-id"
 
         [github]
         credential = "keychain:github"
@@ -171,12 +167,76 @@ func settingOperatorReplacesWhenPresent() throws {
     #expect(parsed.operatorIdentity == BoardObjectID(rawValue: "new-user"))
 }
 
+// MARK: - settingLinearInstallation
+
+@Test("settingLinearInstallation inserts workspace and app_user right after [linear] when absent")
+func settingLinearInstallationInsertsWhenAbsent() throws {
+    let text = """
+        [linear]
+        credential = "keychain:linear"
+
+        [github]
+        credential = "keychain:github"
+        """
+    let result = MachineConfiguration.settingLinearInstallation(
+        workspace: BoardObjectID(rawValue: "workspace-1"), appUser: BoardObjectID(rawValue: "app-user-1"),
+        inFileText: text
+    )
+    let parsed = try MachineConfiguration.parse(result, file: "config.toml")
+    #expect(parsed.linearWorkspace == BoardObjectID(rawValue: "workspace-1"))
+    #expect(parsed.linearAppUser == BoardObjectID(rawValue: "app-user-1"))
+}
+
+@Test("settingLinearInstallation replaces existing workspace/app_user lines, preserving comments")
+func settingLinearInstallationReplacesWhenPresent() throws {
+    let text = """
+        # machine-wide configuration
+        [linear]
+        credential = "keychain:linear" # do not touch
+        workspace = "old-workspace"
+        app_user = "old-app-user"
+
+        [github]
+        credential = "keychain:github"
+        """
+    let result = MachineConfiguration.settingLinearInstallation(
+        workspace: BoardObjectID(rawValue: "new-workspace"), appUser: BoardObjectID(rawValue: "new-app-user"),
+        inFileText: text
+    )
+    #expect(result.contains("# machine-wide configuration"))
+    #expect(result.contains(#"credential = "keychain:linear" # do not touch"#))
+    #expect(!result.contains("old-workspace"))
+    #expect(!result.contains("old-app-user"))
+    let parsed = try MachineConfiguration.parse(result, file: "config.toml")
+    #expect(parsed.linearWorkspace == BoardObjectID(rawValue: "new-workspace"))
+    #expect(parsed.linearAppUser == BoardObjectID(rawValue: "new-app-user"))
+}
+
+@Test("settingLinearInstallation is idempotent")
+func settingLinearInstallationIsIdempotent() {
+    let text = """
+        [linear]
+        credential = "keychain:linear"
+
+        [github]
+        credential = "keychain:github"
+        """
+    let once = MachineConfiguration.settingLinearInstallation(
+        workspace: BoardObjectID(rawValue: "workspace-1"), appUser: BoardObjectID(rawValue: "app-user-1"),
+        inFileText: text
+    )
+    let twice = MachineConfiguration.settingLinearInstallation(
+        workspace: BoardObjectID(rawValue: "workspace-1"), appUser: BoardObjectID(rawValue: "app-user-1"),
+        inFileText: once
+    )
+    #expect(once == twice)
+}
+
 @Test("settingOperator is idempotent")
 func settingOperatorIsIdempotent() {
     let text = """
         [linear]
         credential = "keychain:linear"
-        client_id = "yellowhammer-client-id"
 
         [github]
         credential = "keychain:github"

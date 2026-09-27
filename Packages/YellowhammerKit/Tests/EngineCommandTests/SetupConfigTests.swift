@@ -20,7 +20,7 @@ struct SetupConfigTests {
         let destination = ConfigurationDirectory()
         let board = await preparedBoard()
         let arguments = makeArguments(
-            initialize: false, config: prepared.path, linearClientID: nil, operatorID: "user-op"
+            initialize: false, config: prepared.path, operatorID: "user-op"
         )
         let output = RecordingOutput()
         let console = ScriptedConsole()
@@ -46,7 +46,6 @@ struct SetupConfigTests {
         try prepared.writeMachineFile("""
             [linear]
             credential = "keychain:linear"
-            client_id = "yellowhammer-client-id"
             operator = "user-op"
 
             [github]
@@ -56,7 +55,7 @@ struct SetupConfigTests {
         let destination = ConfigurationDirectory()
         let board = await preparedBoard()
         let arguments = makeArguments(
-            initialize: false, config: prepared.path, linearClientID: nil, operatorID: "user-op"
+            initialize: false, config: prepared.path, operatorID: "user-op"
         )
         try await makeSetup(arguments: arguments, directory: destination, board: board).run()
 
@@ -76,7 +75,7 @@ struct SetupConfigTests {
         let destination = ConfigurationDirectory()
         let board = await preparedBoard()
         let arguments = makeArguments(
-            initialize: false, config: prepared.path, linearClientID: nil, operatorID: "user-op"
+            initialize: false, config: prepared.path, operatorID: "user-op"
         )
         try await makeSetup(arguments: arguments, directory: destination, board: board).run()
         let machineFile = destination.url.appending(component: "config.toml")
@@ -97,8 +96,7 @@ struct SetupConfigTests {
         let destination = ConfigurationDirectory()
         try destination.writeMachineFile("""
             [linear]
-            credential = "keychain:linear"
-            client_id = "some-other-client-id"
+            credential = "keychain:linear-other"
 
             [github]
             credential = "keychain:github"
@@ -106,7 +104,7 @@ struct SetupConfigTests {
         let originalText = try String(contentsOf: destination.url.appending(component: "config.toml"), encoding: .utf8)
         let board = await preparedBoard()
         let arguments = makeArguments(
-            initialize: false, config: prepared.path, linearClientID: nil, operatorID: "user-op"
+            initialize: false, config: prepared.path, operatorID: "user-op"
         )
         let setup = try makeSetup(arguments: arguments, directory: destination, board: board)
 
@@ -124,7 +122,7 @@ struct SetupConfigTests {
         let destination = ConfigurationDirectory()
         let board = await preparedBoard()
         let arguments = makeArguments(
-            initialize: false, config: prepared.path, linearClientID: nil, operatorID: "user-op"
+            initialize: false, config: prepared.path, operatorID: "user-op"
         )
         let setup = try makeSetup(arguments: arguments, directory: destination, board: board)
 

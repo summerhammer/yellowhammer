@@ -12,11 +12,12 @@ struct SetupError: Error, CustomStringConvertible, Sendable {
     var description: String { message }
 }
 
-/// Where the credentials `Setup` reads and writes live, so it never touches the Keychain directly. The
-/// real conformance wraps ``KeychainCredentialStore``; a read error means absent.
+/// Whether an Installation token pair is present in the Keychain, so `Setup`/`Doctor` never touch the
+/// Keychain directly for this presence check. The real conformance wraps ``KeychainCredentialStore``; a
+/// read error means absent. Presence-only, by design (P17.4): it reads only to test presence — the
+/// value itself (opaque JSON, `LinearInstallationStore`'s own concern) is read back but never used here.
 protocol SetupCredentialStore: Sendable {
     func secret(for reference: CredentialReference) -> String?
-    func store(_ secret: String, for reference: CredentialReference) throws
 }
 
 /// Wraps ``KeychainCredentialStore`` as a ``SetupCredentialStore``.
@@ -25,10 +26,6 @@ struct KeychainSetupCredentialStore: SetupCredentialStore {
 
     func secret(for reference: CredentialReference) -> String? {
         try? store.read(reference)
-    }
-
-    func store(_ secret: String, for reference: CredentialReference) throws {
-        try store.store(secret, for: reference)
     }
 }
 

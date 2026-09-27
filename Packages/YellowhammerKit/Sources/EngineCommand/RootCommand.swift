@@ -198,7 +198,7 @@ extension ActCommand {
             configurationDirectory: configurationDirectory,
             now: Date(),
             bindBoard: { configuration, project in
-                try BoardBinding.actBoard(machine: configuration.machine, project: project)
+                BoardBinding.actBoard(machine: configuration.machine, project: project)
             },
             bindWorkspace: { WorkspaceBinding.workspace() },
             notifier: .headlessApp()

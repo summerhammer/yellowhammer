@@ -8,7 +8,6 @@ private func credential(_ string: String) throws -> CredentialReference {
 
 private func machineConfiguration(gitHubCredential: CredentialReference) throws -> MachineConfiguration {
     MachineConfiguration(
-        linearClientID: "client-id",
         linearCredential: try credential("keychain:linear"),
         gitHubCredential: gitHubCredential,
         cliAdapters: [],

@@ -8,8 +8,11 @@ import Testing
 
 /// Against the real scratch Linear workspace — the done-condition a stub cannot prove. Opt-in only:
 ///
-///     YH_LINEAR_SCRATCH_TESTS=1 YH_LINEAR_CLIENT_ID=… YH_LINEAR_PROJECT_ID=… \
+///     YH_LINEAR_SCRATCH_TESTS=1 YH_LINEAR_PROJECT_ID=… \
 ///         swift test --package-path Packages/YellowhammerKit --filter BoardProvisionerScratchTests
+///
+/// Uses the Installation's token pair already stored in the Keychain (P17.3/P17.4) via `BoardBinding`
+/// — no client id or secret of its own.
 @Suite(
     "Linear provisioning (live)",
     .enabled(if: ProcessInfo.processInfo.environment["YH_LINEAR_SCRATCH_TESTS"] == "1")
@@ -18,12 +21,11 @@ struct BoardProvisionerScratchTests {
     @Test("Provisioning is idempotent across two runs")
     func provisioningIdempotent() async throws {
         let environment = ProcessInfo.processInfo.environment
-        guard let clientID = environment["YH_LINEAR_CLIENT_ID"], !clientID.isEmpty,
-              let linearProjectID = environment["YH_LINEAR_PROJECT_ID"], !linearProjectID.isEmpty else {
-            print("BoardProvisionerScratchTests skipped: YH_LINEAR_CLIENT_ID or YH_LINEAR_PROJECT_ID is not set")
+        guard let linearProjectID = environment["YH_LINEAR_PROJECT_ID"], !linearProjectID.isEmpty else {
+            print("BoardProvisionerScratchTests skipped: YH_LINEAR_PROJECT_ID is not set")
             return
         }
-        guard let secret = Self.keychainSecret(account: "linear") else {
+        guard Self.keychainSecret(account: "linear") != nil else {
             print("BoardProvisionerScratchTests skipped: no Keychain item for service dev.yellowhammer, account linear")
             return
         }
@@ -31,7 +33,6 @@ struct BoardProvisionerScratchTests {
         let machine = try MachineConfiguration.parse("""
             [linear]
             credential = "keychain:linear"
-            client_id = "\(clientID)"
 
             [github]
             credential = "keychain:github"
@@ -50,7 +51,7 @@ struct BoardProvisionerScratchTests {
             check = "swift test"
             """, file: "yellowhammer.toml")
 
-        let provisioning = try BoardBinding.provisioning(machine: machine, project: project)
+        let provisioning = BoardBinding.provisioning(machine: machine, project: project)
 
         // First run
         let report1 = try await BoardProvisioner.provision(

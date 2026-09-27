@@ -5,14 +5,12 @@ struct SetupInvocationTests {
     @Test("A full invocation builds every option, in order")
     func fullInvocationBuildsEveryOption() throws {
         let invocation = SetupInvocation(
-            linearClientID: "client-id",
             linearCredential: "keychain:linear",
             githubCredential: "keychain:github",
             cliAdapters: ["claude", "codex=codex-bin"],
             route: "claude/sonnet/medium",
             fallbacks: ["codex/gpt/high"],
             operatorID: "user-op",
-            passesSecretOnStandardInput: false,
             project: SetupInvocation.Project(
                 id: "demo", name: "Demo", linearProject: .existing("proj-1"),
                 specSource: "~/dev/demo-spec",
@@ -25,7 +23,6 @@ struct SetupInvocationTests {
 
         #expect(try invocation.arguments() == [
             "setup", "--init",
-            "--linear-client-id", "client-id",
             "--linear-credential", "keychain:linear",
             "--github-credential", "keychain:github",
             "--cli", "claude",
@@ -50,17 +47,10 @@ struct SetupInvocationTests {
     @Test("nil and empty (after trimming) options are omitted")
     func emptyOptionsAreOmitted() throws {
         let invocation = SetupInvocation(
-            linearClientID: "  ", linearCredential: nil, githubCredential: "", cliAdapters: ["  ", ""]
+            linearCredential: nil, githubCredential: "", cliAdapters: ["  ", ""]
         )
 
         #expect(try invocation.arguments() == ["setup", "--init"])
-    }
-
-    @Test("--linear-client-secret-stdin is passed when requested")
-    func secretStdinFlagIsPassed() throws {
-        let invocation = SetupInvocation(passesSecretOnStandardInput: true)
-
-        #expect(try invocation.arguments() == ["setup", "--init", "--linear-client-secret-stdin"])
     }
 
     @Test("A createInTeam Project passes --linear-team, not --linear-project") // glossary:ignore GL001
@@ -126,24 +116,19 @@ struct SetupInvocationTests {
     @Test("choicesArguments builds --print-choices with only the Linear options") // glossary:ignore GL001
     func choicesArgumentsBuildsPrintChoices() {
         let arguments = SetupInvocation.choicesArguments(
-            linearClientID: "client-id", linearCredential: "keychain:linear",
-            githubCredential: "keychain:github", passesSecretOnStandardInput: true
+            linearCredential: "keychain:linear", githubCredential: "keychain:github"
         )
 
         #expect(arguments == [
             "setup", "--print-choices",
-            "--linear-client-id", "client-id",
             "--linear-credential", "keychain:linear",
-            "--github-credential", "keychain:github",
-            "--linear-client-secret-stdin"
+            "--github-credential", "keychain:github"
         ])
     }
 
     @Test("choicesArguments omits absent options") // glossary:ignore GL001
     func choicesArgumentsOmitsAbsentOptions() {
-        let arguments = SetupInvocation.choicesArguments(
-            linearClientID: nil, linearCredential: nil, githubCredential: nil, passesSecretOnStandardInput: false
-        )
+        let arguments = SetupInvocation.choicesArguments(linearCredential: nil, githubCredential: nil)
 
         #expect(arguments == ["setup", "--print-choices"])
     }

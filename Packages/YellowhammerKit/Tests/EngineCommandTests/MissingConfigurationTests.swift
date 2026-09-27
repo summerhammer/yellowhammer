@@ -71,7 +71,7 @@ func missingMachineFile(_ act: Act) async throws {
 func malformedMachineFile(_ act: Act) async throws {
     let directory = ConfigurationDirectory()
     try directory.writeMachineFile(
-        "[linear]\ncredential = \"keychain:linear\"\nclient_id = \"yellowhammer-client-id\"\n"
+        "[linear]\ncredential = \"keychain:linear\"\n"
     )
     try directory.writeValidProjectFile(id: "yellowhammer")
 
