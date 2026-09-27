@@ -170,6 +170,19 @@ enum LinearGraphQL {
         }
         """
 
+    /// The teams Yellowhammer's own identity is a member of, not merely visible to it (Board
+    /// Provisioning Ruling, OQ80): `viewer.teamMemberships`, not `teams`.
+    static let memberTeamsQuery = """
+        query YellowhammerMemberTeams($first: Int!, $after: String) {
+          viewer {
+            teamMemberships(first: $first, after: $after) {
+              pageInfo { hasNextPage endCursor }
+              nodes { team { id } }
+            }
+          }
+        }
+        """
+
     static let teamsQuery = """
         query YellowhammerTeams($first: Int!, $after: String) {
           teams(first: $first, after: $after) {

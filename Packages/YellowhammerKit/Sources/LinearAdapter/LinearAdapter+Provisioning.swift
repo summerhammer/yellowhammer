@@ -37,6 +37,32 @@ extension LinearAdapter: BoardProvisioning {
         return allMembers
     }
 
+    public func memberTeams() async throws(BoardError) -> [BoardObjectID] {
+        var allTeamIDs: [BoardObjectID] = []
+        var after: String?
+
+        while true {
+            var variables: [String: any Sendable] = ["first": 250]
+            if let after {
+                variables["after"] = after
+            }
+            let payload: LinearMemberTeamsPayload = try await perform(
+                LinearGraphQL.memberTeamsQuery, variables: variables
+            )
+            let connection = payload.viewer.teamMemberships
+            allTeamIDs.append(contentsOf: connection.nodes.map { BoardObjectID(rawValue: $0.team.id) })
+            if !connection.pageInfo.hasNextPage {
+                break
+            }
+            guard let endCursor = connection.pageInfo.endCursor else {
+                throw .unreadableResponse("Linear indicated more results but provided no cursor")
+            }
+            after = endCursor
+        }
+
+        return allTeamIDs
+    }
+
     public func teams() async throws(BoardError) -> [BoardTeam] {
         var allTeams: [BoardTeam] = []
         var after: String?

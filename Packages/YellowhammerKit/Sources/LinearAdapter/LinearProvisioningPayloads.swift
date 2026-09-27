@@ -88,6 +88,23 @@ struct LinearUserNode: Decodable {
     let isMe: Bool
 }
 
+struct LinearMemberTeamsPayload: Decodable {
+    let viewer: LinearViewerTeamMemberships
+}
+
+struct LinearViewerTeamMemberships: Decodable {
+    let teamMemberships: LinearTeamMembershipsConnection
+}
+
+struct LinearTeamMembershipsConnection: Decodable {
+    let pageInfo: LinearPageInfo
+    let nodes: [LinearTeamMembershipNode]
+}
+
+struct LinearTeamMembershipNode: Decodable {
+    let team: LinearTeamReference
+}
+
 struct LinearTeamsPayload: Decodable {
     let teams: LinearTeamsListConnection
 }

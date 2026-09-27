@@ -40,8 +40,9 @@ public struct BoardProvisioner {
     public static let blockReasonGroup = "Block Reason"
     public static let blockReasonChildren = BlockReason.allCases.map(\.rawValue)
 
-    /// A label group to be provisioned.
-    private struct LabelGroupDeclaration {
+    /// A label group to be provisioned. Internal, not private: shared with the label-group
+    /// provisioning in `BoardProvisioner+Labels.swift`, split out to stay under the file-length limit.
+    struct LabelGroupDeclaration {
         let name: String
         let children: [String]
     }
@@ -103,8 +104,16 @@ public struct BoardProvisioner {
             ))
         }
 
-        // Step 2: For each team, provision workflow state and label groups.
+        // Step 2: For each team, check membership first (Board Provisioning Ruling, OQ80), then
+        // provision workflow state and label groups. A team the app is not a member of — including one
+        // the App Installation never selected, invisible to `teams()` too — gets no create attempt at
+        // all; it is reported and setup moves on to the next team.
+        let memberTeamIDs = Set(try await board.memberTeams())
         for team in project.teams {
+            guard memberTeamIDs.contains(team.id) else {
+                entries.append(ProvisioningEntry(subject: .team(team), outcome: .notAMember(team.key)))
+                continue
+            }
             try await provisionTeam(board: board, team: team, groups: groups, into: &entries)
         }
 
@@ -170,197 +179,26 @@ public struct BoardProvisioner {
             ))
             return
         }
-        _ = try await board.createWorkflowState(
-            name: stateName, category: Self.provisionedStateCategory, team: team.id
-        )
-        entries.append(ProvisioningEntry(
-            subject: .workflowState(stateName, team: team),
-            outcome: .created
-        ))
-    }
-
-    private static func provisionGroup(
-        board: any BoardProvisioning,
-        group: LabelGroupDeclaration,
-        team: BoardTeam,
-        existingLabels: [BoardLabel],
-        into entries: inout [ProvisioningEntry]
-    ) async throws(BoardError) {
-        // Check for group collisions: any non-group label with group's name.
-        let groupCollision = existingLabels.first { label in
-            label.name.lowercased() == group.name.lowercased() && !label.isGroup
-        }
-        if let collision = groupCollision {
+        do {
+            _ = try await board.createWorkflowState(
+                name: stateName, category: Self.provisionedStateCategory, team: team.id
+            )
             entries.append(ProvisioningEntry(
-                subject: .labelGroup(group.name, team: team),
-                outcome: .collision(scopeDescription(collision.team))
+                subject: .workflowState(stateName, team: team),
+                outcome: .created
             ))
-            for child in group.children {
-                entries.append(ProvisioningEntry(
-                    subject: .label(child, group: group.name, team: team),
-                    outcome: .blocked("group name collision")
-                ))
-            }
-            return
-        }
-        let groupId = try await ensureGroupExists(
-            board: board, groupName: group.name, team: team, existingLabels: existingLabels, into: &entries
-        )
-        for childName in group.children {
-            let child = existingLabels.first { $0.name.lowercased() == childName.lowercased() && $0.parent == groupId }
-            if child != nil {
-                let subject = ProvisioningEntry.Subject.label(childName, group: group.name, team: team)
-                entries.append(ProvisioningEntry(subject: subject, outcome: .present))
-            } else {
-                let collision = existingLabels.first { label in
-                    label.name.lowercased() == childName.lowercased() && label.parent != groupId
-                }
-                if let collision = collision {
-                    let subject = ProvisioningEntry.Subject.label(childName, group: group.name, team: team)
-                    let outcome = ProvisioningEntry.Outcome.collision(scopeDescription(collision.team))
-                    entries.append(ProvisioningEntry(subject: subject, outcome: outcome))
-                } else {
-                    _ = try await board.createLabel(name: childName, team: team.id, isGroup: false, parent: groupId)
-                    let subject = ProvisioningEntry.Subject.label(childName, group: group.name, team: team)
-                    entries.append(ProvisioningEntry(subject: subject, outcome: .created))
-                }
-            }
-        }
-    }
-
-    private static func ensureGroupExists(
-        board: any BoardProvisioning,
-        groupName: String,
-        team: BoardTeam,
-        existingLabels: [BoardLabel],
-        into entries: inout [ProvisioningEntry]
-    ) async throws(BoardError) -> BoardObjectID {
-        let existingGroup = existingLabels.first { label in
-            label.name.lowercased() == groupName.lowercased() && label.isGroup
-        }
-        if let existing = existingGroup {
+        } catch .forbidden(let reason) {
+            // A permission refusal is reported by name — never as the Project's Linear project being
+            // invisible — and setup moves on to the next workflow state (Refusals Ruling).
             entries.append(ProvisioningEntry(
-                subject: .labelGroup(groupName, team: team),
-                outcome: .present
+                subject: .workflowState(stateName, team: team),
+                outcome: .permissionRefused(reason)
             ))
-            return existing.id
         }
-        let created = try await board.createLabel(
-            name: groupName,
-            team: team.id,
-            isGroup: true,
-            parent: nil
-        )
-        entries.append(ProvisioningEntry(
-            subject: .labelGroup(groupName, team: team),
-            outcome: .created
-        ))
-        return created.id
     }
 
-    private static func scopeDescription(_ teamId: BoardObjectID?) -> String {
+    /// Internal, not private: shared with `BoardProvisioner+Labels.swift`.
+    static func scopeDescription(_ teamId: BoardObjectID?) -> String {
         teamId == nil ? "workspace" : "team"
-    }
-}
-
-/// One entry in a provisioning report.
-public struct ProvisioningEntry: Sendable {
-    public enum Subject: Hashable, Sendable {
-        case linearProject(String)
-        case workflowState(String, team: BoardTeam)
-        case labelGroup(String, team: BoardTeam)
-        case label(String, group: String, team: BoardTeam)
-    }
-
-    public enum Outcome: Equatable, Sendable {
-        case present
-        case created
-        case collision(String)
-        case blocked(String)
-        case missing(String)
-    }
-
-    public var subject: Subject
-    public var outcome: Outcome
-
-    public init(subject: Subject, outcome: Outcome) {
-        self.subject = subject
-        self.outcome = outcome
-    }
-}
-
-/// The result of a provisioning run.
-public struct ProvisioningReport: Sendable {
-    public var entries: [ProvisioningEntry]
-    /// The Linear project that was found or created, or nil when missing. Setup needs the created
-    /// project's id to write into the Project file.
-    public var linearProject: BoardProjectScope?
-
-    public init(entries: [ProvisioningEntry], linearProject: BoardProjectScope? = nil) {
-        self.entries = entries
-        self.linearProject = linearProject
-    }
-
-    /// The entries where outcome is created.
-    public var changes: [ProvisioningEntry] {
-        entries.filter { entry in
-            if case .created = entry.outcome {
-                return true
-            }
-            return false
-        }
-    }
-
-    /// The entries where outcome is collision.
-    public var collisions: [ProvisioningEntry] {
-        entries.filter { entry in
-            if case .collision = entry.outcome {
-                return true
-            }
-            return false
-        }
-    }
-
-    /// True if any changes (created) were made.
-    public var isChanged: Bool {
-        !changes.isEmpty
-    }
-}
-
-extension ProvisioningReport: CustomStringConvertible {
-    public var description: String {
-        entries.map { entry in
-            let subjectStr = subjectString(entry.subject)
-            let outcomeStr = outcomeString(entry.outcome)
-            return "\(outcomeStr)  \(subjectStr)"
-        }.joined(separator: "\n")
-    }
-
-    private func subjectString(_ subject: ProvisioningEntry.Subject) -> String {
-        switch subject {
-        case .linearProject(let name):
-            "linear project `\(name)`" // glossary:ignore GL001
-        case .workflowState(let name, let team):
-            "workflow state `\(name)` (team \(team.key))"
-        case .labelGroup(let name, let team):
-            "group label `\(name)` (team \(team.key))"
-        case .label(let name, let group, let team):
-            "label `\(name)` in group `\(group)` (team \(team.key))"
-        }
-    }
-
-    private func outcomeString(_ outcome: ProvisioningEntry.Outcome) -> String {
-        switch outcome {
-        case .present:
-            "present "
-        case .created:
-            "created "
-        case .collision(let scope):
-            "collision (\(scope)-level)"
-        case .blocked(let reason):
-            "blocked  (\(reason))"
-        case .missing(let reason):
-            "missing  (\(reason))"
-        }
     }
 }

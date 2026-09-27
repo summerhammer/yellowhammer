@@ -10,6 +10,12 @@ public enum BoardError: Error, Equatable, Sendable {
     case rateLimited(retryAfter: Duration?, budget: BoardBudget?)
     /// The Project's Linear project is not visible to this identity.
     case scopeNotFound(String)
+    /// The board refused Yellowhammer's identity permission for this step (e.g. Linear's `FORBIDDEN`,
+    /// or an HTTP 403) — distinct from `notAuthenticated` (no valid credentials at all) and from
+    /// `scopeNotFound` (the Project's Linear project is not visible): the identity is authenticated and
+    /// the scope is visible, but this particular step is not permitted (Board Provisioning Ruling,
+    /// OQ80). A permanent refusal, like `refused`.
+    case forbidden(String)
     /// The board refused the request for another reason.
     case refused(String)
     /// The board could not be reached.
@@ -31,6 +37,8 @@ extension BoardError: CustomStringConvertible {
             }
         case .scopeNotFound(let message):
             "the Project's Linear project is not visible to Yellowhammer's identity: \(message)"
+        case .forbidden(let message):
+            "the board refused permission: \(message)"
         case .refused(let message):
             "the board refused the request: \(message)"
         case .unreachable(let message):
