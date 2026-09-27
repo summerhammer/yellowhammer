@@ -52,8 +52,6 @@ final class SetupWizardModel {
 
     // Step: Linear
     var configExists: Bool
-    var linearClientID = ""
-    var linearSecret = ""
     var linearCredential = SetupWizardModel.defaultLinearCredential
     var githubCredential = SetupWizardModel.defaultGitHubCredential
     var showAdvanced = false
@@ -113,9 +111,7 @@ final class SetupWizardModel {
     var canContinue: Bool {
         switch currentStep {
         case .linear:
-            guard !isFetchingChoices else { return false }
-            guard !configExists else { return true }
-            return !linearClientID.trimmed.isEmpty && !linearSecret.trimmed.isEmpty
+            return !isFetchingChoices
         case .operatorIdentity:
             return selectedOperatorID != nil
         case .cliRouting:

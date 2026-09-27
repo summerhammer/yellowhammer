@@ -135,14 +135,11 @@ final class SetupWizardUITests: XCTestCase {
     }
 
     private func enterLinearStep(in setup: XCUIElement) throws {
-        let clientID = setup.textFields["setup-linear-client-id"]
-        XCTAssertTrue(clientID.waitForExistence(timeout: 5))
-        clientID.click()
-        clientID.typeText("test-client-id")
-        let secret = setup.secureTextFields["setup-linear-secret"]
-        secret.click()
-        secret.typeText("test-secret")
-        setup.buttons["setup-continue"].click()
+        // No credential fields to fill (P17.7 owns the browser install): the Linear step just
+        // confirms and continues, defaulting the credential reference.
+        let continueButton = setup.buttons["setup-continue"]
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 5))
+        continueButton.click()
     }
 
     /// Every `argv: <arg>` line the stub echoed, in order.

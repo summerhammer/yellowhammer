@@ -103,7 +103,6 @@ final class ProjectStatusUITests: XCTestCase {
     private static let machineTOML = """
     [linear]
     credential = "keychain:linear"
-    client_id = "yellowhammer-client-id"
     [github]
     credential = "keychain:github"
 

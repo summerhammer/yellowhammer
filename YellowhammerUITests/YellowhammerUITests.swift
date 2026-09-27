@@ -89,7 +89,6 @@ final class ProjectScopeUITests: XCTestCase {
         try """
         [linear]
         credential = "keychain:linear"
-        client_id = "yellowhammer-client-id"
         [github]
         credential = "keychain:github"
 
