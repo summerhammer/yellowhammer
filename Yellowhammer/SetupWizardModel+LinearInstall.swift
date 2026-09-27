@@ -121,7 +121,13 @@ extension SetupWizardModel {
             }
         case .portsBusy(let ports, let text):
             linearInstallPhase = .portsBusy(text: text, ports: ports)
-        case .failed(_, let text):
+        case .failed(let reason, let text):
+            // Under `--events json`, `portsBusy` is always followed immediately by
+            // `failed(reason: .portsBusy)` — the CLI's own signal that the attempt ended, never a
+            // richer report than `portsBusy` already gave. The ports-busy UI (with its own Retry) stays.
+            if reason == .portsBusy, case .portsBusy = linearInstallPhase {
+                break
+            }
             linearInstallPhase = .failed(text: text)
         case .installed(let workspaceName):
             linearInstallPhase = .installed(workspaceName: workspaceName)
