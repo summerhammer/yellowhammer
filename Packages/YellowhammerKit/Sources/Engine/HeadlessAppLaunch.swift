@@ -17,6 +17,20 @@ import System
 /// back from `--stderr <file>`, the file the app side writes a `Yellowhammer:`-prefixed line to on
 /// failure only.
 public enum HeadlessAppLaunch {
+    /// The `.app` bundle this executable is embedded in (`<bundle>.app/Contents/MacOS/<exe>`), or
+    /// `nil` outside one. An installed `yh` launches its own enclosing app by path (`open -a`) instead
+    /// of by bundle identifier: `open -b` takes whichever registered copy LaunchServices picks, and any
+    /// stale build left on the machine (a scratch or DerivedData `Yellowhammer.app`) is a candidate.
+    public static func enclosingAppPath(executable: URL? = Bundle.main.executableURL) -> String? {
+        guard let executable else { return nil }
+        let macOS = executable.resolvingSymlinksInPath().deletingLastPathComponent()
+        let contents = macOS.deletingLastPathComponent()
+        let bundle = contents.deletingLastPathComponent()
+        guard macOS.lastPathComponent == "MacOS", contents.lastPathComponent == "Contents",
+              bundle.pathExtension == "app" else { return nil }
+        return bundle.path
+    }
+
     private enum Outcome {
         case finished
         case timedOut
@@ -25,6 +39,7 @@ public enum HeadlessAppLaunch {
     public static func run(
         arguments: [String],
         bundleIdentifier: String = "dev.yellowhammer",
+        appPath: String? = enclosingAppPath(),
         openPath: String = "/usr/bin/open",
         timeout: Duration
     ) async throws {
@@ -33,8 +48,8 @@ public enum HeadlessAppLaunch {
         FileManager.default.createFile(atPath: stderrFile.path, contents: nil)
         defer { try? FileManager.default.removeItem(at: stderrFile) }
 
-        let openArguments = ["-W", "-n", "-g", "-b", bundleIdentifier, "--stderr", stderrFile.path, "--args"]
-            + arguments
+        let target = appPath.map { ["-a", $0] } ?? ["-b", bundleIdentifier]
+        let openArguments = ["-W", "-n", "-g"] + target + ["--stderr", stderrFile.path, "--args"] + arguments
 
         try await withThrowingTaskGroup(of: Outcome.self) { group in
             group.addTask {
