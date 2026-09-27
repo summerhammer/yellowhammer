@@ -29,7 +29,7 @@ private let epoch = Date(timeIntervalSince1970: 1_800_000_000)
 @Test("All JournalEventType raw values match spec names")
 func eventTypeRawValues() {
     let expected = [
-        "ActStarted", "ActEnded", "ActIdle", "ActIncomplete", "ActStoodDown",
+        "ActStarted", "ActEnded", "ActIdle", "ActIncomplete", "ActStoodDown", "LinearAuthorizationHalted",
         "MainlineFetchFailed", "AbsentNightDetected", "AuthoringNoWorkAvailable",
         "AuthoringSkippedFeatureInFlight", "AuthoringPredecessorNotLanded",
         "AuthoringPredecessorIndeterminate", "PredecessorWalkSkippedReleasedFeature",
@@ -93,6 +93,19 @@ func actEndedRoundTrips() throws {
 
     #expect(records.count == 1)
     #expect(records[0].event == .actEnded)
+}
+
+@Test("linearAuthorizationHalted event round-trips")
+func linearAuthorizationHaltedRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+
+    _ = try journal.append(.linearAuthorizationHalted, act: .build, runID: run, now: epoch)
+    let records = try journal.events()
+
+    #expect(records.count == 1)
+    #expect(records[0].event == .linearAuthorizationHalted)
 }
 
 @Test("actIncomplete event with reason round-trips")

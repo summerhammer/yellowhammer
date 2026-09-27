@@ -7,6 +7,28 @@ import Journal
 /// throws: `runUnderLease` calls both entry points as best-effort steps, and a failure to post is
 /// recorded as a `notificationDeliveryFailed` event and otherwise ignored.
 extension EngineInvocation {
+    /// Reported only, never acted on: a Roll-up failure must not fail the Act — except an authorization
+    /// failure, which halts like any other board call (P17.5, item 1).
+    func maintainRollUps(night: NightRecord, outbox: Outbox?) async throws {
+        _ = try await bestEffort {
+            try await FeatureRollUpMaintenance.maintainRollUps(night: night, journal: journal, outbox: outbox)
+        }
+    }
+
+    /// The Act's first Linear call, before the Night Card, the trigger, or any work (roadmap P17.5) —
+    /// so a refused identity halts before any board work is attempted, and this Night spends none of
+    /// `unanswered_nights_max` (no clock has advanced yet). A non-auth failure here (network, etc.) is
+    /// not treated as a halt: it is ignored, and the Night Card open right after this call meets the
+    /// same error on its own terms.
+    func authorizationPreflight() async throws {
+        guard let board else { return }
+        do {
+            _ = try await board.reading.identity()
+        } catch {
+            if error.isLinearAuthorizationFailure { throw error }
+        }
+    }
+
     /// Closes the Night and completes its Night Card when this Act closes it, then posts `.closed` —
     /// only once that completion is recorded on the Night Card, and before anything later can throw,
     /// so a Night whose close is followed by a failure is reported both closed and halted.
@@ -24,9 +46,13 @@ extension EngineInvocation {
             // touched, so its Managed Block header is refreshed here too — never lets a refresh
             // failure fail the Night's own completion, which has already happened above.
             if let outbox {
-                try? await UnadoptedCardRefresh.refresh(
-                    night: closed, journal: journal, outbox: outbox, runID: runID
-                )
+                // Never lets a refresh failure fail the Night's own completion, already recorded above —
+                // except an authorization failure, which is rethrown so the Act halts on it (P17.5).
+                _ = try await bestEffort {
+                    try await UnadoptedCardRefresh.refresh(
+                        night: closed, journal: journal, outbox: outbox, runID: runID
+                    )
+                }
             }
         }
         if let board, let outbox, let (feature, cycleID) = try journal.inFlightFeature() {
@@ -67,6 +93,26 @@ extension EngineInvocation {
         }
         await notify(.halted(reason: Self.collapsed(reason)), notification: "halted", night: night)
     }
+
+    /// An authorization halt (roadmap P17.5, Linear App Installation Ruling items 5, 12, 13) never
+    /// attempts the halted Night Card comment at all: the identity itself is refused, so that write
+    /// would only queue pending behind the same refusal (P17.5, Outbox), and the OQ71
+    /// "unrecorded" copy is not used for this cause either — the fix is always the same, whether or
+    /// not a Night Card exists. Posts once per Night: a prior `.linearAuthorizationHalted` event for
+    /// this `nightID` means a later Act already told the Operator, so this one records only.
+    func notifyLinearAuthorizationHalted(night: NightRecord) async {
+        let isFirst = (try? journal.events(ofType: .linearAuthorizationHalted))?
+            .allSatisfy { $0.nightID != night.id } ?? true
+        _ = try? journal.append(.linearAuthorizationHalted, act: act, runID: runID, nightID: night.id)
+        guard isFirst else { return }
+        await notify(.halted(reason: Self.linearAuthorizationCopy), notification: "halted", night: night)
+    }
+
+    /// Names the cause and the fix, whether or not a Night Card could be opened (P17.5): a refused
+    /// identity cannot have written one either way, so the message is never conditioned on that.
+    private static let linearAuthorizationCopy =
+        "Linear refused Yellowhammer's sign-in. Re-run the Linear step of yh setup, " +
+            "or of the Setup view in Yellowhammer.app."
 
     /// Writes the halted comment through the Outbox. `true` once the write is at least accepted —
     /// applied, already applied, or left pending for a later Act to replay — which is what "recorded

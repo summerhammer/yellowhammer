@@ -111,8 +111,21 @@ actor FakeReadingBoard: Board {
         }
     }
 
+    /// Scripted ``identity()`` outcome (roadmap P17.5: the Act's authorization preflight is its first
+    /// call) — success unless a test configures otherwise.
+    var identityResult: Result<BoardIdentity, BoardError> = .success(FakeReadingBoard.identity)
+    private(set) var identityCalls = 0
+
+    func script(identity result: Result<BoardIdentity, BoardError>) {
+        identityResult = result
+    }
+
     func identity() async throws(BoardError) -> BoardIdentity {
-        Self.identity
+        identityCalls += 1
+        switch identityResult {
+        case .success(let identity): return identity
+        case .failure(let error): throw error
+        }
     }
 
     /// Scripted ``isActiveMember(_:)`` outcome (roadmap P11.1, OQ66): active unless a test configures

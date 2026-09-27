@@ -17,6 +17,8 @@ extension JournalEvent {
             .actIncomplete
         case .actStoodDown:
             .actStoodDown
+        case .linearAuthorizationHalted:
+            .linearAuthorizationHalted
         case .mainlineFetchFailed:
             .mainlineFetchFailed
         case .absentNightDetected:
