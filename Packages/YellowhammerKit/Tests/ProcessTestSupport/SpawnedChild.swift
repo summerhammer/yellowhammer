@@ -5,18 +5,18 @@ import Foundation
 /// `ProcessFencer` tests. `Process.waitUntilExit()` intermittently never returned after
 /// `ProcessFencer` SIGKILLed the child: the child was already dead and reaped, but Foundation
 /// never flipped `isRunning`, so the test thread spun its run loop forever.
-final class SpawnedChild: @unchecked Sendable {
-    enum ExitStatus: Equatable {
+public final class SpawnedChild: @unchecked Sendable {
+    public enum ExitStatus: Equatable {
         case exited(Int32)
         case signalled(Int32)
         case alreadyReaped
     }
 
-    enum SpawnError: Error {
+    public enum SpawnError: Error {
         case spawnFailed(Int32)
     }
 
-    let pid: pid_t
+    public let pid: pid_t
     private let isGroupLeader: Bool
 
     private let lock = NSLock()
@@ -27,7 +27,7 @@ final class SpawnedChild: @unchecked Sendable {
         self.isGroupLeader = isGroupLeader
     }
 
-    static func spawn(
+    public static func spawn(
         executable: String,
         arguments: [String],
         currentDirectory: URL,
@@ -87,11 +87,11 @@ final class SpawnedChild: @unchecked Sendable {
         }
     }
 
-    var isRunning: Bool {
+    public var isRunning: Bool {
         pollOnce() == nil
     }
 
-    func waitForExit(timeout: Duration = .seconds(10)) async -> ExitStatus? {
+    public func waitForExit(timeout: Duration = .seconds(10)) async -> ExitStatus? {
         let deadline = ContinuousClock.now + timeout
         while true {
             if let status = pollOnce() {
@@ -107,7 +107,7 @@ final class SpawnedChild: @unchecked Sendable {
     /// Synchronous, bounded cleanup suitable for a `defer`. Kills the child (or its whole
     /// process group, if it is a group leader) and reaps it with a short polling loop —
     /// never an unbounded `waitpid(..., 0)`.
-    func terminateAndReap() {
+    public func terminateAndReap() {
         if isGroupLeader {
             // Always signal the group, even if the leader itself already exited: a
             // backgrounded sibling (e.g. the shell's `sleep 300 &`) can still be alive.

@@ -112,6 +112,10 @@ let package = Package(
                 .product(name: "Subprocess", package: "swift-subprocess")
             ]
         ),
+        .target(
+            name: "ProcessTestSupport",
+            path: "Tests/ProcessTestSupport"
+        ),
         .testTarget(
             name: "DomainTests",
             dependencies: ["Domain"]
@@ -165,7 +169,8 @@ let package = Package(
             dependencies: [
                 "Repositories",
                 "Domain",
-                "Journal"
+                "Journal",
+                "ProcessTestSupport"
             ]
         ),
         .testTarget(
@@ -184,7 +189,8 @@ let package = Package(
                 "Domain",
                 "Journal",
                 "Ledger",
-                "Repositories"
+                "Repositories",
+                "ProcessTestSupport"
             ]
         )
     ]

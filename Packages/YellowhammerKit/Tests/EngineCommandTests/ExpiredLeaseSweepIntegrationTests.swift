@@ -4,6 +4,7 @@ import Domain
 @testable import EngineCommand
 import Foundation
 import Journal
+import ProcessTestSupport
 import Repositories
 import Testing
 
@@ -28,7 +29,7 @@ struct ExpiredLeaseSweepIntegrationTests {
         let card = try makeReclaimFixture(journal: journal, runID: runID, deadRun: deadRun, worktreeDirectory: worktree)
 
         let process = try makeReconcilerSleepProcess(currentDirectory: worktree)
-        defer { if process.isRunning { process.terminate() } }
+        defer { process.terminateAndReap() }
 
         let fencer = ProcessFencer(pollInterval: .milliseconds(20), quiescenceTimeout: .seconds(5))
         let sweep = ExpiredLeaseSweep(
@@ -36,7 +37,8 @@ struct ExpiredLeaseSweepIntegrationTests {
         )
         _ = try await sweep.sweep(featureID: card.featureID, cycleID: card.cycleID)
 
-        #expect(!process.isRunning)
+        let status = await process.waitForExit(timeout: .seconds(5))
+        #expect(status == .signalled(SIGKILL) || status == .alreadyReaped)
         // Fencing succeeded (quiescent), so the reclaim proceeded: the Card went back to Ready.
         #expect(try journal.card(id: card.cardID).state == .todo)
     }
@@ -55,7 +57,7 @@ struct ExpiredLeaseSweepIntegrationTests {
         let card = try makeReclaimFixture(journal: journal, runID: runID, deadRun: deadRun, worktreeDirectory: worktree)
 
         let process = try makeReconcilerSleepProcess(currentDirectory: worktree)
-        defer { if process.isRunning { process.terminate() } }
+        defer { process.terminateAndReap() }
 
         // A `sendSignal` that never actually signals anything: the real sleep process survives every
         // "SIGKILL", so fencing genuinely times out not-quiescent — no faked FencingOutcome.
@@ -83,9 +85,6 @@ struct ExpiredLeaseSweepIntegrationTests {
         #expect(cardID == card.cardID)
         #expect(previousRunID == deadRun)
         #expect(remaining > 0)
-
-        process.terminate()
-        process.waitUntilExit()
     }
 
     @Test("AC6: a Crashed-Unknown reclaim retries the same Route once, in the same build Act, against the same budget")
