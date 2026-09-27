@@ -3,13 +3,18 @@ import Foundation
 
 /// The Linear implementation of the Board Port, bound at construction to one Project's Linear project.
 ///
-/// It authenticates as the registered Linear OAuth application through the client-credentials grant,
-/// records the budget every response reports, and translates every failure into ``BoardError``. It
-/// translates and never decides: no retry, no Outbox, no Lease.
+/// It authenticates as Yellowhammer's Linear App Installation (ADR-005) — an application-actor identity,
+/// never an Operator's personal API key — records the budget every response reports, and translates
+/// every failure into ``BoardError``. It translates and never decides: no Outbox, no Lease; the one
+/// exception is `send`'s single retry after a forced token refresh on an unauthorized response, which is
+/// transport-level recovery, not a board decision.
+///
+/// The client-credentials `init(linearProjectID:credentials:...)` is transitional (P17.3): P17.4 deletes
+/// it once setup and every caller are wired to `init(linearProjectID:tokenStore:...)`.
 public actor LinearAdapter: Board {
     let linearProjectID: String
     private let transport: any HTTPTransport
-    private let tokens: LinearTokenSource
+    private let tokens: any LinearTokenProviding
 
     public private(set) var latestBudget: BoardBudget?
 
@@ -23,6 +28,19 @@ public actor LinearAdapter: Board {
         self.linearProjectID = linearProjectID
         self.transport = transport
         tokens = LinearTokenSource(credentials: credentials, transport: transport, clock: clock, sleep: sleep)
+    }
+
+    /// The Installation's own token source (ADR-005): the durable replacement for the client-credentials
+    /// mode above.
+    public init(
+        linearProjectID: String,
+        tokenStore: LinearTokenStore,
+        transport: any HTTPTransport = URLSessionHTTPTransport(),
+        clock: @escaping @Sendable () -> Date = { Date() }
+    ) {
+        self.linearProjectID = linearProjectID
+        self.transport = transport
+        tokens = LinearInstallationTokenSource(store: tokenStore, transport: transport, clock: clock)
     }
 
     /// The outcome of a GraphQL request that may succeed, fail, or encounter a conflict on insert.
@@ -110,6 +128,14 @@ public actor LinearAdapter: Board {
         _ query: String, variables: [String: any Sendable]
     ) async throws(BoardError) -> LinearOutcome<Payload> {
         let token = try await tokens.token()
+        return try await send(query, variables: variables, token: token, isRetry: false)
+    }
+
+    /// `isRetry` bounds recovery to exactly one attempt: a `notAuthenticated` on the retry itself is
+    /// never recovered from again, whichever token source is behind `tokens`.
+    private func send<Payload: Decodable>(
+        _ query: String, variables: [String: any Sendable], token: String, isRetry: Bool
+    ) async throws(BoardError) -> LinearOutcome<Payload> {
         let failure = LinearFailure(secrets: await tokens.secrets)
 
         let request: URLRequest
@@ -134,8 +160,9 @@ public actor LinearAdapter: Board {
         }
         // GraphQL errors are judged before the payload: a failed query may carry a `data` too partial to decode.
         if let refusal = failure.status(data, response) ?? failure.graphQL(data, response) {
-            if case .notAuthenticated = refusal {
-                await tokens.invalidate()
+            if case .notAuthenticated = refusal, !isRetry,
+               let recovered = try await tokens.recoverFromUnauthorized(rejected: token) {
+                return try await send(query, variables: variables, token: recovered, isRetry: true)
             }
             throw refusal
         }
