@@ -13,6 +13,9 @@ enum SetupMode: Equatable {
     case interactive
     /// `--print-choices`: never prompts, writes no configuration file.
     case printChoices
+    /// `--install-linear`: runs only the Linear step (install, store, confirm), then the Operator
+    /// identity choice if none is configured, and exits — never touches Project files or jobs.
+    case installLinear
 }
 
 /// The scheduled-jobs format `--export-jobs` writes.
@@ -41,6 +44,9 @@ struct SetupOptions {
     static let defaultGitHubCredential = "keychain:github"
 
     let mode: SetupMode
+    /// `--events json`: emits `LinearInstallEvent` NDJSON on stdout instead of prompting or printing
+    /// human text for the Linear step. Only meaningful with `--install-linear`; implies non-interactive.
+    let eventsJSON: Bool
     let linearCredential: CredentialReference?
     let githubCredential: CredentialReference?
     /// In `--cli` order.
@@ -59,6 +65,7 @@ struct SetupOptions {
 
     init(command: SetupCommand) throws {
         mode = try Self.parseMode(command)
+        eventsJSON = try Self.parseEventsJSON(command)
         linearCredential = try Self.parseCredential(command.linearCredential, option: "--linear-credential")
         githubCredential = try Self.parseCredential(command.githubCredential, option: "--github-credential")
         operatorID = command.operatorID.map { BoardObjectID(rawValue: $0) }
@@ -97,6 +104,12 @@ struct SetupOptions {
             try validatePrintChoicesScope(command)
             return .printChoices
         }
+        if command.installLinear {
+            guard !command.initialize, command.config == nil else {
+                throw ValidationError("--install-linear cannot be combined with --init or --config")
+            }
+            return .installLinear
+        }
         guard let configPath = command.config else {
             return command.initialize ? .initialize : .interactive
         }
@@ -132,7 +145,8 @@ struct SetupOptions {
             (command.operatorID != nil, "--operator"),
             (command.installJobs, "--install-jobs"),
             (command.exportJobs != nil, "--export-jobs"),
-            (command.cron, "--cron")
+            (command.cron, "--cron"),
+            (command.installLinear, "--install-linear")
         ]
         let present = forbidden.filter(\.0).map(\.1)
         guard present.isEmpty else {
@@ -155,6 +169,18 @@ struct SetupOptions {
             throw ValidationError("--cron requires --export-jobs")
         }
         return command.installJobs ? .install : .none
+    }
+
+    /// `--events json` is only meaningful with `--install-linear`; any other value is a ValidationError.
+    private static func parseEventsJSON(_ command: SetupCommand) throws -> Bool {
+        guard let events = command.events else { return false }
+        guard events == "json" else {
+            throw ValidationError("--events must be \"json\", got \"\(events)\"")
+        }
+        guard command.installLinear else {
+            throw ValidationError("--events requires --install-linear")
+        }
+        return true
     }
 
     private static func parseCredential(_ raw: String?, option: String) throws -> CredentialReference? {

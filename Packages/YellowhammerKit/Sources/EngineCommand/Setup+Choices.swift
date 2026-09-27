@@ -11,7 +11,12 @@ extension Setup {
     /// JSON-encoded ``SetupChoices``.
     func printChoices() async throws {
         let machine = try loadMachineConfigurationForChoices()
-        let board = try bindWorkspaceBoard(machine: machine)
+        guard credentials.secret(for: machine.linearCredential) != nil else {
+            throw SetupError(
+                "Yellowhammer is not installed in a Linear workspace yet; run yh setup --install-linear"
+            )
+        }
+        let board = bindProvisioning(machine, "")
         let members = try await authorize(board: board)
         let teams = try await fetchTeams(board: board)
         output(try encodeChoicesJSON(makeChoices(machine: machine, members: members, teams: teams)))

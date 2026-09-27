@@ -87,12 +87,16 @@ func makeArguments(
     repo: [String] = [],
     installJobs: Bool = false,
     exportJobs: String? = nil,
-    cron: Bool = false
+    cron: Bool = false,
+    installLinear: Bool = false,
+    events: String? = nil
 ) -> [String] {
     var arguments: [String] = []
     if initialize { arguments.append("--init") }
     if installJobs { arguments.append("--install-jobs") }
     if cron { arguments.append("--cron") }
+    if installLinear { arguments.append("--install-linear") }
+    appendOption(&arguments, "--events", events)
     appendOption(&arguments, "--config", config)
     appendOption(&arguments, "--route", route)
     appendOption(&arguments, "--operator", operatorID)
@@ -175,6 +179,22 @@ func makeBoard(
     return board
 }
 
+/// Never invoked by a test that keeps the default credential seed (an Installation already exists, so
+/// `authorizeOrInstallLinear` never reaches the install path). Install-focused tests override every
+/// `linearInstall*` parameter explicitly.
+struct NeverCalledPortHolderLookup: PortHolderLookup {
+    func holder(port: Int) async -> PortHolder? { nil }
+}
+
+func defaultLinearInstallSeams() -> LinearInstallSeams {
+    LinearInstallSeams(
+        portBinder: { port in throw LoopbackCallbackServer.BindError.busy(port: port) },
+        holderLookup: NeverCalledPortHolderLookup(),
+        opener: { _ in },
+        transport: { _ in throw URLError(.cannotConnectToHost) }
+    )
+}
+
 func makeSetup(
     arguments: [String],
     directory: borrowing ConfigurationDirectory,
@@ -188,7 +208,18 @@ func makeSetup(
     yhExecutablePath: String = "/usr/local/bin/yh",
     setupTimePATH: String? = "/usr/bin:/bin",
     fileExists: @escaping (String) -> Bool = { _ in false },
-    launchAgents: any LaunchAgentControl = RecordingLaunchAgentControl()
+    launchAgents: any LaunchAgentControl = RecordingLaunchAgentControl(),
+    linearInstallSeams: LinearInstallSeams = defaultLinearInstallSeams(),
+    linearInstallationStore: @escaping (CredentialReference) -> LinearInstallationStore = { reference in
+        LinearInstallationStore(
+            reference: reference, keychain: KeychainCredentialStore(),
+            machineLock: MachineLock(
+                fileURL: FileManager.default.temporaryDirectory
+                    .appending(component: "yh-test-lock-\(UUID().uuidString).lock", directoryHint: .notDirectory)
+            )
+        )
+    },
+    linearInstallEvents: @escaping @Sendable (LinearInstallEvent) -> Void = { _ in }
 ) throws -> Setup {
     let command = try SetupCommand.parse(arguments)
     let options = try SetupOptions(command: command)
@@ -204,6 +235,9 @@ func makeSetup(
         yhExecutablePath: yhExecutablePath,
         setupTimePATH: setupTimePATH,
         fileExists: fileExists,
-        launchAgents: launchAgents
+        launchAgents: launchAgents,
+        linearInstallSeams: linearInstallSeams,
+        linearInstallationStore: linearInstallationStore,
+        linearInstallEvents: linearInstallEvents
     )
 }

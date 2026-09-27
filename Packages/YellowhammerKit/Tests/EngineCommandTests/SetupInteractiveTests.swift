@@ -70,13 +70,13 @@ struct SetupInteractiveTests {
         #expect(await board.creates >= 1)
     }
 
-    @Test("No Installation token pair yet: interactive mode throws, naming the fix, and never prompts")
-    func interactiveMissingInstallationThrows() async throws {
+    @Test("No Installation token pair yet: interactive mode attempts the install, all ports busy, cancel throws")
+    func interactiveMissingInstallationAttemptsInstallThenThrows() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
         let board = await makeBoard()
         let arguments = makeArguments(initialize: false, operatorID: "user-op")
-        let console = ScriptedConsole(answers: ["n"])
+        let console = ScriptedConsole(answers: ["c"])
         let credentials = RecordingCredentialStore()
         let setup = try makeSetup(
             arguments: arguments, directory: directory, board: board, console: console, credentials: credentials
@@ -84,7 +84,8 @@ struct SetupInteractiveTests {
 
         await #expect(throws: SetupError.self) { try await setup.run() }
 
-        #expect(console.prompts.isEmpty)
+        // Every port bound busy by `defaultLinearInstallSeams()`: setup offers retry/cancel exactly once.
+        #expect(console.prompts.count == 1)
     }
 
     @Test("EOF at the Operator prompt throws and writes no Project file")
