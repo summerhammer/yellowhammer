@@ -3,6 +3,7 @@ import Domain
 @testable import Engine
 import Foundation
 import Journal
+import ProcessTestSupport
 import Repositories
 import Testing
 
@@ -36,7 +37,7 @@ struct WorktreeReconcilerContinuedTests {
         )
 
         let process = try makeReconcilerSleepProcess(currentDirectory: worktree)
-        defer { if process.isRunning { process.terminate() } }
+        defer { process.terminateAndReap() }
         try await Task.sleep(for: .milliseconds(150))
 
         let workspace = ReconcilerFakeWorkspace()
@@ -48,9 +49,8 @@ struct WorktreeReconcilerContinuedTests {
 
         let result = try await reconciler.reconcile(featureID: featureID, branch: reconcilerBranch)
 
-        process.waitUntilExit()
-        #expect(!process.isRunning)
-        #expect(process.terminationReason == .uncaughtSignal)
+        let status = await process.waitForExit(timeout: .seconds(5))
+        #expect(status == .signalled(SIGKILL) || status == .alreadyReaped)
 
         let fencedEvents = try journal.events(ofType: .worktreeFenced)
         #expect(fencedEvents.count == 1)

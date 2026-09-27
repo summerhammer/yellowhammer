@@ -4,6 +4,7 @@ import Domain
 import Foundation
 import GRDB
 @testable import Journal
+import ProcessTestSupport
 import Repositories
 import Synchronization
 import Testing
@@ -185,16 +186,8 @@ func makeReconcilerTempDir(name: String) throws -> URL {
 }
 
 /// Launches `/bin/sleep 30` with `currentDirectory` as its cwd, for `ProcessFencer` to find as a holder.
-func makeReconcilerSleepProcess(currentDirectory: URL) throws -> Process {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/bin/sleep")
-    process.arguments = ["30"]
-    process.currentDirectoryURL = currentDirectory
-    process.standardOutput = FileHandle.nullDevice
-    process.standardError = FileHandle.nullDevice
-    process.standardInput = FileHandle.nullDevice
-    try process.run()
-    return process
+func makeReconcilerSleepProcess(currentDirectory: URL) throws -> SpawnedChild {
+    try SpawnedChild.spawn(executable: "/bin/sleep", arguments: ["30"], currentDirectory: currentDirectory)
 }
 
 // MARK: - Suite
