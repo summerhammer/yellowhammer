@@ -20,6 +20,11 @@ import XCTest
 final class SetupWizardUITests: XCTestCase {
     private var configurationDirectory: URL!
     private var app: XCUIApplication!
+    /// Real, unsandboxed `/tmp` paths (never inside the UI test runner's own container, which the
+    /// app-spawned stub cannot write into): the stub's only cross-invocation state, for the
+    /// ports-busy-then-retry scenario.
+    private var installedMarker: URL!
+    private var attemptsMarker: URL!
 
     override func setUp() async throws {
         continueAfterFailure = false
@@ -31,6 +36,9 @@ final class SetupWizardUITests: XCTestCase {
         try FileManager.default.createDirectory(at: stubDirectory, withIntermediateDirectories: true)
 
         let stubURL = try Self.writeStub(in: stubDirectory)
+        let uniqueSuffix = UUID().uuidString
+        installedMarker = URL(filePath: "/tmp/yh-uitest-installed-\(uniqueSuffix)")
+        attemptsMarker = URL(filePath: "/tmp/yh-uitest-attempts-\(uniqueSuffix)")
 
         app = XCUIApplication()
         app.launchArguments = [
@@ -38,15 +46,30 @@ final class SetupWizardUITests: XCTestCase {
             "-YellowhammerEngineStub", stubURL.path(percentEncoded: false),
             "-ApplePersistenceIgnoreState", "YES"
         ]
+        app.launchEnvironment = [
+            "YH_STUB_INSTALLED_MARKER": installedMarker.path(percentEncoded: false),
+            "YH_STUB_ATTEMPTS_MARKER": attemptsMarker.path(percentEncoded: false)
+        ]
+    }
+
+    /// `portsBusyFirst`: the stub's first `--install-linear` attempt reports every port busy; the
+    /// second (a Retry) installs, matching OQ94's "setup stops before the browser" then a fresh attempt.
+    private func launchApp(portsBusyFirst: Bool = false) {
+        if portsBusyFirst {
+            app.launchEnvironment["YH_STUB_PORTS_BUSY_FIRST"] = "1"
+        }
         app.launch()
     }
 
     override func tearDown() async throws {
         app.terminate()
         try? FileManager.default.removeItem(at: configurationDirectory.deletingLastPathComponent())
+        try? FileManager.default.removeItem(at: installedMarker)
+        try? FileManager.default.removeItem(at: attemptsMarker)
     }
 
     func testWizardDrivesSetupToCompletion() throws {
+        launchApp()
         let setup = try enterLinearAndPickOperator()
         let continueButton = setup.buttons["setup-continue"]
 
@@ -100,6 +123,7 @@ final class SetupWizardUITests: XCTestCase {
     }
 
     func testOperatorStepContinueIsDisabledUntilACandidateIsPicked() throws {
+        launchApp()
         openSetupWindow()
         let setup = app.windows["Setup"]
         XCTAssertTrue(setup.waitForExistence(timeout: 10))
@@ -114,6 +138,45 @@ final class SetupWizardUITests: XCTestCase {
         operatorPicker.click()
         setup.menuItems["Operator Person (operator)"].click()
         XCTAssertTrue(continueButton.isEnabled)
+    }
+
+    /// P17.7: an installed attempt shows the workspace name and enables Continue.
+    func testLinearInstalledShowsWorkspaceNameAndEnablesContinue() throws {
+        launchApp()
+        openSetupWindow()
+        let setup = app.windows["Setup"]
+        XCTAssertTrue(setup.waitForExistence(timeout: 10))
+
+        let installButton = setup.buttons["setup-linear-install"]
+        XCTAssertTrue(installButton.waitForExistence(timeout: 10))
+        installButton.click()
+
+        let installed = setup.staticTexts["setup-linear-installed"]
+        XCTAssertTrue(installed.waitForExistence(timeout: 10))
+        XCTAssertTrue((installed.value as? String ?? installed.label).contains("Acme"))
+        XCTAssertTrue(setup.buttons["setup-continue"].isEnabled)
+    }
+
+    /// P17.7, OQ94: all three ports busy stops before the browser and offers Retry; a Retry re-runs
+    /// the attempt, which the stub then reports installed.
+    func testLinearPortsBusyThenRetryInstalls() throws {
+        launchApp(portsBusyFirst: true)
+        openSetupWindow()
+        let setup = app.windows["Setup"]
+        XCTAssertTrue(setup.waitForExistence(timeout: 10))
+
+        let installButton = setup.buttons["setup-linear-install"]
+        XCTAssertTrue(installButton.waitForExistence(timeout: 10))
+        installButton.click()
+
+        let portsBusy = setup.staticTexts["setup-linear-ports-busy"]
+        XCTAssertTrue(portsBusy.waitForExistence(timeout: 10))
+        let retryButton = setup.buttons["setup-linear-retry"]
+        XCTAssertTrue(retryButton.exists)
+        retryButton.click()
+
+        let installed = setup.staticTexts["setup-linear-installed"]
+        XCTAssertTrue(installed.waitForExistence(timeout: 10))
     }
 
     /// Opens the Setup window and drives it through the Linear step and the Operator identity step,
@@ -135,10 +198,17 @@ final class SetupWizardUITests: XCTestCase {
     }
 
     private func enterLinearStep(in setup: XCUIElement) throws {
-        // No credential fields to fill (P17.7 owns the browser install): the Linear step just
-        // confirms and continues, defaulting the credential reference.
+        // The stub's `doctor --check linear --json` answers "no Installation" first (see
+        // `writeStub`), so the browser-install button appears once the check completes.
+        let installButton = setup.buttons["setup-linear-install"]
+        XCTAssertTrue(installButton.waitForExistence(timeout: 10))
+        installButton.click()
+
+        let installed = setup.staticTexts["setup-linear-installed"]
+        XCTAssertTrue(installed.waitForExistence(timeout: 10))
+
         let continueButton = setup.buttons["setup-continue"]
-        XCTAssertTrue(continueButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(continueButton.isEnabled)
         continueButton.click()
     }
 
@@ -175,16 +245,25 @@ final class SetupWizardUITests: XCTestCase {
     /// works. `--init` first drains the stdin secret line, then echoes every argument as `argv: <arg>`
     /// and prints "Setup complete." The stub writes no file.
     private static func writeStub(in directory: URL) throws -> URL {
-        let script = """
-        #!/bin/sh
-        shift
-        case "$1" in
+        let script = "#!/bin/sh\nshift\ncase \"$1\" in\n"
+            + printChoicesCase + initCase + checkCase + installLinearCase
+            + "  *)\n    exit 1\n    ;;\nesac\n"
+        let stubURL = directory.appending(component: "yh.sh", directoryHint: .notDirectory)
+        try script.write(to: stubURL, atomically: true, encoding: .utf8)
+        return stubURL
+    }
+
+    private static let printChoicesCase = """
           --print-choices)
             echo '{"operatorCandidates":[{"id":"user-op","name":"operator","displayName":"Operator Person"}],\
         "configuredOperator":null,"teams":[{"id":"team-1","key":"ENG","name":"Engineering"}],\
         "cliAdapters":["claude","codex"]}'
             exit 0
             ;;
+
+        """
+
+    private static let initCase = """
           --init)
             read -r _
             for arg in "$@"; do
@@ -193,13 +272,44 @@ final class SetupWizardUITests: XCTestCase {
             echo "Setup complete."
             exit 0
             ;;
-          *)
-            exit 1
-            ;;
-        esac
+
         """
-        let stubURL = directory.appending(component: "yh.sh", directoryHint: .notDirectory)
-        try script.write(to: stubURL, atomically: true, encoding: .utf8)
-        return stubURL
-    }
+
+    /// `yh doctor --check linear --json`: "installed" once the install marker exists, else "not
+    /// installed" — the app's Linear step polls this on appearing.
+    private static let checkCase = """
+          --check)
+            if [ -f "$YH_STUB_INSTALLED_MARKER" ]; then
+              echo '[{"check":"linear","subject":"authorization","severity":"pass","message":"ok"}]'
+            else
+              echo '[{"check":"linear","subject":"installation","severity":"failure","message":"no pair"}]'
+            fi
+            exit 0
+            ;;
+
+        """
+
+    /// `yh setup --install-linear --events json`: the first attempt reports every port busy when
+    /// `YH_STUB_PORTS_BUSY_FIRST` is set (a Retry test); every later attempt installs.
+    private static let installLinearCase = """
+          --install-linear)
+            count_file="$YH_STUB_ATTEMPTS_MARKER"
+            count=0
+            [ -f "$count_file" ] && count=$(cat "$count_file")
+            count=$((count + 1))
+            echo "$count" > "$count_file"
+            echo '{"event":"adminStatement","text":"An admin must approve."}'
+            if [ "$count" -eq 1 ] && [ -n "$YH_STUB_PORTS_BUSY_FIRST" ]; then
+              echo '{"event":"portsBusy","ports":[{"port":44837,"pid":123,"command":"Fugu"}],"text":"all busy"}'
+              echo '{"event":"failed","reason":"portsBusy","text":"all busy"}'
+              exit 1
+            fi
+            echo '{"event":"browserOpened","url":"https://linear.app/oauth/authorize"}'
+            echo '{"event":"awaitingApproval"}'
+            echo '{"event":"installed","workspaceName":"Acme"}'
+            touch "$YH_STUB_INSTALLED_MARKER"
+            exit 0
+            ;;
+
+        """
 }

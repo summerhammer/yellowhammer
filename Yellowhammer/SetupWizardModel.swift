@@ -58,6 +58,8 @@ final class SetupWizardModel {
     var isFetchingChoices = false
     var choicesErrorOutput: [String] = []
     var choices: SetupChoices?
+    var linearInstallPhase: LinearInstallPhase = .checking
+    var linearInstallTask: Task<Void, Never>?
 
     // Step: Operator identity
     var selectedOperatorID: String?
@@ -111,7 +113,7 @@ final class SetupWizardModel {
     var canContinue: Bool {
         switch currentStep {
         case .linear:
-            return !isFetchingChoices
+            return !isFetchingChoices && linearInstallPhase.isInstalled
         case .operatorIdentity:
             return selectedOperatorID != nil
         case .cliRouting:
@@ -211,6 +213,7 @@ final class SetupWizardModel {
     /// Terminates the current run, if any: closing the Setup window is not an Act, so nothing must
     /// survive it.
     func terminateRun() {
+        linearInstallTask?.cancel()
         engine.terminate()
     }
 

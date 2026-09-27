@@ -26,12 +26,19 @@ public struct DoctorCommand: AsyncParsableCommand {
     @Option(help: "Only report this Project and machine-wide findings.")
     public var project: String?
 
+    @Option(help: "Only run this check (\(DoctorCheck.allCases.map(\.rawValue).joined(separator: ", "))).")
+    public var check: String?
+
+    @Flag(help: "Print findings as one JSON array instead of the human report (P17.7: the app's own read).")
+    public var json: Bool = false
+
     public init() {}
 
     public func validate() throws {
         guard !yes || fix else {
             throw ValidationError("--yes requires --fix")
         }
+        _ = try resolvedChecks()
     }
 
     public func run() async throws {
@@ -45,10 +52,14 @@ public struct DoctorCommand: AsyncParsableCommand {
             configurationDirectory: configurationDirectory,
             homeDirectory: FileManager.default.homeDirectoryForCurrentUser,
             options: DoctorRunOptions(
-                fix: fix, yes: yes, probe: probe, checks: DoctorCheck.allCases, projectFilter: projectFilter
-            )
+                fix: fix, yes: yes, probe: probe, checks: try resolvedChecks(), projectFilter: projectFilter
+            ),
+            quiet: json
         )
         let findings = await doctor.run()
+        if json {
+            print(Self.encodeFindingsJSON(findings))
+        }
         if findings.contains(where: { $0.severity == .failure }) {
             throw ExitCode(1)
         }
@@ -62,12 +73,51 @@ public struct DoctorCommand: AsyncParsableCommand {
         return id
     }
 
+    /// `--check <name>` narrows to one check (P17.7: the app polls `--check linear --json` on the
+    /// Setup view's Linear step); absent, every check runs, as today.
+    private func resolvedChecks() throws -> [DoctorCheck] {
+        guard let check else { return DoctorCheck.allCases }
+        guard let parsed = DoctorCheck(rawValue: check) else {
+            let known = DoctorCheck.allCases.map(\.rawValue).joined(separator: ", ")
+            throw ValidationError("--check must be one of: \(known)")
+        }
+        return [parsed]
+    }
+
+    /// One compact JSON array, `[{"check":...,"subject":...,"severity":...,"message":...}]` — no
+    /// `projectID`, since `--json` is only used machine-wide so far (P17.7).
+    private static func encodeFindingsJSON(_ findings: [DoctorFinding]) -> String {
+        let rows = findings.map { finding in
+            DoctorFindingJSON(
+                check: finding.check.rawValue, subject: finding.subject,
+                severity: severityString(finding.severity), message: finding.message
+            )
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        guard let data = try? encoder.encode(rows), let text = String(data: data, encoding: .utf8) else {
+            return "[]"
+        }
+        return text
+    }
+
+    private static func severityString(_ severity: DoctorSeverity) -> String {
+        switch severity {
+        case .pass: "pass"
+        case .warning: "warning"
+        case .failure: "failure"
+        }
+    }
+
     /// Shared by `ValidateCommand`: the real seams, differing only in which checks and options apply.
-    static func makeDoctor(configurationDirectory: URL, homeDirectory: URL, options: DoctorRunOptions) -> Doctor {
+    /// `quiet` suppresses the human report (`--json`): only findings return, printed by the caller.
+    static func makeDoctor(
+        configurationDirectory: URL, homeDirectory: URL, options: DoctorRunOptions, quiet: Bool = false
+    ) -> Doctor {
         Doctor(
             configurationDirectory: configurationDirectory,
             homeDirectory: homeDirectory,
-            output: { print($0) },
+            output: quiet ? { _ in } : { print($0) },
             console: RealSetupConsole(),
             credentials: KeychainSetupCredentialStore(),
             bindProvisioning: { machine, linearProjectID in
@@ -92,4 +142,12 @@ struct DoctorRunOptions {
     let probe: Bool
     let checks: [DoctorCheck]
     let projectFilter: ProjectID?
+}
+
+/// `--json`'s one row: a plain mirror of `DoctorFinding`, minus `projectID` (P17.7, the app's own read).
+struct DoctorFindingJSON: Encodable {
+    let check: String
+    let subject: String
+    let severity: String
+    let message: String
 }
