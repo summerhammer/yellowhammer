@@ -1782,7 +1782,7 @@ depends on and that never shipped.
 - **Done when** — A non-member team is reported before any create; `FORBIDDEN` never reads as "not
   visible".
 
-### [ ] P17.3 Installation client, refresh and error split in the adapter
+### [x] P17.3 Installation client, refresh and error split in the adapter
 - **Work** — The authorization URL (PKCE `S256`, `actor=app`, `read,write`, exact loopback
   redirect), the code exchange with no client secret, refresh ahead of expiry, one refresh and one
   retry on `401`, and an authorization refusal told apart from `FORBIDDEN` and network errors.
