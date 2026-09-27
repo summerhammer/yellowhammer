@@ -1843,25 +1843,23 @@ depends on and that never shipped.
   the installed identity; revocation (L6) halted the next two Acts at the preflight, with one
   notification attempt for the Night, and doctor failed with the fix; re-install (L7) kept the same
   app user ID and the next Act ran. Left `[ ]` until the steps below are done.
-- **Remaining** — run on an installed **release** build (not Debug: the Debug build's coverage
-  instrumentation fails the headless notification post, `default.profraw` on a read-only file
-  system), e.g. alongside P16.8:
-  1. **Outbox replay after re-install, live.** Revoke the installation **mid-Act**, after the
-     preflight (e.g. revoke while a build Act is dispatching), so that a board write is refused and
-     left pending. Confirm that write stays pending in the Journal, re-install with
-     `yh setup --install-linear`, and confirm the next Act applies it under its unchanged client
-     id. The preflight halt in the 2026-09-27 run left nothing pending to replay.
-  2. **`launchd`-fired Keychain write.** With the installed app's LaunchAgents running, let the
-     access token come within 2 hours of expiry (it lasts 24 hours), and confirm a scheduled Act
-     refreshes it and writes the new pair to the Keychain **without a Keychain prompt**. Check the
-     item's modification date, and that the next Act and `yh doctor` still pass. P16.6 only
-     exercised Keychain reads.
-  3. **Halted notification from the installed app.** In the revocation run of step 1, confirm the
-     first authorization halt of the Night actually posts the local notification ("Linear refused
-     Yellowhammer's sign-in …") and a second halt that Night does not.
-  4. **The app's Setup view, by hand.** Install from `Yellowhammer.app`'s Setup view: the browser
-     round-trip, the workspace name shown, then "Install again" after a revocation. The UI tests
-     only cover it with a stubbed `yh`.
+- **Live on v0.2.0 (2026-09-27, installed release build)** — steps 1, 3 and 4 below pass.
+  1. Outbox replay: an author Act was paused (`SIGSTOP`) with its Night Card `issueCreate` pending,
+     the installation revoked, the Act resumed. The write stayed `pending` (a transient deferral:
+     the paused request timed out) and the next Act after re-install applied it under its unchanged
+     client id; the Night Card exists once.
+  3. Halted notification: a second halt the same Night recorded no notification attempt. The first
+     one was posted through a **stale, coverage-instrumented copy** of the app, because `yh` found
+     the app with `open -b` (any registered copy); fixed in this PR by launching the enclosing app
+     with `open -a`. Posts through `/Applications/Yellowhammer.app` delivered, by hand.
+  4. Setup view: after a revocation, a fresh Setup session's Linear step showed the refusal and
+     "Install again"; the browser round-trip ended with "Installed in the Linear workspace
+     summerhammer." (The wizard keeps its state until the app quits.)
+- **Remaining**
+  2. **`launchd`-fired Keychain write.** The pair installed at 2026-09-27 14:11Z expires
+     2026-09-28 14:11Z; the first scheduled Act after that (the 22:00 Night) must refresh it and write
+     the Keychain **without a prompt**. Check the item's `mdat` moved, a new `expires_at`, no
+     `errSecInteractionNotAllowed`, and that `yh doctor` passes. Run nothing that refreshes before it.
   5. Then mark P17.8 `[x]`.
   Open elsewhere: spec gaps found while building Phase 17 are in yellowhammer-spec#70; the
   whole-target `EngineCommandTests` crash is #215.
