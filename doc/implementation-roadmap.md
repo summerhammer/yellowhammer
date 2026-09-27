@@ -1821,7 +1821,7 @@ depends on and that never shipped.
 - **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
 - **Done when** — Setup installs into the scratch workspace with no client id asked for.
 
-### [ ] P17.7 Installation in the app's Setup view
+### [x] P17.7 Installation in the app's Setup view
 - **Work** — The Linear step drives `yh setup`'s install and shows its progress, the busy-port
   Retry/Cancel, the failure copy and the workspace name; an authorization failure shows until
   re-installed.
