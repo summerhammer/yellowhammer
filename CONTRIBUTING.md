@@ -35,10 +35,11 @@ Each prerequisite prints `PASS`, `WARN`, `FAIL` or `SKIP`. The script exits 1 if
    ```
    The structural checks in `scripts/ci/` (deployment target, module boundaries, `.gitignore`
    audit, glossary) run locally too.
-3. Open a pull request using the template. Its body carries either
-   `Spec: <epic>/<story> @ <spec commit sha>` (one line per story; `/spec-cite` builds it), or
-   `Spec-Exempt: <reason>` for work that implements no story, such as DevOps. CI refuses a body with
-   neither.
+3. Open a pull request using the template. When its title type is `feat`, `fix`, `perf` or
+   `revert`, its body carries either `Spec: <epic>/<story> @ <spec commit sha>` (one line per story;
+   `/spec-cite` builds it), or `Spec-Exempt: <reason>` for a behavior change no story covers. CI
+   refuses such a body with neither. `docs`, `ci`, `build`, `chore`, `test` and `refactor` PRs, and
+   release PRs, need no line.
 4. Every acceptance criterion of a cited story is covered, or listed in the pull request as not
    satisfied, with the reason.
 5. All CI checks pass before merge.

@@ -208,7 +208,8 @@ first layer, `gh stack add <branch>` for each one above it, then
 layer; mark the item `[x]` in `doc/implementation-roadmap.md` in its own commit on that
 layer.
 
-Every pull request implementing spec'd behavior carries the traceability line:
+Every pull request titled `feat`, `fix`, `perf` or `revert` carries the traceability line
+(or `Spec-Exempt: <reason>` when no story applies; other title types need neither):
 
 ```
 Spec: <epic>/<story> @ <spec commit sha>

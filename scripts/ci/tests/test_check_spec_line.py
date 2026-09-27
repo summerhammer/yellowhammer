@@ -190,5 +190,28 @@ Spec-Exempt: Some reason"""
         self.assertTrue(is_valid)
 
 
+class TestExemptionReason(unittest.TestCase):
+    """Tests for which pull requests need a spec line."""
+
+    def reason(self, title, head_ref="feature"):
+        return check_spec_line_module.exemption_reason(title, head_ref)
+
+    def test_behavior_types_require_a_spec_line(self):
+        for title in ["feat: add x", "fix(engine): y", "perf!: z", "revert: w"]:
+            self.assertIsNone(self.reason(title), title)
+
+    def test_non_behavior_types_are_exempt(self):
+        for title in ["docs: a", "ci(release): b", "build: c", "chore!: d", "test: e", "refactor: f"]:
+            self.assertIsNotNone(self.reason(title), title)
+
+    def test_unparseable_title_requires_a_spec_line(self):
+        self.assertIsNone(self.reason("Add a thing"))
+        self.assertIsNone(self.reason(""))
+
+    def test_release_please_branch_is_exempt(self):
+        self.assertIsNotNone(self.reason("chore(main): release 0.2.0", "release-please--branches--main"))
+        self.assertIsNotNone(self.reason("", "release-please--branches--main"))
+
+
 if __name__ == "__main__":
     unittest.main()
