@@ -410,6 +410,35 @@ struct HeadlessAppNotifierTests {
         let argsIndex = try #require(arguments.firstIndex(of: "--args"))
         #expect(Array(arguments[(argsIndex + 1)...]) == sampleNotification.arguments)
     }
+
+    @Test("An app path launches that app with -a, never by bundle id")
+    func appPathLaunchesByPath() async throws {
+        let scratch = try ScratchDirectory()
+        let argsFile = scratch.directory.appending(component: "args.txt")
+        let scriptPath = try scratch.writeOpenFixture(exitCode: 0, stderrMessage: nil, argsDumpPath: argsFile.path)
+        let notifier = ExceptionNotifier.headlessApp(appPath: "/Applications/Yellowhammer.app", openPath: scriptPath)
+
+        try await notifier.post(sampleNotification)
+
+        let arguments = try String(contentsOf: argsFile, encoding: .utf8)
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .map(String.init)
+        let aIndex = try #require(arguments.firstIndex(of: "-a"))
+        #expect(arguments[aIndex + 1] == "/Applications/Yellowhammer.app")
+        #expect(!arguments.contains("-b"))
+    }
+
+    @Test("The enclosing app is the bundle around Contents/MacOS, and nil outside one")
+    func enclosingAppPath() {
+        #expect(
+            HeadlessAppLaunch.enclosingAppPath(
+                executable: URL(filePath: "/Applications/Yellowhammer.app/Contents/MacOS/yh")
+            ) == "/Applications/Yellowhammer.app"
+        )
+        #expect(HeadlessAppLaunch.enclosingAppPath(executable: URL(filePath: "/usr/local/bin/yh")) == nil)
+        #expect(HeadlessAppLaunch.enclosingAppPath(executable: URL(filePath: "/tmp/Contents/MacOS/yh")) == nil)
+        #expect(HeadlessAppLaunch.enclosingAppPath(executable: nil) == nil)
+    }
 }
 
 /// A throwaway directory for the shell scripts that stand in for `/usr/bin/open` in these tests.

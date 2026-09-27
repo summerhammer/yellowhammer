@@ -21,7 +21,8 @@ public struct ExceptionNotifier: Sendable {
     public static let silent = ExceptionNotifier { _ in }
 
     /// The real launcher: a one-shot, headless launch of `Yellowhammer.app` by bundle identifier
-    /// (`open -b`), the command the spec's ruling names. `open -b` is used instead of running the
+    /// (`open -b`), the command the spec's ruling names — or, when `yh` runs inside an app bundle, of
+    /// that enclosing app by path (`open -a`; see ``HeadlessAppLaunch/enclosingAppPath(executable:)``). `open -b` is used instead of running the
     /// app's binary directly because a local notification's identity comes from the bundle macOS
     /// resolves for it — the same identity `UNUserNotificationCenter` requires — and nothing about
     /// this is resident: the app launches headless (`--post-notification`), posts, and exits, and this
@@ -37,12 +38,13 @@ public struct ExceptionNotifier: Sendable {
     /// (the app side) writes a `Yellowhammer:`-prefixed line to on failure only.
     public static func headlessApp(
         bundleIdentifier: String = "dev.yellowhammer",
+        appPath: String? = HeadlessAppLaunch.enclosingAppPath(),
         openPath: String = "/usr/bin/open",
         timeout: Duration = .seconds(20)
     ) -> ExceptionNotifier {
         ExceptionNotifier { notification in
             try await HeadlessAppLaunch.run(
-                arguments: notification.arguments, bundleIdentifier: bundleIdentifier,
+                arguments: notification.arguments, bundleIdentifier: bundleIdentifier, appPath: appPath,
                 openPath: openPath, timeout: timeout
             )
         }
