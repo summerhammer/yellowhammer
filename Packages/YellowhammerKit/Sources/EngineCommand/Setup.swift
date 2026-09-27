@@ -31,12 +31,30 @@ struct Setup {
     let fileExists: (String) -> Bool
     /// `launchd`'s control surface for `--install-jobs`.
     let launchAgents: any LaunchAgentControl
+    /// The Linear App Installation browser flow's side effects (P17.6): port binding, the browser
+    /// opener, the token transport. Tests inject stubs; `SetupCommand` wires the real ones.
+    let linearInstallSeams: LinearInstallSeams
+    /// Builds the Installation token store bound to a credential reference — a seam so tests use a
+    /// throwaway Keychain reference rather than the machine's real one.
+    let linearInstallationStore: (CredentialReference) -> LinearInstallationStore
+    /// `--events json`'s NDJSON sink; a no-op unless `options.eventsJSON`. Every call site decides
+    /// whether to call this or ``output`` — never both, so `--events json` writes nothing else to stdout
+    /// for the Linear step.
+    let linearInstallEvents: @Sendable (LinearInstallEvent) -> Void
 
     var machineFileURL: URL {
         configurationDirectory.appending(component: "config.toml", directoryHint: .notDirectory)
     }
 
-    var isInteractive: Bool { options.mode == .interactive }
+    /// `.installLinear` still prompts (retry/cancel, y/n) unless `--events json` was given, which the
+    /// app's own headless re-run always passes — every other non-interactive mode never prompts.
+    var isInteractive: Bool {
+        switch options.mode {
+        case .interactive: true
+        case .installLinear: !options.eventsJSON
+        case .initialize, .config, .printChoices: false
+        }
+    }
 
     /// With `--config`, adopts a prepared configuration directory first. Authorizes Yellowhammer's
     /// Linear identity, requires the Operator identity immediately after, provisions Linear per
@@ -54,10 +72,36 @@ struct Setup {
         }
 
         var machine = try loadOrCreateMachineFile()
-        let board = try bindWorkspaceBoard(machine: machine)
-        let members = try await authorize(board: board)
+        let members: [BoardMember]
+        do {
+            members = try await authorizeOrInstallLinear(machine: &machine)
+        } catch {
+            guard case .installLinear = options.mode else {
+                // No Linear installation: the steps that need none still run (configuration validation,
+                // notification registration, routing warnings) before the Linear failure is the final
+                // error. Project file writing, provisioning and scheduled jobs need Linear (or its
+                // provisioning) and are skipped.
+                let configuration = try validateConfiguration()
+                await reportNotifications()
+                reportRoutingWarnings(configuration: configuration, machine: machine)
+                throw SetupError(
+                    "setup finished without a Linear installation; run yh setup --install-linear (\(error))"
+                )
+            }
+            throw error
+        }
+
+        if case .installLinear = options.mode {
+            // "Re-running the Linear step of setup": only this step and the Operator identity choice
+            // (when none is configured) run; every Project's configuration is untouched.
+            if machine.operatorIdentity == nil {
+                try setOperatorIdentity(machine: &machine, members: members)
+            }
+            return
+        }
         try setOperatorIdentity(machine: &machine, members: members)
 
+        let board = bindProvisioning(machine, "")
         try await writeProjectsIfNeeded(machine: machine, board: board)
 
         let configuration = try validateConfiguration()

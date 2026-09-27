@@ -84,6 +84,18 @@ public struct SetupCommand: AsyncParsableCommand {
     @Flag(name: .customLong("cron"), help: "With --export-jobs, write a crontab file instead of plists.")
     public var cron: Bool = false
 
+    @Flag(
+        name: .customLong("install-linear"),
+        help: "Run only the Linear step (install, store, confirm), then the Operator identity choice, and exit."
+    )
+    public var installLinear: Bool = false
+
+    @Option(
+        name: .customLong("events"),
+        help: "With --install-linear, emit one JSON object per line on stdout instead of prompting (\"json\")."
+    )
+    public var events: String?
+
     public init() {}
 
     public func validate() throws {
@@ -97,6 +109,7 @@ public struct SetupCommand: AsyncParsableCommand {
 
     func run(configurationDirectory: URL) async throws {
         let options = try SetupOptions(command: self)
+        let homeDirectory = FileManager.default.homeDirectoryForCurrentUser
         try await Setup(
             options: options,
             configurationDirectory: configurationDirectory,
@@ -107,11 +120,21 @@ public struct SetupCommand: AsyncParsableCommand {
                 BoardBinding.provisioning(machine: machine, linearProjectID: linearProjectID)
             },
             registerNotifications: Self.registerNotifications,
-            homeDirectory: FileManager.default.homeDirectoryForCurrentUser,
+            homeDirectory: homeDirectory,
             yhExecutablePath: Self.yhExecutablePath(),
             setupTimePATH: ProcessInfo.processInfo.environment["PATH"],
             fileExists: { FileManager.default.isExecutableFile(atPath: $0) },
-            launchAgents: LaunchctlLaunchAgentControl()
+            launchAgents: LaunchctlLaunchAgentControl(),
+            linearInstallSeams: .production(),
+            linearInstallationStore: { reference in
+                LinearInstallationStore(
+                    reference: reference, keychain: KeychainCredentialStore(),
+                    machineLock: MachineLock(fileURL: MachineLock.defaultFileURL(homeDirectory: homeDirectory))
+                )
+            },
+            linearInstallEvents: { event in
+                if let line = try? event.ndjsonLine() { print(line) }
+            }
         ).run()
     }
 

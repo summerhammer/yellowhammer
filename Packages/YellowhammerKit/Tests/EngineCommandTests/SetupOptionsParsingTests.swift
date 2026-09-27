@@ -107,4 +107,46 @@ struct SetupOptionsParsingTests {
         let options = try SetupOptions(command: command)
         #expect(options.mode == .config(URL(filePath: "/tmp/prepared", directoryHint: .isDirectory)))
     }
+
+    @Test("--install-linear alone parses as .installLinear, interactive")
+    func installLinearAloneParses() throws {
+        let arguments = makeArguments(initialize: false, installLinear: true)
+        let command = try SetupCommand.parse(arguments)
+        let options = try SetupOptions(command: command)
+        #expect(options.mode == .installLinear)
+        #expect(!options.eventsJSON)
+    }
+
+    @Test("--install-linear --events json parses non-interactive")
+    func installLinearWithEventsJSONParses() throws {
+        let arguments = makeArguments(initialize: false, installLinear: true, events: "json")
+        let command = try SetupCommand.parse(arguments)
+        let options = try SetupOptions(command: command)
+        #expect(options.mode == .installLinear)
+        #expect(options.eventsJSON)
+    }
+
+    @Test("--install-linear with --init is refused")
+    func installLinearWithInitRefused() {
+        let arguments = makeArguments(initialize: true, installLinear: true)
+        #expect(throws: (any Error).self) { try SetupCommand.parse(arguments) }
+    }
+
+    @Test("--events with a value other than json is refused")
+    func eventsWithOtherValueRefused() {
+        let arguments = makeArguments(initialize: false, installLinear: true, events: "text")
+        #expect(throws: (any Error).self) { try SetupCommand.parse(arguments) }
+    }
+
+    @Test("--events without --install-linear is refused")
+    func eventsWithoutInstallLinearRefused() {
+        let arguments = makeArguments(initialize: false, events: "json")
+        #expect(throws: (any Error).self) { try SetupCommand.parse(arguments) }
+    }
+
+    @Test("--print-choices cannot be combined with --install-linear")
+    func printChoicesCannotCombineWithInstallLinear() {
+        let arguments = ["--print-choices", "--install-linear"] // glossary:ignore GL001
+        #expect(throws: (any Error).self) { try SetupCommand.parse(arguments) }
+    }
 }

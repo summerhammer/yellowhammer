@@ -211,6 +211,46 @@ enum SystemBrowserOpenerError: Error, Sendable {
     case failed(status: TerminationStatus)
 }
 
+/// `LinearInstallFlow`'s four injected side effects, bundled so `Setup` carries one seam instead of
+/// four, and so each retry of the install (`Setup+LinearAuthorization`) builds a fresh flow bound to
+/// this attempt's own event sink from the same seams.
+public struct LinearInstallSeams: Sendable {
+    public let portBinder: @Sendable (Int) throws -> any CallbackListening
+    public let holderLookup: any PortHolderLookup
+    public let opener: @Sendable (URL) async throws -> Void
+    public let transport: LinearInstallFlow.TransportSend
+
+    public init(
+        portBinder: @escaping @Sendable (Int) throws -> any CallbackListening,
+        holderLookup: any PortHolderLookup,
+        opener: @escaping @Sendable (URL) async throws -> Void,
+        transport: @escaping LinearInstallFlow.TransportSend
+    ) {
+        self.portBinder = portBinder
+        self.holderLookup = holderLookup
+        self.opener = opener
+        self.transport = transport
+    }
+
+    public func makeFlow(events: @escaping @Sendable (LinearInstallFlow.Event) -> Void) -> LinearInstallFlow {
+        LinearInstallFlow(
+            portBinder: portBinder, holderLookup: holderLookup, opener: opener, transport: transport,
+            events: events
+        )
+    }
+
+    /// The real seams: a fresh `LoopbackCallbackServer` per port try, `lsof` for a busy port's holder,
+    /// `/usr/bin/open`, and `URLSession`.
+    public static func production() -> LinearInstallSeams {
+        LinearInstallSeams(
+            portBinder: { try LoopbackCallbackServer.bind(port: $0) },
+            holderLookup: LSOFPortHolderLookup(),
+            opener: LinearInstallFlow.systemOpener(),
+            transport: URLSessionHTTPTransport().send
+        )
+    }
+}
+
 /// The copy this flow's outcomes are rendered into (verbatim from the story), gathered in one place so
 /// setup and the app's own event handling (later) use the same text.
 public enum LinearInstallCopy {
