@@ -43,7 +43,7 @@ struct DoctorLinearTests {
         #expect(linearFindings.count == 1)
         #expect(linearFindings[0].severity == .failure)
         #expect(linearFindings[0].subject == "installation")
-        #expect(linearFindings[0].message.contains("re-run the Linear step of yh setup"))
+        #expect(linearFindings[0].message.contains("re-run the Linear step: yh setup --install-linear"))
     }
 
     @Test("A revoked or expired Installation (notAuthenticated) fails, naming who must approve it again")
@@ -61,7 +61,7 @@ struct DoctorLinearTests {
         #expect(linearFindings.count == 1)
         #expect(linearFindings[0].severity == .failure)
         #expect(linearFindings[0].subject == "authorization")
-        #expect(linearFindings[0].message.contains("a workspace admin must approve the app again"))
+        #expect(linearFindings[0].message.contains("re-run the Linear step: yh setup --install-linear"))
     }
 
     @Test("Linear unreachable fails with a plain network message")

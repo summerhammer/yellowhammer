@@ -111,8 +111,8 @@ extension EngineInvocation {
     /// Names the cause and the fix, whether or not a Night Card could be opened (P17.5): a refused
     /// identity cannot have written one either way, so the message is never conditioned on that.
     private static let linearAuthorizationCopy =
-        "Linear refused Yellowhammer's sign-in. Re-run the Linear step of yh setup, " +
-            "or of the Setup view in Yellowhammer.app."
+        "Linear refused Yellowhammer's sign-in. Re-run the Linear step: yh setup --install-linear, " +
+            "or the Setup view in Yellowhammer.app."
 
     /// Writes the halted comment through the Outbox. `true` once the write is at least accepted —
     /// applied, already applied, or left pending for a later Act to replay — which is what "recorded

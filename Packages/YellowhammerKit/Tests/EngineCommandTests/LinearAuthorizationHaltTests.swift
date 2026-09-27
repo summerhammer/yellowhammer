@@ -31,8 +31,8 @@ private final class NotificationRecorder: Sendable {
 @Suite("Linear authorization halt (P17.5)")
 struct LinearAuthorizationHaltTests {
     private static let authorizationCopy =
-        "Linear refused Yellowhammer's sign-in. Re-run the Linear step of yh setup, " +
-            "or of the Setup view in Yellowhammer.app."
+        "Linear refused Yellowhammer's sign-in. Re-run the Linear step: yh setup --install-linear, " +
+            "or the Setup view in Yellowhammer.app."
 
     @Test("A refused identity halts before the Night Card, before work, records the cause once, and posts once")
     func preflightRefusalHaltsBeforeNightCardAndWork() async throws {

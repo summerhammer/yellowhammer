@@ -132,4 +132,20 @@ struct SetupInvocationTests {
 
         #expect(arguments == ["setup", "--print-choices"])
     }
+
+    @Test("installLinearArguments builds --install-linear --events json") // glossary:ignore GL001
+    func installLinearArgumentsBuildsInstallLinear() {
+        let arguments = SetupInvocation.installLinearArguments(linearCredential: "keychain:linear")
+
+        #expect(arguments == [
+            "setup", "--install-linear", "--events", "json", "--linear-credential", "keychain:linear"
+        ])
+    }
+
+    @Test("installLinearArguments omits an absent credential") // glossary:ignore GL001
+    func installLinearArgumentsOmitsAbsentCredential() {
+        let arguments = SetupInvocation.installLinearArguments()
+
+        #expect(arguments == ["setup", "--install-linear", "--events", "json"])
+    }
 }

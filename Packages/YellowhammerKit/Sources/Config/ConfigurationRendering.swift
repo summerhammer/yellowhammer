@@ -202,6 +202,25 @@ extension MachineConfiguration {
         return lines.joined(separator: "\n")
     }
 
+    /// Removes `[linear].client_id` — the withdrawn client-credentials setup's leftover key
+    /// (`ConfigurationError.Reason.legacyLinearClientID`, P17.6) — so a hand-edited or old `config.toml`
+    /// can be loaded once, rather than refusing forever. A no-op when the line is already gone.
+    public static func removingLegacyLinearClientID(inFileText text: String) -> String {
+        var lines = text.components(separatedBy: "\n")
+        guard let linearHeaderIndex = lines.firstIndex(where: { isTableHeader($0, named: "linear") }) else {
+            return text
+        }
+        var searchIndex = linearHeaderIndex + 1
+        while searchIndex < lines.count, !isAnyTableHeader(lines[searchIndex]) {
+            if isKeyAssignment(lines[searchIndex], key: "client_id") {
+                lines.remove(at: searchIndex)
+                return lines.joined(separator: "\n")
+            }
+            searchIndex += 1
+        }
+        return text
+    }
+
     private static func isTableHeader(_ line: String, named name: String) -> Bool {
         line.trimmingCharacters(in: .whitespaces) == "[\(name)]"
     }
