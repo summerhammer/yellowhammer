@@ -1801,7 +1801,7 @@ depends on and that never shipped.
 - **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Two processes refreshing at once make one token request.
 
-### [ ] P17.5 Authorization halt
+### [x] P17.5 Authorization halt
 - **Work** — An authorization failure halts the Act; accepted Outbox writes stay pending; the first
   such halt of a Night posts, later ones record only; a Night whose Acts all halted this way spends
   none of `unanswered_nights_max`.
