@@ -112,6 +112,10 @@ public struct SetupCommand: AsyncParsableCommand {
     }
 
     public func run() async throws {
+        // Line-buffered, not the block buffering stdio picks when stdout is not a terminal: under the
+        // app (`--events json` over a pipe), or piped to a file or `tee`, `print` would otherwise hold
+        // the remote approval link — and every progress event — until `yh` exits (P17.9).
+        setvbuf(stdout, nil, _IOLBF, 0)
         let homeDirectory = FileManager.default.homeDirectoryForCurrentUser
         try await run(configurationDirectory: Configuration.defaultDirectoryURL(homeDirectory: homeDirectory))
     }
