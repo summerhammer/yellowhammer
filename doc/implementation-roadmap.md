@@ -1838,6 +1838,13 @@ depends on and that never shipped.
 - **Amends** — P5.1.
 - **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`.
 - **Done when** — Revocation halts the next Act and re-installation replays pending writes, live.
+- **Status** — Scripts moved onto the installed pair. Live on 2026-09-27 (Debug build, scratch
+  workspace `summerhammer`): install through the browser, `yh doctor` pass, a rehearsal Act under
+  the installed identity; revocation (L6) halted the next two Acts at the preflight, with one
+  notification attempt for the Night, and doctor failed with the fix; re-install (L7) kept the same
+  app user ID and the next Act ran. **Still owed:** pending Outbox writes replaying after a
+  re-install, live (the preflight halt left none; unit-tested only), and a `launchd`-fired `yh`
+  writing a refreshed pair to the Keychain without a prompt.
 
 ---
 
