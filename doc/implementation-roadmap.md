@@ -1764,7 +1764,7 @@ workspace by a workspace admin through the browser (risks.md → Linear App Inst
 2026-09-26, OQ93, OQ94; ADR-005). P17.1 and P17.2 build two earlier rulings the installation
 depends on and that never shipped.
 
-### [ ] P17.1 Halted notification without a Night Card
+### [x] P17.1 Halted notification without a Night Card
 - **Work** — A halted Act posts the local notification when no Night Card exists, or when the write
   recording the halt was aborted or permanently failed; a pending write counts as recorded.
 - **Spec** — `morning-report/notify-the-operator-of-exceptions`; risks.md OQ71.
