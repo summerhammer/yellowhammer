@@ -209,6 +209,112 @@ struct ExceptionNotificationPostingTests {
         #expect(haltedFailures.count == 1)
     }
 
+    @Test("A halted Act with no Night Card posts .haltedUnrecorded (OQ71)")
+    func haltedActWithNoNightCardPostsUnrecorded() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let recorder = NotificationRecorder()
+        // Fails the Night Card's own creation, so no Night Card ever opens for this run.
+        await boards.writing.refuseNext(.unreachable("board unreachable"))
+
+        let invocation = EngineInvocation(
+            act: .build, mode: .real, nightStart: nightCardNightStart, journal: journal,
+            trigger: .forced, runID: RunID(), board: board,
+            notifier: ExceptionNotifier { recorder.record($0) },
+            work: { _ in }
+        )
+
+        await #expect(throws: (any Error).self) { try await invocation.run() }
+
+        #expect(recorder.notifications.count == 1)
+        let notification = try #require(recorder.notifications.first)
+        #expect(notification.project == fixture.projectID)
+        guard case .haltedUnrecorded = notification.event else {
+            Issue.record("expected .haltedUnrecorded, got \(notification.event)")
+            return
+        }
+        // Nothing beyond `.actIncomplete` is recorded for this halt: no delivery failure now that the
+        // notification itself posts.
+        let deliveryFailures = try journal.events(ofType: .notificationDeliveryFailed)
+        #expect(deliveryFailures.isEmpty)
+    }
+
+    @Test("A halted comment write that is aborted or permanently failed also posts .haltedUnrecorded (OQ71)")
+    func haltedCommentAbortedOrFailedPostsUnrecorded() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let recorder = NotificationRecorder()
+        let failure = SampleWorkFailure(description: "boom")
+        let commentBody = "**Night halted:** the `build` Act did not complete: boom"
+        // A permanent refusal on the halted comment's own body fails that specific write.
+        await boards.writing.script(.refuse(.notAuthenticated("no token")), for: commentBody)
+
+        let invocation = EngineInvocation(
+            act: .build, mode: .real, nightStart: nightCardNightStart, journal: journal,
+            trigger: .forced, runID: RunID(), board: board,
+            notifier: ExceptionNotifier { recorder.record($0) },
+            work: { _ in throw failure }
+        )
+
+        do {
+            try await invocation.run()
+            Issue.record("expected the work error to be rethrown")
+        } catch let error as SampleWorkFailure {
+            #expect(error == failure)
+        } catch {
+            Issue.record("wrong error type: \(error)")
+        }
+
+        #expect(recorder.notifications.count == 1)
+        let notification = try #require(recorder.notifications.first)
+        guard case .haltedUnrecorded = notification.event else {
+            Issue.record("expected .haltedUnrecorded, got \(notification.event)")
+            return
+        }
+    }
+
+    @Test("A halted comment write left pending/deferred still posts the ordinary .halted(reason:)")
+    func haltedCommentDeferredStillPostsOrdinaryHalted() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let recorder = NotificationRecorder()
+        let failure = SampleWorkFailure(description: "boom")
+        let commentBody = "**Night halted:** the `build` Act did not complete: boom"
+        // A transient refusal on the comment leaves the write pending (deferred) — still "on the Night
+        // Card first" per the ordinary rule.
+        await boards.writing.script(.refuse(.unreachable("board unreachable")), for: commentBody)
+
+        let invocation = EngineInvocation(
+            act: .build, mode: .real, nightStart: nightCardNightStart, journal: journal,
+            trigger: .forced, runID: RunID(), board: board,
+            notifier: ExceptionNotifier { recorder.record($0) },
+            work: { _ in throw failure }
+        )
+
+        do {
+            try await invocation.run()
+            Issue.record("expected the work error to be rethrown")
+        } catch let error as SampleWorkFailure {
+            #expect(error == failure)
+        } catch {
+            Issue.record("wrong error type: \(error)")
+        }
+
+        #expect(recorder.notifications.count == 1)
+        let notification = try #require(recorder.notifications.first)
+        guard case .halted(let reason) = notification.event else {
+            Issue.record("expected .halted, got \(notification.event)")
+            return
+        }
+        #expect(reason.contains("boom"))
+    }
+
     @Test("makeInvocation passes the given notifier through to the invocation")
     func makeInvocationPassesNotifierThrough() async throws {
         let directory = ConfigurationDirectory()

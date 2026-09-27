@@ -6,6 +6,7 @@ struct ExceptionNotificationTests {
 
     @Test(arguments: [
         ExceptionNotification.Event.halted(reason: "Bound reached: 3 attempts"),
+        .haltedUnrecorded,
         .closed
     ])
     func argumentsRoundTrip(event: ExceptionNotification.Event) throws {
@@ -35,6 +36,9 @@ struct ExceptionNotificationTests {
         #expect(halted.title == "yellowhammer")
         #expect(halted.body == "Night halted: Linear unreachable")
         #expect(ExceptionNotification(project: project, event: .closed).body == "Night closed")
+        #expect(ExceptionNotification(project: project, event: .haltedUnrecorded).body ==
+            "yellowhammer halted before its Night Card could be opened — nothing is recorded on the " +
+                "board for this Night. Check the Journal or run yh status.")
     }
 
     @Test(arguments: [
@@ -47,6 +51,8 @@ struct ExceptionNotificationTests {
         (["--post-notification", "--project", "yellowhammer", "--event", "halted", "--reason", "  "],
          .missingReason),
         (["--post-notification", "--project", "yellowhammer", "--event", "closed", "--reason", "x"],
+         .unexpectedReason),
+        (["--post-notification", "--project", "yellowhammer", "--event", "halted-unrecorded", "--reason", "x"],
          .unexpectedReason),
         (["--post-notification", "--project", "yellowhammer", "--event"], .missingValue("--event")),
         (["--post-notification", "--project", "a", "--project", "b"], .duplicateArgument("--project")),

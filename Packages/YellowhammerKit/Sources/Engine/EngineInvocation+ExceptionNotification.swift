@@ -47,24 +47,22 @@ extension EngineInvocation {
     /// every other board write gets — and only once that succeeds is the local notification posted.
     /// A stand-down before `runUnderLease` (another run holds the Lease) never reaches this: it is
     /// thrown before a Night Card can exist for this run.
+    ///
+    /// OQ71 (Halted-Without-Night-Card Notification Ruling): when there is no Night Card to record on
+    /// (none open, or the halted comment write is aborted or permanently failed), the local notification
+    /// still posts — as `.haltedUnrecorded`, not the ordinary `.halted(reason:)` — because nothing else
+    /// tells the Operator this Night halted. A pending/deferred write still counts as "on the Night Card
+    /// first", unchanged.
     func notifyHalted(
         reason: String, night: NightRecord, nightCard: NightCardMaintenance?, outbox: Outbox?
     ) async {
         guard board != nil else { return }
         guard let outbox, nightCard != nil, let issueID = night.nightCardIssueID else {
-            recordDeliveryFailure(
-                notification: "halted",
-                reason: "the halted event could not be recorded on the Night Card first: no Night Card is open",
-                night: night
-            )
+            await notify(.haltedUnrecorded, notification: "halted", night: night)
             return
         }
         guard await recordHaltedComment(reason: reason, issueID: issueID, night: night, outbox: outbox) else {
-            recordDeliveryFailure(
-                notification: "halted",
-                reason: "the halted event could not be recorded on the Night Card first",
-                night: night
-            )
+            await notify(.haltedUnrecorded, notification: "halted", night: night)
             return
         }
         await notify(.halted(reason: Self.collapsed(reason)), notification: "halted", night: night)

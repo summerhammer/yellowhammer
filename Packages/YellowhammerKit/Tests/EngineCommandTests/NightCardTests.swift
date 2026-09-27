@@ -344,9 +344,11 @@ struct NightCardTests {
 
         let events = try journal.events().map(\.type)
         // A board is wired, but the Night Card was never opened, so the halted event (P12.5) cannot be
-        // recorded on it first: `notificationDeliveryFailed` follows `actIncomplete` instead of a post.
+        // recorded on it first: OQ71 posts the local notification anyway, as `.haltedUnrecorded`, so
+        // nothing beyond `actIncomplete` is recorded here (the default notifier is silent and never
+        // fails to post).
         #expect(events.contains(.actIncomplete))
-        #expect(events.last == .notificationDeliveryFailed)
+        #expect(!events.contains(.notificationDeliveryFailed))
         #expect(try journal.currentNight()?.nightCardIssueID == nil)
     }
 }
