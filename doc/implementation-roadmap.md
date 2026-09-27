@@ -1864,6 +1864,24 @@ depends on and that never shipped.
   Open elsewhere: spec gaps found while building Phase 17 are in yellowhammer-spec#70; the
   whole-target `EngineCommandTests` crash is #215.
 
+### [ ] P17.9 Remote admin approval through the Code Relay
+- **Work** — A non-admin Operator installs the Linear app without an admin at the Mac:
+  - `yh setup --install-linear --remote` (and the app's "Request approval from an admin…") gets a
+    session from the Code Relay at `app.yellowhammer.dev`, shows the approval link to send to an
+    admin, and polls until the admin approves.
+  - The code the Relay hands back is exchanged directly with Linear, with the PKCE verifier that
+    never leaves the Mac.
+  - A refusal, an expired link or a spent code offers a new link. An unreachable Relay offers
+    Retry or signing in on this Mac.
+  - Interactive setup asks which path to take.
+  - Nights, refreshes and `yh doctor` never contact the Relay.
+- **Spec** — `board-projection/authorize-linear-via-remote-approval`; ADR-006; risks.md OQ95;
+  Remote Admin Approval investigation → Probe Results (L9, L10).
+- **Amends** — P17.6, P17.7 (the non-admin copy now points at `--remote`).
+- **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`.
+- **Done when** — An installation approved through the Relay link stores its token pair and passes
+  `yh doctor`, live.
+
 ---
 
 ## Traceability: story → steps
@@ -1878,7 +1896,8 @@ depends on and that never shipped.
 | `loop-state/reconcile-worktrees-at-act-start` | P6.8, P6.9, P6.6 |
 | `loop-state/record-failure-cause-recurrence` | P8.8 |
 | `board-projection/write-board-updates-through-the-outbox` | P5.4, P17.5 |
-| `board-projection/install-the-linear-app` | P17.3, P17.4, P17.5, P17.6, P17.7, P17.8 |
+| `board-projection/install-the-linear-app` | P17.3, P17.4, P17.5, P17.6, P17.7, P17.8, P17.9 |
+| `board-projection/authorize-linear-via-remote-approval` | P17.9 |
 | `board-projection/read-board-changes-by-delta` | P5.5, P11.2, P11.3 |
 | `board-projection/maintain-the-managed-block` | P5.6, P9.10, P12.3, P11.3 |
 | `board-projection/check-card-readiness-at-dispatch` | P8.2, P6.4 |
