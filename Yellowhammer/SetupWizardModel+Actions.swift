@@ -45,9 +45,7 @@ extension SetupWizardModel {
         )
         var lines: [String] = []
         do {
-            let status = try await engine.run(
-                arguments: arguments, standardInput: linearSecret.isEmpty ? nil : linearSecret + "\n"
-            ) { lines.append($0) }
+            let status = try await engine.run(arguments: arguments, standardInput: nil) { lines.append($0) }
             guard status == 0 else {
                 choicesErrorOutput = lines.isEmpty ? ["yh exited \(status)."] : lines
                 return
@@ -76,7 +74,7 @@ extension SetupWizardModel {
         do {
             let arguments = try invocation.arguments()
             let status = try await engine.run(
-                arguments: arguments, standardInput: linearSecret.isEmpty ? nil : linearSecret + "\n"
+                arguments: arguments, standardInput: nil
             ) { [weak self] line in self?.runLines.append(line) }
             runExitStatus = status
             guard status == 0 else { return }

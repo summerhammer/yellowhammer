@@ -87,29 +87,21 @@ private struct SetupLinearStepView: View {
     var body: some View {
         Form {
             Section("Linear") { // glossary:ignore GL001
-                if model.configExists {
-                    Text(
-                        "The machine file is kept: its client id and credential " // glossary:ignore GL001
-                            + "references are unchanged."
-                    )
-                    .foregroundStyle(.secondary)
-                } else {
-                    TextField(
-                        "Linear OAuth application client id", text: $model.linearClientID // glossary:ignore GL001
-                    )
-                    .accessibilityIdentifier("setup-linear-client-id")
-                }
-                SecureField(
-                    model.configExists
-                        ? "Linear client secret (leave empty to use the stored secret)" // glossary:ignore GL001
-                        : "Linear client secret", // glossary:ignore GL001
-                    text: $model.linearSecret
+                Text(
+                    "Yellowhammer connects to Linear through its own app, installed once " // glossary:ignore GL001
+                        + "by a workspace admin."
                 )
-                .accessibilityIdentifier("setup-linear-secret")
+                .foregroundStyle(.secondary)
+                if model.configExists {
+                    Text("The machine file is kept: its credential reference is unchanged.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    TextField("Linear credential reference", text: $model.linearCredential) // glossary:ignore GL001
+                        .accessibilityIdentifier("setup-linear-credential")
+                }
             }
             if !model.configExists {
                 DisclosureGroup("Advanced", isExpanded: $model.showAdvanced) {
-                    TextField("Linear credential reference", text: $model.linearCredential) // glossary:ignore GL001
                     TextField("GitHub credential reference", text: $model.githubCredential)
                 }
             }
