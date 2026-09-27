@@ -48,12 +48,31 @@ provisioned update channel key (`SPARKLE_PUBLIC_ED_KEY` in your environment) —
 
 ## CI
 
-`.github/workflows/release-build.yml` runs on every `v*` tag push (and on
-`workflow_dispatch` for a chosen tag), signs with the same CI secrets as
-`release-signing.yml`, builds Release, verifies it, notarizes and staples it, packages a
-signed and notarized DMG, and publishes a GitHub release with the DMG, the zipped
-`.app`, checksums and release notes — see
-[Packaging and distribution](#packaging-and-distribution-p164) below.
+`.github/workflows/release-build.yml` is a reusable workflow: it takes a `tag` input and
+runs either via `workflow_call` — invoked by `.github/workflows/release.yml`'s `build`
+job immediately after release-please creates a tag and a draft GitHub Release for a
+merged release pull request — or via `workflow_dispatch` for a chosen tag, to rebuild an
+existing release (e.g. after a failed run). There is no `push: tags` trigger: tags and
+releases created with a workflow's own `GITHUB_TOKEN` do not fire other workflow runs,
+so pushing a tag would never start this workflow. See
+[doc/release-checklist.md](release-checklist.md) for the release-PR flow end to end.
+
+The job signs with the same CI secrets as `release-signing.yml`, builds Release, verifies
+it, notarizes and staples it, and packages a signed and notarized DMG — see
+[Packaging and distribution](#packaging-and-distribution-p164) below — then publishes to
+the release release-please already created:
+
+1. Uploads the DMG, the notarized zip and `SHA256SUMS` to the existing (draft) release
+   with `gh release upload --clobber`.
+2. Sets the release body to release-please's own changelog (already on the release)
+   followed by a "Spec" section from `scripts/release/release-notes.sh`, appended below a
+   `<!-- spec-notes -->` marker — `gh release edit --notes-file`.
+3. Un-drafts the release (`gh release edit --draft=false`), which is what actually
+   publishes it to `releases/latest` and the update feed.
+
+Re-running for the same tag (`workflow_dispatch`) is idempotent: the upload step
+`--clobber`s existing assets and the notes step rewrites the body, so re-running never
+tries to create a second release for the same tag.
 
 ## Notarization, stapling and verification (P16.3)
 
@@ -140,15 +159,11 @@ cited — the full list of those shas, plus a reminder to verify the download ag
 
 In CI, `.github/workflows/release-build.yml` runs both after notarizing and stapling the
 app: it packages the DMG into `build/artifacts` (alongside the notarized zip, so both
-land in `SHA256SUMS`), writes `build/artifacts/release-notes.md`, and then publishes a
-GitHub release for the tag with `gh release create` — the DMG, the zip and
-`SHA256SUMS` as assets, the release notes as the body, `--verify-tag` to require the
-Git tag exist and match, and `--prerelease` when the tag carries a pre-release suffix.
-Re-running the job for the same tag (`workflow_dispatch`) is idempotent: if the release
-already exists, it uploads with `gh release upload --clobber` and updates the notes with
-`gh release edit --notes-file` instead of trying to create it again. The job grants
-itself `contents: write` to do this; the workflow's top-level permission stays
-`contents: read`.
+land in `SHA256SUMS`), writes the "Spec" section with `scripts/release/release-notes.sh`,
+and then updates the release release-please already created for the tag — see
+[CI](#ci) above for the upload/notes/un-draft sequence. The job never creates the release
+itself; release-please owns that. It grants itself `contents: write` to upload assets and
+edit the release; the workflow's top-level permission stays `contents: read`.
 
 ### Where the release is hosted
 
