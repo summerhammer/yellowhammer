@@ -1,0 +1,51 @@
+name: Conventional Commits
+
+# Lints PR titles and commit headers against Conventional Commits (see CLAUDE.md's Git
+# section), which drives release-please's SemVer bump and changelog. Any merge strategy
+# is allowed for a PR (squash, rebase, merge commit), so both surfaces are checked:
+# the PR title covers a squash merge, and every commit in the PR covers rebase and
+# merge-commit merges. No secrets are used.
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  pr-title:
+    name: PR title
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run unit tests
+        run: python3 -m unittest discover -s scripts/ci/tests -p 'test_check_conventional_commits.py' -v
+
+      - name: Check PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: python3 scripts/ci/check_conventional_commits.py --title="$PR_TITLE"
+
+  commits:
+    name: Commits
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Check commit headers
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/ci/check_conventional_commits.py --range "$BASE_SHA..$HEAD_SHA"

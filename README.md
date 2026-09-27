@@ -41,8 +41,9 @@ The authoritative product spec lives in a separate repository, checked out next 
 - Read it at the time you need it (the `spec` MCP server, or the repo directly). Do not copy spec
   content into this repo.
 - Never edit the spec from this repo. If it is wrong or incomplete, propose the change to its owners.
-- Every pull request implementing spec'd behavior carries `Spec: <epic>/<story> @ <spec commit sha>`;
-  other work carries `Spec-Exempt: <reason>`. CI checks for one of them.
+- A pull request titled `feat`, `fix`, `perf` or `revert` carries `Spec: <epic>/<story> @ <spec commit sha>`,
+  or `Spec-Exempt: <reason>` when it implements no story. CI checks for one of them. Other title types
+  and release PRs need neither.
 
 ## Contributing
 

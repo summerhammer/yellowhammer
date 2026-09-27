@@ -1,0 +1,71 @@
+name: Release
+
+# The single entry point for shipping a release. release-please keeps one open
+# "release X.Y.Z" pull request up to date from Conventional Commits on main; merging
+# that PR is the release trigger. On merge, release-please tags `vX.Y.Z`, opens a draft
+# GitHub Release with the changelog body, and reports `release_created`, which fans out
+# to the build job below.
+#
+# Why chain through `needs` instead of a tag-push trigger on release-build.yml: this
+# job already has the tag in hand as an output the moment release-please creates it, so
+# calling the build workflow directly avoids a second trigger firing on a separate
+# event, keeps exactly one build per release, and keeps working even if the token here
+# is ever downgraded to `GITHUB_TOKEN` (which, unlike this App token, genuinely cannot
+# trigger other workflow runs on the tags and releases it creates).
+#
+# Why the release stays a draft until the build finishes: `releases/latest/download/
+# appcast.xml` (read by Sparkle) resolves against the latest *published* release, so a
+# published-but-assetless release would send existing installs looking for a build that
+# doesn't exist yet. The build job uploads the assets and un-drafts the release as its
+# last step (see release-build.yml).
+#
+# release-please needs a GitHub App token, not the default GITHUB_TOKEN: checks
+# triggered by a PR opened with GITHUB_TOKEN never run (GitHub's loop-prevention), so
+# the release PR's required checks (Conventional Commits, CI) would never report and
+# the PR could never merge.
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    name: Release please
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: Mint a GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Release please
+        id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  build:
+    name: Build
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release-build.yml
+    with:
+      tag: ${{ needs.release-please.outputs.tag_name }}
+    secrets: inherit

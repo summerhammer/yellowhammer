@@ -3,43 +3,56 @@
 Run this checklist for every release, in order (roadmap P16.7). Every step is required unless it
 says otherwise, and a failed step blocks the release.
 
-The order matters because pushing a `vX.Y.Z` tag **publishes** the release:
-`.github/workflows/release-build.yml` builds, notarizes and publishes it to GitHub Releases, and the
-update feed (`SUFeedURL`) reads `releases/latest/download/appcast.xml`. So everything that can be
-checked before the tag is checked before the tag (part 1). Only the checks that need the published
-artifact come after it (part 3). Part 4 says how to withdraw a release when one of them fails.
+Releases are cut by **release-please**, not by hand-tagging. `.github/workflows/release.yml`
+watches `main` and keeps one open release pull request, titled `chore(main): release X.Y.Z`, whose
+body is the changelog computed from Conventional Commits since the previous release. **Merging
+that pull request publishes the release**: release-please creates tag `vX.Y.Z` and a draft GitHub
+Release, and the same workflow run then calls `.github/workflows/release-build.yml` to build, sign,
+notarize, package and publish the artifacts, un-drafting the release when it succeeds. Until the
+build finishes, the release stays a draft and `releases/latest/download/appcast.xml` (the update
+feed) still points at the previous release. So everything that can be checked before the merge is
+checked before it (part 1). Only the checks that need the published artifact come after (part 3).
+Part 4 says how to withdraw a release when one of them fails.
 
 Record each run as described in [Record the run](#5-record-the-run).
 
-In the commands below, `$VERSION` is `X.Y.Z` and `$TAG` is `vX.Y.Z`.
+In the commands below, `$VERSION` is `X.Y.Z`, `$TAG` is `vX.Y.Z`, and `$PR` is the release pull
+request's number.
 
-## 1. Before the tag
+Never create a `vX.Y.Z` tag by hand and never push one — release-please's GitHub App token is the
+only thing that creates a release tag.
 
-Work on the release commit: a commit on `main`, pushed, with a clean working tree.
+## 1. Before merging the release PR
 
-### 1.1 CI green on the release commit
-
-List the workflow runs on the release commit:
+Find the open release pull request and check it out:
 
 ```sh
-sha=$(git rev-parse HEAD)
-gh run list --commit "$sha" --limit 50 --json workflowName,event,status,conclusion,databaseId \
-    --jq '.[] | "\(.workflowName)\t\(.event)\t\(.status)\t\(.conclusion)\t\(.databaseId)"'
+gh pr list --search "chore(main): release" --state open --json number,title
+gh pr checkout "$PR"
 ```
 
-Each of these push workflows must show `completed success`: CI, Deployment target, Glossary,
-Module boundaries, Rehearsal fixtures, Rehearsal suite, Scratch Linear environment, Secret scan,
-Shell-not-host harness, and Release scripts when it ran.
+Every check below runs against this checkout — the release pull request's head, i.e. the same
+commit as `main` when it was opened.
 
-- `cancelled` is **not** green. Re-run it: `gh run rerun <databaseId>`. (v0.1.1 was tagged on a
-  commit whose CI run was cancelled.)
+### 1.1 CI green on the release PR
+
+```sh
+gh pr checks "$PR"
+```
+
+Each of these checks must show `pass`: CI (its `Lint`/`Test`/`Build` jobs, or `Skipped` — the
+release PR touches only `CHANGELOG.md` and `.release-please-manifest.json`, so CI's own
+documentation-only path detection reports those jobs as skipped, which still satisfies a required
+check), PR title, Commits, Deployment target, Glossary, Module boundaries, Rehearsal fixtures,
+Rehearsal suite, Scratch Linear environment, Secret scan, and Shell-not-host harness.
+
+- `cancelled` is **not** green. Re-run it: `gh run rerun <databaseId>`.
 - A failure with zero steps is a billing failure, not a test failure. The run's annotation says
   "The job was not started because recent account payments have failed". Fix the billing, then
   re-run it. It is still not green until it passes.
-- CI skips commits that change only `doc/`, `docs/` or Markdown files, and Release scripts runs
-  only for `scripts/release/` changes. If one of them did not run on the release commit, take its
-  newest green run on an ancestor, and confirm that only skipped paths changed since:
-  `git diff --stat <that commit>..HEAD`.
+- Release-please rewrites the release PR (force-pushes a new head) every time `main` gains a
+  release-worthy commit while it is open. If the head changes after you last checked it, redo
+  every check in this section against the new head — `gh pr checkout "$PR"` again.
 
 ### 1.2 Probe drift check green
 
@@ -47,7 +60,7 @@ Required, and **manual**, on the release machine: the Mac whose Ledger holds the
 Results, with `claude` and `codex` installed and authenticated. Drift is computed against the
 previous result in that machine's Ledger, so a machine with no earlier results cannot show drift.
 
-Use the `yh` from the build in [1.3](#13-rehearsal-suite-green-on-the-release-commit):
+Use the `yh` from the build in [1.3](#13-rehearsal-suite-green-on-the-release-pr):
 
 ```sh
 .build/app/Build/Products/Debug/Yellowhammer.app/Contents/MacOS/yh probe --all
@@ -60,7 +73,7 @@ latest upstream CLI versions and what to do about drift.
 The scheduled `.github/workflows/probe-drift.yml` is not this gate. A hosted runner has no
 authenticated agent CLIs, so it cannot probe, and no run of it has passed (#199).
 
-### 1.3 Rehearsal suite green on the release commit
+### 1.3 Rehearsal suite green on the release PR
 
 Required. A failed scenario blocks the release.
 
@@ -68,13 +81,13 @@ This step stays **manual** until a self-hosted Apple Silicon runner with Orca AD
 Linear credentials exists (`.github/workflows/rehearsal-suite-live.yml` is written for that runner
 and will take over this step once it is registered).
 
-1. Build the app:
+1. Build the app (on the release PR checkout from [1](#1-before-merging-the-release-pr)):
 
    ```sh
    xcodebuild -project Yellowhammer.xcodeproj -scheme Yellowhammer -derivedDataPath .build/app build
    ```
 
-2. Run the suite and record evidence, on the release commit, with a clean working tree:
+2. Run the suite and record evidence, with a clean working tree:
 
    ```sh
    python3 scripts/rehearsal-suite/release_gate.py record \
@@ -120,35 +133,45 @@ the spec from this repo.
 
 ### 1.5 Release notes preview: spec commit and story IDs
 
-`release-build.yml` writes the release notes with `scripts/release/release-notes.sh`, from the
-`Spec: <epic>/<story> @ <sha>` lines in the commit messages since the previous tag. Read them before
-the tag is pushed. Create the tag locally first, because the script needs it:
+`release-build.yml` sets the published release's body to the release-please changelog plus a
+"Spec" section, generated by `scripts/release/release-notes.sh` from the `Spec: <epic>/<story> @
+<sha>` lines in the commit messages since the previous release. Read the changelog and preview the
+spec section before merging.
+
+The changelog is the release PR's own body:
 
 ```sh
-git tag -a "$TAG" -m "Yellowhammer $VERSION"
-scripts/release/release-notes.sh "$TAG"
+gh pr view "$PR" --json body --jq .body
 ```
 
-If the release commit changes after this, delete the local tag (`git tag -d "$TAG"`) and tag the
-new commit, so that the notes you read match the tag you push.
-
-The notes must name the spec commit the release was built against and list its story IDs. If they
-say `Built against spec commit: none cited`, confirm that no commit in the range implements spec'd
-behavior:
+`release-notes.sh` needs a real tag to compute its commit range, so preview it against a throwaway
+local tag of the real name, on the release PR checkout, then remove it immediately — a lingering
+local tag of the name release-please is about to create collides on the next `git fetch --tags`:
 
 ```sh
-git log --format='%h %s' "$(git describe --tags --abbrev=0 --match 'v*' "$TAG^")..$TAG"
+git tag "$TAG"
+scripts/release/release-notes.sh "$TAG"
+git tag -d "$TAG"
+```
+
+The section must name the spec commit the release was built against and list its story IDs. If it
+says "none cited", confirm that no commit in the range implements spec'd behavior:
+
+```sh
+git log --format='%h %s' "$(git describe --tags --abbrev=0 --match 'v*' "${TAG}^")..$TAG"
 ```
 
 v0.1.1 was a release like this: its commits were fixes with no `Spec:` line. If a commit that
-implements spec'd behavior has no `Spec:` line, write the corrected notes to a file now. Apply them
-after publishing (part 3). A re-run of the release job writes the notes again, so apply them
-again after any re-run.
+implements spec'd behavior has no `Spec:` line, write the corrected section to a file now. Apply it
+after publishing (part 3). A re-run of the build job (`workflow_dispatch`) writes the release notes
+again, so re-apply the correction after any re-run.
+
+Redo this preview if the release PR's head changes before you merge it (see [1.1](#11-ci-green-on-the-release-pr)).
 
 ### 1.6 Update channel provisioning (P16.5)
 
-Before the first tagged release, and on every Sparkle key rotation, confirm the repository
-variable `SPARKLE_PUBLIC_ED_KEY` and secret `SPARKLE_ED_PRIVATE_KEY` are set — see
+Before the first release, and on every Sparkle key rotation, confirm the repository variable
+`SPARKLE_PUBLIC_ED_KEY` and secret `SPARKLE_ED_PRIVATE_KEY` are set — see
 [doc/update-channel.md](update-channel.md). `scripts/release/verify-release-build.sh` fails the
 release job if the public key is empty or missing from the built app.
 
@@ -159,23 +182,35 @@ app quit without a second Lease check. Checks are manual and infrequent; operato
 check should install immediately rather than leaving an update staged across later scheduled
 Acts. See [doc/update-channel.md](update-channel.md#known-unclosed-gap-a-lease-claimed-after-the-check-is-not-caught).
 
-## 2. Tag and publish
+## 2. Merge the release PR
 
 ```sh
-git push origin "$TAG"
-gh run list --workflow release-build.yml --limit 1
+gh pr merge "$PR"   # squash, rebase, or merge — any strategy is fine, see CONTRIBUTING.md
+gh run list --workflow release.yml --branch main --limit 1
 gh run watch <databaseId>
 ```
 
-Pushing the tag publishes the release. Never also upload a local build.
+Merging publishes the release: release-please's job in that run creates the tag and a draft
+GitHub Release, then the `build` job in the same run calls `release-build.yml` for that tag. Watch
+the whole run, not just release-please's part — the release stays a draft, and
+`releases/latest/download/appcast.xml` stays on the previous release, until the `build` job
+finishes and un-drafts it. Never also upload a local build.
+
+If the `build` job fails, the tag and the draft release are left in place — do not delete either.
+Fix the problem and re-run the build for the existing tag:
+
+```sh
+gh workflow run release-build.yml -f tag="$TAG"
+```
 
 ## 3. After publishing
 
 ### 3.1 Notarization verified
 
-The Release build run must be green. Its "Notarize, staple and verify" and "Package disk image"
-steps fail on any rejection (see [doc/release-build.md](release-build.md)). Then verify the
-published app again, as a user downloads it:
+The `build` job (in the `Release` run, not a separate workflow) must be green. Its "Notarize,
+staple and verify" and "Package disk image" steps fail on any rejection (see
+[doc/release-build.md](release-build.md)). Then verify the published app again, as a user
+downloads it:
 
 ```sh
 dir=$(mktemp -d)
@@ -211,9 +246,9 @@ release as `installed-verification-<version>.zip`.
 gh release view "$TAG" --json body --jq .body
 ```
 
-The body must match the preview from [1.5](#15-release-notes-preview-spec-commit-and-story-ids).
-If you wrote corrected notes there, apply them now:
-`gh release edit "$TAG" --notes-file <file>`.
+The body must be the release-please changelog followed by the spec section previewed in
+[1.5](#15-release-notes-preview-spec-commit-and-story-ids). If you wrote a corrected spec section
+there, apply it now: `gh release edit "$TAG" --notes-file <file>`.
 
 ### 3.4 Evidence attached
 
@@ -234,10 +269,19 @@ the edit, `releases/latest` (the feed and the download link) goes back to the pr
 second command must print the previous tag. A Mac that already installed the withdrawn release
 keeps it.
 
-Then fix forward with the next patch version. Never move or re-push a tag that was published: the
-build number comes from the tag's commit count, and Sparkle compares build numbers to decide what
-is newer. v0.1.0 is the precedent: it failed installed-product verification (check 2) after it was
-published, and v0.1.1 fixed it.
+Then fix forward with the next release PR and its patch version. Never delete or recreate a
+release tag: the build number comes from the tag's commit count, and Sparkle compares build
+numbers to decide what is newer. v0.1.0 is the precedent: it failed installed-product verification
+(check 2) after it was published, and v0.1.1 fixed it.
+
+## Hotfixing a published release
+
+Fix `main` first, and ship the fix in the next ordinary release PR — that is the common case.
+
+Only when `main` cannot ship (e.g. unreleased work on `main` is not ready) does a hotfix need its
+own branch: create `release/X.Y` from the published tag `vX.Y.Z`, cherry-pick the fix commit(s)
+onto it, and release from that branch instead of `main`. Release-please is not yet configured to
+run against a `release/X.Y` branch — set that up before relying on this path.
 
 ## 5. Record the run
 
@@ -246,9 +290,9 @@ Attach a record of the run to the GitHub release as `release-checklist-<version>
 ```markdown
 # Release checklist: vX.Y.Z
 
-Release commit: <sha>. Spec checked against: <spec sha>. Run by: <name>, <date>.
+Release PR: #<number>. Merge commit: <sha>. Spec checked against: <spec sha>. Run by: <name>, <date>.
 
-- [ ] 1.1 CI green on the release commit (runs: <ids>)
+- [ ] 1.1 CI green on the release PR (runs: <ids>)
 - [ ] 1.2 Probe drift check green (`yh probe --all`, exit 0, no drift)
 - [ ] 1.3 Rehearsal suite green (`release_gate.py check`, exit 0)
 - [ ] 1.4 P1.1 spec conflicts re-checked (open rows: <list, or none>)

@@ -21,4 +21,6 @@ jobs:
       - name: Check spec traceability
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: python3 scripts/ci/check_spec_line.py

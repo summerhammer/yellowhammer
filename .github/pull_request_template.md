@@ -7,12 +7,14 @@
 <!-- Add one or more lines below for each story implemented:
      Spec: <epic>/<story> @ <commit-sha>
      
-     For non-spec work (e.g., DevOps, infrastructure), use:
+     Needed only when the PR title type is feat, fix, perf or revert. Delete the
+     placeholder line for docs, ci, build, chore, test and refactor PRs.
+     A behavior-type PR that implements no story uses:
      Spec-Exempt: <reason>
      
      Example:
      Spec: project-setup/initial-schema @ a1b2c3d
-     Spec-Exempt: CI/CD pipeline configuration
+     Spec-Exempt: bug in a behavior no story covers
 -->
 
 Spec: <epic>/<story> @ <spec commit sha>

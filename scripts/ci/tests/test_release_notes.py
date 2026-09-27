@@ -62,7 +62,7 @@ class TestReleaseNotes(unittest.TestCase):
         result = run_release_notes(self.repo, "v1.0.0")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Built against spec commit: none cited.", result.stdout)
-        self.assertNotIn("## Stories", result.stdout)
+        self.assertNotIn("### Stories", result.stdout)
         self.assertIn("shasum -a 256 -c SHA256SUMS", result.stdout)
 
     def test_collects_dedups_and_sorts_story_ids(self):
@@ -76,7 +76,7 @@ class TestReleaseNotes(unittest.TestCase):
         result = run_release_notes(self.repo, "v1.0.0", "v0.9.0")
         self.assertEqual(result.returncode, 0, result.stderr)
 
-        stories_section = result.stdout.split("## Stories")[1].split("##")[0]
+        stories_section = result.stdout.split("### Stories")[1].split("\n##")[0]
         story_lines = [line.strip("- ").strip() for line in stories_section.strip().splitlines()]
         self.assertEqual(story_lines, ["aepic/story1", "zepic/story1"])
 
@@ -90,7 +90,7 @@ class TestReleaseNotes(unittest.TestCase):
         result = run_release_notes(self.repo, "v1.0.0", "v0.9.0")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Built against spec commit ccccccc.", result.stdout)
-        self.assertIn("## Spec commits cited", result.stdout)
+        self.assertIn("### Spec commits cited", result.stdout)
         self.assertIn("- aaaaaaa", result.stdout)
         self.assertIn("- ccccccc", result.stdout)
 
@@ -103,7 +103,7 @@ class TestReleaseNotes(unittest.TestCase):
 
         result = run_release_notes(self.repo, "v1.0.0", "v0.9.0")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertNotIn("## Spec commits cited", result.stdout)
+        self.assertNotIn("### Spec commits cited", result.stdout)
 
     def test_previous_tag_range_excludes_older_stories(self):
         commit(self.repo, "init")

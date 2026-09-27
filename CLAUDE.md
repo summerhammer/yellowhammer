@@ -208,10 +208,17 @@ first layer, `gh stack add <branch>` for each one above it, then
 layer; mark the item `[x]` in `doc/implementation-roadmap.md` in its own commit on that
 layer.
 
-Every pull request implementing spec'd behavior carries the traceability line:
+Every pull request titled `feat`, `fix`, `perf` or `revert` carries the traceability line
+(or `Spec-Exempt: <reason>` when no story applies; other title types need neither):
 
 ```
 Spec: <epic>/<story> @ <spec commit sha>
 ```
 
 Cite story IDs in commit messages too. `/spec-cite` assembles the line.
+
+Commit messages and pull request titles follow Conventional Commits (`type(scope): subject`;
+`feat`, `fix`, `perf`, `revert`, `docs`, `refactor`, `test`, `ci`, `build`, `chore`; `!` or a
+`BREAKING CHANGE:` footer for a breaking change) — see CONTRIBUTING.md's "Commits and releases"
+section for the full rule and how it drives versioning. Releases happen only by merging the
+release-please pull request; never create or push a `vX.Y.Z` tag by hand.

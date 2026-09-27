@@ -109,9 +109,9 @@ verify anything Sparkle offers it. The safe sequence is a one-release transition
 
 1. Generate the new keypair. Update the `SPARKLE_PUBLIC_ED_KEY` **variable** to the new public
    key; leave the `SPARKLE_ED_PRIVATE_KEY` **secret** as the old private key for now.
-2. Tag and ship this transitional release: the app is built with the new public key baked in
-   (so it will trust future new-key releases), but `appcast.sh` still signs it with the old
-   private key (so every install still running an old public key can verify and adopt it).
+2. Merge the release PR for this transitional release: the app is built with the new public key
+   baked in (so it will trust future new-key releases), but `appcast.sh` still signs it with the
+   old private key (so every install still running an old public key can verify and adopt it).
 3. Only after that release is out, update `SPARKLE_ED_PRIVATE_KEY` to the new private key.
 4. Ship the next release normally — it is both built with and signed by the new key. Any Mac
    that updated to the transitional release (step 2) trusts it; a Mac that misses the

@@ -8,6 +8,11 @@ Validates that PR bodies contain either:
 
 Lines inside HTML comments and code fences are ignored.
 The unfilled template placeholder is not counted.
+
+Only pull requests that change behavior need the line: those whose Conventional Commits
+title type is feat, fix, perf or revert (or whose title does not parse). Other types
+(docs, ci, build, chore, test, refactor) and release-please's release PRs (head branch
+`release-please--*`) are exempt without one.
 """
 
 import os
@@ -21,6 +26,19 @@ SPEC_PATTERN = re.compile(
 EXEMPT_PATTERN = re.compile(r"^Spec-Exempt: (.+)$")
 TEMPLATE_PLACEHOLDER = "Spec: <epic>/<story> @ <spec commit sha>"
 CODE_FENCE_PATTERN = re.compile(r"^```")
+TITLE_TYPE_PATTERN = re.compile(r"^([a-z]+)(?:\([^()]+\))?!?: ")
+SPEC_REQUIRED_TYPES = {"feat", "fix", "perf", "revert"}
+RELEASE_PR_BRANCH_PREFIX = "release-please--"
+
+
+def exemption_reason(title, head_ref):
+    """Return why this pull request needs no spec line, or None if it needs one."""
+    if head_ref.startswith(RELEASE_PR_BRANCH_PREFIX):
+        return "release-please release PR"
+    match = TITLE_TYPE_PATTERN.match(title)
+    if match and match.group(1) not in SPEC_REQUIRED_TYPES:
+        return f"title type '{match.group(1)}' changes no behavior"
+    return None
 
 
 def is_in_html_comment(lines, line_idx):
@@ -109,6 +127,13 @@ def check_spec_line(body):
 
 
 def main():
+    reason = exemption_reason(
+        os.environ.get("PR_TITLE", "").strip(), os.environ.get("PR_HEAD_REF", "").strip()
+    )
+    if reason:
+        print(f"✓ Spec traceability not required: {reason}")
+        return 0
+
     # Read PR body from environment or stdin
     body = os.environ.get("PR_BODY", "").strip()
     if not body:
@@ -126,7 +151,8 @@ def main():
         print(
             "Expected at least one of:\n"
             "  1. Spec: <epic>/<story> @ <sha> (epic and story are lowercase slugs, sha is 7-40 hex chars)\n"
-            "  2. Spec-Exempt: <reason> (for non-spec work)",
+            "  2. Spec-Exempt: <reason> (for non-spec work)\n"
+            "A PR titled with type docs, ci, build, chore, test or refactor needs neither.",
             file=sys.stderr
         )
 

@@ -4,14 +4,22 @@ name: Release build
 # notarization, staples the ticket, and verifies the result (roadmap P16.3), then
 # packages a signed, notarized DMG plus checksums and publishes a GitHub release
 # (roadmap P16.4).
+#
+# Reusable, called by release.yml's `build` job once release-please tags a release and
+# creates its draft GitHub Release (`needs.release-please.outputs.tag_name`). Also
+# callable directly via `workflow_dispatch` to rebuild an already-tagged release (e.g.
+# after a signing fix), which re-publishes over the existing draft or published release.
 # Never add a pull_request trigger: it would hand the signing and notarization secrets to
 # code on any PR branch. See doc/signing-identity.md for the secrets and their ownership,
 # and doc/release-build.md for the versioning scheme, the notarization step and packaging.
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Tag to build (e.g. v1.2.3)'
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       tag:
@@ -41,13 +49,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.tag || github.ref_name }}
+          ref: ${{ inputs.tag }}
           fetch-depth: 0
           fetch-tags: true
 
       - name: Resolve tag
         env:
-          RESOLVED_TAG: ${{ inputs.tag || github.ref_name }}
+          RESOLVED_TAG: ${{ inputs.tag }}
         run: echo "RELEASE_TAG=$RESOLVED_TAG" >> "$GITHUB_ENV"
 
       - name: Compute release version
@@ -134,30 +142,48 @@ jobs:
             build/artifacts
 
       - name: Write release notes
-        run: scripts/release/release-notes.sh "$RELEASE_TAG" > build/artifacts/release-notes.md
+        run: scripts/release/release-notes.sh "$RELEASE_TAG" > build/artifacts/spec-notes.md
 
       - name: Publish GitHub release
+        # release-please is the only thing that creates a release: it opens this tag's
+        # release as a draft (or, on workflow_dispatch, one already exists to rebuild).
+        # A missing release here means release-please didn't run first, so fail loudly
+        # rather than create one out of band.
+        #
+        # Idempotent for re-runs (workflow_dispatch, or a retried job): the existing body
+        # is release-please's changelog, optionally followed by a previous run's spec
+        # section. Strip everything from the `<!-- spec-notes -->` marker onward (CRs
+        # normalized first, since release bodies from the API can carry \r\n) and append
+        # a fresh spec section below a fresh marker.
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" \
-              build/artifacts/*.dmg build/artifacts/*.zip build/artifacts/SHA256SUMS \
-              build/artifacts/appcast.xml \
-              --repo "$GITHUB_REPOSITORY" --clobber
-            gh release edit "$RELEASE_TAG" \
-              --repo "$GITHUB_REPOSITORY" \
-              --title "Yellowhammer $MARKETING_VERSION" \
-              --notes-file build/artifacts/release-notes.md
-          else
-            gh release create "$RELEASE_TAG" \
-              build/artifacts/*.dmg build/artifacts/*.zip build/artifacts/SHA256SUMS \
-              build/artifacts/appcast.xml \
-              --repo "$GITHUB_REPOSITORY" \
-              --title "Yellowhammer $MARKETING_VERSION" \
-              --notes-file build/artifacts/release-notes.md \
-              --verify-tag
+          if ! gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json body \
+            --jq .body > build/artifacts/existing-body.md 2>/dev/null; then
+            echo "error: no GitHub release found for $RELEASE_TAG;" \
+              "releases are created only by release-please, not by this workflow" >&2
+            exit 1
           fi
+
+          tr -d '\r' < build/artifacts/existing-body.md > build/artifacts/existing-body.lf.md
+          changelog="$(sed '/^<!-- spec-notes -->$/,$d' build/artifacts/existing-body.lf.md)"
+          {
+            printf '%s\n\n' "$changelog"
+            echo "<!-- spec-notes -->"
+            echo
+            cat build/artifacts/spec-notes.md
+          } > build/artifacts/release-notes.md
+
+          gh release upload "$RELEASE_TAG" \
+            build/artifacts/*.dmg build/artifacts/*.zip build/artifacts/SHA256SUMS \
+            build/artifacts/appcast.xml \
+            --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Yellowhammer $MARKETING_VERSION" \
+            --notes-file build/artifacts/release-notes.md \
+            --draft=false \
+            --latest
 
       - name: Upload release build artifacts
         if: always()
