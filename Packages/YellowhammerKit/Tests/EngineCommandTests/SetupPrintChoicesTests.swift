@@ -14,9 +14,8 @@ struct SetupPrintChoicesTests {
             members: [operatorMember, secondCandidateMember, deactivatedMember, appMember, selfMember],
             teams: [engineeringTeam]
         )
-        let arguments = ["--print-choices", "--linear-client-id", "yellowhammer-client-id"] // glossary:ignore GL001
         let output = RecordingOutput()
-        let setup = try makeSetup(arguments: arguments, directory: directory, board: board, output: output)
+        let setup = try makeSetup(arguments: ["--print-choices"], directory: directory, board: board, output: output)
 
         try await setup.run()
 
@@ -38,7 +37,6 @@ struct SetupPrintChoicesTests {
         try directory.writeMachineFile("""
             [linear]
             credential = "keychain:linear"
-            client_id = "yellowhammer-client-id"
             operator = "user-op"
 
             [github]
@@ -63,7 +61,6 @@ struct SetupPrintChoicesTests {
         try directory.writeMachineFile("""
             [linear]
             credential = "keychain:linear"
-            client_id = "yellowhammer-client-id"
             operator = "user-dead"
 
             [github]
@@ -82,38 +79,22 @@ struct SetupPrintChoicesTests {
         #expect(choices.configuredOperator == nil)
     }
 
-    @Test("--linear-client-id is required when no config.toml exists") // glossary:ignore GL001
-    func requiresLinearClientIDWhenNoConfigExists() async throws {
-        let directory = ConfigurationDirectory()
-        let board = await makeBoard()
-        let setup = try makeSetup(arguments: ["--print-choices"], directory: directory, board: board)
-
-        await #expect(throws: SetupError.self) { try await setup.run() }
-    }
-
-    @Test("--linear-client-secret-stdin stores the secret") // glossary:ignore GL001
-    func secretStdinStoresTheSecret() async throws {
+    @Test("No Installation token pair yet: --print-choices throws, naming the fix") // glossary:ignore GL001
+    func missingInstallationThrows() async throws {
         let directory = ConfigurationDirectory()
         let board = await makeBoard()
         let credentials = RecordingCredentialStore()
         let setup = try makeSetup(
-            arguments: [
-                "--print-choices", "--linear-client-id", "yellowhammer-client-id", // glossary:ignore GL001
-                "--linear-client-secret-stdin"
-            ],
-            directory: directory, board: board, credentials: credentials,
-            readStandardInputLine: { "stdin-secret" }
+            arguments: ["--print-choices"], directory: directory, board: board, credentials: credentials
         )
 
-        try await setup.run()
-
-        #expect(credentials.secret(for: CredentialReference("keychain:linear")!) == "stdin-secret")
+        await #expect(throws: SetupError.self) { try await setup.run() }
     }
 
     @Test("--print-choices is mutually exclusive with --init") // glossary:ignore GL001
     func printChoicesWithInitRefused() {
         #expect(throws: (any Error).self) {
-            try SetupCommand.parse(["--print-choices", "--init", "--linear-client-id", "id"])
+            try SetupCommand.parse(["--print-choices", "--init"])
         }
     }
 
@@ -140,12 +121,11 @@ struct SetupPrintChoicesTests {
         }
     }
 
-    @Test("--print-choices allows the Linear options and stdin") // glossary:ignore GL001
+    @Test("--print-choices allows the Linear credential options") // glossary:ignore GL001
     func printChoicesAllowsLinearOptions() throws {
         let command = try SetupCommand.parse([
-            "--print-choices", "--linear-client-id", "id", // glossary:ignore GL001
-            "--linear-credential", "keychain:linear", "--github-credential", "keychain:github",
-            "--linear-client-secret-stdin"
+            "--print-choices",
+            "--linear-credential", "keychain:linear", "--github-credential", "keychain:github"
         ])
         let options = try SetupOptions(command: command)
 

@@ -54,7 +54,6 @@ func editingProjectFileURL(_ directory: URL, _ id: String) -> URL {
 
 func testEditingMachine(cliAdapters: [String] = ["claude", "codex"]) throws -> MachineConfiguration {
     MachineConfiguration(
-        linearClientID: "yellowhammer-client-id",
         linearCredential: try editingCredential("keychain:linear"),
         gitHubCredential: try editingCredential("keychain:github"),
         cliAdapters: cliAdapters.map { CLIAdapterDeclaration(name: $0) },

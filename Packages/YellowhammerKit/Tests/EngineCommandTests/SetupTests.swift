@@ -184,8 +184,8 @@ struct SetupTests {
         #expect(await board.creates == 0)
     }
 
-    @Test("A missing secret throws the guidance; --linear-client-secret-stdin stores it")
-    func missingSecretThrowsGuidance() async throws {
+    @Test("No Installation token pair yet: the Linear step throws, naming the fix")
+    func missingInstallationThrowsGuidance() async throws {
         let directory = ConfigurationDirectory()
         let board = await makeBoard()
         let arguments = makeArguments(operatorID: "user-op")
@@ -195,14 +195,6 @@ struct SetupTests {
         )
 
         await #expect(throws: SetupError.self) { try await setup.run() }
-
-        let stdinArguments = makeArguments(operatorID: "user-op", linearClientSecretStdin: true)
-        let setupWithStdin = try makeSetup(
-            arguments: stdinArguments, directory: directory, board: board, credentials: credentials,
-            readStandardInputLine: { "a-secret-from-stdin" }
-        )
-        try await setupWithStdin.run()
-        #expect(credentials.secret(for: CredentialReference("keychain:linear")!) == "a-secret-from-stdin")
     }
 
     @Test("An existing hand-written config.toml keeps its comment after the operator is set")
@@ -212,7 +204,6 @@ struct SetupTests {
             # do not touch this line
             [linear]
             credential = "keychain:linear"
-            client_id = "yellowhammer-client-id"
 
             [github]
             credential = "keychain:github"

@@ -81,7 +81,7 @@ struct SetupScheduledJobsExportTests {
         try directory.writeMachineFile()
         try directory.writeValidProjectFile(id: "alpha")
         let board = await makeBoard()
-        let arguments = makeArguments(initialize: false, linearClientID: nil, operatorID: "user-op")
+        let arguments = makeArguments(initialize: false, operatorID: "user-op")
         let console = ScriptedConsole(answers: ["n", "n"])
         let homeDirectory = freshHomeDirectory()
         let setup = try makeSetup(
@@ -101,7 +101,7 @@ struct SetupScheduledJobsExportTests {
         try directory.writeMachineFile()
         try directory.writeValidProjectFile(id: "alpha")
         let board = await makeBoard()
-        let arguments = makeArguments(initialize: false, linearClientID: nil, operatorID: "user-op")
+        let arguments = makeArguments(initialize: false, operatorID: "user-op")
         let console = ScriptedConsole(answers: ["n", ""])
         let homeDirectory = freshHomeDirectory()
         let launchAgents = RecordingLaunchAgentControl()
@@ -125,7 +125,6 @@ struct SetupScheduledJobsExportTests {
         try directory.writeMachineFile("""
             [linear]
             credential = "keychain:linear"
-            client_id = "yellowhammer-client-id"
 
             [github]
             credential = "keychain:github"

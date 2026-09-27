@@ -2,15 +2,19 @@ import Domain
 import Foundation
 @testable import LinearAdapter
 import Security
+import Synchronization
 import Testing
 
 /// Against the real scratch Linear workspace — the done-condition a stub cannot prove. Opt-in only:
 ///
-///     YH_LINEAR_SCRATCH_TESTS=1 YH_LINEAR_CLIENT_ID=… YH_LINEAR_PROJECT_ID=… \
+///     YH_LINEAR_SCRATCH_TESTS=1 YH_LINEAR_PROJECT_ID=… \
 ///         swift test --package-path Packages/YellowhammerKit --filter LinearScratchTests
 ///
-/// The client secret is read from the Keychain item behind `keychain:linear`. The Keychain is read with
-/// `Security` directly, because this test target may import only its own adapter (MB2).
+/// The Installation's token pair is read from (and refreshed pairs written back to) the Keychain item
+/// behind `keychain:linear`, as the JSON `LinearTokenPair.encoded()` shape (P17.3/P17.4). The Keychain is
+/// read and written with `Security` directly, because this test target may import only its own adapter
+/// (MB2) — it cannot import `Config`'s `KeychainCredentialStore` or `MachineLock`. A live run is a
+/// single process, so no cross-process refresh lock is needed here; the lock closure just runs its body.
 @Suite(
     "Linear scratch workspace (live)",
     .enabled(if: ProcessInfo.processInfo.environment["YH_LINEAR_SCRATCH_TESTS"] == "1")
@@ -19,20 +23,14 @@ struct LinearScratchTests {
     @Test("A token is obtained, identity is the registered application, and the Linear project's issues read")
     func liveRead() async throws {
         let environment = ProcessInfo.processInfo.environment
-        guard let clientID = environment["YH_LINEAR_CLIENT_ID"], !clientID.isEmpty,
-              let linearProjectID = environment["YH_LINEAR_PROJECT_ID"], !linearProjectID.isEmpty else {
-            print("LinearScratchTests skipped: YH_LINEAR_CLIENT_ID or YH_LINEAR_PROJECT_ID is not set")
+        guard let linearProjectID = environment["YH_LINEAR_PROJECT_ID"], !linearProjectID.isEmpty else {
+            print("LinearScratchTests skipped: YH_LINEAR_PROJECT_ID is not set")
             return
         }
-        guard let secret = Self.keychainSecret(account: "linear") else {
-            print("LinearScratchTests skipped: no Keychain item for service dev.yellowhammer, account linear")
+        guard let adapter = Self.installedAdapter(linearProjectID: linearProjectID, skipMessage: "LinearScratchTests")
+        else {
             return
         }
-
-        let adapter = LinearAdapter(
-            linearProjectID: linearProjectID,
-            credentials: LinearCredentials(clientID: clientID, clientSecret: secret)
-        )
 
         let identity = try await adapter.identity()
         #expect(!identity.id.rawValue.isEmpty)
@@ -59,20 +57,13 @@ struct LinearScratchTests {
     @Test("A create replays as already applied, a comment posts, a description rewrites, and the issue archives")
     func liveWriting() async throws {
         let environment = ProcessInfo.processInfo.environment
-        guard let oauthClientID = environment["YH_LINEAR_CLIENT_ID"], !oauthClientID.isEmpty,
-              let linearProjectID = environment["YH_LINEAR_PROJECT_ID"], !linearProjectID.isEmpty else {
-            print("liveWriting skipped: YH_LINEAR_CLIENT_ID or YH_LINEAR_PROJECT_ID is not set")
+        guard let linearProjectID = environment["YH_LINEAR_PROJECT_ID"], !linearProjectID.isEmpty else {
+            print("liveWriting skipped: YH_LINEAR_PROJECT_ID is not set")
             return
         }
-        guard let secret = Self.keychainSecret(account: "linear") else {
-            print("liveWriting skipped: no Keychain item for service dev.yellowhammer, account linear")
+        guard let adapter = Self.installedAdapter(linearProjectID: linearProjectID, skipMessage: "liveWriting") else {
             return
         }
-
-        let adapter = LinearAdapter(
-            linearProjectID: linearProjectID,
-            credentials: LinearCredentials(clientID: oauthClientID, clientSecret: secret)
-        )
 
         let scope = try await adapter.linearProject()
         let createClientID = UUID()
@@ -120,20 +111,15 @@ struct LinearScratchTests {
     @Test("A threaded reply's parent is read back by the Delta Read (G-8)")
     func threadedReplyParentIsReadByDeltaRead() async throws {
         let environment = ProcessInfo.processInfo.environment
-        guard let oauthClientID = environment["YH_LINEAR_CLIENT_ID"], !oauthClientID.isEmpty,
-              let linearProjectID = environment["YH_LINEAR_PROJECT_ID"], !linearProjectID.isEmpty else {
-            print("threadedReplyParentIsReadByDeltaRead skipped: client id or project id env var is not set")
+        guard let linearProjectID = environment["YH_LINEAR_PROJECT_ID"], !linearProjectID.isEmpty else {
+            print("threadedReplyParentIsReadByDeltaRead skipped: YH_LINEAR_PROJECT_ID is not set")
             return
         }
-        guard let secret = Self.keychainSecret(account: "linear") else {
-            print("threadedReplyParentIsReadByDeltaRead skipped: no Keychain item for dev.yellowhammer/linear")
+        guard let adapter = Self.installedAdapter(
+            linearProjectID: linearProjectID, skipMessage: "threadedReplyParentIsReadByDeltaRead"
+        ) else {
             return
         }
-
-        let adapter = LinearAdapter(
-            linearProjectID: linearProjectID,
-            credentials: LinearCredentials(clientID: oauthClientID, clientSecret: secret)
-        )
 
         guard let issue = try await Self.makeThreadedReplyIssue(adapter: adapter) else {
             return
@@ -161,6 +147,31 @@ struct LinearScratchTests {
         #expect(reply?.parent == issue.questionCommentID)
 
         try await adapter.archiveIssue(issueID)
+    }
+
+    /// Builds a live adapter from the Installation's pair stored in the Keychain, or nil (having printed
+    /// why) when none is there — split out so every `@Test` shares the same skip message shape.
+    private static func installedAdapter(linearProjectID: String, skipMessage: String) -> LinearAdapter? {
+        guard let json = Self.keychainSecret(account: "linear") else {
+            print("\(skipMessage) skipped: no Keychain item for service dev.yellowhammer, account linear")
+            return nil
+        }
+        guard let pair = try? LinearTokenPair(storedJSON: json) else {
+            print("\(skipMessage) skipped: the Keychain item for dev.yellowhammer/linear is not a stored pair")
+            return nil
+        }
+        let box = Mutex(pair)
+        let store = LinearTokenStore(
+            read: { box.withLock { $0 } },
+            write: { newValue in
+                box.withLock { $0 = newValue }
+                if let encoded = try? newValue.encoded() {
+                    Self.storeKeychainSecret(encoded, account: "linear")
+                }
+            },
+            withRefreshLock: { try await $0() }
+        )
+        return LinearAdapter(linearProjectID: linearProjectID, tokenStore: store)
     }
 
     /// Creates the fixture issue and its top-level "question" comment for
@@ -202,6 +213,22 @@ struct LinearScratchTests {
             return nil
         }
         return String(data: data, encoding: .utf8)
+    }
+
+    /// Best-effort write-back of a refreshed pair, mirroring `KeychainCredentialStore.store`'s
+    /// update-or-add shape without importing `Config` (MB2).
+    private static func storeKeychainSecret(_ secret: String, account: String) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "dev.yellowhammer",
+            kSecAttrAccount as String: account
+        ]
+        let data = Data(secret.utf8)
+        let updateStatus = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        guard updateStatus == errSecItemNotFound else { return }
+        var addQuery = query
+        addQuery[kSecValueData as String] = data
+        _ = SecItemAdd(addQuery as CFDictionary, nil)
     }
 }
 

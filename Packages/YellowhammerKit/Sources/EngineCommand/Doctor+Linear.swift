@@ -3,17 +3,29 @@ import Domain
 import Engine
 
 extension Doctor {
-    /// Check 4: the Linear client secret and authorization, then the Operator identity (Operator
-    /// Identity Ruling, OQ66: a stale Operator identity is flagged, never a load-time failure).
+    /// Check 4 (shift-scheduling/diagnose-the-installation): the Installation's own token pair, then
+    /// authorization, then the Operator identity (Operator Identity Ruling, OQ66: a stale Operator
+    /// identity is flagged, never a load-time failure).
     func runLinearCheck(machine: MachineConfiguration) async -> [DoctorFinding] {
-        guard let secret = credentials.secret(for: machine.linearCredential) else {
-            return [finding(.linear, subject: "credential", .failure, missingSecretMessage(machine: machine))]
+        guard credentials.secret(for: machine.linearCredential) != nil else {
+            return [finding(
+                .linear, subject: "installation", .failure,
+                "no Linear Installation token pair found; re-run the Linear step of yh setup"
+            )]
         }
 
         let members: [BoardMember]
         do {
-            let board = try bindProvisioning(machine, "", secret)
+            let board = bindProvisioning(machine, "")
             members = try await board.workspaceMembers()
+        } catch .notAuthenticated {
+            return [finding(
+                .linear, subject: "authorization", .failure,
+                "the Linear installation was revoked or its sign-in expired; a workspace admin must " +
+                    "approve the app again through yh setup or the app's Setup view"
+            )]
+        } catch .unreachable {
+            return [finding(.linear, subject: "authorization", .failure, "Linear could not be reached")]
         } catch {
             return [finding(.linear, subject: "authorization", .failure, "Linear authorization failed: \(error)")]
         }
@@ -40,12 +52,5 @@ extension Doctor {
             )
         }
         return finding(.linear, subject: "operator", .pass, "Operator identity \(configured.rawValue) is a candidate")
-    }
-
-    private func missingSecretMessage(machine: MachineConfiguration) -> String {
-        """
-        the Linear client secret \(machine.linearCredential.rawValue) is not available. Store it: `security \
-        add-generic-password -U -s \(KeychainCredentialStore.service) -a <account> -w <secret>`.
-        """
     }
 }

@@ -32,11 +32,7 @@ extension Setup {
     }
 
     private func buildMachineConfigurationFromOptions(path: String) throws -> MachineConfiguration {
-        guard let linearClientID = options.linearClientID else {
-            throw SetupError("--linear-client-id is required to create \(path)")
-        }
-        return MachineConfiguration(
-            linearClientID: linearClientID,
+        MachineConfiguration(
             linearCredential: options.linearCredential ?? Self.defaultLinearCredential,
             gitHubCredential: options.githubCredential ?? Self.defaultGitHubCredential,
             cliAdapters: options.cliAdapters,
@@ -45,9 +41,8 @@ extension Setup {
     }
 
     private func buildMachineConfigurationInteractively() throws -> MachineConfiguration {
-        let linearClientID = try options.linearClientID ?? askRequired("Linear OAuth application client id: ")
         let linearCredential = try options.linearCredential ?? askCredential(
-            "Linear client secret reference [\(SetupOptions.defaultLinearCredential)]: ",
+            "Linear credential reference [\(SetupOptions.defaultLinearCredential)]: ",
             default: SetupOptions.defaultLinearCredential
         )
         let githubCredential = try options.githubCredential ?? askCredential(
@@ -57,7 +52,7 @@ extension Setup {
         let cliAdapters = try options.cliAdapters.isEmpty ? askCLIAdapters() : options.cliAdapters
         let route = try options.route ?? askRoute(declaredNames: Set(cliAdapters.map(\.name)))
         return MachineConfiguration(
-            linearClientID: linearClientID, linearCredential: linearCredential, gitHubCredential: githubCredential,
+            linearCredential: linearCredential, gitHubCredential: githubCredential,
             cliAdapters: cliAdapters, routingTable: route.map { [$0] } ?? []
         )
     }

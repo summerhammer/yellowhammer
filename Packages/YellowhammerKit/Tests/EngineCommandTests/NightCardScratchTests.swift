@@ -9,8 +9,11 @@ import Testing
 
 /// Against the real scratch Linear workspace — the done-condition a stub cannot prove. Opt-in only:
 ///
-///     YH_LINEAR_SCRATCH_TESTS=1 YH_LINEAR_CLIENT_ID=… YH_LINEAR_PROJECT_ID=… \
+///     YH_LINEAR_SCRATCH_TESTS=1 YH_LINEAR_PROJECT_ID=… \
 ///         swift test --package-path Packages/YellowhammerKit --filter NightCardScratchTests
+///
+/// Uses the Installation's token pair already stored in the Keychain (P17.3/P17.4) via `BoardBinding`
+/// — no client id or secret of its own.
 @Suite(
     "Open and close the Night Card (live)",
     .enabled(if: ProcessInfo.processInfo.environment["YH_LINEAR_SCRATCH_TESTS"] == "1")
@@ -51,9 +54,8 @@ struct NightCardScratchTests {
     /// `BoardProvisionerScratchTests`; nil (printing why) when the scratch environment is not set up.
     private static func liveBoard() throws -> (board: ActBoard, projectID: ProjectID)? {
         let environment = ProcessInfo.processInfo.environment
-        guard let clientID = environment["YH_LINEAR_CLIENT_ID"], !clientID.isEmpty,
-              let linearProjectID = environment["YH_LINEAR_PROJECT_ID"], !linearProjectID.isEmpty else {
-            print("NightCardScratchTests skipped: YH_LINEAR_CLIENT_ID or YH_LINEAR_PROJECT_ID is not set")
+        guard let linearProjectID = environment["YH_LINEAR_PROJECT_ID"], !linearProjectID.isEmpty else {
+            print("NightCardScratchTests skipped: YH_LINEAR_PROJECT_ID is not set")
             return nil
         }
         guard keychainSecret(account: "linear") != nil else {
@@ -64,7 +66,6 @@ struct NightCardScratchTests {
         let machine = try MachineConfiguration.parse("""
             [linear]
             credential = "keychain:linear"
-            client_id = "\(clientID)"
 
             [github]
             credential = "keychain:github"
@@ -83,7 +84,7 @@ struct NightCardScratchTests {
             check = "swift test"
             """, file: "yellowhammer.toml")
 
-        return (try BoardBinding.actBoard(machine: machine, project: project), project.id)
+        return (BoardBinding.actBoard(machine: machine, project: project), project.id)
     }
 
     /// Today's calendar date, UTC, as a Night's identity.

@@ -30,7 +30,6 @@ func defaultFileURL() {
 func minimalFileLoads() throws {
     let configuration = try MachineConfiguration.load(contentsOf: fixture("minimal", in: "Valid"))
     #expect(configuration == MachineConfiguration(
-        linearClientID: "yellowhammer-client-id",
         linearCredential: try credential("keychain:linear"),
         gitHubCredential: try credential("keychain:github"),
         cliAdapters: [],
@@ -42,7 +41,6 @@ func minimalFileLoads() throws {
 func fullFileLoads() throws {
     let configuration = try MachineConfiguration.load(contentsOf: fixture("full", in: "Valid"))
     let expected = MachineConfiguration(
-        linearClientID: "yellowhammer-client-id",
         linearCredential: try credential("keychain:linear"),
         gitHubCredential: try credential("keychain:github"),
         cliAdapters: [
@@ -84,17 +82,42 @@ func fullFileLoads() throws {
 func alternativeTableSpellings() throws {
     let text = """
     linear.credential = "keychain:linear"
-    linear.client_id = "yellowhammer-client-id"
     github = { credential = "keychain:github" }
     cli.claude = {}
     routing = [{ route = "claude/opus/high" }]
     """
     let configuration = try MachineConfiguration.parse(text, file: "config.toml")
-    #expect(configuration.linearClientID == "yellowhammer-client-id")
     #expect(configuration.operatorIdentity == nil)
     #expect(configuration.linearCredential == (try credential("keychain:linear")))
     #expect(configuration.gitHubCredential == (try credential("keychain:github")))
     #expect(configuration.routingTable == [RoutingEntry(route: try route("claude", "opus", "high"))])
+}
+
+@Test("[linear].workspace and .app_user decode, and are nil when absent (nil until Installed, P17.6)")
+func linearInstallationFieldsDecode() throws {
+    let installed = """
+        [linear]
+        credential = "keychain:linear"
+        workspace = "workspace-1"
+        app_user = "app-user-1"
+
+        [github]
+        credential = "keychain:github"
+        """
+    let configured = try MachineConfiguration.parse(installed, file: "config.toml")
+    #expect(configured.linearWorkspace == BoardObjectID(rawValue: "workspace-1"))
+    #expect(configured.linearAppUser == BoardObjectID(rawValue: "app-user-1"))
+
+    let notInstalled = """
+        [linear]
+        credential = "keychain:linear"
+
+        [github]
+        credential = "keychain:github"
+        """
+    let unconfigured = try MachineConfiguration.parse(notInstalled, file: "config.toml")
+    #expect(unconfigured.linearWorkspace == nil)
+    #expect(unconfigured.linearAppUser == nil)
 }
 
 @Test("[linear].operator must be a string when present")
@@ -102,7 +125,6 @@ func linearOperatorTypeMismatch() {
     let text = """
     [linear]
     credential = "keychain:linear"
-    client_id = "yellowhammer-client-id"
     operator = 42
     [github]
     credential = "keychain:github"
@@ -145,21 +167,24 @@ func errorDescription() {
     #expect(keyless.description == "config.toml:2: expected a key")
 }
 
-@Test("[linear] requires a non-empty string client_id", arguments: [
-    ("credential = \"keychain:linear\"", 1, ConfigurationError.Reason.missingKey),
-    ("credential = \"keychain:linear\"\nclient_id = \"\"", 3, .emptyString),
-    ("credential = \"keychain:linear\"\nclient_id = 42", 3, .typeMismatch(expected: "string", found: "integer"))
-])
-func linearClientIDIsRequired(body: String, line: Int, reason: ConfigurationError.Reason) {
-    let text = "[linear]\n\(body)\n\n[github]\ncredential = \"keychain:github\"\n"
+@Test("A legacy [linear].client_id names the withdrawn client-credentials setup and its fix")
+func legacyLinearClientIDMessage() {
+    let text = """
+    [linear]
+    credential = "keychain:linear"
+    client_id = "yellowhammer-client-id"
+
+    [github]
+    credential = "keychain:github"
+    """
     do {
         _ = try MachineConfiguration.parse(text, file: "config.toml")
         Issue.record("expected the parse to fail")
     } catch {
-        #expect(error.file == "config.toml")
-        #expect(error.line == line, "\(error)")
+        #expect(error.line == 3, "\(error)")
         #expect(error.key == "linear.client_id", "\(error)")
-        #expect(error.reason == reason, "\(error)")
+        #expect(error.reason == .legacyLinearClientID, "\(error)")
+        #expect(error.description.contains("re-run the Linear step of yh setup"))
     }
 }
 
@@ -168,7 +193,6 @@ func linearOperatorIdentity() throws {
     let present = """
         [linear]
         credential = "keychain:linear"
-        client_id = "yellowhammer-client-id"
         operator = "user-123"
 
         [github]
@@ -180,7 +204,6 @@ func linearOperatorIdentity() throws {
     let absent = """
         [linear]
         credential = "keychain:linear"
-        client_id = "yellowhammer-client-id"
 
         [github]
         credential = "keychain:github"
@@ -191,7 +214,6 @@ func linearOperatorIdentity() throws {
     let empty = """
         [linear]
         credential = "keychain:linear"
-        client_id = "yellowhammer-client-id"
         operator = ""
 
         [github]
@@ -206,7 +228,6 @@ func gitHubRefusesClientID() {
     let text = """
     [linear]
     credential = "keychain:linear"
-    client_id = "yellowhammer-client-id"
 
     [github]
     credential = "keychain:github"
@@ -216,7 +237,7 @@ func gitHubRefusesClientID() {
         _ = try MachineConfiguration.parse(text, file: "config.toml")
         Issue.record("expected the parse to fail")
     } catch {
-        #expect(error.line == 7, "\(error)")
+        #expect(error.line == 6, "\(error)")
         #expect(error.key == "github.client_id", "\(error)")
         #expect(error.reason == .unknownKey, "\(error)")
     }

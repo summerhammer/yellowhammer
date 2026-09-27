@@ -31,7 +31,6 @@ private func configuration(table: RoutingTable, for projectID: ProjectID) throws
     let machine = try MachineConfiguration.parse("""
         [linear]
         credential = "keychain:linear"
-        client_id = "client"
 
         [github]
         credential = "keychain:github"

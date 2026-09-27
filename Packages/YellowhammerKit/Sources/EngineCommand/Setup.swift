@@ -11,11 +11,12 @@ struct Setup {
     let output: (String) -> Void
     /// Never called in `--init` or `--config` mode.
     let console: any SetupConsole
+    /// Presence-only: whether an Installation token pair exists in the Keychain — the Linear step's own
+    /// "is it installed at all" gate. Never reads or stores a secret.
     let credentials: any SetupCredentialStore
-    let readStandardInputLine: () -> String?
     /// `linearProjectID` may be `""` for the workspace-level calls (`workspaceMembers()`, `teams()`,
-    /// creation) — see ``BoardBinding/provisioning(machine:linearProjectID:clientSecret:)``.
-    let bindProvisioning: (MachineConfiguration, String, String) throws -> any BoardProvisioning
+    /// creation) — see ``BoardBinding/provisioning(machine:linearProjectID:)``.
+    let bindProvisioning: (MachineConfiguration, String) -> any BoardProvisioning
     let registerNotifications: () async -> NotificationRegistration
     /// Where `--install-jobs` writes LaunchAgents (`<homeDirectory>/Library/LaunchAgents`) and every
     /// job's log path is expanded against. Tests inject a temp directory, never the real home.
@@ -53,16 +54,15 @@ struct Setup {
         }
 
         var machine = try loadOrCreateMachineFile()
-        let secret = try resolveLinearSecret(machine: machine)
-        let board = try bindWorkspaceBoard(machine: machine, secret: secret)
+        let board = try bindWorkspaceBoard(machine: machine)
         let members = try await authorize(board: board)
         try setOperatorIdentity(machine: &machine, members: members)
 
-        try await writeProjectsIfNeeded(machine: machine, secret: secret, board: board)
+        try await writeProjectsIfNeeded(machine: machine, board: board)
 
         let configuration = try validateConfiguration()
         let (provisioningFailedIDs, unfinishedProvisioning) = await provisionProjects(
-            configuration: configuration, machine: machine, secret: secret
+            configuration: configuration, machine: machine
         )
         let jobsFailed = await handleScheduledJobs(
             configuration: configuration, machine: machine, provisioningFailedIDs: provisioningFailedIDs

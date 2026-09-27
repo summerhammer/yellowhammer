@@ -62,19 +62,22 @@ final class ManualClock: Sendable {
 }
 
 enum Fixture {
-    static let clientID = "yellowhammer-client-id"
-    static let clientSecret = "s3cr3t-client-secret-value"
     static let accessToken = "lin_oauth_access-token-value"
+    static let refreshToken = "lin_oauth_refresh-token-value"
+    static let rotatedRefreshToken = "lin_oauth_rotated-refresh-token-value"
     static let linearProjectID = "7f1c2d9e-3b4a-4c5d-8e6f-0a1b2c3d4e5f"
     /// Linear's filter field for the Linear project scope.
     static let scopeKey = "project" // glossary:ignore GL001
 
-    static var credentials: LinearCredentials {
-        LinearCredentials(clientID: clientID, clientSecret: clientSecret)
-    }
-
+    /// The Installation's token endpoint response for `Fixture.adapter`'s own always-stale seeded
+    /// pair (P17.4): every test's first scripted reply is this refresh, keeping every existing
+    /// request index unchanged from the client-credentials era (request 0 = token endpoint, request 1
+    /// = the first GraphQL call).
     static func token(_ token: String = accessToken, expiresIn: Int = 2_591_999) -> StubHTTPTransport.Reply {
-        json(#"{"access_token":"\#(token)","token_type":"Bearer","expires_in":\#(expiresIn),"scope":"read,write"}"#)
+        json(#"""
+            {"access_token":"\#(token)","refresh_token":"\#(rotatedRefreshToken)",
+             "token_type":"Bearer","expires_in":\#(expiresIn),"scope":"read,write"}
+            """#)
     }
 
     static func json(
@@ -110,14 +113,28 @@ enum Fixture {
             """)
     }
 
+    /// A pair inside the 2-hour refresh window, so the very first `token()` call always refreshes —
+    /// preserving the client-credentials era's "first request is always the token endpoint" shape that
+    /// every existing test's request-index assertions depend on.
+    static func stalePair(clock: ManualClock) -> LinearTokenPair {
+        LinearTokenPair(
+            accessToken: "stale-\(accessToken)", refreshToken: refreshToken,
+            expiresAt: clock.read().addingTimeInterval(3600)
+        )
+    }
+
     static func adapter(
         _ transport: StubHTTPTransport,
-        clock: ManualClock = ManualClock(),
-        sleep: @escaping @Sendable (Duration) async throws -> Void = { _ in }
+        clock: ManualClock = ManualClock()
     ) -> LinearAdapter {
-        LinearAdapter(
-            linearProjectID: linearProjectID, credentials: credentials, transport: transport, clock: clock.read,
-            sleep: sleep
+        let pair = Mutex<LinearTokenPair?>(stalePair(clock: clock))
+        let store = LinearTokenStore(
+            read: { pair.withLock { $0 } },
+            write: { newValue in pair.withLock { $0 = newValue } },
+            withRefreshLock: { try await $0() }
+        )
+        return LinearAdapter(
+            linearProjectID: linearProjectID, tokenStore: store, transport: transport, clock: clock.read
         )
     }
 

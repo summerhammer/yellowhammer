@@ -2,7 +2,6 @@
 
 [linear]
 credential = "keychain:linear"
-client_id = "yellowhammer-client-id"
 operator = "linear-user-1"
 
 [github]

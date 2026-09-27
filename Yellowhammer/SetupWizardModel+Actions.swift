@@ -40,10 +40,8 @@ extension SetupWizardModel {
         choicesErrorOutput = []
         defer { isFetchingChoices = false }
         let arguments = SetupInvocation.choicesArguments(
-            linearClientID: configExists ? nil : linearClientID,
             linearCredential: configExists || linearCredential == Self.defaultLinearCredential ? nil : linearCredential,
-            githubCredential: configExists || githubCredential == Self.defaultGitHubCredential ? nil : githubCredential,
-            passesSecretOnStandardInput: !linearSecret.isEmpty
+            githubCredential: configExists || githubCredential == Self.defaultGitHubCredential ? nil : githubCredential
         )
         var lines: [String] = []
         do {
@@ -118,7 +116,6 @@ extension SetupWizardModel {
 
     func buildInvocation() -> SetupInvocation {
         SetupInvocation(
-            linearClientID: configExists ? nil : linearClientID,
             linearCredential: configExists || linearCredential == Self.defaultLinearCredential ? nil : linearCredential,
             githubCredential: configExists || githubCredential == Self.defaultGitHubCredential ? nil : githubCredential,
             cliAdapters: configExists ? [] : enabledCLIs.sorted().map { name in
@@ -130,7 +127,6 @@ extension SetupWizardModel {
             route: configExists ? nil : routeText,
             fallbacks: configExists ? [] : fallbackTexts,
             operatorID: selectedOperatorID,
-            passesSecretOnStandardInput: !linearSecret.isEmpty,
             project: declareProject ? SetupInvocation.Project(
                 id: projectID.trimmed,
                 name: projectName,

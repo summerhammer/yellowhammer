@@ -9,13 +9,13 @@ extension Setup {
     /// consolidated list, printed once by ``reportUnfinishedProvisioning(_:)`` at the end of setup's
     /// output.
     func provisionProjects(
-        configuration: Configuration, machine: MachineConfiguration, secret: String
+        configuration: Configuration, machine: MachineConfiguration
     ) async -> (failed: Set<ProjectID>, unfinished: [(ProjectID, ProvisioningReport)]) {
         var failed: Set<ProjectID> = []
         var unfinished: [(ProjectID, ProvisioningReport)] = []
         for project in configuration.projects {
             do {
-                let board = try bindProvisioning(machine, project.linearProject, secret)
+                let board = bindProvisioning(machine, project.linearProject)
                 let report = try await BoardProvisioner.provision(
                     using: board, projectName: project.name, createIn: nil,
                     routingTable: configuration.routingTable(for: project.id) ?? RoutingTable(entries: [])

@@ -6,14 +6,12 @@ import Foundation
 
 extension Setup {
     /// `--print-choices`: never prompts, writes no configuration file. Loads `config.toml` when present
-    /// (invalid means throw, as elsewhere), or builds one in memory from `--linear-client-id` and the
-    /// credential defaults; resolves the Linear client secret exactly as `resolveLinearSecret` does — so
-    /// `--linear-client-secret-stdin` still stores it in the Keychain — then binds the workspace board,
-    /// authorizes, and reads its teams. Prints exactly one line: the JSON-encoded ``SetupChoices``.
+    /// (invalid means throw, as elsewhere), or builds one in memory from the credential defaults; then
+    /// binds the workspace board, authorizes, and reads its teams. Prints exactly one line: the
+    /// JSON-encoded ``SetupChoices``.
     func printChoices() async throws {
         let machine = try loadMachineConfigurationForChoices()
-        let secret = try resolveLinearSecret(machine: machine)
-        let board = try bindWorkspaceBoard(machine: machine, secret: secret)
+        let board = try bindWorkspaceBoard(machine: machine)
         let members = try await authorize(board: board)
         let teams = try await fetchTeams(board: board)
         output(try encodeChoicesJSON(makeChoices(machine: machine, members: members, teams: teams)))
@@ -28,14 +26,11 @@ extension Setup {
                 throw SetupError("\(path) is invalid: \(error)")
             }
         }
-        guard let linearClientID = options.linearClientID else {
-            throw SetupError("--linear-client-id is required to create \(path)")
-        }
         // Non-empty literals: never fail.
         let linearCredential = options.linearCredential ?? CredentialReference(SetupOptions.defaultLinearCredential)!
         let gitHubCredential = options.githubCredential ?? CredentialReference(SetupOptions.defaultGitHubCredential)!
         return MachineConfiguration(
-            linearClientID: linearClientID, linearCredential: linearCredential, gitHubCredential: gitHubCredential,
+            linearCredential: linearCredential, gitHubCredential: gitHubCredential,
             cliAdapters: [], routingTable: []
         )
     }

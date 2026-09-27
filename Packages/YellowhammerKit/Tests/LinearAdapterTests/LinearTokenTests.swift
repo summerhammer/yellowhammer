@@ -3,7 +3,10 @@ import Foundation
 import LinearAdapter
 import Testing
 
-@Suite("Linear client-credentials token")
+/// The Installation's token behaviour as `LinearAdapter` itself exercises it — refresh timing and the
+/// 2-hour window are `LinearInstallationTokenSourceTests`' own job (P17.4); this file covers what every
+/// GraphQL request carries and how it decodes.
+@Suite("Linear Installation token, through the adapter")
 struct LinearTokenTests {
     @Test("The token is requested once and reused across calls")
     func tokenIsReused() async throws {
@@ -18,29 +21,8 @@ struct LinearTokenTests {
         #expect(transport.requests.count == 3)
     }
 
-    @Test("The token is requested again once the clock passes expiry minus the skew")
-    func tokenIsRefreshedBeforeExpiry() async throws {
-        let transport = StubHTTPTransport([
-            Fixture.token("first-token", expiresIn: 3600), Fixture.viewer,
-            Fixture.viewer,
-            Fixture.token("second-token", expiresIn: 3600), Fixture.viewer
-        ])
-        let clock = ManualClock()
-        let adapter = Fixture.adapter(transport, clock: clock)
-
-        _ = try await adapter.identity()
-        clock.advance(by: 3600 - 61)
-        _ = try await adapter.identity()
-        clock.advance(by: 2)
-        _ = try await adapter.identity()
-
-        let paths = transport.requests.map { $0.url?.path ?? "" }
-        #expect(paths == ["/oauth/token", "/graphql", "/graphql", "/oauth/token", "/graphql"])
-        #expect(transport.requests[4].value(forHTTPHeaderField: "Authorization") == "Bearer second-token")
-    }
-
-    @Test("The token request is form-encoded with the client-credentials grant and a scope")
-    func tokenRequestIsFormEncoded() async throws {
+    @Test("The refresh request is form-encoded with the refresh_token grant and no client_secret")
+    func refreshRequestIsFormEncoded() async throws {
         let transport = StubHTTPTransport([Fixture.token(), Fixture.viewer])
         _ = try await Fixture.adapter(transport).identity()
 
@@ -54,10 +36,10 @@ struct LinearTokenTests {
             let parts = pair.split(separator: "=", maxSplits: 1).map(String.init)
             return (parts[0], parts.count > 1 ? parts[1].removingPercentEncoding ?? parts[1] : "")
         })
-        #expect(fields["grant_type"] == "client_credentials")
-        #expect(fields["client_id"] == Fixture.clientID)
-        #expect(fields["client_secret"] == Fixture.clientSecret)
-        #expect(fields["scope"] == "read,write")
+        #expect(fields["grant_type"] == "refresh_token")
+        #expect(fields["client_id"] == LinearAppInstallation.clientID)
+        #expect(fields["refresh_token"] != nil)
+        #expect(fields["client_secret"] == nil)
     }
 
     @Test("Every GraphQL request carries the bearer token")
@@ -73,14 +55,6 @@ struct LinearTokenTests {
             #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer \(Fixture.accessToken)")
             #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
         }
-    }
-
-    @Test("The credentials' descriptions redact the client secret")
-    func credentialsRedactTheSecret() {
-        let credentials = Fixture.credentials
-        #expect(!String(describing: credentials).contains(Fixture.clientSecret))
-        #expect(!String(reflecting: credentials).contains(Fixture.clientSecret))
-        #expect(String(describing: credentials).contains(Fixture.clientID))
     }
 
     @Test("identity() maps the viewer")

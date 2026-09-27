@@ -9,7 +9,7 @@ import Synchronization
 ///
 /// The stored pair, not an in-memory cache alone, is the source of truth: another process may have
 /// refreshed since this actor last read it, so every refresh path re-reads the store first.
-actor LinearInstallationTokenSource: LinearTokenProviding {
+actor LinearInstallationTokenSource {
     /// Refresh once less than this much time remains before `expiresAt` — comfortably inside Linear's
     /// token lifetime, so an Act in progress never straddles an expiry mid-run.
     static let refreshWindow: TimeInterval = 2 * 60 * 60
@@ -42,12 +42,12 @@ actor LinearInstallationTokenSource: LinearTokenProviding {
     /// The 401 path (`LinearAdapter.send`'s one retry): another process may have already refreshed —
     /// use its result without a refresh of our own when the store's access token has moved on;
     /// otherwise refresh regardless of how much time remains, since the rejected token proved stale.
-    func recoverFromUnauthorized(rejected: String) async throws(BoardError) -> String? {
+    func recoverFromUnauthorized(rejected: String) async throws(BoardError) -> String {
         try await withRefreshLock { try await self.forceRefreshed(rejected: rejected) }
     }
 
     /// `clientID` is public, not a secret — Yellowhammer's one registered app id — so it is never
-    /// scrubbed, matching the client-credentials source's own `secrets` (its client id is excluded too).
+    /// scrubbed.
     var secrets: [String] {
         cached.map { [$0.accessToken, $0.refreshToken] } ?? []
     }
@@ -81,6 +81,13 @@ actor LinearInstallationTokenSource: LinearTokenProviding {
         let pair: LinearTokenPair?
         do {
             pair = try store.read()
+        } catch is DecodingError {
+            // Not a token pair at all — most likely the withdrawn client-credentials setup left a
+            // plain secret under the same reference. That is "not installed", never a network fault.
+            throw .notAuthenticated(
+                "the stored Linear credential is not an Installation token pair; " +
+                    "re-run the Linear step of yh setup"
+            )
         } catch {
             throw .unreachable("could not read Yellowhammer's stored Linear tokens: \(error)")
         }

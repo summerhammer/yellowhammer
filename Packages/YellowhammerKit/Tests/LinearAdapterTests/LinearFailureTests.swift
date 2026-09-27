@@ -4,10 +4,17 @@ import LinearAdapter
 import Synchronization
 import Testing
 
+/// Pure GraphQL-response and transport-error translation (`LinearFailure`'s own job), exercised through
+/// `Fixture.adapter` end to end. `Fixture.adapter` seeds a pair inside the 2-hour refresh window, so the
+/// first call always refreshes first (request 0 = the token endpoint, request 1 = the first GraphQL
+/// call) — every scripted reply list below assumes that shape. Deliberately excludes the
+/// notAuthenticated-recovery path (one forced refresh + one retry): that belongs to
+/// `LinearAdapterInstallationSendTests` (P17.3) and `LinearInstallationTokenSourceTests` (P17.4), since
+/// it is the token source's own orchestration, not `LinearFailure`'s translation.
 @Suite("Linear failure translation")
 struct LinearFailureTests {
     /// Runs `identity()` or `objects` against the scripted replies and returns the thrown error,
-    /// asserting it never carries the client secret or the access token.
+    /// asserting it never carries either token.
     private func failure(
         _ replies: [StubHTTPTransport.Reply], readObjects: Bool = false
     ) async throws -> BoardError {
@@ -20,8 +27,9 @@ struct LinearFailureTests {
             }
         } catch {
             for text in [error.description, String(reflecting: error)] {
-                #expect(!text.contains(Fixture.clientSecret), "secret leaked: \(text)")
-                #expect(!text.contains(Fixture.accessToken), "token leaked: \(text)")
+                #expect(!text.contains(Fixture.accessToken), "access token leaked: \(text)")
+                #expect(!text.contains(Fixture.refreshToken), "refresh token leaked: \(text)")
+                #expect(!text.contains(Fixture.rotatedRefreshToken), "rotated refresh token leaked: \(text)")
             }
             return error
         }
@@ -58,49 +66,7 @@ struct LinearFailureTests {
         #expect(await adapter.latestBudget == BoardBudget(complexityRemaining: 0))
     }
 
-    @Test("HTTP 401 is notAuthenticated")
-    func http401() async throws {
-        let error = try await failure([Fixture.token(), Fixture.json(#"{"errors":[]}"#, status: 401)])
-        guard case .notAuthenticated = error else {
-            Issue.record("expected notAuthenticated, got \(error)")
-            return
-        }
-    }
-
-    @Test("A refusal at the OAuth token endpoint is notAuthenticated")
-    func tokenEndpointRefusal() async throws {
-        let reply = Fixture.json(
-            #"{"error":"invalid_client","error_description":"bad \#(Fixture.clientSecret)"}"#, status: 401
-        )
-        let error = try await failure([reply, reply])
-        guard case .notAuthenticated(let message) = error else {
-            Issue.record("expected notAuthenticated, got \(error)")
-            return
-        }
-        #expect(message.contains("invalid_client"))
-    }
-
-    @Test("An intermittent invalid_client at the OAuth token endpoint retries once and succeeds")
-    func intermittentInvalidClientRetries() async throws {
-        let sleptDurations = Mutex<[Duration]>([])
-        let transport = StubHTTPTransport([
-            Fixture.json(#"{"error":"invalid_client","error_description":"temporary hiccup"}"#, status: 400),
-            Fixture.token("retried-token"),
-            Fixture.viewer
-        ])
-        let adapter = Fixture.adapter(transport, sleep: { duration in
-            sleptDurations.withLock { $0.append(duration) }
-        })
-        let identity = try await adapter.identity()
-        #expect(identity == BoardIdentity(id: BoardObjectID(rawValue: "app-user-id"), name: "Yellowhammer"))
-        #expect(sleptDurations.withLock { $0 } == [.milliseconds(250)])
-        #expect(transport.requests.count == 3)
-        #expect(transport.requests[0].url?.path == "/oauth/token")
-        #expect(transport.requests[1].url?.path == "/oauth/token")
-        #expect(transport.requests[2].url?.path == "/graphql")
-    }
-
-    @Test("A 5xx at the OAuth token endpoint is unreachable", arguments: [500, 502, 503, 504])
+    @Test("A 5xx refreshing the Installation's token is unreachable", arguments: [500, 502, 503, 504])
     func tokenEndpoint5xx(statusCode: Int) async throws {
         let error = try await failure([
             Fixture.json("Service Unavailable", status: statusCode)
@@ -195,17 +161,5 @@ struct LinearFailureTests {
             Issue.record("expected unreadableResponse, got \(error)")
             return
         }
-    }
-
-    @Test("A refused access token is dropped, so the next call obtains a new one")
-    func refusedTokenIsDropped() async throws {
-        let transport = StubHTTPTransport([
-            Fixture.token("stale-token"), Fixture.json("{}", status: 401),
-            Fixture.token("fresh-token"), Fixture.viewer
-        ])
-        let adapter = Fixture.adapter(transport)
-        await #expect(throws: BoardError.self) { _ = try await adapter.identity() }
-        _ = try await adapter.identity()
-        #expect(transport.requests[3].value(forHTTPHeaderField: "Authorization") == "Bearer fresh-token")
     }
 }

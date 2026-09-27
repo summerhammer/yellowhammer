@@ -1,13 +1,14 @@
 import Domain
 import Foundation
 
-/// The machine-wide configuration file: Linear authorization (client id and credential), the machine default GitHub credential,
-/// the declared CLI Adapters and the base Routing Table.
+/// The machine-wide configuration file: the Linear App Installation (ADR-005), the machine default
+/// GitHub credential, the declared CLI Adapters and the base Routing Table.
 public struct MachineConfiguration: Equatable, Sendable {
-    /// The registered Linear OAuth application's client id. Not a secret: the client secret stays
-    /// behind ``linearCredential``.
-    public var linearClientID: String
     public var linearCredential: CredentialReference
+    /// The Installation's workspace id (`[linear].workspace`), nil until installed (P17.6 writes it).
+    public var linearWorkspace: BoardObjectID?
+    /// The Installation's app user id (`[linear].app_user`), nil until installed.
+    public var linearAppUser: BoardObjectID?
     public var gitHubCredential: CredentialReference
     /// In file order.
     public var cliAdapters: [CLIAdapterDeclaration]
@@ -19,15 +20,17 @@ public struct MachineConfiguration: Equatable, Sendable {
     public var operatorIdentity: BoardObjectID?
 
     public init(
-        linearClientID: String,
         linearCredential: CredentialReference,
+        linearWorkspace: BoardObjectID? = nil,
+        linearAppUser: BoardObjectID? = nil,
         gitHubCredential: CredentialReference,
         cliAdapters: [CLIAdapterDeclaration],
         routingTable: [RoutingEntry],
         operatorIdentity: BoardObjectID? = nil
     ) {
-        self.linearClientID = linearClientID
         self.linearCredential = linearCredential
+        self.linearWorkspace = linearWorkspace
+        self.linearAppUser = linearAppUser
         self.gitHubCredential = gitHubCredential
         self.cliAdapters = cliAdapters
         self.routingTable = routingTable

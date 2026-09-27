@@ -28,6 +28,8 @@ public struct ConfigurationError: Error, Equatable, Sendable {
         case secondSpecificationSource(firstLine: Int)
         case undeclaredCLIAdapter(String)
         case workingRepoConflict(project: ProjectID, file: String)
+        /// `[linear].client_id`, from the withdrawn client-credentials setup (P17.4).
+        case legacyLinearClientID
     }
 
     public let file: String
@@ -105,6 +107,9 @@ extension ConfigurationError.Reason: CustomStringConvertible {
             return "route names CLI \"\(cli)\", which has no [cli.\(cli)] adapter declaration"
         case .workingRepoConflict(let project, let file):
             return "repository is also declared as a working Repo by Project \"\(project.rawValue)\" (\(file))"
+        case .legacyLinearClientID:
+            return "this configuration names a Linear client id from the withdrawn client-credentials " +
+                "setup; re-run the Linear step of yh setup"
         }
     }
 }

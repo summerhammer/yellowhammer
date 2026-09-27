@@ -29,7 +29,7 @@ func makeDoctor(
         output: { output.record($0) },
         console: console,
         credentials: credentials,
-        bindProvisioning: { _, _, _ in board },
+        bindProvisioning: { _, _ in board },
         launchAgents: launchAgents,
         git: git,
         runProbe: runProbe,

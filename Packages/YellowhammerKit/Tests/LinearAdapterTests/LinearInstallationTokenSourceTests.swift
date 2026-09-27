@@ -123,6 +123,31 @@ struct LinearInstallationTokenSourceTests {
         }
     }
 
+    @Test("A legacy plaintext secret under the same reference is notAuthenticated, never unreachable")
+    func legacyPlaintextSecretIsNotAuthenticated() async throws {
+        let clock = ManualClock()
+        let store = LinearTokenStore(
+            read: {
+                throw DecodingError.dataCorrupted(
+                    DecodingError.Context(codingPath: [], debugDescription: "plain secret, not a token pair")
+                )
+            },
+            write: { _ in },
+            withRefreshLock: { try await $0() }
+        )
+        let transport = StubHTTPTransport([])
+        let source = LinearInstallationTokenSource(store: store, transport: transport, clock: clock.read)
+
+        do {
+            _ = try await source.token()
+            Issue.record("expected a throw")
+        } catch .notAuthenticated(let message) {
+            #expect(message.contains("re-run the Linear step of yh setup"))
+        } catch {
+            Issue.record("unexpected error type: \(error)")
+        }
+    }
+
     @Test("A revoked refresh token (400 invalid_request) is notAuthenticated")
     func revokedRefreshTokenIsNotAuthenticated() async throws {
         let clock = ManualClock()

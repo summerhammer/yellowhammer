@@ -190,7 +190,12 @@ extension MachineConfiguration {
         var sections: [String] = []
 
         var linear = ["[linear]", "credential = \(ConfigurationRendering.quoted(linearCredential.rawValue))"]
-        linear.append("client_id = \(ConfigurationRendering.quoted(linearClientID))")
+        if let linearWorkspace {
+            linear.append("workspace = \(ConfigurationRendering.quoted(linearWorkspace.rawValue))")
+        }
+        if let linearAppUser {
+            linear.append("app_user = \(ConfigurationRendering.quoted(linearAppUser.rawValue))")
+        }
         if let operatorIdentity {
             linear.append("operator = \(ConfigurationRendering.quoted(operatorIdentity.rawValue))")
         }

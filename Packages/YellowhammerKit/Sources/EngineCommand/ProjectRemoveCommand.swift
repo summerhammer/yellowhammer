@@ -33,7 +33,7 @@ public struct ProjectRemoveCommand: AsyncParsableCommand {
             console: RealSetupConsole(),
             launchAgents: LaunchctlLaunchAgentControl(),
             bindBoard: { configuration, project in
-                try BoardBinding.actBoard(machine: configuration.machine, project: project).writing
+                BoardBinding.actBoard(machine: configuration.machine, project: project).writing
             },
             workspace: WorkspaceBinding.workspace(),
             git: GitRunner(),
