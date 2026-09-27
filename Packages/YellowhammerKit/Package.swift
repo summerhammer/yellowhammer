@@ -142,7 +142,8 @@ let package = Package(
             name: "LinearAdapterTests",
             dependencies: [
                 "LinearAdapter",
-                "Domain"
+                "Domain",
+                "Config"
             ]
         ),
         .testTarget(

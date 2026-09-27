@@ -237,4 +237,34 @@ public struct LinearTokenPair: Codable, Sendable, Equatable, CustomStringConvert
     }
 
     public var debugDescription: String { description }
+
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "access_token"
+        case refreshToken = "refresh_token"
+        case expiresAt = "expires_at"
+    }
+
+    /// The persisted-storage JSON shape (P17.4, ADR-005): an explicit ISO-8601 `expires_at`, never
+    /// `Date`'s ambiguous default encoding, since this JSON may be read back by a different build than
+    /// the one that wrote it.
+    public func encoded() throws -> String {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(self)
+        guard let json = String(data: data, encoding: .utf8) else {
+            throw LinearTokenPairCodingError.couldNotEncode
+        }
+        return json
+    }
+
+    /// The inverse of ``encoded()``.
+    public init(storedJSON: String) throws {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        self = try decoder.decode(Self.self, from: Data(storedJSON.utf8))
+    }
+}
+
+public enum LinearTokenPairCodingError: Error, Sendable {
+    case couldNotEncode
 }
