@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Derives release notes for a tag from the `Spec: <epic>/<story> @ <sha>` trailer lines
-# carried by every commit implementing spec'd behavior (see CLAUDE.md). Used by release
-# jobs after scripts/release/package-dmg.sh. Prints Markdown to stdout.
+# Derives the "Spec" section of the release notes for a tag from the
+# `Spec: <epic>/<story> @ <sha>` trailer lines carried by every commit implementing
+# spec'd behavior (see CLAUDE.md). release-please owns the changelog itself (feat/fix/
+# perf/revert); the release-build workflow appends this script's output below it. Used
+# by release jobs after scripts/release/package-dmg.sh. Prints Markdown to stdout.
 #
 # Usage: release-notes.sh <tag> [<previous-tag>]
 #
@@ -65,7 +67,7 @@ unique_sorted() {
 	printf '%s\n' "$@" | sort -u
 }
 
-echo "# Yellowhammer $tag"
+echo "## Spec"
 echo
 if [ -n "$newest_sha" ]; then
 	echo "Built against spec commit $newest_sha."
@@ -75,7 +77,7 @@ fi
 echo
 
 if [ "${#story_ids[@]}" -gt 0 ]; then
-	echo "## Stories"
+	echo "### Stories"
 	echo
 	while IFS= read -r story; do
 		[ -n "$story" ] || continue
@@ -87,7 +89,7 @@ fi
 unique_shas="$(unique_sorted ${spec_shas[@]+"${spec_shas[@]}"})"
 sha_count="$(printf '%s\n' "$unique_shas" | grep -c . || true)"
 if [ "$sha_count" -gt 1 ]; then
-	echo "## Spec commits cited"
+	echo "### Spec commits cited"
 	echo
 	while IFS= read -r sha; do
 		[ -n "$sha" ] || continue
