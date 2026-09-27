@@ -17,7 +17,11 @@ public enum UnadoptedCardRefresh {
         night: NightRecord, journal: JournalStore, outbox: Outbox, runID: RunID
     ) async throws {
         for unadopted in try journal.unadoptedCards(asOf: night.nightStart) {
-            try? await refreshOne(unadopted.card, journal: journal, outbox: outbox, runID: runID)
+            // Best-effort per Card (a refresh failure never fails the Night's completion) — except an
+            // authorization failure, which is rethrown so the Act halts on it (P17.5, item 1).
+            _ = try await bestEffort {
+                try await refreshOne(unadopted.card, journal: journal, outbox: outbox, runID: runID)
+            }
         }
     }
 

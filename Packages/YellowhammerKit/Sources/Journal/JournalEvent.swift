@@ -49,6 +49,13 @@ public enum JournalEvent: Equatable, Sendable {
     case actIncomplete(reason: String)
     /// Another run of the same Project held the Act-scoped lease; this Act ran nothing.
     case actStoodDown(holder: ActLease)
+    /// This Act halted on a Linear authorization failure (roadmap P17.5, Linear App Installation
+    /// Ruling items 5, 12, 13): `BoardError.notAuthenticated` — a refused refresh, a revoked
+    /// Installation, a 401 surviving one retry, or no Installation at all. Appended alongside
+    /// `.actIncomplete` for this cause; a Night whose every Act only ever recorded this spends none of
+    /// `unanswered_nights_max` (no clock reads this event — it simply never advances, since nothing
+    /// dispatched).
+    case linearAuthorizationHalted
     case mainlineFetchFailed(repository: String, reason: String)
     /// The resumption self-audit found a Night that never opened (OQ12): a calendar date
     /// between two recorded Nights with no Night row. Recorded on the Night that resumed, by its

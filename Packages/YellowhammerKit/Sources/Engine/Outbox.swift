@@ -298,7 +298,13 @@ public struct Outbox: Sendable {
                 return try fail(attempted, reason: "\(reason) (after \(attempted.attemptCount) attempts)")
             }
             return OutboxDelivery(entry: attempted, outcome: .deferred(.transient(reason)))
-        case .notAuthenticated, .refused, .scopeNotFound, .forbidden:
+        case .notAuthenticated:
+            // Authorization halts the Act (roadmap P17.5): the identity itself is refused, not this
+            // particular write, so the entry stays pending — never attempted-count-exhausted, never
+            // failed — to replay once re-authorized, under its unchanged client id. Thrown, not
+            // returned, so the Act above stops dispatching and halts on this cause.
+            throw error
+        case .refused, .scopeNotFound, .forbidden:
             return try fail(entry, reason: String(describing: error))
         }
     }

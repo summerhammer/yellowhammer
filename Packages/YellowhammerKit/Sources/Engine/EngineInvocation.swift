@@ -245,6 +245,7 @@ public struct EngineInvocation: Sendable {
         var outbox: Outbox?
         var nightCard: NightCardMaintenance?
         do {
+            try await authorizationPreflight()
             // The Night Card is created before the trigger is even evaluated (DR7): an idle Night
             // still opens one. An `open` failure propagates and is recorded as `ActIncomplete` by the
             // catch below, and no work runs.
@@ -274,19 +275,24 @@ public struct EngineInvocation: Sendable {
                     body: { try await work(context) }
                 )
             }
-            // Reported only, never acted on: a Roll-up failure must not fail the Act (see below).
-            try? await FeatureRollUpMaintenance.maintainRollUps(night: night, journal: journal, outbox: outbox)
+            try await maintainRollUps(night: night, outbox: outbox)
             // Posts `closed` once the Night Card's completion is recorded; `opened` never posts (G-10).
             try await closeNightIfNeeded(night, card: nightCard, outbox: outbox)
             _ = try? journal.append(.actEnded, act: act, runID: runID, nightID: night.id)
         } catch {
-            _ = try? journal.append(
-                .actIncomplete(reason: String(describing: error)), act: act, runID: runID, nightID: night.id
-            )
-            await notifyHalted(reason: String(describing: error), night: night, nightCard: nightCard, outbox: outbox)
+            let reason = String(describing: error)
+            _ = try? journal.append(.actIncomplete(reason: reason), act: act, runID: runID, nightID: night.id)
+            if error.isLinearAuthorizationFailure {
+                await notifyLinearAuthorizationHalted(night: night)
+            } else {
+                await notifyHalted(reason: reason, night: night, nightCard: nightCard, outbox: outbox)
+            }
             throw error
         }
     }
+
+    // `authorizationPreflight()` lives in EngineInvocation+ExceptionNotification.swift (P17.5), next to
+    // the notification logic it gates — split out for the file/type length limits.
 
     /// Creates the Project's Night Card when a board is wired and none is recorded yet. Split out of
     /// `runUnderLease` to keep that function under the function body length limit; the caller re-reads

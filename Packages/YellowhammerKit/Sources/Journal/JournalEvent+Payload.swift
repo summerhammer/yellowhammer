@@ -20,6 +20,7 @@ extension JournalEvent {
                 "holder_heartbeat_at": JournalStore.timestamp(holder.heartbeatAt),
                 "holder_mode": holder.mode.rawValue
             ]
+        case .linearAuthorizationHalted: nil
         case .mainlineFetchFailed(let repository, let reason):
             ["reason": reason, "repository": repository]
         case .absentNightDetected(let nightStart):

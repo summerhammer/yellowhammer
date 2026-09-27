@@ -7,6 +7,7 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case actIdle = "ActIdle"
     case actIncomplete = "ActIncomplete"
     case actStoodDown = "ActStoodDown"
+    case linearAuthorizationHalted = "LinearAuthorizationHalted"
     case mainlineFetchFailed = "MainlineFetchFailed"
     case absentNightDetected = "AbsentNightDetected"
     case authoringNoWorkAvailable = "AuthoringNoWorkAvailable"

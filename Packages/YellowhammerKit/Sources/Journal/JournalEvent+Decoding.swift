@@ -27,6 +27,7 @@ extension JournalEvent {
             .actIncomplete(reason: try reader.require("reason"))
         case .actStoodDown:
             try Self.decodeStoodDown(reader)
+        case .linearAuthorizationHalted: .linearAuthorizationHalted
         case .mainlineFetchFailed:
             .mainlineFetchFailed(
                 repository: try reader.require("repository"),
