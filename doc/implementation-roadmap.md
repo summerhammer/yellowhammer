@@ -1772,7 +1772,7 @@ depends on and that never shipped.
 - **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
 - **Done when** — Each of the three cases has a test; the copy names the missing Night Card.
 
-### [ ] P17.2 Membership-first provisioning check
+### [x] P17.2 Membership-first provisioning check
 - **Work** — Before any create, check per Project's Linear team that the app user is a member;
   report the fix and re-verify. Only a refusal surviving membership gets the create-by-hand
   guideline. Report the step that could not be done and finish the rest.
