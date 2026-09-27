@@ -86,6 +86,19 @@ enum Fixture {
 
     static let viewer = json(#"{"data":{"viewer":{"id":"app-user-id","name":"Yellowhammer"}}}"#)
 
+    /// The Installation's token endpoint response shape (P17.3, ADR-005): access + refresh token.
+    static func installationGrant(
+        accessToken: String, refreshToken: String, expiresIn: Int = 7200, status: Int = 200
+    ) -> StubHTTPTransport.Reply {
+        json(
+            #"""
+            {"access_token":"\#(accessToken)","refresh_token":"\#(refreshToken)",
+             "token_type":"Bearer","expires_in":\#(expiresIn)}
+            """#,
+            status: status
+        )
+    }
+
     static func issues(
         hasNextPage: Bool = false, endCursor: String? = nil, nodes: String = ""
     ) -> StubHTTPTransport.Reply {

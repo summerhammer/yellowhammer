@@ -42,6 +42,22 @@ struct LinearFailure {
         return .notAuthenticated(scrub(message))
     }
 
+    /// A refusal exchanging or refreshing the Installation's own OAuth tokens (P17.3, ADR-005): a
+    /// revoked or invalid refresh token (`invalid_request`/`invalid_grant`, L5 probe) or an outright
+    /// HTTP 401 are both reported this way — the Operator's fix is the same either way, re-running the
+    /// Linear step of `yh setup`.
+    func installationTokenRefused(_ data: Data, _ response: HTTPURLResponse) -> BoardError {
+        if response.statusCode == 429 {
+            return rateLimited(response)
+        }
+        if (500..<600).contains(response.statusCode) {
+            return .unreachable(scrub("Linear answered with HTTP \(response.statusCode)"))
+        }
+        let code = (try? JSONDecoder().decode(OAuthError.self, from: data))?.error.map { " (\($0))" } ?? ""
+        let message = "Linear refused Yellowhammer's sign-in with HTTP \(response.statusCode)\(code)"
+        return .notAuthenticated(scrub(message))
+    }
+
     /// Whether a token endpoint response reported `invalid_client`.
     func isInvalidClient(_ data: Data) -> Bool {
         (try? JSONDecoder().decode(OAuthError.self, from: data))?.error == "invalid_client"
