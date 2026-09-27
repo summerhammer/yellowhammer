@@ -1811,7 +1811,7 @@ depends on and that never shipped.
 - **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Tests show one notification per Night, pending writes, and no clock spent.
 
-### [ ] P17.6 Installation in `yh setup` and `yh doctor`
+### [x] P17.6 Installation in `yh setup` and `yh doctor`
 - **Work** — The browser install on the first free port of three, stopping before the browser when
   all are busy; the admin statement and team recommendation first; the workspace name shown; a
   different workspace refused; the doctor's Linear check.
