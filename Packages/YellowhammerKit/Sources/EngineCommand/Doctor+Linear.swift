@@ -10,7 +10,8 @@ extension Doctor {
         guard credentials.secret(for: machine.linearCredential) != nil else {
             return [finding(
                 .linear, subject: "installation", .failure,
-                "no Linear Installation token pair found; re-run the Linear step of yh setup"
+                "no Linear Installation token pair found; re-run the Linear step: " +
+                    "yh setup --install-linear, or the Setup view in Yellowhammer.app"
             )]
         }
 
@@ -21,8 +22,8 @@ extension Doctor {
         } catch .notAuthenticated {
             return [finding(
                 .linear, subject: "authorization", .failure,
-                "the Linear installation was revoked or its sign-in expired; a workspace admin must " +
-                    "approve the app again through yh setup or the app's Setup view"
+                "the Linear installation was revoked or its sign-in expired; re-run the Linear step: " +
+                    "yh setup --install-linear, or the Setup view in Yellowhammer.app"
             )]
         } catch .unreachable {
             return [finding(.linear, subject: "authorization", .failure, "Linear could not be reached")]

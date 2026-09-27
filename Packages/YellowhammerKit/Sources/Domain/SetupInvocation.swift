@@ -129,6 +129,15 @@ public struct SetupInvocation: Equatable, Sendable {
         return arguments
     }
 
+    /// `["setup", "--install-linear", "--events", "json", ...]`: the app's re-run of just the Linear
+    /// step (P17.6 slice (b)) — used both for the first install and for the app's own Retry/Cancel on a
+    /// `portsBusy`/`cancelled`/`notCompleted` event, which re-runs this exact invocation.
+    public static func installLinearArguments(linearCredential: String? = nil) -> [String] {
+        var arguments = ["setup", "--install-linear", "--events", "json"] // glossary:ignore GL001
+        appendOption(&arguments, "--linear-credential", linearCredential)
+        return arguments
+    }
+
     /// `"name,role,path,check"`. `name`, `role` and `path` may not contain a comma — `--repo` splits on
     /// the first three only, so a comma there would silently corrupt a later field — and none of the
     /// four may be empty.

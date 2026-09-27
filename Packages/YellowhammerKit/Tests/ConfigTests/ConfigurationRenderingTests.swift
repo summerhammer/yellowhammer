@@ -245,3 +245,34 @@ func settingOperatorIsIdempotent() {
     let twice = MachineConfiguration.settingOperator(BoardObjectID(rawValue: "user-1"), inFileText: once)
     #expect(once == twice)
 }
+
+// MARK: - removingLegacyLinearClientID
+
+@Test("removingLegacyLinearClientID removes the line and preserves everything else")
+func removingLegacyLinearClientIDRemovesLine() throws {
+    let text = """
+        # machine-wide configuration
+        [linear]
+        client_id = "old-client-id"
+        credential = "keychain:linear" # do not touch
+
+        [github]
+        credential = "keychain:github"
+        """
+    let result = MachineConfiguration.removingLegacyLinearClientID(inFileText: text)
+    #expect(!result.contains("client_id"))
+    #expect(result.contains("# machine-wide configuration"))
+    #expect(result.contains(#"credential = "keychain:linear" # do not touch"#))
+    let parsed = try MachineConfiguration.parse(result, file: "config.toml")
+    #expect(parsed.linearCredential == CredentialReference("keychain:linear"))
+}
+
+@Test("removingLegacyLinearClientID is a no-op when the line is already gone")
+func removingLegacyLinearClientIDIsNoOpWhenAbsent() {
+    let text = """
+        [linear]
+        credential = "keychain:linear"
+        """
+    let result = MachineConfiguration.removingLegacyLinearClientID(inFileText: text)
+    #expect(result == text)
+}
