@@ -84,8 +84,10 @@ struct SetupInteractiveTests {
 
         await #expect(throws: SetupError.self) { try await setup.run() }
 
-        // Every port bound busy by `defaultLinearInstallSeams()`: setup offers retry/cancel exactly once.
-        #expect(console.prompts.count == 1)
+        // The admin question (roadmap P17.9) asks first and consumes "c" (not "r": local path); every
+        // port bound busy by `defaultLinearInstallSeams()` then offers retry/cancel exactly once, with
+        // no more scripted answers left, so it throws too.
+        #expect(console.prompts.count == 2)
     }
 
     @Test("EOF at the Operator prompt throws and writes no Project file")

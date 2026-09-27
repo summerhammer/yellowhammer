@@ -10,6 +10,11 @@ public enum LinearInstallEvent: Equatable, Sendable {
     case portsBusy(ports: [PortRow], text: String)
     case browserOpened(url: String)
     case awaitingApproval
+    /// The remote-approval Code Relay issued an approval link (roadmap P17.9; spec: board-projection/
+    /// authorize-linear-via-remote-approval) — `text` is the instruction line setup prints alongside it.
+    case approvalLinkIssued(url: String, expiresInSeconds: Int, text: String)
+    /// Setup is polling the Code Relay for the admin's decision.
+    case awaitingRemoteApproval
     case installed(workspaceName: String)
     /// The attempt did not end in an installation, for `reason`, with Linear's or setup's own text.
     case failed(reason: FailureReason, text: String)
@@ -34,12 +39,20 @@ public enum LinearInstallEvent: Equatable, Sendable {
         case differentWorkspace
         case portsBusy
         case other
+        /// The remote-approval session (or its link) timed out before the admin acted.
+        case expired
+        /// The admin declined the request (Linear's `error=access_denied` on the relay callback).
+        case rejected
+        /// The Code Relay could not be reached at all (network error or DNS resolution failure).
+        case relayUnreachable
+        /// The Code Relay refused the request as rate-limited.
+        case relayRateLimited
     }
 }
 
 extension LinearInstallEvent: Codable {
     private enum CodingKeys: String, CodingKey {
-        case event, text, ports, url, workspaceName, reason
+        case event, text, ports, url, workspaceName, reason, expiresIn
     }
 
     public init(from decoder: any Decoder) throws {
@@ -57,6 +70,14 @@ extension LinearInstallEvent: Codable {
             self = .browserOpened(url: try container.decode(String.self, forKey: .url))
         case "awaitingApproval":
             self = .awaitingApproval
+        case "approvalLinkIssued":
+            self = .approvalLinkIssued(
+                url: try container.decode(String.self, forKey: .url),
+                expiresInSeconds: try container.decode(Int.self, forKey: .expiresIn),
+                text: try container.decode(String.self, forKey: .text)
+            )
+        case "awaitingRemoteApproval":
+            self = .awaitingRemoteApproval
         case "installed":
             self = .installed(workspaceName: try container.decode(String.self, forKey: .workspaceName))
         case "failed":
@@ -86,6 +107,13 @@ extension LinearInstallEvent: Codable {
             try container.encode(url, forKey: .url)
         case .awaitingApproval:
             try container.encode("awaitingApproval", forKey: .event)
+        case .approvalLinkIssued(let url, let expiresInSeconds, let text):
+            try container.encode("approvalLinkIssued", forKey: .event)
+            try container.encode(url, forKey: .url)
+            try container.encode(expiresInSeconds, forKey: .expiresIn)
+            try container.encode(text, forKey: .text)
+        case .awaitingRemoteApproval:
+            try container.encode("awaitingRemoteApproval", forKey: .event)
         case .installed(let workspaceName):
             try container.encode("installed", forKey: .event)
             try container.encode(workspaceName, forKey: .workspaceName)

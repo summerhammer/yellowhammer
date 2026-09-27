@@ -148,4 +148,13 @@ struct SetupInvocationTests {
 
         #expect(arguments == ["setup", "--install-linear", "--events", "json"])
     }
+
+    @Test("installLinearArguments appends --remote when true") // glossary:ignore GL001
+    func installLinearArgumentsAppendsRemote() {
+        let arguments = SetupInvocation.installLinearArguments(linearCredential: "keychain:linear", remote: true)
+
+        #expect(arguments == [
+            "setup", "--install-linear", "--events", "json", "--linear-credential", "keychain:linear", "--remote"
+        ])
+    }
 }

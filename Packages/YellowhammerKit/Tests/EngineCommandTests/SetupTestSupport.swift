@@ -89,13 +89,15 @@ func makeArguments(
     exportJobs: String? = nil,
     cron: Bool = false,
     installLinear: Bool = false,
-    events: String? = nil
+    events: String? = nil,
+    remote: Bool = false
 ) -> [String] {
     var arguments: [String] = []
     if initialize { arguments.append("--init") }
     if installJobs { arguments.append("--install-jobs") }
     if cron { arguments.append("--cron") }
     if installLinear { arguments.append("--install-linear") }
+    if remote { arguments.append("--remote") }
     appendOption(&arguments, "--events", events)
     appendOption(&arguments, "--config", config)
     appendOption(&arguments, "--route", route)

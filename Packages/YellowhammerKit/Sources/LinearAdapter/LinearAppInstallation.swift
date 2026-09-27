@@ -26,6 +26,11 @@ public enum LinearAppInstallation {
         URL(string: "http://127.0.0.1:\(port)/callback")! // glossary:ignore GL001
     }
 
+    /// The redirect URI used by the remote-approval flow (roadmap P17.9; spec: board-projection/
+    /// authorize-linear-via-remote-approval, ADR-006): the Code Relay's own callback, not a loopback
+    /// port, since the admin approving in Linear may be on a different machine entirely.
+    public static let relayRedirectURI = URL(string: "https://app.yellowhammer.dev/callback")!
+
     // MARK: - PKCE
 
     /// A fresh PKCE code verifier: 43 characters, base64url (no padding) of 32 random bytes — within

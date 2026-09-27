@@ -1,19 +1,36 @@
 @testable import EngineCommand
+import Foundation
 import Testing
 
 // roadmap P17.6 slice (a) (spec: board-projection/install-the-linear-app "A non-admin Operator"): the
 // non-admin copy is quoted verbatim in the story — asserted in full so a `\`-continuation edit cannot
 // silently gain or lose a word or a space.
 
-@Suite("LinearInstallCopy (P17.6)")
+@Suite("LinearInstallCopy (P17.6/P17.9)")
 struct LinearInstallCopyTests {
-    @Test("The non-admin copy matches the story verbatim")
-    func nonAdminCopyIsVerbatim() {
+    @Test("The non-admin copy points at --remote (roadmap P17.9)")
+    func nonAdminCopyPointsAtRemote() {
         #expect(LinearInstallCopy.nonAdmin == """
-        Installing Yellowhammer in your Linear workspace needs a workspace admin. Ask an admin to sign in \
-        when the browser opens on this Mac, then approve the install. Afterwards Yellowhammer acts as its \
-        own app user; the admin's account is not used again.
+        Installing here needs a Linear workspace admin account. If you are not an admin, request approval \
+        from an admin instead: yh setup --install-linear --remote
         """)
+    }
+
+    @Test("beforeRemoteApproval names each team when given, and falls back when empty")
+    func beforeRemoteApprovalCopyNamesTeamsOrFallsBack() {
+        #expect(LinearInstallCopy.beforeRemoteApproval(teams: []).contains("choose the teams your Projects use"))
+        #expect(LinearInstallCopy.beforeRemoteApproval(teams: [engineeringTeam])
+            .contains("choose ENG (Engineering)"))
+    }
+
+    @Test("approvalLink names the URL and rounds the validity window down to whole minutes, minimum 1")
+    func approvalLinkCopyNamesURLAndMinutes() {
+        let url = URL(string: "https://app.yellowhammer.dev/install/abc123")!
+        #expect(LinearInstallCopy.approvalLink(url: url, expiresIn: .seconds(900))
+            .contains("valid for 15 minutes"))
+        #expect(LinearInstallCopy.approvalLink(url: url, expiresIn: .seconds(900)).contains(url.absoluteString))
+        #expect(LinearInstallCopy.approvalLink(url: url, expiresIn: .seconds(90)).contains("valid for 1 minutes"))
+        #expect(LinearInstallCopy.approvalLink(url: url, expiresIn: .seconds(30)).contains("valid for 1 minutes"))
     }
 
     @Test("The before-browser copy names each team when given, and falls back when empty")

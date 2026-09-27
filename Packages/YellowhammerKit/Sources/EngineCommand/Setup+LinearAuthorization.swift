@@ -51,16 +51,58 @@ extension Setup {
         try await runLinearInstall(machine: &machine)
     }
 
+    /// Decides which install path to take, then runs it to completion (roadmap P17.9): `--remote`
+    /// always takes the remote-approval path; otherwise, interactive human mode asks once whether the
+    /// Operator is a workspace admin, before anything else. Every other mode (including `--events json`)
+    /// keeps the local, loopback-browser path unchanged.
+    func runLinearInstall(machine: inout MachineConfiguration) async throws {
+        if options.remoteApproval {
+            try await runLinearRemoteInstall(machine: &machine)
+            return
+        }
+        if isInteractive {
+            let answer = console.ask(
+                "Are you a Linear workspace admin? [i]nstall here as the admin, "
+                    + "or [r]equest approval from an admin: "
+            )
+            let trimmed = (answer ?? "").trimmingCharacters(in: .whitespaces).lowercased()
+            if trimmed.hasPrefix("r") {
+                try await runLinearRemoteInstall(machine: &machine)
+                return
+            }
+        }
+        try await runLinearLocalInstall(machine: &machine)
+    }
+
+    /// `handleFailedAttempt`'s own answer: retry the same local attempt, or switch to the remote-approval
+    /// path (roadmap P17.9).
+    private enum LocalRetryDecision {
+        case retry
+        case switchToRemote
+    }
+
     /// Runs the browser install to completion: prints (or emits, under `--events json`) the admin
     /// statement, retries on `portsBusy`/`cancelled`/`notCompleted` when interactive, refuses a
     /// different workspace, and stores the pair under the `MachineLock` once accepted (P17.6 items 1–3).
-    func runLinearInstall(machine: inout MachineConfiguration) async throws {
+    func runLinearLocalInstall(machine: inout MachineConfiguration) async throws {
         let adminText = LinearInstallCopy.beforeBrowser(teams: await candidateTeams(machine: machine))
         report(.adminStatement(text: adminText), text: adminText)
 
+        let flow = linearInstallSeams.makeFlow(events: makeLocalFlowEvents())
+        while true {
+            let outcome = try await flow.run()
+            if try await handleLocalOutcome(outcome, machine: &machine) {
+                continue
+            }
+            return
+        }
+    }
+
+    /// `--events json`'s two local-flow events (`browserOpened`/`awaitingApproval`); a no-op otherwise.
+    private func makeLocalFlowEvents() -> @Sendable (LinearInstallFlow.Event) -> Void {
         let eventsJSON = options.eventsJSON
         let emit = linearInstallEvents
-        let flow = linearInstallSeams.makeFlow(events: { event in
+        return { event in
             switch event {
             case .browserOpening(let url):
                 if eventsJSON { emit(.browserOpened(url: url.absoluteString)) }
@@ -69,22 +111,50 @@ extension Setup {
             case .portBound:
                 break
             }
-        })
-
-        while true {
-            switch try await flow.run() {
-            case .portsBusy(let busy):
-                try await handlePortsBusy(busy)
-            case .cancelled:
-                try await handleFailedAttempt(reason: .cancelled, text: LinearInstallCopy.nonAdmin)
-            case .notCompleted(let linearError):
-                let text = "\(LinearInstallCopy.nonAdmin) Linear said: \(linearError)"
-                try await handleFailedAttempt(reason: .notCompleted, text: text)
-            case .installed(let tokens, let identity):
-                try await storeInstalled(tokens: tokens, identity: identity, machine: &machine)
-                return
-            }
         }
+    }
+
+    /// `true` to retry the local attempt from the top (`portsBusy`, or `handleFailedAttempt`'s own
+    /// retry); `false` once installed, or once the remote-approval path ran to completion.
+    private func handleLocalOutcome(
+        _ outcome: LinearInstallFlow.Outcome, machine: inout MachineConfiguration
+    ) async throws -> Bool {
+        switch outcome {
+        case .portsBusy(let busy):
+            try await handlePortsBusy(busy)
+            return true
+        case .cancelled:
+            return try await handleFailedAttempt(
+                reason: .cancelled, text: LinearInstallCopy.nonAdmin, machine: &machine
+            )
+        case .notCompleted(let linearError):
+            let text = "\(LinearInstallCopy.nonAdmin) Linear said: \(linearError)"
+            return try await handleFailedAttempt(reason: .notCompleted, text: text, machine: &machine)
+        case .installed(let tokens, let identity):
+            try await storeInstalled(tokens: tokens, identity: identity, machine: &machine)
+            return false
+        }
+    }
+
+    /// Shared by every non-installed remote outcome: `--events json` emits `.failed` and always throws;
+    /// interactive human mode prints `text` and asks `prompt`, resolving the answer through `decide`
+    /// (`nil` — including EOF or non-interactive — throws, ending the loop). Used by
+    /// `Setup+LinearRemoteAuthorization` too.
+    func handleRemoteFailedAttempt<Decision>(
+        reason: LinearInstallEvent.FailureReason, text: String, prompt: String,
+        decide: (String) -> Decision?
+    ) async throws -> Decision {
+        if options.eventsJSON {
+            linearInstallEvents(.failed(reason: reason, text: text))
+            throw SetupError(text)
+        }
+        output(text)
+        guard isInteractive, let line = console.ask(prompt),
+              let decision = decide(line.trimmingCharacters(in: .whitespaces).lowercased())
+        else {
+            throw SetupError(text)
+        }
+        return decision
     }
 
     /// `true` to retry the same attempt from the top (a fresh port bind, a fresh browser tab); `false`/
@@ -108,25 +178,28 @@ extension Setup {
     }
 
     /// Shared by `.cancelled` and `.notCompleted`: prints/emits the non-admin copy (plus Linear's own
-    /// text for `.notCompleted`), then offers to try again when interactive.
-    private func handleFailedAttempt(reason: LinearInstallEvent.FailureReason, text: String) async throws {
-        if options.eventsJSON {
-            linearInstallEvents(.failed(reason: reason, text: text))
-            throw SetupError(text)
+    /// text for `.notCompleted`), then offers to try again or switch to the remote-approval path
+    /// (roadmap P17.9) when interactive. `true` to retry the same local attempt; `false` once the
+    /// remote-approval path has already run to completion.
+    private func handleFailedAttempt(
+        reason: LinearInstallEvent.FailureReason, text: String, machine: inout MachineConfiguration
+    ) async throws -> Bool {
+        let decision = try await handleRemoteFailedAttempt(
+            reason: reason, text: text, prompt: "[t]ry again, [r]equest approval from an admin, or [c]ancel? "
+        ) { answer -> LocalRetryDecision? in
+            if answer.hasPrefix("r") { return .switchToRemote }
+            return answer.hasPrefix("t") ? .retry : nil
         }
-        output(text)
-        guard isInteractive, let line = console.ask("Try again? [y/n]: "),
-              ["y", "yes"].contains(line.trimmingCharacters(in: .whitespaces).lowercased())
-        else {
-            throw SetupError(text)
-        }
+        guard case .switchToRemote = decision else { return true }
+        try await runLinearRemoteInstall(machine: &machine)
+        return false
     }
 
     /// A different workspace is refused outright (decided with the user): nothing is stored, and the
     /// fix is to remove every configured Project first. Otherwise stores the pair under the
     /// `MachineLock` (so a concurrent Act never reads a half-written pair), writes `workspace`/`app_user`,
     /// and reports the workspace name.
-    private func storeInstalled(
+    func storeInstalled(
         tokens: LinearInstallFlow.InstalledTokens, identity: LinearInstallFlow.InstalledIdentity,
         machine: inout MachineConfiguration
     ) async throws {
@@ -189,7 +262,7 @@ extension Setup {
     /// installation still authorizes (the re-install case) — every configured Project's own Linear
     /// project's teams. Every board call here is best effort: a failure names no team rather than
     /// failing the install.
-    private func candidateTeams(machine: MachineConfiguration) async -> [BoardTeam] {
+    func candidateTeams(machine: MachineConfiguration) async -> [BoardTeam] {
         var teams: [BoardTeam] = []
         var seen: Set<BoardObjectID> = []
 
@@ -234,8 +307,9 @@ extension Setup {
         return teams
     }
 
-    /// `--events json` reports only the structured event; every other mode prints `text`.
-    private func report(_ event: LinearInstallEvent, text: String) {
+    /// `--events json` reports only the structured event; every other mode prints `text`. Used by
+    /// `Setup+LinearRemoteAuthorization` too.
+    func report(_ event: LinearInstallEvent, text: String) {
         if options.eventsJSON {
             linearInstallEvents(event)
         } else {

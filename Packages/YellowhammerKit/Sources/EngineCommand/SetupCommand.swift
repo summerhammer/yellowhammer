@@ -96,6 +96,15 @@ public struct SetupCommand: AsyncParsableCommand {
     )
     public var events: String?
 
+    @Flag(
+        name: .customLong("remote"),
+        help: """
+        With --install-linear: request approval from a Linear workspace admin through an approval \
+        link, instead of signing in on this Mac.
+        """
+    )
+    public var remote: Bool = false
+
     public init() {}
 
     public func validate() throws {
