@@ -54,9 +54,14 @@ final class SetupWizardUITests: XCTestCase {
 
     /// `portsBusyFirst`: the stub's first `--install-linear` attempt reports every port busy; the
     /// second (a Retry) installs, matching OQ94's "setup stops before the browser" then a fresh attempt.
-    private func launchApp(portsBusyFirst: Bool = false) {
+    /// `relayUnreachable`: a `--remote` attempt fails with `relayUnreachable` instead of issuing a link
+    /// (roadmap P17.9).
+    private func launchApp(portsBusyFirst: Bool = false, relayUnreachable: Bool = false) {
         if portsBusyFirst {
             app.launchEnvironment["YH_STUB_PORTS_BUSY_FIRST"] = "1"
+        }
+        if relayUnreachable {
+            app.launchEnvironment["YH_STUB_RELAY_UNREACHABLE"] = "1"
         }
         app.launch()
     }
@@ -179,6 +184,56 @@ final class SetupWizardUITests: XCTestCase {
         XCTAssertTrue(installed.waitForExistence(timeout: 10))
     }
 
+    /// P17.9: requesting remote approval shows the admin statement, then the approval link and a
+    /// waiting indicator, then installs once the stub reports `installed`.
+    func testLinearRemoteApprovalShowsLinkThenInstalls() throws {
+        launchApp()
+        openSetupWindow()
+        let setup = app.windows["Setup"]
+        XCTAssertTrue(setup.waitForExistence(timeout: 10))
+
+        let requestButton = setup.buttons["setup-linear-request-remote"]
+        XCTAssertTrue(requestButton.waitForExistence(timeout: 10))
+        requestButton.click()
+
+        let link = setup.staticTexts["setup-linear-approval-link"]
+        XCTAssertTrue(link.waitForExistence(timeout: 10))
+        let linkText = link.value as? String ?? link.label
+        XCTAssertTrue(linkText.contains("https://app.yellowhammer.dev/install/test-session"))
+        // A `ProgressView`, not a static text: matched by identifier across element types.
+        XCTAssertTrue(
+            setup.descendants(matching: .any)["setup-linear-awaiting-remote"].waitForExistence(timeout: 10)
+        )
+
+        let installed = setup.staticTexts["setup-linear-installed"]
+        XCTAssertTrue(installed.waitForExistence(timeout: 10))
+        XCTAssertTrue((installed.value as? String ?? installed.label).contains("scratch"))
+        XCTAssertTrue(setup.buttons["setup-continue"].isEnabled)
+    }
+
+    /// P17.9: a relay the Mac cannot reach offers both a retry and a local sign-in; the local sign-in
+    /// installs.
+    func testLinearRelayUnreachableOffersRetryAndLocalSignIn() throws {
+        launchApp(relayUnreachable: true)
+        openSetupWindow()
+        let setup = app.windows["Setup"]
+        XCTAssertTrue(setup.waitForExistence(timeout: 10))
+
+        let requestButton = setup.buttons["setup-linear-request-remote"]
+        XCTAssertTrue(requestButton.waitForExistence(timeout: 10))
+        requestButton.click()
+
+        let retryButton = setup.buttons["setup-linear-retry"]
+        let installButton = setup.buttons["setup-linear-install"]
+        XCTAssertTrue(retryButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(installButton.exists)
+
+        installButton.click()
+
+        let installed = setup.staticTexts["setup-linear-installed"]
+        XCTAssertTrue(installed.waitForExistence(timeout: 10))
+    }
+
     /// Opens the Setup window and drives it through the Linear step and the Operator identity step,
     /// picking the stub's one candidate. Shared by both tests.
     private func enterLinearAndPickOperator() throws -> XCUIElement {
@@ -239,77 +294,4 @@ final class SetupWizardUITests: XCTestCase {
         field.click()
         field.typeText(text)
     }
-
-    /// A `sh` script, read (never exec'd) by `/bin/sh`. `--print-choices` answers with a canned
-    /// ``SetupChoices`` JSON line and nothing else, so the wizard's "last non-empty line" decode still
-    /// works. `--init` first drains the stdin secret line, then echoes every argument as `argv: <arg>`
-    /// and prints "Setup complete." The stub writes no file.
-    private static func writeStub(in directory: URL) throws -> URL {
-        let script = "#!/bin/sh\nshift\ncase \"$1\" in\n"
-            + printChoicesCase + initCase + checkCase + installLinearCase
-            + "  *)\n    exit 1\n    ;;\nesac\n"
-        let stubURL = directory.appending(component: "yh.sh", directoryHint: .notDirectory)
-        try script.write(to: stubURL, atomically: true, encoding: .utf8)
-        return stubURL
-    }
-
-    private static let printChoicesCase = """
-          --print-choices)
-            echo '{"operatorCandidates":[{"id":"user-op","name":"operator","displayName":"Operator Person"}],\
-        "configuredOperator":null,"teams":[{"id":"team-1","key":"ENG","name":"Engineering"}],\
-        "cliAdapters":["claude","codex"]}'
-            exit 0
-            ;;
-
-        """
-
-    private static let initCase = """
-          --init)
-            read -r _
-            for arg in "$@"; do
-              echo "argv: $arg"
-            done
-            echo "Setup complete."
-            exit 0
-            ;;
-
-        """
-
-    /// `yh doctor --check linear --json`: "installed" once the install marker exists, else "not
-    /// installed" — the app's Linear step polls this on appearing.
-    private static let checkCase = """
-          --check)
-            if [ -f "$YH_STUB_INSTALLED_MARKER" ]; then
-              echo '[{"check":"linear","subject":"authorization","severity":"pass","message":"ok"}]'
-            else
-              echo '[{"check":"linear","subject":"installation","severity":"failure","message":"no pair"}]'
-            fi
-            exit 0
-            ;;
-
-        """
-
-    /// `yh setup --install-linear --events json`: the first attempt reports every port busy when
-    /// `YH_STUB_PORTS_BUSY_FIRST` is set (a Retry test); every later attempt installs.
-    private static let installLinearCase = """
-          --install-linear)
-            count_file="$YH_STUB_ATTEMPTS_MARKER"
-            count=0
-            [ -f "$count_file" ] && count=$(cat "$count_file")
-            count=$((count + 1))
-            echo "$count" > "$count_file"
-            echo '{"event":"adminStatement","text":"An admin must approve."}'
-            if [ "$count" -eq 1 ] && [ -n "$YH_STUB_PORTS_BUSY_FIRST" ]; then
-              echo '{"event":"portsBusy","ports":[{"port":44837,"pid":123,"command":"Fugu"}],"text":"all busy"}'
-              echo '{"event":"failed","reason":"portsBusy","text":"all busy"}'
-              exit 1
-            fi
-            echo '{"event":"browserOpened","url":"https://linear.app/oauth/authorize"}'
-            echo '{"event":"awaitingApproval"}'
-            echo '{"event":"installed","workspaceName":"Acme"}'
-            touch "$YH_STUB_INSTALLED_MARKER"
-            exit 0
-            ;;
-
-        """
 }

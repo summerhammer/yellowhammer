@@ -60,6 +60,9 @@ final class SetupWizardModel {
     var choices: SetupChoices?
     var linearInstallPhase: LinearInstallPhase = .checking
     var linearInstallTask: Task<Void, Never>?
+    /// Whether the running (or most recently ended) Linear install attempt used `--remote` (roadmap
+    /// P17.9) — so a same-path retry (`startLinearInstall()`, no argument) repeats it.
+    var lastLinearInstallWasRemote = false
 
     // Step: Operator identity
     var selectedOperatorID: String?
