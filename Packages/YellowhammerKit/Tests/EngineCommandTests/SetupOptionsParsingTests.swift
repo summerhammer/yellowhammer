@@ -144,6 +144,21 @@ struct SetupOptionsParsingTests {
         #expect(throws: (any Error).self) { try SetupCommand.parse(arguments) }
     }
 
+    @Test("--remote alone is refused")
+    func remoteAloneRefused() {
+        let arguments = makeArguments(initialize: false, remote: true)
+        #expect(throws: (any Error).self) { try SetupCommand.parse(arguments) }
+    }
+
+    @Test("--install-linear --remote gives remoteApproval == true") // glossary:ignore GL001
+    func installLinearRemoteParses() throws {
+        let arguments = makeArguments(initialize: false, installLinear: true, remote: true)
+        let command = try SetupCommand.parse(arguments)
+        let options = try SetupOptions(command: command)
+        #expect(options.mode == .installLinear)
+        #expect(options.remoteApproval)
+    }
+
     @Test("--print-choices cannot be combined with --install-linear")
     func printChoicesCannotCombineWithInstallLinear() {
         let arguments = ["--print-choices", "--install-linear"] // glossary:ignore GL001

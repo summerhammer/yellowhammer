@@ -172,9 +172,11 @@ public struct LinearInstallFlow: Sendable {
     }
 }
 
-/// Adapts a plain `TransportSend` closure to `LinearAdapter`'s `HTTPTransport` protocol — the one place
-/// this file names that adapter type, since `LinearAppInstallation.exchange`/`.confirm` require it.
-private struct ClosureHTTPTransport: HTTPTransport {
+/// Adapts a plain `TransportSend` closure to `LinearAdapter`'s `HTTPTransport` protocol — one of the two
+/// places in `EngineCommand` that name that adapter type (the other is `LinearRemoteInstallFlow`), since
+/// `LinearAppInstallation.exchange`/`.confirm` require it. Internal, not private: shared rather than
+/// duplicated.
+struct ClosureHTTPTransport: HTTPTransport {
     let sendClosure: LinearInstallFlow.TransportSend
 
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
@@ -219,23 +221,45 @@ public struct LinearInstallSeams: Sendable {
     public let holderLookup: any PortHolderLookup
     public let opener: @Sendable (URL) async throws -> Void
     public let transport: LinearInstallFlow.TransportSend
+    /// The Code Relay's base URL for `makeRemoteFlow` (roadmap P17.9) — a stored seam, not a hardcoded
+    /// constant, so tests can point it at a stub host; defaults to the relay's production host.
+    public let relayBaseURL: URL
+    /// `LinearRemoteInstallFlow`'s own `sleep` seam (roadmap P17.9) — a stored seam so tests never really
+    /// wait out a poll interval; defaults to `Task.sleep`.
+    public let remoteSleep: @Sendable (Duration) async throws -> Void
 
     public init(
         portBinder: @escaping @Sendable (Int) throws -> any CallbackListening,
         holderLookup: any PortHolderLookup,
         opener: @escaping @Sendable (URL) async throws -> Void,
-        transport: @escaping LinearInstallFlow.TransportSend
+        transport: @escaping LinearInstallFlow.TransportSend,
+        relayBaseURL: URL = CodeRelayClient.productionBaseURL,
+        remoteSleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.portBinder = portBinder
         self.holderLookup = holderLookup
         self.opener = opener
         self.transport = transport
+        self.relayBaseURL = relayBaseURL
+        self.remoteSleep = remoteSleep
     }
 
     public func makeFlow(events: @escaping @Sendable (LinearInstallFlow.Event) -> Void) -> LinearInstallFlow {
         LinearInstallFlow(
             portBinder: portBinder, holderLookup: holderLookup, opener: opener, transport: transport,
             events: events
+        )
+    }
+
+    /// The remote-approval flow (roadmap P17.9), built over the same transport as `makeFlow` — the Code
+    /// Relay and Linear itself are both reached through it, just as the loopback flow's opener and
+    /// transport share one seam bundle.
+    public func makeRemoteFlow(
+        events: @escaping @Sendable (LinearRemoteInstallFlow.Event) -> Void
+    ) -> LinearRemoteInstallFlow {
+        LinearRemoteInstallFlow(
+            relay: CodeRelayClient(baseURL: relayBaseURL, transport: transport), transport: transport,
+            sleep: remoteSleep, events: events
         )
     }
 
@@ -254,26 +278,51 @@ public struct LinearInstallSeams: Sendable {
 /// The copy this flow's outcomes are rendered into (verbatim from the story), gathered in one place so
 /// setup and the app's own event handling (later) use the same text.
 public enum LinearInstallCopy {
+    /// Shared by `beforeBrowser` and `beforeRemoteApproval`: "choose <teams>", or a generic fallback
+    /// when `teams` names none.
+    private static func teamsClause(_ teams: [BoardTeam]) -> String {
+        teams.isEmpty
+            ? "choose the teams your Projects use"
+            : "choose \(teams.map { "\($0.key) (\($0.name))" }.joined(separator: ", "))"
+    }
+
     /// Shown before the browser opens (spec: "The install"). `teams` is the Operator's Projects' Linear
     /// teams (by key and name); an empty list falls back to a generic sentence rather than naming none.
     public static func beforeBrowser(teams: [BoardTeam]) -> String {
-        let teamsClause = teams.isEmpty
-            ? "choose the teams your Projects use"
-            : "choose \(teams.map { "\($0.key) (\($0.name))" }.joined(separator: ", "))"
-        return """
+        """
         Installing Yellowhammer needs a Linear workspace admin to approve it in the browser.
 
-        On the install screen, recommended: "Only select teams…" — \(teamsClause). The preselected \
+        On the install screen, recommended: "Only select teams…" — \(teamsClause(teams)). The preselected \
         "All public teams" also works, but then Yellowhammer must be added as a member of each team \
         (that team's Settings → Members) before setup can build the board.
         """
     }
 
-    /// Spec: "A non-admin Operator", verbatim.
+    /// Shown before the remote-approval link is issued (roadmap P17.9; spec: board-projection/
+    /// authorize-linear-via-remote-approval, ADR-006). Same team-choice guidance as `beforeBrowser`,
+    /// since the admin still installs through Linear's own install screen — only reached remotely.
+    public static func beforeRemoteApproval(teams: [BoardTeam]) -> String {
+        """
+        Yellowhammer needs a Linear workspace admin to approve its installation. Setup will give you a \
+        link to send to an admin; they approve in their own browser, and nothing is signed in on this Mac.
+
+        Ask them to choose "Only select teams…" — \(teamsClause(teams)). The preselected "All public \
+        teams" also works, but then Yellowhammer must be added as a member of each team (that team's \
+        Settings → Members) before setup can build the board.
+        """
+    }
+
+    /// The link to send to an admin, with its validity window in whole minutes (rounded down, minimum 1).
+    public static func approvalLink(url: URL, expiresIn: Duration) -> String {
+        let minutes = max(1, Int(expiresIn.components.seconds / 60))
+        return "Send this link to a Linear workspace admin. It is valid for \(minutes) minutes:\n\(url.absoluteString)"
+    }
+
+    /// Installing locally needs a Linear workspace admin. Points a non-admin Operator at the remote-
+    /// approval path (roadmap P17.9) instead of asking them to find one to sit at this Mac.
     public static let nonAdmin = """
-    Installing Yellowhammer in your Linear workspace needs a workspace admin. Ask an admin to sign in \
-    when the browser opens on this Mac, then approve the install. Afterwards Yellowhammer acts as its \
-    own app user; the admin's account is not used again.
+    Installing here needs a Linear workspace admin account. If you are not an admin, request approval \
+    from an admin instead: yh setup --install-linear --remote
     """
 
     /// Spec: "The install", the ports-busy case (OQ94). Names each busy port and its holder.

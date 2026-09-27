@@ -36,6 +36,11 @@ struct LinearAppInstallationTests {
         }
     }
 
+    @Test("The relay redirect URI is the Code Relay's callback, not a loopback port")
+    func relayRedirectURIIsTheRelayCallback() {
+        #expect(LinearAppInstallation.relayRedirectURI.absoluteString == "https://app.yellowhammer.dev/callback")
+    }
+
     @Test("A fresh verifier is 43–128 base64url characters")
     func verifierShape() {
         for _ in 0..<20 {

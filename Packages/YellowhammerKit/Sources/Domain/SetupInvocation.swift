@@ -132,9 +132,10 @@ public struct SetupInvocation: Equatable, Sendable {
     /// `["setup", "--install-linear", "--events", "json", ...]`: the app's re-run of just the Linear
     /// step (P17.6 slice (b)) — used both for the first install and for the app's own Retry/Cancel on a
     /// `portsBusy`/`cancelled`/`notCompleted` event, which re-runs this exact invocation.
-    public static func installLinearArguments(linearCredential: String? = nil) -> [String] {
+    public static func installLinearArguments(linearCredential: String? = nil, remote: Bool = false) -> [String] {
         var arguments = ["setup", "--install-linear", "--events", "json"] // glossary:ignore GL001
         appendOption(&arguments, "--linear-credential", linearCredential)
+        if remote { arguments.append("--remote") }
         return arguments
     }
 

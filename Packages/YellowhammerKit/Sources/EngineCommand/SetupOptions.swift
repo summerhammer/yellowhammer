@@ -47,6 +47,9 @@ struct SetupOptions {
     /// `--events json`: emits `LinearInstallEvent` NDJSON on stdout instead of prompting or printing
     /// human text for the Linear step. Only meaningful with `--install-linear`; implies non-interactive.
     let eventsJSON: Bool
+    /// `--remote` (roadmap P17.9): requests admin approval through the Code Relay instead of signing in
+    /// on this Mac. Only meaningful with `--install-linear`.
+    let remoteApproval: Bool
     let linearCredential: CredentialReference?
     let githubCredential: CredentialReference?
     /// In `--cli` order.
@@ -66,6 +69,7 @@ struct SetupOptions {
     init(command: SetupCommand) throws {
         mode = try Self.parseMode(command)
         eventsJSON = try Self.parseEventsJSON(command)
+        remoteApproval = try Self.parseRemoteApproval(command)
         linearCredential = try Self.parseCredential(command.linearCredential, option: "--linear-credential")
         githubCredential = try Self.parseCredential(command.githubCredential, option: "--github-credential")
         operatorID = command.operatorID.map { BoardObjectID(rawValue: $0) }
@@ -179,6 +183,15 @@ struct SetupOptions {
         }
         guard command.installLinear else {
             throw ValidationError("--events requires --install-linear")
+        }
+        return true
+    }
+
+    /// `--remote` is only meaningful with `--install-linear` (roadmap P17.9).
+    private static func parseRemoteApproval(_ command: SetupCommand) throws -> Bool {
+        guard command.remote else { return false }
+        guard command.installLinear else {
+            throw ValidationError("--remote requires --install-linear")
         }
         return true
     }

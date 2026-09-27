@@ -5,8 +5,10 @@ import Foundation
 import Synchronization
 import Testing
 
-/// Records every URL a happy-path attempt's opener was asked to open.
-private final class URLRecorder: Sendable {
+/// Records every URL a happy-path attempt's opener was asked to open. Shared with
+/// `SetupLinearRemoteInstallTests` (not `private`), which switches from the remote path to a working
+/// local loopback in one of its own tests.
+final class URLRecorder: Sendable {
     private let storage = Mutex<[URL]>([])
     func record(_ url: URL) { storage.withLock { $0.append(url) } }
     var urls: [URL] { storage.withLock { $0 } }
@@ -16,8 +18,9 @@ private final class URLRecorder: Sendable {
 // decision, outcome handling and NDJSON emission, with every `LinearInstallFlow` seam stubbed — no real
 // socket, browser or network call.
 
-/// A `CallbackListening` stub answering a scripted callback with no real socket.
-private final class InstallListener: CallbackListening, Sendable {
+/// A `CallbackListening` stub answering a scripted callback with no real socket. Shared with
+/// `SetupLinearRemoteInstallTests` (not `private`) for the same reason as `URLRecorder`.
+final class InstallListener: CallbackListening, Sendable {
     let port: Int
     let redirectURI: URL
     private let callback: @Sendable () -> LoopbackCallbackServer.CallbackResult
