@@ -32,17 +32,22 @@ Subcommands:
     mutation and deletes nothing.
     Exit codes: 0 success, 1 a write failed, 2 a setup or guard error (nothing was changed).
 
-Credentials: the client id comes from --client-id, else $YH_LINEAR_CLIENT_ID, else
-`[linear] client_id` in the machine's `config.toml`. The client secret is read only from the
-Keychain, through the `credential` reference in `config.toml` (`keychain:<account>`, default
-`keychain:linear`) — never from argv or the environment, and never printed anywhere, including
-error messages.
+Credentials (P17.8: the App Installation replaces the withdrawn `client_credentials` identity):
+this tool never calls the Linear token endpoint and never writes the Keychain. It reads the
+Installation's token pair from the Keychain item `security find-generic-password -s
+dev.yellowhammer -a <account> -w` (the account from the `credential` reference in `config.toml`
+— `keychain:<account>`, default `keychain:linear`), and uses its `access_token` when more than
+two hours remain before `expires_at`. Otherwise it runs `yh doctor --check linear --json`, which
+refreshes the pair under the machine-wide lock, then re-reads the Keychain item once. Still stale
+or missing after that: "no working Linear installation on this Mac; run yh setup --install-linear".
+The token is never printed anywhere, including error messages.
 """
 
 import argparse
 import json
 import os
 import re
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -51,11 +56,13 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-TOKEN_URL = "https://api.linear.app/oauth/token"
 GRAPHQL_URL = "https://api.linear.app/graphql"
+#: `yh` refreshes ahead of an Act's first Linear call when less than this remains (spec: "Keeping
+#: it alive"); this tool refreshes on the same margin rather than risking a 401 mid-run.
+TOKEN_STALE_MARGIN = timedelta(hours=2)
 DEFAULT_CONFIGURATION_DIRECTORY = Path.home() / ".config" / "yellowhammer"
 PROJECT_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 MAX_ARCHIVE_PASSES = 5
@@ -108,7 +115,9 @@ class HTTPTransport:
 
 
 def keychain_secret(account):
-    """Reads a secret from the login keychain item `service = dev.yellowhammer`, `account`."""
+    """Reads a secret from the login keychain item `service = dev.yellowhammer`, `account` — a
+    plain string secret (e.g. the rehearsal Operator's own credential), not the Installation's
+    token pair; see `keychain_token_pair` for that."""
     result = subprocess.run(
         ["security", "find-generic-password", "-s", "dev.yellowhammer", "-a", account, "-w"],
         capture_output=True, text=True,
@@ -118,46 +127,89 @@ def keychain_secret(account):
     return result.stdout.strip()
 
 
+def keychain_token_pair(account):
+    """Reads and parses the Installation's token pair JSON (`access_token`, `refresh_token`,
+    `expires_at`) from the Keychain item `account`. `None` when absent or unparseable — never
+    raises, so callers can fall through to a refresh."""
+    result = subprocess.run(
+        ["security", "find-generic-password", "-s", "dev.yellowhammer", "-a", account, "-w"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        return None
+    try:
+        return json.loads(result.stdout.strip())
+    except json.JSONDecodeError:
+        return None
+
+
+def _fresh_access_token(pair, now):
+    """The pair's `access_token`, or `None` when the pair is absent, malformed, or fewer than
+    `TOKEN_STALE_MARGIN` remain before `expires_at`."""
+    if not pair:
+        return None
+    token = pair.get("access_token")
+    expires_at = pair.get("expires_at")
+    if not token or not expires_at:
+        return None
+    try:
+        expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if expiry - now <= TOKEN_STALE_MARGIN:
+        return None
+    return token
+
+
+def resolve_yh_path(args):
+    """`--yh`, else `$YH_PATH`, else whatever `yh` resolves to on `PATH` — the same fallback
+    order `suite_env.py` uses via its own `env.yh_executable`."""
+    if getattr(args, "yh", None):
+        return Path(args.yh)
+    env = os.environ.get("YH_PATH")
+    if env:
+        return Path(env)
+    which = shutil.which("yh")
+    if which:
+        return Path(which)
+    raise SetupFailed("no yh executable found: pass --yh, set YH_PATH, or put yh on PATH")
+
+
+def resolve_access_token(configuration_directory, machine, yh_path_getter, *,
+                          keychain_reader=keychain_token_pair, now=None):
+    """The Installation's access token: read from the Keychain, refreshed once (through `yh doctor
+    --check linear --json`, under the machine-wide lock) when fewer than two hours remain.
+    `yh_path_getter` is a zero-argument callable, so resolving `yh`'s path never happens unless a
+    refresh is actually needed."""
+    now = now or datetime.now(timezone.utc)
+    account = parse_credential_reference(machine.credential)
+    token = _fresh_access_token(keychain_reader(account), now)
+    if token:
+        return token
+    yh_path = yh_path_getter()
+    subprocess.run([str(yh_path), "doctor", "--check", "linear", "--json"], capture_output=True, text=True)
+    token = _fresh_access_token(keychain_reader(account), now)
+    if not token:
+        raise SetupFailed("no working Linear installation on this Mac; run yh setup --install-linear")
+    return token
+
+
 # MARK: - Linear client
 
 
 class LinearClient:
-    """Obtains a `client_credentials` token on first use and sends GraphQL requests with it."""
+    """Sends GraphQL requests with an already-resolved Installation access token. No OAuth flow of
+    its own: the token comes from `resolve_access_token`, which reads it from the Keychain."""
 
-    def __init__(self, transport, client_id, secret, *, token_url=TOKEN_URL, graphql_url=GRAPHQL_URL):
+    def __init__(self, transport, access_token, *, graphql_url=GRAPHQL_URL):
         self._transport = transport
-        self._client_id = client_id
-        self._secret = secret
-        self._token_url = token_url
+        self._access_token = access_token
         self._graphql_url = graphql_url
-        self._token = None
-
-    def _ensure_token(self):
-        if self._token is not None:
-            return self._token
-        status, text = self._transport.post_form(self._token_url, {
-            "client_id": self._client_id,
-            "client_secret": self._secret,
-            "grant_type": "client_credentials",
-            "scope": "read,write",
-        })
-        if status != 200:
-            raise SetupFailed(f"could not obtain a Linear access token (HTTP {status})")
-        try:
-            payload = json.loads(text)
-        except json.JSONDecodeError as error:
-            raise SetupFailed("could not parse the Linear token response") from error
-        token = payload.get("access_token")
-        if not token:
-            raise SetupFailed("the Linear token response had no access_token")
-        self._token = token
-        return token
 
     def graphql(self, query, variables=None):
-        token = self._ensure_token()
         status, text = self._transport.post_json(
             self._graphql_url, {"query": query, "variables": variables or {}},
-            headers={"Authorization": f"Bearer {token}"},
+            headers={"Authorization": f"Bearer {self._access_token}"},
         )
         try:
             payload = json.loads(text)
@@ -219,33 +271,22 @@ def archive_issue(client, issue_id):
 
 @dataclass(frozen=True)
 class MachineConfig:
-    client_id: str | None
     credential: str
+    workspace: str | None = None
+    app_user: str | None = None
 
 
 def load_machine_config(configuration_directory):
     path = configuration_directory / "config.toml"
     if not path.is_file():
-        return MachineConfig(client_id=None, credential="keychain:linear")
+        return MachineConfig(credential="keychain:linear")
     with path.open("rb") as handle:
         data = tomllib.load(handle)
     linear = data.get("linear", {})
     return MachineConfig(
-        client_id=linear.get("client_id"), credential=linear.get("credential", "keychain:linear")
-    )
-
-
-def resolve_client_id(args, machine):
-    if args.client_id:
-        return args.client_id
-    env = os.environ.get("YH_LINEAR_CLIENT_ID")
-    if env:
-        return env
-    if machine.client_id:
-        return machine.client_id
-    raise SetupFailed(
-        "no Linear client id: pass --client-id, set YH_LINEAR_CLIENT_ID, "
-        "or set [linear] client_id in config.toml"
+        credential=linear.get("credential", "keychain:linear"),
+        workspace=linear.get("workspace"),
+        app_user=linear.get("app_user"),
     )
 
 
@@ -256,12 +297,12 @@ def parse_credential_reference(raw):
     return raw[len(prefix):]
 
 
-def build_client(configuration_directory, args, transport, secret_reader):
+def build_client(configuration_directory, args, transport, *, keychain_reader=keychain_token_pair):
     machine = load_machine_config(configuration_directory)
-    client_id = resolve_client_id(args, machine)
-    account = parse_credential_reference(machine.credential)
-    secret = secret_reader(account)
-    return LinearClient(transport, client_id, secret)
+    token = resolve_access_token(
+        configuration_directory, machine, lambda: resolve_yh_path(args), keychain_reader=keychain_reader
+    )
+    return LinearClient(transport, token)
 
 
 def project_file_path(configuration_directory, project_id):
@@ -363,8 +404,8 @@ def report(ok, message):
     return f"{'PASS' if ok else 'FAIL'} {message}"
 
 
-def check_command(args, configuration_directory, transport, secret_reader):
-    client = build_client(configuration_directory, args, transport, secret_reader)
+def check_command(args, configuration_directory, transport, keychain_reader=keychain_token_pair):
+    client = build_client(configuration_directory, args, transport, keychain_reader=keychain_reader)
     overall_ok = True
 
     team = None
@@ -460,8 +501,8 @@ def handle_journal(configuration_directory, project_id, keep):
     return "removed"
 
 
-def reset_command(args, configuration_directory, transport, secret_reader):
-    client = build_client(configuration_directory, args, transport, secret_reader)
+def reset_command(args, configuration_directory, transport, keychain_reader=keychain_token_pair):
+    client = build_client(configuration_directory, args, transport, keychain_reader=keychain_reader)
     team = find_team(client, args.team)
     if team is None:
         raise SetupFailed(f"no Linear team with key {args.team!r}")
@@ -520,8 +561,8 @@ def parse_arguments(argv):
         help="default ~/.config/yellowhammer",
     )
     parser.add_argument(
-        "--client-id", help="the registered Linear OAuth application's client id "
-        "(else $YH_LINEAR_CLIENT_ID, else config.toml [linear] client_id)",
+        "--yh", help="the yh executable, for a refresh (`doctor --check linear --json`) "
+        "when the Keychain's access token is stale (else $YH_PATH, else PATH)",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -556,8 +597,8 @@ def main(argv=None):
     transport = HTTPTransport()
     try:
         if args.command == "check":
-            return check_command(args, configuration_directory, transport, keychain_secret)
-        return reset_command(args, configuration_directory, transport, keychain_secret)
+            return check_command(args, configuration_directory, transport)
+        return reset_command(args, configuration_directory, transport)
     except SetupFailed as error:
         print(f"scratch-linear: cannot run: {error}", file=sys.stderr)
         return 2

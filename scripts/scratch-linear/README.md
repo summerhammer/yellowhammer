@@ -8,45 +8,32 @@ pull request — this tool is unrelated to those three boundaries; it only manag
 ## The shape
 
 One **scratch Linear team**, shared by every rehearsing Project, lives inside the **scratch
-workspace** — the same workspace whose app credential goes into the Keychain per
-`../../doc/linear-identity-runbook.md`. Each rehearsing Project has its own **scratch Linear
-project** inside that team. Only the scratch workspace's OAuth application's secret ever goes into
-`keychain:linear` on a developer machine; production's secret never does.
+workspace** — the same workspace Yellowhammer's App Installation (P17.3–P17.7) is installed into on
+this machine, whose token pair the Keychain holds. Each rehearsing Project has its own **scratch
+Linear project** inside that team. Only the scratch workspace's own installation ever lands in
+`keychain:linear` on a developer machine; production's never does.
 
 Worktrees are out of scope here — Orca ADE owns them, and the throwaway Repos a rehearsal Project
 points at are P15.2's concern, not this tool's.
 
 ## One-time setup
 
-1. Provision the scratch app's credential on the machine, per
-   `../../doc/linear-identity-runbook.md` → *Storing credentials* — the **scratch** app's secret,
-   never production's:
+1. Install Yellowhammer's Linear app into the scratch workspace: `yh setup --install-linear`. This
+   opens the browser for a workspace admin to approve — no client id, no secret, ever (the
+   `client_credentials` identity this tool used before P17.6 is withdrawn). On the install screen,
+   choose **"Only select teams… → SCRATCH"** (the scratch team) rather than the preselected "All
+   public teams" — only the former makes the app user a **member** of the team, which the
+   label/workflow creates below need. The tokens land in the Keychain (`keychain:linear` by
+   default) and `~/.config/yellowhammer/config.toml`'s `[linear]` gets `workspace`/`app_user`; `yh
+   doctor --check linear --json` confirms it afterwards.
 
-   First check whether the machine already has it. `-U` overwrites the item, so writing it again is
-   how a working secret gets lost:
+2. In the scratch team (already created by hand in Linear's UI — this tool and `yh setup` both only
+   ever provision *inside* an existing team, neither one ever creates one):
 
-   ```sh
-   security find-generic-password -s dev.yellowhammer -a linear >/dev/null && echo present
-   ```
-
-   Only if it is absent (or known to be wrong), store it. Replace the whole placeholder, angle
-   brackets included, with the secret itself:
-
-   ```sh
-   security add-generic-password -U -s dev.yellowhammer -a linear -w '<scratch-client-secret>'
-   ```
-
-   and set `[linear] client_id` in `~/.config/yellowhammer/config.toml` to the scratch app's client
-   id.
-
-2. Create the scratch Linear team by hand, in the scratch workspace's Linear UI. This tool and
-   `yh setup` both only ever provision *inside* an existing team — neither one ever creates a team.
-   Then, in that team:
-
-   - **Add the app user as a team member** (team → Settings → Members, or the app's team access
-     in Linear's settings). A `client_credentials` app can *see* every public team but belongs to
-     none, and until it is a member Linear refuses its label creation with `FORBIDDEN`. Setup
-     currently reports that refusal as "the Project's Linear project is not visible".
+   - Confirm the app user is a team member (team → Settings → Members). Choosing "Only select
+     teams… → SCRATCH" at install does this already; "All public teams" would not, and Linear then
+     refuses label creation with `FORBIDDEN` — setup reports that as "the Project's Linear project
+     is not visible".
    - **Create the four workflow states by hand if setup is refused them:** `Waiting on You`,
      `Blocked`, `Kept in Flight` and `Released`, all under **Started**. A same-named state in
      another category (such as `Released` under Completed) is a collision and is never used.
@@ -61,7 +48,6 @@ points at are P15.2's concern, not this tool's.
 
    ```sh
    yh setup --init \
-     --linear-client-id <scratch-client-id> \
      --cli claude \
      --route claude/sonnet/medium \
      --operator <operator-linear-user-id> \
@@ -71,8 +57,8 @@ points at are P15.2's concern, not this tool's.
      --repo 'app,backend,/path/to/throwaway/rehearsal-a-app,swift build'
    ```
 
-   `yh setup --print-choices --linear-client-id <scratch-client-id>` lists the Operator candidates
-   and the teams the app can see, and writes nothing.
+   `yh setup --print-choices` lists the Operator candidates and the teams the app can see, and
+   writes nothing.
 
    This creates the Linear project inside team `SCRATCH` (since `--linear-project` was not given)
    and runs `Engine.BoardProvisioner` for it (workflow states, the `Object Type` and `Block Reason`

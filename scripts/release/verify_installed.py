@@ -4,7 +4,7 @@ Installed-product verification (P16.6): runs the five checks the roadmap names a
 notarized release installed from the DMG into /Applications on a clean Apple Silicon Mac,
 after the Operator has run `yh setup --install-jobs` for one dedicated verification Project.
 
-  record --app PATH --project ID --production-linear-client-id ID --evidence-directory DIR
+  record --app PATH --project ID --evidence-directory DIR
          [--act build] [--act-timeout 600]
     Runs all five checks (never stops at the first failure — each is independent, and a
     crashed check is recorded FAIL with the exception text), writes one log file per check
@@ -106,24 +106,6 @@ def parse_version_output(text):
     return match.group(1) if match else None
 
 
-def parse_toml_client_id(text, section="linear", key="client_id"):
-    """A small line-based TOML reader — just enough to find `key = "value"` under `[section]`.
-    No tomllib on macOS system python 3.9, and this repo's config.toml is flat and simple."""
-    current_section = None
-    for line in text.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        if stripped.startswith("[") and stripped.endswith("]"):
-            current_section = stripped[1:-1].strip()
-            continue
-        if current_section == section:
-            match = re.match(rf'{re.escape(key)}\s*=\s*"([^"]*)"', stripped)
-            if match:
-                return match.group(1)
-    return None
-
-
 # MARK: - Verifier
 
 
@@ -132,7 +114,6 @@ class Verifier:
         self,
         app,
         project,
-        production_linear_client_id,
         evidence_directory,
         act="build",
         act_timeout=600.0,
@@ -148,7 +129,6 @@ class Verifier:
     ):
         self.app_path = Path(os.path.realpath(str(app)))
         self.project = project
-        self.production_linear_client_id = production_linear_client_id
         self.evidence_directory = Path(evidence_directory)
         self.act = act
         self.act_timeout = act_timeout
@@ -523,12 +503,6 @@ class Verifier:
         config_path = self.home / ".config" / "yellowhammer" / "config.toml"
         if not config_path.is_file():
             return False, f"missing config: {config_path}"
-        client_id = parse_toml_client_id(config_path.read_text())
-        if client_id != self.production_linear_client_id:
-            return False, (
-                f"config.toml's linear client_id ({client_id!r}) does not match "
-                f"--production-linear-client-id ({self.production_linear_client_id!r})"
-            )
         return True, ""
 
     # -- check 5: shell, not host --
@@ -784,7 +758,6 @@ def record_command(args):
     verifier = Verifier(
         app=args.app,
         project=args.project,
-        production_linear_client_id=args.production_linear_client_id,
         evidence_directory=args.evidence_directory,
         act=args.act,
         act_timeout=args.act_timeout,
@@ -835,10 +808,6 @@ def parse_arguments(argv):
     record_parser = subparsers.add_parser("record", help="run the five checks and write evidence")
     record_parser.add_argument("--app", required=True, type=Path, help="the installed Yellowhammer.app")
     record_parser.add_argument("--project", required=True, help="the dedicated verification Project's id")
-    record_parser.add_argument(
-        "--production-linear-client-id", required=True,
-        help="the production Linear OAuth client id yh doctor must report",
-    )
     record_parser.add_argument(
         "--evidence-directory", required=True, type=Path,
         help="where the per-check logs and verdict.json are written",
