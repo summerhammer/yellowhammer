@@ -25,11 +25,18 @@ struct YellowhammerApp: App {
     init() {
         // Never under a UI test (`-YellowhammerEngineStub`, the same override `SetupEngine` reads):
         // Sparkle's own first-check UI can pop a blocking "Unable to Check for Updates" alert with no
-        // network reachable in that sandbox, stealing focus from every window XCUITest drives.
+        // network reachable in that sandbox, stealing focus from every window XCUITest drives. Debug
+        // builds also have no provisioned EdDSA key, so leave Sparkle stopped instead of asking it to
+        // decode an empty key on every Xcode launch.
         let isUITest = UserDefaults.standard
             .volatileDomain(forName: UserDefaults.argumentDomain)[SetupEngine.stubArgument] != nil
+#if DEBUG
+        let shouldStartUpdater = false
+#else
+        let shouldStartUpdater = !isUITest
+#endif
         updaterController = SPUStandardUpdaterController(
-            startingUpdater: !isUITest,
+            startingUpdater: shouldStartUpdater,
             updaterDelegate: UpdaterDelegate(),
             userDriverDelegate: nil
         )

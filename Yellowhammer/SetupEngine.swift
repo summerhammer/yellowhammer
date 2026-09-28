@@ -90,6 +90,13 @@ final class SetupEngine {
             throw RunError.launchFailed("\(error)")
         }
 
+        // A SwiftUI view can cancel the task awaiting this method as soon as navigation leaves it.
+        // Keep the termination wait in an unstructured task so cancellation cannot make us read
+        // terminationStatus before Foundation has observed the child's exit.
+        let termination = Task.detached {
+            for await _ in exited {}
+        }
+
         if let standardInput, let data = standardInput.data(using: .utf8) {
             inputPipe.fileHandleForWriting.write(data)
         }
@@ -104,7 +111,7 @@ final class SetupEngine {
         } catch {
             onOutput("yh output could not be read: \(error)")
         }
-        for await _ in exited {}
+        await termination.value
         self.process = nil
         return process.terminationStatus
     }
