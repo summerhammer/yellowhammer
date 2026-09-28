@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.0](https://github.com/summerhammer/yellowhammer/compare/v0.2.0...v0.3.0) (2026-09-28)
+
+
+### Features
+
+* **app:** request Linear approval from an admin in the Setup window ([98e207b](https://github.com/summerhammer/yellowhammer/commit/98e207b72a3d9071ffe822de7afc6a65ab3e21ab))
+* **setup:** request Linear install approval from a remote admin via the Code Relay ([6bea632](https://github.com/summerhammer/yellowhammer/commit/6bea632556de30c1e7a6fb4e8eefdc59d2af86cb))
+
+
+### Bug Fixes
+
+* **engine:** avoid restoring SIG_DFL after real signals in test host ([0337659](https://github.com/summerhammer/yellowhammer/commit/03376593dea9c5ce4f80546d94962903c3bddbd8))
+* **engine:** launch the enclosing app for headless posts, not any copy ([652a5a2](https://github.com/summerhammer/yellowhammer/commit/652a5a2484a5dd0f971bb4a4d46059050f432150))
+* **setup:** line-buffer stdout so progress and the approval link arrive live ([5cbc122](https://github.com/summerhammer/yellowhammer/commit/5cbc122f93672b545f6b4a133c3439126aab4c9f))
+
 ## [0.2.0](https://github.com/summerhammer/yellowhammer/compare/v0.1.1...v0.2.0) (2026-09-27)
 
 
