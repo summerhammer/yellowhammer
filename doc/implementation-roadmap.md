@@ -1917,7 +1917,7 @@ replacement, together with its UI tests, so every layer leaves a working app.
 through `ProjectWindow`. When `OverviewWindow` becomes the main window (P18.1), `ProjectWindow`
 stays as a temporary second window, opened from a menu item, until P18.14 retires its last screen.
 
-### [ ] P18.1 `OverviewWindow` shell
+### [x] P18.1 `OverviewWindow` shell
 - **Work** — Three columns (Sidebar, Pulse, Inspector) with placeholders. `OverviewWindow` becomes
   the main `WindowGroup`. `ProjectWindow` is kept as a temporary second window, opened from a menu
   item. `openPulseDestination` is routed. This step sets the patterns later steps copy: how a group
@@ -1927,6 +1927,22 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
 - **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
 - **Done when** — The app opens on the three-column window; every Pulse destination lands on a
   placeholder; `ProjectWindow` still opens from its menu item.
+- **Status** — Done on 2026-09-29 (`8a352da`). `OverviewWindowUITests` and the four legacy suites
+  (now opening the Project Window from its menu item) pass.
+  - Patterns set: the selected Project is the window's own value; the Inspector's selection is
+    cleared when the Project changes and shown only while `ProjectSnapshot.contains(_:)` holds;
+    `OverviewWindow.route` decides every way out. `LandingSnapshot.read` fills the snapshot, one
+    Journal per Project, read-only, off the main actor.
+  - Ways out: `.inspector` lands on the Inspector placeholder and `.settings` on the Settings window
+    stub (UI-tested); the Night Card, Linear and GitHub land on a notice until they are wired. The
+    notice is not UI-tested: it needs a populated Journal, which the UI test bundle cannot build.
+  - Deep links to a running app were checked by hand: an unscoped window is rescoped, a window
+    showing another Project is kept and the linked Project's window opens, a second link to it opens
+    no duplicate, and an unknown id opens a notice.
+  - Not met yet: Settings opening with the selected Project preselected, and refused files shown in
+    Settings (both P18.12).
+  - A minimum frame around the whole split view made AppKit loop on its constraint passes and
+    throw at launch; the window's minimum now comes from its columns alone.
 
 ### [ ] P18.2 Sidebar
 - **Work** — List every configured Project. Omit refused Projects rather than showing them broken.
