@@ -1,5 +1,5 @@
 {
-  "originHash" : "d88034d1b9e994d911e38aba9fb15cd34b02ee1aed85772ff4c831c78584fa79",
+  "originHash" : "86264cecafc9262f2d6b7a422c03a22acf52f64a64775bc7e54806a54c982660",
   "pins" : [
     {
       "identity" : "grdb.swift",
@@ -44,6 +44,15 @@
       "state" : {
         "revision" : "869129b7bf4ecc57b97d0193ad29690ca2134750",
         "version" : "1.8.1"
+      }
+    },
+    {
+      "identity" : "theme-kit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/rozd/theme-kit",
+      "state" : {
+        "branch" : "main",
+        "revision" : "2759540c0d2ffab35c095bc8e904a6e27660dc49"
       }
     }
   ],

@@ -13,6 +13,7 @@
 		508F4CD6306526DF00AFF241 /* Config in Frameworks */ = {isa = PBXBuildFile; productRef = 508F4CD5306526DF00AFF241 /* Config */; };
 		508F4D1930654D4000AFF241 /* Ledger in Frameworks */ = {isa = PBXBuildFile; productRef = 508F4D1830654D4000AFF241 /* Ledger */; };
 		508F4D1B30654FE700AFF241 /* Journal in Frameworks */ = {isa = PBXBuildFile; productRef = 508F4D1A30654FE700AFF241 /* Journal */; };
+		50ECB10D306BEA74004340F2 /* ThemeKit in Frameworks */ = {isa = PBXBuildFile; productRef = 50ECB10C306BEA74004340F2 /* ThemeKit */; };
 		A1B2C3D4306E000100AABBCC /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4306E000200AABBCC /* Sparkle */; };
 /* End PBXBuildFile section */
 
@@ -59,6 +60,7 @@
 		5083DD343056702600E6D6D3 /* Yellowhammer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Yellowhammer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5083DD46305670D400E6D6D3 /* yh */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = yh; sourceTree = BUILT_PRODUCTS_DIR; };
 		508F4CDB3065273100AFF241 /* YellowhammerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = YellowhammerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		50ECB108306BE921004340F2 /* theme.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = theme.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -89,6 +91,7 @@
 				508F4D1B30654FE700AFF241 /* Journal in Frameworks */,
 				A1B2C3D4306E000100AABBCC /* Sparkle in Frameworks */,
 				5083DD59305674F500E6D6D3 /* Domain in Frameworks */,
+				50ECB10D306BEA74004340F2 /* ThemeKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -117,6 +120,7 @@
 				5083DD47305670D400E6D6D3 /* Engine */,
 				508F4CDC3065273100AFF241 /* YellowhammerUITests */,
 				508F4CD4306526DF00AFF241 /* Frameworks */,
+				50ECB108306BE921004340F2 /* theme.json */,
 				5083DD353056702600E6D6D3 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -165,6 +169,7 @@
 				508F4D1830654D4000AFF241 /* Ledger */,
 				508F4D1A30654FE700AFF241 /* Journal */,
 				A1B2C3D4306E000200AABBCC /* Sparkle */,
+				50ECB10C306BEA74004340F2 /* ThemeKit */,
 			);
 			productName = Yellowhammer;
 			productReference = 5083DD343056702600E6D6D3 /* Yellowhammer.app */;
@@ -250,6 +255,7 @@
 			packageReferences = (
 				5083DD57305674F500E6D6D3 /* XCLocalSwiftPackageReference "Packages/YellowhammerKit" */,
 				A1B2C3D4306E000300AABBCC /* XCRemoteSwiftPackageReference "Sparkle" */,
+				50ECB10B306BEA74004340F2 /* XCRemoteSwiftPackageReference "theme-kit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 5083DD353056702600E6D6D3 /* Products */;
@@ -631,6 +637,14 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		50ECB10B306BEA74004340F2 /* XCRemoteSwiftPackageReference "theme-kit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/rozd/theme-kit";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 		A1B2C3D4306E000300AABBCC /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sparkle-project/Sparkle";
@@ -664,6 +678,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 5083DD57305674F500E6D6D3 /* XCLocalSwiftPackageReference "Packages/YellowhammerKit" */;
 			productName = Journal;
+		};
+		50ECB10C306BEA74004340F2 /* ThemeKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 50ECB10B306BEA74004340F2 /* XCRemoteSwiftPackageReference "theme-kit" */;
+			productName = ThemeKit;
 		};
 		A1B2C3D4306E000200AABBCC /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;
