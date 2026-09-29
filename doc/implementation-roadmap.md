@@ -1966,19 +1966,32 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
   - Not met yet: refused files shown in the Settings window (P18.12). `working` is read from the Act
     Lease, which stands in for "the `launchd` Act job is alive", as the Pulse read already did.
 
-### [ ] P18.3 Pulse — Needs you
+### [x] P18.3 Pulse — Needs you
 - **Work** — The Needs-you group, in the group order the ruling sets. Add its read to the `Pulse`
   module first, with tests.
 - **Spec** — `app/land-on-the-sidebar-and-pulse`.
 - **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`.
 - **Done when** — The group renders from a Journal-filled snapshot, and every way out goes through
   `openPulseDestination`.
+- **Status** — Done on 2026-09-29 (`52433dc`).
+  - The read already existed in `Pulse`; two tests were added (a Blocked Card with no Block Reason is
+    listed but counted under none; Attempts across Repos each carry their own Repo).
+  - The group shows the Waiting on You count, the top three Block Reasons as counts and every
+    decision Card; each Card opens in the Inspector. Empty: "Nothing needs you".
+  - Not verified by a UI test: populated rows need a Journal the UI test bundle cannot build (the Kit
+    tests cover them), and a UI test for the stated absences was not run, so none was committed.
 
-### [ ] P18.4 Pulse — Now
+### [x] P18.4 Pulse — Now
 - **Work** — The Now group, with its read added to `Pulse` first.
 - **Spec** — `app/land-on-the-sidebar-and-pulse`.
 - **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`.
 - **Done when** — As P18.3, for the Now group.
+- **Status** — Done on 2026-09-29 (`52433dc`).
+  - Shows `idle`/`working`, the next Act, and each running Attempt (Card, Repo, route, elapsed, Round);
+    an Attempt opens in the Inspector. Empty: "No Attempt running".
+  - Journal gaps, raised and not filled app-side: the next scheduled Act (needs the Config schedule
+    and `launchd`) and an Attempt's one-line status (no Journal column). Both are nil from a read, so
+    the group says "next Act unknown" and omits the status line.
 
 ### [ ] P18.5 Pulse — Feature
 - **Work** — The Feature group: `rollup_state`, Repo Lanes and pull request chips. This group is the
