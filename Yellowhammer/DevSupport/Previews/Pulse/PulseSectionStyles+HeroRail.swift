@@ -1,5 +1,6 @@
 #if DEBUG
 import Domain
+import Pulse
 import SwiftUI
 
 // The hero and rail section styles; see `PulseSectionStyle`.

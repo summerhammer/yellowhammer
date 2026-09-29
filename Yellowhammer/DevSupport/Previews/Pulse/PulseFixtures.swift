@@ -1,5 +1,6 @@
 #if DEBUG
 import Domain
+import Pulse
 import Foundation
 
 // Fake landing-screen data for prototyping the Pulse in Xcode Previews. Debug builds only: none of
@@ -316,7 +317,7 @@ extension PulseSnapshot {
 
     /// Raises or clears one flag, keeping the flags in `HealthFlagKind` order.
     mutating func setHealthFlag(_ kind: HealthFlagKind, _ raised: Bool) {
-        var kinds = Set(health.map(\.kind))
+        var kinds = Set((health ?? []).map(\.kind))
         if raised { kinds.insert(kind) } else { kinds.remove(kind) }
         health = HealthFlagKind.allCases.filter(kinds.contains).map { kind in
             let detail = switch kind {

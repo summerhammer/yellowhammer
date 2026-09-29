@@ -1,4 +1,5 @@
 #if DEBUG
+import Pulse
 import SwiftUI
 
 // The variants in play, registered in `PulseVariant.all`. Most compose a `PulseDesign` from the

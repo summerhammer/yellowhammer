@@ -1,5 +1,6 @@
 #if DEBUG
 import Domain
+import Pulse
 import SwiftUI
 
 // What the window toolbar carries. Every item opens something or shows status — none is a triage

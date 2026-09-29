@@ -14,6 +14,7 @@
 		508F4D1930654D4000AFF241 /* Ledger in Frameworks */ = {isa = PBXBuildFile; productRef = 508F4D1830654D4000AFF241 /* Ledger */; };
 		508F4D1B30654FE700AFF241 /* Journal in Frameworks */ = {isa = PBXBuildFile; productRef = 508F4D1A30654FE700AFF241 /* Journal */; };
 		50ECB10D306BEA74004340F2 /* ThemeKit in Frameworks */ = {isa = PBXBuildFile; productRef = 50ECB10C306BEA74004340F2 /* ThemeKit */; };
+		50ECB26E306C26CC004340F2 /* Pulse in Frameworks */ = {isa = PBXBuildFile; productRef = 50ECB26D306C26CC004340F2 /* Pulse */; };
 		A1B2C3D4306E000100AABBCC /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4306E000200AABBCC /* Sparkle */; };
 /* End PBXBuildFile section */
 
@@ -89,6 +90,7 @@
 				508F4CD6306526DF00AFF241 /* Config in Frameworks */,
 				508F4D1930654D4000AFF241 /* Ledger in Frameworks */,
 				508F4D1B30654FE700AFF241 /* Journal in Frameworks */,
+				50ECB26E306C26CC004340F2 /* Pulse in Frameworks */,
 				A1B2C3D4306E000100AABBCC /* Sparkle in Frameworks */,
 				5083DD59305674F500E6D6D3 /* Domain in Frameworks */,
 				50ECB10D306BEA74004340F2 /* ThemeKit in Frameworks */,
@@ -170,6 +172,7 @@
 				508F4D1A30654FE700AFF241 /* Journal */,
 				A1B2C3D4306E000200AABBCC /* Sparkle */,
 				50ECB10C306BEA74004340F2 /* ThemeKit */,
+				50ECB26D306C26CC004340F2 /* Pulse */,
 			);
 			productName = Yellowhammer;
 			productReference = 5083DD343056702600E6D6D3 /* Yellowhammer.app */;
@@ -683,6 +686,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 50ECB10B306BEA74004340F2 /* XCRemoteSwiftPackageReference "theme-kit" */;
 			productName = ThemeKit;
+		};
+		50ECB26D306C26CC004340F2 /* Pulse */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5083DD57305674F500E6D6D3 /* XCLocalSwiftPackageReference "Packages/YellowhammerKit" */;
+			productName = Pulse;
 		};
 		A1B2C3D4306E000200AABBCC /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;

@@ -1,5 +1,6 @@
 #if DEBUG
 import Domain
+import Pulse
 import SwiftUI
 
 // MARK: - Group rows
@@ -81,11 +82,13 @@ struct PulseGroupRows: View {
         if let feature = context.pulse.feature {
             Button { actions.inspect(.feature(feature.id)) } label: {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(feature.title).fontWeight(.medium).multilineTextAlignment(.leading)
+                    Text(feature.title ?? feature.id).fontWeight(.medium).multilineTextAlignment(.leading)
                     HStack(spacing: 6) {
                         Text(feature.id).font(.caption.monospaced()).foregroundStyle(.secondary)
-                        PulseBadge(text: feature.state)
-                        PulseBadge(text: feature.rollupState.rawValue, color: palette.color(for: feature.rollupState))
+                        if let state = feature.state { PulseBadge(text: state) }
+                        if let rollupState = feature.rollupState {
+                            PulseBadge(text: rollupState.rawValue, color: palette.color(for: rollupState))
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -109,7 +112,7 @@ struct PulseGroupRows: View {
         if let night = context.pulse.night {
             Button { actions.open(.nightCard) } label: {
                 HStack {
-                    Text(night.verdictLine).multilineTextAlignment(.leading)
+                    Text(night.verdictLine ?? "Night Card").multilineTextAlignment(.leading)
                     Spacer(minLength: 8)
                     Image(systemName: "arrow.up.forward.square").foregroundStyle(.secondary)
                 }
@@ -129,15 +132,17 @@ struct PulseGroupRows: View {
 
     @ViewBuilder
     private var health: some View {
-        if context.pulse.health.isEmpty {
-            PulseAbsence(text: "Healthy — yh doctor raised nothing", systemImage: "checkmark.seal")
-        } else {
-            ForEach(context.pulse.health) { flag in
+        if let health = context.pulse.health, !health.isEmpty {
+            ForEach(health) { flag in
                 Button { actions.open(.settings) } label: {
                     PulseHealthRow(flag: flag).contentShape(.rect)
                 }
                 .buttonStyle(.plain)
             }
+        } else if context.pulse.health == nil {
+            PulseAbsence(text: "Not read — yh doctor was not run", systemImage: "questionmark.circle")
+        } else {
+            PulseAbsence(text: "Healthy — yh doctor raised nothing", systemImage: "checkmark.seal")
         }
     }
 }

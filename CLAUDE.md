@@ -188,8 +188,8 @@ there; the repo-local consequences are:
   Landing Screen Ruling (`risks.md#landing-screen-ruling-2026-09-28`) reopened G-6 for
   that one point; read it and the story `app/land-on-the-sidebar-and-pulse` there. The
   Pulse is being prototyped in Xcode Previews before it is built for real:
-  `Yellowhammer/Features/Overview/Pulse/PulseSnapshot.swift` is the screen's view state
-  (plain values, the seam a Journal read will fill), and
+  `Packages/YellowhammerKit/Sources/Pulse/` holds the screen's view state (plain values) and
+  the Journal read, `PulseSnapshot.read(from:asOf:)`, that fills it, and
   `Yellowhammer/DevSupport/Previews/Pulse/` (Debug only) holds the fixtures, the
   Playground and Gallery previews, and the variants, registered in `PulseVariant.all`. A
   variant renders only a `LandingSnapshot` and routes every way out through

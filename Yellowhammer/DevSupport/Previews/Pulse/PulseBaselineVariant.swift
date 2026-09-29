@@ -1,5 +1,6 @@
 #if DEBUG
 import Domain
+import Pulse
 import SwiftUI
 
 /// The plainest reading of the spec (app/land-on-the-sidebar-and-pulse): a three-column window —
@@ -136,7 +137,7 @@ struct PulseBaselineVariant: View {
         }
         ForEach(now.attempts) { attempt in
             Button { open(.attempt(attempt.id)) } label: {
-                Text("\(attempt.cardID) · \(attempt.repo) · \(attempt.status)")
+                Text("\(attempt.cardID) · \(attempt.repo)\(attempt.status.map { " · \($0)" } ?? "")")
             }
             .buttonStyle(.link)
         }
@@ -146,16 +147,19 @@ struct PulseBaselineVariant: View {
     private func feature(_ feature: FeatureInFlight?) -> some View {
         if let feature {
             Button { open(.feature(feature.id)) } label: {
-                Text("\(feature.id)  \(feature.title)")
+                Text([feature.id, feature.title].compactMap { $0 }.joined(separator: "  "))
             }
             .buttonStyle(.link)
-            Text("\(feature.state) · \(feature.rollupState.rawValue)").foregroundStyle(.secondary)
+            Text([feature.state, feature.rollupState?.rawValue].compactMap { $0 }.joined(separator: " · "))
+                .foregroundStyle(.secondary)
             ForEach(feature.lanes) { lane in
                 HStack {
                     Text(lane.repo)
                     Text("\(lane.cardsDone)/\(lane.cardsTotal) · \(lane.state.rawValue)").foregroundStyle(.secondary)
                     if let pullRequest = lane.pullRequest {
-                        Button("#\(pullRequest.number) \(pullRequest.state.rawValue)") {
+                        let title = ["#\(pullRequest.number)", pullRequest.state?.rawValue]
+                            .compactMap { $0 }.joined(separator: " ")
+                        Button(title) {
                             openDestination(.pullRequest(repo: lane.repo, number: pullRequest.number))
                         }
                         .controlSize(.small)
@@ -170,7 +174,7 @@ struct PulseBaselineVariant: View {
     @ViewBuilder
     private func night(_ night: NightPulse?) -> some View {
         if let night {
-            Button(night.verdictLine) { openDestination(.nightCard) }
+            Button(night.verdictLine ?? "Night Card") { openDestination(.nightCard) }
                 .buttonStyle(.link)
             Text(night.state.rawValue).foregroundStyle(.secondary)
             Text(night.cardsByDisposition.map { "\($0.count) \($0.disposition.rawValue)" }.joined(separator: " · "))
@@ -181,16 +185,18 @@ struct PulseBaselineVariant: View {
     }
 
     @ViewBuilder
-    private func health(_ flags: [HealthFlag]) -> some View {
-        if flags.isEmpty {
-            Text("Healthy — yh doctor raised nothing").foregroundStyle(.secondary)
-        } else {
+    private func health(_ flags: [HealthFlag]?) -> some View {
+        if let flags, !flags.isEmpty {
             ForEach(flags) { flag in
                 Button { openDestination(.settings) } label: {
                     Label("\(flag.kind.rawValue): \(flag.detail)", systemImage: "exclamationmark.triangle")
                 }
                 .buttonStyle(.link)
             }
+        } else if flags == nil {
+            Text("Not read — yh doctor was not run").foregroundStyle(.secondary)
+        } else {
+            Text("Healthy — yh doctor raised nothing").foregroundStyle(.secondary)
         }
     }
 

@@ -1,5 +1,6 @@
 #if DEBUG
 import Domain
+import Pulse
 import SwiftUI
 
 /// One combination of the interchangeable styles. A variant in `PulseVariant.all` is a name, an idea

@@ -1,5 +1,6 @@
 #if DEBUG
 import Domain
+import Pulse
 import SwiftUI
 
 /// The prototype's crucial colours — eight, and no more. Brand is unfilled, so the defaults are system
@@ -94,8 +95,10 @@ extension PulsePalette {
         }
     }
 
-    func color(for state: RollUpState) -> Color {
-        switch state {
+    /// A nil roll-up state (the Journal cannot compute it) has no colour of its own.
+    func color(for state: RollUpState?) -> Color {
+        guard let state else { return .secondary }
+        return switch state {
         case .authoring: .secondary
         case .running: working
         case .needsYou, .partialLanding: needsYou
@@ -104,8 +107,10 @@ extension PulsePalette {
         }
     }
 
-    func color(for state: PullRequestState) -> Color {
-        switch state {
+    /// A nil pull request state (it lives in GitHub) has no colour of its own.
+    func color(for state: PullRequestState?) -> Color {
+        guard let state else { return .secondary }
+        return switch state {
         case .open: working
         case .draft: .secondary
         case .merged: landed

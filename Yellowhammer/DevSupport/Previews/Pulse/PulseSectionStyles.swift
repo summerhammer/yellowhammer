@@ -1,5 +1,6 @@
 #if DEBUG
 import Domain
+import Pulse
 import SwiftUI
 
 // The ways the main area can lay out the five groups. Every style keeps the ruled order
@@ -326,12 +327,14 @@ struct PulseSummaryFigure: View {
         case .feature:
             guard let feature = pulse.feature else { return ("—", "no Feature in flight") }
             let progress = PulseFormat.cardProgress(feature)
-            return ("\(progress.done)/\(progress.total)", "Cards · \(feature.rollupState.rawValue)")
+            let rollUp = feature.rollupState?.rawValue ?? "roll-up unknown"
+            return ("\(progress.done)/\(progress.total)", "Cards · \(rollUp)")
         case .night:
             guard let night = pulse.night else { return ("—", "no Night yet") }
             return (night.state.rawValue, "started \(PulseFormat.time(night.startedAt))")
         case .health:
-            return pulse.health.isEmpty ? ("OK", "doctor raised nothing") : ("\(pulse.health.count)", "doctor flags")
+            guard let health = pulse.health else { return ("—", "doctor not read") }
+            return health.isEmpty ? ("OK", "doctor raised nothing") : ("\(health.count)", "doctor flags")
         }
     }
 }
