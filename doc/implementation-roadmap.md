@@ -1944,7 +1944,7 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
   - A minimum frame around the whole split view made AppKit loop on its constraint passes and
     throw at launch; the window's minimum now comes from its columns alone.
 
-### [ ] P18.2 Sidebar
+### [x] P18.2 Sidebar
 - **Work** — List every configured Project. Omit refused Projects rather than showing them broken.
   Selecting a Project drives the Pulse. Each Project's status is computed from its own Journal
   alone.
@@ -1952,6 +1952,19 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
 - **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
 - **Done when** — A refused Project is absent from the Sidebar. A test confirms no element blends
   two Projects' data.
+- **Status** — Done on 2026-09-29 (`3c6bcd5`).
+  - The `PulseTests` test "No element of the landing snapshot blends two Projects' data" reads two
+    seeded Journals. Each Project's Pulse, Repos, status, lane badges and running Attempts match its
+    own Journal and configuration alone.
+  - "A refused Project is absent…" loads an unparseable file and two files refused for a shared Repo
+    path, each with a Journal holding an Act Lease. None of them appears, and nothing from their
+    Journals leaks into the landing snapshot.
+  - `OverviewWindowUITests` checks the tree rows, the refused Project's absence, the notice that a
+    link to the refused Project opens, and a Repo row opening in the Inspector. Attempt rows and lane
+    badges need a populated Journal, which the UI test bundle cannot build, so the Kit tests cover
+    them.
+  - Not met yet: refused files shown in the Settings window (P18.12). `working` is read from the Act
+    Lease, which stands in for "the `launchd` Act job is alive", as the Pulse read already did.
 
 ### [ ] P18.3 Pulse — Needs you
 - **Work** — The Needs-you group, in the group order the ruling sets. Add its read to the `Pulse`
