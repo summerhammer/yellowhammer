@@ -13,6 +13,7 @@ let package = Package(
         .library(name: "Config", targets: ["Config"]),
         .library(name: "Journal", targets: ["Journal"]),
         .library(name: "Ledger", targets: ["Ledger"]),
+        .library(name: "Pulse", targets: ["Pulse"]),
         .library(name: "Engine", targets: ["Engine"]),
         .library(name: "LinearAdapter", targets: ["LinearAdapter"]),
         .library(name: "OrcaADEAdapter", targets: ["OrcaADEAdapter"]),
@@ -55,6 +56,13 @@ let package = Package(
             dependencies: [
                 "Domain",
                 .product(name: "GRDB", package: "GRDB.swift")
+            ]
+        ),
+        .target(
+            name: "Pulse",
+            dependencies: [
+                "Domain",
+                "Journal"
             ]
         ),
         .target(
@@ -139,6 +147,14 @@ let package = Package(
             name: "LedgerTests",
             dependencies: [
                 "Ledger",
+                "Domain"
+            ]
+        ),
+        .testTarget(
+            name: "PulseTests",
+            dependencies: [
+                "Pulse",
+                "Journal",
                 "Domain"
             ]
         ),
