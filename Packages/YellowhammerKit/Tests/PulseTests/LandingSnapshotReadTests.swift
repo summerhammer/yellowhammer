@@ -37,7 +37,7 @@ private struct ConfigurationFixture: ~Copyable {
         try? FileManager.default.removeItem(at: directory)
     }
 
-    func addProject(id: String, name: String, repos: [String]) throws {
+    func addProject(id: String, name: String, repos: [String], sharedRepoPath: String? = nil) throws {
         var toml = """
         id = "\(id)"
         name = "\(name)"
@@ -50,7 +50,7 @@ private struct ConfigurationFixture: ~Copyable {
 
             [[repos]]
             name = "\(repo)"
-            path = "~/dev/\(id)-\(repo)"
+            path = "\(sharedRepoPath ?? "~/dev/\(id)-\(repo)")"
             role = "\(repo)"
             check = "swift test"
 
@@ -67,6 +67,14 @@ private struct ConfigurationFixture: ~Copyable {
         let configuration = try Configuration.load(directory: directory)
         try #require(configuration.invalidProjects.isEmpty)
         return configuration
+    }
+
+    func addRawProjectFile(id: String, contents: String) throws {
+        try contents.write(
+            to: directory.appending(components: "projects", "\(id).toml", directoryHint: .notDirectory),
+            atomically: true,
+            encoding: .utf8
+        )
     }
 
     func read(_ configuration: Configuration, asOf: Date) -> LandingSnapshot {
@@ -166,6 +174,116 @@ func landingSeededJournal() throws {
     #expect(landing.asOf == asOf)
     let beta = try #require(landing.project(ProjectID(rawValue: "beta")))
     #expect(beta.pulse == PulseSnapshot.empty)
+}
+
+/// Alpha: a Feature, a Blocked Card, and a Card with a running Attempt. No Act Lease is left held.
+private func seedBlendingAlpha(_ journal: JournalStore) throws {
+    let feature = try insertFeature(journal, issueID: "ALPHA-F")
+    try insertCard(
+        journal, cycleID: feature.cycleID, issueID: "ALPHA-1",
+        repository: "backend", state: .blocked, blockReason: .hardFailure, order: 1
+    )
+    let running = try insertCard(
+        journal, cycleID: feature.cycleID, issueID: "ALPHA-2",
+        repository: "backend", state: .inProgress, order: 2
+    )
+    let run = RunID()
+    _ = try journal.claimActLease(act: .build, runID: run, mode: .real, now: epoch)
+    _ = try journal.recordAttempt(cardID: running, route: route(), runID: run, now: epoch)
+    _ = try journal.releaseActLease(runID: run)
+}
+
+/// Beta: a Feature, a Waiting on You Card, a held Act Lease and an opened Night.
+private func seedBlendingBeta(_ journal: JournalStore) throws {
+    let feature = try insertFeature(journal, issueID: "BETA-F")
+    try insertCard(journal, cycleID: feature.cycleID, issueID: "BETA-1", repository: "api", state: .waitingOnYou)
+    let run = RunID()
+    _ = try journal.claimActLease(act: .author, runID: run, mode: .real, now: epoch)
+    _ = try journal.openNight(nightStart: nightStart, mode: .real, act: .author, runID: run, now: epoch)
+}
+
+@Test("No element of the landing snapshot blends two Projects' data")
+func landingBlendsNothing() throws {
+    let fixture = try ConfigurationFixture()
+    try fixture.addProject(id: "alpha", name: "Alpha", repos: ["backend", "web"])
+    try fixture.addProject(id: "beta", name: "Beta", repos: ["api"])
+    let configuration = try fixture.load()
+    let expectedAlpha: PulseSnapshot
+    let expectedBeta: PulseSnapshot
+    do {
+        let journal = try fixture.openJournal("alpha")
+        try seedBlendingAlpha(journal)
+        expectedAlpha = try PulseSnapshot.read(from: journal, asOf: epoch)
+    }
+    do {
+        let journal = try fixture.openJournal("beta")
+        try seedBlendingBeta(journal)
+        expectedBeta = try PulseSnapshot.read(from: journal, asOf: epoch)
+    }
+
+    let landing = fixture.read(configuration, asOf: epoch)
+
+    let alpha = try #require(landing.project(ProjectID(rawValue: "alpha")))
+    let beta = try #require(landing.project(ProjectID(rawValue: "beta")))
+    #expect(alpha.pulse == expectedAlpha)
+    #expect(beta.pulse == expectedBeta)
+    #expect(alpha.repos == ["backend", "web"])
+    #expect(beta.repos == ["api"])
+    #expect(alpha.status == .idle)
+    #expect(beta.status == .working)
+    #expect(alpha.runningAttempt(for: "backend") != nil)
+    #expect(beta.runningAttempt(for: "backend") == nil)
+    #expect(alpha.laneState(for: "api") == nil)
+    #expect(beta.laneState(for: "backend") == nil)
+    #expect(!alpha.contains(.card("BETA-1")))
+    #expect(!beta.contains(.card("ALPHA-1")))
+    #expect(!beta.contains(.repo("backend")))
+    #expect(!alpha.contains(.feature("BETA-F")))
+
+    #expect(!alpha.pulse.now.attempts.isEmpty)
+    for (snapshot, prefix) in [(alpha, "ALPHA-"), (beta, "BETA-")] {
+        let cards = snapshot.pulse.needsYou.cards
+        let attempts = snapshot.pulse.now.attempts
+        let feature = try #require(snapshot.pulse.feature)
+        #expect(!cards.isEmpty)
+        #expect(cards.allSatisfy { $0.id.hasPrefix(prefix) })
+        #expect(attempts.allSatisfy { $0.cardID.hasPrefix(prefix) })
+        #expect(feature.id.hasPrefix(prefix))
+        #expect(feature.lanes.allSatisfy { snapshot.repos.contains($0.repo) })
+    }
+}
+
+@Test("A refused Project is absent from the landing snapshot, and its Journal is never read")
+func landingOmitsRefusedProjects() throws {
+    let fixture = try ConfigurationFixture()
+    try fixture.addProject(id: "alpha", name: "Alpha", repos: ["backend"])
+    try fixture.addRawProjectFile(id: "broken", contents: """
+        id = "broken"
+        name = "Broken"
+
+        [[repos
+        """)
+    try fixture.addProject(id: "clash-a", name: "Clash A", repos: ["backend"], sharedRepoPath: "~/dev/clash")
+    try fixture.addProject(id: "clash-b", name: "Clash B", repos: ["backend"], sharedRepoPath: "~/dev/clash")
+    for id in ["broken", "clash-a"] {
+        let journal = try fixture.openJournal(id)
+        let feature = try insertFeature(journal, issueID: "REFUSED-F")
+        try insertCard(
+            journal, cycleID: feature.cycleID, issueID: "REFUSED-1",
+            state: .blocked, blockReason: .hardFailure
+        )
+        _ = try journal.claimActLease(act: .build, runID: RunID(), mode: .real, now: epoch)
+    }
+    let configuration = try Configuration.load(directory: fixture.directory)
+    try #require(configuration.invalidProjects.count == 3)
+    try #require(configuration.projects.map(\.id.rawValue) == ["alpha"])
+
+    let landing = fixture.read(configuration, asOf: epoch)
+
+    #expect(landing.projects.map(\.id.rawValue) == ["alpha"])
+    #expect(landing.projects.allSatisfy { !["Broken", "Clash A", "Clash B"].contains($0.name) })
+    #expect(!landing.projects.contains { $0.pulse.needsYou.cards.contains { $0.id == "REFUSED-1" } })
+    #expect(landing.projects.first?.status == .idle)
 }
 
 @Test("A Project contains its own Card, Feature, running Attempt and Repo, and nothing else")

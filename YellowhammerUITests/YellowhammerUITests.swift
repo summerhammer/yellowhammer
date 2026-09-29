@@ -43,6 +43,8 @@ final class OverviewWindowUITests: XCTestCase {
     func testSelectingASidebarRowScopesThePulse() {
         let row = app.descendants(matching: .any)["sidebar-reader"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
+        // Another app's window can hold focus under a busy runner; XCUITest clicks only a frontmost app.
+        app.activate()
         row.click()
         XCTAssertTrue(waitForHeading("Reader", timeout: 5), "Pulse heading is \(headingText())")
     }
@@ -111,6 +113,59 @@ final class OverviewWindowUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["overview-unknown-id"].waitForExistence(timeout: 10))
     }
 
+    func testRefusedProjectIsAbsentFromTheSidebar() {
+        XCTAssertTrue(element("sidebar-archive").waitForExistence(timeout: 10))
+        XCTAssertTrue(element("sidebar-owner").exists)
+        XCTAssertTrue(element("sidebar-reader").exists)
+        XCTAssertFalse(element("sidebar-broken").exists)
+        let broken = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Broken"))
+        XCTAssertFalse(broken.firstMatch.exists)
+    }
+
+    func testDeepLinkToARefusedProjectStatesTheRefusal() throws {
+        XCTAssertTrue(app.staticTexts["pulse-heading"].waitForExistence(timeout: 10))
+
+        app.open(try XCTUnwrap(URL(string: "yellowhammer://project/broken")))
+
+        XCTAssertTrue(element("overview-refused-id").waitForExistence(timeout: 10))
+        XCTAssertFalse(element("sidebar-broken").exists)
+    }
+
+    func testSidebarShowsEachProjectsReposAndStatus() {
+        for id in ["archive", "owner", "reader"] {
+            let repo = element("sidebar-\(id)-repo-\(id)")
+            XCTAssertTrue(repo.waitForExistence(timeout: 10), "\(id) repo row is missing")
+            let status = element("sidebar-\(id)-status")
+            XCTAssertTrue(status.waitForExistence(timeout: 5), "\(id) status is missing")
+            XCTAssertEqual((status.value as? String) ?? status.label, "idle")
+            XCTAssertFalse(element("sidebar-\(id)-repo-\(id)-lane").exists)
+        }
+        let owner = element("sidebar-owner").frame.minY
+        let ownerRepo = element("sidebar-owner-repo-owner").frame.minY
+        let reader = element("sidebar-reader").frame.minY
+        XCTAssertLessThan(owner, ownerRepo)
+        XCTAssertLessThan(ownerRepo, reader)
+    }
+
+    func testSelectingARepoRowOpensItInTheInspector() {
+        let row = element("sidebar-reader-repo-reader")
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        app.activate()
+        row.click()
+        XCTAssertTrue(waitForHeading("Reader", timeout: 5), "Pulse heading is \(headingText())")
+        let selection = element("inspector-selection")
+        XCTAssertTrue(selection.waitForExistence(timeout: 5))
+        let deadline = Date().addingTimeInterval(5)
+        while ((selection.value as? String) ?? selection.label) != "Repo reader", Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        XCTAssertEqual((selection.value as? String) ?? selection.label, "Repo reader")
+    }
+
+    private func element(_ identifier: String) -> XCUIElement {
+        app.descendants(matching: .any)[identifier]
+    }
+
     private func headingText() -> String {
         let heading = app.staticTexts["pulse-heading"]
         guard heading.exists else { return "" }
@@ -140,6 +195,12 @@ final class OverviewWindowUITests: XCTestCase {
         [[routing]]
         route = "claude/sonnet"
         """.write(to: directory.appending(component: "config.toml"), atomically: true, encoding: .utf8)
+        // A refused Project: the loader rejects the malformed line, so it never reaches the sidebar.
+        try """
+        id = "broken"
+        name = "Broken"
+        [[repos
+        """.write(to: projects.appending(component: "broken.toml"), atomically: true, encoding: .utf8)
         // Id order differs from name order on purpose; the sidebar lists in configured (id) order.
         for (id, name) in [("archive", "Zed Archive"), ("owner", "Owner"), ("reader", "Reader")] {
             try """

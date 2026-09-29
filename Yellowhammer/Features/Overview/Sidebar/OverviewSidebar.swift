@@ -2,23 +2,160 @@ import Domain
 import Pulse
 import SwiftUI
 
-/// The main window's Sidebar: every configured Project, in configured order. Selecting a Project scopes
-/// the Pulse to it. A Project whose configuration was refused is not in `projects`, so it never appears
-/// here (OQ79).
+/// The main window's Sidebar: every configured Project as a tree. A Project's rows are the Project,
+/// then each of its configured Repos in `[repos]` declared order, then, nested under a Repo, the Attempt
+/// running in it while one runs. Projects are in configured order, and nothing is re-sorted.
+///
+/// A Project row shows the Project's name and its derived `idle`/`working` status, and nothing else: no
+/// count, badge, roll-up word or health indicator (R20). When the Project's Journal could not be read,
+/// the row shows no status, because none can be derived; the Pulse states why. A Repo row shows a lane
+/// badge only while that Repo is in lane, so the badge, not the row's position, marks an active Repo.
+///
+/// Each row's values come from its own Project's snapshot alone. A Project whose configuration was
+/// refused is not in `projects`, so it never appears here (OQ79).
+///
+/// Selecting a Project row scopes the Pulse to that Project. Selecting a Repo or Attempt row scopes the
+/// Pulse to its Project and opens the row in the Inspector.
 struct OverviewSidebar: View {
     let projects: [ProjectSnapshot]
+    /// The Project the window shows. The Sidebar sets it; the window owns it.
     @Binding var selection: ProjectID?
+    /// The highlighted row. Only its Project belongs to the window; which of that Project's rows is
+    /// highlighted is the Sidebar's own concern.
+    @State private var highlighted: SidebarRowID?
+    @Environment(\.openPulseDestination) private var openDestination
 
     var body: some View {
-        List(selection: $selection) {
+        // One flat ForEach with exactly one view per element: a macOS sidebar List traps when one
+        // ForEach element yields a varying number of rows, as an optional Attempt row would.
+        List(selection: rowSelection) {
             Section("Projects") {
-                ForEach(projects) { snapshot in
-                    Text(snapshot.name)
-                        .lineLimit(1)
-                        .accessibilityIdentifier("sidebar-\(snapshot.id.rawValue)")
+                ForEach(rows) { row in
+                    switch row.kind {
+                    case .project:
+                        projectRow(row.snapshot)
+                    case let .repo(repo):
+                        repoRow(repo, of: row.snapshot)
+                            .padding(.leading, 16)
+                    case let .attempt(attempt):
+                        attemptRow(attempt, of: row.snapshot)
+                            .padding(.leading, 32)
+                    }
                 }
             }
         }
         .listStyle(.sidebar)
+    }
+
+    // MARK: Tree
+
+    /// The tree in display order: each Project, then each of its Repos, each followed by the Attempt
+    /// running in it, if any.
+    private var rows: [SidebarRow] {
+        projects.flatMap { snapshot in
+            [SidebarRow(snapshot: snapshot, kind: .project)] + snapshot.repos.flatMap { repo in
+                let repoRow = SidebarRow(snapshot: snapshot, kind: .repo(repo))
+                guard let attempt = snapshot.runningAttempt(for: repo) else { return [repoRow] }
+                return [repoRow, SidebarRow(snapshot: snapshot, kind: .attempt(attempt))]
+            }
+        }
+    }
+
+    /// The highlighted row, kept in step with the window's Project. Setting a row scopes the window to
+    /// its Project first, then opens a Repo or Attempt row in the Inspector, so the window's change of
+    /// Project cannot clear what this row opens.
+    private var rowSelection: Binding<SidebarRowID?> {
+        let highlighted = $highlighted
+        let selection = $selection
+        let openDestination = openDestination
+        return Binding {
+            if let row = highlighted.wrappedValue, row.projectID == selection.wrappedValue { return row }
+            return selection.wrappedValue.map(SidebarRowID.project)
+        } set: { row in
+            guard let row else { return }
+            highlighted.wrappedValue = row
+            selection.wrappedValue = row.projectID
+            switch row {
+            case .project: break
+            case let .repo(_, repo): openDestination(.inspector(.repo(repo)))
+            case let .attempt(_, attempt): openDestination(.inspector(.attempt(attempt)))
+            }
+        }
+    }
+
+    // MARK: Rows
+
+    private func projectRow(_ snapshot: ProjectSnapshot) -> some View {
+        HStack {
+            Text(snapshot.name)
+                .lineLimit(1)
+                .accessibilityIdentifier("sidebar-\(snapshot.id.rawValue)")
+            Spacer()
+            if snapshot.journalFailure == nil {
+                Text(snapshot.status.rawValue)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("sidebar-\(snapshot.id.rawValue)-status")
+            }
+        }
+    }
+
+    private func repoRow(_ repo: String, of snapshot: ProjectSnapshot) -> some View {
+        HStack {
+            Label(repo, systemImage: "shippingbox")
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .accessibilityIdentifier("sidebar-\(snapshot.id.rawValue)-repo-\(repo)")
+            Spacer()
+            if let lane = snapshot.laneState(for: repo) {
+                Text(lane.rawValue)
+                    .font(.caption2)
+                    .padding(.horizontal, 6)
+                    .background(.quaternary, in: .capsule)
+                    .accessibilityIdentifier("sidebar-\(snapshot.id.rawValue)-repo-\(repo)-lane")
+            }
+        }
+    }
+
+    /// The running Attempt: its Card and route. No output of the agent CLI, ever.
+    private func attemptRow(_ attempt: RunningAttempt, of snapshot: ProjectSnapshot) -> some View {
+        Label("\(attempt.cardID) \u{00B7} \(attempt.route)", systemImage: "gearshape.2")
+            .font(.caption)
+            .lineLimit(1)
+            .accessibilityIdentifier("sidebar-\(snapshot.id.rawValue)-attempt-\(attempt.id)")
+    }
+}
+
+/// A Sidebar row's identity, and the tag the List selects. It names the row's Project, so selecting any
+/// row can scope the window to that Project.
+private enum SidebarRowID: Hashable {
+    case project(ProjectID)
+    case repo(ProjectID, String)
+    case attempt(ProjectID, String)
+
+    var projectID: ProjectID {
+        switch self {
+        case let .project(id), let .repo(id, _), let .attempt(id, _): id
+        }
+    }
+}
+
+/// One Sidebar row: the Project it belongs to, and what it shows.
+private struct SidebarRow: Identifiable {
+    enum Kind {
+        case project
+        case repo(String)
+        case attempt(RunningAttempt)
+    }
+
+    let snapshot: ProjectSnapshot
+    let kind: Kind
+
+    var id: SidebarRowID {
+        switch kind {
+        case .project: .project(snapshot.id)
+        case let .repo(repo): .repo(snapshot.id, repo)
+        case let .attempt(attempt): .attempt(snapshot.id, attempt.id)
+        }
     }
 }
