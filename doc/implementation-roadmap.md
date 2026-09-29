@@ -70,6 +70,7 @@ disagreement is a defect in this file.
 | 15 | Rehearsal environment & end-to-end rehearsal | Scratch Linear team, throwaway repos, full rehearsal Nights |
 | 16 | Release engineering & first production Night | Signing, notarization, packaging, install check, go-live |
 | 17 | Linear App Installation | One public Linear app installed per workspace with PKCE; refresh, authorization halt |
+| 18 | App restructure | The main window (Sidebar, Pulse, Inspector) and the Settings window replace the legacy screens |
 
 ---
 
@@ -1894,6 +1895,165 @@ depends on and that never shipped.
   Only an admin approved: the scratch workspace has no non-admin member (L8 stays deferred). The
   run found stdout block-buffered under a pipe, which hid the link; this is fixed here.
 
+## Phase 18 — App restructure
+
+The app's screens are replaced by the main window the Landing Screen Ruling describes (Sidebar,
+Pulse, Inspector; risks.md → Landing Screen Ruling — 2026-09-28) and a Settings window (Cmd+,),
+in the layout `doc/app-structure.md` fixes. The UI is not replaced in one go. Each step is one
+layer and one agent session. A `Legacy/` folder is deleted only in the step that ships its
+replacement, together with its UI tests, so every layer leaves a working app.
+
+**Every step here.**
+- **Start by reading** the cited story and its epic's `overview.md`; `doc/app-structure.md`; the
+  prototype files for the area in `Yellowhammer/DevSupport/Previews/Pulse/`; the `Legacy/` folder
+  being replaced.
+- **Done when**, in addition to the line on the step: the app builds; `swift test --package-path
+  Packages/YellowhammerKit` is green; the retired screen's UI tests are rewritten against the new
+  one; the story's acceptance criteria are listed as met or explicitly not met.
+- **A Journal gap ends the step.** If the Journal lacks a field a group needs, raise it as an Engine
+  or spec gap. Do not invent app-side state; keep the field in `PulseFixtures` only.
+
+**Ordering constraint.** Configuration, Recalibrate and Card account are reachable today only
+through `ProjectWindow`. When `OverviewWindow` becomes the main window (P18.1), `ProjectWindow`
+stays as a temporary second window, opened from a menu item, until P18.14 retires its last screen.
+
+### [ ] P18.1 `OverviewWindow` shell
+- **Work** — Three columns (Sidebar, Pulse, Inspector) with placeholders. `OverviewWindow` becomes
+  the main `WindowGroup`. `ProjectWindow` is kept as a temporary second window, opened from a menu
+  item. `openPulseDestination` is routed. This step sets the patterns later steps copy: how a group
+  view receives its snapshot, how `openPulseDestination` is routed, where selection lives.
+- **Retires** — `Legacy/ProjectWindow/ProjectSelector`.
+- **Spec** — `app/land-on-the-sidebar-and-pulse`, `app/scope-windows-to-a-project`.
+- **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
+- **Done when** — The app opens on the three-column window; every Pulse destination lands on a
+  placeholder; `ProjectWindow` still opens from its menu item.
+
+### [ ] P18.2 Sidebar
+- **Work** — List every configured Project. Omit refused Projects rather than showing them broken.
+  Selecting a Project drives the Pulse. Each Project's status is computed from its own Journal
+  alone.
+- **Spec** — `app/land-on-the-sidebar-and-pulse`; risks.md OQ79; R20.
+- **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
+- **Done when** — A refused Project is absent from the Sidebar. A test confirms no element blends
+  two Projects' data.
+
+### [ ] P18.3 Pulse — Needs you
+- **Work** — The Needs-you group, in the group order the ruling sets. Add its read to the `Pulse`
+  module first, with tests.
+- **Spec** — `app/land-on-the-sidebar-and-pulse`.
+- **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`.
+- **Done when** — The group renders from a Journal-filled snapshot, and every way out goes through
+  `openPulseDestination`.
+
+### [ ] P18.4 Pulse — Now
+- **Work** — The Now group, with its read added to `Pulse` first.
+- **Spec** — `app/land-on-the-sidebar-and-pulse`.
+- **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`.
+- **Done when** — As P18.3, for the Now group.
+
+### [ ] P18.5 Pulse — Feature
+- **Work** — The Feature group: `rollup_state`, Repo Lanes and pull request chips. This group is the
+  one most likely to hit a Journal gap (Repo Lanes, pull request state); if it does, the step ends
+  by raising the gap.
+- **Spec** — `app/land-on-the-sidebar-and-pulse`.
+- **Agent** — Opus 5.5 Medium or `gpt-5.6-sol medium`.
+- **Done when** — As P18.3, for the Feature group, or the gap is raised.
+
+### [ ] P18.6 Pulse — Tonight / last Night
+- **Work** — The Tonight / last Night group, with its read added to `Pulse` first.
+- **Spec** — `app/land-on-the-sidebar-and-pulse`.
+- **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`.
+- **Done when** — As P18.3, for the Tonight / last Night group.
+
+### [ ] P18.7 Pulse — Health
+- **Work** — The Health group. It opens the Settings window, which is a stub until P18.12.
+- **Retires** — `Legacy/ProjectStatus`.
+- **Spec** — `app/land-on-the-sidebar-and-pulse`.
+- **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`.
+- **Done when** — As P18.3, for the Health group; `Legacy/ProjectStatus` is deleted.
+
+### [ ] P18.8 Inspector — Card detail
+- **Work** — Card detail in the Inspector, carrying the Card account. Confirm the Card account's
+  acceptance criteria carry over before deleting `Legacy/CardAccount`. `CardAccountView` is the
+  largest legacy view (288 lines).
+- **Retires** — `Legacy/CardAccount`.
+- **Spec** — `app/land-on-the-sidebar-and-pulse`; P14.5.
+- **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
+- **Done when** — A Card opened from the Pulse shows its account read-only from its own Project's
+  Journal; `Legacy/CardAccount` is deleted.
+
+### [ ] P18.9 Inspector — Feature, Attempt and Repo detail
+- **Work** — The Feature, Attempt and Repo detail panes of the Inspector.
+- **Spec** — `app/land-on-the-sidebar-and-pulse`.
+- **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`.
+- **Done when** — Each pane renders from a snapshot and opens from its Pulse destination.
+
+### [ ] P18.10 Toolbar — Inspector toggle and Stop the engine
+- **Work** — The Inspector toggle, and the control that stops the engine for a Project. The app may
+  trigger the action; it never decides or records. Check the interruption wording, and that
+  quitting the app cannot kill an Act.
+- **Spec** — `app/stop-the-engine-for-a-project`.
+- **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
+- **Done when** — Stopping the engine for one Project leaves every other Project untouched; the
+  interruption copy uses the mandated wording.
+
+### [ ] P18.11 Abort a running Attempt
+- **Work** — Abort an Attempt that is running, from the Inspector. The same limits as P18.10: the app
+  triggers, and never decides or records.
+- **Spec** — `app/abort-a-running-attempt`.
+- **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
+- **Done when** — An aborted Attempt is reclaimable, and no partial state is written as if it were
+  complete; quitting the app mid-abort does not change the outcome.
+
+### [ ] P18.12 `SettingsWindow` shell
+- **Work** — The Settings window (Cmd+,): a General / Projects sidebar, a back/forward toolbar, and
+  the refused Project configuration files.
+- **Spec** — glossary → Settings window; risks.md OQ79.
+- **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
+- **Done when** — Cmd+, opens the window; a refused Project appears there with its diagnostic and
+  not in the main window's Sidebar.
+
+### [ ] P18.13 Settings — Project — Configuration
+- **Work** — Project configuration editing in the Settings window. This may first lift parts of
+  `SetupWizardModel` that P18.17 also uses.
+- **Retires** — `Legacy/ProjectDetail`.
+- **Spec** — `app/add-a-project-via-the-setup-wizard` (Setup folded into Settings).
+- **Agent** — Sonnet 5 High or `gpt-5.6-terra high`.
+- **Done when** — Edits round-trip through the loader as in P14.3; `Legacy/ProjectDetail` is deleted.
+
+### [ ] P18.14 Settings — Project — Recalibrate
+- **Work** — Recalibrate in the Settings window.
+- **Retires** — `Legacy/Recalibrate`, then `Legacy/ProjectWindow`.
+- **Spec** — glossary → Settings window.
+- **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`.
+- **Done when** — As P14.7; the temporary second window is gone.
+
+### [ ] P18.15 Settings — General — Agent CLIs and routing defaults
+- **Work** — Agent CLIs and the base Routing Table defaults. The menu commands move to their own file
+  under `App/`.
+- **Retires** — `Legacy/AgentCLI`, `Legacy/BaseRoutingTable`, their `Window` scenes and menu
+  commands.
+- **Spec** — `routing/add-an-agent-cli`.
+- **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`.
+- **Done when** — As P14.4; both legacy folders are deleted.
+
+### [ ] P18.16 Settings — General — Linear auth, Operator identity, Orca ADE
+- **Work** — Linear authorization, the Operator's identity and the Orca ADE settings. This touches
+  Linear authorization, which ADR-005 and ADR-006 (both `accepted`) bind.
+- **Spec** — `board-projection/install-the-linear-app`,
+  `board-projection/authorize-linear-via-remote-approval`; ADR-005; ADR-006.
+- **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
+- **Done when** — An installation started from Settings stores its token pair and passes the
+  checks of P17.7.
+
+### [ ] P18.17 `AddProject` sheet
+- **Work** — The Setup wizard as a sheet, shown only when a Project is added. The `extension String`
+  at the top of `SetupWizardModel.swift` is decided here.
+- **Retires** — `Legacy/SetupWizard`, `Legacy/Shared`, then `Legacy/`.
+- **Spec** — `app/add-a-project-via-the-setup-wizard`.
+- **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
+- **Done when** — A Project is added through the sheet as through P14.2; `Legacy/` is gone.
+
 ---
 
 ## Traceability: story → steps
@@ -1908,14 +2068,14 @@ depends on and that never shipped.
 | `loop-state/reconcile-worktrees-at-act-start` | P6.8, P6.9, P6.6 |
 | `loop-state/record-failure-cause-recurrence` | P8.8 |
 | `board-projection/write-board-updates-through-the-outbox` | P5.4, P17.5 |
-| `board-projection/install-the-linear-app` | P17.3, P17.4, P17.5, P17.6, P17.7, P17.8, P17.9 |
-| `board-projection/authorize-linear-via-remote-approval` | P17.9 |
+| `board-projection/install-the-linear-app` | P17.3, P17.4, P17.5, P17.6, P17.7, P17.8, P17.9, P18.16 |
+| `board-projection/authorize-linear-via-remote-approval` | P17.9, P18.16 |
 | `board-projection/read-board-changes-by-delta` | P5.5, P11.2, P11.3 |
 | `board-projection/maintain-the-managed-block` | P5.6, P9.10, P12.3, P11.3 |
 | `board-projection/check-card-readiness-at-dispatch` | P8.2, P6.4 |
 | `routing/resolve-a-route-for-a-card` | P2.4, P7.6, P9.11 |
 | `routing/exclude-tried-routes-on-retry` | P7.7 |
-| `routing/add-an-agent-cli` | P2.3, P7.2, P7.3, P7.4, P7.5 |
+| `routing/add-an-agent-cli` | P2.3, P7.2, P7.3, P7.4, P7.5, P18.15 |
 | `feature-authoring/select-the-next-feature` | P9.1, P9.2, P9.3, P9.8, P9.9, P9.11, P11.5, P11.6 |
 | `feature-authoring/author-the-cycle-and-card-dag` | P9.4, P9.10, P11.5 |
 | `feature-authoring/author-citable-definitions-of-done` | P9.5, P9.7, P9.8, P8.2 |
@@ -1937,3 +2097,8 @@ depends on and that never shipped.
 | `morning-report/report-the-instrumented-rates` | P12.2 |
 | `morning-report/notify-the-operator-of-exceptions` | P12.4, P12.5 |
 | `morning-report/triage-the-morning` | P10.8, P10.9, P9.9, P12.3, P16.8 |
+| `app/land-on-the-sidebar-and-pulse` | P18.1, P18.2, P18.3, P18.4, P18.5, P18.6, P18.7, P18.8, P18.9 |
+| `app/scope-windows-to-a-project` | P18.1 |
+| `app/stop-the-engine-for-a-project` | P18.10 |
+| `app/abort-a-running-attempt` | P18.11 |
+| `app/add-a-project-via-the-setup-wizard` | P18.13, P18.17 |

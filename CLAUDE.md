@@ -193,8 +193,8 @@ there; the repo-local consequences are:
   `Yellowhammer/DevSupport/Previews/Pulse/` (Debug only) holds the fixtures, the
   Playground and Gallery previews, and the variants, registered in `PulseVariant.all`. A
   variant renders only a `LandingSnapshot` and routes every way out through
-  `openPulseDestination`; it never reads a Journal or runs `yh`. No roadmap step covers
-  the Pulse yet.
+  `openPulseDestination`; it never reads a Journal or runs `yh`. Roadmap Phase 18
+  builds the Pulse for real.
 - On-disk paths, the `[schedule]` and `[limits]` keys and their defaults are in the
   spec's ruling and `docs/tech/stack.md` — read them there, do not restate them here.
 
