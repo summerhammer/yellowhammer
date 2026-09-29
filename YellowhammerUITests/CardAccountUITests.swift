@@ -1,7 +1,7 @@
 import Foundation
 import XCTest
 
-/// The Journal tab of a Project window (P14.5) against a fixture configuration directory whose Project
+/// The Project Window's Journal tab (P14.5) against a fixture configuration directory whose Project
 /// has never run an Act. The UI test bundle links no Journal module, so it cannot build a Journal at the
 /// engine's current schema; reading a populated Journal read-only — including while an Act writes it —
 /// is covered by `CardAccountTests` in the `JournalTests` package. This suite covers what the app itself
@@ -37,6 +37,7 @@ final class CardAccountUITests: XCTestCase {
             "-ApplePersistenceIgnoreState", "YES"
         ]
         app.launch()
+        app.openProjectWindow()
     }
 
     override func tearDown() async throws {

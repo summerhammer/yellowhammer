@@ -12,8 +12,10 @@ import Foundation
 
 /// Everything the landing screen shows, as of one instant.
 public struct LandingSnapshot: Equatable, Sendable {
-    /// Every configured Project, in configured order. Refused configuration files are not here: the
-    /// Sidebar omits them, and the Settings window surfaces them.
+    /// Every configured Project, in configured order: the order the configuration loader returns, which
+    /// is by id. The sponsor was indifferent to this order and delegated it to the lead, and nothing here
+    /// re-sorts it. Refused configuration files are not here: the Sidebar omits them, and the Settings
+    /// window surfaces them.
     public var projects: [ProjectSnapshot]
     /// The instant the snapshot describes. Views format elapsed and relative times against this, never
     /// against the clock, so a preview renders the same every time.
@@ -36,16 +38,39 @@ public struct ProjectSnapshot: Identifiable, Equatable, Sendable {
     /// Every configured Repo, in `[repos]` declared order. The Sidebar always shows all of them.
     public var repos: [String]
     public var pulse: PulseSnapshot
+    /// Why this Project's Journal could not be read, in the Journal's own words. Nil when `pulse` was
+    /// read from the Journal, and also when the Project has no Journal yet: no Act of it has run, so the
+    /// empty, idle Pulse is true.
+    ///
+    /// When this is set, `pulse` is empty and says nothing about the Project. A view states this failure
+    /// in place of the Pulse, and in place of the `idle`/`working` status.
+    public var journalFailure: String?
 
-    public init(id: ProjectID, name: String, repos: [String], pulse: PulseSnapshot) {
+    public init(id: ProjectID, name: String, repos: [String], pulse: PulseSnapshot, journalFailure: String? = nil) {
         self.id = id
         self.name = name
         self.repos = repos
         self.pulse = pulse
+        self.journalFailure = journalFailure
     }
 
     /// The Sidebar's `idle`/`working`: the same value the Pulse's Now group shows.
+    ///
+    /// Check `journalFailure` first. When the Journal could not be read, this is the empty Pulse's
+    /// `idle`, which is not derived from anything.
     public var status: ProjectStatus { pulse.now.status }
+
+    /// Whether `selection` names something in this Project's own Pulse or Repos. The Inspector shows
+    /// only a selection this returns true for, so a Card, Attempt or Repo of another Project never
+    /// appears beside this Project's Pulse.
+    public func contains(_ selection: PulseSelection) -> Bool {
+        switch selection {
+        case let .card(id): pulse.needsYou.cards.contains { $0.id == id }
+        case let .feature(id): pulse.feature?.id == id
+        case let .attempt(id): pulse.now.attempts.contains { $0.id == id }
+        case let .repo(repo): repos.contains(repo)
+        }
+    }
 
     /// The Repo's `lane_state` while it is `in_lane`; nil otherwise, so no badge shows.
     public func laneState(for repo: String) -> LaneState? {

@@ -12,8 +12,10 @@ import SwiftUI
 /// The window app (Decision Gates Ruling, G-5). `AppLaunch` starts it for every launch that is not a
 /// headless post.
 ///
-/// Every window is scoped to one Project by its value; the Operator may open as many as they like,
-/// one per Project, and `yellowhammer://project/<id>` opens the named one.
+/// The main window (`OverviewWindow`) is scoped to one Project by its value. The Operator may open as
+/// many main windows as they like, and `yellowhammer://project/<id>` opens the one for the named
+/// Project. Both groups that present a `ProjectID` are opened by their id, never by value alone, so a
+/// value can never pick the wrong one.
 struct YellowhammerApp: App {
     /// Sparkle 2, user-initiated only (Decision Gates Ruling G-14): started once for the app's
     /// lifetime here, never in the headless launches (`AppLaunch` routes those to
@@ -43,17 +45,34 @@ struct YellowhammerApp: App {
     }
 
     var body: some Scene {
-        WindowGroup(for: ProjectID.self) { $project in
-            ProjectWindow(project: $project)
+        // First, so it is the window the app opens on, and the one File > New Window opens.
+        WindowGroup(id: OverviewWindow.windowID, for: ProjectID.self) { $project in
+            OverviewWindow(project: $project)
         }
+        // Room for the three columns at their ideal widths. The minimum comes from the columns' own.
+        .defaultSize(width: 1180, height: 760)
+        .windowResizability(.contentMinSize)
+        .handlesExternalEvents(matching: [ProjectDeepLink.scheme])
         .commands {
             CommandGroup(after: .appInfo) {
                 SetupMenuCommand()
+                ProjectWindowMenuCommand()
                 BaseRoutingTableMenuCommand()
                 AgentCLIMenuCommand()
                 CheckForUpdatesMenuCommand(updater: updaterController.updater)
             }
         }
+
+        Settings {
+            SettingsWindow()
+        }
+
+        // Temporary: the screens the main window does not carry yet, until P18.14 moves the last of them.
+        // A deep link never opens this window; it opens the main window.
+        WindowGroup("Project", id: ProjectWindow.windowID, for: ProjectID.self) { $project in
+            ProjectWindow(project: $project)
+        }
+        .handlesExternalEvents(matching: [])
 
         // Not Project-scoped: declaring a new Project happens here, never in a Project window.
         Window("Setup", id: SetupMenuCommand.windowID) {
@@ -84,6 +103,23 @@ private struct SetupMenuCommand: View {
 
     var body: some View {
         Button("Setup…") { openWindow(id: Self.windowID) } // glossary:ignore GL001
+    }
+}
+
+/// Opens the temporary Project Window for the Project the key main window shows. With no main window
+/// key, it opens the window for the first configured Project.
+private struct ProjectWindowMenuCommand: View {
+    @FocusedValue(\.overviewProject) private var project
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("Project Window\u{2026}") {
+            if let project {
+                openWindow(id: ProjectWindow.windowID, value: project)
+            } else {
+                openWindow(id: ProjectWindow.windowID)
+            }
+        }
     }
 }
 

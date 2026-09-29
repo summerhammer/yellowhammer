@@ -1,7 +1,7 @@
 import Foundation
 import XCTest
 
-/// The Project detail screen driven against a fixture configuration directory (P14.3). A successful
+/// The Project Window's Configuration tab driven against a fixture configuration directory (P14.3). A successful
 /// save is not exercised here: the UI test runner is itself sandboxed, so the (unsandboxed) app under
 /// test cannot write into the runner's own container — see
 /// `SetupWizardUITests`'s stub-execution note for the same boundary. The round trip through
@@ -38,6 +38,7 @@ final class ConfigurationEditingUITests: XCTestCase {
             "-ApplePersistenceIgnoreState", "YES"
         ]
         app.launch()
+        app.openProjectWindow()
     }
 
     override func tearDown() async throws {

@@ -1,7 +1,7 @@
 import Foundation
 import XCTest
 
-/// The Status tab of a Project window (P14.6; OQ12 Surface 3) driven against a stub `yh`, modelled on
+/// The Project Window's Status tab (P14.6; OQ12 Surface 3) driven against a stub `yh`, modelled on
 /// `AgentCLIUITests` (the stub crossing the UI runner's sandbox) plus `CardAccountUITests`' machine and
 /// `projects/demo.toml` fixture. Covers that the tab runs `yh status --project demo` then
 /// `yh doctor --project demo`, shows each command's output verbatim, and never passes `--fix` or
@@ -40,6 +40,7 @@ final class ProjectStatusUITests: XCTestCase {
             "-ApplePersistenceIgnoreState", "YES"
         ]
         app.launch()
+        app.openProjectWindow()
     }
 
     override func tearDown() async throws {

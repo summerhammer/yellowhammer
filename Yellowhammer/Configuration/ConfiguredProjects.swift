@@ -2,8 +2,9 @@ import Config
 import Domain
 import Foundation
 
-/// The Projects the app can scope a window to: every configured Project's id and name, and nothing
-/// else (OQ52 Face 2).
+/// Every configured Project's id and name, and nothing else. The temporary Project Window, the Setup
+/// wizard and the updater's live-Lease scan read it. The main window reads the whole configuration
+/// through `OverviewModel`.
 ///
 /// Read from the TOML files each time it is asked for, never watched or kept: the files are the only
 /// record, and the Operator may edit them while the app is open.
@@ -13,7 +14,8 @@ struct ConfiguredProjects: Equatable {
         let name: String
     }
 
-    /// Sorted by name, so the selector reads as a list of names.
+    /// In configured order, the same order as the main window's Sidebar: the order the loader returns,
+    /// which is by id.
     let entries: [Entry]
     /// Why nothing could be read, in the loader's own words; nil when the configuration loaded.
     let loadFailure: String?
@@ -26,15 +28,7 @@ struct ConfiguredProjects: Equatable {
     static func load() -> ConfiguredProjects {
         do {
             let configuration = try Configuration.load(directory: ConfigurationDirectory.current)
-            let entries = configuration.projects
-                .map { Entry(id: $0.id, name: $0.name) }
-                .sorted {
-                    switch $0.name.localizedStandardCompare($1.name) {
-                    case .orderedAscending: true
-                    case .orderedDescending: false
-                    case .orderedSame: $0.id.rawValue < $1.id.rawValue
-                    }
-                }
+            let entries = configuration.projects.map { Entry(id: $0.id, name: $0.name) }
             return ConfiguredProjects(entries: entries, loadFailure: nil)
         } catch {
             return ConfiguredProjects(entries: [], loadFailure: error.description)

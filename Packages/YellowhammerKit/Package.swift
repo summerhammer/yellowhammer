@@ -62,6 +62,7 @@ let package = Package(
             name: "Pulse",
             dependencies: [
                 "Domain",
+                "Config",
                 "Journal"
             ]
         ),
@@ -154,6 +155,7 @@ let package = Package(
             name: "PulseTests",
             dependencies: [
                 "Pulse",
+                "Config",
                 "Journal",
                 "Domain"
             ]

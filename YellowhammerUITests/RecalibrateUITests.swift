@@ -1,7 +1,7 @@
 import Foundation
 import XCTest
 
-/// The Recalibrate tab (P14.7) driven against a stub `yh`, modelled on `ProjectStatusUITests`. Covers
+/// The Project Window's Recalibrate tab (P14.7) driven against a stub `yh`, modelled on `ProjectStatusUITests`. Covers
 /// that `yh recalibrate --project demo --json` is decoded and its Bounds shown with this Night's
 /// proximity, and that confirming the dialog launches a rehearsal Night (`yh rehearse --project demo`)
 /// without throwing, showing the started note with its log path.
@@ -50,6 +50,7 @@ final class RecalibrateUITests: XCTestCase {
             "-ApplePersistenceIgnoreState", "YES"
         ]
         app.launch()
+        app.openProjectWindow()
     }
 
     override func tearDown() async throws {
