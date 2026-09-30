@@ -39,6 +39,14 @@ enum TerminationSignals {
     /// same test host process) cannot trip the default termination action.
     private static let processObservedRealSignal = Mutex(false)
 
+    /// Admits one `run` at a time, process-wide (issue #215). Dispositions and signal sources are
+    /// global to the process, so two overlapping runs corrupt each other: one run's `defer` restores
+    /// `SIG_DFL` while the other has a real signal in flight (killing the process), and a real signal
+    /// fires every live `DispatchSource`, cancelling a run it was never sent to. Production runs one
+    /// Act per process, so the gate never makes anything wait there; only a test host, where
+    /// `ActCommand.run` and the signal tests run concurrently, ever queues on it.
+    private static let gate = Gate()
+
     /// Runs `body` in an unstructured `Task`, with `SIGTERM`/`SIGINT` handlers installed only for the
     /// duration. On the first signal, cancels the body's `Task` and starts `deadline`; if the body has
     /// not finished by then, `exit` is invoked with `128 + signal number` and this function does not
@@ -67,6 +75,7 @@ enum TerminationSignals {
         signalHook: (@escaping @Sendable (Int32) -> Void) -> Void = { _ in },
         body: @Sendable @escaping () async throws -> Void
     ) async throws {
+        await Self.gate.enter()
         let coordinator = Coordinator(deadline: deadline, exit: exit)
         let termSource = DispatchSource.makeSignalSource(signal: SIGTERM, queue: coordinator.signalQueue)
         let intSource = DispatchSource.makeSignalSource(signal: SIGINT, queue: coordinator.signalQueue)
@@ -114,6 +123,7 @@ enum TerminationSignals {
                 Self.restoreDefault(SIGTERM)
                 Self.restoreDefault(SIGINT)
             }
+            Self.gate.leave()
         }
 
         do {
@@ -149,6 +159,39 @@ enum TerminationSignals {
         action.__sigaction_u.__sa_handler = SIG_DFL
         sigemptyset(&action.sa_mask)
         sigaction(signalNumber, &action, nil)
+    }
+
+    /// A FIFO admission gate: `enter` suspends (never blocks a thread) while another `run` holds it,
+    /// and `leave` hands it straight to the longest waiter. A waiter is not cancellable — nothing ever
+    /// waits in production (see ``gate``).
+    private final class Gate: Sendable {
+        /// Whether a `run` holds the gate, and the runs queued behind it, oldest first.
+        private let state = Mutex<(busy: Bool, waiters: [CheckedContinuation<Void, Never>])>((false, []))
+
+        func enter() async {
+            await withCheckedContinuation { continuation in
+                let admitted = state.withLock { state -> Bool in
+                    guard state.busy else {
+                        state.busy = true
+                        return true
+                    }
+                    state.waiters.append(continuation)
+                    return false
+                }
+                if admitted { continuation.resume() }
+            }
+        }
+
+        func leave() {
+            let next = state.withLock { state -> CheckedContinuation<Void, Never>? in
+                guard !state.waiters.isEmpty else {
+                    state.busy = false
+                    return nil
+                }
+                return state.waiters.removeFirst()
+            }
+            next?.resume()
+        }
     }
 
     /// The mutable state one `run` call owns: which signal (if any) landed first, the body's `Task`
