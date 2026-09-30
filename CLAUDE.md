@@ -77,7 +77,8 @@ These are rulings, not preferences. Violating one is a defect.
   happens in Linear. The app may trigger and display; it may never be where a decision
   is made or recorded. Anything demanding a decision surfaces as a board object.
 - **No cross-Project view.** The app may read N Journals; it may not merge N Nights
-  into a verdict. There is no screen above the landing screen.
+  into a verdict. The landing screen's Sidebar lists every Project, but each Project's
+  Pulse is computed from its own Journal alone — no element blends two Projects' data.
 - **Read-only on every Journal.** The app writes nothing.
 - **Nothing resident.** No daemon, no background service, no timer, no in-memory cache,
   no background watcher. Anything that must outlive a tick is written to the Journal or
@@ -182,8 +183,17 @@ there; the repo-local consequences are:
   the app opens every store read-only, never migrates, and refuses to read a store whose
   schema is newer than it knows. Never use `eraseDatabaseOnSchemaChange` outside tests.
 - **The app is a window app**: no `MenuBarExtra`, no login item, no background updater.
-  Its screens are Setup, Recalibrate, the read-only Journal account behind a Card, and
-  Status; every decision screen is Linear's. Updates are Sparkle 2, user-initiated.
+  Every decision screen is Linear's. Updates are Sparkle 2, user-initiated.
+- **The main window is the landing screen: Sidebar, Pulse, Inspector.** The spec's
+  Landing Screen Ruling (`risks.md#landing-screen-ruling-2026-09-28`) reopened G-6 for
+  that one point; read it and the story `app/land-on-the-sidebar-and-pulse` there. The
+  Pulse is being prototyped in Xcode Previews before it is built for real:
+  `Yellowhammer/PulseSnapshot.swift` is the screen's view state (plain values, the seam a
+  Journal read will fill), and `Yellowhammer/PulsePrototypes/` (Debug only) holds the
+  fixtures, the Playground and Gallery previews, and the variants, registered in
+  `PulseVariant.all`. A variant renders only a `LandingSnapshot` and routes every way out
+  through `openPulseDestination`; it never reads a Journal or runs `yh`. No roadmap step
+  covers the Pulse yet.
 - On-disk paths, the `[schedule]` and `[limits]` keys and their defaults are in the
   spec's ruling and `docs/tech/stack.md` — read them there, do not restate them here.
 

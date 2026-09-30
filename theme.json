@@ -1,0 +1,34 @@
+{
+  "styles": {
+    "colors": [
+      "brand",
+      "accent",
+      "onAccent",
+      "attention",
+      "onAttention",
+      "active",
+      "onActive",
+      "success",
+      "onSuccess",
+      "info",
+      "onInfo",
+      "warning",
+      "onWarning",
+      "error",
+      "onError",
+      "neutral",
+      "surface"
+    ],
+    "gradients": [
+      "accentGradient",
+      "activeGradient",
+      "attentionGradient",
+      "infoGradient",
+      "warningGradient"
+    ]
+  },
+  "config": {
+    "outputPath": "DesignSystem/Theme",
+    "shouldGeneratePreview": true
+  }
+}
