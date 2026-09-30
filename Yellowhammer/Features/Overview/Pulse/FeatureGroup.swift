@@ -12,7 +12,7 @@ struct FeatureGroup: View {
         GroupBox {
             VStack(alignment: .leading, spacing: 4) {
                 if let feature {
-                    Button(feature.title ?? feature.id) { openDestination(.inspector(.feature(feature.id))) }
+                    Button(feature.displayTitle) { openDestination(.inspector(.feature(feature.id))) }
                         .buttonStyle(.link)
                     ForEach(feature.lanes) { lane in
                         HStack {
@@ -36,5 +36,14 @@ struct FeatureGroup: View {
         } label: {
             Label("Feature", systemImage: "flag")
         }
+    }
+}
+
+// MARK: For display
+
+private extension FeatureInFlight {
+    /// The Feature's title, or its id while the title is not known.
+    var displayTitle: String {
+        title ?? id
     }
 }

@@ -81,6 +81,11 @@ public struct ProjectSnapshot: Identifiable, Equatable, Sendable {
     public func runningAttempt(for repo: String) -> RunningAttempt? {
         pulse.now.attempts.first { $0.repo == repo }
     }
+
+    /// The running Attempt with this id, or nil when no Attempt of this Project runs under it.
+    public func runningAttempt(id: String) -> RunningAttempt? {
+        pulse.now.attempts.first { $0.id == id }
+    }
 }
 
 /// A Project's derived status. `working` means exactly that the Project's `launchd` Act job is alive.

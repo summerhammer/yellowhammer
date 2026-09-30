@@ -87,7 +87,7 @@ struct PulseInspectorView: View {
         case let .feature(id):
             return pulse.feature.flatMap { $0.id == id ? featureModel($0) : nil }
         case let .attempt(id):
-            return pulse.now.attempts.first { $0.id == id }.map(attemptModel)
+            return context.project.runningAttempt(id: id).map(attemptModel)
         case let .repo(repo):
             return context.project.repos.contains(repo) ? repoModel(repo) : nil
         }

@@ -36,14 +36,14 @@ struct OverviewSidebar: View {
                         ProjectRow(
                             id: row.snapshot.id,
                             name: row.snapshot.name,
-                            status: row.snapshot.journalFailure == nil ? row.snapshot.status : nil
+                            status: row.snapshot.displayedStatus
                         )
                     case let .repo(repo):
                         RepoRow(projectID: row.snapshot.id, repo: repo, lane: row.snapshot.laneState(for: repo))
                             .padding(.leading, 16)
                     case let .attempt(attempt):
                         // The running Attempt: its Card and route. No output of the agent CLI, ever.
-                        Label("\(attempt.cardID) \u{00B7} \(attempt.route)", systemImage: "gearshape.2")
+                        Label(attempt.sidebarLabel, systemImage: "gearshape.2")
                             .font(.caption)
                             .lineLimit(1)
                             .accessibilityIdentifier("sidebar-\(row.snapshot.id.rawValue)-attempt-\(attempt.id)")
@@ -170,5 +170,21 @@ private struct SidebarRow: Identifiable {
         case let .repo(repo): .repo(snapshot.id, repo)
         case let .attempt(attempt): .attempt(snapshot.id, attempt.id)
         }
+    }
+}
+
+// MARK: For display
+
+private extension ProjectSnapshot {
+    /// The status the Project's row shows. Nil when the Journal could not be read, because none can be derived.
+    var displayedStatus: ProjectStatus? {
+        journalFailure == nil ? status : nil
+    }
+}
+
+private extension RunningAttempt {
+    /// The Attempt's Card and route. No output of the agent CLI, ever.
+    var sidebarLabel: String {
+        "\(cardID) \u{00B7} \(route)"
     }
 }

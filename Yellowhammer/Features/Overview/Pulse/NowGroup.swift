@@ -76,22 +76,32 @@ private struct RunningAttemptRow: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text("\(attempt.cardID)  \(attempt.cardTitle)").lineLimit(1)
-                Text([attempt.repo, attempt.route, attempt.status].compactMap { $0 }.joined(separator: " \u{00B7} "))
+                Text(attempt.detailLine)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 1) {
-                Text(elapsed(since: attempt.startedAt)).monospacedDigit()
+                Text(attempt.elapsed(asOf: asOf)).monospacedDigit()
                 Text("Round \(attempt.round)").font(.caption).foregroundStyle(.secondary)
             }
         }
         .contentShape(.rect)
     }
+}
 
-    private func elapsed(since start: Date) -> String {
-        Duration.seconds(max(0, asOf.timeIntervalSince(start)))
+// MARK: For display
+
+private extension RunningAttempt {
+    /// The Repo, route and one-line status the Attempt has, in that order.
+    var detailLine: String {
+        [repo, route, status].compactMap { $0 }.joined(separator: " \u{00B7} ")
+    }
+
+    /// Time since the Attempt started, measured to `asOf`, not to the clock.
+    func elapsed(asOf: Date) -> String {
+        Duration.seconds(max(0, asOf.timeIntervalSince(startedAt)))
             .formatted(.units(allowed: [.hours, .minutes], width: .narrow))
     }
 }
