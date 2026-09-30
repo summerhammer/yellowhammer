@@ -71,6 +71,17 @@ extension Configuration {
         try load(directory: directory, substitution: nil)
     }
 
+    /// Loads `directory` as ``load(directory:)`` does, or returns nil when it holds no `config.toml`:
+    /// a Mac where Setup has never run, which is not set up rather than misconfigured. A `config.toml`
+    /// that exists but does not load still throws.
+    public static func loadIfSetUp(directory: URL) throws(ConfigurationError) -> Configuration? {
+        let machineFileURL = directory.appending(component: "config.toml", directoryHint: .notDirectory)
+        guard FileManager.default.fileExists(atPath: machineFileURL.path(percentEncoded: false)) else {
+            return nil
+        }
+        return try load(directory: directory)
+    }
+
     /// Loads `directory` exactly as ``load(directory:)`` does, except that wherever the loader would
     /// read `file` from disk — `config.toml`, or any `projects/<id>.toml` — it uses `text` instead.
     /// Used to validate an edit before it is written (``save(_:to:in:replacing:)``).
