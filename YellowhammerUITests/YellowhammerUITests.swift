@@ -25,6 +25,11 @@ final class OverviewWindowUITests: XCTestCase {
     }
 
     override func tearDown() async throws {
+        // A failed wait says only that time ran out: keep what the app was showing when it did.
+        if testRun?.hasSucceeded == false {
+            add(XCTAttachment(string: app.debugDescription))
+            add(XCTAttachment(screenshot: XCUIScreen.main.screenshot()))
+        }
         app.terminate()
         try? FileManager.default.removeItem(at: configurationDirectory)
     }
@@ -100,17 +105,17 @@ final class OverviewWindowUITests: XCTestCase {
     func testDeepLinkLaunchOpensTheNamedProject() throws {
         XCTAssertTrue(app.staticTexts["pulse-heading"].waitForExistence(timeout: 10))
 
-        app.open(try XCTUnwrap(URL(string: "yellowhammer://project/reader")))
+        let landed = try relaunch(opening: "yellowhammer://project/reader") { headingText() == "Reader" }
 
-        XCTAssertTrue(waitForHeading("Reader", timeout: 10), "Pulse heading is \(headingText())")
+        XCTAssertTrue(landed, "Pulse heading is \(headingText())")
     }
 
     func testDeepLinkToAnUnknownProjectStatesIt() throws {
         XCTAssertTrue(app.staticTexts["pulse-heading"].waitForExistence(timeout: 10))
 
-        app.open(try XCTUnwrap(URL(string: "yellowhammer://project/nobody")))
+        let landed = try relaunch(opening: "yellowhammer://project/nobody") { element("overview-unknown-id").exists }
 
-        XCTAssertTrue(app.descendants(matching: .any)["overview-unknown-id"].waitForExistence(timeout: 10))
+        XCTAssertTrue(landed)
     }
 
     func testRefusedProjectIsAbsentFromTheSidebar() {
@@ -125,9 +130,9 @@ final class OverviewWindowUITests: XCTestCase {
     func testDeepLinkToARefusedProjectStatesTheRefusal() throws {
         XCTAssertTrue(app.staticTexts["pulse-heading"].waitForExistence(timeout: 10))
 
-        app.open(try XCTUnwrap(URL(string: "yellowhammer://project/broken")))
+        let landed = try relaunch(opening: "yellowhammer://project/broken") { element("overview-refused-id").exists }
 
-        XCTAssertTrue(element("overview-refused-id").waitForExistence(timeout: 10))
+        XCTAssertTrue(landed)
         XCTAssertFalse(element("sidebar-broken").exists)
     }
 
@@ -160,6 +165,29 @@ final class OverviewWindowUITests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
         XCTAssertEqual((selection.value as? String) ?? selection.label, "Repo reader")
+    }
+
+    /// Relaunches the app by `link` until `landed` holds, at most three times. A cold launch by URL
+    /// sometimes never delivers the URL to the app (#238, which reproduces it with plain `open` against
+    /// the installed Release build), so one launch is not enough to tell the app's handling of a link
+    /// from that loss. Each launch waits for the new instance to come up in front first; the state in
+    /// the message tells a launch that never finished from a link that never landed (#228).
+    private func relaunch(opening link: String, until landed: () -> Bool) throws -> Bool {
+        let url = try XCTUnwrap(URL(string: link))
+        for _ in 1...3 {
+            app.open(url)
+            app.activate()
+            XCTAssertTrue(
+                app.wait(for: .runningForeground, timeout: 20),
+                "The app is in state \(app.state.rawValue) after the relaunch by \(link)"
+            )
+            let deadline = Date().addingTimeInterval(10)
+            while Date() < deadline {
+                if landed() { return true }
+                RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+            }
+        }
+        return landed()
     }
 
     private func element(_ identifier: String) -> XCUIElement {
