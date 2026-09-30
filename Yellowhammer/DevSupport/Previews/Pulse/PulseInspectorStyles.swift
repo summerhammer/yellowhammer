@@ -1,5 +1,6 @@
 #if DEBUG
 import Domain
+import Pulse
 import SwiftUI
 
 // The Inspector renders one selection's detail read-only. Every selection is first turned into an
@@ -150,15 +151,15 @@ struct PulseInspectorView: View {
             systemImage: "flag.fill",
             tint: palette.color(for: feature.rollupState),
             identifier: feature.id,
-            title: feature.title,
+            title: feature.title ?? feature.id,
             badges: [
-                (feature.state, .secondary),
-                (feature.rollupState.rawValue, palette.color(for: feature.rollupState))
-            ],
+                feature.state.map { ($0, Color.secondary) },
+                feature.rollupState.map { ($0.rawValue, palette.color(for: $0)) }
+            ].compactMap { $0 },
             progress: feature.lanes.isEmpty ? nil : progress,
             facts: [
-                ("Linear state", feature.state),
-                ("Roll-up", feature.rollupState.rawValue),
+                ("Linear state", feature.state ?? "—"),
+                ("Roll-up", feature.rollupState?.rawValue ?? "—"),
                 ("Repo Lanes", feature.lanes.isEmpty ? "none yet" : "\(feature.lanes.count)"),
                 ("Cards done", feature.lanes.isEmpty ? "—" : "\(progress.done) of \(progress.total)"),
                 ("Pull requests", pullRequests.isEmpty ? "none yet" : "\(pullRequests.count)")
@@ -180,7 +181,7 @@ struct PulseInspectorView: View {
             ("Round", "\(attempt.round)"),
             ("Started", PulseFormat.time(attempt.startedAt)),
             ("Elapsed", PulseFormat.elapsed(since: attempt.startedAt, asOf: context.asOf)),
-            ("Status", attempt.status)
+            ("Status", attempt.status ?? "—")
         ]
         return PulseInspectorModel(
             kind: "Attempt",
@@ -235,7 +236,10 @@ struct PulseInspectorView: View {
             facts: [
                 ("Repo Lane", lane?.state.rawValue ?? "not in lane"),
                 ("Cards done", lane.map { "\($0.cardsDone) of \($0.cardsTotal)" } ?? "—"),
-                ("Pull request", lane?.pullRequest.map { "#\($0.number) \($0.state.rawValue)" } ?? "none yet"),
+                (
+                    "Pull request",
+                    lane?.pullRequest.map { "#\($0.number)" + ($0.state.map { " \($0.rawValue)" } ?? "") } ?? "none yet"
+                ),
                 ("Attempt", attempt?.route ?? "none running"),
                 ("Needs you", cards.isEmpty ? "nothing" : "\(cards.count)")
             ],
@@ -265,7 +269,8 @@ struct PulseInspectorView: View {
 
     private func pullRequestItem(repo: String, chip: PullRequestChip) -> PulseInspectorModel.Item {
         .init(
-            id: "\(repo)#\(chip.number)", title: "\(repo) #\(chip.number)", subtitle: chip.state.rawValue,
+            id: "\(repo)#\(chip.number)", title: "\(repo) #\(chip.number)",
+            subtitle: chip.state?.rawValue ?? "state unknown",
             systemImage: "arrow.triangle.pull", tint: palette.color(for: chip.state),
             action: .open(.pullRequest(repo: repo, number: chip.number))
         )

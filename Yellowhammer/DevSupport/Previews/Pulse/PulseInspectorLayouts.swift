@@ -1,5 +1,6 @@
 #if DEBUG
 import Domain
+import Pulse
 import SwiftUI
 
 // The Inspector layouts; each renders one `PulseInspectorModel`. See `PulseInspectorStyle`.

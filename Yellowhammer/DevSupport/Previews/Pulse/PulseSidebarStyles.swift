@@ -1,5 +1,6 @@
 #if DEBUG
 import Domain
+import Pulse
 import SwiftUI
 
 // The Sidebar's row styles. Every style keeps the tree Project → every Repo (always shown, in

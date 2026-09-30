@@ -1,5 +1,6 @@
 #if DEBUG
 import Domain
+import Pulse
 import SwiftUI
 
 // Tinted cards under four different heads: the summary strip, a slim status band, the strip on the

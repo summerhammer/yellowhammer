@@ -1,5 +1,6 @@
 #if DEBUG
 import Domain
+import Pulse
 import SwiftUI
 
 // The Pulse prototyping harness. Debug builds only.
@@ -232,7 +233,7 @@ private struct PulseProjectControls: View {
 
     private func healthFlag(_ kind: HealthFlagKind) -> Binding<Bool> {
         Binding {
-            project.pulse.health.contains { $0.kind == kind }
+            (project.pulse.health ?? []).contains { $0.kind == kind }
         } set: { raised in
             project.pulse.setHealthFlag(kind, raised)
         }

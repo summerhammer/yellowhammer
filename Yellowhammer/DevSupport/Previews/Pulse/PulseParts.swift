@@ -1,5 +1,6 @@
 #if DEBUG
 import Domain
+import Pulse
 import SwiftUI
 
 // Building blocks the composed variants share: the five groups, the ways out, formatting, and the rows
@@ -38,11 +39,14 @@ enum PulseGroup: String, CaseIterable, Identifiable {
             let attempts = pulse.now.attempts.count
             return attempts > 0 ? "\(pulse.now.status.rawValue) · \(attempts) running" : PulseFormat.nowLine(pulse.now)
         case .feature:
-            return pulse.feature.map { "\($0.id) · \($0.rollupState.rawValue)" } ?? "No Feature in flight"
+            return pulse.feature.map {
+                [$0.id, $0.rollupState?.rawValue].compactMap { $0 }.joined(separator: " · ")
+            } ?? "No Feature in flight"
         case .night:
             return pulse.night?.state.rawValue ?? "No Night yet"
         case .health:
-            return pulse.health.isEmpty ? "Healthy" : "\(pulse.health.count) flagged"
+            guard let health = pulse.health else { return "Not read" }
+            return health.isEmpty ? "Healthy" : "\(health.count) flagged"
         }
     }
 }
@@ -175,7 +179,8 @@ struct PulsePullRequestButton: View {
         Button(action: action) {
             HStack(spacing: 4) {
                 Image(systemName: "arrow.triangle.pull").foregroundStyle(palette.color(for: chip.state))
-                Text("#\(chip.number) \(chip.state.rawValue)").monospacedDigit()
+                Text(["#\(chip.number)", chip.state?.rawValue].compactMap { $0 }.joined(separator: " "))
+                    .monospacedDigit()
             }
         }
         .buttonStyle(.bordered)
@@ -214,7 +219,8 @@ struct PulseAttemptRow: View {
             Image(systemName: "gearshape.2.fill").foregroundStyle(palette.working)
             VStack(alignment: .leading, spacing: 1) {
                 Text("\(attempt.cardID)  \(attempt.cardTitle)").lineLimit(1)
-                Text("\(attempt.repo) · \(attempt.status)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Text([attempt.repo, attempt.status].compactMap { $0 }.joined(separator: " · "))
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 1) {
