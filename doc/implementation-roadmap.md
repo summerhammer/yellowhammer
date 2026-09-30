@@ -1993,13 +1993,26 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
     and `launchd`) and an Attempt's one-line status (no Journal column). Both are nil from a read, so
     the group says "next Act unknown" and omits the status line.
 
-### [ ] P18.5 Pulse — Feature
+### [x] P18.5 Pulse — Feature
 - **Work** — The Feature group: `rollup_state`, Repo Lanes and pull request chips. This group is the
   one most likely to hit a Journal gap (Repo Lanes, pull request state); if it does, the step ends
   by raising the gap.
 - **Spec** — `app/land-on-the-sidebar-and-pulse`.
 - **Agent** — Opus 5.5 Medium or `gpt-5.6-sol medium`.
 - **Done when** — As P18.3, for the Feature group, or the gap is raised.
+- **Status** — Done on 2026-09-30.
+  - The read already existed (`PulseSnapshot+Read.swift`, with `featureLanes` and
+    `twoJournalsStaySeparate` Kit tests already covering it); this step built the view. It shows the
+    Feature's title (or id while the title is unknown), `state` and `rollup_state`, and every Repo
+    Lane with its Card progress, lane-state badge and pull request chip. The Feature and each Repo
+    open the Inspector; a pull request chip opens the pull request. No settle CTA.
+  - `state`, `rollup_state` and a pull request's own state are nil from a Journal read (Linear,
+    Engine's `FeatureRollUp`, and GitHub respectively — none reachable from here), an already-known
+    gap from when `PulseSnapshot` was authored: no new gap surfaced. The two named fields are stated
+    as unknown; a pull request chip's own state is a per-chip detail and is simply omitted.
+  - `OverviewWindowUITests.testFeatureGroupStatesNoFeatureInFlight` checks the stated absence against
+    the fixture's empty Journals. Populated lanes need a Journal the UI test bundle cannot build, so
+    the Kit tests cover them.
 
 ### [ ] P18.6 Pulse — Tonight / last Night
 - **Work** — The Tonight / last Night group, with its read added to `Pulse` first.
