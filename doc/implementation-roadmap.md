@@ -2088,11 +2088,25 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
     "no Journal is created" check is now `OverviewWindowUITests.testShowingProjectsCreatesNoJournal`.
     A populated Card detail needs a Journal the UI test bundle cannot build, so the Kit tests cover it.
 
-### [ ] P18.9 Inspector — Feature, Attempt and Repo detail
+### [x] P18.9 Inspector — Feature, Attempt and Repo detail
 - **Work** — The Feature, Attempt and Repo detail panes of the Inspector.
 - **Spec** — `app/land-on-the-sidebar-and-pulse`.
 - **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`.
 - **Done when** — Each pane renders from a snapshot and opens from its Pulse destination.
+- **Status** — Done on 2026-09-30 (`e4b85d5`).
+  - `FeatureDetailView`, `AttemptDetailView` and `RepoDetailView` replace the placeholder pane. Each
+    renders from the landing snapshot alone (no new read of its own) and opens from its Pulse
+    destination: the Feature title, an Attempt row, and a Feature-group Repo lane or Sidebar Repo row.
+  - `RepoLaneSnapshot` gains `cards: [LaneCard]`, the lane's member Cards, filled by the existing
+    `PulseSnapshot.read` (Cancelled Cards left out, as the lane counts do; `PulseReadTests` covers it).
+    This is the Feature detail's member list that P18.8 left to this step. A member that is a decision
+    Card opens its Card detail; any other is a plain row, since the Inspector has no detail for it.
+  - Stated unknowns, as in the Pulse: Feature `state` and `rollup_state`, and an Attempt's status line,
+    are nil from a Journal read, so the panes say "unknown". A Repo with no lane says it is not in the
+    Feature's lane.
+  - Read-only: the ways out open the Feature Issue or Card in Linear, or the lane's pull request on
+    GitHub. Abort Attempt stays P18.11's. No UI test: a populated pane needs a Journal the UI test
+    bundle cannot build, so the Kit test covers the new read and the build covers the views.
 
 ### [ ] P18.10 Toolbar — Inspector toggle and Stop the engine
 - **Work** — The Inspector toggle, and the control that stops the engine for a Project. The app may
