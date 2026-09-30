@@ -33,12 +33,20 @@ struct OverviewSidebar: View {
                 ForEach(rows) { row in
                     switch row.kind {
                     case .project:
-                        projectRow(row.snapshot)
+                        ProjectRow(
+                            id: row.snapshot.id,
+                            name: row.snapshot.name,
+                            status: row.snapshot.journalFailure == nil ? row.snapshot.status : nil
+                        )
                     case let .repo(repo):
-                        repoRow(repo, of: row.snapshot)
+                        RepoRow(projectID: row.snapshot.id, repo: repo, lane: row.snapshot.laneState(for: repo))
                             .padding(.leading, 16)
                     case let .attempt(attempt):
-                        attemptRow(attempt, of: row.snapshot)
+                        // The running Attempt: its Card and route. No output of the agent CLI, ever.
+                        Label("\(attempt.cardID) \u{00B7} \(attempt.route)", systemImage: "gearshape.2")
+                            .font(.caption)
+                            .lineLimit(1)
+                            .accessibilityIdentifier("sidebar-\(row.snapshot.id.rawValue)-attempt-\(attempt.id)")
                             .padding(.leading, 32)
                     }
                 }
@@ -82,47 +90,52 @@ struct OverviewSidebar: View {
             }
         }
     }
+}
 
-    // MARK: Rows
+/// A Project row: the Project's name and its derived `idle`/`working` status, and nothing else. `status`
+/// is nil when the Project's Journal could not be read, because none can be derived.
+private struct ProjectRow: View {
+    let id: ProjectID
+    let name: String
+    let status: ProjectStatus?
 
-    private func projectRow(_ snapshot: ProjectSnapshot) -> some View {
+    var body: some View {
         HStack {
-            Text(snapshot.name)
+            Text(name)
                 .lineLimit(1)
-                .accessibilityIdentifier("sidebar-\(snapshot.id.rawValue)")
+                .accessibilityIdentifier("sidebar-\(id.rawValue)")
             Spacer()
-            if snapshot.journalFailure == nil {
-                Text(snapshot.status.rawValue)
+            if let status {
+                Text(status.rawValue)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("sidebar-\(snapshot.id.rawValue)-status")
+                    .accessibilityIdentifier("sidebar-\(id.rawValue)-status")
             }
         }
     }
+}
 
-    private func repoRow(_ repo: String, of snapshot: ProjectSnapshot) -> some View {
+/// A Repo row, with a lane badge only while the Repo is in lane.
+private struct RepoRow: View {
+    let projectID: ProjectID
+    let repo: String
+    let lane: LaneState?
+
+    var body: some View {
         HStack {
             Label(repo, systemImage: "shippingbox")
                 .lineLimit(1)
                 .truncationMode(.middle)
-                .accessibilityIdentifier("sidebar-\(snapshot.id.rawValue)-repo-\(repo)")
+                .accessibilityIdentifier("sidebar-\(projectID.rawValue)-repo-\(repo)")
             Spacer()
-            if let lane = snapshot.laneState(for: repo) {
+            if let lane {
                 Text(lane.rawValue)
                     .font(.caption2)
                     .padding(.horizontal, 6)
                     .background(.quaternary, in: .capsule)
-                    .accessibilityIdentifier("sidebar-\(snapshot.id.rawValue)-repo-\(repo)-lane")
+                    .accessibilityIdentifier("sidebar-\(projectID.rawValue)-repo-\(repo)-lane")
             }
         }
-    }
-
-    /// The running Attempt: its Card and route. No output of the agent CLI, ever.
-    private func attemptRow(_ attempt: RunningAttempt, of snapshot: ProjectSnapshot) -> some View {
-        Label("\(attempt.cardID) \u{00B7} \(attempt.route)", systemImage: "gearshape.2")
-            .font(.caption)
-            .lineLimit(1)
-            .accessibilityIdentifier("sidebar-\(snapshot.id.rawValue)-attempt-\(attempt.id)")
     }
 }
 
