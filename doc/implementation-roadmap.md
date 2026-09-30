@@ -2029,12 +2029,29 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
     fixture's empty Journals. A populated Night needs a Journal the UI test bundle cannot build, so
     the Kit tests cover it.
 
-### [ ] P18.7 Pulse — Health
+### [x] P18.7 Pulse — Health
 - **Work** — The Health group. It opens the Settings window, which is a stub until P18.12.
 - **Retires** — `Legacy/ProjectStatus`.
 - **Spec** — `app/land-on-the-sidebar-and-pulse`.
 - **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`.
 - **Done when** — As P18.3, for the Health group; `Legacy/ProjectStatus` is deleted.
+- **Status** — Done on 2026-09-30 (`1945bba`).
+  - The read is new: `HealthFlag.read(doctorOutput:)` in `Pulse` (`HealthFlagReadTests`) classifies
+    `yh doctor --json` findings into the three flags, each carrying `yh doctor`'s own message. Other
+    findings (git, `launchd`, a Linear that cannot be reached) are not Health flags. `HealthFlag.id`
+    is now kind plus detail, so two CLIs' probe failures are two rows.
+  - `OverviewModel` runs `yh doctor --json` beside each Journal read (never `--fix`, `--yes` or
+    `--probe`). Its flags are all machine-scoped, so every Project's Pulse carries the same ones. `yh`
+    reads only the real configuration, so under a fixture configuration directory without a stub
+    `yh` the app does not run it and the group says "yh doctor not read".
+  - Gap, raised: a doctor finding has no reason code, so a revoked Installation is told from an
+    unreachable Linear by the word "revoked" in its message. `DoctorLinearTests` pins that word.
+    Also, "no Operator identity configured" is flagged as a stale Operator identity: the finding
+    shares its subject and severity.
+  - `HealthGroupUITests` drives the populated group against a stub `yh`;
+    `OverviewWindowUITests.testHealthStatesYhDoctorNotRead` covers the unread state.
+  - `Legacy/ProjectStatus` and `ProjectStatusUITests` are deleted; the Project Window keeps
+    Configuration, Journal and Recalibrate.
 
 ### [ ] P18.8 Inspector — Card detail
 - **Work** — Card detail in the Inspector, carrying the Card account. Confirm the Card account's
