@@ -14,12 +14,12 @@ import Testing
 // never ran, and the agent CLI, in its own process group, survived and kept running in the Worktree.
 //
 // `.serialized`: signal dispositions (`sigaction`) are global to the process, so these tests must not
-// interleave with each other. They may still run alongside other suites in the same test process —
-// mostly harmless, since only these tests ever send a signal. `ActGesturesTests` does route through
-// `ActCommand.run(configurationDirectory:)`, which now installs and restores handlers too (it never
-// sends a signal), so a signal sent here could in principle land during another suite's narrow
-// install/restore window; not observed, and out of scope to engineer around (see the brief's Open
-// points in the report).
+// interleave with each other. Other suites still run alongside in the same test process, and
+// `ActGesturesTests` routes through `ActCommand.run(configurationDirectory:)`, which installs and
+// restores handlers too. That overlap killed the test host (issue #215): its restore of `SIG_DFL`
+// landed while a `kill(getpid(), SIGTERM)` below was in flight. `TerminationSignals.run` now admits
+// one call at a time process-wide, so every real signal sent here reaches a run that owns the
+// dispositions alone.
 @Suite("Termination signals", .serialized, .timeLimit(.minutes(1)))
 struct TerminationSignalsTests {
     // MARK: - Plumbing
