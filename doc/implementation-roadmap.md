@@ -2014,11 +2014,20 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
     the fixture's empty Journals. Populated lanes need a Journal the UI test bundle cannot build, so
     the Kit tests cover them.
 
-### [ ] P18.6 Pulse — Tonight / last Night
+### [x] P18.6 Pulse — Tonight / last Night
 - **Work** — The Tonight / last Night group, with its read added to `Pulse` first.
 - **Spec** — `app/land-on-the-sidebar-and-pulse`.
 - **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`.
 - **Done when** — As P18.3, for the Tonight / last Night group.
+- **Status** — Done on 2026-09-30.
+  - The read already existed (`PulseSnapshot+Read.swift`, with `nightState` and `nightDispositions`
+    Kit tests already covering it); this step built the view. It shows the Night's state (running /
+    done / starved), `verdict_line` and `cards_by_disposition` counts, and opens the Night Card.
+  - `verdict_line` is nil from a Journal read (only Engine's `NightSummary` computes it) — an
+    already-known gap, so the group states it as unknown rather than inventing one.
+  - `OverviewWindowUITests.testNightGroupStatesNoNightYet` checks the stated absence against the
+    fixture's empty Journals. A populated Night needs a Journal the UI test bundle cannot build, so
+    the Kit tests cover it.
 
 ### [ ] P18.7 Pulse — Health
 - **Work** — The Health group. It opens the Settings window, which is a stub until P18.12.

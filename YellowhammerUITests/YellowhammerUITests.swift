@@ -68,6 +68,12 @@ final class OverviewWindowUITests: XCTestCase {
         XCTAssertTrue(element("feature-absence").waitForExistence(timeout: 10))
     }
 
+    /// The fixture Journals hold no Night, so the Tonight / last Night group states its absence rather
+    /// than a blank.
+    func testNightGroupStatesNoNightYet() {
+        XCTAssertTrue(element("night-absence").waitForExistence(timeout: 10))
+    }
+
     /// Every decision is Linear's: the main window carries no triage gesture. Any element type is
     /// checked, because the Pulse's ways out are link-styled buttons, which `app.buttons` does not find.
     func testMainWindowOffersNoTriageGesture() {
