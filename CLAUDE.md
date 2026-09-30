@@ -188,12 +188,13 @@ there; the repo-local consequences are:
   Landing Screen Ruling (`risks.md#landing-screen-ruling-2026-09-28`) reopened G-6 for
   that one point; read it and the story `app/land-on-the-sidebar-and-pulse` there. The
   Pulse is being prototyped in Xcode Previews before it is built for real:
-  `Yellowhammer/PulseSnapshot.swift` is the screen's view state (plain values, the seam a
-  Journal read will fill), and `Yellowhammer/PulsePrototypes/` (Debug only) holds the
-  fixtures, the Playground and Gallery previews, and the variants, registered in
-  `PulseVariant.all`. A variant renders only a `LandingSnapshot` and routes every way out
-  through `openPulseDestination`; it never reads a Journal or runs `yh`. No roadmap step
-  covers the Pulse yet.
+  `Yellowhammer/Features/Overview/Pulse/PulseSnapshot.swift` is the screen's view state
+  (plain values, the seam a Journal read will fill), and
+  `Yellowhammer/DevSupport/Previews/Pulse/` (Debug only) holds the fixtures, the
+  Playground and Gallery previews, and the variants, registered in `PulseVariant.all`. A
+  variant renders only a `LandingSnapshot` and routes every way out through
+  `openPulseDestination`; it never reads a Journal or runs `yh`. No roadmap step covers
+  the Pulse yet.
 - On-disk paths, the `[schedule]` and `[limits]` keys and their defaults are in the
   spec's ruling and `docs/tech/stack.md` — read them there, do not restate them here.
 
