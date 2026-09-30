@@ -95,8 +95,8 @@ struct OverviewWindow: View {
     }
 
     @ViewBuilder private var inspector: some View {
-        if let selectedSnapshot {
-            InspectorView(project: selectedSnapshot, selection: inspected)
+        if let snapshot = model.snapshot, let selected = snapshot.project(scopedProject) {
+            InspectorView(project: selected, selection: inspected, asOf: snapshot.asOf)
         } else {
             ContentUnavailableView("No Project Selected", systemImage: "sidebar.trailing")
         }

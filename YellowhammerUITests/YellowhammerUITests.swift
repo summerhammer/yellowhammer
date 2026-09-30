@@ -81,6 +81,29 @@ final class OverviewWindowUITests: XCTestCase {
         XCTAssertTrue(element("night-absence").waitForExistence(timeout: 10))
     }
 
+    /// The app is read-only on every Journal: showing a Project that has no Journal yet never creates
+    /// one. A Card's detail needs a populated Journal, which this bundle cannot build, so `PulseTests`
+    /// covers reading one read-only (`CardDetailReadTests`).
+    func testShowingProjectsCreatesNoJournal() {
+        for id in ["archive", "owner", "reader"] {
+            let row = element("sidebar-\(id)")
+            XCTAssertTrue(row.waitForExistence(timeout: 10), "\(id) row is missing")
+            app.activate()
+            row.click()
+        }
+        XCTAssertTrue(waitForHeading("Reader", timeout: 5), "Pulse heading is \(headingText())")
+        XCTAssertTrue(element("needs-you-absence").waitForExistence(timeout: 5))
+
+        let journals = configurationDirectory.appending(component: "journals", directoryHint: .isDirectory)
+        for id in ["archive", "owner", "reader"] {
+            let journal = journals.appending(component: "\(id).db", directoryHint: .notDirectory)
+            XCTAssertFalse(
+                FileManager.default.fileExists(atPath: journal.path(percentEncoded: false)),
+                "The app created \(id)'s Journal"
+            )
+        }
+    }
+
     /// Every decision is Linear's: the main window carries no triage gesture. Any element type is
     /// checked, because the Pulse's ways out are link-styled buttons, which `app.buttons` does not find.
     func testMainWindowOffersNoTriageGesture() {
@@ -96,15 +119,16 @@ final class OverviewWindowUITests: XCTestCase {
     }
 
     /// G-6 gives the app configuration and reading and gives Linear every decision (P14.8): the Project
-    /// Window has Setup's configuration, the Journal account and Recalibrate, and no Night Card,
-    /// Feature detail, Card detail or triage gesture — settle included — on any of them.
+    /// Window has Setup's configuration and Recalibrate, and no Night Card, Feature detail, Card detail,
+    /// Journal account or triage gesture — settle included — on any of them. The Journal account behind a
+    /// Card is the Inspector's Card detail now.
     func testProjectWindowStillOpensFromItsMenuItem() {
         app.openProjectWindow()
 
         let tabs = app.tabs
         let labels = tabs.allElementsBoundByIndex.map(\.label)
-        // Exactly these three: no Night Card, Feature detail or Card detail tab beside them.
-        XCTAssertEqual(labels, ["Configuration", "Journal", "Recalibrate"])
+        // Exactly these two: no Night Card, Feature detail, Card detail or Journal tab beside them.
+        XCTAssertEqual(labels, ["Configuration", "Recalibrate"])
 
         for label in labels {
             tabs[label].click()
