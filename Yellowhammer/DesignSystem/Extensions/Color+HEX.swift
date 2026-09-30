@@ -18,6 +18,8 @@ extension Color {
 
     nonisolated var hexString: String? {
         guard let nsColor = NSColor(self).usingColorSpace(.sRGB) else { return nil }
+        // r, g, b, a are the conventional colour-channel names.
+        // swiftlint:disable:next identifier_name
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         nsColor.getRed(&r, green: &g, blue: &b, alpha: &a)
 

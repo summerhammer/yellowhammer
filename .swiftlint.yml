@@ -10,6 +10,10 @@ excluded:
   - DerivedData
   - "**/*.generated.swift"
 
+disabled_rules:
+  # Aligned colons are deliberate (theme tables, dictionary literals).
+  - colon
+
 opt_in_rules:
   - empty_count
   - explicit_init
