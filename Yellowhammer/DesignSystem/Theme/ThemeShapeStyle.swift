@@ -8,14 +8,21 @@ import ThemeKit
 // here rather than through a blanket retroactive `KeyPath: Sendable`
 // conformance, which would leak into every consumer and conflict with
 // libraries (e.g. TCA) that manage key-path sendability themselves.
-nonisolated public struct ThemeShapeStyle<Style: ShapeStyle & Sendable & Codable & Equatable>: ShapeStyle, Equatable, @unchecked Sendable {
+nonisolated public struct ThemeShapeStyle<
+    Style: ShapeStyle & Sendable & Codable & Equatable
+>: ShapeStyle, Equatable, @unchecked Sendable {
+
     let keyPath: KeyPath<Theme, ThemeAdaptiveStyle<Style>>
 
-    nonisolated public init(keyPath: KeyPath<Theme, ThemeAdaptiveStyle<Style>>) {
+    nonisolated public init(
+        keyPath: KeyPath<Theme, ThemeAdaptiveStyle<Style>>,
+    ) {
         self.keyPath = keyPath
     }
 
-    nonisolated public func resolve(in environment: EnvironmentValues) -> some ShapeStyle {
+    nonisolated public func resolve(
+        in environment: EnvironmentValues,
+    ) -> some ShapeStyle {
         environment.theme[keyPath: keyPath].resolved(in: environment)
     }
 }
