@@ -8,7 +8,8 @@ struct OverviewUnavailable: View {
     enum Reason {
         /// The machine-wide configuration file could not be read, so no Project could be.
         case configurationUnreadable(String)
-        /// No Project is configured on this Mac.
+        /// No Project is configured on this Mac, including one where Setup has never run: the onboarding
+        /// view.
         case noProject
         /// A deep link named an id that no Project file has.
         case unknownProject(ProjectID)
@@ -24,10 +25,12 @@ struct OverviewUnavailable: View {
             case let .configurationUnreadable(failure):
                 Text("Yellowhammer can\u{2019}t read its configuration.")
                 UnavailableDetail(text: failure)
-                SetupButton()
+                SetupButton(title: "Set Up Yellowhammer\u{2026}")
             case .noProject:
                 Text("No Project is configured.")
-                SetupButton()
+                    .accessibilityIdentifier("overview-onboarding")
+                UnavailableDetail(text: "Add a Project to start.")
+                SetupButton(title: "Add a Project\u{2026}")
             case let .unknownProject(id):
                 Text("No configured Project has the id \u{201C}\(id.rawValue)\u{201D}.")
                     .accessibilityIdentifier("overview-unknown-id")
@@ -60,10 +63,11 @@ private struct UnavailableDetail: View {
 
 /// Opens the Setup wizard's window until P18.17 replaces it with the Add Project sheet.
 private struct SetupButton: View {
+    let title: LocalizedStringKey
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        Button("Set Up Yellowhammer\u{2026}") { openWindow(id: "setup") }
+        Button(title) { openWindow(id: "setup") }
             .accessibilityIdentifier("open-setup")
     }
 }

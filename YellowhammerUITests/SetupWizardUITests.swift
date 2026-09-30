@@ -73,6 +73,15 @@ final class SetupWizardUITests: XCTestCase {
         try? FileManager.default.removeItem(at: attemptsMarker)
     }
 
+    /// An empty configuration directory is a Mac where Setup has never run: the main window shows the
+    /// onboarding view, not a configuration error (scope-windows-to-a-project, AC 3; issue #232).
+    func testFreshInstallShowsTheOnboardingView() {
+        launchApp()
+        XCTAssertTrue(app.descendants(matching: .any)["overview-onboarding"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["open-setup"].exists)
+        XCTAssertFalse(app.staticTexts["Yellowhammer can\u{2019}t read its configuration."].exists)
+    }
+
     func testWizardDrivesSetupToCompletion() throws {
         launchApp()
         let setup = try enterLinearAndPickOperator()

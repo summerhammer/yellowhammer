@@ -59,7 +59,11 @@ final class OverviewModel {
     @concurrent
     private nonisolated static func read(directory: URL, asOf: Date) async -> Result<Read, ConfigurationError> {
         do {
-            let configuration = try Configuration.load(directory: directory)
+            // A Mac where Setup has never run has no Projects to show, which is not a failure: the
+            // window shows its onboarding view (scope-windows-to-a-project, AC 3).
+            guard let configuration = try Configuration.loadIfSetUp(directory: directory) else {
+                return .success(Read(snapshot: LandingSnapshot(projects: [], asOf: asOf), refused: []))
+            }
             let snapshot = LandingSnapshot.read(
                 configuration: configuration, configurationDirectory: directory, asOf: asOf
             )

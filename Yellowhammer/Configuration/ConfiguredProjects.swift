@@ -27,7 +27,10 @@ struct ConfiguredProjects: Equatable {
 
     static func load() -> ConfiguredProjects {
         do {
-            let configuration = try Configuration.load(directory: ConfigurationDirectory.current)
+            // A Mac where Setup has never run configures no Projects; that is not a load failure.
+            guard let configuration = try Configuration.loadIfSetUp(directory: ConfigurationDirectory.current) else {
+                return ConfiguredProjects(entries: [], loadFailure: nil)
+            }
             let entries = configuration.projects.map { Entry(id: $0.id, name: $0.name) }
             return ConfiguredProjects(entries: entries, loadFailure: nil)
         } catch {

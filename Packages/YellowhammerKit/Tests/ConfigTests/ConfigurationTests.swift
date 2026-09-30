@@ -105,6 +105,38 @@ func noProjectsDirectoryLoadsNoProjects() throws {
     #expect(configuration.invalidProjects.isEmpty)
 }
 
+@Test("A directory without config.toml is not set up, even with a projects directory")
+func missingMachineFileIsNotSetUp() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appending(component: "yellowhammer-not-set-up-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    #expect(try Configuration.loadIfSetUp(directory: directory) == nil)
+
+    try FileManager.default.createDirectory(
+        at: directory.appending(component: "projects", directoryHint: .isDirectory),
+        withIntermediateDirectories: true
+    )
+    #expect(try Configuration.loadIfSetUp(directory: directory) == nil)
+}
+
+@Test("A directory with config.toml loads as it would through load(directory:)")
+func presentMachineFileLoadsIfSetUp() throws {
+    let configuration = try #require(try Configuration.loadIfSetUp(directory: set("no-projects-directory")))
+    #expect(configuration.projects.isEmpty)
+}
+
+@Test("A config.toml that exists but does not load still fails, never reads as not set up")
+func invalidMachineFileFailsLoadIfSetUp() throws {
+    let directory = try set("machine-invalid")
+    let result = Result { () throws(ConfigurationError) in try Configuration.loadIfSetUp(directory: directory) }
+    guard case .failure(let error) = result else {
+        Issue.record("expected the load to fail")
+        return
+    }
+    #expect(error.reason == .missingTable)
+}
+
 @Test("A machine-wide file that does not load fails the whole load")
 func invalidMachineFileFailsTheLoad() throws {
     let directory = try set("machine-invalid")
