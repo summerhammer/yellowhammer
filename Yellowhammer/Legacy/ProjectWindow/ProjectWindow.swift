@@ -2,15 +2,19 @@ import AppKit
 import Domain
 import SwiftUI
 
-/// One window of the app, scoped to exactly one Project (OQ52 Face 2).
+/// A temporary second window, scoped to exactly one Project. It carries the screens the main window does
+/// not carry yet: Configuration, the Journal account, Status and Recalibrate.
 ///
-/// `project` is the window's own value: nil for a new window, which then shows the first configured
-/// Project until the Operator picks one. The app's screens hang off this window; there is no view
-/// above it and none that spans Projects.
+/// The "Project Window…" menu item opens it for the Project the main window shows. `project` is the
+/// window's own value, fixed when the window opens. It is nil only when no main window was key, and the
+/// window then shows the first configured Project. A deep link never opens this window: it opens the
+/// main window. The window is deleted when P18.14 moves its last screen into the Settings window.
 ///
-/// The tabs are every screen G-6 gives the app — configuration and reading. The Night Card, Feature
-/// detail, Card detail and every triage gesture are Linear's, so none of them is a tab here (P14.8).
+/// The Night Card, Feature detail, Card detail and every triage gesture are Linear's, so none of them
+/// is a tab here (P14.8).
 struct ProjectWindow: View {
+    static let windowID = "ProjectWindow"
+
     @Binding var project: ProjectID?
     @State private var configured = ConfiguredProjects(entries: [], loadFailure: nil)
     @Environment(\.openWindow) private var openWindow
@@ -24,21 +28,10 @@ struct ProjectWindow: View {
         content
             .frame(minWidth: 560, minHeight: 480)
             .navigationTitle(configured.entry(for: scopedProject)?.name ?? "Yellowhammer")
-            .toolbar {
-                ToolbarItem(placement: .navigation) {
-                    ProjectSelector(
-                        entries: configured.entries,
-                        selection: Binding(get: { scopedProject }, set: { project = $0 })
-                    )
-                }
-            }
             .onAppear { configured = ConfiguredProjects.load() }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                 configured = ConfiguredProjects.load()
             }
-            // Every window may take a deep link, so a link never opens a stray window of its own.
-            .handlesExternalEvents(preferring: [ProjectDeepLink.scheme], allowing: [ProjectDeepLink.scheme])
-            .onOpenURL(perform: open)
     }
 
     @ViewBuilder private var content: some View {
@@ -89,16 +82,5 @@ struct ProjectWindow: View {
     private var setupButton: some View {
         Button("Set Up Yellowhammer…") { openWindow(id: "setup") } // glossary:ignore GL001
             .accessibilityIdentifier("open-setup")
-    }
-
-    /// Scopes a new window to the linked Project, and otherwise brings forward that Project's window,
-    /// opening one if none shows it.
-    private func open(_ url: URL) {
-        guard let link = ProjectDeepLink(url: url) else { return }
-        if project == nil || project == link.project {
-            project = link.project
-        } else {
-            openWindow(value: link.project)
-        }
     }
 }

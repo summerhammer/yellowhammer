@@ -26,59 +26,6 @@ private struct JournalFixture: ~Copyable {
     }
 }
 
-private let epoch = Date(timeIntervalSince1970: 1_800_000_000)
-private let nightStart = NightStart(rawValue: "2026-09-29")!  // swiftlint:disable:this force_unwrapping
-
-private struct FixtureFeature {
-    let featureID: Int64
-    let cycleID: Int64
-}
-
-private func insertFeature(_ journal: JournalStore, issueID: String) throws -> FixtureFeature {
-    try journal.write { db in
-        try db.execute(
-            sql: "INSERT INTO feature (issue_id, state, created_at) VALUES (?, ?, ?)",
-            arguments: [issueID, "selected", JournalStore.timestamp(epoch)]
-        )
-        let featureID: Int64 = db.lastInsertedRowID
-        try db.execute(
-            sql: "INSERT INTO cycle (feature_id, created_at) VALUES (?, ?)",
-            arguments: [featureID, JournalStore.timestamp(epoch)]
-        )
-        return FixtureFeature(featureID: featureID, cycleID: db.lastInsertedRowID)
-    }
-}
-
-@discardableResult
-private func insertCard(
-    _ journal: JournalStore,
-    cycleID: Int64,
-    issueID: String,
-    repository: String = "main",
-    state: CardState = .todo,
-    blockReason: BlockReason? = nil,
-    order: Int = 1
-) throws -> Int64 {
-    try journal.write { db in
-        try db.execute(
-            sql: """
-            INSERT INTO card (
-                cycle_id, issue_id, repository, kind, authored_order, state, block_reason, budget_epoch, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            arguments: [
-                cycleID, issueID, repository, "card", order, state.rawValue, blockReason?.rawValue, 0,
-                JournalStore.timestamp(epoch)
-            ]
-        )
-        return db.lastInsertedRowID
-    }
-}
-
-private func route() throws -> Route {
-    try #require(Route(cli: "claude", model: "sonnet", effort: "medium"))
-}
-
 @Test("An empty Journal yields an idle Pulse with nothing else")
 func emptyJournal() throws {
     let fixture = try JournalFixture()
@@ -175,6 +122,53 @@ func runningAttempts() throws {
     #expect(running.round == 2)
     #expect(running.status == nil)
     #expect(running.startedAt == epoch)
+}
+
+@Test("A Blocked Card with no recorded Block Reason is listed but counted under none")
+func blockedWithoutReason() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let feature = try insertFeature(journal, issueID: "F-1")
+    try insertCard(journal, cycleID: feature.cycleID, issueID: "C-1", state: .blocked, order: 1)
+    try insertCard(
+        journal, cycleID: feature.cycleID, issueID: "C-2", state: .blocked, blockReason: .undecided, order: 2
+    )
+
+    let needsYou = try PulseSnapshot.read(from: journal, asOf: epoch).needsYou
+
+    #expect(needsYou.cards.map(\.id) == ["C-1", "C-2"])
+    #expect(needsYou.cards.first?.blockReason == nil)
+    #expect(needsYou.blockReasonCounts.map(\.reason) == [.undecided])
+    #expect(needsYou.waitingOnYouCount == 0)
+}
+
+@Test("Running Attempts across Repos each carry their own Repo; a held lease with no Feature lists none")
+func runningAttemptsAcrossRepos() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+    _ = try journal.claimActLease(act: .build, runID: run, mode: .real, now: epoch)
+
+    let idleWithLease = try PulseSnapshot.read(from: journal, asOf: epoch).now
+    #expect(idleWithLease.status == .working)
+    #expect(idleWithLease.attempts.isEmpty)
+
+    let feature = try insertFeature(journal, issueID: "F-1")
+    let first = try insertCard(
+        journal, cycleID: feature.cycleID, issueID: "C-1", repository: "app", state: .inProgress, order: 1
+    )
+    let second = try insertCard(
+        journal, cycleID: feature.cycleID, issueID: "C-2", repository: "api", state: .inProgress, order: 2
+    )
+    _ = try journal.recordAttempt(cardID: first, route: route(), runID: run, now: epoch)
+    _ = try journal.recordAttempt(cardID: second, route: route(), runID: run, now: epoch)
+
+    let attempts = try PulseSnapshot.read(from: journal, asOf: epoch).now.attempts
+
+    #expect(Set(attempts.map(\.cardID)) == ["C-1", "C-2"])
+    #expect(attempts.first { $0.cardID == "C-1" }?.repo == "app")
+    #expect(attempts.first { $0.cardID == "C-2" }?.repo == "api")
+    #expect(attempts.allSatisfy { $0.round == 1 })
 }
 
 @Test("Feature lanes count done/total and rank landed > blocked > waiting on you > running")
