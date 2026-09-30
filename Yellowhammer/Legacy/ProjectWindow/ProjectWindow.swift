@@ -3,7 +3,7 @@ import Domain
 import SwiftUI
 
 /// A temporary second window, scoped to exactly one Project. It carries the screens the main window does
-/// not carry yet: Configuration, the Journal account, Status and Recalibrate.
+/// not carry yet: Configuration, the Journal account and Recalibrate.
 ///
 /// The "Project Window…" menu item opens it for the Project the main window shows. `project` is the
 /// window's own value, fixed when the window opens. It is nil only when no main window was key, and the
@@ -43,10 +43,6 @@ struct ProjectWindow: View {
                 }
                 Tab("Journal", systemImage: "book") {
                     CardAccountView(project: entry.id)
-                        .id(entry.id)
-                }
-                Tab("Status", systemImage: "stethoscope") {
-                    ProjectStatusView(project: entry.id)
                         .id(entry.id)
                 }
                 Tab("Recalibrate", systemImage: "slider.horizontal.3") {

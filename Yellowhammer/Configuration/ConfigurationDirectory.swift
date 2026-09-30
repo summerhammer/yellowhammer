@@ -10,9 +10,15 @@ enum ConfigurationDirectory {
     /// persist through `defaults write`.
     static let argument = "YellowhammerConfigurationDirectory"
 
+    /// Whether the app is pointed at another configuration directory than the one `yh` reads.
+    static var isOverridden: Bool { overridePath != nil }
+
+    private static var overridePath: String? {
+        UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)[argument] as? String
+    }
+
     static var current: URL {
-        let arguments = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
-        if let path = arguments[argument] as? String {
+        if let path = overridePath {
             return URL(filePath: path, directoryHint: .isDirectory)
         }
         return Configuration.defaultDirectoryURL(homeDirectory: FileManager.default.homeDirectoryForCurrentUser)

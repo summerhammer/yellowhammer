@@ -5,8 +5,7 @@ import Observation
 
 /// The Recalibrate tab's model (P14.7): this Project's Bounds, this Night's proximity to each, and a way
 /// to re-set a Bound's value or launch a rehearsal Night. The app never computes proximity itself —
-/// `yh recalibrate --project <id> --json` does, the same seam ``ProjectStatusModel`` runs `status` and
-/// `doctor` through. Bound values are edited and saved through ``ProjectDetailModel`` (P14.3) — never a
+/// `yh recalibrate --project <id> --json` does, run through ``SetupEngine``. Bound values are edited and saved through ``ProjectDetailModel`` (P14.3) — never a
 /// second TOML writer.
 @MainActor
 @Observable
@@ -29,7 +28,7 @@ final class RecalibrateModel {
     private(set) var rehearsalLogURL: URL?
     private(set) var rehearsalFailure: String?
 
-    /// The same process-running seam ``ProjectStatusModel`` runs `yh status`/`yh doctor` through.
+    /// The same process-running seam the Overview window runs `yh doctor` through.
     private let engine = SetupEngine()
 
     init(project: ProjectID, directory: URL = ConfigurationDirectory.current) {

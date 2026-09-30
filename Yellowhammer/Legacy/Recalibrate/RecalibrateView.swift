@@ -30,7 +30,7 @@ struct RecalibrateView: View {
     }
 }
 
-/// Split out so it always runs against a live model reference, matching ``ProjectStatusView``'s shape.
+/// Split out so it always runs against a live model reference.
 private struct RecalibrateContentView: View {
     @Bindable var model: RecalibrateModel
     @State private var showingRehearsalConfirmation = false
