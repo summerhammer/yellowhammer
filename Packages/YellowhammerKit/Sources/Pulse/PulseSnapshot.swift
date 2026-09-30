@@ -168,6 +168,9 @@ public struct RepoLaneSnapshot: Identifiable, Equatable, Sendable {
     public var cardsTotal: Int
     /// The lane's pull request chip; nil until the land Act opens one.
     public var pullRequest: PullRequestChip?
+    /// The lane's member Cards in lane order, Cancelled ones left out as they are from the counts. The
+    /// Feature and Repo detail list them.
+    public var cards: [LaneCard]
 
     public var id: String { repo }
 
@@ -176,13 +179,29 @@ public struct RepoLaneSnapshot: Identifiable, Equatable, Sendable {
         state: LaneState,
         cardsDone: Int,
         cardsTotal: Int,
-        pullRequest: PullRequestChip?
+        pullRequest: PullRequestChip?,
+        cards: [LaneCard] = []
     ) {
         self.repo = repo
         self.state = state
         self.cardsDone = cardsDone
         self.cardsTotal = cardsTotal
         self.pullRequest = pullRequest
+        self.cards = cards
+    }
+}
+
+/// One member Card of a Repo Lane: enough to list it in the Inspector.
+public struct LaneCard: Identifiable, Equatable, Sendable {
+    /// The Linear issue identifier, e.g. `YH-142`.
+    public let id: String
+    public var title: String
+    public var state: CardState
+
+    public init(id: String, title: String, state: CardState) {
+        self.id = id
+        self.title = title
+        self.state = state
     }
 }
 

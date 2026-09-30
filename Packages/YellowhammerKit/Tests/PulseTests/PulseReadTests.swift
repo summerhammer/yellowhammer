@@ -222,6 +222,8 @@ func featureLanes() throws {
     #expect(lanes["d"]?.cardsTotal == 2)  // the Cancelled Card is out of the lane
     #expect(lanes["a"]?.pullRequest == PullRequestChip(number: 42, state: nil))
     #expect(lanes["b"]?.pullRequest == nil)
+    #expect(lanes["a"]?.cards.map(\.id) == ["A-1", "A-2"])
+    #expect(lanes["d"]?.cards.map(\.id) == ["D-1", "D-2"])  // the Cancelled Card is not a member
     #expect(lanes["c"]?.pullRequest == nil)
 }
 
