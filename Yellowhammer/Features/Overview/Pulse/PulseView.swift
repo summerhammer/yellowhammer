@@ -18,7 +18,7 @@ struct PulseView: View {
                     .font(.largeTitle.bold())
                     .accessibilityIdentifier("pulse-heading")
                 if let failure = project.journalFailure {
-                    journalFailure(failure)
+                    JournalFailureNotice(failure: failure)
                 } else {
                     NeedsYouGroup(needsYou: project.pulse.needsYou)
                     NowGroup(now: project.pulse.now, asOf: asOf)
@@ -31,8 +31,13 @@ struct PulseView: View {
             .padding()
         }
     }
+}
 
-    private func journalFailure(_ failure: String) -> some View {
+/// Why the Pulse cannot be shown: the Project's Journal could not be read.
+private struct JournalFailureNotice: View {
+    let failure: String
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Label(
                 "Yellowhammer can\u{2019}t read this Project\u{2019}s Journal.",

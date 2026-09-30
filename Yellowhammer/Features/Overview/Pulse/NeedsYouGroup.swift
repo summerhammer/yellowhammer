@@ -9,9 +9,6 @@ struct NeedsYouGroup: View {
     let needsYou: NeedsYou
     @Environment(\.openPulseDestination) private var openDestination
 
-    /// How many Block Reasons the summary names before the Cards below it say the rest.
-    private static let topReasons = 3
-
     var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 8) {
@@ -20,9 +17,12 @@ struct NeedsYouGroup: View {
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("needs-you-absence")
                 } else {
-                    counts
+                    NeedsYouCounts(
+                        waitingOnYouCount: needsYou.waitingOnYouCount,
+                        blockReasonCounts: needsYou.blockReasonCounts
+                    )
                     ForEach(needsYou.cards) { card in
-                        Button { openDestination(.inspector(.card(card.id))) } label: { row(card) }
+                        Button { openDestination(.inspector(.card(card.id))) } label: { DecisionCardRow(card: card) }
                             .buttonStyle(.plain)
                             .accessibilityIdentifier("needs-you-card-\(card.id)")
                     }
@@ -34,21 +34,35 @@ struct NeedsYouGroup: View {
         }
         .accessibilityIdentifier("pulse-needs-you")
     }
+}
 
-    private var counts: some View {
+/// The Waiting on You count and the top Block Reasons, as counts.
+private struct NeedsYouCounts: View {
+    let waitingOnYouCount: Int
+    let blockReasonCounts: [(reason: BlockReason, count: Int)]
+
+    /// How many Block Reasons the summary names before the Cards below it say the rest.
+    private static let topReasons = 3
+
+    var body: some View {
         HStack(spacing: 6) {
-            if needsYou.waitingOnYouCount > 0 {
-                PulseCountBadge(text: "\(needsYou.waitingOnYouCount) Waiting on You", tint: .orange)
+            if waitingOnYouCount > 0 {
+                PulseCountBadge(text: "\(waitingOnYouCount) Waiting on You", tint: .orange)
             }
-            ForEach(needsYou.blockReasonCounts.prefix(Self.topReasons), id: \.reason) { entry in
+            ForEach(blockReasonCounts.prefix(Self.topReasons), id: \.reason) { entry in
                 PulseCountBadge(text: "\(entry.count) \(entry.reason.rawValue)", tint: .red)
             }
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("needs-you-counts")
     }
+}
 
-    private func row(_ card: DecisionCard) -> some View {
+/// One decision Card, Blocked or Waiting on You.
+private struct DecisionCardRow: View {
+    let card: DecisionCard
+
+    var body: some View {
         HStack(spacing: 8) {
             Image(systemName: card.state == .blocked ? "exclamationmark.octagon.fill" : "questionmark.bubble.fill")
                 .foregroundStyle(card.state == .blocked ? .red : .orange)

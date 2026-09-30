@@ -16,16 +16,18 @@ struct NowGroup: View {
     var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 8) {
-                statusLine
+                NowStatusLine(status: now.status, nextAct: now.nextAct)
                 if now.attempts.isEmpty {
                     Label("No Attempt running", systemImage: "pause.circle")
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("now-absence")
                 } else {
                     ForEach(now.attempts) { attempt in
-                        Button { openDestination(.inspector(.attempt(attempt.id))) } label: { row(attempt) }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("now-attempt-\(attempt.id)")
+                        Button { openDestination(.inspector(.attempt(attempt.id))) } label: {
+                            RunningAttemptRow(attempt: attempt, asOf: asOf)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("now-attempt-\(attempt.id)")
                     }
                 }
             }
@@ -35,17 +37,22 @@ struct NowGroup: View {
         }
         .accessibilityIdentifier("pulse-now")
     }
+}
 
-    /// `idle — next Act author 01:30`; without a scheduled Act the line says it is unknown.
-    private var statusLine: some View {
+/// `idle — next Act author 01:30`; without a scheduled Act the line says it is unknown.
+private struct NowStatusLine: View {
+    let status: ProjectStatus
+    let nextAct: ScheduledAct?
+
+    var body: some View {
         HStack(spacing: 6) {
             Circle()
-                .fill(now.status == .working ? Color.green : Color.secondary)
+                .fill(status == .working ? Color.green : Color.secondary)
                 .frame(width: 8, height: 8)
                 .accessibilityHidden(true)
-            Text(now.status.rawValue).fontWeight(.medium)
+            Text(status.rawValue).fontWeight(.medium)
             Text("\u{2014}").foregroundStyle(.secondary)
-            if let next = now.nextAct {
+            if let next = nextAct {
                 Text("next Act \(next.act.rawValue) \(next.at.formatted(date: .omitted, time: .shortened))")
                     .foregroundStyle(.secondary)
             } else {
@@ -55,8 +62,14 @@ struct NowGroup: View {
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("now-status")
     }
+}
 
-    private func row(_ attempt: RunningAttempt) -> some View {
+/// One running Attempt with its one-line status. Elapsed time is measured to `asOf`, not to the clock.
+private struct RunningAttemptRow: View {
+    let attempt: RunningAttempt
+    let asOf: Date
+
+    var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "gearshape.2.fill")
                 .foregroundStyle(.green)
