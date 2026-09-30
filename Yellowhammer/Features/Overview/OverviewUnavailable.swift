@@ -17,27 +17,26 @@ struct OverviewUnavailable: View {
     }
 
     let reason: Reason
-    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(spacing: 8) {
             switch reason {
             case let .configurationUnreadable(failure):
                 Text("Yellowhammer can\u{2019}t read its configuration.")
-                detail(failure)
-                setupButton
+                UnavailableDetail(text: failure)
+                SetupButton()
             case .noProject:
                 Text("No Project is configured.")
-                setupButton
+                SetupButton()
             case let .unknownProject(id):
                 Text("No configured Project has the id \u{201C}\(id.rawValue)\u{201D}.")
                     .accessibilityIdentifier("overview-unknown-id")
             case let .refusedProject(id, refusal):
                 Text("The configuration of \u{201C}\(id.rawValue)\u{201D} was refused.")
                     .accessibilityIdentifier("overview-refused-id")
-                detail(refusal.file)
+                UnavailableDetail(text: refusal.file)
                 ForEach(Array(refusal.errors.enumerated()), id: \.offset) { _, error in
-                    detail(error.description)
+                    UnavailableDetail(text: error.description)
                 }
             }
         }
@@ -45,16 +44,25 @@ struct OverviewUnavailable: View {
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+}
 
-    private func detail(_ text: String) -> some View {
+/// A line of detail under the statement: a failure, a file, or one of its errors.
+private struct UnavailableDetail: View {
+    let text: String
+
+    var body: some View {
         Text(text)
             .font(.callout)
             .foregroundStyle(.secondary)
             .textSelection(.enabled)
     }
+}
 
-    /// Opens the Setup wizard's window until P18.17 replaces it with the Add Project sheet.
-    private var setupButton: some View {
+/// Opens the Setup wizard's window until P18.17 replaces it with the Add Project sheet.
+private struct SetupButton: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
         Button("Set Up Yellowhammer\u{2026}") { openWindow(id: "setup") }
             .accessibilityIdentifier("open-setup")
     }

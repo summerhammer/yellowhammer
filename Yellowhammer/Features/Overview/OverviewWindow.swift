@@ -52,7 +52,11 @@ struct OverviewWindow: View {
             // throws, whenever the window must grow to fit (a saved frame smaller than the minimum).
             detail
                 .frame(minWidth: 380, minHeight: 320)
-                .safeAreaInset(edge: .bottom) { wayOutNotice }
+                .safeAreaInset(edge: .bottom) {
+                    if let wayOut {
+                        WayOutNotice(destination: wayOut) { self.wayOut = nil }
+                    }
+                }
         }
         .inspector(isPresented: $inspectorShown) {
             inspector
@@ -95,12 +99,6 @@ struct OverviewWindow: View {
             InspectorView(project: selectedSnapshot, selection: inspected)
         } else {
             ContentUnavailableView("No Project Selected", systemImage: "sidebar.trailing")
-        }
-    }
-
-    @ViewBuilder private var wayOutNotice: some View {
-        if let wayOut {
-            WayOutNotice(destination: wayOut) { self.wayOut = nil }
         }
     }
 
