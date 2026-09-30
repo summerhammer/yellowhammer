@@ -11,16 +11,30 @@ import Pulse
 /// and whenever the app becomes active. It never watches or polls them ("Nothing resident"). The read
 /// runs off the main actor, because each Journal open can wait for its busy timeout while an Act writes,
 /// and the window must stay responsive during that wait.
+///
+/// Each read also runs `yh doctor --json` for the Health group's flags, beside the Journal read so a
+/// slow Linear check never holds the Pulse back. The app never diagnoses anything itself.
 @MainActor
 @Observable
 final class OverviewModel {
-    /// Nil until the first read finishes, and while the configuration cannot be read.
-    private(set) var snapshot: LandingSnapshot?
+    /// Nil until the first read finishes, and while the configuration cannot be read. Every Project's
+    /// Pulse carries the same Health flags: `yh doctor`'s flags are all machine-scoped.
+    var snapshot: LandingSnapshot? {
+        guard var read = journalSnapshot else { return nil }
+        for index in read.projects.indices {
+            read.projects[index].pulse.health = health
+        }
+        return read
+    }
     /// The Project files refused at load. The Sidebar never lists them; they are read only to explain a
     /// deep link to one of them.
     private(set) var refused: [InvalidProject] = []
     /// Why the configuration could not be read at all, in the loader's own words.
     private(set) var configurationFailure: String?
+
+    private var journalSnapshot: LandingSnapshot?
+    /// Nil until `yh doctor` has been read, and whenever it cannot be.
+    private var health: [HealthFlag]?
 
     /// Counts reads, so that a slow read which finishes after a newer one is dropped, not shown.
     private var generation = 0
@@ -28,18 +42,22 @@ final class OverviewModel {
     func load() async {
         generation += 1
         let current = generation
+        async let health = Self.readHealth()
         let result = await Self.read(directory: ConfigurationDirectory.current, asOf: Date())
         guard current == generation else { return }
         switch result {
         case let .success(read):
-            snapshot = read.snapshot
+            journalSnapshot = read.snapshot
             refused = read.refused
             configurationFailure = nil
         case let .failure(error):
-            snapshot = nil
+            journalSnapshot = nil
             refused = []
             configurationFailure = error.description
         }
+        let flags = await health
+        guard current == generation else { return }
+        self.health = flags
     }
 
     /// The refused Project file that `id` names, if any. The file is found by its id, or by its file
@@ -49,6 +67,19 @@ final class OverviewModel {
             invalid.id == id
                 || URL(filePath: invalid.file).deletingPathExtension().lastPathComponent == id.rawValue
         }
+    }
+
+    /// Runs `yh doctor --json`, which only reads: never `--fix`, `--yes` or `--probe`, which change
+    /// LaunchAgents and the Ledger. `yh` always reads the real configuration, so while the app is
+    /// pointed at another one (a UI test's fixture) the flags would describe the wrong configuration,
+    /// and `yh doctor` is not run unless a stub stands in for `yh`.
+    private static func readHealth() async -> [HealthFlag]? {
+        guard !ConfigurationDirectory.isOverridden || SetupEngine.isStubbed else { return nil }
+        var lines: [String] = []
+        let status = try? await SetupEngine().run(arguments: ["doctor", "--json"]) { lines.append($0) }
+        // A failure finding makes `yh doctor` exit non-zero; its findings are still printed.
+        guard status != nil else { return nil }
+        return HealthFlag.read(doctorOutput: lines)
     }
 
     private nonisolated struct Read: Sendable {

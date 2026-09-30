@@ -250,7 +250,8 @@ public struct HealthFlag: Identifiable, Equatable, Sendable {
     public var kind: HealthFlagKind
     public var detail: String
 
-    public var id: HealthFlagKind { kind }
+    /// A flag is its kind and its detail: two CLIs can each raise a probe failure.
+    public var id: String { "\(kind.rawValue): \(detail)" }
 
     public init(kind: HealthFlagKind, detail: String) {
         self.kind = kind

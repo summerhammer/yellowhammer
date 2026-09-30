@@ -62,6 +62,8 @@ struct DoctorLinearTests {
         #expect(linearFindings[0].severity == .failure)
         #expect(linearFindings[0].subject == "authorization")
         #expect(linearFindings[0].message.contains("re-run the Linear step: yh setup --install-linear"))
+        // The app's Health group tells a revoked Installation from an unreachable Linear by this word.
+        #expect(linearFindings[0].message.contains("revoked"))
     }
 
     @Test("Linear unreachable fails with a plain network message")

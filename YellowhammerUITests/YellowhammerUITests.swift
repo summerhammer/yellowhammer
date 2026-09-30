@@ -62,6 +62,13 @@ final class OverviewWindowUITests: XCTestCase {
         XCTAssertTrue(stub.waitForExistence(timeout: 5))
     }
 
+    /// `yh` reads the real configuration, not this fixture, so the app does not run `yh doctor`, and the
+    /// Health group states that it was not read rather than claiming there are no flags.
+    func testHealthStatesYhDoctorNotRead() {
+        XCTAssertTrue(element("health-unread").waitForExistence(timeout: 10))
+        XCTAssertFalse(element("health-absence").exists)
+    }
+
     /// The fixture Journals hold no Feature, so the Feature group states its absence rather than a
     /// blank, and never invents a title, state or roll-up state.
     func testFeatureGroupStatesNoFeatureInFlight() {
@@ -89,15 +96,15 @@ final class OverviewWindowUITests: XCTestCase {
     }
 
     /// G-6 gives the app configuration and reading and gives Linear every decision (P14.8): the Project
-    /// Window has Setup's configuration, the Journal account, Status and Recalibrate, and no Night Card,
+    /// Window has Setup's configuration, the Journal account and Recalibrate, and no Night Card,
     /// Feature detail, Card detail or triage gesture — settle included — on any of them.
     func testProjectWindowStillOpensFromItsMenuItem() {
         app.openProjectWindow()
 
         let tabs = app.tabs
         let labels = tabs.allElementsBoundByIndex.map(\.label)
-        // Exactly these four: no Night Card, Feature detail or Card detail tab beside them.
-        XCTAssertEqual(labels, ["Configuration", "Journal", "Status", "Recalibrate"])
+        // Exactly these three: no Night Card, Feature detail or Card detail tab beside them.
+        XCTAssertEqual(labels, ["Configuration", "Journal", "Recalibrate"])
 
         for label in labels {
             tabs[label].click()
@@ -221,7 +228,9 @@ final class OverviewWindowUITests: XCTestCase {
         return headingText() == text
     }
 
-    private static func writeConfiguration(in directory: URL) throws {
+    /// The fixture configuration: three Projects, one refused Project file, and no Journals. Shared
+    /// with `HealthGroupUITests`.
+    static func writeConfiguration(in directory: URL) throws {
         let projects = directory.appending(component: "projects", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: projects, withIntermediateDirectories: true)
         try """

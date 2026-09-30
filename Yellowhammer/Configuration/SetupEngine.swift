@@ -40,6 +40,11 @@ final class SetupEngine {
 
     private var process: Process?
 
+    /// Whether a UI test's stub stands in for the bundled `yh`.
+    static var isStubbed: Bool {
+        UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)[stubArgument] != nil
+    }
+
     private static var launchPlan: LaunchPlan? {
         let arguments = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
         if let stubPath = arguments[stubArgument] as? String {
