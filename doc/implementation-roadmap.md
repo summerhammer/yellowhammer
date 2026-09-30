@@ -2053,7 +2053,7 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
   - `Legacy/ProjectStatus` and `ProjectStatusUITests` are deleted; the Project Window keeps
     Configuration, Journal and Recalibrate.
 
-### [ ] P18.8 Inspector — Card detail
+### [x] P18.8 Inspector — Card detail
 - **Work** — Card detail in the Inspector, carrying the Card account. Confirm the Card account's
   acceptance criteria carry over before deleting `Legacy/CardAccount`. `CardAccountView` is the
   largest legacy view (288 lines).
@@ -2062,6 +2062,31 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
 - **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
 - **Done when** — A Card opened from the Pulse shows its account read-only from its own Project's
   Journal; `Legacy/CardAccount` is deleted.
+- **Status** — Done on 2026-09-30 (`2020418`).
+  - The read is new: `CardDetail.read(issueID:project:configurationDirectory:)` in `Pulse`
+    (`CardDetailReadTests`). It opens only the named Project's Journal, read-only, and reads the Card
+    account (`JournalStore.cardAccount`, one transaction) into plain values. Tests cover: the whole
+    account; the same issue id in two Projects' Journals reading each Project's own; `waiting_reason`
+    and Block Reason following the state; a missing Journal (not created); an unreadable one; and the
+    file left byte-for-byte unchanged. Reading while an Act writes is still covered by
+    `CardAccountTests`, over the same read-only open and read.
+  - A Card from Needs you opens `CardDetailView` in the Inspector. The header (title, id, state, Block
+    Reason or `waiting_reason`) comes from the Pulse snapshot. The account (Repo, kind, budget epoch,
+    Attempt and Round counts, routes tried and excluded, then each Attempt expanding in place to its
+    route source, Override, times, classification, consumption, preserved ref, Rounds and Check
+    output) is read off the main actor, and read again whenever the snapshot is. The one way out
+    opens the Card's Linear issue. The Feature, Attempt and Repo panes stay placeholders (P18.9).
+  - P14.5's criteria carry over: Attempts, Rounds, routes and Check output, read-only, with no write
+    conflict. One loss: the legacy Journal tab listed every Card in the Journal, and the Inspector
+    reaches only decision Cards. The spec opens Card detail from Needs you, Feature detail's member
+    list and the Night Card; the member list is P18.9's, and the Night Card is Linear's.
+  - Not carried, because the Journal read cannot fill them: the Managed Block (Architectural Brief,
+    DoD clauses) and the question-and-answer thread (both on the Linear issue), `model_only_green`,
+    `bound_fired`, the un-adopted elapsed-Nights figure (it needs a reference `NightStart`, which
+    needs the schedule) and the link to the Feature a detached Card was left behind by.
+  - `Legacy/CardAccount`, the Project Window's Journal tab and `CardAccountUITests` are deleted. Its
+    "no Journal is created" check is now `OverviewWindowUITests.testShowingProjectsCreatesNoJournal`.
+    A populated Card detail needs a Journal the UI test bundle cannot build, so the Kit tests cover it.
 
 ### [ ] P18.9 Inspector — Feature, Attempt and Repo detail
 - **Work** — The Feature, Attempt and Repo detail panes of the Inspector.
