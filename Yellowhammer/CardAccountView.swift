@@ -17,12 +17,13 @@ struct CardAccountView: View {
         content
             .toolbar {
                 ToolbarItem {
-                    Button("Reload", systemImage: "arrow.clockwise") { model.load() }
+                    Button("Reload", systemImage: "arrow.clockwise") { Task { await model.load() } }
                         .accessibilityIdentifier("card-account-reload")
                 }
             }
+            .task { await model.load() }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-                model.load()
+                Task { await model.load() }
             }
     }
 
@@ -34,6 +35,10 @@ struct CardAccountView: View {
                 detail
                     .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
             }
+        } else if !model.hasLoaded {
+            ProgressView()
+                .accessibilityIdentifier("card-account-loading")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             unavailable
         }
