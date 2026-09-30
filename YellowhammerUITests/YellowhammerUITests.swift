@@ -62,6 +62,12 @@ final class OverviewWindowUITests: XCTestCase {
         XCTAssertTrue(stub.waitForExistence(timeout: 5))
     }
 
+    /// The fixture Journals hold no Feature, so the Feature group states its absence rather than a
+    /// blank, and never invents a title, state or roll-up state.
+    func testFeatureGroupStatesNoFeatureInFlight() {
+        XCTAssertTrue(element("feature-absence").waitForExistence(timeout: 10))
+    }
+
     /// Every decision is Linear's: the main window carries no triage gesture. Any element type is
     /// checked, because the Pulse's ways out are link-styled buttons, which `app.buttons` does not find.
     func testMainWindowOffersNoTriageGesture() {
