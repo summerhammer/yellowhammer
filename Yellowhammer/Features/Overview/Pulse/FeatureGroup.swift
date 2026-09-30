@@ -101,7 +101,7 @@ private extension FeatureInFlight {
     var displayState: String { state ?? "state unknown" }
 }
 
-private extension RollUpState {
+extension RollUpState {
     var tint: Color {
         switch self {
         case .authoring: .secondary
@@ -113,7 +113,7 @@ private extension RollUpState {
     }
 }
 
-private extension LaneState {
+extension LaneState {
     var tint: Color {
         switch self {
         case .running: .green

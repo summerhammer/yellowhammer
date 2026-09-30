@@ -108,7 +108,8 @@ extension PulseSnapshot {
                 state: state,
                 cardsDone: laneCards.count { $0.state == .done },
                 cardsTotal: laneCards.count,
-                pullRequest: pullRequests[repo].flatMap(chip)
+                pullRequest: pullRequests[repo].flatMap(chip),
+                cards: laneCards.map { LaneCard(id: $0.issueID, title: $0.displayTitle, state: $0.state) }
             )
         }
         return FeatureInFlight(id: inFlight.feature.issueID, title: nil, state: nil, rollupState: nil, lanes: lanes)
