@@ -2137,13 +2137,27 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
   - Existing Projects must re-run `yh setup` to provision the `operator abort` label. Until then every
     Act fails on the missing label, and the error message now says to run setup.
 
-### [ ] P18.11 Abort a running Attempt
+### [x] P18.11 Abort a running Attempt
 - **Work** — Abort an Attempt that is running, from the Inspector. The same limits as P18.10: the app
   triggers, and never decides or records.
 - **Spec** — `app/abort-a-running-attempt`.
 - **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
 - **Done when** — An aborted Attempt is reclaimable, and no partial state is written as if it were
   complete; quitting the app mid-abort does not change the outcome.
+- **Status** — Done on 2026-10-01 (`bd9c347`, `c3c5a4f`).
+  - The engine entry point is `yh abort --project <id> --attempt <n>`. It records the request through
+    P18.10's `requestOperatorAbort(attemptID:)` before it prints, so quitting the app mid-abort changes
+    nothing. The Act holding the Card Lease, or the next Expired Lease Sweep, ends the Attempt `aborted`
+    and Blocks the Card `operator abort`, as P18.10 built and tested. An ended Attempt writes nothing,
+    an unknown id is refused, and a Project with no Journal gets none. The `--wait` loop is shared with
+    `yh stop`. `AttemptAbortTests` checks that only the named Attempt of the named Project is requested.
+  - Abort Attempt is offered in the Inspector's Attempt detail and on the Sidebar's Attempt row
+    (context menu): the story names the row, the Window Layout amendment adds the Inspector. It is
+    offered only while the Project is `working` and the Attempt runs, the same gate as Stop. The
+    confirmation uses the mandated wording. A pending abort names its own Project.
+  - No UI test: a running Attempt needs a Journal the UI test bundle cannot build, so the Kit tests
+    cover the request. The existing `OverviewWindowUITests` pass, including that the window offers no
+    triage gesture.
 
 ### [ ] P18.12 `SettingsWindow` shell
 - **Work** — The Settings window (Cmd+,): a General / Projects sidebar, a back/forward toolbar, and
