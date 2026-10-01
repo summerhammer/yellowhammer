@@ -2295,13 +2295,40 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
   - Not fixed here: the `yh doctor` warning for a missing Operator identity tells the Operator to
     run `yh config operator`, and that command does not exist.
 
-### [ ] P18.17 `AddProject` sheet
+### [x] P18.17 `AddProject` sheet
 - **Work** — The Setup wizard as a sheet, shown only when a Project is added. The `extension String`
   at the top of `SetupWizardModel.swift` is decided here.
 - **Retires** — `Legacy/SetupWizard`, `Legacy/Shared`, then `Legacy/`.
 - **Spec** — `app/add-a-project-via-the-setup-wizard`.
 - **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
 - **Done when** — A Project is added through the sheet as through P14.2; `Legacy/` is gone.
+- **Status** — Done on 2026-10-01.
+  - The Setup wizard is now the Add Project sheet, in `Features/AddProject`. A "+" at the foot of the
+    main window's Sidebar and of the Settings window's sidebar opens it, as does the onboarding
+    view's "Add a Project…". A window presents it through the `\.addProject` environment action
+    (`addProjectSheet()`), so no other feature reaches into `AddProject`. The Setup window, its
+    `Setup…` menu item and `Legacy/` are gone. `Legacy/Shared` had already gone in P18.13.
+  - The sheet always declares a Project: the "Declare a Project" toggle and "Declare another Project"
+    are gone. It still runs the Linear, Operator identity and Agent CLI steps that P14.2 runs, and an
+    existing Linear installation is detected through `yh doctor`, so adding a second Project needs
+    no new install. Cancel is disabled while `yh setup --init` runs, and the sheet cannot be dismissed
+    then. After a failed run the sheet offers Close; after a successful one, Done.
+  - Done scopes the main window to the new Project, or selects it in the Settings window.
+    `ProjectAdditions`, an app-wide counter with no Project state, tells every window to read its
+    configuration again when a run ends. A sheet finishing fires neither appear nor didBecomeActive.
+  - The `extension String` is now `Extensions/Foundation/String+Trimmed.swift`, on `StringProtocol`,
+    so a `Substring` trims too. "Set Up Yellowhammer…" in the Agent CLIs pane and the Operator
+    identity section now opens the sheet. An unreadable `config.toml` offers Open Settings instead,
+    because the wizard cannot repair it.
+  - Acceptance criteria (Add Project wizard): the "+" in both sidebars, the sheet, and the wizard as
+    the only guided flow are met. Cancel leaving no Project file is met and tested. Completing the
+    wizard adding the new row to both sidebars is built but not exercised by a test: the stub
+    `yh --init` writes no Project file, because the UI test runner is sandboxed (as in P18.13). The
+    Settings window criteria were met in P18.12–P18.16.
+  - `SetupWizardUITests` is now `AddProjectUITests`, which opens the sheet from both sidebars and
+    the onboarding view, cancels it, and presses Done. That suite, `SettingsWindowUITests`,
+    `OverviewWindowUITests`, `AgentCLIUITests` and `LinearSettingsUITests` pass. The three deep-link
+    launch tests stay skipped for #238.
 
 ---
 
