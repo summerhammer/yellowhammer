@@ -34,7 +34,7 @@ public protocol AttemptResetting: Sendable {
     /// run has no Attempt to attribute preserved work to (a Block found with none dispatched at all).
     /// `knownGood` nil refuses outright: a reset with nowhere ruled-good to land is never attempted.
     func reset(
-        worktreePath: String, branch: FeatureBranch, attemptID: Int64?, knownGood: String?
+        worktreePath: String, branch: FeatureBranch, repository: String, attemptID: Int64?, knownGood: String?
     ) async -> AttemptResetOutcome
 }
 
@@ -50,7 +50,7 @@ public struct AttemptWorktreeReset: AttemptResetting {
     }
 
     public func reset(
-        worktreePath: String, branch: FeatureBranch, attemptID: Int64?, knownGood: String?
+        worktreePath: String, branch: FeatureBranch, repository: String, attemptID: Int64?, knownGood: String?
     ) async -> AttemptResetOutcome {
         guard let knownGood else {
             return .refused(reason: "no known-good commit recorded for this Worktree")
@@ -65,7 +65,8 @@ public struct AttemptWorktreeReset: AttemptResetting {
         }
 
         switch await committer.preserveAndReset(
-            worktreePath: worktreePath, branch: branch, attemptID: attemptID, knownGood: knownGood
+            worktreePath: worktreePath, branch: branch, repository: repository, attemptID: attemptID,
+            knownGood: knownGood
         ) {
         case .reset(let ref, let commit, _):
             if let ref, let commit {

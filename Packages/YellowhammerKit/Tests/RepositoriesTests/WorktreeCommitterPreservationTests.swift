@@ -20,7 +20,7 @@ struct WorktreeCommitterPreservationTests {
         let branch = FeatureBranch(name: "yh-project-feature")
         let committer = WorktreeCommitter()
         let outcome = await committer.preserveAndReset(
-            worktreePath: fixture.path, branch: branch, attemptID: 41, knownGood: knownGood
+            worktreePath: fixture.path, branch: branch, repository: "backend", attemptID: 41, knownGood: knownGood
         )
 
         guard case .reset(let ref, let commit, let resetTo) = outcome else {
@@ -46,7 +46,7 @@ struct WorktreeCommitterPreservationTests {
         let branch = FeatureBranch(name: "yh-project-feature")
         let committer = WorktreeCommitter()
         let first = await committer.preserveAndReset(
-            worktreePath: fixture.path, branch: branch, attemptID: 41, knownGood: knownGood
+            worktreePath: fixture.path, branch: branch, repository: "backend", attemptID: 41, knownGood: knownGood
         )
         guard case .reset(let firstRef, let firstCommit, _) = first else {
             Issue.record("expected .reset, got \(first)")
@@ -55,7 +55,7 @@ struct WorktreeCommitterPreservationTests {
         let countBefore = await fixture.run(["rev-list", "--all", "--count"]).stdout
 
         let second = await committer.preserveAndReset(
-            worktreePath: fixture.path, branch: branch, attemptID: 41, knownGood: knownGood
+            worktreePath: fixture.path, branch: branch, repository: "backend", attemptID: 41, knownGood: knownGood
         )
         guard case .reset(let secondRef, let secondCommit, let secondResetTo) = second else {
             Issue.record("expected .reset, got \(second)")
@@ -80,7 +80,7 @@ struct WorktreeCommitterPreservationTests {
         let branch = FeatureBranch(name: "yh-project-feature")
         let committer = WorktreeCommitter()
         let outcome = await committer.preserveAndReset(
-            worktreePath: fixture.path, branch: branch, attemptID: 41, knownGood: knownGood
+            worktreePath: fixture.path, branch: branch, repository: "backend", attemptID: 41, knownGood: knownGood
         )
 
         guard case .reset(let ref, let commit, let resetTo) = outcome else {
@@ -105,7 +105,7 @@ struct WorktreeCommitterPreservationTests {
         let branch = FeatureBranch(name: "yh-project-feature")
         let committer = WorktreeCommitter()
         let outcome = await committer.preserveAndReset(
-            worktreePath: fixture.path, branch: branch, attemptID: 41, knownGood: knownGood
+            worktreePath: fixture.path, branch: branch, repository: "backend", attemptID: 41, knownGood: knownGood
         )
 
         guard case .refused = outcome else {
@@ -127,7 +127,7 @@ struct WorktreeCommitterPreservationTests {
         let branch = FeatureBranch(name: "yh-project-feature")
         let committer = WorktreeCommitter()
         let outcome = await committer.preserveAndReset(
-            worktreePath: fixture.path, branch: branch, attemptID: nil, knownGood: knownGood
+            worktreePath: fixture.path, branch: branch, repository: "backend", attemptID: nil, knownGood: knownGood
         )
 
         guard case .reset(let ref, let commit, let resetTo) = outcome else {

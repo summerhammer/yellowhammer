@@ -215,7 +215,7 @@ final class RecordingAttemptResetting: AttemptResetting, Sendable {
     }
 
     func reset(
-        worktreePath: String, branch: FeatureBranch, attemptID: Int64?, knownGood: String?
+        worktreePath: String, branch: FeatureBranch, repository: String, attemptID: Int64?, knownGood: String?
     ) async -> AttemptResetOutcome {
         log?.add("reset")
         if let scripted { return scripted }

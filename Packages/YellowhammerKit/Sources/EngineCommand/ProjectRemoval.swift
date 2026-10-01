@@ -31,6 +31,24 @@ struct ProjectRemoval {
         -> @Sendable (FeatureBranch, Repo, NightMode) async -> PushOutcome
     let now: Date
 
+    /// Names each replacement the lenient load made for the safety WIP Commit: a refused
+    /// `wip_commit_message` falls back to the built-in default, an empty or non-string `change_type` to
+    /// `feat`. Neither blocks the WIP Commit (OQ103 (f)).
+    private func reportWIPCommitFallbacks(project: ProjectConfiguration) {
+        for refusal in project.unvalidatedTemplates?.refusals ?? [] {
+            switch refusal.key {
+            case "git.wip_commit_message":
+                output("\(refusal)")
+                output("using the built-in WIP Commit message instead")
+            case "change_type":
+                output("\(refusal)")
+                output("using change_type \"feat\" instead")
+            default:
+                break
+            }
+        }
+    }
+
     /// Runs the whole removal for `id`, printing progress and a final summary line. Returns whether it
     /// succeeded, the command's exit code.
     func run(id: String, yes: Bool) async -> Bool {
@@ -44,6 +62,8 @@ struct ProjectRemoval {
             output("\(error)")
             return false
         }
+
+        reportWIPCommitFallbacks(project: project)
 
         let journal = openJournalIfPresent(projectID: project.id)
         if let journal {

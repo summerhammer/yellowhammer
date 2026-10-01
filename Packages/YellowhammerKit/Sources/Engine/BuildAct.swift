@@ -46,6 +46,8 @@ public struct BuildAct: Sendable {
     /// acknowledgement reports (roadmap P11.2) reads it too. Required in production
     /// (`RootCommand` passes `project.bounds.unansweredNightsMax`); the ruled default of 3 is what
     /// every test that predates P11.2 still exercises.
+    /// What reconciliation's WIP Commits say; the Card run's own reset carries its own.
+    public let wipCommitMessage: WIPCommitMessage
     public let unansweredNightsMax: Int
 
     public init(
@@ -53,12 +55,14 @@ public struct BuildAct: Sendable {
         readiness: ReadinessCheck? = nil,
         resultReader: (any RunResultReading)? = nil,
         worktreeFencer: ProcessFencer = ProcessFencer(),
+        wipCommitMessage: WIPCommitMessage = WIPCommitMessage(),
         unansweredNightsMax: Int = 3
     ) {
         self.cardRunner = cardRunner
         self.readiness = readiness
         self.resultReader = resultReader
         self.worktreeFencer = worktreeFencer
+        self.wipCommitMessage = wipCommitMessage
         self.unansweredNightsMax = unansweredNightsMax
     }
 
@@ -133,7 +137,7 @@ public struct BuildAct: Sendable {
         }
         let reconciler = WorktreeReconciler(
             workspace: workspace, journal: context.journal, runID: context.runID, act: context.act,
-            nightID: context.night.id, committer: WorktreeCommitter(mode: context.mode)
+            nightID: context.night.id, committer: WorktreeCommitter(mode: context.mode, message: wipCommitMessage)
         )
         return try await reconciler.reconcile(featureID: feature.id, branch: branch)
     }

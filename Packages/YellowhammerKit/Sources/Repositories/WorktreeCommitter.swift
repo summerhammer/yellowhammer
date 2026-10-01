@@ -20,21 +20,23 @@ public enum WIPCommitOutcome: Equatable, Sendable {
 /// Never runs on a Worktree that is not checked out to its own Feature Branch, never rewrites a
 /// commit that already exists, and never creates a second WIP commit for an already-clean tree.
 public struct WorktreeCommitter: Sendable {
-    /// Every WIP commit's message begins with this marker, followed by the Feature Branch name.
-    public static let messageMarker = "yh-wip:"
-
     public let git: GitRunner
     /// A rehearsal Night never commits into a Worktree (system-overview, Environment Differences):
     /// `commitWIP` refuses on a dirty tree instead of writing a WIP commit.
     public let mode: NightMode
 
-    public init(git: GitRunner = GitRunner(), mode: NightMode = .real) {
+    /// What every WIP commit this committer writes says, and the author it is written as.
+    public let message: WIPCommitMessage
+
+    public init(git: GitRunner = GitRunner(), mode: NightMode = .real, message: WIPCommitMessage = WIPCommitMessage()) {
         self.git = git
         self.mode = mode
+        self.message = message
     }
 
     /// Commits any uncommitted changes (tracked and untracked) in the Worktree as a WIP commit.
-    public func commitWIP(worktreePath: String, branch: FeatureBranch) async -> WIPCommitOutcome {
+    /// `repository` fills the template's `{repository}` token.
+    public func commitWIP(worktreePath: String, branch: FeatureBranch, repository: String) async -> WIPCommitOutcome {
         let path = (worktreePath as NSString).expandingTildeInPath
         guard FileManager.default.fileExists(atPath: path) else {
             return .refused(reason: "Worktree path does not exist: \(worktreePath)")
@@ -69,25 +71,27 @@ public struct WorktreeCommitter: Sendable {
             )
         }
 
-        return await commitDirtyTree(at: path, branch: branch, wipRef: wipRef)
+        return await commitDirtyTree(at: path, branch: branch, repository: repository, wipRef: wipRef)
     }
 
     /// Writes the WIP commit itself, once the tree is known dirty and eligible to commit (real mode).
-    private func commitDirtyTree(at path: String, branch: FeatureBranch, wipRef: String) async -> WIPCommitOutcome {
+    private func commitDirtyTree(
+        at path: String, branch: FeatureBranch, repository: String, wipRef: String
+    ) async -> WIPCommitOutcome {
         let add = await git.run(["-C", path, "add", "-A"])
         guard add.isSuccess else {
             return .failed(reason: "git add exited \(add.exitCode): \(trimmed(add.stderr))")
         }
 
-        let message = "\(Self.messageMarker) \(branch.name)"
+        let wipMessage = message.render(branch: branch, repository: repository)
         let commit = await git.run([
-            "-c", "user.name=Yellowhammer",
-            "-c", "user.email=yellowhammer@localhost",
+            "-c", "user.name=\(WIPCommitMessage.authorName)",
+            "-c", "user.email=\(WIPCommitMessage.authorEmail)",
             "-c", "commit.gpgsign=false",
             "-C", path,
             "commit",
             "--no-verify",
-            "-m", message
+            "-m", wipMessage
         ])
         guard commit.isSuccess else {
             return .failed(reason: "git commit exited \(commit.exitCode): \(trimmed(commit.stderr))")

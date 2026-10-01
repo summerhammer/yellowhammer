@@ -219,8 +219,13 @@ struct WorktreeReconcilerContinuedTests {
 
         let wipRef = "refs/yellowhammer/wip/\(reconcilerBranch.name)"
         let log = await git.run(["log", "--format=%s", wipRef], workingDirectory: worktree.path).stdout
-        let markerLines = log.split(separator: "\n").filter { $0.hasPrefix(WorktreeCommitter.messageMarker) }
-        #expect(markerLines.count == 1)
+        let wipSubjects = log.split(separator: "\n").filter { $0.hasPrefix("chore(wip): preserve uncommitted work on") }
+        #expect(wipSubjects.count == 1)
+        let wipBody = await git.run(
+            ["log", "-1", "--format=%B%an <%ae>", wipRef], workingDirectory: worktree.path
+        ).stdout
+        #expect(wipBody.contains("Yellowhammer-WIP: \(reconcilerBranch.name)"))
+        #expect(wipBody.contains("Yellowhammer <noreply@yellowhammer.dev>"))
 
         #expect(try journal.events(ofType: .worktreeWIPCommitted).count == 1)
     }

@@ -35,10 +35,11 @@ extension WorktreeCommitter {
     public func preserveAndReset(
         worktreePath: String,
         branch: FeatureBranch,
+        repository: String,
         attemptID: Int64?,
         knownGood: String
     ) async -> AttemptPreservationOutcome {
-        switch await commitWIP(worktreePath: worktreePath, branch: branch) {
+        switch await commitWIP(worktreePath: worktreePath, branch: branch, repository: repository) {
         case .committed(let commit, _):
             return await preserveTip(
                 commit, worktreePath: worktreePath, branch: branch, attemptID: attemptID, knownGood: knownGood

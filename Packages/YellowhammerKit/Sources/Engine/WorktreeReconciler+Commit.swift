@@ -12,7 +12,9 @@ extension WorktreeReconciler {
     func reconcileCommitState(
         _ record: WorktreeRecord, branch: FeatureBranch
     ) async throws -> WorktreeReconciliationOutcome {
-        switch await committer.commitWIP(worktreePath: record.path, branch: branch) {
+        switch await committer.commitWIP(
+            worktreePath: record.path, branch: branch, repository: record.repository
+        ) {
         case .committed(let commit, let wipRef):
             return try await afterWIPCommit(record, branch: branch, commit: commit, wipRef: wipRef)
         case .noChanges(let headCommit, _, let wipCommit):

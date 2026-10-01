@@ -184,6 +184,7 @@ extension ActCommand {
                         configurationDirectory: configurationDirectory, projectID: project.id
                     )
                 ),
+                wipCommitMessage: project.wipCommit,
                 unansweredNightsMax: project.bounds.unansweredNightsMax
             ).work
         }
