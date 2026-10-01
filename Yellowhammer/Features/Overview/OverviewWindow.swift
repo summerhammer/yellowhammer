@@ -176,12 +176,14 @@ struct OverviewWindow: View {
 
     // MARK: Reading
 
-    /// Reads the snapshot when the window opens, then again each time the app becomes active, one read
-    /// after another. The loop is the window's own task, so it ends when the window closes.
+    /// Reads the snapshot when the window opens, then again each time the app becomes active, unless a
+    /// read is still running then (`OverviewModel.readOnActivation`). The loop never waits for a read,
+    /// because the notifications would queue behind it. It is the window's own task, so it ends when the
+    /// window closes.
     private func readWhileOpen() async {
         await model.load()
         for await _ in NotificationCenter.default.notifications(named: NSApplication.didBecomeActiveNotification) {
-            await model.load()
+            model.readOnActivation()
         }
     }
 

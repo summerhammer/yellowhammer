@@ -38,8 +38,31 @@ final class OverviewModel {
 
     /// Counts reads, so that a slow read which finishes after a newer one is dropped, not shown.
     private var generation = 0
+    /// How many reads are running. Only `readOnActivation` asks.
+    private var readsInFlight = 0
 
     func load() async {
+        readsInFlight += 1
+        defer { readsInFlight -= 1 }
+        await readSnapshotAndHealth()
+    }
+
+    /// The read for the app becoming active: started unless a read is already running, in which case
+    /// the activation is dropped, not queued. A Keychain prompt from `yh doctor` takes the app out of
+    /// the foreground, and dismissing it brings the app back while that `yh doctor` still runs, so a
+    /// queued activation would start another `yh doctor`, and with it another prompt, without end.
+    /// Returns at once: the caller's activation loop must take the next activation while this read runs.
+    func readOnActivation() {
+        guard readsInFlight == 0 else { return }
+        // Counted here, not in the task, so a second activation before the task starts is dropped too.
+        readsInFlight += 1
+        Task {
+            await readSnapshotAndHealth()
+            readsInFlight -= 1
+        }
+    }
+
+    private func readSnapshotAndHealth() async {
         generation += 1
         let current = generation
         async let health = Self.readHealth()
