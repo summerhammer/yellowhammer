@@ -224,13 +224,14 @@ final class OverviewWindowUITests: XCTestCase {
         app.activate()
         row.click()
         XCTAssertTrue(waitForHeading("Reader", timeout: 5), "Pulse heading is \(headingText())")
-        let selection = element("inspector-selection")
-        XCTAssertTrue(selection.waitForExistence(timeout: 5))
+        // The Repo detail pane (P18.9) names the Repo it shows.
+        let name = element("repo-detail-name")
+        XCTAssertTrue(name.waitForExistence(timeout: 5), "the Repo detail pane never opened")
         let deadline = Date().addingTimeInterval(5)
-        while ((selection.value as? String) ?? selection.label) != "Repo reader", Date() < deadline {
+        while ((name.value as? String) ?? name.label) != "reader", Date() < deadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
-        XCTAssertEqual((selection.value as? String) ?? selection.label, "Repo reader")
+        XCTAssertEqual((name.value as? String) ?? name.label, "reader")
     }
 
     /// Relaunches the app by `link` until `landed` holds, at most three times. A cold launch by URL
