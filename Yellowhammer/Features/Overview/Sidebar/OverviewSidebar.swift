@@ -24,6 +24,7 @@ struct OverviewSidebar: View {
     /// highlighted is the Sidebar's own concern.
     @State private var highlighted: SidebarRowID?
     @Environment(\.openPulseDestination) private var openDestination
+    @Environment(\.attemptAbort) private var attemptAbort
 
     var body: some View {
         // One flat ForEach with exactly one view per element: a macOS sidebar List traps when one
@@ -48,6 +49,13 @@ struct OverviewSidebar: View {
                             .lineLimit(1)
                             .accessibilityIdentifier("sidebar-\(row.snapshot.id.rawValue)-attempt-\(attempt.id)")
                             .padding(.leading, 32)
+                            .contextMenu {
+                                if attemptAbort.canAbort(row.snapshot.id, attempt) {
+                                    Button("Abort Attempt…", role: .destructive) {
+                                        attemptAbort.request(row.snapshot.id, attempt)
+                                    }
+                                }
+                            }
                     }
                 }
             }

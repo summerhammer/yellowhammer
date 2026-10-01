@@ -44,7 +44,7 @@ struct InspectorView: View {
             }
         case let .attempt(id):
             if let attempt = project.runningAttempt(id: id) {
-                AttemptDetailView(attempt: attempt, asOf: asOf)
+                AttemptDetailView(project: project.id, attempt: attempt, asOf: asOf)
             }
         case let .repo(repo):
             RepoDetailView(

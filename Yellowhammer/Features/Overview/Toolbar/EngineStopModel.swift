@@ -18,20 +18,14 @@ final class EngineStopModel {
     func stop(project: ProjectID) async {
         guard stopping.insert(project).inserted else { return }
         defer { stopping.remove(project) }
-        var lines: [String] = []
-        do {
-            let status = try await engine.run(arguments: ["stop", "--project", project.rawValue]) { lines.append($0) }
-            if status != 0 { failure = Self.tail(lines, fallback: "yh stop exited with status \(status).") }
-        } catch {
-            failure = Self.tail(lines, fallback: "\(error)")
+        if let failed = await EngineGestureRun.failure(
+            engine: engine, command: "stop", arguments: ["stop", "--project", project.rawValue]
+        ) {
+            failure = failed
         }
     }
 
     func isStopping(_ project: ProjectID?) -> Bool {
         project.map(stopping.contains) ?? false
-    }
-
-    private static func tail(_ lines: [String], fallback: String) -> String {
-        lines.isEmpty ? fallback : lines.suffix(5).joined(separator: "\n")
     }
 }
