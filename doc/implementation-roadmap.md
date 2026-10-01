@@ -2159,13 +2159,30 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
     cover the request. The existing `OverviewWindowUITests` pass, including that the window offers no
     triage gesture.
 
-### [ ] P18.12 `SettingsWindow` shell
+### [x] P18.12 `SettingsWindow` shell
 - **Work** — The Settings window (Cmd+,): a General / Projects sidebar, a back/forward toolbar, and
   the refused Project configuration files.
 - **Spec** — glossary → Settings window; risks.md OQ79.
 - **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
 - **Done when** — Cmd+, opens the window; a refused Project appears there with its diagnostic and
   not in the main window's Sidebar.
+- **Status** — Done on 2026-10-01 (`5981a49`).
+  - The window is a `Window` scene, not SwiftUI's `Settings` scene, so it can carry a split view and a
+    toolbar. The app menu's Settings command (Cmd+,) is replaced so that it can preselect. The sidebar
+    has a General section (General, Refused Files) and a Projects section that lists each configured
+    Project by name only. The toolbar has back/forward through the sections visited, and the window
+    title is the section's name.
+  - The Refused Files pane shows each refused file's path and every decode or validation error. It
+    states when the whole configuration cannot be read. Placing it under General is a lead draft: the
+    spec says only "the Settings window".
+  - Cmd+, and the Health group's Open Settings preselect the key main window's Project, which closes
+    P18.1's "Not met yet". An explicit open preselects again even while Settings is open. After that,
+    the two windows' selections are independent.
+  - `SettingsWindowUITests` covers Cmd+,, the refused file's diagnostic with no Project row in either
+    sidebar, the preselection, and a back/forward round trip. `OverviewWindowUITests` passes.
+  - Placeholders: a Project's Configuration and Recalibrate tabs open its Project Window (P18.13,
+    P18.14). The General pane opens the Agent CLIs and Base Routing Table windows (P18.15, P18.16).
+    Add Project from Settings is P18.17's.
 
 ### [ ] P18.13 Settings — Project — Configuration
 - **Work** — Project configuration editing in the Settings window. This may first lift parts of
@@ -2252,7 +2269,7 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
 | `morning-report/notify-the-operator-of-exceptions` | P12.4, P12.5 |
 | `morning-report/triage-the-morning` | P10.8, P10.9, P9.9, P12.3, P16.8 |
 | `app/land-on-the-sidebar-and-pulse` | P18.1, P18.2, P18.3, P18.4, P18.5, P18.6, P18.7, P18.8, P18.9 |
-| `app/scope-windows-to-a-project` | P18.1 |
+| `app/scope-windows-to-a-project` | P18.1, P18.12 |
 | `app/stop-the-engine-for-a-project` | P18.10 |
 | `app/abort-a-running-attempt` | P18.11 |
-| `app/add-a-project-via-the-setup-wizard` | P18.13, P18.17 |
+| `app/add-a-project-via-the-setup-wizard` | P18.12, P18.13, P18.17 |
