@@ -10,7 +10,9 @@ import SwiftUI
 /// Where each piece of state lives:
 /// - **The selected Project** is the window's own value, `project`. A deep link finds the window that
 ///   shows a Project by this value. A new window keeps it nil (unscoped) and shows the first configured
-///   Project until the Operator selects one or a link scopes the window.
+///   Project until the Operator selects one or a link scopes the window. macOS restores the value with
+///   the window, so a value naming a Project that is no longer configured is dropped (`staleProject`),
+///   unless a link named it.
 /// - **The Inspector's selection** is `inspected`. It is cleared whenever the selected Project changes,
 ///   and the Inspector shows it only while it names something in that Project.
 /// - **The snapshot** belongs to `OverviewModel`, and is read again on appear and whenever the app
@@ -35,6 +37,7 @@ struct OverviewWindow: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(SettingsRequest.self) private var settingsRequest
     @Environment(ProjectAdditions.self) private var projectAdditions
+    @Environment(DeepLinkedProjects.self) private var deepLinkedProjects
 
     /// The Project this window shows: its own value, or the first configured one for a new window.
     private var scopedProject: ProjectID? {
@@ -43,6 +46,17 @@ struct OverviewWindow: View {
 
     private var selectedSnapshot: ProjectSnapshot? {
         model.snapshot?.project(scopedProject)
+    }
+
+    /// The window's own value, when it names no configured Project, no refused one, and no Project a link
+    /// named: restored by macOS after its Project was removed, or left by a Project removed while the
+    /// window was open. Nil until the configuration has been read.
+    private var staleProject: ProjectID? {
+        guard let project, model.configurationFailure == nil, let snapshot = model.snapshot,
+              snapshot.project(project) == nil, model.refusal(for: project) == nil,
+              !deepLinkedProjects.contains(project)
+        else { return nil }
+        return project
     }
 
     var body: some View {
@@ -93,6 +107,9 @@ struct OverviewWindow: View {
         .task { await readWhileOpen() }
         // A sheet finishing fires neither appear nor didBecomeActive; the initial load is `readWhileOpen`'s.
         .onChange(of: projectAdditions.token) { Task { await model.load() } }
+        .onChange(of: staleProject, initial: true) { _, stale in
+            if stale != nil { unscope() }
+        }
         // Every main window can take a deep link, so a link never opens a stray window of its own.
         .handlesExternalEvents(preferring: [ProjectDeepLink.scheme], allowing: [ProjectDeepLink.scheme])
         .onOpenURL(perform: open)
@@ -107,7 +124,8 @@ struct OverviewWindow: View {
             if let selected = snapshot.project(scopedProject) {
                 PulseView(project: selected, asOf: snapshot.asOf)
             } else if let scopedProject {
-                // Only a deep link can scope the window to an id that is not configured.
+                // Only a deep link keeps the window scoped to an id that is not configured: any other
+                // such value is dropped (`staleProject`).
                 if let refusal = model.refusal(for: scopedProject) {
                     OverviewUnavailable(reason: .refusedProject(scopedProject, refusal))
                 } else {
@@ -199,10 +217,19 @@ struct OverviewWindow: View {
         project = id
     }
 
+    /// Returns the window to unscoped, so it shows the first configured Project, or the onboarding view
+    /// when there is none. Clears the selection and notice, as `rescope` does.
+    private func unscope() {
+        inspected = nil
+        wayOut = nil
+        project = nil
+    }
+
     /// Scopes an unscoped window to the linked Project. A window that already shows a different Project
     /// keeps it, and the link brings forward that Project's window, or opens one.
     private func open(_ url: URL) {
         guard let link = ProjectDeepLink(url: url) else { return }
+        deepLinkedProjects.record(link.project)
         if project == nil || project == link.project {
             rescope(link.project)
         } else {
