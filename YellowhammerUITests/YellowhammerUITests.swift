@@ -146,6 +146,7 @@ final class OverviewWindowUITests: XCTestCase {
     /// already-running app cannot be driven from here — LaunchServices does not route a URL to an
     /// instance XCUITest launched, and starts a second one instead.
     func testDeepLinkLaunchOpensTheNamedProject() throws {
+        try XCTSkipIf(true, "#238: cold-launch GURL dropped by LaunchServices")
         XCTAssertTrue(app.staticTexts["pulse-heading"].waitForExistence(timeout: 10))
 
         let landed = try relaunch(opening: "yellowhammer://project/reader") { headingText() == "Reader" }
@@ -154,6 +155,7 @@ final class OverviewWindowUITests: XCTestCase {
     }
 
     func testDeepLinkToAnUnknownProjectStatesIt() throws {
+        try XCTSkipIf(true, "#238: cold-launch GURL dropped by LaunchServices")
         XCTAssertTrue(app.staticTexts["pulse-heading"].waitForExistence(timeout: 10))
 
         let landed = try relaunch(opening: "yellowhammer://project/nobody") { element("overview-unknown-id").exists }
@@ -171,6 +173,7 @@ final class OverviewWindowUITests: XCTestCase {
     }
 
     func testDeepLinkToARefusedProjectStatesTheRefusal() throws {
+        try XCTSkipIf(true, "#238: cold-launch GURL dropped by LaunchServices")
         XCTAssertTrue(app.staticTexts["pulse-heading"].waitForExistence(timeout: 10))
 
         let landed = try relaunch(opening: "yellowhammer://project/broken") { element("overview-refused-id").exists }
