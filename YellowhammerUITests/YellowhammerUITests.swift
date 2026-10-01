@@ -54,6 +54,28 @@ final class OverviewWindowUITests: XCTestCase {
         XCTAssertTrue(waitForHeading("Reader", timeout: 5), "Pulse heading is \(headingText())")
     }
 
+    /// A window scoped to a Project that is then removed falls back to the first configured Project, not
+    /// to the unknown-id notice a link gets. A window macOS restores after its Project was removed takes
+    /// the same path; XCUITest cannot restore one (`-ApplePersistenceIgnoreState`).
+    func testRemovingTheSelectedProjectUnscopesTheWindow() throws {
+        let row = element("sidebar-reader")
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        app.activate()
+        row.click()
+        XCTAssertTrue(waitForHeading("Reader", timeout: 5), "Pulse heading is \(headingText())")
+
+        try FileManager.default.removeItem(
+            at: configurationDirectory.appending(components: "projects", "reader.toml")
+        )
+        // The window reads its configuration again when the app becomes active.
+        XCUIApplication(bundleIdentifier: "com.apple.finder").activate()
+        app.activate()
+
+        XCTAssertTrue(waitForHeading("Zed Archive", timeout: 10), "Pulse heading is \(headingText())")
+        XCTAssertFalse(element("overview-unknown-id").exists)
+        XCTAssertFalse(element("sidebar-reader").exists)
+    }
+
     func testHealthOpensTheSettingsWindow() {
         let health = app.descendants(matching: .any)["pulse-health-settings"]
         XCTAssertTrue(health.waitForExistence(timeout: 10))

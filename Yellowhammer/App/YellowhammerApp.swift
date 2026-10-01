@@ -28,6 +28,8 @@ struct YellowhammerApp: App {
     @State private var settingsRequest = SettingsRequest()
     /// Told when a Project is added, so every window that lists Projects reads its configuration again.
     @State private var projectAdditions = ProjectAdditions()
+    /// The ids links have named, so a main window can tell a linked unknown id from a stale one.
+    @State private var deepLinkedProjects = DeepLinkedProjects()
 
     init() {
         // Never under a UI test (`-YellowhammerEngineStub`, the same override `SetupEngine` reads):
@@ -56,6 +58,7 @@ struct YellowhammerApp: App {
                 .addProjectSheet()
                 .environment(settingsRequest)
                 .environment(projectAdditions)
+                .environment(deepLinkedProjects)
         }
         // Room for the three columns at their ideal widths. The minimum comes from the columns' own.
         .defaultSize(width: 1180, height: 760)
