@@ -29,6 +29,7 @@ struct SettingsWindow: View {
     /// request that opened it.
     @State private var appliedRequest = 0
     @Environment(SettingsRequest.self) private var request
+    @Environment(ProjectAdditions.self) private var projectAdditions
 
     private var selection: Binding<SettingsSection?> {
         Binding(
@@ -41,8 +42,15 @@ struct SettingsWindow: View {
 
     var body: some View {
         NavigationSplitView {
-            SettingsSidebar(projects: configured?.entries ?? [], selection: selection)
-                .navigationSplitViewColumnWidth(min: 180, ideal: 200)
+            SettingsSidebar(
+                projects: configured?.entries ?? [],
+                selection: selection,
+                onProjectAdded: { id in
+                    readConfiguration()
+                    history.visit(.project(id))
+                }
+            )
+            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
         } detail: {
             // Minimums sit on the columns, not on the split view (see `OverviewWindow`).
             detail
@@ -65,6 +73,8 @@ struct SettingsWindow: View {
         .accessibilityIdentifier("settings-window")
         .onAppear(perform: applyRequest)
         .onChange(of: request.token) { applyRequest() }
+        // A Project added from the main window; a sheet finishing fires neither appear nor didBecomeActive.
+        .onChange(of: projectAdditions.token) { readConfiguration() }
         .task { await readWhileOpen() }
         .onDisappear {
             linearInstallation.terminate()

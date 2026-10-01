@@ -4,7 +4,7 @@ import XCTest
 /// A Project's Configuration tab in the Settings window driven against a fixture configuration directory
 /// (P14.3, P18.13). A successful save is not exercised here: the UI test runner is itself sandboxed, so the (unsandboxed) app under
 /// test cannot write into the runner's own container — see
-/// `SetupWizardUITests`'s stub-execution note for the same boundary. The round trip through
+/// `AddProjectUITests`'s stub-execution note for the same boundary. The round trip through
 /// ``Config/Configuration/save(_:to:in:replacing:)`` is covered by
 /// `ConfigurationEditingTests` in the `ConfigTests` package instead; this suite covers what the app
 /// itself is responsible for: reading the Project's fields into the form, and showing a refusal in the

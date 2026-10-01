@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 
 /// The Settings window's Agent CLIs pane driven against a stub `yh` (P14.4). The UI test runner is itself sandboxed,
-/// so the stub — run via `/bin/sh <stub>`, the same crossing `SetupWizardUITests` documents — cannot
+/// so the stub — run via `/bin/sh <stub>`, the same crossing `AddProjectUITests` documents — cannot
 /// write a Ledger row the (unsandboxed) app under test could then read back. So this suite covers what
 /// crosses the sandbox boundary through the app itself: both declared CLIs listed as never probed, and
 /// running a Probe streaming the stub's echoed arguments and exit status into the window's log.

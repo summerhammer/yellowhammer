@@ -34,6 +34,7 @@ struct OverviewWindow: View {
     @State private var wayOut: PulseDestination?
     @Environment(\.openWindow) private var openWindow
     @Environment(SettingsRequest.self) private var settingsRequest
+    @Environment(ProjectAdditions.self) private var projectAdditions
 
     /// The Project this window shows: its own value, or the first configured one for a new window.
     private var scopedProject: ProjectID? {
@@ -48,7 +49,14 @@ struct OverviewWindow: View {
         NavigationSplitView {
             OverviewSidebar(
                 projects: model.snapshot?.projects ?? [],
-                selection: Binding(get: { scopedProject }, set: { $0.map(rescope) })
+                selection: Binding(get: { scopedProject }, set: { $0.map(rescope) }),
+                onProjectAdded: { id in
+                    // Read again first, so the new row exists when the window scopes to it.
+                    Task {
+                        await model.load()
+                        rescope(id)
+                    }
+                }
             )
             .navigationSplitViewColumnWidth(min: 200, ideal: 240)
         } detail: {
@@ -83,6 +91,8 @@ struct OverviewWindow: View {
         .environment(\.attemptAbort, attemptAbortControl)
         .focusedSceneValue(\.overviewProject, scopedProject)
         .task { await readWhileOpen() }
+        // A sheet finishing fires neither appear nor didBecomeActive; the initial load is `readWhileOpen`'s.
+        .onChange(of: projectAdditions.token) { Task { await model.load() } }
         // Every main window can take a deep link, so a link never opens a stray window of its own.
         .handlesExternalEvents(preferring: [ProjectDeepLink.scheme], allowing: [ProjectDeepLink.scheme])
         .onOpenURL(perform: open)

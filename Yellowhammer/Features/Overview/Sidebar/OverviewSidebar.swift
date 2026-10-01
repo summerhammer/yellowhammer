@@ -23,7 +23,10 @@ struct OverviewSidebar: View {
     /// The highlighted row. Only its Project belongs to the window; which of that Project's rows is
     /// highlighted is the Sidebar's own concern.
     @State private var highlighted: SidebarRowID?
+    /// Runs with the new Project's id after the Operator adds one from the Sidebar. The window owns it.
+    let onProjectAdded: @MainActor (ProjectID) -> Void
     @Environment(\.openPulseDestination) private var openDestination
+    @Environment(\.addProject) private var addProject
     @Environment(\.attemptAbort) private var attemptAbort
 
     var body: some View {
@@ -61,6 +64,14 @@ struct OverviewSidebar: View {
             }
         }
         .listStyle(.sidebar)
+        .safeAreaInset(edge: .bottom, alignment: .leading) {
+            Button { addProject(onAdded: onProjectAdded) } label: { Image(systemName: "plus") }
+                .buttonStyle(.borderless)
+                .help("Add Project")
+                .accessibilityLabel("Add Project")
+                .accessibilityIdentifier("sidebar-add-project")
+                .padding(8)
+        }
     }
 
     // MARK: Tree

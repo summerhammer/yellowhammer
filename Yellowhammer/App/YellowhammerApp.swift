@@ -26,6 +26,8 @@ struct YellowhammerApp: App {
     /// The Project the Settings window preselects when a gesture opens it. One for the app, so the main
     /// windows can ask and the Settings window can answer.
     @State private var settingsRequest = SettingsRequest()
+    /// Told when a Project is added, so every window that lists Projects reads its configuration again.
+    @State private var projectAdditions = ProjectAdditions()
 
     init() {
         // Never under a UI test (`-YellowhammerEngineStub`, the same override `SetupEngine` reads):
@@ -51,7 +53,9 @@ struct YellowhammerApp: App {
         // First, so it is the window the app opens on, and the one File > New Window opens.
         WindowGroup(id: OverviewWindow.windowID, for: ProjectID.self) { $project in
             OverviewWindow(project: $project)
+                .addProjectSheet()
                 .environment(settingsRequest)
+                .environment(projectAdditions)
         }
         // Room for the three columns at their ideal widths. The minimum comes from the columns' own.
         .defaultSize(width: 1180, height: 760)
@@ -63,7 +67,6 @@ struct YellowhammerApp: App {
                 SettingsMenuCommand(request: settingsRequest)
             }
             CommandGroup(after: .appInfo) {
-                SetupMenuCommand()
                 CheckForUpdatesMenuCommand(updater: updaterController.updater)
             }
         }
@@ -71,14 +74,11 @@ struct YellowhammerApp: App {
         // Not Project-scoped: its own sidebar picks the Project. A deep link never opens this window.
         Window("Settings", id: SettingsWindow.windowID) {
             SettingsWindow()
+                .addProjectSheet()
                 .environment(settingsRequest)
+                .environment(projectAdditions)
         }
         .defaultSize(width: 760, height: 520)
         .handlesExternalEvents(matching: [])
-
-        // Not Project-scoped: declaring a new Project happens here, never in a Project window.
-        Window("Setup", id: SetupMenuCommand.windowID) {
-            SetupWizardView()
-        }
     }
 }
