@@ -71,6 +71,7 @@ disagreement is a defect in this file.
 | 16 | Release engineering & first production Night | Signing, notarization, packaging, install check, go-live |
 | 17 | Linear App Installation | One public Linear app installed per workspace with PKCE; refresh, authorization halt |
 | 18 | App restructure | The main window (Sidebar, Pulse, Inspector) and the Settings window replace the legacy screens |
+| 19 | Titles, commit messages and empty lanes | Message Templates and Change Type; WIP Commit identity; reset on Waiting on You; N counts pushed branches |
 
 ---
 
@@ -1754,6 +1755,8 @@ comment on the Delta Read).
 - **Agent** — Fable 5.1 High or `gpt-6-astra high`.
 - **Done when** — One production Night has run and been triaged from the board, and the observations
   are filed.
+- **Waits on** — Phase 19 (Pull Request Title and Commit Message Ruling; OQ107 was raised as
+  blocking this step).
 
 ---
 
@@ -2332,44 +2335,184 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
 
 ---
 
+## Phase 19 — Titles, commit messages and empty lanes
+
+Built against `../yellowhammer-spec` @ `00be96f` (2026-10-01): the *Pull Request Title and Commit
+Message Ruling*, the *Failed-Lane Branch Ruling* and the *Landing Edge Cases Ruling*
+(risks.md → 2026-10-01; OQ101–OQ108, raised by yellowhammer-spec#74). These rulings change how
+Yellowhammer names its pull requests and commits, where a Card waiting on the Operator leaves its
+work, and how a lane with nothing to push counts. **P16.8 waits on this phase**: a repository that
+lints Conventional Commits refuses today's titles, and OQ107 was raised as blocking the first
+production Night.
+
+**Every step here.**
+- **Start by reading** the cited stories and their epics' `overview.md`, the three rulings above,
+  and `docs/tech/stack.md` → *Configuration schema* (the token table is there, not here).
+- **`Engine` does not import `Config`.** A template, `change_type` or other Project value reaches
+  Engine as a value or a renderer injected by the `EngineCommand` binding that already holds the
+  `ProjectConfiguration` (`CardRunBinding`, `LandBinding`, `RootCommand` for `BuildAct`).
+- **Linear identifiers.** `Card.issueID` and `Feature.issueID` are Linear's opaque ids. The
+  `{key}` and `{card_key}` tokens are the human identifier (`YLH-42`, `BoardObject.key`); source it
+  from the board or record it in the Journal, but never render the opaque id in its place.
+- **Journal schema.** A new event kind needs no migration (the `event` table's `type` and
+  `payload` are free text). A new column or table edits `journal-schema-N` in place and bumps `N`
+  (pre-1.0 rule in CLAUDE.md).
+- **Done when**, in addition to the line on the step: `swift test --package-path
+  Packages/YellowhammerKit` is green; the cited stories' new acceptance criteria are listed as met
+  or explicitly not met. Never assert a commit message a worker wrote, a pull request title as
+  GitHub shows it, or a push (system-overview).
+
+**Order.** P19.1 comes first; P19.2–P19.4 build on it. P19.5 is independent. P19.6 comes before
+P19.7.
+
+### [ ] P19.1 Change Type and Message Templates in Project configuration
+- **Work**
+  - The top-level Project key `change_type`, `[github] pull_request_title` and a `[git]` table
+    with `commit_message` and `wip_commit_message`, each optional with the spec's default. Project
+    file only: the same keys in `config.toml` stay refused. A `[github]` table holding only
+    `pull_request_title` is valid in a Project file.
+  - One renderer and one token set per template, in a module both `Config` and `Engine` can use.
+    Plain substitution; `{scope}` is self-formatting (`(epic)` or empty). A template naming a
+    token outside its own set, or an empty one, is refused at load, isolated to that Project
+    (P2.3), and `yh doctor` reports it.
+  - The app's configuration drafts and rendering carry the new keys through a save unchanged.
+  - `yh project remove` loads the Project file leniently: it validates only the repos and the
+    credentials its Linear release comment needs, and skips template validation.
+- **Spec** — `docs/tech/stack.md` → Configuration schema; OQ103 (b)–(d), (f);
+  `shift-scheduling/diagnose-the-installation`; `shift-scheduling/fire-an-act-on-schedule`
+  (lenient removal); `feature-authoring/select-the-next-feature` (Change Type criterion).
+- **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
+- **Done when** — A Project with a bad template is refused for every Act and named by `yh doctor`,
+  its siblings still load, `yh project remove` still removes it, and a configuration saved from the
+  app keeps all four keys.
+
+### [ ] P19.2 Pull request title from its template
+- **Work** — The land Act renders each pull request's title from `[github] pull_request_title`,
+  replacing `<title> (<repo>)` and the hard-coded `partial landing: ` prefix. `{scope}` is the
+  Feature's primary epic: the epic cited by the most feature-level DoD clauses whose citation is a
+  story ID, a tie going to the tied epic whose earliest such clause comes first in clause order;
+  empty when no clause cites a story. `{key}` is the Feature Issue's human identifier. The title is
+  written once, with the body, and never revised.
+- **Spec** — `landing/open-one-pull-request-per-repository`; OQ103 (a).
+- **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
+- **Done when** — The rendered title is asserted for a given template, Feature, clause citations
+  and Partial Landing flag, including the tie-break and the no-story case; the body is unchanged.
+
+### [ ] P19.3 WIP Commit message, trailer and author
+- **Work** — Every WIP Commit — reconciliation, the fence before a new Attempt, on Block, and
+  real-mode Project removal — carries the message rendered from `[git] wip_commit_message`, the
+  trailer `Yellowhammer-WIP: <branch>` and the author `Yellowhammer <noreply@yellowhammer.dev>`,
+  replacing `yh-wip:` and `yellowhammer@localhost`. Nothing reads the message back. On the lenient
+  removal path, a refused `wip_commit_message` falls back to the built-in default and an empty or
+  non-string `change_type` to `feat`, each reported, so the WIP Commit is never skipped.
+- **Spec** — `loop-state/reconcile-worktrees-at-act-start`; `shift-scheduling/fire-an-act-on-schedule`;
+  OQ103 (f) and W1; glossary → WIP Commit.
+- **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`.
+- **Done when** — Against fixture repositories, every trigger writes the rendered message, the
+  trailer and the author; removal of a Project with a refused template writes the default.
+
+### [ ] P19.4 Worker commit-message instruction and the `Yellowhammer-Card` record
+- **Work**
+  - The worker's instruction gains a section that states the Project's `[git] commit_message`
+    rendered with the Card's tokens (`{type}`, `{scope}`, `{card_key}`, `{card_title}`, `{key}`,
+    `{title}`, `{repository}`, `{story}`) and asks for a `Yellowhammer-Card: <card key>` trailer on
+    each commit. It is not part of the Architectural Brief.
+  - After a worker reports a commit, the engine reads `last_known_good_commit..<commit>` with
+    `git log` and records in the Journal each commit missing the trailer. It never changes the
+    Card's outcome, never creates a Round and is not shown in the Roll-up.
+- **Spec** — `graph-execution/run-a-card`; `feature-authoring/author-an-architectural-brief`;
+  OQ102, OQ103 (e).
+- **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
+- **Done when** — The composed instruction carries the rendered template and the trailer request;
+  against a fixture repository, a reported commit without the trailer is recorded and the Card's
+  outcome is unchanged.
+
+### [ ] P19.5 Reset on entering Waiting on You mid-run
+- **Work** — When a worker's `question` puts its Card into Waiting on You mid-run, the OQ60
+  sequence runs as on Block — fence (unfiltered), WIP-commit, preserve under `preserved_ref`, reset
+  the Worktree and the lane's Feature Branch tip to `last_known_good_commit` — after the asking run
+  has exited and been swept, before the lane's next Card is dispatched. Idempotent. Resumption is a
+  new Attempt from `last_known_good_commit`, with the preserved ref handed over as context, not a
+  starting tree. No Round or Attempt counter resets.
+- **Spec** — `bounds/escalate-a-question-to-the-operator`; `graph-execution/run-a-card`;
+  `loop-state/reconcile-worktrees-at-act-start`; OQ106, OQ60.
+- **Agent** — Fable 5.1 High or `gpt-6-astra high`.
+- **Done when** — A Card that asks leaves no commits or edits on the branch, the lane's next Card
+  dispatches from `last_known_good_commit`, and the resumed dispatch carries the preserved ref as
+  context.
+
+### [ ] P19.6 No-Pushed-Branch Outcome, and N counts pushed branches only
+- **Work**
+  - The land Act records the No-Pushed-Branch Outcome for a lane with nothing ahead of mainline,
+    as its own Journal record rather than a skipped step.
+  - N — the merged fraction's denominator and the set the predecessor-ancestry gate and closure by
+    merge read — is the subset of the recorded touched repositories that pushed a Feature Branch,
+    everywhere it is computed: Roll-up, Night Summary, pull request body, Verification, the Pulse.
+    `touched_repos` itself never shrinks.
+  - At N = 0: no pull request opens, k = N is never read as satisfied, the fraction renders
+    `0 of 0 merged` and never drops, closure by merge never fires, and the Feature is never read
+    as a predecessor through the gate.
+- **Spec** — `landing/open-one-pull-request-per-repository`; `landing/announce-a-partial-landing`;
+  `feature-authoring/select-the-next-feature`; `morning-report/write-the-night-summary`;
+  `board-projection/maintain-the-managed-block`; OQ104, OQ107.
+- **Agent** — Fable 5.1 High or `gpt-6-astra high`.
+- **Done when** — A two-repository Feature with one empty lane reads `0 of 1 merged` until its one
+  pull request merges, then closes; a Feature with every lane empty never closes and leaves flight
+  only by `release` or re-authoring.
+
+### [ ] P19.7 `[no pull request: <repo>]` beside the Roll-up
+- **Work** — Each repository with the No-Pushed-Branch Outcome is shown as
+  `[no pull request: <repo>]` beside the Roll-up sentence, one note per repository, never inside
+  it, wherever the sentence is rendered: the Feature card's Managed Block, the standing Night
+  Summary line, and each pull request body as of its Night. At N = 0, on the Feature card and in
+  the Night Summary only.
+- **Spec** — `board-projection/maintain-the-managed-block`; `morning-report/write-the-night-summary`;
+  `landing/open-one-pull-request-per-repository`; OQ108.
+- **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
+- **Done when** — The note renders on all three surfaces beside the sentence, the six words and
+  the sentence shape are unchanged, and the hash-skip still holds when nothing changed.
+
+---
+
 ## Traceability: story → steps
 
 | Story ID | Steps |
 |---|---|
-| `shift-scheduling/fire-an-act-on-schedule` | P4.1, P4.3, P3.2, P13.2, P8.1 |
+| `shift-scheduling/fire-an-act-on-schedule` | P4.1, P4.3, P3.2, P13.2, P8.1, P19.1, P19.3 |
+| `shift-scheduling/diagnose-the-installation` | P19.1 |
 | `shift-scheduling/open-and-close-the-night-card` | P4.4, P5.7, P12.1 |
 | `shift-scheduling/do-one-acts-work-and-exit` | P4.2, P3.3 |
 | `loop-state/claim-and-heartbeat-a-run-lease` | P3.4, P8.4 |
 | `loop-state/reclaim-an-expired-lease` | P8.10, P6.8 |
-| `loop-state/reconcile-worktrees-at-act-start` | P6.8, P6.9, P6.6 |
+| `loop-state/reconcile-worktrees-at-act-start` | P6.8, P6.9, P6.6, P19.3, P19.5 |
 | `loop-state/record-failure-cause-recurrence` | P8.8 |
 | `board-projection/write-board-updates-through-the-outbox` | P5.4, P17.5 |
 | `board-projection/install-the-linear-app` | P17.3, P17.4, P17.5, P17.6, P17.7, P17.8, P17.9, P18.16 |
 | `board-projection/authorize-linear-via-remote-approval` | P17.9, P18.16 |
 | `board-projection/read-board-changes-by-delta` | P5.5, P11.2, P11.3 |
-| `board-projection/maintain-the-managed-block` | P5.6, P9.10, P12.3, P11.3 |
+| `board-projection/maintain-the-managed-block` | P5.6, P9.10, P12.3, P11.3, P19.6, P19.7 |
 | `board-projection/check-card-readiness-at-dispatch` | P8.2, P6.4 |
 | `routing/resolve-a-route-for-a-card` | P2.4, P7.6, P9.11 |
 | `routing/exclude-tried-routes-on-retry` | P7.7 |
 | `routing/add-an-agent-cli` | P2.3, P7.2, P7.3, P7.4, P7.5, P18.15 |
-| `feature-authoring/select-the-next-feature` | P9.1, P9.2, P9.3, P9.8, P9.9, P9.11, P11.5, P11.6 |
+| `feature-authoring/select-the-next-feature` | P9.1, P9.2, P9.3, P9.8, P9.9, P9.11, P11.5, P11.6, P19.1, P19.6 |
 | `feature-authoring/author-the-cycle-and-card-dag` | P9.4, P9.10, P11.5 |
 | `feature-authoring/author-citable-definitions-of-done` | P9.5, P9.7, P9.8, P8.2 |
-| `feature-authoring/author-an-architectural-brief` | P9.6, P9.10, P6.5, P8.2 |
+| `feature-authoring/author-an-architectural-brief` | P9.6, P9.10, P6.5, P8.2, P19.4 |
 | `graph-execution/allocate-a-worktree-per-graph-and-repo` | P6.7 |
-| `graph-execution/run-a-card` | P7.1, P7.2, P8.4, P8.6, P8.7, P8.9 |
+| `graph-execution/run-a-card` | P7.1, P7.2, P8.4, P8.6, P8.7, P8.9, P19.4, P19.5 |
 | `graph-execution/gate-a-card-on-the-repository-check` | P2.3, P8.5 |
 | `graph-execution/handle-a-block-mid-graph` | P8.9, P10.4 |
 | `bounds/bound-review-rounds-and-attempts` | P8.6, P8.7 |
 | `bounds/bound-unanswered-nights` | P11.4, P9.8, P2.3 |
-| `bounds/escalate-a-question-to-the-operator` | P11.1, P11.2, P5.8 |
+| `bounds/escalate-a-question-to-the-operator` | P11.1, P11.2, P5.8, P19.5 |
 | `bounds/refuse-protected-paths-before-dispatch` | P8.3 |
-| `landing/open-one-pull-request-per-repository` | P10.1, P10.2, P10.3, P10.4 |
-| `landing/announce-a-partial-landing` | P10.4, P10.8, P6.2 |
+| `landing/open-one-pull-request-per-repository` | P10.1, P10.2, P10.3, P10.4, P19.2, P19.6, P19.7 |
+| `landing/announce-a-partial-landing` | P10.4, P10.8, P6.2, P19.6 |
 | `verification/verify-a-feature-clause-by-clause` | P10.5 |
 | `verification/return-a-feature-with-unmet-clauses` | P10.6 |
 | `verification/archive-the-cycle-on-a-verified-feature` | P10.7 |
-| `morning-report/write-the-night-summary` | P12.1, P9.8 |
+| `morning-report/write-the-night-summary` | P12.1, P9.8, P19.6, P19.7 |
 | `morning-report/report-the-instrumented-rates` | P12.2 |
 | `morning-report/notify-the-operator-of-exceptions` | P12.4, P12.5 |
 | `morning-report/triage-the-morning` | P10.8, P10.9, P9.9, P12.3, P16.8 |
