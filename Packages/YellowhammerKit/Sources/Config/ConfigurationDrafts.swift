@@ -121,8 +121,9 @@ public struct BoundsDraft: Equatable, Sendable {
 /// A Project file's fields, editable through the app's form: the Operator edits every field but the
 /// identity (``id``) and the Spec Source (``specSource``, shown read-only — the app never edits it),
 /// as strings, and ``renderedTOML`` is handed to the loader (``Configuration/save(_:to:in:replacing:)``)
-/// to validate. ``schedule`` and ``gitHubCredential`` are carried through untouched: this slice of the
-/// app does not edit them.
+/// to validate. ``schedule``, ``gitHubCredential``, ``changeType`` and the Message Templates are carried
+/// through untouched: this slice of the app does not edit them. A key whose value is its default is not
+/// written back (``renderedTOML``).
 public struct ProjectFileDraft: Equatable, Sendable {
     public let id: ProjectID
     public var name: String
@@ -135,6 +136,10 @@ public struct ProjectFileDraft: Equatable, Sendable {
     public var routingOverrides: [RoutingEntryDraft]
     var schedule: Schedule
     var gitHubCredential: CredentialReference?
+    var changeType: ChangeType
+    var pullRequestTitle: MessageTemplate
+    var commitMessage: MessageTemplate
+    var wipCommitMessage: MessageTemplate
 
     public init(_ project: ProjectConfiguration) {
         id = project.id
@@ -146,6 +151,10 @@ public struct ProjectFileDraft: Equatable, Sendable {
         routingOverrides = project.routingOverrides.map(RoutingEntryDraft.init)
         schedule = project.schedule
         gitHubCredential = project.gitHubCredential
+        changeType = project.changeType
+        pullRequestTitle = project.pullRequestTitle
+        commitMessage = project.commitMessage
+        wipCommitMessage = project.wipCommitMessage
     }
 }
 
@@ -163,10 +172,24 @@ extension ProjectFileDraft {
         if let specSource {
             top.append("spec_source = \(ConfigurationRendering.quoted(specSource))")
         }
+        if changeType != .feat {
+            top.append("change_type = \(ConfigurationRendering.quoted(changeType.rawValue))")
+        }
         sections.append(top.joined(separator: "\n"))
 
+        var github: [String] = []
         if let gitHubCredential {
-            sections.append("[github]\ncredential = \(ConfigurationRendering.quoted(gitHubCredential.rawValue))")
+            github.append("credential = \(ConfigurationRendering.quoted(gitHubCredential.rawValue))")
+        }
+        if let line = ConfigurationRendering.templateLine(pullRequestTitle) {
+            github.append(line)
+        }
+        if !github.isEmpty {
+            sections.append((["[github]"] + github).joined(separator: "\n"))
+        }
+        let git = [commitMessage, wipCommitMessage].compactMap(ConfigurationRendering.templateLine)
+        if !git.isEmpty {
+            sections.append((["[git]"] + git).joined(separator: "\n"))
         }
 
         for repo in repos {

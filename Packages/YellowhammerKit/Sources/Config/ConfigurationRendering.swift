@@ -103,6 +103,12 @@ enum ConfigurationRendering {
         return quoted(string)
     }
 
+    /// `<key> = "…"` for a Message Template, omitted when it is its Kind's built-in default.
+    static func templateLine(_ template: MessageTemplate) -> String? {
+        guard template.text != template.kind.defaultText else { return nil }
+        return "\(template.kind.key) = \(quoted(template.text))"
+    }
+
     /// All six Bounds, explicit — see the spec citation on ``ConfigurationRendering``.
     static func renderedLimits(_ bounds: BoundsDraft) -> String {
         """

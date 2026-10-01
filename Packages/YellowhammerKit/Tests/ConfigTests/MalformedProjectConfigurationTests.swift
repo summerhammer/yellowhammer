@@ -52,7 +52,6 @@ private let limitsAndScheduleFixtures: [MalformedFixture] = [
 ]
 
 private let credentialAndRoutingFixtures: [MalformedFixture] = [
-    MalformedFixture("github-without-credential", line: 11, key: "github.credential", .missingKey),
     MalformedFixture("unknown-github-key", line: 13, key: "github.unknown_key", .unknownKey),
     MalformedFixture("routing-invalid-route", line: 12, key: "routing[0].route", .invalidRoute("invalid")),
     MalformedFixture("routing-duplicate", line: 15, key: "routing[1]", .duplicateRoutingEntry(firstLine: 11)),

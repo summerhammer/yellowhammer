@@ -303,3 +303,71 @@ func rehearsalDirtyWorktreeIsKept() async throws {
     #expect(removedWorktrees.isEmpty)
     #expect(keptWorktrees == ["backend"])
 }
+
+@Test("A Project refused at load for an invalid template is refused by normal resolution but still removed")
+func invalidTemplateProjectIsRemovable() async throws {
+    let directory = ConfigurationDirectory()
+    try directory.writeMachineFile()
+    try directory.writeProjectFile(id: "alpha", """
+        id = "alpha"
+        name = "alpha"
+        linear_project = "alpha"
+        spec_source = "~/Developer/alpha-spec"
+        change_type = ""
+
+        [[repos]]
+        name = "backend"
+        path = "~/Developer/alpha-backend"
+        role = "backend"
+        check = "none"
+
+        [git]
+        wip_commit_message = "wip {title}"
+        """)
+    let home = try RemovalHomeFixture(projectID: "alpha", plists: true, logs: true)
+
+    #expect(throws: ProjectResolutionError.self) {
+        try ProjectResolution.resolve(projectArgument: "alpha", configurationDirectory: directory.url)
+    }
+    let (_, lenient) = try ProjectResolution.resolve(
+        projectArgument: "alpha", configurationDirectory: directory.url, lenientTemplates: true
+    )
+    #expect(lenient.wipCommitMessage == .default(.wipCommitMessage))
+    #expect(lenient.unvalidatedTemplates?.wipCommitMessage == "wip {title}")
+    #expect(lenient.unvalidatedTemplates?.changeType == "")
+    #expect(lenient.unvalidatedTemplates?.refusals.count == 2)
+
+    let output = RecordingOutput()
+    let removal = makeRemoval(directory: directory, home: home, output: output)
+    let succeeded = await removal.run(id: "alpha", yes: true)
+
+    #expect(succeeded)
+    #expect(!FileManager.default.fileExists(
+        atPath: directory.url.appending(components: "projects", "alpha.toml").path(percentEncoded: false)
+    ))
+}
+
+@Test("Removal still refuses a Project whose repos are invalid, template or not")
+func removalStillValidatesWhatItUses() async throws {
+    let directory = ConfigurationDirectory()
+    try directory.writeMachineFile()
+    try directory.writeProjectFile(id: "alpha", """
+        id = "alpha"
+        name = "alpha"
+        linear_project = "alpha"
+        spec_source = "~/Developer/alpha-spec"
+
+        [git]
+        commit_message = "{nope}"
+        """)
+    let home = try RemovalHomeFixture(projectID: "alpha", plists: false, logs: false)
+    let output = RecordingOutput()
+    let removal = makeRemoval(directory: directory, home: home, output: output)
+
+    let succeeded = await removal.run(id: "alpha", yes: true)
+
+    #expect(!succeeded)
+    #expect(FileManager.default.fileExists(
+        atPath: directory.url.appending(components: "projects", "alpha.toml").path(percentEncoded: false)
+    ))
+}

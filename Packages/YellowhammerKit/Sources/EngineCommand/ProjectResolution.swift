@@ -6,11 +6,13 @@ import Foundation
 ///
 /// Missing or uninitialized configuration, and a `--project` that names an absent or invalidated
 /// Project, are refused here so that `yh` exits with code 1 without running an Act (OQ13; OQ52(1):
-/// a LaunchAgent left behind by a hand-deleted Project file fails fast).
+/// a LaunchAgent left behind by a hand-deleted Project file fails fast). `yh project remove` resolves
+/// with `lenientTemplates`: it does not validate `change_type` or the Message Templates.
 enum ProjectResolution {
     static func resolve(
         projectArgument: String,
-        configurationDirectory: URL
+        configurationDirectory: URL,
+        lenientTemplates: Bool = false
     ) throws(ProjectResolutionError) -> (Configuration, ProjectConfiguration) {
         let directory = configurationDirectory.path(percentEncoded: false)
         let machineFile = configurationDirectory.appending(component: "config.toml", directoryHint: .notDirectory)
@@ -20,7 +22,9 @@ enum ProjectResolution {
 
         let configuration: Configuration
         do {
-            configuration = try Configuration.load(directory: configurationDirectory)
+            configuration = lenientTemplates
+                ? try Configuration.loadLeniently(directory: configurationDirectory)
+                : try Configuration.load(directory: configurationDirectory)
         } catch {
             throw .machineConfigurationInvalid(error)
         }
