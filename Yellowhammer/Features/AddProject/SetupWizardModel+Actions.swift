@@ -125,7 +125,7 @@ extension SetupWizardModel {
             route: configExists ? nil : routeText,
             fallbacks: configExists ? [] : fallbackTexts,
             operatorID: selectedOperatorID,
-            project: declareProject ? SetupInvocation.Project(
+            project: SetupInvocation.Project(
                 id: projectID.trimmed,
                 name: projectName,
                 linearProject: linearProjectMode == .existing
@@ -138,7 +138,7 @@ extension SetupWizardModel {
                         check: $0.check.trimmed
                     )
                 }
-            ) : nil,
+            ),
             jobs: jobsInvocationValue()
         )
     }

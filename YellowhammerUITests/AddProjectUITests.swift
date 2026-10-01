@@ -1,10 +1,11 @@
 import Foundation
 import XCTest
 
-/// The Setup wizard driven end to end against a stub `yh`, since the real `yh setup` needs a live Linear
-/// workspace and the Keychain (P14.2). The stub answers `--print-choices` with a canned choices line and,
-/// for `--init`, echoes every argument it was run with (as `argv: <arg>`) so the test can assert on the
-/// app's argument-building contract without touching Linear or an account.
+/// The Add Project sheet (the Setup wizard) driven end to end against a stub `yh`, since the real
+/// `yh setup` needs a live Linear workspace and the Keychain (P14.2, P18.17). The stub answers
+/// `--print-choices` with a canned choices line and, for `--init`, echoes every argument it was run with
+/// (as `argv: <arg>`) so the test can assert on the app's argument-building contract without touching
+/// Linear or an account.
 ///
 /// The stub is a script read by `/bin/sh`, never exec'd directly: the UI test runner that writes it is
 /// itself sandboxed, so a file it creates lives inside its own container, and the (unsandboxed) app under
@@ -17,7 +18,7 @@ import XCTest
 ///
 /// XCTest, not Swift Testing: the `Testing` module is unavailable in a UI testing bundle.
 @MainActor
-final class SetupWizardUITests: XCTestCase {
+final class AddProjectUITests: XCTestCase {
     private var configurationDirectory: URL!
     private var app: XCUIApplication!
     /// Real, unsandboxed `/tmp` paths (never inside the UI test runner's own container, which the
@@ -79,7 +80,44 @@ final class SetupWizardUITests: XCTestCase {
         launchApp()
         XCTAssertTrue(app.descendants(matching: .any)["overview-onboarding"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["open-setup"].exists)
+        XCTAssertTrue(app.buttons["sidebar-add-project"].exists)
         XCTAssertFalse(app.staticTexts["Yellowhammer can\u{2019}t read its configuration."].exists)
+        // The onboarding button opens the Add Project sheet.
+        app.buttons["open-setup"].click()
+        let sheet = app.sheets.firstMatch
+        XCTAssertTrue(sheet.waitForExistence(timeout: 10))
+        XCTAssertTrue(sheet.buttons["setup-linear-install"].waitForExistence(timeout: 10))
+    }
+
+    /// Cancelling the sheet closes it and leaves no Project file behind.
+    func testCancelClosesTheSheetAndWritesNoProjectFile() throws {
+        launchApp()
+        let sheet = openAddProjectSheet()
+        XCTAssertTrue(sheet.buttons["setup-linear-install"].waitForExistence(timeout: 10))
+        sheet.buttons["setup-cancel"].click()
+        XCTAssertTrue(sheet.waitForNonExistence(timeout: 10))
+
+        let projects = configurationDirectory.appending(component: "projects", directoryHint: .isDirectory)
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: projects.path(percentEncoded: false))) ?? []
+        XCTAssertTrue(files.filter { $0.hasSuffix(".toml") }.isEmpty)
+    }
+
+    /// The Settings window's Sidebar offers Add Project too.
+    func testAddProjectFromSettingsOpensTheSheet() throws {
+        launchApp()
+        XCTAssertTrue(app.descendants(matching: .any)["overview-onboarding"].waitForExistence(timeout: 10))
+        // The application menu's Settings item, not Cmd+,: a synthesized shortcut was dropped once while
+        // the app settled, and the menu item is the same command.
+        app.menuBars.menuBarItems["Yellowhammer"].click()
+        app.menuBars.menuItems["Settings\u{2026}"].click()
+        let add = app.descendants(matching: .any)["settings-add-project"].firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 10))
+        add.click()
+        let sheet = app.sheets.firstMatch
+        XCTAssertTrue(sheet.waitForExistence(timeout: 10))
+        XCTAssertTrue(sheet.buttons["setup-linear-install"].waitForExistence(timeout: 10))
+        sheet.buttons["setup-cancel"].click()
+        XCTAssertTrue(sheet.waitForNonExistence(timeout: 10))
     }
 
     func testWizardDrivesSetupToCompletion() throws {
@@ -96,7 +134,7 @@ final class SetupWizardUITests: XCTestCase {
         route.typeText("claude/sonnet/medium")
         continueButton.click()
 
-        // Step 4: Project (declared by default, since no Project is configured).
+        // Step 4: Project.
         let projectID = setup.textFields["setup-project-id"]
         XCTAssertTrue(projectID.waitForExistence(timeout: 5))
         clickAndType(projectID, "demo")
@@ -122,6 +160,8 @@ final class SetupWizardUITests: XCTestCase {
 
         let success = setup.staticTexts["setup-success"]
         XCTAssertTrue(success.waitForExistence(timeout: 10))
+        let done = setup.buttons["setup-done"]
+        XCTAssertTrue(done.exists)
 
         let notificationLines = setup.staticTexts.matching(identifier: "setup-notification-status")
         XCTAssertEqual(notificationLines.count, 1)
@@ -134,13 +174,14 @@ final class SetupWizardUITests: XCTestCase {
         XCTAssertEqual(value(after: "--project", in: recorded), "demo") // glossary:ignore GL001
         XCTAssertEqual(value(after: "--repo", in: recorded), "backend,spec,~/dev/backend,none")
         XCTAssertTrue(recorded.contains("--install-jobs"))
+
+        done.click()
+        XCTAssertTrue(setup.waitForNonExistence(timeout: 10))
     }
 
     func testOperatorStepContinueIsDisabledUntilACandidateIsPicked() throws {
         launchApp()
-        openSetupWindow()
-        let setup = app.windows["Setup"]
-        XCTAssertTrue(setup.waitForExistence(timeout: 10))
+        let setup = openAddProjectSheet()
 
         try enterLinearStep(in: setup)
         let continueButton = setup.buttons["setup-continue"]
@@ -157,9 +198,7 @@ final class SetupWizardUITests: XCTestCase {
     /// P17.7: an installed attempt shows the workspace name and enables Continue.
     func testLinearInstalledShowsWorkspaceNameAndEnablesContinue() throws {
         launchApp()
-        openSetupWindow()
-        let setup = app.windows["Setup"]
-        XCTAssertTrue(setup.waitForExistence(timeout: 10))
+        let setup = openAddProjectSheet()
 
         let installButton = setup.buttons["setup-linear-install"]
         XCTAssertTrue(installButton.waitForExistence(timeout: 10))
@@ -175,9 +214,7 @@ final class SetupWizardUITests: XCTestCase {
     /// the attempt, which the stub then reports installed.
     func testLinearPortsBusyThenRetryInstalls() throws {
         launchApp(portsBusyFirst: true)
-        openSetupWindow()
-        let setup = app.windows["Setup"]
-        XCTAssertTrue(setup.waitForExistence(timeout: 10))
+        let setup = openAddProjectSheet()
 
         let installButton = setup.buttons["setup-linear-install"]
         XCTAssertTrue(installButton.waitForExistence(timeout: 10))
@@ -197,9 +234,7 @@ final class SetupWizardUITests: XCTestCase {
     /// waiting indicator, then installs once the stub reports `installed`.
     func testLinearRemoteApprovalShowsLinkThenInstalls() throws {
         launchApp()
-        openSetupWindow()
-        let setup = app.windows["Setup"]
-        XCTAssertTrue(setup.waitForExistence(timeout: 10))
+        let setup = openAddProjectSheet()
 
         let requestButton = setup.buttons["setup-linear-request-remote"]
         XCTAssertTrue(requestButton.waitForExistence(timeout: 10))
@@ -224,9 +259,7 @@ final class SetupWizardUITests: XCTestCase {
     /// installs.
     func testLinearRelayUnreachableOffersRetryAndLocalSignIn() throws {
         launchApp(relayUnreachable: true)
-        openSetupWindow()
-        let setup = app.windows["Setup"]
-        XCTAssertTrue(setup.waitForExistence(timeout: 10))
+        let setup = openAddProjectSheet()
 
         let requestButton = setup.buttons["setup-linear-request-remote"]
         XCTAssertTrue(requestButton.waitForExistence(timeout: 10))
@@ -243,12 +276,10 @@ final class SetupWizardUITests: XCTestCase {
         XCTAssertTrue(installed.waitForExistence(timeout: 10))
     }
 
-    /// Opens the Setup window and drives it through the Linear step and the Operator identity step,
+    /// Opens the Add Project sheet and drives it through the Linear step and the Operator identity step,
     /// picking the stub's one candidate. Shared by both tests.
     private func enterLinearAndPickOperator() throws -> XCUIElement {
-        openSetupWindow()
-        let setup = app.windows["Setup"]
-        XCTAssertTrue(setup.waitForExistence(timeout: 10))
+        let setup = openAddProjectSheet()
         try enterLinearStep(in: setup)
 
         let continueButton = setup.buttons["setup-continue"]
@@ -288,10 +319,15 @@ final class SetupWizardUITests: XCTestCase {
         return arguments[index + 1]
     }
 
-    private func openSetupWindow() {
-        let button = app.buttons["open-setup"]
+    /// Opens the Add Project sheet from the main window Sidebar's "+" and returns it.
+    @discardableResult
+    private func openAddProjectSheet() -> XCUIElement {
+        let button = app.buttons["sidebar-add-project"]
         XCTAssertTrue(button.waitForExistence(timeout: 10))
         button.click()
+        let sheet = app.sheets.firstMatch
+        XCTAssertTrue(sheet.waitForExistence(timeout: 10))
+        return sheet
     }
 
     /// Clicks a text field and types into it. A short pause first lets the Project step's live

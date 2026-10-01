@@ -1,11 +1,19 @@
 import Domain
 import SwiftUI
 
-/// The Setup window: everything `yh setup` does, in six steps, driven by ``SetupWizardModel``. Not
-/// Project-scoped — declaring a new Project happens here, not in a Project window — and it shows no
-/// status or cross-Project summary.
+/// The Add Project sheet: everything `yh setup` does, in six steps, driven by ``SetupWizardModel``. It
+/// exists only to add a Project, reached from an Add Project action in a window, and it shows no status
+/// or cross-Project summary. Cancelling writes no Project configuration: only `yh setup --init` writes a
+/// Project file, and Cancel is disabled while it runs. (The Linear step's `--install-linear` can still
+/// store the token pair and, on a Mac with no `config.toml`, write the machine file.)
 struct SetupWizardView: View {
+    /// Reports the added Project when the Operator presses Done, before the sheet closes.
+    let onAdded: @MainActor (ProjectID) -> Void
+    /// Called once each time a run finishes, whatever its exit status: a failed run may already have
+    /// written the Project file, so the windows that list Projects must read again.
+    let onRunEnded: @MainActor () -> Void
     @State private var model = SetupWizardModel()
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(spacing: 0) {
@@ -22,6 +30,10 @@ struct SetupWizardView: View {
             footer
         }
         .frame(minWidth: 560, minHeight: 480)
+        .interactiveDismissDisabled(model.isRunning)
+        .onChange(of: model.runExitStatus) { _, status in
+            if status != nil { onRunEnded() }
+        }
         .onDisappear { model.terminateRun() }
     }
 
@@ -49,6 +61,24 @@ struct SetupWizardView: View {
                     .accessibilityIdentifier("setup-back")
             }
             Spacer()
+            if let status = model.runExitStatus, status != 0 {
+                Button("Close") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                    .accessibilityIdentifier("setup-close")
+            } else if model.runExitStatus == nil {
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                    .disabled(model.isRunning)
+                    .accessibilityIdentifier("setup-cancel")
+            }
+            if model.runExitStatus == 0 {
+                Button("Done") {
+                    if let id = model.declaredProjectID { onAdded(id) }
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .accessibilityIdentifier("setup-done")
+            }
             if model.runExitStatus == nil {
                 Button(continueLabel) {
                     Task { await model.continueTapped() }
@@ -135,7 +165,7 @@ private struct SetupCLIRoutingStepView: View {
                     }
                 }
                 Button("Add fallback") { model.fallbackTexts.append("") }
-                    .disabled(model.routeText.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(model.routeText.trimmed.isEmpty)
             }
         }
     }
@@ -146,70 +176,66 @@ private struct SetupProjectStepView: View {
 
     var body: some View {
         Form {
-            Toggle("Declare a Project", isOn: $model.declareProject)
-                .accessibilityIdentifier("setup-declare-project")
-            if model.declareProject {
-                Section("Project") {
-                    TextField("Project id", text: $model.projectID)
-                        .accessibilityIdentifier("setup-project-id")
-                    TextField("Name (defaults to the id)", text: $model.projectName)
+            Section("Project") {
+                TextField("Project id", text: $model.projectID)
+                    .accessibilityIdentifier("setup-project-id")
+                TextField("Name (defaults to the id)", text: $model.projectName)
+            }
+            Section("Linear project") { // glossary:ignore GL001
+                Picker("Linear project", selection: $model.linearProjectMode) { // glossary:ignore GL001
+                    Text("Existing").tag(SetupWizardModel.LinearProjectMode.existing)
+                    Text("Create one in team").tag(SetupWizardModel.LinearProjectMode.createInTeam)
                 }
-                Section("Linear project") { // glossary:ignore GL001
-                    Picker("Linear project", selection: $model.linearProjectMode) { // glossary:ignore GL001
-                        Text("Existing").tag(SetupWizardModel.LinearProjectMode.existing)
-                        Text("Create one in team").tag(SetupWizardModel.LinearProjectMode.createInTeam)
-                    }
-                    .pickerStyle(.segmented)
-                    switch model.linearProjectMode {
-                    case .existing:
-                        TextField(
-                            "Existing Linear project id", text: $model.existingLinearProjectID // glossary:ignore GL001
-                        )
-                        .accessibilityIdentifier("setup-linear-project-id")
-                    case .createInTeam:
-                        Picker("Team", selection: $model.selectedTeamKey) {
-                            Text("Choose a team").tag(String?.none)
-                            ForEach(model.choices?.teams ?? [], id: \.id) { team in
-                                Text("\(team.name) (\(team.key))").tag(Optional(team.key))
-                            }
+                .pickerStyle(.segmented)
+                switch model.linearProjectMode {
+                case .existing:
+                    TextField(
+                        "Existing Linear project id", text: $model.existingLinearProjectID // glossary:ignore GL001
+                    )
+                    .accessibilityIdentifier("setup-linear-project-id")
+                case .createInTeam:
+                    Picker("Team", selection: $model.selectedTeamKey) {
+                        Text("Choose a team").tag(String?.none)
+                        ForEach(model.choices?.teams ?? [], id: \.id) { team in
+                            Text("\(team.name) (\(team.key))").tag(Optional(team.key))
                         }
                     }
                 }
-                Section("Spec Source") { // glossary:ignore GL001
-                    HStack {
-                        TextField("Path (optional)", text: $model.specSource)
-                        Button("Choose…") { model.chooseSpecSource() }
-                    }
-                    Text("Without a Spec Source, one Repo must have role \u{201c}spec\u{201d}.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+            }
+            Section("Spec Source") { // glossary:ignore GL001
+                HStack {
+                    TextField("Path (optional)", text: $model.specSource)
+                    Button("Choose…") { model.chooseSpecSource() }
                 }
-                Section("Repos") { // glossary:ignore GL001
-                    ForEach($model.repos) { $repo in
-                        VStack(alignment: .leading) {
-                            TextField("Name", text: $repo.name)
-                                .accessibilityIdentifier("setup-repo-name")
-                            TextField("Role (spec, backend, mobile, web, …)", text: $repo.role) // glossary:ignore GL001
-                                .accessibilityIdentifier("setup-repo-role")
-                            HStack {
-                                TextField("Path", text: $repo.path)
-                                    .accessibilityIdentifier("setup-repo-path")
-                                Button("Choose…") { model.chooseRepoPath(for: repo.id) }
-                            }
-                            TextField("Check (\"none\" allowed)", text: $repo.check)
-                                .accessibilityIdentifier("setup-repo-check")
+                Text("Without a Spec Source, one Repo must have role \u{201c}spec\u{201d}.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Section("Repos") { // glossary:ignore GL001
+                ForEach($model.repos) { $repo in
+                    VStack(alignment: .leading) {
+                        TextField("Name", text: $repo.name)
+                            .accessibilityIdentifier("setup-repo-name")
+                        TextField("Role (spec, backend, mobile, web, …)", text: $repo.role) // glossary:ignore GL001
+                            .accessibilityIdentifier("setup-repo-role")
+                        HStack {
+                            TextField("Path", text: $repo.path)
+                                .accessibilityIdentifier("setup-repo-path")
+                            Button("Choose…") { model.chooseRepoPath(for: repo.id) }
                         }
-                        .padding(.vertical, 4)
+                        TextField("Check (\"none\" allowed)", text: $repo.check)
+                            .accessibilityIdentifier("setup-repo-check")
                     }
-                    .onDelete { model.repos.remove(atOffsets: $0) }
-                    Button("Add Repo") { model.repos.append(SetupWizardModel.RepoField()) } // glossary:ignore GL001
-                        .accessibilityIdentifier("setup-add-repo")
+                    .padding(.vertical, 4)
                 }
-                if let error = model.projectValidationError {
-                    Text(error)
-                        .foregroundStyle(.red)
-                        .font(.footnote)
-                }
+                .onDelete { model.repos.remove(atOffsets: $0) }
+                Button("Add Repo") { model.repos.append(SetupWizardModel.RepoField()) } // glossary:ignore GL001
+                    .accessibilityIdentifier("setup-add-repo")
+            }
+            if let error = model.projectValidationError {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .font(.footnote)
             }
         }
     }
@@ -244,8 +270,6 @@ private struct SetupJobsStepView: View {
 
 private struct SetupReviewStepView: View {
     @Bindable var model: SetupWizardModel
-    @Environment(\.openWindow) private var openWindow
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -273,17 +297,6 @@ private struct SetupReviewStepView: View {
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("setup-notification-status")
                 }
-                HStack {
-                    if status == 0 {
-                        if let id = model.declaredProjectID {
-                            Button("Open \(model.declaredProjectName ?? id.rawValue)") { // glossary:ignore GL001
-                                openWindow(value: id)
-                            }
-                        }
-                        Button("Declare another Project") { model.startAnotherProject() } // glossary:ignore GL001
-                    }
-                    Button("Done") { dismiss() }
-                }
             }
         }
         .padding(.vertical)
@@ -292,9 +305,7 @@ private struct SetupReviewStepView: View {
     private var summary: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Ready to run setup.")
-            if model.declareProject {
-                Text("Declares Project \u{201c}\(model.projectID)\u{201d}.")
-            }
+            Text("Declares Project \u{201c}\(model.projectID)\u{201d}.")
             Text(model.jobsSummary)
         }
         .foregroundStyle(.secondary)

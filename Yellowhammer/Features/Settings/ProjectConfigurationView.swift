@@ -141,7 +141,7 @@ private struct ProjectConfigurationFormView: View {
             set: { newValue in
                 draft.wrappedValue.repos[index].protectedPaths = newValue
                     .split(separator: ",")
-                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .map(\.trimmed)
                     .filter { !$0.isEmpty }
             }
         )

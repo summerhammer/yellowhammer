@@ -3,7 +3,7 @@ import XCTest
 
 /// The Settings window's General pane driven against the shared stub `yh` (`EngineStub`): the Linear
 /// install (P17.7/P17.9, now from Settings) and the Operator identity (P18.16). The stub's run
-/// environment and `/tmp` markers follow `SetupWizardUITests`; it also appends each `--install-linear`
+/// environment and `/tmp` markers follow `AddProjectUITests`; it also appends each `--install-linear`
 /// argument vector to `YH_STUB_ARGV_LOG`, so a test can assert on what the app ran.
 ///
 /// XCTest, not Swift Testing: the `Testing` module is unavailable in a UI testing bundle.

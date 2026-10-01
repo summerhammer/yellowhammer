@@ -46,7 +46,6 @@ Yellowhammer/
     Settings/       the Settings window (Cmd+,)
     AddProject/     the Setup wizard sheet
     Shared/         domain-aware views reused across features
-  Legacy/           screens awaiting replacement, one folder each
 ```
 
 `Overview` is the code name for the spec's main window (Sidebar + Pulse + Inspector). Its root view is
@@ -72,6 +71,3 @@ The feature is not called "Landing": in the spec, Landing is the `land` Act and 
   the machine, needs a spec ruling before it gets a folder.
 - **`DevSupport/Previews` is Debug-only.** Every file there is wrapped in `#if DEBUG`, and the shipped
   app never depends on it.
-- **`Legacy/` only shrinks.** Nothing new is written there. Each folder is deleted in the same pull
-  request that ships its replacement, together with its UI tests, which are rewritten against the new
-  screen. When the last folder goes, `Legacy/` goes with it.

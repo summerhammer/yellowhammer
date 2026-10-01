@@ -5,14 +5,14 @@ import SwiftUI
 /// workspace's Operator candidates, which `yh` reads from Linear when the Operator asks.
 struct OperatorIdentitySection: View {
     @Bindable var model: OperatorIdentityModel
-    @Environment(\.openWindow) private var openWindow
+    @Environment(\.addProject) private var addProject
 
     var body: some View {
         Section("Operator identity") { // glossary:ignore GL001
             if model.configMissing {
                 Text("`config.toml` does not exist yet.")
                     .foregroundStyle(.secondary)
-                Button("Set Up Yellowhammer…") { openWindow(id: "setup") } // glossary:ignore GL001
+                Button("Add a Project\u{2026}") { addProject() }
                     .accessibilityIdentifier("open-setup")
             } else if let loadFailure = model.loadFailure {
                 Text(loadFailure)

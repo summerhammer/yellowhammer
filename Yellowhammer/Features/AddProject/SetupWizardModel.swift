@@ -1,14 +1,8 @@
-import AppKit
 import Config
 import Domain
 import Foundation
 import Observation
 import SwiftUI
-import UserNotifications
-
-extension String {
-    var trimmed: String { trimmingCharacters(in: .whitespaces) }
-}
 
 /// The Setup wizard's state and the mapping from its form fields to ``SetupInvocation``. Kept as a plain
 /// `@Observable` model, not a View, so the mapping and validation are testable without driving SwiftUI
@@ -70,7 +64,6 @@ final class SetupWizardModel {
     var fallbackTexts: [String] = []
 
     // Step: Project
-    var declareProject: Bool
     var projectID = ""
     var projectName = ""
     var linearProjectMode: LinearProjectMode = .existing
@@ -98,7 +91,6 @@ final class SetupWizardModel {
     init(configurationDirectory: URL = ConfigurationDirectory.current) {
         self.configurationDirectory = configurationDirectory
         configExists = ConfigurationDirectory.machineFileExists(in: configurationDirectory)
-        declareProject = ConfiguredProjects.load().entries.isEmpty
         linearInstallation.linearCredential = { [weak self] in
             guard let self else { return nil }
             return configExists || linearCredential == Self.defaultLinearCredential ? nil : linearCredential
@@ -122,7 +114,7 @@ final class SetupWizardModel {
         case .cliRouting:
             return true
         case .project:
-            return !declareProject || projectValidationError == nil
+            return projectValidationError == nil
         case .jobs:
             switch jobsSelection {
             case .export: return !exportDirectory.trimmed.isEmpty
@@ -135,7 +127,6 @@ final class SetupWizardModel {
 
     /// Nil when the Project step's fields describe a valid declaration; a human sentence otherwise.
     var projectValidationError: String? {
-        guard declareProject else { return nil }
         let trimmedID = projectID.trimmed
         guard !trimmedID.isEmpty, ProjectID(rawValue: trimmedID) != nil else {
             return "Enter a Project id of letters, digits, underscores and hyphens."
@@ -213,26 +204,10 @@ final class SetupWizardModel {
         currentStepIndex += 1
     }
 
-    /// Terminates the current run, if any: closing the Setup window is not an Act, so nothing must
+    /// Terminates the current run, if any: closing the Add Project sheet is not an Act, so nothing must
     /// survive it.
     func terminateRun() {
         linearInstallation.terminate()
         engine.terminate()
-    }
-
-    func startAnotherProject() {
-        declareProject = true
-        projectID = ""
-        projectName = ""
-        existingLinearProjectID = ""
-        selectedTeamKey = nil
-        specSource = ""
-        repos = [RepoField()]
-        runLines = []
-        runExitStatus = nil
-        notificationStatusLine = nil
-        declaredProjectID = nil
-        declaredProjectName = nil
-        currentStepIndex = activeSteps.firstIndex(of: .project) ?? 0
     }
 }

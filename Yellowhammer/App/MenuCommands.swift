@@ -1,18 +1,6 @@
 import Sparkle
 import SwiftUI
 
-/// A menu command needs its own `@Environment` to read `openWindow`: the App's `.commands` builder does
-/// not otherwise resolve scene environment values.
-struct SetupMenuCommand: View {
-    static let windowID = "setup"
-
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        Button("Setup…") { openWindow(id: Self.windowID) } // glossary:ignore GL001
-    }
-}
-
 /// Opens the Settings window on the Project the key main window shows. With no main window key (the
 /// Settings window itself, say), it asks for no Project, and Settings stays where it was.
 struct SettingsMenuCommand: View {

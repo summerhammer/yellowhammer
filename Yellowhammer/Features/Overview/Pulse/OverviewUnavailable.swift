@@ -1,5 +1,6 @@
 import Config
 import Domain
+import Pulse
 import SwiftUI
 
 /// What the main area states when it has no Pulse to show. It is never a blank, and never an arbitrary
@@ -18,6 +19,8 @@ struct OverviewUnavailable: View {
     }
 
     let reason: Reason
+    @Environment(\.addProject) private var addProject
+    @Environment(\.openPulseDestination) private var openDestination
 
     var body: some View {
         VStack(spacing: 8) {
@@ -25,12 +28,14 @@ struct OverviewUnavailable: View {
             case let .configurationUnreadable(failure):
                 Text("Yellowhammer can\u{2019}t read its configuration.")
                 UnavailableDetail(text: failure)
-                SetupButton(title: "Set Up Yellowhammer\u{2026}")
+                Button("Open Settings\u{2026}") { openDestination(.settings) }
+                    .accessibilityIdentifier("open-settings")
             case .noProject:
                 Text("No Project is configured.")
                     .accessibilityIdentifier("overview-onboarding")
                 UnavailableDetail(text: "Add a Project to start.")
-                SetupButton(title: "Add a Project\u{2026}")
+                Button("Add a Project\u{2026}") { addProject() }
+                    .accessibilityIdentifier("open-setup")
             case let .unknownProject(id):
                 Text("No configured Project has the id \u{201C}\(id.rawValue)\u{201D}.")
                     .accessibilityIdentifier("overview-unknown-id")
@@ -58,16 +63,5 @@ private struct UnavailableDetail: View {
             .font(.callout)
             .foregroundStyle(.secondary)
             .textSelection(.enabled)
-    }
-}
-
-/// Opens the Setup wizard's window until P18.17 replaces it with the Add Project sheet.
-private struct SetupButton: View {
-    let title: LocalizedStringKey
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        Button(title) { openWindow(id: "setup") }
-            .accessibilityIdentifier("open-setup")
     }
 }

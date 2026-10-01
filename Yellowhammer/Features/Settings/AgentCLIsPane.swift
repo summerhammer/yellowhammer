@@ -8,7 +8,7 @@ import SwiftUI
 /// Lists each declared CLI with its latest Probe Result and lets the Operator run a Probe on demand.
 struct AgentCLIsPane: View {
     @State private var model = AgentCLIModel()
-    @Environment(\.openWindow) private var openWindow
+    @Environment(\.addProject) private var addProject
 
     var body: some View {
         content
@@ -39,7 +39,7 @@ struct AgentCLIsPane: View {
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
             if offerSetup {
-                Button("Set Up Yellowhammer…") { openWindow(id: "setup") } // glossary:ignore GL001
+                Button("Add a Project\u{2026}") { addProject() }
                     .accessibilityIdentifier("open-setup")
             }
         }

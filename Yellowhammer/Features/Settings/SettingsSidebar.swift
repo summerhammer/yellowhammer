@@ -9,6 +9,9 @@ struct SettingsSidebar: View {
     let projects: [ConfiguredProjects.Entry]
     /// The current section. The window derives it from its history and records each set as a visit.
     @Binding var selection: SettingsSection?
+    /// Runs with the new Project's id after the Operator adds one from here. The window owns it.
+    let onProjectAdded: @MainActor (ProjectID) -> Void
+    @Environment(\.addProject) private var addProject
 
     var body: some View {
         List(selection: $selection) {
@@ -36,5 +39,13 @@ struct SettingsSidebar: View {
             }
         }
         .listStyle(.sidebar)
+        .safeAreaInset(edge: .bottom, alignment: .leading) {
+            Button { addProject(onAdded: onProjectAdded) } label: { Image(systemName: "plus") }
+                .buttonStyle(.borderless)
+                .help("Add Project")
+                .accessibilityLabel("Add Project")
+                .accessibilityIdentifier("settings-add-project")
+                .padding(8)
+        }
     }
 }

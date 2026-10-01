@@ -14,7 +14,7 @@ import XCTest
 /// the stub's `sleep` to zero, which still lost the process, while the identical spawn survives a real
 /// `kill -9` of the app when launched outside `xcodebuild test` (see the PR description for the manual
 /// repro). This is a stronger version of the same sandboxing boundary `ConfigurationEditingUITests` and
-/// `SetupWizardUITests` already work around, not a defect in `launchDetached`.
+/// `AddProjectUITests` already work around, not a defect in `launchDetached`.
 ///
 /// XCTest, not Swift Testing: the `Testing` module is unavailable in a UI testing bundle.
 @MainActor
