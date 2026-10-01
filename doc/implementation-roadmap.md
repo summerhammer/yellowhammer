@@ -2447,7 +2447,7 @@ P19.7.
     reset seam and removal, and removal of a Project with a refused template and a non-string
     `change_type` writing the defaults. Not asserted: the Waiting on You trigger (P19.5 builds it).
 
-### [ ] P19.4 Worker commit-message instruction and the `Yellowhammer-Card` record
+### [x] P19.4 Worker commit-message instruction and the `Yellowhammer-Card` record
 - **Work**
   - The worker's instruction gains a section that states the Project's `[git] commit_message`
     rendered with the Card's tokens (`{type}`, `{scope}`, `{card_key}`, `{card_title}`, `{key}`,
@@ -2462,6 +2462,24 @@ P19.7.
 - **Done when** — The composed instruction carries the rendered template and the trailer request;
   against a fixture repository, a reported commit without the trailer is recorded and the Card's
   outcome is unchanged.
+- **Status** — Done on 2026-10-01 (`98724d6`). `WorkerCommitMessage` (Engine) renders the template;
+  `CommitMessageRequest` (Domain) puts it in the worker instruction's `## Commit messages` section, after
+  Repository and outside the Brief; `CommitTrailerReader` (Repositories) does the `git log` read.
+  - `CardRun` takes `commitMessage` and `changeType` from `CardRunBinding`. Both default to the built-in
+    template and `feat`, which Domain owns, so existing tests construct `CardRun` unchanged.
+  - `{card_key}`, `{key}` and `{title}` come from one board read in the Card run's `prepare` (the Delta
+    Read's copy of the Card when it has one), via `BoardObjectLookup`, now shared with the land Act. With
+    no board object the keys are empty and the trailer sentence is omitted; `{title}` falls back to the
+    Feature's issue id, as in P19.2. `{story}` is the first story ID in clause order (`ClauseOrder`,
+    moved out of `PullRequestTitle`), with `SpecCitation.story` stripping a `#fragment`.
+  - Only presence of the trailer is checked, not its value. Each commit is recorded once per Card
+    (`CardCommitTrailerMissing`), so a Round re-reading `last_known_good_commit..<commit>` adds nothing.
+    A null `last_known_good_commit` reads the reported commit alone. A range git cannot read is
+    recorded as `CardCommitTrailersUnread` and never throws; a Journal write that fails is an engine
+    fault, as elsewhere. The reported commit follows `--end-of-options`.
+  - Met: the rendered template and trailer request in the composed instruction (worker pass only), and,
+    against a fixture repository, the record of a reported commit without the trailer, with the Card
+    still Done and no Round. Not asserted, by design: whether a worker complies (model-authored).
 
 ### [ ] P19.5 Reset on entering Waiting on You mid-run
 - **Work** — When a worker's `question` puts its Card into Waiting on You mid-run, the OQ60
