@@ -259,6 +259,7 @@
 				5083DD57305674F500E6D6D3 /* XCLocalSwiftPackageReference "Packages/YellowhammerKit" */,
 				A1B2C3D4306E000300AABBCC /* XCRemoteSwiftPackageReference "Sparkle" */,
 				50ECB10B306BEA74004340F2 /* XCRemoteSwiftPackageReference "theme-kit" */,
+				50584273306EDDD600C40359 /* XCLocalSwiftPackageReference "Packages/Prototypes" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 5083DD353056702600E6D6D3 /* Products */;
@@ -633,6 +634,10 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
+		50584273306EDDD600C40359 /* XCLocalSwiftPackageReference "Packages/Prototypes" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/Prototypes;
+		};
 		5083DD57305674F500E6D6D3 /* XCLocalSwiftPackageReference "Packages/YellowhammerKit" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/YellowhammerKit;

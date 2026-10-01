@@ -195,8 +195,10 @@ there; the repo-local consequences are:
   Pulse is being prototyped in Xcode Previews before it is built for real:
   `Packages/YellowhammerKit/Sources/Pulse/` holds the screen's view state (plain values) and
   the Journal read, `PulseSnapshot.read(from:asOf:)`, that fills it, and
-  `Yellowhammer/DevSupport/Previews/Pulse/` (Debug only) holds the fixtures, the
-  Playground and Gallery previews, and the variants, registered in `PulseVariant.all`. A
+  `Packages/Prototypes/Sources/PulsePrototypes/` holds the fixtures, the Playground and Gallery
+  previews, and the variants, registered in `PulseVariant.all`. `Packages/Prototypes` is a
+  throwaway package, one target per screen, that the app never links; render it with the
+  screen's scheme (`PulsePrototypes`), so a preview builds neither the app nor `yh`. A
   variant renders only a `LandingSnapshot` and routes every way out through
   `openPulseDestination`; it never reads a Journal or runs `yh`. Roadmap Phase 18
   builds the Pulse for real.
