@@ -27,6 +27,9 @@ struct OverviewWindow: View {
     @State private var inspectorShown = true
     @State private var stop = EngineStopModel()
     @State private var confirmingStop = false
+    @State private var abort = AttemptAbortModel()
+    /// The Attempt the Operator asked to abort, while its confirmation is shown.
+    @State private var abortRequest: PendingAttemptAbort?
     /// The last way out whose destination is not wired yet, stated in a notice.
     @State private var wayOut: PulseDestination?
     @Environment(\.openWindow) private var openWindow
@@ -73,7 +76,11 @@ struct OverviewWindow: View {
         .stopTheEngineDialogs(
             confirming: $confirmingStop, stop: stop, project: selectedSnapshot, afterStop: { await model.load() }
         )
+        .attemptAbortDialogs(
+            pending: $abortRequest, abort: abort, afterAbort: { await model.load() }
+        )
         .environment(\.openPulseDestination, route)
+        .environment(\.attemptAbort, attemptAbortControl)
         .focusedSceneValue(\.overviewProject, scopedProject)
         .task { await readWhileOpen() }
         // Every main window can take a deep link, so a link never opens a stray window of its own.
@@ -134,6 +141,23 @@ struct OverviewWindow: View {
                 wayOut.wrappedValue = destination
             }
         }
+    }
+
+    /// Abort Attempt, offered only for an Attempt of the selected Project while that Project is working and
+    /// the Attempt is among its running ones, the same gate as Stop the engine.
+    private var attemptAbortControl: AttemptAbortControl {
+        let abort = abort
+        let selected = selectedSnapshot
+        let request = $abortRequest
+        return AttemptAbortControl(
+            canAbort: { id, attempt in
+                guard let selected, selected.id == id, selected.pulse.now.status == .working else { return false }
+                return selected.pulse.now.attempts.contains { $0.id == attempt.id }
+                    && !abort.isAborting(AbortTarget(project: id, attemptID: attempt.id))
+            },
+            isAborting: { id, attempt in abort.isAborting(AbortTarget(project: id, attemptID: attempt.id)) },
+            request: { request.wrappedValue = PendingAttemptAbort(project: $0, attempt: $1) }
+        )
     }
 
     // MARK: Reading
