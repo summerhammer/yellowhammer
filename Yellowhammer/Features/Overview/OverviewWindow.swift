@@ -33,7 +33,7 @@ struct OverviewWindow: View {
     /// The last way out whose destination is not wired yet, stated in a notice.
     @State private var wayOut: PulseDestination?
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.openSettings) private var openSettings
+    @Environment(SettingsRequest.self) private var settingsRequest
 
     /// The Project this window shows: its own value, or the first configured one for a new window.
     private var scopedProject: ProjectID? {
@@ -128,14 +128,18 @@ struct OverviewWindow: View {
         let inspected = $inspected
         let inspectorShown = $inspectorShown
         let wayOut = $wayOut
-        let openSettings = openSettings
+        let openWindow = openWindow
+        let settingsRequest = settingsRequest
+        let scopedProject = scopedProject
         return { destination in
             switch destination {
             case let .inspector(selection):
                 inspected.wrappedValue = selection
                 inspectorShown.wrappedValue = true
             case .settings:
-                openSettings()
+                // Settings opens on this window's Project, even when it is already open.
+                settingsRequest.request(scopedProject)
+                openWindow(id: SettingsWindow.windowID)
             case .nightCard, .pullRequest, .linearIssue:
                 // Placeholder until the Night Card, Linear and GitHub ways out are wired.
                 wayOut.wrappedValue = destination

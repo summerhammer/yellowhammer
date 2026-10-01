@@ -23,6 +23,9 @@ struct YellowhammerApp: App {
     /// update machinery exists on that path). Nothing resident beyond what Sparkle itself keeps
     /// while the app is open — no background check is scheduled (`SUEnableAutomaticChecks = NO`).
     private let updaterController: SPUStandardUpdaterController
+    /// The Project the Settings window preselects when a gesture opens it. One for the app, so the main
+    /// windows can ask and the Settings window can answer.
+    @State private var settingsRequest = SettingsRequest()
 
     init() {
         // Never under a UI test (`-YellowhammerEngineStub`, the same override `SetupEngine` reads):
@@ -48,6 +51,7 @@ struct YellowhammerApp: App {
         // First, so it is the window the app opens on, and the one File > New Window opens.
         WindowGroup(id: OverviewWindow.windowID, for: ProjectID.self) { $project in
             OverviewWindow(project: $project)
+                .environment(settingsRequest)
         }
         // Room for the three columns at their ideal widths. The minimum comes from the columns' own.
         .defaultSize(width: 1180, height: 760)
@@ -55,6 +59,9 @@ struct YellowhammerApp: App {
         .handlesExternalEvents(matching: [ProjectDeepLink.scheme])
         .commands {
             InspectorCommands()
+            CommandGroup(replacing: .appSettings) {
+                SettingsMenuCommand(request: settingsRequest)
+            }
             CommandGroup(after: .appInfo) {
                 SetupMenuCommand()
                 ProjectWindowMenuCommand()
@@ -64,9 +71,13 @@ struct YellowhammerApp: App {
             }
         }
 
-        Settings {
+        // Not Project-scoped: its own sidebar picks the Project. A deep link never opens this window.
+        Window("Settings", id: SettingsWindow.windowID) {
             SettingsWindow()
+                .environment(settingsRequest)
         }
+        .defaultSize(width: 760, height: 520)
+        .handlesExternalEvents(matching: [])
 
         // Temporary: the screens the main window does not carry yet, until P18.14 moves the last of them.
         // A deep link never opens this window; it opens the main window.
@@ -107,6 +118,22 @@ private struct SetupMenuCommand: View {
     }
 }
 
+/// Opens the Settings window on the Project the key main window shows. With no main window key (the
+/// Settings window itself, say), it asks for no Project, and Settings stays where it was.
+private struct SettingsMenuCommand: View {
+    let request: SettingsRequest
+    @FocusedValue(\.overviewProject) private var project
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("Settings\u{2026}") {
+            request.request(project)
+            openWindow(id: SettingsWindow.windowID)
+        }
+        .keyboardShortcut(",", modifiers: .command)
+    }
+}
+
 /// Opens the temporary Project Window for the Project the key main window shows. With no main window
 /// key, it opens the window for the first configured Project.
 private struct ProjectWindowMenuCommand: View {
@@ -126,7 +153,7 @@ private struct ProjectWindowMenuCommand: View {
 
 /// A menu command needs its own `@Environment` to read `openWindow`: the App's `.commands` builder does
 /// not otherwise resolve scene environment values.
-private struct BaseRoutingTableMenuCommand: View {
+struct BaseRoutingTableMenuCommand: View {
     static let windowID = "base-routing-table"
 
     @Environment(\.openWindow) private var openWindow
@@ -138,7 +165,7 @@ private struct BaseRoutingTableMenuCommand: View {
 
 /// A menu command needs its own `@Environment` to read `openWindow`: the App's `.commands` builder does
 /// not otherwise resolve scene environment values.
-private struct AgentCLIMenuCommand: View {
+struct AgentCLIMenuCommand: View {
     static let windowID = "agent-clis"
 
     @Environment(\.openWindow) private var openWindow
