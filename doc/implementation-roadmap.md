@@ -2481,7 +2481,7 @@ P19.7.
     against a fixture repository, the record of a reported commit without the trailer, with the Card
     still Done and no Round. Not asserted, by design: whether a worker complies (model-authored).
 
-### [ ] P19.5 Reset on entering Waiting on You mid-run
+### [x] P19.5 Reset on entering Waiting on You mid-run
 - **Work** — When a worker's `question` puts its Card into Waiting on You mid-run, the OQ60
   sequence runs as on Block — fence (unfiltered), WIP-commit, preserve under `preserved_ref`, reset
   the Worktree and the lane's Feature Branch tip to `last_known_good_commit` — after the asking run
@@ -2494,6 +2494,30 @@ P19.7.
 - **Done when** — A Card that asks leaves no commits or edits on the branch, the lane's next Card
   dispatches from `last_known_good_commit`, and the resumed dispatch carries the preserved ref as
   context.
+- **Status** — Done on 2026-10-01 (`ce3feca`). The question path (`concludeAsked`) now ends with the
+  Card run's existing reset (`attemptReset`, the `AttemptResetting` seam Block uses), against the
+  asking Attempt. No Journal schema change and no new event.
+  - Order: Attempt ended `question`, question recorded, Card moved to Waiting on You, comment posted,
+    then the reset. The reset is last so a git refusal never withholds the question. It is still
+    before the Card run returns, so before the lane's next Card. Block resets before its transition;
+    the spec fixes only "after the sweep, before the next Card".
+  - A refused or failed reset leaves the Card Waiting on You and records `attempt-reset-failed`. The
+    lane then runs on over the unreset Worktree, as it already does after a failed reset on Block.
+    Whether a failed reset should stop the lane is not ruled; raise it for both triggers.
+  - Resumption is a new Card run, so `prepare` reads the handover from the Journal: when the Card's
+    latest Attempt ended `question` and has a `preserved_ref`, every pass gets it as `WIPContext`.
+    Only that case: a preserved ref left by a Block is not handed to a re-readied Card's next run.
+    No reset runs at resumption; the Act-start reconciliation covers it.
+  - Inherited from Block, not built here: the fence's kills are not recorded, so an unattributed
+    process it kills is not named in the Night Summary (OQ91(c)). The Expired Lease Sweep still
+    returns a dead run's Card to Ready when its result file holds a `question`.
+  - Met: against a fixture repository with the real reset, a Card that asks leaves the Worktree and
+    the Feature Branch tip at `last_known_good_commit` with a clean tree, its commit and WIP Commit
+    under `preserved_ref` (message trailer and author as P19.3); the lane's next Card dispatches from
+    that commit; a second run of the sequence adds no WIP Commit and no ref; the resumed dispatch
+    carries the preserved commit; Attempts, Rounds and Route exclusions are unchanged by asking.
+    Not asserted: that a live process in the Worktree is killed by this trigger's fence (the seam is
+    Block's, whose fence has its own tests).
 
 ### [ ] P19.6 No-Pushed-Branch Outcome, and N counts pushed branches only
 - **Work**
