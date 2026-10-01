@@ -225,7 +225,8 @@ layer; mark the item `[x]` in `doc/implementation-roadmap.md` in its own commit 
 layer.
 
 Every pull request titled `feat`, `fix`, `perf` or `revert` carries the traceability line
-(or `Spec-Exempt: <reason>` when no story applies; other title types need neither):
+(or `Spec-Exempt: <reason>` when no story applies; other title types, and pull requests Yellowhammer
+itself opens from a `yh-*` Feature Branch, need neither):
 
 ```
 Spec: <epic>/<story> @ <spec commit sha>
