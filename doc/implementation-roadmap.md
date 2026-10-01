@@ -2184,13 +2184,32 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
     P18.14). The General pane opens the Agent CLIs and Base Routing Table windows (P18.15, P18.16).
     Add Project from Settings is P18.17's.
 
-### [ ] P18.13 Settings — Project — Configuration
+### [x] P18.13 Settings — Project — Configuration
 - **Work** — Project configuration editing in the Settings window. This may first lift parts of
   `SetupWizardModel` that P18.17 also uses.
 - **Retires** — `Legacy/ProjectDetail`.
 - **Spec** — `app/add-a-project-via-the-setup-wizard` (Setup folded into Settings).
 - **Agent** — Sonnet 5 High or `gpt-5.6-terra high`.
 - **Done when** — Edits round-trip through the loader as in P14.3; `Legacy/ProjectDetail` is deleted.
+- **Status** — Done on 2026-10-01 (`4a926ab`).
+  - A Project's Configuration tab in the Settings window is the P14.3 form: name, Repos, Bounds and
+    the Project's Routing overrides, with the Spec Source read-only. It is one screen, not a wizard.
+    Saving goes through `Configuration.save`, so an edit round-trips through the loader and a refusal
+    shows the loader's own message with the file untouched. `ConfigurationEditingTests` in `ConfigTests`
+    still covers the round trip. A save from the UI is not exercised, as before: the UI test runner is
+    sandboxed and cannot write the app's fixture directory.
+  - Nothing of `SetupWizardModel` was lifted: the wizard never shared P14.3's model. What moved is
+    `ProjectDetailModel` and `ProjectDetailView` (now `ProjectConfigurationModel` and
+    `ProjectConfigurationView`, in `Features/Settings`) and `RoutingEntriesEditor`, which went to
+    `Features/Shared` because the base Routing Table window uses it too. `Legacy/ProjectDetail` and
+    `Legacy/Shared` are gone, so P18.17 has no `Legacy/Shared` left to retire.
+  - A saved name reaches the Settings sidebar and title at once. The main window's Sidebar still reads
+    it on the next activation, as before. Unsaved edits are dropped when the Operator leaves the
+    Project's entry; the form is one view per Project, so one Project's draft never shows under another.
+  - The Project Window keeps Recalibrate only, which `RecalibrateModel` still needs the form's model
+    for until P18.14. `ConfigurationEditingUITests` now drive the Settings window; `RecalibrateUITests`
+    and `OverviewWindowUITests` lose the Configuration tab. The Settings, Recalibrate and Overview
+    suites pass (the three deep-link launch tests stay skipped for #238).
 
 ### [ ] P18.14 Settings — Project — Recalibrate
 - **Work** — Recalibrate in the Settings window.
