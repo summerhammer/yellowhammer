@@ -30,6 +30,8 @@ struct CardRunFrame: Sendable {
     var route: Route?
     /// The prior Attempt's preserved work, handed to a retry as context only, never as a starting
     /// tree (OQ60): set by the reset sequence, merged into every pass instruction of the new Attempt.
+    /// A second source seeds it: a resumed Card whose latest Attempt ended `question` carries that
+    /// Attempt's preserved work into the run's first Attempt (OQ106), set in `prepare`.
     var wipContext: WIPContext?
     /// The Card's latest recorded question, with every Operator reply this Journal has recorded as an
     /// answer to it (roadmap P11.2): set once in ``prepare(card:in:context:readiness:)`` from the
@@ -165,7 +167,20 @@ extension CardRun {
             cardID: card.id, journal: journal, excluding: bankedCommentIDs
         )
         frame.bankedReplies = try banked.map { try Self.bankedReply($0, journal: journal) }
+        frame.wipContext = try Self.resumedWIPContext(cardID: card.id, journal: journal)
         return frame
+    }
+
+    /// A resumed Card is a new Attempt from `last_known_good_commit`, with the work its question Attempt
+    /// preserved handed over as context, not a starting tree (Landing Edge Cases Ruling 2026-10-01,
+    /// OQ106): the same ``WIPContext`` shape an in-run retry gets. Only the Card's latest Attempt counts,
+    /// and only when it ended `question` and carries a preserved ref; nothing else here is resumption.
+    private static func resumedWIPContext(cardID: Int64, journal: JournalStore) throws -> WIPContext? {
+        guard let latest = try journal.attemptHistory(cardID: cardID).attempts.last,
+            latest.result == AttemptOutcome.question.rawValue,
+            let ref = latest.preservedRef, let commit = latest.preservedCommit
+        else { return nil }
+        return WIPContext(commit: commit, note: "preserved at \(ref)")
     }
 
     /// The Card's latest question, with every recorded answer to it that is not itself banked (roadmap

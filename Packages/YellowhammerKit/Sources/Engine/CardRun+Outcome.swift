@@ -7,8 +7,9 @@ extension CardRun {
     /// this Card run is over or a fresh Attempt should be dispatched (roadmap P8.7). Only a reviewer
     /// approval after a passing (or declared-none) Check ends the Attempt in success and moves the Card to
     /// Done; a question ends the run without consuming the Attempt budget or retrying, moving the Card to
-    /// Waiting on You instead (roadmap P11.1); every other ending — hard failure, Crashed-Unknown,
-    /// `rounds-exhausted` — retries while the Attempt budget has room, and Blocks the Card once it is spent.
+    /// Waiting on You instead (roadmap P11.1) and then running the reset sequence a Block runs (OQ106);
+    /// every other ending — hard failure, Crashed-Unknown, `rounds-exhausted` — retries while the Attempt
+    /// budget has room, and Blocks the Card once it is spent.
     func conclude(_ end: CardRunEnd, frame: CardRunFrame) async throws -> CardRunAction {
         switch end {
         case .approved(let commit):
@@ -58,7 +59,11 @@ extension CardRun {
     /// retrying, since there is no Attempt budget spent to retry with — records the question in the
     /// Journal, moves the Card to Waiting on You (assigned to the Operator identity when it is
     /// configured and still an active workspace member), and posts the question as a comment through the
-    /// Outbox. The Worktree is left exactly as the Attempt left it (roadmap P11.1; spec: bounds/
+    /// Outbox. Last of all, the OQ60 reset sequence runs exactly as on Block (Landing Edge Cases Ruling
+    /// 2026-10-01, OQ106): the Attempt's work is preserved under a ref and the Worktree and Feature Branch
+    /// tip return to `last_known_good_commit`, so the lane's next Card never dispatches over it. It runs
+    /// last so a git refusal or failure can never withhold the question from the Operator, and whether it
+    /// succeeds or fails the Card stays Waiting on You (roadmap P11.1, P19.5; spec: bounds/
     /// escalate-a-question-to-the-operator).
     private func concludeAsked(_ question: String, frame: CardRunFrame) async throws -> CardRunAction {
         try endAttempt(.question, frame: frame)
@@ -86,6 +91,8 @@ extension CardRun {
             )
             _ = try await outbox.post(write)
         }
+        // Unconditional, with or without a Board; the result changes nothing — nothing un-waits the Card.
+        _ = try await attemptReset(priorAttemptID: attempt.id, frame: frame)
         return .stop
     }
 

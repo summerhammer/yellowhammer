@@ -26,7 +26,8 @@ public enum AttemptResetOutcome: Equatable, Sendable {
 }
 
 /// The seam ``CardRun`` calls before every new Attempt of a Card that already ran one in this run,
-/// and on every Block path (Attempt, Block and Reset Ruling 2026-09-19, OQ60): a new Attempt starts
+/// on every Block path, and when a worker's question puts its Card in Waiting on You mid-run (Attempt,
+/// Block and Reset Ruling 2026-09-19, OQ60; Landing Edge Cases Ruling 2026-10-01, OQ106): a new Attempt starts
 /// fresh, never as a rescue. Pure git and filesystem work, mirroring ``RepositoryCheckRunning``'s
 /// seam over ``WorktreeCheck``: Journal writes and Lease revalidation stay in ``CardRun``.
 public protocol AttemptResetting: Sendable {
