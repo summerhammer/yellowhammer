@@ -5,7 +5,7 @@ import Testing
 
 @testable import Journal
 
-// roadmap P10.1; risks OQ8 (once per Cycle): `cycle.landed_at` (v16-cycle-landed) and
+// roadmap P10.1; risks OQ8 (once per Cycle): `cycle.landed_at` and
 // `JournalStore.markCycleLanded(cycleID:runID:now:)` / `isCycleLanded(cycleID:)`.
 
 private struct JournalFixture: ~Copyable {
@@ -44,15 +44,15 @@ private func insertFixtureCycle(_ journal: JournalStore, issueID: String) throws
     }
 }
 
-@Suite("v16-cycle-landed migration")
+@Suite("cycle.landed_at schema")
 struct CycleLandedMigrationTests {
-    @Test("v16-cycle-landed is applied and adds cycle.landed_at")
-    func v16IsAppliedAndAddsColumn() throws {
+    @Test("The cycle table has landed_at, unset on a fresh Cycle")
+    func cycleTableHasLandedAtColumn() throws {
         let fixture = try JournalFixture()
         let journal = try fixture.open()
 
-        #expect(try journal.appliedMigrations().contains("v16-cycle-landed"))
-        #expect(JournalStore.migrationIdentifiers.contains("v16-cycle-landed"))
+        let columns = try journal.read { try $0.columns(in: "cycle") }.map(\.name)
+        #expect(columns.contains("landed_at"))
 
         let cycleID = try insertFixtureCycle(journal, issueID: "FEAT-1")
         #expect(try journal.isCycleLanded(cycleID: cycleID) == false)

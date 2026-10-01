@@ -4,8 +4,8 @@ import GRDB
 
 // Banking a Card Reply (roadmap P11.3; spec: board-projection/read-board-changes-by-delta, OQ37): once
 // the Feature that put a Card in Waiting on You has landed, lanes do not reopen and an answer is never
-// dispatched — it is banked instead, into the `banked_reply` / `banked_reply_mainline` tables V1 laid
-// down for exactly this (``JournalMigrations/createBankedReplyTable(_:)``,
+// dispatched — it is banked instead, into the `banked_reply` / `banked_reply_mainline` tables the schema carries
+// for exactly this (``JournalMigrations/createBankedReplyTable(_:)``,
 // ``JournalMigrations/createBankedReplyMainlineTable(_:)``), and carried forward for opportunistic
 // Adoption by a successor Feature (roadmap P11.5). A reply is banked iff a `banked_reply` row exists
 // with its `comment_id` — both columns are UNIQUE, so that is a one-to-one join, never ambiguous.

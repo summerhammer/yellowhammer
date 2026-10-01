@@ -320,45 +320,6 @@ struct RefusalAnswerStoreTests {
         #expect(row.closedNightID == nil)
         #expect(row.consecutiveRefusals == 0)
     }
-
-    @Test("v17 migrates a v15 database that already holds refusal rows")
-    func v17MigratesV15Database() throws {
-        let fixture = try HaltJournalFixture()
-        let fileURL = JournalStore.defaultFileURL(configurationDirectory: fixture.directory, id: fixture.projectID)
-        try FileManager.default.createDirectory(
-            at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true
-        )
-        let queue = try DatabaseQueue(path: fileURL.path)
-        try JournalMigrations.migrator.migrate(queue, upTo: "v15-refusal")
-        try queue.writeWithoutTransaction { db in
-            try db.execute(
-                sql: """
-                INSERT INTO night (id, project_id, night_start, mode, state, opened_at)
-                VALUES (1, 'fixture', '2026-09-15', 'rehearsal', 'open', '2026-09-15T00:00:00.000Z')
-                """
-            )
-            for state in ["open", "answered"] {
-                try db.execute(
-                    sql: """
-                    INSERT INTO refusal (
-                        feature_name, state, content, opened_night_id, consecutive_refusals, created_at
-                    )
-                    VALUES ('FEAT-1', ?, 'thin', 1, 1, '2026-09-15T00:00:00.000Z')
-                    """,
-                    arguments: [state]
-                )
-            }
-        }
-
-        let journal = try fixture.open()
-
-        #expect(try journal.appliedMigrations().last == "v31-operator-abort-request")
-        #expect(try journal.tableNames().contains("authoring_halt"))
-        let rows = try journal.refusals(feature: try feature())
-        #expect(rows.map(\.state) == [.open, .answered])
-        #expect(rows.allSatisfy { $0.closedNightID == nil })
-        #expect(try journal.openRefusals().count == 1)
-    }
 }
 
 @Suite("Authoring Halt and Refusal event encoding (P9.8)")

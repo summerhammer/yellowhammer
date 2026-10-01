@@ -64,17 +64,15 @@ private func insertFixtureCard(
     }
 }
 
-@Test("A fresh Journal has v18-predecessor-gate applied last")
-func v5MigrationApplied() throws {
+@Test("A fresh Journal has the single schema migration applied")
+func schemaMigrationApplied() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
 
-    let migrations = try journal.appliedMigrations()
-    #expect(migrations.contains("v4-outbox-delivery"))
-    #expect(migrations.last == "v31-operator-abort-request")
+    #expect(try journal.appliedMigrations() == JournalStore.migrationIdentifiers)
 }
 
-@Test("Outbox table has new columns from v4 migration")
+@Test("Outbox table has the delivery columns")
 func outboxTableHasNewColumns() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()

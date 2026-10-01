@@ -178,10 +178,15 @@ there; the repo-local consequences are:
   `--post-notification`.
 - **Local git is not behind a Port** (see Architecture). Needs `git` 2.38 or later.
 - **Schema migrations are GRDB `DatabaseMigrator`s, forward-only, owned by the engine.**
-  The Journal and the Ledger each have their own migrator in their own module. A
-  migration, once shipped, is never edited or reordered. The engine migrates on open;
-  the app opens every store read-only, never migrates, and refuses to read a store whose
-  schema is newer than it knows. Never use `eraseDatabaseOnSchemaChange` outside tests.
+  The Journal and the Ledger each have their own migrator in their own module. The engine
+  migrates on open; the app opens every store read-only, never migrates, and refuses to
+  read a store whose schema is newer than it knows. Never use `eraseDatabaseOnSchemaChange`
+  outside tests.
+  - **Pre-1.0, the Journal has exactly one migration** (`journal-schema-N`) that creates the
+    whole schema in one shot. A schema change edits it in place and bumps `N`; both the
+    engine and the app then refuse a Journal created by an older build, which is deleted
+    and recreated. Do not add incremental Journal migrations until 1.0. The Ledger still
+    uses incremental migrations, each never edited or reordered once shipped.
 - **The app is a window app**: no `MenuBarExtra`, no login item, no background updater.
   Every decision screen is Linear's. Updates are Sparkle 2, user-initiated.
 - **The main window is the landing screen: Sidebar, Pulse, Inspector.** The spec's

@@ -242,49 +242,6 @@ func heldWorktreeLookup() throws {
     #expect(try journal.heldWorktree(featureID: featureID, repository: "backend") == nil)
 }
 
-@Test("A v7 database gains pushed_commit when the engine opens it")
-func v7DatabaseGainsPushedCommitColumn() throws {
-    let fixture = try JournalFixture()
-    let fileURL = JournalStore.defaultFileURL(configurationDirectory: fixture.directory, id: fixture.projectID)
-    try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-    let v7 = try DatabaseQueue(path: fileURL.path)
-    try JournalMigrations.migrator.migrate(v7, upTo: "v7-card-state-version")
-    #expect(try v7.read { try $0.columns(in: "worktree") }.map(\.name).contains("pushed_commit") == false)
-
-    let journal = try fixture.open()
-
-    #expect(try journal.appliedMigrations().last == "v31-operator-abort-request")
-    let featureID = try insertFixtureFeature(journal, issueID: "FEAT-1")
-    let runID = RunID()
-    try claimLease(journal, runID: runID)
-    let worktree = try journal.recordWorktree(
-        featureID: featureID, repository: "backend", worktreeID: "wt-1", path: "/tmp/wt-1",
-        runID: runID, now: epoch
-    )
-    #expect(worktree.pushedCommit == nil)
-}
-
-@Test("A v8 database gains the three reconciliation columns when the engine opens it")
-func v8DatabaseGainsReconciliationColumns() throws {
-    let fixture = try JournalFixture()
-    let fileURL = JournalStore.defaultFileURL(configurationDirectory: fixture.directory, id: fixture.projectID)
-    try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-    let v8 = try DatabaseQueue(path: fileURL.path)
-    try JournalMigrations.migrator.migrate(v8, upTo: "v8-worktree-pushed-commit")
-    let v8Columns = try v8.read { try $0.columns(in: "worktree") }.map(\.name)
-    #expect(!v8Columns.contains("last_known_good_commit"))
-    #expect(!v8Columns.contains("wip_commit"))
-    #expect(!v8Columns.contains("lost_at"))
-
-    let journal = try fixture.open()
-
-    #expect(try journal.appliedMigrations().last == "v31-operator-abort-request")
-    let columns = try journal.read { try $0.columns(in: "worktree") }.map(\.name)
-    #expect(columns.contains("last_known_good_commit"))
-    #expect(columns.contains("wip_commit"))
-    #expect(columns.contains("lost_at"))
-}
-
 @Test("recordWorktree stores lastKnownGoodCommit")
 func recordWorktreeStoresLastKnownGoodCommit() throws {
     let fixture = try JournalFixture()

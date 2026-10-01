@@ -10,8 +10,8 @@ public struct CardRecord: Equatable, Sendable {
     public let id: Int64
     public let cycleID: Int64
     public let issueID: String
-    /// The board's title for this Card, nil until the Delta Read first reconciles it (Cards authored
-    /// before V30 have no recorded title). Renders the Roll-up and the partial-landing PR body's
+    /// The board's title for this Card, nil until the Delta Read first reconciles it (a Card has no
+    /// recorded title until then). Renders the Roll-up and the partial-landing PR body's
     /// hole listing; ``displayTitle`` falls back to the issue id when this is nil or empty.
     public let title: String?
     public let repository: String
@@ -47,8 +47,8 @@ public struct CardRecord: Equatable, Sendable {
     /// reset of `failed_adoptions` so a fresh count starts unpromoted.
     public let divergenceStandingNightID: Int64?
 
-    /// The Card's title, or its issue id when no title is recorded yet (Cards authored before V30, or
-    /// not yet reconciled against the board). What the Roll-up and the partial-landing PR body name a
+    /// The Card's title, or its issue id when no title is recorded yet (not yet reconciled against
+    /// the board). What the Roll-up and the partial-landing PR body name a
     /// Card by (issue #161; spec: landing/announce-a-partial-landing).
     public var displayTitle: String {
         guard let title, !title.isEmpty else { return issueID }

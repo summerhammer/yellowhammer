@@ -7,8 +7,7 @@ import Testing
 
 // roadmap P9.9: the predecessor gate's own durable state — `feature_repository` (recorded at
 // selection, never derived from Cards), `feature_landing` (first-observation-wins), and
-// `feature.released_at`. Migration v18 backfills `feature_repository` for every pre-v18 Feature from
-// its Cards, the best evidence a pre-v18 Journal has.
+// `feature.released_at`.
 
 private struct JournalFixture: ~Copyable {
     let directory: URL
@@ -43,65 +42,6 @@ private func insertFixtureFeature(_ journal: JournalStore, issueID: String) thro
 
 @Suite("Feature landing store (P9.9)")
 struct FeatureLandingStoreTests {
-    @Test("Migration v18 applies on a v17 Journal, adding the new tables and column")
-    func migrationV18AppliesOnV17Database() throws {
-        let fixture = try JournalFixture()
-        let fileURL = JournalStore.defaultFileURL(configurationDirectory: fixture.directory, id: fixture.projectID)
-        try FileManager.default.createDirectory(
-            at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true
-        )
-        let v17 = try DatabaseQueue(path: fileURL.path)
-        try JournalMigrations.migrator.migrate(v17, upTo: "v17-authoring-halt")
-        #expect(try !v17.read { try $0.tableExists("feature_repository") })
-        #expect(try !v17.read { try $0.tableExists("feature_landing") })
-
-        let journal = try fixture.open()
-
-        #expect(try journal.appliedMigrations().last == "v31-operator-abort-request")
-        #expect(try journal.tableNames().contains("feature_repository"))
-        #expect(try journal.tableNames().contains("feature_landing"))
-        let featureColumns = try journal.read { try $0.columns(in: "feature") }.map(\.name)
-        #expect(featureColumns.contains("released_at"))
-    }
-
-    @Test("Migration v18 backfills feature_repository from a pre-v18 Journal's Cards")
-    func migrationV18BackfillsFromCards() throws {
-        let fixture = try JournalFixture()
-        let fileURL = JournalStore.defaultFileURL(configurationDirectory: fixture.directory, id: fixture.projectID)
-        try FileManager.default.createDirectory(
-            at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true
-        )
-        let v17 = try DatabaseQueue(path: fileURL.path)
-        try JournalMigrations.migrator.migrate(v17, upTo: "v17-authoring-halt")
-        try v17.writeWithoutTransaction { db in
-            try db.execute(
-                sql: "INSERT INTO feature (id, issue_id, state, created_at) VALUES (1, 'FEAT-BACKFILL', 'selected', ?)",
-                arguments: [JournalStore.timestamp(epoch)]
-            )
-            try db.execute(
-                sql: "INSERT INTO cycle (id, feature_id, created_at, archived_at) VALUES (1, 1, ?, ?)",
-                arguments: [JournalStore.timestamp(epoch), JournalStore.timestamp(epoch)]
-            )
-            let cards = [
-                ("BACK-1", "backend", 1), ("MOB-1", "mobile", 1), ("BACK-2", "backend", 2)
-            ]
-            for (issueID, repository, order) in cards {
-                try db.execute(
-                    sql: """
-                    INSERT INTO card (cycle_id, issue_id, repository, kind, authored_order, state, created_at)
-                    VALUES (1, ?, ?, 'card', ?, 'todo', ?)
-                    """,
-                    arguments: [issueID, repository, order, JournalStore.timestamp(epoch)]
-                )
-            }
-        }
-
-        let journal = try fixture.open()
-
-        let touched = try journal.touchedRepositories(featureID: 1)
-        #expect(touched == ["backend", "mobile"])
-    }
-
     @Test("touchedRepositories reads feature_repository, never Cards")
     func touchedRepositoriesReadsItsOwnTable() throws {
         let fixture = try JournalFixture()

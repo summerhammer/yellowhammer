@@ -1,10 +1,17 @@
 import GRDB
 
-/// The Journal's forward-only migrations (Decision Gates Ruling, G-4).
+/// The Journal's schema migration (Decision Gates Ruling, G-4).
 ///
-/// A migration, once shipped, is never edited or reordered: add a new one. The engine migrates on
-/// open; the app never does, and refuses a store that knows a migration this build does not.
+/// Pre-1.0 the Journal has a single migration that creates the whole current schema. Any schema
+/// change edits it in place AND bumps its identifier (`journal-schema-1` becomes `journal-schema-2`),
+/// so a Journal created by an older build is refused rather than silently kept on a stale schema;
+/// existing development Journals are deleted and recreated. The migration stays forward-only and
+/// engine-owned: the engine migrates on open; the app never does, and refuses a store that knows a
+/// migration this build does not.
 enum JournalMigrations {
+    /// The identifier of the single schema migration. Bump it whenever the schema changes.
+    static let schemaIdentifier = "journal-schema-1"
+
     /// Every identifier this build knows, in registration order. Derived from the migrator so that
     /// the list and the registrations cannot drift apart.
     static var migrationIdentifiers: [String] {
@@ -13,7 +20,7 @@ enum JournalMigrations {
 
     static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
-        migrator.registerMigration("v1-initial-schema") { db in
+        migrator.registerMigration(schemaIdentifier) { db in
             try createNightTable(db)
             try createFeatureTable(db)
             try createCycleTable(db)
@@ -32,95 +39,18 @@ enum JournalMigrations {
             try createBankedReplyMainlineTable(db)
             try createProjectStateTable(db)
             try createEventTable(db)
-        }
-        migrator.registerMigration("v2-act-lease") { db in
             try createActLeaseTable(db)
-        }
-        migrator.registerMigration("v3-night-close-reason") { db in
-            try addNightCloseReasonColumn(db)
-        }
-        migrator.registerMigration("v4-outbox-delivery") { db in
-            try addOutboxDeliveryColumns(db)
-        }
-        migrator.registerMigration("v5-delta-read") { db in
-            try addDeltaReadTracking(db)
-        }
-        migrator.registerMigration("v6-night-verdict") { db in
-            try addNightVerdictColumn(db)
-        }
-        migrator.registerMigration("v7-card-state-version") { db in
-            try addCardStateVersions(db)
-        }
-        migrator.registerMigration("v8-worktree-pushed-commit") { db in
-            try addWorktreePushedCommit(db)
-        }
-        migrator.registerMigration("v9-worktree-reconciliation") { db in
-            try addWorktreeReconciliationColumns(db)
-        }
-        migrator.registerMigration("v10-attempt-route-provenance") { db in
-            try addAttemptRouteProvenance(db)
-        }
-        migrator.registerMigration("v11-feature-branch") { db in
-            try addFeatureBranchColumn(db)
-        }
-        migrator.registerMigration("v12-readiness-check") { db in
-            try addReadinessCheckTables(db)
-        }
-        migrator.registerMigration("v13-card-scope") { db in
-            try addCardScopeTable(db)
-        }
-        migrator.registerMigration("v14-attempt-preserved-ref") { db in
-            try addAttemptPreservedRef(db)
-        }
-        migrator.registerMigration("v15-refusal") { db in
+            try createBoardSyncTable(db)
+            try createArchitecturalBriefTable(db)
+            try createCardScopeTable(db)
             try createRefusalTable(db)
-        }
-        migrator.registerMigration("v16-cycle-landed") { db in
-            try addCycleLandedAtColumn(db)
-        }
-        migrator.registerMigration("v17-authoring-halt") { db in
             try createAuthoringHaltTable(db)
-        }
-        migrator.registerMigration("v18-predecessor-gate") { db in
-            try addFeatureLandingTables(db)
-        }
-        migrator.registerMigration("v19-pull-request") { db in
-            try addPullRequestTable(db)
-        }
-        migrator.registerMigration("v20-feature-verification") { db in
-            try addFeatureVerificationTables(db)
-        }
-        migrator.registerMigration("v21-feature-closure") { db in
-            try addFeatureClosedByColumn(db)
-        }
-        migrator.registerMigration("v22-night-triaged") { db in
-            try addNightTriagedAtColumn(db)
-        }
-        migrator.registerMigration("v23-card-question") { db in
+            try createFeatureLandingTables(db)
+            try createPullRequestTable(db)
+            try createFeatureVerificationTables(db)
             try createCardQuestionTable(db)
-        }
-        migrator.registerMigration("v24-card-reply") { db in
             try createCardReplyTable(db)
-        }
-        migrator.registerMigration("v25-card-unanswered-clock") { db in
-            try addCardUnansweredLastCountedNightColumn(db)
-        }
-        migrator.registerMigration("v26-adoption-refusal") { db in
             try createAdoptionRefusalTable(db)
-        }
-        migrator.registerMigration("v27-standing-items") { db in
-            try addStandingItemColumns(db)
-        }
-        migrator.registerMigration("v28-night-opening-board-snapshot") { db in
-            try addNightOpeningBoardSnapshotColumn(db)
-        }
-        migrator.registerMigration("v29-outbox-salt") { db in
-            try addOutboxSaltColumn(db)
-        }
-        migrator.registerMigration("v30-card-title") { db in
-            try addCardTitleColumn(db)
-        }
-        migrator.registerMigration("v31-operator-abort-request") { db in
             try createOperatorAbortRequestTable(db)
         }
         return migrator

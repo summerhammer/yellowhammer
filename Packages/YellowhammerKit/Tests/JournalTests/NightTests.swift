@@ -27,21 +27,9 @@ private struct JournalFixture: ~Copyable {
 private let epoch = Date(timeIntervalSince1970: 1_800_000_000)
 private let nightStart = NightStart(rawValue: "2026-09-15")!
 
-@Test("Migration identifiers end at v18-predecessor-gate")
-func migrationIdentifiersIncludeV6() throws {
-    #expect(
-        JournalStore.migrationIdentifiers == [
-            "v1-initial-schema", "v2-act-lease", "v3-night-close-reason", "v4-outbox-delivery",
-            "v5-delta-read", "v6-night-verdict", "v7-card-state-version", "v8-worktree-pushed-commit",
-            "v9-worktree-reconciliation", "v10-attempt-route-provenance", "v11-feature-branch",
-            "v12-readiness-check", "v13-card-scope", "v14-attempt-preserved-ref", "v15-refusal", "v16-cycle-landed",
-            "v17-authoring-halt", "v18-predecessor-gate", "v19-pull-request",
-            "v20-feature-verification", "v21-feature-closure", "v22-night-triaged", "v23-card-question",
-            "v24-card-reply", "v25-card-unanswered-clock", "v26-adoption-refusal", "v27-standing-items",
-            "v28-night-opening-board-snapshot", "v29-outbox-salt", "v30-card-title",
-            "v31-operator-abort-request"
-        ]
-    )
+@Test("The Journal has the single schema migration")
+func migrationIdentifiersAreTheSingleSchema() throws {
+    #expect(JournalStore.migrationIdentifiers == ["journal-schema-1"])
 }
 
 @Test("Opening a Night records it and returns isFirstAct: true")

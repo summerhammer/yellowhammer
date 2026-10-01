@@ -33,28 +33,12 @@ private struct JournalFixture: ~Copyable {
 
 private let epoch = Date(timeIntervalSince1970: 1_800_000_000)
 
-@Test("A Journal created at v1 gains act_lease when the engine opens it")
-func v1JournalMigratesForwardToActLease() throws {
+@Test("A fresh Journal has the single schema migration applied, and the act_lease table")
+func freshJournalHasSchemaAndActLease() throws {
+    #expect(JournalStore.migrationIdentifiers == ["journal-schema-1"])
     let fixture = try JournalFixture()
-    let fileURL = JournalStore.defaultFileURL(configurationDirectory: fixture.directory, id: fixture.projectID)
-    try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-    let v1 = try DatabaseQueue(path: fileURL.path)
-    try JournalMigrations.migrator.migrate(v1, upTo: "v1-initial-schema")
-    #expect(try v1.read { try $0.tableExists("act_lease") } == false)
-
     let journal = try fixture.open()
-
-    #expect(try journal.appliedMigrations() == [
-        "v1-initial-schema", "v2-act-lease", "v3-night-close-reason", "v4-outbox-delivery",
-        "v5-delta-read", "v6-night-verdict", "v7-card-state-version", "v8-worktree-pushed-commit",
-        "v9-worktree-reconciliation", "v10-attempt-route-provenance", "v11-feature-branch",
-        "v12-readiness-check", "v13-card-scope", "v14-attempt-preserved-ref", "v15-refusal", "v16-cycle-landed",
-            "v17-authoring-halt", "v18-predecessor-gate", "v19-pull-request",
-            "v20-feature-verification", "v21-feature-closure", "v22-night-triaged", "v23-card-question",
-            "v24-card-reply", "v25-card-unanswered-clock", "v26-adoption-refusal", "v27-standing-items",
-            "v28-night-opening-board-snapshot", "v29-outbox-salt", "v30-card-title",
-            "v31-operator-abort-request"
-    ])
+    #expect(try journal.appliedMigrations() == ["journal-schema-1"])
     #expect(try journal.tableNames().contains("act_lease"))
 }
 

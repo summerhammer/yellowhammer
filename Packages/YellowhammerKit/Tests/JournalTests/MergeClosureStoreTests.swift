@@ -8,7 +8,7 @@ import Testing
 // roadmap P10.8 (spec: landing/announce-a-partial-landing, morning-report/triage-the-morning):
 // `closeFeatureByMerge` archives the Cycle `closed_by = 'merge'`, sets `night.triaged_at` on the
 // triaged-Night rule's Night (first write wins), and appends `cycleArchived` then `featureClosedByMerge`
-// once per Cycle. The V22 migration adds `night.triaged_at`, read back on `NightRecord.triagedAt`.
+// once per Cycle. The schema has `night.triaged_at`, read back on `NightRecord.triagedAt`.
 
 private struct JournalFixture: ~Copyable {
     let directory: URL
@@ -61,13 +61,14 @@ private func featureRow(_ journal: JournalStore, featureID: Int64) throws -> (st
     }
 }
 
-@Suite("Journal migration V22: night.triaged_at (P10.8)")
+@Suite("Journal schema: night.triaged_at (P10.8)")
 struct NightTriagedAtMigrationTests {
-    @Test("The V22 migration adds night.triaged_at, nullable, and it is the latest migration")
+    @Test("The schema has night.triaged_at, nullable")
     func migrationAddsColumn() throws {
         let fixture = try JournalFixture()
         let journal = try fixture.open()
-        #expect(try journal.appliedMigrations().last == "v31-operator-abort-request")
+        let columns = try journal.read { try $0.columns(in: "night") }.map(\.name)
+        #expect(columns.contains("triaged_at"))
 
         let runID = RunID()
         guard case .claimed = try journal.claimActLease(act: .author, runID: runID, mode: .real, now: epoch) else {
