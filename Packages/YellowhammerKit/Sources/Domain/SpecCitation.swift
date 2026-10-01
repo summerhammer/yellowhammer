@@ -18,6 +18,17 @@ public struct SpecCitation: Equatable, Hashable, Sendable, CustomStringConvertib
     public init(stringLiteral value: String) {
         self.init(value)
     }
+
+    /// The epic of a story ID citation (`<epic>/<story>`); nil for anything else (a goal ID, an anchor
+    /// such as `{#g5}` or `#g5`, a slug, a path with more than one `/`). A story ID has exactly one `/`,
+    /// both sides non-empty, no whitespace, and does not start with `#` or `{`.
+    public var epic: String? {
+        guard let first = rawValue.first, first != "#", first != "{" else { return nil }
+        guard !rawValue.contains(where: \.isWhitespace) else { return nil }
+        let parts = rawValue.split(separator: "/", omittingEmptySubsequences: false)
+        guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else { return nil }
+        return String(parts[0])
+    }
 }
 
 /// The result of resolving a ``SpecCitation`` against the Project's single specification source.

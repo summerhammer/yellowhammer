@@ -32,7 +32,10 @@ enum LandBinding {
             let reference = configuration.machine.gitHubCredential(for: project)
             return try store.read(reference)
         }
-        return FeatureBranchPullRequest(publication: adapter)
+        return FeatureBranchPullRequest(
+            publication: adapter, titleTemplate: project.pullRequestTitle, changeType: project.changeType,
+            projectID: project.id.rawValue
+        )
     }
 
     /// Verification (P10.5): the same ``RoutingBinding`` resolver and Dispatch choice as the author Act —
