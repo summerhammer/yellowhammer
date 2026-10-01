@@ -5,20 +5,30 @@ import Repositories
 
 /// The land Act's real pull request seam (roadmap P10.4), the real ``PullRequestOpening``. Written
 /// once per (Feature, repository): if the Journal already records a pull request it returns that
-/// outcome and calls nothing — never updates, duplicates or reopens one.
+/// outcome and calls nothing — never updates, duplicates or reopens one. The title is the Project's
+/// `pull_request_title` Message Template, rendered once with the body and never revised.
 public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
     private let publication: any Publication
     private let slugResolver: GitHubRepositorySlugResolver
     private let clock: @Sendable () -> Date
+    private let titleTemplate: MessageTemplate
+    private let changeType: ChangeType
+    private let projectID: String
 
     public init(
         publication: any Publication,
         slugResolver: GitHubRepositorySlugResolver = GitHubRepositorySlugResolver(),
-        clock: @escaping @Sendable () -> Date = { Date() }
+        clock: @escaping @Sendable () -> Date = { Date() },
+        titleTemplate: MessageTemplate = .default(.pullRequestTitle),
+        changeType: ChangeType = .feat,
+        projectID: String = ""
     ) {
         self.publication = publication
         self.slugResolver = slugResolver
         self.clock = clock
+        self.titleTemplate = titleTemplate
+        self.changeType = changeType
+        self.projectID = projectID
     }
 
     public func open(
@@ -47,10 +57,14 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
             )
         }
 
-        let (body, isPartial) = try await renderBody(context: context, mergeOutcome: mergeOutcome)
-        let featureTitle = await featureTitle(context: context)
-        let titlePrefix = isPartial ? "partial landing: " : ""
-        let title = "\(titlePrefix)\(featureTitle) (\(repository))"
+        // One board read serves the title, the key, the URL and the description (clause order).
+        let featureObject = await findBoardObject(id: context.feature.issueID, context: context)
+        let (body, isPartial) = try await renderBody(
+            context: context, mergeOutcome: mergeOutcome, featureObject: featureObject
+        )
+        let title = try renderTitle(
+            context: context, featureObject: featureObject, branch: branch, isPartial: isPartial
+        )
         let base = await resolveDefaultBranch(context: context, repo: repo, path: path)
         let draft = PullRequestDraft(
             owner: slug.owner, repository: slug.repository, head: branch.name, base: base,
@@ -153,7 +167,7 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
     // MARK: - Body assembly
 
     private func renderBody(
-        context: LandActLaneContext, mergeOutcome: MergeTestOutcome?
+        context: LandActLaneContext, mergeOutcome: MergeTestOutcome?, featureObject: BoardObject?
     ) async throws -> (body: String, isPartial: Bool) {
         let journal = context.act.journal
         let repository = context.lane.repository
@@ -161,8 +175,8 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
         let touched = try journal.touchedRepositories(featureID: context.feature.id)
         let landings = try journal.landings(featureID: context.feature.id)
 
-        let featureTitle = await featureTitle(context: context)
-        let featureIssueURL = await boardURL(issueID: context.feature.issueID, context: context)
+        let featureTitle = featureObject?.title ?? context.feature.issueID
+        let featureIssueURL = featureObject?.url
 
         let bodyCards = try bodyCards(cards, journal: journal, cycleID: context.cycleID)
         let unmetClauses = try unmetClauses(cards, journal: journal)
@@ -248,19 +262,6 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
         return unmetClauses
     }
 
-    /// Best effort: falls back to the Feature's issue id when no board is bound or the object is
-    /// missing.
-    private func featureTitle(context: LandActLaneContext) async -> String {
-        guard let object = await findBoardObject(id: context.feature.issueID, context: context) else {
-            return context.feature.issueID
-        }
-        return object.title
-    }
-
-    private func boardURL(issueID: String, context: LandActLaneContext) async -> String? {
-        await findBoardObject(id: issueID, context: context)?.url
-    }
-
     /// Pages `board.reading.objects` up to a bounded number of pages looking for `id`. The Board Port
     /// has no read-by-id (ADR-001 write-only elsewhere too); this is the best a Port-only read offers.
     private func findBoardObject(id: String, context: LandActLaneContext) async -> BoardObject? {
@@ -279,5 +280,33 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
             cursor = next
         }
         return nil
+    }
+}
+
+// MARK: - Title
+
+extension FeatureBranchPullRequest {
+    /// The Project's `pull_request_title` Message Template, rendered once with the body. The primary
+    /// epic comes from the Feature-level clauses in the order of the description as it stands now.
+    private func renderTitle(
+        context: LandActLaneContext, featureObject: BoardObject?, branch: FeatureBranch, isPartial: Bool
+    ) throws -> String {
+        let featureClauses = try context.act.journal.clauses(issueID: context.feature.issueID)
+        let primaryEpic = PullRequestTitle.primaryEpic(
+            citations: PullRequestTitle.inClauseOrder(featureClauses, description: featureObject?.description)
+                .map { SpecCitation($0.locationID) }
+        )
+        return PullRequestTitle.render(
+            template: titleTemplate, changeType: changeType,
+            inputs: PullRequestTitle.Inputs(
+                featureTitle: featureObject?.title ?? context.feature.issueID,
+                featureKey: featureObject?.key ?? "",
+                repository: context.lane.repository,
+                branch: branch.name,
+                projectID: projectID,
+                isPartialLanding: isPartial,
+                primaryEpic: primaryEpic
+            )
+        )
     }
 }

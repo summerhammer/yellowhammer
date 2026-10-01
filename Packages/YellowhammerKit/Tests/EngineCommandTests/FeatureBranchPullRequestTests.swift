@@ -103,7 +103,7 @@ struct FeatureBranchPullRequestTests {
 
     /// A fixture Cycle for the Partial Landing body test: one Done Card, one Blocked hole Card with
     /// two Definition of Done clauses, and one Waiting on You Card. Returns the Cycle id.
-    private static func setUpPartialLandingFixture(_ journal: JournalStore) throws -> Int64 {
+    static func setUpPartialLandingFixture(_ journal: JournalStore) throws -> Int64 {
         let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
         try journal.recordFeatureBranch(featureID: featureID, branch: landBranch)
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
