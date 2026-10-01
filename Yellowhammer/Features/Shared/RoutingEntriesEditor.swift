@@ -2,7 +2,7 @@ import Config
 import SwiftUI
 
 /// A `[[routing]]` table, editable: shared by ``ProjectConfigurationView`` (a Project's own overrides) and
-/// ``BaseRoutingTableView`` (the machine-wide base Routing Table) — one Routing Entry's shape does not
+/// ``BaseRoutingTablePane`` (the machine-wide base Routing Table) — one Routing Entry's shape does not
 /// depend on which file it lives in.
 ///
 /// A blank Kind or Repo Role renders as "any" (``RoutingEntryDraft``'s own default): the Operator

@@ -2,15 +2,14 @@ import AppKit
 import Config
 import SwiftUI
 
-/// The machine-wide base Routing Table window, opened from a Project window's "Base Routing Table…"
-/// button or the app's menu command (P14.3). Not Project-scoped: this is `config.toml`'s
+/// The base Routing Table pane of the Settings window's General section, reached from its sidebar or from a
+/// Project's "Base Routing Table…" button (P14.3, P18.15). Not Project-scoped: this is `config.toml`'s
 /// `[[routing]]`, shared by every Project.
-struct BaseRoutingTableView: View {
+struct BaseRoutingTablePane: View {
     @State private var model = BaseRoutingTableModel()
 
     var body: some View {
         content
-            .frame(minWidth: 520, minHeight: 420)
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                 model.reloadIfClean()
             }

@@ -3,17 +3,15 @@ import Domain
 import Ledger
 import SwiftUI
 
-/// The machine-wide "Agent CLIs" window (P14.4), opened from the app's menu command. Not
-/// Project-scoped: the declared CLI Adapters and the Ledger are both machine-wide, so one Probe run
-/// serves every Project. Lists each declared CLI with its latest Probe Result and lets the Operator
-/// run a Probe on demand.
-struct AgentCLIView: View {
+/// The Agent CLIs pane of the Settings window's General section (P14.4, P18.15). Not Project-scoped: the
+/// declared CLI Adapters and the Ledger are both machine-wide, so one Probe run serves every Project.
+/// Lists each declared CLI with its latest Probe Result and lets the Operator run a Probe on demand.
+struct AgentCLIsPane: View {
     @State private var model = AgentCLIModel()
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         content
-            .frame(minWidth: 640, minHeight: 480)
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                 model.reloadIfIdle()
             }
