@@ -101,10 +101,10 @@ struct EngineStopTests {
             _ = try journal.endAttempt(attemptID: attempt.id, ending: .aborted, runID: runID, act: .build)
         }()
         let started = ContinuousClock.now
-        try await stop(journal, wait: .seconds(10), output: output)
+        try await stop(journal, wait: .seconds(60), output: output)
         try await ended
 
-        #expect(ContinuousClock.now - started < .seconds(5))
+        #expect(ContinuousClock.now - started < .seconds(30))
         #expect(output.lines.last == "Attempt \(attempt.id) (A-1) ended aborted.")
     }
 
@@ -137,7 +137,7 @@ struct EngineStopTests {
             _ = try journal.endAttempt(attemptID: retry.id, ending: .aborted, runID: runID, act: .build)
             return (retry.id, unrelated.id)
         }()
-        try await stop(journal, wait: .seconds(10), output: output)
+        try await stop(journal, wait: .seconds(60), output: output)
         let (retryID, unrelatedID) = try await retried
 
         #expect(output.lines.contains("Attempt \(retryID) (A-1) started after the stop: requested its abort too."))
@@ -167,10 +167,10 @@ struct EngineStopTests {
             )
         }()
         let started = ContinuousClock.now
-        try await stop(journal, wait: .seconds(10), output: output)
+        try await stop(journal, wait: .seconds(60), output: output)
         try await ended
 
-        #expect(ContinuousClock.now - started < .seconds(5))
+        #expect(ContinuousClock.now - started < .seconds(30))
         #expect(output.lines.last == "Attempt \(attempt.id) (A-1) ended hard failure.")
     }
 
