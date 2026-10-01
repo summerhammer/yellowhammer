@@ -2365,7 +2365,7 @@ production Night.
 **Order.** P19.1 comes first; P19.2–P19.4 build on it. P19.5 is independent. P19.6 comes before
 P19.7.
 
-### [ ] P19.1 Change Type and Message Templates in Project configuration
+### [x] P19.1 Change Type and Message Templates in Project configuration
 - **Work**
   - The top-level Project key `change_type`, `[github] pull_request_title` and a `[git]` table
     with `commit_message` and `wip_commit_message`, each optional with the spec's default. Project
@@ -2385,6 +2385,16 @@ P19.7.
 - **Done when** — A Project with a bad template is refused for every Act and named by `yh doctor`,
   its siblings still load, `yh project remove` still removes it, and a configuration saved from the
   app keeps all four keys.
+- **Status** — Done on 2026-10-01 (`7f78b5e`). `MessageTemplate` and `ChangeType` live in Domain.
+  - A template is refused for an unknown or another template's token, an unterminated `{`, or
+    when empty; a lone `}` is literal and there is no escape for a literal `{`.
+  - The app's Project draft writes a key back only when it differs from its default, so a file
+    that spells out a default loses that line on save, with the same meaning.
+  - The lenient path is `Configuration.loadLeniently`, used only by `yh project remove`; it keeps
+    the raw `change_type` and `wip_commit_message` and each refusal in `unvalidatedTemplates` for
+    P19.3's fallback. `[git]` and `[github]` must still be tables there, with no unknown keys.
+  - Met: the load-refusal, doctor and lenient-removal criteria. Not met here: the Change Type
+    reaching a title or commit (P19.2–P19.4) and the WIP Commit fallback on removal (P19.3).
 
 ### [ ] P19.2 Pull request title from its template
 - **Work** — The land Act renders each pull request's title from `[github] pull_request_title`,
