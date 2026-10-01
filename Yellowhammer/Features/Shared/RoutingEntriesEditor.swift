@@ -1,7 +1,7 @@
 import Config
 import SwiftUI
 
-/// A `[[routing]]` table, editable: shared by ``ProjectDetailView`` (a Project's own overrides) and
+/// A `[[routing]]` table, editable: shared by ``ProjectConfigurationView`` (a Project's own overrides) and
 /// ``BaseRoutingTableView`` (the machine-wide base Routing Table) — one Routing Entry's shape does not
 /// depend on which file it lives in.
 ///

@@ -5,16 +5,20 @@ import SwiftUI
 
 /// A Project's configuration, editable end to end: name, Repos, Bounds and its own Routing Table
 /// overrides, plus the read-only Spec Source and a way into the machine-wide base Routing Table
-/// (P14.3). Setup holds this same Project detail; this view is the place the Operator comes back to
-/// edit it afterwards.
+/// (P14.3). It is the Configuration tab of a Project's entry in the Settings window, a single screen
+/// and not a wizard: the Setup wizard runs only when a Project is added.
 ///
 /// The app writes configuration only through ``Config/Configuration/save(_:to:in:replacing:)`` — the
 /// loader is the only validator, so a refusal here is always shown in the loader's own words.
-struct ProjectDetailView: View {
-    @State private var model: ProjectDetailModel
+struct ProjectConfigurationView: View {
+    @State private var model: ProjectConfigurationModel
+    /// Called after a save wrote the file, so the window can read its configuration again: the Project's
+    /// name is shown in the window's sidebar and title.
+    private let onSaved: () -> Void
 
-    init(project: ProjectID) {
-        _model = State(initialValue: ProjectDetailModel(project: project))
+    init(project: ProjectID, onSaved: @escaping () -> Void = {}) {
+        _model = State(initialValue: ProjectConfigurationModel(project: project))
+        self.onSaved = onSaved
     }
 
     var body: some View {
@@ -26,7 +30,7 @@ struct ProjectDetailView: View {
 
     @ViewBuilder private var content: some View {
         if model.draft != nil {
-            ProjectDetailFormView(model: model)
+            ProjectConfigurationFormView(model: model, onSaved: onSaved)
         } else {
             unavailable
         }
@@ -46,8 +50,9 @@ struct ProjectDetailView: View {
 /// The form itself, split out so it only ever runs with a non-nil draft. The draft binding falls back to
 /// the draft this body saw rather than unwrapping `model.draft`: `Binding($model.draft)` traps when a
 /// reload clears the draft while a field still reads it, as can happen mid-teardown.
-private struct ProjectDetailFormView: View {
-    @Bindable var model: ProjectDetailModel
+private struct ProjectConfigurationFormView: View {
+    @Bindable var model: ProjectConfigurationModel
+    let onSaved: () -> Void
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -187,7 +192,9 @@ private struct ProjectDetailFormView: View {
                 Button("Revert") { model.revert() }
                     .disabled(!model.isDirty)
                     .accessibilityIdentifier("configuration-revert")
-                Button("Save") { model.save() }
+                Button("Save") {
+                    if model.save() { onSaved() }
+                }
                     .keyboardShortcut("s")
                     .disabled(!model.isDirty)
                     .accessibilityIdentifier("configuration-save")

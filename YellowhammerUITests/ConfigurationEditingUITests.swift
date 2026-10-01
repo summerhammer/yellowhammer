@@ -1,8 +1,8 @@
 import Foundation
 import XCTest
 
-/// The Project Window's Configuration tab driven against a fixture configuration directory (P14.3). A successful
-/// save is not exercised here: the UI test runner is itself sandboxed, so the (unsandboxed) app under
+/// A Project's Configuration tab in the Settings window driven against a fixture configuration directory
+/// (P14.3, P18.13). A successful save is not exercised here: the UI test runner is itself sandboxed, so the (unsandboxed) app under
 /// test cannot write into the runner's own container — see
 /// `SetupWizardUITests`'s stub-execution note for the same boundary. The round trip through
 /// ``Config/Configuration/save(_:to:in:replacing:)`` is covered by
@@ -38,7 +38,7 @@ final class ConfigurationEditingUITests: XCTestCase {
             "-ApplePersistenceIgnoreState", "YES"
         ]
         app.launch()
-        app.openProjectWindow()
+        showConfiguration()
     }
 
     override func tearDown() async throws {
@@ -46,7 +46,22 @@ final class ConfigurationEditingUITests: XCTestCase {
         try? FileManager.default.removeItem(at: configurationDirectory.deletingLastPathComponent())
     }
 
-    func testProjectDetailShowsNameAndReadOnlySpecSource() throws {
+    /// Waits for the main window's Sidebar, opens Settings with Cmd+, and selects the Project's entry,
+    /// which opens on its Configuration tab.
+    private func showConfiguration() {
+        XCTAssertTrue(
+            app.descendants(matching: .any)["sidebar-demo"].firstMatch.waitForExistence(timeout: 10),
+            "The main window's Sidebar did not list the Project"
+        )
+        app.activate()
+        app.typeKey(",", modifierFlags: .command)
+        let entry = app.descendants(matching: .any)["settings-project-demo"].firstMatch
+        XCTAssertTrue(entry.waitForExistence(timeout: 5), "The Settings window did not open")
+        entry.click()
+        XCTAssertTrue(app.tabs["Configuration"].waitForExistence(timeout: 10), "The Configuration tab is missing")
+    }
+
+    func testConfigurationShowsNameAndReadOnlySpecSource() throws {
         let name = app.textFields["project-name"] // glossary:ignore GL001
         XCTAssertTrue(name.waitForExistence(timeout: 10))
         XCTAssertEqual(name.value as? String, "Demo")
