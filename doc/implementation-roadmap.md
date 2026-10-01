@@ -2211,12 +2211,21 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
     and `OverviewWindowUITests` lose the Configuration tab. The Settings, Recalibrate and Overview
     suites pass (the three deep-link launch tests stay skipped for #238).
 
-### [ ] P18.14 Settings — Project — Recalibrate
+### [x] P18.14 Settings — Project — Recalibrate
 - **Work** — Recalibrate in the Settings window.
 - **Retires** — `Legacy/Recalibrate`, then `Legacy/ProjectWindow`.
 - **Spec** — glossary → Settings window.
 - **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`.
 - **Done when** — As P14.7; the temporary second window is gone.
+- **Status** — Done on 2026-10-01 (`24ffa05`).
+  - A Project's Recalibrate tab in the Settings window is the P14.7 screen, unchanged: Bounds with this
+    Night's proximity, re-setting a Bound through `ProjectConfigurationModel`, and a detached rehearsal
+    Night. `RecalibrateModel` and `RecalibrateView` moved to `Features/Settings`; the tab is one view per
+    Project, so a Bounds draft is never shared. `Legacy/Recalibrate` and `Legacy/ProjectWindow` are gone,
+    with the Project Window scene and its menu item.
+  - `RecalibrateUITests` now open Settings with Cmd+, and use the Recalibrate tab; the Project Window UI
+    test is deleted with the window. The Recalibrate, Settings and Overview suites pass. Surviving an app
+    quit stays proved by hand, as in P14.7.
 
 ### [ ] P18.15 Settings — General — Agent CLIs and routing defaults
 - **Work** — Agent CLIs and the base Routing Table defaults. The menu commands move to their own file
