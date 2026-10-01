@@ -34,8 +34,6 @@ Yellowhammer/
     Brand/          e.g. the logo view
     Effects/
     Components/     generic reusable views: Surface, NavigationRow, …
-  DevSupport/
-    Previews/       Debug-only fixtures, Playground and Gallery
   Extensions/
     SwiftUI/
     Foundation/
@@ -69,5 +67,7 @@ The feature is not called "Landing": in the spec, Landing is the `land` Act and 
   modules.
 - **`Integration/` needs a decision first.** A new integration, particularly one that sends data off
   the machine, needs a spec ruling before it gets a folder.
-- **`DevSupport/Previews` is Debug-only.** Every file there is wrapped in `#if DEBUG`, and the shipped
-  app never depends on it.
+- **Screen prototypes live outside the app target**, in the throwaway `Packages/Prototypes` package
+  (one target per screen, e.g. `PulsePrototypes`), so their previews render from fixtures without
+  building the app or `yh`. The shipped app never links it; a screen's target is deleted once the
+  screen is built for real.

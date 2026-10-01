@@ -40,7 +40,11 @@ struct PulseVariant: Identifiable {
 
     /// A variant assembled from interchangeable section, Sidebar, toolbar and Inspector styles.
     init(_ name: String, idea: String, design: PulseDesign) {
-        self.init(name, idea: idea) { PulseComposedVariant(snapshot: $0, selection: $1, design: design) }
+        // Not `self.init(_:idea:make:)`: the preview thunk wraps that call, and initializer delegation
+        // cannot be nested in another expression.
+        self.name = name
+        self.idea = idea
+        self.make = { AnyView(PulseComposedVariant(snapshot: $0, selection: $1, design: design)) }
     }
 }
 

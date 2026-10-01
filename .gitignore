@@ -6,6 +6,8 @@
 DerivedData/
 *.xcuserstate
 xcuserdata/
+# The throwaway Prototypes package pins nothing of its own: YellowhammerKit's Package.resolved does.
+/Packages/Prototypes/Package.resolved
 
 # Agent worktrees and scratch space
 .worktrees/
