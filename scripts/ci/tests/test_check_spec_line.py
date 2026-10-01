@@ -212,6 +212,13 @@ class TestExemptionReason(unittest.TestCase):
         self.assertIsNotNone(self.reason("chore(main): release 0.2.0", "release-please--branches--main"))
         self.assertIsNotNone(self.reason("", "release-please--branches--main"))
 
+    def test_yellowhammer_feature_branch_is_exempt(self):
+        self.assertIsNotNone(self.reason("feat(landing): Retry banked replies", "yh-yellowhammer-retry-banked-replies"))
+        self.assertIsNotNone(self.reason("Retry banked replies (yellowhammer)", "yh-yellowhammer-retry-banked-replies"))
+
+    def test_branch_merely_containing_yh_is_not_exempt(self):
+        self.assertIsNone(self.reason("feat: x", "feature/yh-thing"))
+
 
 if __name__ == "__main__":
     unittest.main()

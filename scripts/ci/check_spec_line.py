@@ -12,7 +12,9 @@ The unfilled template placeholder is not counted.
 Only pull requests that change behavior need the line: those whose Conventional Commits
 title type is feat, fix, perf or revert (or whose title does not parse). Other types
 (docs, ci, build, chore, test, refactor) and release-please's release PRs (head branch
-`release-please--*`) are exempt without one.
+`release-please--*`) are exempt without one. So are pull requests Yellowhammer opens from its
+own Feature Branches (`yh-<project>-<feature>`): their traceability is the Feature's Definition
+of Done, whose clauses cite the spec on the board, and the body quotes each unmet clause's citation.
 """
 
 import os
@@ -29,12 +31,15 @@ CODE_FENCE_PATTERN = re.compile(r"^```")
 TITLE_TYPE_PATTERN = re.compile(r"^([a-z]+)(?:\([^()]+\))?!?: ")
 SPEC_REQUIRED_TYPES = {"feat", "fix", "perf", "revert"}
 RELEASE_PR_BRANCH_PREFIX = "release-please--"
+FEATURE_BRANCH_PREFIX = "yh-"
 
 
 def exemption_reason(title, head_ref):
     """Return why this pull request needs no spec line, or None if it needs one."""
     if head_ref.startswith(RELEASE_PR_BRANCH_PREFIX):
         return "release-please release PR"
+    if head_ref.startswith(FEATURE_BRANCH_PREFIX):
+        return "Yellowhammer Feature Branch: its Definition of Done cites the spec on the board"
     match = TITLE_TYPE_PATTERN.match(title)
     if match and match.group(1) not in SPEC_REQUIRED_TYPES:
         return f"title type '{match.group(1)}' changes no behavior"
@@ -152,7 +157,8 @@ def main():
             "Expected at least one of:\n"
             "  1. Spec: <epic>/<story> @ <sha> (epic and story are lowercase slugs, sha is 7-40 hex chars)\n"
             "  2. Spec-Exempt: <reason> (for non-spec work)\n"
-            "A PR titled with type docs, ci, build, chore, test or refactor needs neither.",
+            "A PR titled with type docs, ci, build, chore, test or refactor, or opened by\n"
+            "Yellowhammer from a yh-* Feature Branch, needs neither.",
             file=sys.stderr
         )
 
