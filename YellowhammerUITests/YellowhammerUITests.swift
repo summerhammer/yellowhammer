@@ -120,23 +120,6 @@ final class OverviewWindowUITests: XCTestCase {
         }
     }
 
-    /// G-6 gives the app configuration and reading and gives Linear every decision (P14.8): the Project
-    /// Window has Recalibrate only — Configuration is in the Settings window — and no Night Card, Feature
-    /// detail, Card detail, Journal account or triage gesture, settle included. The Journal account behind
-    /// a Card is the Inspector's Card detail now.
-    func testProjectWindowStillOpensFromItsMenuItem() {
-        app.openProjectWindow()
-
-        XCTAssertEqual(app.tabs.count, 0, "The Project Window still has tabs")
-        for gesture in ["Kept in Flight", "Released", "Settle", "Accept", "Adopt"] {
-            XCTAssertFalse(
-                app.buttons[gesture].exists,
-                "The Project Window offers the triage gesture \u{201C}\(gesture)\u{201D}, which is Linear's"
-            )
-        }
-        XCTAssertFalse(app.popUpButtons["project-selector"].exists)
-    }
-
     /// A link that launches the app: `XCUIApplication.open(_:)` relaunches it by URL. A link to the
     /// already-running app cannot be driven from here — LaunchServices does not route a URL to an
     /// instance XCUITest launched, and starts a second one instead.

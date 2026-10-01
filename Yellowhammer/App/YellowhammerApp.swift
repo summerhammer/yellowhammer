@@ -64,7 +64,6 @@ struct YellowhammerApp: App {
             }
             CommandGroup(after: .appInfo) {
                 SetupMenuCommand()
-                ProjectWindowMenuCommand()
                 BaseRoutingTableMenuCommand()
                 AgentCLIMenuCommand()
                 CheckForUpdatesMenuCommand(updater: updaterController.updater)
@@ -77,13 +76,6 @@ struct YellowhammerApp: App {
                 .environment(settingsRequest)
         }
         .defaultSize(width: 760, height: 520)
-        .handlesExternalEvents(matching: [])
-
-        // Temporary: the screens the main window does not carry yet, until P18.14 moves the last of them.
-        // A deep link never opens this window; it opens the main window.
-        WindowGroup("Project", id: ProjectWindow.windowID, for: ProjectID.self) { $project in
-            ProjectWindow(project: $project)
-        }
         .handlesExternalEvents(matching: [])
 
         // Not Project-scoped: declaring a new Project happens here, never in a Project window.
@@ -131,23 +123,6 @@ private struct SettingsMenuCommand: View {
             openWindow(id: SettingsWindow.windowID)
         }
         .keyboardShortcut(",", modifiers: .command)
-    }
-}
-
-/// Opens the temporary Project Window for the Project the key main window shows. With no main window
-/// key, it opens the window for the first configured Project.
-private struct ProjectWindowMenuCommand: View {
-    @FocusedValue(\.overviewProject) private var project
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        Button("Project Window\u{2026}") {
-            if let project {
-                openWindow(id: ProjectWindow.windowID, value: project)
-            } else {
-                openWindow(id: ProjectWindow.windowID)
-            }
-        }
     }
 }
 
