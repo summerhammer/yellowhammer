@@ -2,9 +2,9 @@ import Config
 import Domain
 import Foundation
 
-/// Every configured Project's id and name, and nothing else. The temporary Project Window, the Setup
-/// wizard and the updater's live-Lease scan read it. The main window reads the whole configuration
-/// through `OverviewModel`.
+/// Every configured Project's id and name, and the Project files that were refused. The temporary Project
+/// Window, the Setup wizard, the updater's live-Lease scan and the Settings window read it. The main
+/// window reads the whole configuration through `OverviewModel`.
 ///
 /// Read from the TOML files each time it is asked for, never watched or kept: the files are the only
 /// record, and the Operator may edit them while the app is open.
@@ -19,6 +19,8 @@ struct ConfiguredProjects: Equatable {
     let entries: [Entry]
     /// Why nothing could be read, in the loader's own words; nil when the configuration loaded.
     let loadFailure: String?
+    /// The Project files the loader refused, with their errors. They are never in `entries` (OQ79).
+    var refused: [InvalidProject] = []
 
     /// The launch argument that points the app at another configuration directory, for UI tests
     /// (`-YellowhammerConfigurationDirectory <path>`). Only the argument domain is read, so it cannot
@@ -32,7 +34,7 @@ struct ConfiguredProjects: Equatable {
                 return ConfiguredProjects(entries: [], loadFailure: nil)
             }
             let entries = configuration.projects.map { Entry(id: $0.id, name: $0.name) }
-            return ConfiguredProjects(entries: entries, loadFailure: nil)
+            return ConfiguredProjects(entries: entries, loadFailure: nil, refused: configuration.invalidProjects)
         } catch {
             return ConfiguredProjects(entries: [], loadFailure: error.description)
         }

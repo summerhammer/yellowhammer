@@ -58,8 +58,10 @@ final class OverviewWindowUITests: XCTestCase {
         let health = app.descendants(matching: .any)["pulse-health-settings"]
         XCTAssertTrue(health.waitForExistence(timeout: 10))
         health.click()
-        let stub = app.descendants(matching: .any)["settings-stub"]
-        XCTAssertTrue(stub.waitForExistence(timeout: 5))
+        // Settings opens preselected on the main window's Project, the first configured one.
+        // The main window's title is the Project's name too, so the check is the Settings pane itself.
+        let pane = app.descendants(matching: .any)["settings-project-pane-archive"].firstMatch
+        XCTAssertTrue(pane.waitForExistence(timeout: 5))
     }
 
     /// `yh` reads the real configuration, not this fixture, so the app does not run `yh doctor`, and the
