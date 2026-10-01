@@ -1,114 +1,7 @@
+import Foundation
 import GRDB
 
-// These functions belong to migration v1 and are frozen; a later migration must not call them with changes.
 extension JournalMigrations {
-    static func createNightTable(_ db: Database) throws {
-        try db.create(table: "night") { table in
-            table.autoIncrementedPrimaryKey("id")
-            table.column("project_id", .text).notNull()
-            table.column("night_start", .text).notNull()
-            table.column("mode", .text).notNull()
-                .check(sql: "mode IN ('real','rehearsal')")
-            table.column("state", .text).notNull()
-            table.column("night_card_issue_id", .text)
-            table.column("opened_at", .text).notNull()
-            table.column("completed_at", .text)
-            table.uniqueKey(["project_id", "night_start"])
-        }
-    }
-
-    static func createFeatureTable(_ db: Database) throws {
-        try db.create(table: "feature") { table in
-            table.autoIncrementedPrimaryKey("id")
-            table.column("issue_id", .text).notNull().unique()
-            table.column("selected_night_id", .integer).references("night", column: "id")
-            table.column("state", .text).notNull()
-            table.column("reselection_count", .integer).notNull().defaults(to: 0)
-            table.column("created_at", .text).notNull()
-        }
-    }
-
-    static func createCycleTable(_ db: Database) throws {
-        try db.create(table: "cycle") { table in
-            table.autoIncrementedPrimaryKey("id")
-            table.column("feature_id", .integer).notNull().unique()
-                .references("feature", column: "id", onDelete: .cascade)
-            table.column("created_at", .text).notNull()
-            table.column("archived_at", .text)
-        }
-    }
-
-    static func createCardTable(_ db: Database) throws {
-        try db.create(table: "card") { table in
-            table.autoIncrementedPrimaryKey("id")
-            table.column("cycle_id", .integer).notNull()
-                .references("cycle", column: "id", onDelete: .cascade)
-            table.column("issue_id", .text).notNull().unique()
-            table.column("repository", .text).notNull()
-            table.column("kind", .text).notNull()
-            table.column("authored_order", .integer).notNull()
-            table.column("state", .text).notNull()
-            table.column("waiting_reason", .text)
-                .check(sql: "waiting_reason IN ('question','divergence')")
-            table.column("block_reason", .text)
-            table.column("budget_epoch", .integer).notNull().defaults(to: 0)
-            table.column("consecutive_divergences", .integer).notNull().defaults(to: 0)
-            table.column("failed_adoptions", .integer).notNull().defaults(to: 0)
-            table.column("unanswered_nights", .integer).notNull().defaults(to: 0)
-            table.column("created_at", .text).notNull()
-            table.uniqueKey(["cycle_id", "repository", "authored_order"])
-        }
-        try db.create(index: "idx_card_cycle_id", on: "card", columns: ["cycle_id"])
-    }
-
-    static func createAttemptTable(_ db: Database) throws {
-        try db.create(table: "attempt") { table in
-            table.autoIncrementedPrimaryKey("id")
-            table.column("card_id", .integer).notNull()
-                .references("card", column: "id", onDelete: .cascade)
-            table.column("budget_epoch", .integer).notNull()
-            table.column("route_cli", .text).notNull()
-            table.column("route_model", .text).notNull()
-            table.column("route_effort", .text).notNull()
-            table.column("classification", .text)
-            table.column("result", .text)
-            table.column("consumed_how", .text)
-            table.column("check_declared_none", .integer).notNull().defaults(to: 0)
-            table.column("started_at", .text).notNull()
-            table.column("ended_at", .text)
-        }
-        try db.create(index: "idx_attempt_card_id", on: "attempt", columns: ["card_id"])
-    }
-
-    static func createRoundTable(_ db: Database) throws {
-        try db.create(table: "round") { table in
-            table.autoIncrementedPrimaryKey("id")
-            table.column("attempt_id", .integer).notNull()
-                .references("attempt", column: "id", onDelete: .cascade)
-            table.column("lens", .text).notNull()
-                .check(sql: "lens IN ('review','check')")
-            table.column("verdict", .text).notNull()
-            table.column("requested_changes", .text)
-            table.column("judged_commit", .text)
-            table.column("created_at", .text).notNull()
-        }
-        try db.create(index: "idx_round_attempt_id", on: "round", columns: ["attempt_id"])
-    }
-
-    static func createRouteExclusionTable(_ db: Database) throws {
-        try db.create(table: "route_exclusion") { table in
-            table.column("card_id", .integer).notNull()
-                .references("card", column: "id", onDelete: .cascade)
-            table.column("budget_epoch", .integer).notNull()
-            table.column("route_cli", .text).notNull()
-            table.column("route_model", .text).notNull()
-            table.column("route_effort", .text).notNull()
-            table.column("reason", .text).notNull()
-            table.column("excluded_at", .text).notNull()
-            table.primaryKey(["card_id", "budget_epoch", "route_cli", "route_model", "route_effort"])
-        }
-    }
-
     static func createLeaseTable(_ db: Database) throws {
         try db.create(table: "lease") { table in
             table.column("card_id", .integer).primaryKey()
@@ -130,6 +23,20 @@ extension JournalMigrations {
             table.column("path", .text).notNull()
             table.column("created_at", .text).notNull()
             table.column("released_at", .text)
+            // Nil until the Feature Branch has been pushed and that push recorded. This is the release
+            // gate (graph-execution/allocate-a-worktree-per-graph-and-repo): Orca ADE is asked to
+            // remove a Worktree only once this column is set.
+            table.column("pushed_commit", .text)
+            // The columns worktree reconciliation needs (loop-state/reconcile-worktrees-at-act-start),
+            // all nullable:
+            // - `last_known_good_commit` — what a reset returns to (object-guide:
+            //   Worktree.last_known_good_commit), set at allocation and advanced later once a Card's
+            //   work is judged good, so a reset never rewinds accepted work.
+            // - `wip_commit` — the WIP commit reconciliation wrote, handed to the retry as context.
+            // - `lost_at` — when reconciliation found the recorded path gone: a ghost Worktree.
+            table.column("last_known_good_commit", .text)
+            table.column("wip_commit", .text)
+            table.column("lost_at", .text)
             table.uniqueKey(["feature_id", "repository", "worktree_id"])
         }
         try db.create(index: "idx_worktree_feature_id", on: "worktree", columns: ["feature_id"])
@@ -192,6 +99,9 @@ extension JournalMigrations {
             table.column("author_supplied", .integer).notNull().defaults(to: 0)
             table.column("author_supplied_night_id", .integer)
                 .references("night", column: "id", onDelete: .cascade)
+            // The Transcription Block's own content (the renderer's round-trip source), nullable
+            // because a block has none until it is next parsed (Readiness Check, P8.2).
+            table.column("content", .text)
         }
         try db.create(index: "idx_transcription_block_card_id", on: "transcription_block", columns: ["card_id"])
     }
@@ -207,7 +117,20 @@ extension JournalMigrations {
             table.column("created_at", .text).notNull()
             table.column("sent_at", .text)
             table.column("last_error", .text)
+            // State machine columns, Card lease tracking, and group delivery support for
+            // all-or-nothing board write sets. The delivery state machine progresses pending →
+            // applied, failed, or aborted, once per entry. Outbox entries persist delivery history
+            // for replay after a crash.
+            table.column("card_id", .integer)
+                .references("card", column: "id", onDelete: .setNull)
+            table.column("group_id", .text)
+            table.column("state", .text).notNull().defaults(to: "pending")
+                .check(sql: "state IN ('pending','applied','failed','aborted')")
+            table.column("result", .text)
+            table.column("attempt_count", .integer).notNull().defaults(to: 0)
         }
+        try db.create(index: "idx_outbox_state", on: "outbox", columns: ["state"])
+        try db.create(index: "idx_outbox_group_id", on: "outbox", columns: ["group_id"])
     }
 
     static func createBankedReplyTable(_ db: Database) throws {
@@ -235,15 +158,21 @@ extension JournalMigrations {
         }
     }
 
+    /// The single Project-state row. `outbox_salt` salts every Outbox client id this Journal computes
+    /// (`OutboxClientID.make`) so a Project reset — Journal deleted, its Linear issues archived —
+    /// never re-addresses an archived issue on replay. The row is inserted with a fresh random salt;
+    /// the column default stays empty.
     static func createProjectStateTable(_ db: Database) throws {
         try db.create(table: "project_state") { table in
             table.column("id", .integer).primaryKey()
                 .check(sql: "id = 1")
             table.column("consecutive_refusals", .integer).notNull().defaults(to: 0)
+            table.column("outbox_salt", .text).notNull().defaults(to: "")
         }
         // Insert the single row
         try db.execute(
-            sql: "INSERT INTO project_state (id, consecutive_refusals) VALUES (1, 0)"
+            sql: "INSERT INTO project_state (id, consecutive_refusals, outbox_salt) VALUES (1, 0, ?)",
+            arguments: [UUID().uuidString.lowercased()]
         )
     }
 

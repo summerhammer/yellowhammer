@@ -109,13 +109,11 @@ func abortedLastAttemptBlocksOperatorAbort() throws {
     #expect(try journal.attemptHistory(cardID: cardID).blockReason(inEpoch: 0) == .hardFailure)
 }
 
-@Test("v31-operator-abort-request is a registered and applied migration creating its table")
-func operatorAbortMigrationCreatesTable() throws {
+@Test("The schema has the operator_abort_request table")
+func operatorAbortSchemaHasTable() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
 
-    #expect(JournalStore.migrationIdentifiers.contains("v31-operator-abort-request"))
-    #expect(try journal.appliedMigrations().contains("v31-operator-abort-request"))
     let exists = try journal.read { db in try db.tableExists("operator_abort_request") }
     #expect(exists)
 }

@@ -3,7 +3,7 @@ import GRDB
 
 extension JournalStore {
     /// Whether this Journal currently holds a live Lease of either kind: the Card-scoped `lease`
-    /// (V1) or the Project-scoped `act_lease` (V2). Read-only, so it is safe on a store opened with
+    /// or the Project-scoped `act_lease`. Read-only, so it is safe on a store opened with
     /// ``openReadOnly(at:projectID:)``. `launchd` runs `yh` from inside the app bundle, so an update
     /// that replaced the bundle out from under a live Lease would corrupt whatever Act holds it —
     /// this is what the updater's install gate checks before proceeding.

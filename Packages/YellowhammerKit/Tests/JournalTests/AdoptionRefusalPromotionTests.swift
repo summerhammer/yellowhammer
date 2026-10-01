@@ -1,6 +1,5 @@
 import Domain
 import Foundation
-import GRDB
 import Testing
 
 @testable import Journal
@@ -139,31 +138,5 @@ struct AdoptionRefusalPromotionTests {
         #expect(card.failedAdoptions == 0)
         #expect(card.divergenceStandingNightID == nil)
         #expect(try journal.standingDivergenceCards().isEmpty)
-    }
-}
-
-@Suite("Migration V27: the standing-item markers (P11.6)")
-struct StandingItemMigrationTests {
-    @Test("V27 applies on a V26 Journal, adding both nullable marker columns")
-    func v27AddsMarkerColumns() throws {
-        let fixture = try AdoptionPromotionFixture()
-        let fileURL = JournalStore.defaultFileURL(configurationDirectory: fixture.directory, id: fixture.projectID)
-        try FileManager.default.createDirectory(
-            at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true
-        )
-        let v26 = try DatabaseQueue(path: fileURL.path)
-        try JournalMigrations.migrator.migrate(v26, upTo: "v26-adoption-refusal")
-        let refusalColumnsBefore = try v26.read { try $0.columns(in: "refusal") }.map(\.name)
-        let cardColumnsBefore = try v26.read { try $0.columns(in: "card") }.map(\.name)
-        #expect(!refusalColumnsBefore.contains("standing_item_night_id"))
-        #expect(!cardColumnsBefore.contains("divergence_standing_night_id"))
-
-        let journal = try fixture.open()
-
-        #expect(try journal.appliedMigrations().last == "v31-operator-abort-request")
-        let refusalColumns = try journal.read { try $0.columns(in: "refusal") }.map(\.name)
-        let cardColumns = try journal.read { try $0.columns(in: "card") }.map(\.name)
-        #expect(refusalColumns.contains("standing_item_night_id"))
-        #expect(cardColumns.contains("divergence_standing_night_id"))
     }
 }

@@ -278,13 +278,14 @@ struct CardTransitionTests {
         #expect(try journal.cardsWithUnpostedState().map(\.id) == [cardID])
     }
 
-    @Test("v7-card-state-version is a registered and applied migration")
-    func migrationIsRegisteredAndApplied() throws {
+    @Test("The card table has the state-version columns")
+    func cardTableHasStateVersionColumns() throws {
         let fixture = try JournalFixture()
         let journal = try fixture.open()
         _ = try fixtureCard(journal)
 
-        #expect(JournalStore.migrationIdentifiers.contains("v7-card-state-version"))
-        #expect(try journal.appliedMigrations().contains("v7-card-state-version"))
+        let columns = try journal.read { try $0.columns(in: "card") }.map(\.name)
+        #expect(columns.contains("state_version"))
+        #expect(columns.contains("board_state_version"))
     }
 }

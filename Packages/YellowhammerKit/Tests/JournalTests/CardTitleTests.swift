@@ -5,7 +5,7 @@ import Testing
 
 @testable import Journal
 
-// issue #161; spec: landing/announce-a-partial-landing. `card.title` (V30) lets the Roll-up and the
+// issue #161; spec: landing/announce-a-partial-landing. `card.title` lets the Roll-up and the
 // partial-landing PR body name a Card that did not complete by title rather than by issue id.
 
 private struct JournalFixture: ~Copyable {
@@ -61,14 +61,14 @@ private func insertFixtureCard(
 
 @Suite("Card title (issue #161; spec: landing/announce-a-partial-landing)")
 struct CardTitleTests {
-    @Test("v30-card-title is a registered and applied migration")
-    func migrationIsRegisteredAndApplied() throws {
+    @Test("The card table has a title column")
+    func cardTableHasTitleColumn() throws {
         let fixture = try JournalFixture()
         let journal = try fixture.open()
         _ = try insertFixtureCard(journal)
 
-        #expect(JournalStore.migrationIdentifiers.contains("v30-card-title"))
-        #expect(try journal.appliedMigrations().contains("v30-card-title"))
+        let columns = try journal.read { try $0.columns(in: "card") }.map(\.name)
+        #expect(columns.contains("title"))
     }
 
     @Test("A Card with no recorded title reads nil, and displayTitle falls back to the issue id")

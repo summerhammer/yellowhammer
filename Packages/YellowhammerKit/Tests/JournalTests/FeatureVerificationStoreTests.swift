@@ -98,26 +98,6 @@ private func record(
 
 @Suite("Feature verification store (P10.5)")
 struct FeatureVerificationStoreTests {
-    @Test("Migration v20 applies on a v19 Journal, adding both verification tables")
-    func migrationV20AppliesOnV19Database() throws {
-        let fixture = try JournalFixture()
-        let fileURL = JournalStore.defaultFileURL(configurationDirectory: fixture.directory, id: fixture.projectID)
-        try FileManager.default.createDirectory(
-            at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true
-        )
-        let v19 = try DatabaseQueue(path: fileURL.path)
-        try JournalMigrations.migrator.migrate(v19, upTo: "v19-pull-request")
-        #expect(try !v19.read { try $0.tableExists("feature_verification") })
-        #expect(try !v19.read { try $0.tableExists("clause_verification") })
-
-        let journal = try fixture.open()
-
-        #expect(try journal.appliedMigrations().last == "v31-operator-abort-request")
-        let tables = try journal.tableNames()
-        #expect(tables.contains("feature_verification"))
-        #expect(tables.contains("clause_verification"))
-    }
-
     @Test("A recorded Verification reads back with its clauses in the order given, snapshots intact")
     func roundTrip() throws {
         let fixture = try JournalFixture()

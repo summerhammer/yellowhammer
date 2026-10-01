@@ -54,24 +54,6 @@ private func insertFixtureNight(_ journal: JournalStore, projectID: ProjectID) t
 
 @Suite("Pull request store (P10.4)")
 struct PullRequestStoreTests {
-    @Test("Migration v19 applies on a v18 Journal, adding the pull_request table")
-    func migrationV19AppliesOnV18Database() throws {
-        let fixture = try JournalFixture()
-        let fileURL = JournalStore.defaultFileURL(configurationDirectory: fixture.directory, id: fixture.projectID)
-        try FileManager.default.createDirectory(
-            at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true
-        )
-        let v18 = try DatabaseQueue(path: fileURL.path)
-        try JournalMigrations.migrator.migrate(v18, upTo: "v18-predecessor-gate")
-        #expect(try !v18.read { try $0.tableExists("pull_request") })
-
-        let journal = try fixture.open()
-
-        #expect(try journal.appliedMigrations().last == "v31-operator-abort-request")
-        let exists = try journal.write { db in try db.tableExists("pull_request") }
-        #expect(exists)
-    }
-
     @Test("First recordPullRequest wins; a second call for the same feature/repository inserts nothing")
     func firstWriteWins() throws {
         let fixture = try JournalFixture()

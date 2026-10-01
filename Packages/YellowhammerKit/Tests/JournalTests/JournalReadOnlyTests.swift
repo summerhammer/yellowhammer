@@ -114,6 +114,38 @@ struct JournalReadOnlyTests {
         }
     }
 
+    // MARK: - Test: engine open refuses a Journal with unknown migrations
+
+    @Test
+    func engineOpenRefusesUnknownMigrations() throws {
+        let home = createTempHome()
+        defer { try? cleanupTempHome(home) }
+
+        let projectID = try #require(ProjectID(rawValue: "engine-older-schema-test"))
+        let fileURL = JournalStore.defaultFileURL(homeDirectory: home, id: projectID)
+
+        // Create and migrate, then record an identifier this build does not know (as a pre-squash
+        // Journal would carry) through a raw connection.
+        _ = try JournalStore.open(at: fileURL, projectID: projectID)
+        let raw = try DatabaseQueue(path: fileURL.path)
+        try raw.write { db in
+            try db.execute(sql: "INSERT INTO grdb_migrations (identifier) VALUES ('v1-initial-schema')")
+        }
+
+        var error: JournalError?
+        do {
+            _ = try JournalStore.open(at: fileURL, projectID: projectID)
+        } catch let journalError as JournalError {
+            error = journalError
+        }
+
+        guard case .schemaNewerThanKnown(_, let unknown) = error else {
+            Issue.record("Expected .schemaNewerThanKnown error, got \(String(describing: error))")
+            return
+        }
+        #expect(unknown == ["v1-initial-schema"])
+    }
+
     // MARK: - Test: openReadOnly on 0-byte file
 
     @Test

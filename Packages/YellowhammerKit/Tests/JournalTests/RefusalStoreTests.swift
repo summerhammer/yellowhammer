@@ -325,15 +325,13 @@ struct RefusalStoreTests {
     }
 }
 
-@Suite("Refusal migration (P9.7)")
+@Suite("Refusal schema (P9.7)")
 struct RefusalMigrationTests {
-    @Test("v15-refusal creates the refusal table and is still applied")
-    func v15IsLastAndCreatesTable() throws {
+    @Test("The schema has the refusal table")
+    func schemaHasRefusalTable() throws {
         let fixture = try JournalFixture()
         let journal = try fixture.open()
 
-        #expect(try journal.appliedMigrations().contains("v15-refusal"))
-        #expect(JournalStore.migrationIdentifiers.contains("v15-refusal"))
         #expect(try journal.tableNames().contains("refusal"))
     }
 

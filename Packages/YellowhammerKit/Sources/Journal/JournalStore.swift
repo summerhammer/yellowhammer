@@ -7,10 +7,10 @@ import GRDB
 public final class JournalStore: Sendable {
     public let projectID: ProjectID
     public let fileURL: URL
-    /// Salts this Journal's Outbox client ids (``OutboxClientID/make(projectID:salt:key:)``): empty for a
-    /// Journal that already had Outbox entries when `v29-outbox-salt` ran, otherwise a random value fixed
-    /// for the life of the Journal, read once here so a reset Project's fresh Journal never recomputes an
-    /// id that resolves to an issue archived under the previous one.
+    /// Salts this Journal's Outbox client ids (``OutboxClientID/make(projectID:salt:key:)``): a random
+    /// value fixed for the life of the Journal (`project_state.outbox_salt`), read once here so a reset
+    /// Project's fresh Journal never recomputes an id that resolves to an issue archived under the
+    /// previous one.
     public let outboxSalt: String
     private let queue: DatabaseQueue
 
@@ -72,6 +72,14 @@ public final class JournalStore: Sendable {
 
         let queue = try DatabaseQueue(path: fileURL.path, configuration: config)
 
+        // An existing Journal written by a build whose migrations this one does not know (for example
+        // one created before the schema was squashed into a single migration) is refused, not migrated.
+        try queue.read { db in
+            if try db.tableExists("grdb_migrations") {
+                try rejectUnknownMigrations(db, path: fileURL.path)
+            }
+        }
+
         try JournalMigrations.migrator.migrate(queue)
 
         return JournalStore(projectID: projectID, fileURL: fileURL, queue: queue, outboxSalt: try readOutboxSalt(queue))
@@ -98,14 +106,10 @@ public final class JournalStore: Sendable {
                 throw JournalError.schemaBehind(path: fileURL.path, pending: JournalMigrations.migrationIdentifiers)
             }
 
+            try rejectUnknownMigrations(db, path: fileURL.path)
+
             let appliedSet = try JournalMigrations.migrator.appliedIdentifiers(db)
             let knownIdentifiers = JournalMigrations.migrationIdentifiers
-
-            // Check if there are unknown migrations
-            let unknown = Array(appliedSet).filter { !knownIdentifiers.contains($0) }.sorted()
-            if !unknown.isEmpty {
-                throw JournalError.schemaNewerThanKnown(path: fileURL.path, unknown: unknown)
-            }
 
             // Check if there are pending migrations
             let pending = knownIdentifiers.filter { !appliedSet.contains($0) }
@@ -115,6 +119,16 @@ public final class JournalStore: Sendable {
         }
 
         return JournalStore(projectID: projectID, fileURL: fileURL, queue: queue, outboxSalt: try readOutboxSalt(queue))
+    }
+
+    /// Throws `JournalError.schemaNewerThanKnown` if the store has applied a migration this build does not know.
+    private static func rejectUnknownMigrations(_ db: Database, path: String) throws {
+        let appliedSet = try JournalMigrations.migrator.appliedIdentifiers(db)
+        let knownIdentifiers = JournalMigrations.migrationIdentifiers
+        let unknown = Array(appliedSet).filter { !knownIdentifiers.contains($0) }.sorted()
+        if !unknown.isEmpty {
+            throw JournalError.schemaNewerThanKnown(path: path, unknown: unknown)
+        }
     }
 
     /// Identifiers of the migrations this build knows, in order. Last one is the current schema version.

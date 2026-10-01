@@ -87,8 +87,7 @@ public struct OutboxWrite: Equatable, Sendable {
 /// replayed after a crash carries the id the board already knows. Two Projects never share one, because
 /// the Project id is in the digest.
 ///
-/// `salt` is the Journal's `outboxSalt` — empty for a Journal that already held Outbox entries when
-/// `v29-outbox-salt` ran, otherwise fixed for that Journal's life. It exists so a reset Project (Journal
+/// `salt` is the Journal's `outboxSalt` — a random value fixed for that Journal's life. It exists so a reset Project (Journal
 /// deleted, its Linear issues archived) gets a fresh Journal whose ids never recompute to the id of an
 /// issue the previous Journal already created and that is now archived: without the salt, replaying the
 /// same key after a reset would resolve to the archived issue and the write would land invisibly on it.
