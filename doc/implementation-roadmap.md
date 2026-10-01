@@ -2396,7 +2396,7 @@ P19.7.
   - Met: the load-refusal, doctor and lenient-removal criteria. Not met here: the Change Type
     reaching a title or commit (P19.2–P19.4) and the WIP Commit fallback on removal (P19.3).
 
-### [ ] P19.2 Pull request title from its template
+### [x] P19.2 Pull request title from its template
 - **Work** — The land Act renders each pull request's title from `[github] pull_request_title`,
   replacing `<title> (<repo>)` and the hard-coded `partial landing: ` prefix. `{scope}` is the
   Feature's primary epic: the epic cited by the most feature-level DoD clauses whose citation is a
@@ -2404,9 +2404,24 @@ P19.7.
   empty when no clause cites a story. `{key}` is the Feature Issue's human identifier. The title is
   written once, with the body, and never revised.
 - **Spec** — `landing/open-one-pull-request-per-repository`; OQ103 (a).
-- **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
 - **Done when** — The rendered title is asserted for a given template, Feature, clause citations
   and Partial Landing flag, including the tie-break and the no-story case; the body is unchanged.
+- **Status** — Done on 2026-10-01 (`a4395c6`). `PullRequestTitle` (Engine) renders the title;
+  `SpecCitation.epic` (Domain) recognises a story ID, for P19.4's `{story}` too.
+  `FeatureBranchPullRequest` takes the template, Change Type and Project id from `LandBinding`.
+  - The clauses are the Journal's feature-level ones, the set Verification judges. They are in
+    clause order: the order of their `yh:clause` markers in the Feature Issue's description as read
+    at landing, then numeric cid. The Journal's own order is lexical on cid (`c10` before `c2`),
+    because authoring gives a Feature's clauses one timestamp, so it is not used. Clause order by
+    description is stack.md's reading, drafted and pending sponsor.
+  - The glossary's tie-break ("the epic of the first cited story") differs from stack.md and OQ103
+    ("the tied epic whose earliest such clause comes first"). The latter is built: it always names
+    a tied epic. The glossary wording is a spec defect to raise.
+  - `{key}` is `BoardObject.key`, and empty when the board object cannot be read. The Feature's
+    board object is now read once per pull request, not three times.
+  - Met: the title rendered from its template (including the tie-break and the no-story case), and
+    the body staying normative when a template omits `{partial}`. Both are asserted through the
+    seam, with the body identical across templates. The load refusal was met in P19.1.
 
 ### [ ] P19.3 WIP Commit message, trailer and author
 - **Work** — Every WIP Commit — reconciliation, the fence before a new Attempt, on Block, and
