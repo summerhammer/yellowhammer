@@ -2423,7 +2423,7 @@ P19.7.
     the body staying normative when a template omits `{partial}`. Both are asserted through the
     seam, with the body identical across templates. The load refusal was met in P19.1.
 
-### [ ] P19.3 WIP Commit message, trailer and author
+### [x] P19.3 WIP Commit message, trailer and author
 - **Work** — Every WIP Commit — reconciliation, the fence before a new Attempt, on Block, and
   real-mode Project removal — carries the message rendered from `[git] wip_commit_message`, the
   trailer `Yellowhammer-WIP: <branch>` and the author `Yellowhammer <noreply@yellowhammer.dev>`,
@@ -2435,6 +2435,17 @@ P19.7.
 - **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`.
 - **Done when** — Against fixture repositories, every trigger writes the rendered message, the
   trailer and the author; removal of a Project with a refused template writes the default.
+
+- **Status** — Done on 2026-10-01 (`610b838`). `WIPCommitMessage` (Repositories) renders the template, the
+  trailer and the author; `WorktreeCommitter` carries one, and `commitWIP` takes the `{repository}` it fills.
+  - Wired from `ProjectConfiguration.wipCommit` into the Card run's reset seam (the fence before a new
+    Attempt, and Block), `BuildAct`'s reconciliation, and removal. `AttemptResetting.reset` gained a
+    `repository` parameter for it. `WorktreeCommitter.messageMarker` is gone.
+  - The lenient-load fallbacks were already made by P19.1's decoder; removal now prints each one
+    (`git.wip_commit_message` → built-in default, `change_type` → `feat`) before it starts.
+  - Met: the message, trailer and author asserted against fixture repositories for reconciliation, the
+    reset seam and removal, and removal of a Project with a refused template and a non-string
+    `change_type` writing the defaults. Not asserted: the Waiting on You trigger (P19.5 builds it).
 
 ### [ ] P19.4 Worker commit-message instruction and the `Yellowhammer-Card` record
 - **Work**
