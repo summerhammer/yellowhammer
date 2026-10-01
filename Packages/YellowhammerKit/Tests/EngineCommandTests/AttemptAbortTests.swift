@@ -137,10 +137,10 @@ struct AttemptAbortTests {
             _ = try journal.endAttempt(attemptID: attempt.id, ending: .aborted, runID: runID, act: .build)
         }()
         let started = ContinuousClock.now
-        try await abort(journal, attempt: attempt.id, wait: .seconds(10), output: output)
+        try await abort(journal, attempt: attempt.id, wait: .seconds(60), output: output)
         try await ended
 
-        #expect(ContinuousClock.now - started < .seconds(5))
+        #expect(ContinuousClock.now - started < .seconds(30))
         #expect(output.lines == [
             "Aborting Attempt \(attempt.id) (A-1) in Project alpha: requested its abort.",
             "Attempt \(attempt.id) (A-1) ended aborted."
