@@ -58,11 +58,7 @@ final class SetupWizardModel {
     var isFetchingChoices = false
     var choicesErrorOutput: [String] = []
     var choices: SetupChoices?
-    var linearInstallPhase: LinearInstallPhase = .checking
-    var linearInstallTask: Task<Void, Never>?
-    /// Whether the running (or most recently ended) Linear install attempt used `--remote` (roadmap
-    /// P17.9) — so a same-path retry (`startLinearInstall()`, no argument) repeats it.
-    var lastLinearInstallWasRemote = false
+    let linearInstallation = LinearInstallationModel()
 
     // Step: Operator identity
     var selectedOperatorID: String?
@@ -103,6 +99,10 @@ final class SetupWizardModel {
         self.configurationDirectory = configurationDirectory
         configExists = ConfigurationDirectory.machineFileExists(in: configurationDirectory)
         declareProject = ConfiguredProjects.load().entries.isEmpty
+        linearInstallation.linearCredential = { [weak self] in
+            guard let self else { return nil }
+            return configExists || linearCredential == Self.defaultLinearCredential ? nil : linearCredential
+        }
     }
 
     var activeSteps: [Step] {
@@ -116,7 +116,7 @@ final class SetupWizardModel {
     var canContinue: Bool {
         switch currentStep {
         case .linear:
-            return !isFetchingChoices && linearInstallPhase.isInstalled
+            return !isFetchingChoices && linearInstallation.phase.isInstalled
         case .operatorIdentity:
             return selectedOperatorID != nil
         case .cliRouting:
@@ -216,7 +216,7 @@ final class SetupWizardModel {
     /// Terminates the current run, if any: closing the Setup window is not an Act, so nothing must
     /// survive it.
     func terminateRun() {
-        linearInstallTask?.cancel()
+        linearInstallation.terminate()
         engine.terminate()
     }
 
