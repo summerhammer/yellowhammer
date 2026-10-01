@@ -8,9 +8,16 @@ struct ProjectConfigurationDecoder {
     /// When set, the `id` must equal it.
     private let fileStem: String?
 
-    init(file: String, fileStem: String?, declaredCLIAdapters: Set<String>? = nil) {
+    /// When set, `change_type` and the Message Templates are not validated: a refused one is recorded
+    /// in ``ProjectConfiguration/unvalidatedTemplates`` and the default stands in (`yh project remove`).
+    private let lenientTemplates: Bool
+
+    init(
+        file: String, fileStem: String?, declaredCLIAdapters: Set<String>? = nil, lenientTemplates: Bool = false
+    ) {
         decoding = ConfigurationDecoding(file: file, declaredCLIAdapters: declaredCLIAdapters)
         self.fileStem = fileStem
+        self.lenientTemplates = lenientTemplates
     }
 
     /// The specification-source rule runs last, so a malformed file reports its shape error first.
@@ -18,8 +25,12 @@ struct ProjectConfigurationDecoder {
         try decoding.rejectUnknownKeys(
             in: root,
             path: nil,
-            allowed: ["id", "name", "linear_project", "spec_source", "repos", "limits", "schedule", "github", "routing"]
+            allowed: [
+                "id", "name", "linear_project", "spec_source", "change_type", "repos", "limits", "schedule",
+                "github", "git", "routing"
+            ]
         )
+        var unvalidated = UnvalidatedTemplateValues()
         var configuration = ProjectConfiguration(
             id: try projectID(in: root),
             name: try decoding.requiredString("name", in: root, path: nil),
@@ -28,9 +39,14 @@ struct ProjectConfigurationDecoder {
             repos: try repos(in: root),
             bounds: try bounds(in: root),
             schedule: try schedule(in: root),
-            gitHubCredential: try gitHubCredential(in: root),
-            routingOverrides: try decoding.routingTable(in: root)
+            routingOverrides: try decoding.routingTable(in: root),
+            changeType: try changeType(in: root, unvalidated: &unvalidated)
         )
+        try applyGitHub(in: root, to: &configuration, unvalidated: &unvalidated)
+        try applyGit(in: root, to: &configuration, unvalidated: &unvalidated)
+        if lenientTemplates {
+            configuration.unvalidatedTemplates = unvalidated
+        }
         configuration.repoPathLines = repoPathLines(in: root)
         try requireExactlyOneSpecificationSource(in: root)
         return configuration
@@ -202,10 +218,79 @@ struct ProjectConfigurationDecoder {
         return time
     }
 
-    // MARK: - GitHub
+    // MARK: - GitHub, git and templates
 
-    private func gitHubCredential(in root: TOMLTable) throws(ConfigurationError) -> CredentialReference? {
-        guard root["github"] != nil else { return nil }
-        return try decoding.credential(in: root, table: "github")
+    /// `[github]` in a Project file: an optional `credential` override and the `pull_request_title`
+    /// template. Either may stand alone, so a `[github]` with only a title means no credential override.
+    /// (The machine file's `[github]` stays credential-only: ``ConfigurationDecoding/credential(in:table:)``.)
+    private func applyGitHub(
+        in root: TOMLTable, to configuration: inout ProjectConfiguration, unvalidated: inout UnvalidatedTemplateValues
+    ) throws(ConfigurationError) {
+        guard let value = root["github"] else { return }
+        let table = try decoding.table(value, key: "github")
+        try decoding.rejectUnknownKeys(in: table, path: "github", allowed: ["credential", "pull_request_title"])
+        if let string = try decoding.optionalString("credential", in: table, path: "github") {
+            guard let reference = CredentialReference(string) else {
+                let line = table["credential"]?.line ?? table.line
+                throw decoding.error(line: line, key: "github.credential", .emptyString)
+            }
+            configuration.gitHubCredential = reference
+        }
+        configuration.pullRequestTitle = try template(
+            .pullRequestTitle, in: table, path: "github", unvalidated: &unvalidated
+        )
+    }
+
+    private func applyGit(
+        in root: TOMLTable, to configuration: inout ProjectConfiguration, unvalidated: inout UnvalidatedTemplateValues
+    ) throws(ConfigurationError) {
+        guard let value = root["git"] else { return }
+        let table = try decoding.table(value, key: "git")
+        try decoding.rejectUnknownKeys(in: table, path: "git", allowed: ["commit_message", "wip_commit_message"])
+        configuration.commitMessage = try template(.commitMessage, in: table, path: "git", unvalidated: &unvalidated)
+        configuration.wipCommitMessage = try template(
+            .wipCommitMessage, in: table, path: "git", unvalidated: &unvalidated
+        )
+    }
+
+    /// The template at `kind.key`, or its default when absent. When lenient, a refused one is recorded
+    /// and replaced by the default.
+    private func template(
+        _ kind: MessageTemplate.Kind, in table: TOMLTable, path: String, unvalidated: inout UnvalidatedTemplateValues
+    ) throws(ConfigurationError) -> MessageTemplate {
+        let fallback = MessageTemplate.default(kind)
+        guard lenientTemplates else {
+            return try decoding.messageTemplate(kind, in: table, path: path) ?? fallback
+        }
+        if kind == .wipCommitMessage, case .string(let raw)? = table[kind.key]?.content {
+            unvalidated.wipCommitMessage = raw
+        }
+        do throws(ConfigurationError) {
+            return try decoding.messageTemplate(kind, in: table, path: path) ?? fallback
+        } catch {
+            unvalidated.refusals.append(error)
+            return fallback
+        }
+    }
+
+    /// The top-level `change_type`, or `feat` when absent. When lenient, a refused one is recorded and
+    /// replaced by `feat`.
+    private func changeType(
+        in root: TOMLTable, unvalidated: inout UnvalidatedTemplateValues
+    ) throws(ConfigurationError) -> ChangeType {
+        if lenientTemplates, case .string(let raw)? = root["change_type"]?.content {
+            unvalidated.changeType = raw
+        }
+        do throws(ConfigurationError) {
+            guard let string = try decoding.optionalString("change_type", in: root, path: nil) else { return .feat }
+            guard let changeType = ChangeType(string) else {
+                throw decoding.error(line: root["change_type"]?.line ?? 1, key: "change_type", .emptyString)
+            }
+            return changeType
+        } catch {
+            guard lenientTemplates else { throw error }
+            unvalidated.refusals.append(error)
+            return .feat
+        }
     }
 }

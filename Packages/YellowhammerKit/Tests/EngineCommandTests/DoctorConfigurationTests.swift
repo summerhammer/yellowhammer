@@ -32,6 +32,38 @@ struct DoctorConfigurationTests {
         })
     }
 
+    @Test("A Project with an unknown template token fails, naming the key; a valid sibling still passes")
+    func invalidTemplateFailsSiblingPasses() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+        try directory.writeValidProjectFile(id: "alpha")
+        try directory.writeProjectFile(id: "broken", """
+            id = "broken"
+            name = "broken"
+            linear_project = "broken"
+            spec_source = "~/Developer/broken-spec"
+
+            [[repos]]
+            name = "backend"
+            path = "~/Developer/broken-backend"
+            role = "backend"
+            check = "none"
+
+            [git]
+            commit_message = "{type}: {branch}"
+            """)
+
+        let doctor = makeDoctor(directory: directory, checks: [.configuration])
+        let findings = await doctor.run()
+
+        let failure = try #require(findings.first { $0.check == .configuration && $0.severity == .failure })
+        #expect(failure.message.contains("git.commit_message"))
+        #expect(failure.message.contains("{branch}"))
+        #expect(findings.contains {
+            $0.check == .configuration && $0.severity == .pass && $0.subject == "alpha"
+        })
+    }
+
     @Test("A malformed machine file fails and stops every later check")
     func malformedMachineFileStopsLaterChecks() async throws {
         let directory = ConfigurationDirectory()

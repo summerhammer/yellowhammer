@@ -91,8 +91,16 @@ extension Configuration {
         try load(directory: directory, substitution: (file: file, text: text))
     }
 
+    /// Loads `directory` as ``load(directory:)`` does, except that no Project's `change_type` or Message
+    /// Template is validated: a refused one is recorded in ``ProjectConfiguration/unvalidatedTemplates``
+    /// and its default stands in. For `yh project remove`, which validates only what it uses
+    /// (spec: Configuration schema; OQ103(f)). Everything else is checked as usual.
+    public static func loadLeniently(directory: URL) throws(ConfigurationError) -> Configuration {
+        try load(directory: directory, substitution: nil, lenientTemplates: true)
+    }
+
     private static func load(
-        directory: URL, substitution: (file: URL, text: String)?
+        directory: URL, substitution: (file: URL, text: String)?, lenientTemplates: Bool = false
     ) throws(ConfigurationError) -> Configuration {
         let machineFileURL = directory.appending(component: "config.toml", directoryHint: .notDirectory)
         let machine = try loadMachine(at: machineFileURL, substitution: substitution)
@@ -104,7 +112,8 @@ extension Configuration {
             let file = url.path(percentEncoded: false)
             do {
                 let configuration = try loadProject(
-                    at: url, declaredCLIAdapters: declaredCLIAdapters, substitution: substitution
+                    at: url, declaredCLIAdapters: declaredCLIAdapters, substitution: substitution,
+                    lenientTemplates: lenientTemplates
                 )
                 decoded.append((file, configuration))
             } catch {
@@ -150,17 +159,21 @@ extension Configuration {
 
     /// Reads `url`, or parses `substitution`'s text in its place when `url` is the substituted file.
     private static func loadProject(
-        at url: URL, declaredCLIAdapters: Set<String>, substitution: (file: URL, text: String)?
+        at url: URL, declaredCLIAdapters: Set<String>, substitution: (file: URL, text: String)?,
+        lenientTemplates: Bool
     ) throws(ConfigurationError) -> ProjectConfiguration {
         if let substitution, samePath(substitution.file, url) {
             return try ProjectConfiguration.parse(
                 substitution.text,
                 file: url.path(percentEncoded: false),
                 fileStem: url.deletingPathExtension().lastPathComponent,
-                declaredCLIAdapters: declaredCLIAdapters
+                declaredCLIAdapters: declaredCLIAdapters,
+                lenientTemplates: lenientTemplates
             )
         }
-        return try ProjectConfiguration.load(contentsOf: url, declaredCLIAdapters: declaredCLIAdapters)
+        return try ProjectConfiguration.load(
+            contentsOf: url, declaredCLIAdapters: declaredCLIAdapters, lenientTemplates: lenientTemplates
+        )
     }
 
     private static func projectFileURLs(in directory: URL) -> [URL] {

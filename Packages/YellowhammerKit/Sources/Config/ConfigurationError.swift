@@ -30,6 +30,11 @@ public struct ConfigurationError: Error, Equatable, Sendable {
         case workingRepoConflict(project: ProjectID, file: String)
         /// `[linear].client_id`, from the withdrawn client-credentials setup (P17.4).
         case legacyLinearClientID
+        /// A Message Template names `{name}`, which is not a token of its template. `key` is the
+        /// template's own key (`commit_message`); `accepted` lists the tokens it does take.
+        case unknownTemplateToken(name: String, key: String, accepted: [String])
+        /// A Message Template has a `{` with no closing `}`.
+        case unterminatedTemplateBrace(key: String)
     }
 
     public let file: String
@@ -110,6 +115,10 @@ extension ConfigurationError.Reason: CustomStringConvertible {
         case .legacyLinearClientID:
             return "this configuration names a Linear client id from the withdrawn client-credentials " +
                 "setup; re-run the Linear step of yh setup"
+        case .unknownTemplateToken(let name, let key, let accepted):
+            return "names {\(name)}, which is not a \(key) token; the tokens are \(accepted.joined(separator: ", "))"
+        case .unterminatedTemplateBrace(let key):
+            return "has a \"{\" with no closing \"}\"; a \(key) names its tokens as {name}"
         }
     }
 }

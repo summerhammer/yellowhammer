@@ -22,6 +22,18 @@ public struct ProjectConfiguration: Sendable {
     public var gitHubCredential: CredentialReference?
     /// This Project's Routing Table overrides, in file order, not yet merged with the base table.
     public var routingOverrides: [RoutingEntry]
+    /// The Project's Change Type, `feat` when the file sets none.
+    public var changeType: ChangeType
+    /// `[github] pull_request_title`, or its built-in default.
+    public var pullRequestTitle: MessageTemplate
+    /// `[git] commit_message`, or its built-in default.
+    public var commitMessage: MessageTemplate
+    /// `[git] wip_commit_message`, or its built-in default.
+    public var wipCommitMessage: MessageTemplate
+    /// Set only by a lenient load (``Configuration/loadLeniently(directory:)``, used by `yh project remove`):
+    /// what the template keys held, as written, and why each was refused. The typed template properties
+    /// above then hold their defaults for every refused key. Not part of equality.
+    public internal(set) var unvalidatedTemplates: UnvalidatedTemplateValues?
     /// The line of each Repo's `path` key, parallel to `repos`, so that a cross-Project error can
     /// point at it. Empty for a value not decoded from a file. Not part of equality.
     var repoPathLines: [Int] = []
@@ -35,7 +47,11 @@ public struct ProjectConfiguration: Sendable {
         bounds: Bounds = Bounds(),
         schedule: Schedule = Schedule(),
         gitHubCredential: CredentialReference? = nil,
-        routingOverrides: [RoutingEntry] = []
+        routingOverrides: [RoutingEntry] = [],
+        changeType: ChangeType = .feat,
+        pullRequestTitle: MessageTemplate = .default(.pullRequestTitle),
+        commitMessage: MessageTemplate = .default(.commitMessage),
+        wipCommitMessage: MessageTemplate = .default(.wipCommitMessage)
     ) {
         self.id = id
         self.name = name
@@ -46,6 +62,10 @@ public struct ProjectConfiguration: Sendable {
         self.schedule = schedule
         self.gitHubCredential = gitHubCredential
         self.routingOverrides = routingOverrides
+        self.changeType = changeType
+        self.pullRequestTitle = pullRequestTitle
+        self.commitMessage = commitMessage
+        self.wipCommitMessage = wipCommitMessage
     }
 
     /// The Project's repositories expressed in Domain vocabulary.
@@ -64,7 +84,7 @@ public struct ProjectConfiguration: Sendable {
 }
 
 extension ProjectConfiguration: Equatable {
-    /// Compares every public property; ``repoPathLines`` is source bookkeeping, not configuration.
+    /// Compares every property but ``repoPathLines`` and ``unvalidatedTemplates``, which are source bookkeeping, not configuration.
     public static func == (lhs: ProjectConfiguration, rhs: ProjectConfiguration) -> Bool {
         lhs.id == rhs.id
             && lhs.name == rhs.name
@@ -75,6 +95,10 @@ extension ProjectConfiguration: Equatable {
             && lhs.schedule == rhs.schedule
             && lhs.gitHubCredential == rhs.gitHubCredential
             && lhs.routingOverrides == rhs.routingOverrides
+            && lhs.changeType == rhs.changeType
+            && lhs.pullRequestTitle == rhs.pullRequestTitle
+            && lhs.commitMessage == rhs.commitMessage
+            && lhs.wipCommitMessage == rhs.wipCommitMessage
     }
 }
 
@@ -94,6 +118,12 @@ extension ProjectConfiguration {
     public static func load(
         contentsOf url: URL, declaredCLIAdapters: Set<String>? = nil
     ) throws(ConfigurationError) -> ProjectConfiguration {
+        try load(contentsOf: url, declaredCLIAdapters: declaredCLIAdapters, lenientTemplates: false)
+    }
+
+    static func load(
+        contentsOf url: URL, declaredCLIAdapters: Set<String>?, lenientTemplates: Bool
+    ) throws(ConfigurationError) -> ProjectConfiguration {
         let file = url.path(percentEncoded: false)
         let text: String
         do {
@@ -105,26 +135,47 @@ extension ProjectConfiguration {
             text,
             file: file,
             fileStem: url.deletingPathExtension().lastPathComponent,
-            declaredCLIAdapters: declaredCLIAdapters
+            declaredCLIAdapters: declaredCLIAdapters,
+            lenientTemplates: lenientTemplates
         )
     }
 
     public static func parse(
         _ text: String, file: String, declaredCLIAdapters: Set<String>? = nil
     ) throws(ConfigurationError) -> ProjectConfiguration {
-        try parse(text, file: file, fileStem: nil, declaredCLIAdapters: declaredCLIAdapters)
+        try parse(text, file: file, fileStem: nil, declaredCLIAdapters: declaredCLIAdapters, lenientTemplates: false)
     }
 
     /// Also used by ``Configuration/load(directory:reading:as:)`` to parse a Project file's substituted
     /// text against its filename's stem, without re-reading it from disk.
     static func parse(
-        _ text: String, file: String, fileStem: String?, declaredCLIAdapters: Set<String>?
+        _ text: String, file: String, fileStem: String?, declaredCLIAdapters: Set<String>?,
+        lenientTemplates: Bool
     ) throws(ConfigurationError) -> ProjectConfiguration {
         let root = try TOMLParser.parse(text, file: file)
         let decoder = ProjectConfigurationDecoder(
-            file: file, fileStem: fileStem, declaredCLIAdapters: declaredCLIAdapters
+            file: file, fileStem: fileStem, declaredCLIAdapters: declaredCLIAdapters,
+            lenientTemplates: lenientTemplates
         )
         return try decoder.decode(root)
+    }
+}
+
+/// What a lenient load found under the template keys: the raw strings as written, and each refusal a
+/// normal load would have thrown. See ``ProjectConfiguration/unvalidatedTemplates``.
+public struct UnvalidatedTemplateValues: Equatable, Sendable {
+    /// `change_type` as written; nil when absent or not a string.
+    public var changeType: String?
+    /// `[git] wip_commit_message` as written; nil when absent or not a string. The removal's safety WIP
+    /// Commit renders it when it validates, and the built-in default when it does not.
+    public var wipCommitMessage: String?
+    /// One per refused key, in the order the decoder reads them.
+    public var refusals: [ConfigurationError] = []
+
+    public init(changeType: String? = nil, wipCommitMessage: String? = nil, refusals: [ConfigurationError] = []) {
+        self.changeType = changeType
+        self.wipCommitMessage = wipCommitMessage
+        self.refusals = refusals
     }
 }
 

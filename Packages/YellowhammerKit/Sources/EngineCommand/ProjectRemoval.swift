@@ -38,7 +38,7 @@ struct ProjectRemoval {
         let project: ProjectConfiguration
         do {
             (configuration, project) = try ProjectResolution.resolve(
-                projectArgument: id, configurationDirectory: configurationDirectory
+                projectArgument: id, configurationDirectory: configurationDirectory, lenientTemplates: true
             )
         } catch {
             output("\(error)")

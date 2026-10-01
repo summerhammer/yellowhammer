@@ -49,6 +49,39 @@ struct ConfigurationDecoding {
         return reference
     }
 
+    /// A Message Template of `kind` at `key` in `table`, or nil when the key is absent. An empty (or
+    /// whitespace-only) template, an unknown token and an unterminated `{` are refused here. The lenient
+    /// removal path catches these refusals instead of failing the load.
+    func messageTemplate(
+        _ kind: MessageTemplate.Kind, in table: TOMLTable, path: String?
+    ) throws(ConfigurationError) -> MessageTemplate? {
+        guard let value = table[kind.key] else { return nil }
+        let keyPath = TOMLKey.path(path, kind.key)
+        guard case .string(let string) = value.content else {
+            throw error(line: value.line, key: keyPath, .typeMismatch(expected: "string", found: value.typeName))
+        }
+        do {
+            return try MessageTemplate(string, kind: kind)
+        } catch {
+            throw self.error(line: value.line, key: keyPath, Self.reason(for: error, kind: kind))
+        }
+    }
+
+    /// The refusal of a template as a load error.
+    static func reason(for refusal: MessageTemplate.Refusal, kind: MessageTemplate.Kind) -> ConfigurationError.Reason {
+        switch refusal {
+        case .empty:
+            .emptyString
+        case .unknownToken(let name):
+            .unknownTemplateToken(
+                name: name, key: kind.key,
+                accepted: MessageTemplate.Token.allCases.filter { kind.allowedTokens.contains($0) }.map(\.description)
+            )
+        case .unterminatedBrace:
+            .unterminatedTemplateBrace(key: kind.key)
+        }
+    }
+
     /// A missing key is reported on its table's line.
     func requiredString(_ key: String, in table: TOMLTable, path: String?) throws(ConfigurationError) -> String {
         guard let string = try optionalString(key, in: table, path: path) else {
