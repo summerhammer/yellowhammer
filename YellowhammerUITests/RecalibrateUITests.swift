@@ -59,10 +59,6 @@ final class RecalibrateUITests: XCTestCase {
     }
 
     func testRecalibrateShowsBoundValueAndProximity() throws {
-        let recalibrateTab = app.tabs["Recalibrate"]
-        XCTAssertTrue(recalibrateTab.waitForExistence(timeout: 10))
-        recalibrateTab.click()
-
         let value = app.textFields["recalibrate-value-review_rounds_max"]
         XCTAssertTrue(value.waitForExistence(timeout: 10))
         XCTAssertEqual(value.value as? String, "2")
@@ -73,10 +69,6 @@ final class RecalibrateUITests: XCTestCase {
     }
 
     func testConfirmingLaunchesARehearsalNight() throws {
-        let recalibrateTab = app.tabs["Recalibrate"]
-        XCTAssertTrue(recalibrateTab.waitForExistence(timeout: 10))
-        recalibrateTab.click()
-
         let runButton = app.buttons["recalibrate-run-rehearsal"]
         XCTAssertTrue(runButton.waitForExistence(timeout: 10))
         runButton.click()

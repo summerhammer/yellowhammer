@@ -2,9 +2,9 @@ import AppKit
 import Domain
 import SwiftUI
 
-/// A temporary second window, scoped to exactly one Project. It carries the screens the main window does
-/// not carry yet: Configuration and Recalibrate. The Journal account behind a Card is the Inspector's
-/// Card detail now.
+/// A temporary second window, scoped to exactly one Project. It carries the one screen the Settings
+/// window does not carry yet: Recalibrate. A Project's Configuration is in the Settings window, and the
+/// Journal account behind a Card is the Inspector's Card detail.
 ///
 /// The "Project Window…" menu item opens it for the Project the main window shows. `project` is the
 /// window's own value, fixed when the window opens. It is nil only when no main window was key, and the
@@ -12,7 +12,7 @@ import SwiftUI
 /// main window. The window is deleted when P18.14 moves its last screen into the Settings window.
 ///
 /// The Night Card, Feature detail, Card detail and every triage gesture are Linear's, so none of them
-/// is a tab here (P14.8).
+/// is a screen here (P14.8).
 struct ProjectWindow: View {
     static let windowID = "ProjectWindow"
 
@@ -37,16 +37,8 @@ struct ProjectWindow: View {
 
     @ViewBuilder private var content: some View {
         if let entry = configured.entry(for: scopedProject) {
-            TabView {
-                Tab("Configuration", systemImage: "gearshape") {
-                    ProjectDetailView(project: entry.id)
-                        .id(entry.id)
-                }
-                Tab("Recalibrate", systemImage: "slider.horizontal.3") {
-                    RecalibrateView(project: entry.id)
-                        .id(entry.id)
-                }
-            }
+            RecalibrateView(project: entry.id)
+                .id(entry.id)
         } else {
             fallbackContent
         }

@@ -8,10 +8,10 @@ import Observation
 /// The app writes configuration only through ``Config/Configuration/save(_:to:in:replacing:)`` — never
 /// any other file — and the Journal is never touched here. Nothing is cached beyond the form's own
 /// state and nothing watches the file: a direct hand edit is picked up only when ``reloadIfClean()`` is
-/// called (on app activation, like ``ProjectWindow``) and there are no unsaved edits to lose.
+/// called (on app activation) and there are no unsaved edits to lose.
 @MainActor
 @Observable
-final class ProjectDetailModel {
+final class ProjectConfigurationModel {
     let projectID: ProjectID
     let directory: URL
     let file: URL
@@ -77,14 +77,18 @@ final class ProjectDetailModel {
 
     /// Validates and writes ``draft`` through the loader. On success the model reloads from disk, so
     /// ``originalText`` and ``saved`` reflect what was actually written. On refusal ``draft`` is kept
-    /// exactly as the Operator left it, so they can fix it without retyping.
-    func save() {
-        guard let draft, let originalText else { return }
+    /// exactly as the Operator left it, so they can fix it without retyping. Returns whether the file was
+    /// written, so a caller that shows the configuration elsewhere can read it again.
+    @discardableResult
+    func save() -> Bool {
+        guard let draft, let originalText else { return false }
         do {
             try Configuration.save(draft.renderedTOML, to: file, in: directory, replacing: originalText)
             load()
+            return true
         } catch {
             failure = error.description
+            return false
         }
     }
 

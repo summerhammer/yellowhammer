@@ -4,8 +4,8 @@ import SwiftUI
 
 /// The Settings window (Cmd+,): a sidebar with the machine-wide General section and the configured
 /// Projects, and a toolbar with back, forward and the current section's name. It is a separate window
-/// from the main window. The steps after P18.12 fill in Configuration, Recalibrate and the machine-wide
-/// settings.
+/// from the main window. A Project's Configuration is here; the steps after P18.13 fill in Recalibrate and
+/// the machine-wide settings.
 ///
 /// Where each piece of state lives:
 /// - **The current section** is `history.current`. The sidebar's selection is derived from it, and a
@@ -71,7 +71,7 @@ struct SettingsWindow: View {
         case let .project(id):
             if let configured {
                 if configured.entry(for: id) != nil {
-                    ProjectSettingsPane(project: id)
+                    ProjectSettingsPane(project: id, onSaved: readConfiguration)
                 } else {
                     // Its file may have been refused or removed since it was visited.
                     Text("\u{201C}\(id.rawValue)\u{201D} is not configured.")
@@ -85,6 +85,11 @@ struct SettingsWindow: View {
         }
     }
 
+    /// Reads the configuration again, so a saved name shows in the sidebar and the window's title.
+    private func readConfiguration() {
+        configured = ConfiguredProjects.load()
+    }
+
     /// Visits the requested Project, once per request. A request naming no Project leaves the window
     /// where it is.
     private func applyRequest() {
@@ -96,9 +101,9 @@ struct SettingsWindow: View {
     /// Reads the configuration when the window opens, then each time the app becomes active. The loop is
     /// the window's own task, so it ends when the window closes.
     private func readWhileOpen() async {
-        configured = ConfiguredProjects.load()
+        readConfiguration()
         for await _ in NotificationCenter.default.notifications(named: NSApplication.didBecomeActiveNotification) {
-            configured = ConfiguredProjects.load()
+            readConfiguration()
         }
     }
 }

@@ -5,7 +5,7 @@ import Observation
 
 /// The Recalibrate tab's model (P14.7): this Project's Bounds, this Night's proximity to each, and a way
 /// to re-set a Bound's value or launch a rehearsal Night. The app never computes proximity itself —
-/// `yh recalibrate --project <id> --json` does, run through ``SetupEngine``. Bound values are edited and saved through ``ProjectDetailModel`` (P14.3) — never a
+/// `yh recalibrate --project <id> --json` does, run through ``SetupEngine``. Bound values are edited and saved through ``ProjectConfigurationModel`` (P14.3) — never a
 /// second TOML writer.
 @MainActor
 @Observable
@@ -21,7 +21,7 @@ final class RecalibrateModel {
 
     /// The Bounds form, reused as-is: saving here goes through the exact same
     /// `Config/Configuration/save(_:to:in:replacing:)` path the Configuration tab uses.
-    let detail: ProjectDetailModel
+    let detail: ProjectConfigurationModel
 
     private(set) var isLaunchingRehearsal = false
     private(set) var rehearsalStartedNote: String?
@@ -33,7 +33,7 @@ final class RecalibrateModel {
 
     init(project: ProjectID, directory: URL = ConfigurationDirectory.current) {
         self.project = project
-        detail = ProjectDetailModel(project: project, directory: directory)
+        detail = ProjectConfigurationModel(project: project, directory: directory)
     }
 
     /// Runs `yh recalibrate --project <id> --json` and decodes its last non-empty output line as
@@ -70,7 +70,7 @@ final class RecalibrateModel {
 
     /// Saves the Bounds form (P14.3's path) and, on success, re-runs `yh recalibrate` so the displayed
     /// values and proximity reflect what was actually written. A refusal is left exactly as
-    /// ``ProjectDetailModel/failure`` reports it — never a second, app-authored message.
+    /// ``ProjectConfigurationModel/failure`` reports it — never a second, app-authored message.
     func save() {
         detail.save()
         guard detail.failure == nil else { return }

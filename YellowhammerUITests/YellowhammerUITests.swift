@@ -121,25 +121,18 @@ final class OverviewWindowUITests: XCTestCase {
     }
 
     /// G-6 gives the app configuration and reading and gives Linear every decision (P14.8): the Project
-    /// Window has Setup's configuration and Recalibrate, and no Night Card, Feature detail, Card detail,
-    /// Journal account or triage gesture — settle included — on any of them. The Journal account behind a
-    /// Card is the Inspector's Card detail now.
+    /// Window has Recalibrate only — Configuration is in the Settings window — and no Night Card, Feature
+    /// detail, Card detail, Journal account or triage gesture, settle included. The Journal account behind
+    /// a Card is the Inspector's Card detail now.
     func testProjectWindowStillOpensFromItsMenuItem() {
         app.openProjectWindow()
 
-        let tabs = app.tabs
-        let labels = tabs.allElementsBoundByIndex.map(\.label)
-        // Exactly these two: no Night Card, Feature detail, Card detail or Journal tab beside them.
-        XCTAssertEqual(labels, ["Configuration", "Recalibrate"])
-
-        for label in labels {
-            tabs[label].click()
-            for gesture in ["Kept in Flight", "Released", "Settle", "Accept", "Adopt"] {
-                XCTAssertFalse(
-                    app.buttons[gesture].exists,
-                    "The \(label) screen offers the triage gesture \u{201C}\(gesture)\u{201D}, which is Linear's"
-                )
-            }
+        XCTAssertEqual(app.tabs.count, 0, "The Project Window still has tabs")
+        for gesture in ["Kept in Flight", "Released", "Settle", "Accept", "Adopt"] {
+            XCTAssertFalse(
+                app.buttons[gesture].exists,
+                "The Project Window offers the triage gesture \u{201C}\(gesture)\u{201D}, which is Linear's"
+            )
         }
         XCTAssertFalse(app.popUpButtons["project-selector"].exists)
     }
