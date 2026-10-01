@@ -228,7 +228,7 @@ public struct CardRun: CardRunner {
 
             case .readinessFailure:
                 // The refusal to report, with the Card untouched: no Attempt, nothing dispatched, and
-                // no Block — the reset sequence runs only on a Block path.
+                // no Block — so no reset: nothing ran here for the reset sequence to move.
                 return
 
             case .attemptBudgetSpent(let spentCard):
