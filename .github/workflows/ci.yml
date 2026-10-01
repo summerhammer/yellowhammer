@@ -69,6 +69,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Test the source-mtime script
+        run: python3 -m unittest discover -s scripts/ci/tests -p 'test_source_mtimes.py' -v
+
       - name: Download SwiftLint
         env:
           SWIFTLINT_VERSION: "0.65.0"
@@ -120,15 +123,25 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: Cache SwiftPM
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # The cache holds main's latest `.build`, so a run compiles only what changed since then.
+      # SwiftPM rebuilds any source whose mtime differs from the one it recorded, and a checkout
+      # stamps every file with the checkout time: without the mtime restore below, every one of
+      # our modules recompiles on every run and the cache saves only the dependencies. Only a
+      # push to main saves (keyed per commit, so it tracks main); a pull request restores main's.
+      - name: Restore SwiftPM cache
+        id: swiftpm-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             Packages/YellowhammerKit/.build
             ~/Library/Caches/org.swift.swiftpm
-          key: swiftpm-${{ hashFiles('Packages/YellowhammerKit/Package.resolved') }}
+          key: swiftpm-${{ env.XCODE_VERSION }}-${{ hashFiles('Packages/YellowhammerKit/Package.resolved') }}-${{ github.sha }}
           restore-keys: |
+            swiftpm-${{ env.XCODE_VERSION }}-${{ hashFiles('Packages/YellowhammerKit/Package.resolved') }}-
             swiftpm-
+
+      - name: Restore source mtimes
+        run: python3 scripts/ci/source_mtimes.py restore --root Packages/YellowhammerKit
 
       - name: Resolve dependencies
         run: swift package --package-path Packages/YellowhammerKit resolve
@@ -156,6 +169,19 @@ jobs:
           PROCESS_SUITES: ProcessTreeTests|AgentCLIProcess|ProcessFencer|WorktreeCheckTests|TerminationSignalsTests|ExpiredLeaseSweepIntegrationTests|WorktreeReconcilerContinuedTests
         run: |
           script -q /dev/null swift test --package-path Packages/YellowhammerKit --no-parallel --filter "$PROCESS_SUITES" --xunit-output build/test-results/process-tests.xml </dev/null 2>&1 | tee build/test-results/process-test.log
+
+      - name: Record source mtimes
+        if: github.event_name == 'push' && steps.swiftpm-cache.outputs.cache-hit != 'true'
+        run: python3 scripts/ci/source_mtimes.py record --root Packages/YellowhammerKit
+
+      - name: Save SwiftPM cache
+        if: github.event_name == 'push' && steps.swiftpm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            Packages/YellowhammerKit/.build
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ steps.swiftpm-cache.outputs.cache-primary-key }}
 
       - name: Upload test results
         if: always()
