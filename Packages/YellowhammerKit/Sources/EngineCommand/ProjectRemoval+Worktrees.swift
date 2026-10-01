@@ -76,7 +76,7 @@ extension ProjectRemoval {
         }
         let context = WorktreeRemovalContext(
             journal: journal, project: project, mode: mode, push: push,
-            committer: WorktreeCommitter(git: git, mode: mode)
+            committer: WorktreeCommitter(git: git, mode: mode, message: project.wipCommit)
         )
         let outcome = WorktreeRemovalOutcome()
         for worktree in worktrees {
@@ -101,7 +101,9 @@ extension ProjectRemoval {
             return
         }
 
-        switch await context.committer.commitWIP(worktreePath: worktree.path, branch: branch) {
+        switch await context.committer.commitWIP(
+            worktreePath: worktree.path, branch: branch, repository: worktree.repository
+        ) {
         case .committed:
             await pushThenRemove(worktree, branch: branch, repo: repo, context: context, outcome: outcome)
         case .noChanges(let headCommit, _, _) where headCommit == worktree.pushedCommit:

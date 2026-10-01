@@ -29,7 +29,8 @@ extension CardRun {
         }
 
         let outcome = await resetting.reset(
-            worktreePath: worktree.path, branch: frame.branch, attemptID: priorAttemptID,
+            worktreePath: worktree.path, branch: frame.branch, repository: frame.card.repository,
+            attemptID: priorAttemptID,
             knownGood: worktree.lastKnownGoodCommit
         )
         switch outcome {

@@ -43,8 +43,68 @@ func realModeCommitsAndPushes() async throws {
     #expect(pushedBranch.value == removalBranch)
     #expect(workspace.removeCalls == [WorktreeID(rawValue: "wt-1")])
 
-    let log = await repo.run(["log", "-1", "--format=%s"])
-    #expect(log.stdout.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix(WorktreeCommitter.messageMarker))
+    let log = await repo.run(["log", "-1", "--format=%B%an <%ae>"])
+    #expect(log.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == """
+        chore(wip): preserve uncommitted work on yh-alpha-feat
+
+        Yellowhammer-WIP: yh-alpha-feat
+        Yellowhammer <noreply@yellowhammer.dev>
+        """)
+}
+
+@Test("Removal of a Project with a refused template and change_type still WIP-commits, with the defaults")
+func refusedTemplateWritesDefaultWIPCommit() async throws {
+    let directory = ConfigurationDirectory()
+    try directory.writeMachineFile()
+    let repo = TestGitRepo(name: "dirty-refused-template")
+    await repo.initRepo()
+    _ = try await repo.commit()
+    _ = await repo.run(["checkout", "-b", removalBranch.name])
+    try "uncommitted".write(
+        to: repo.url.appendingPathComponent("dirty.txt"), atomically: true, encoding: .utf8
+    )
+    try directory.writeProjectFile(id: "alpha", """
+        id = "alpha"
+        name = "alpha"
+        linear_project = "alpha"
+        spec_source = "~/Developer/alpha-spec"
+        change_type = 7
+
+        [[repos]]
+        name = "backend"
+        path = "\(repo.path)"
+        role = "backend"
+        check = "swift test"
+
+        [git]
+        wip_commit_message = "wip {title}"
+        """)
+    let home = try RemovalHomeFixture(projectID: "alpha", plists: false, logs: false)
+    let journal = try JournalStore.openSeeded(
+        configurationDirectory: directory.url, projectID: try #require(ProjectID(rawValue: "alpha"))
+    )
+    let seeded = try await seedRemovableProject(journal, mode: .real, repo: repo, pushedCommit: nil)
+    let board = FakeWritingBoard()
+    await board.seed(issue: seeded.featureIssueID, description: nil)
+    let output = RecordingOutput()
+    let removal = makeRemoval(
+        directory: directory, home: home, output: output, board: board, workspace: RemovalFakeWorkspace(),
+        push: { _, _, _ in .pushed(commit: "deadbeef") }
+    )
+
+    let succeeded = await removal.run(id: "alpha", yes: true)
+
+    #expect(succeeded)
+    let log = await repo.run(["log", "-1", "--format=%B%an <%ae>"])
+    #expect(log.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == """
+        chore(wip): preserve uncommitted work on yh-alpha-feat
+
+        Yellowhammer-WIP: yh-alpha-feat
+        Yellowhammer <noreply@yellowhammer.dev>
+        """)
+    let lines = output.lines.joined(separator: "\n")
+    #expect(lines.contains("using the built-in WIP Commit message instead"))
+    #expect(lines.contains("using change_type \"feat\" instead"))
 }
 
 @Test("A failed push in real mode keeps the Worktree, fails removal, and leaves the Journal untouched")

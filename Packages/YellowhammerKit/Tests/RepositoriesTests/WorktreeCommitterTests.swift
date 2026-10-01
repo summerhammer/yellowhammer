@@ -18,7 +18,7 @@ struct WorktreeCommitterTests {
 
         let branch = FeatureBranch(name: "yh-project-feature")
         let committer = WorktreeCommitter()
-        let outcome = await committer.commitWIP(worktreePath: fixture.path, branch: branch)
+        let outcome = await committer.commitWIP(worktreePath: fixture.path, branch: branch, repository: "backend")
 
         guard case .committed(let commit, let wipRef) = outcome else {
             Issue.record("expected .committed, got \(outcome)")
@@ -31,10 +31,48 @@ struct WorktreeCommitterTests {
         let status = await fixture.run(["status", "--porcelain"]).stdout
         #expect(status.isEmpty)
 
-        let message = await fixture.run(["log", "-1", "--format=%s"]).stdout
+        let message = await fixture.run(["log", "-1", "--format=%B"]).stdout
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        #expect(message.hasPrefix(WorktreeCommitter.messageMarker))
-        #expect(message.contains("yh-project-feature"))
+        #expect(message == """
+            chore(wip): preserve uncommitted work on yh-project-feature
+
+            Yellowhammer-WIP: yh-project-feature
+            """)
+        let author = await fixture.run(["log", "-1", "--format=%an <%ae>"]).stdout
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        #expect(author == "Yellowhammer <noreply@yellowhammer.dev>")
+    }
+
+    @Test("A configured template renders every token it names, above the trailer")
+    func configuredTemplateRenders() async throws {
+        let fixture = GitFixture(name: "wip-template")
+        await fixture.initRepo(defaultBranch: "main")
+        _ = try await fixture.commit(filename: "tracked.txt", content: "initial", message: "initial commit")
+        _ = await fixture.run(["checkout", "-b", "yh-project-feature"])
+        try fixture.writeFile(filename: "tracked.txt", content: "changed")
+
+        let template = try MessageTemplate("{type}(wip): {project}/{repository} on {branch}", kind: .wipCommitMessage)
+        let committer = WorktreeCommitter(message: WIPCommitMessage(
+            template: template, changeType: try #require(ChangeType("fix")), project: "alpha"
+        ))
+        let outcome = await committer.commitWIP(
+            worktreePath: fixture.path, branch: FeatureBranch(name: "yh-project-feature"), repository: "backend"
+        )
+        guard case .committed = outcome else {
+            Issue.record("expected .committed, got \(outcome)")
+            return
+        }
+
+        let message = await fixture.run(["log", "-1", "--format=%B"]).stdout
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        #expect(message == """
+            fix(wip): alpha/backend on yh-project-feature
+
+            Yellowhammer-WIP: yh-project-feature
+            """)
+        let trailers = await fixture.run(["log", "-1", "--format=%(trailers:key=Yellowhammer-WIP,valueonly)"]).stdout
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        #expect(trailers == "yh-project-feature")
     }
 
     @Test("Committing WIP twice without new changes does not create a second commit")
@@ -47,7 +85,7 @@ struct WorktreeCommitterTests {
 
         let branch = FeatureBranch(name: "yh-project-feature")
         let committer = WorktreeCommitter()
-        let first = await committer.commitWIP(worktreePath: fixture.path, branch: branch)
+        let first = await committer.commitWIP(worktreePath: fixture.path, branch: branch, repository: "backend")
         guard case .committed(let firstCommit, let wipRef) = first else {
             Issue.record("expected .committed, got \(first)")
             return
@@ -56,7 +94,7 @@ struct WorktreeCommitterTests {
         let countBefore = await fixture.run(["rev-list", "--count", "HEAD"]).stdout
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        let second = await committer.commitWIP(worktreePath: fixture.path, branch: branch)
+        let second = await committer.commitWIP(worktreePath: fixture.path, branch: branch, repository: "backend")
         guard case .noChanges(let headCommit, let secondWipRef, let wipCommit) = second else {
             Issue.record("expected .noChanges, got \(second)")
             return
@@ -79,7 +117,7 @@ struct WorktreeCommitterTests {
 
         let branch = FeatureBranch(name: "yh-project-feature")
         let committer = WorktreeCommitter()
-        let outcome = await committer.commitWIP(worktreePath: fixture.path, branch: branch)
+        let outcome = await committer.commitWIP(worktreePath: fixture.path, branch: branch, repository: "backend")
 
         guard case .noChanges(let headCommit, let wipRef, let wipCommit) = outcome else {
             Issue.record("expected .noChanges, got \(outcome)")
@@ -101,7 +139,7 @@ struct WorktreeCommitterTests {
 
         let branch = FeatureBranch(name: "yh-project-feature")
         let committer = WorktreeCommitter()
-        let outcome = await committer.commitWIP(worktreePath: fixture.path, branch: branch)
+        let outcome = await committer.commitWIP(worktreePath: fixture.path, branch: branch, repository: "backend")
 
         guard case .refused = outcome else {
             Issue.record("expected .refused, got \(outcome)")
@@ -118,7 +156,7 @@ struct WorktreeCommitterTests {
         let committer = WorktreeCommitter()
         let outcome = await committer.commitWIP(
             worktreePath: "/tmp/nonexistent-yellowhammer-worktree-\(UUID().uuidString)",
-            branch: branch
+            branch: branch, repository: "backend"
         )
 
         guard case .refused = outcome else {
@@ -144,7 +182,7 @@ struct WorktreeCommitterRehearsalTests {
 
         let branch = FeatureBranch(name: "yh-project-feature")
         let committer = WorktreeCommitter(mode: .rehearsal)
-        let outcome = await committer.commitWIP(worktreePath: fixture.path, branch: branch)
+        let outcome = await committer.commitWIP(worktreePath: fixture.path, branch: branch, repository: "backend")
 
         guard case .refused = outcome else {
             Issue.record("expected .refused, got \(outcome)")
@@ -166,7 +204,7 @@ struct WorktreeCommitterRehearsalTests {
 
         let branch = FeatureBranch(name: "yh-project-feature")
         let committer = WorktreeCommitter(mode: .rehearsal)
-        let outcome = await committer.commitWIP(worktreePath: fixture.path, branch: branch)
+        let outcome = await committer.commitWIP(worktreePath: fixture.path, branch: branch, repository: "backend")
 
         guard case .noChanges(let headCommit, let wipRef, let wipCommit) = outcome else {
             Issue.record("expected .noChanges, got \(outcome)")
@@ -189,7 +227,7 @@ struct WorktreeCommitterRehearsalTests {
         let branch = FeatureBranch(name: "yh-project-feature")
         let committer = WorktreeCommitter(mode: .rehearsal)
         let outcome = await committer.preserveAndReset(
-            worktreePath: fixture.path, branch: branch, attemptID: 1, knownGood: knownGood
+            worktreePath: fixture.path, branch: branch, repository: "backend", attemptID: 1, knownGood: knownGood
         )
 
         guard case .refused = outcome else {
@@ -217,7 +255,7 @@ struct WorktreeResetTests {
 
         let branch = FeatureBranch(name: "yh-project-feature")
         let committer = WorktreeCommitter()
-        let wipOutcome = await committer.commitWIP(worktreePath: fixture.path, branch: branch)
+        let wipOutcome = await committer.commitWIP(worktreePath: fixture.path, branch: branch, repository: "backend")
         guard case .committed(let wipCommit, _) = wipOutcome else {
             Issue.record("expected .committed, got \(wipOutcome)")
             return
