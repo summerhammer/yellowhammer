@@ -2108,7 +2108,7 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
     GitHub. Abort Attempt stays P18.11's. No UI test: a populated pane needs a Journal the UI test
     bundle cannot build, so the Kit test covers the new read and the build covers the views.
 
-### [ ] P18.10 Toolbar — Inspector toggle and Stop the engine
+### [x] P18.10 Toolbar — Inspector toggle and Stop the engine
 - **Work** — The Inspector toggle, and the control that stops the engine for a Project. The app may
   trigger the action; it never decides or records. Check the interruption wording, and that
   quitting the app cannot kill an Act.
@@ -2116,6 +2116,26 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
 - **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
 - **Done when** — Stopping the engine for one Project leaves every other Project untouched; the
   interruption copy uses the mandated wording.
+- **Status** — Done on 2026-10-01 (`aa80efc`, `165f028`).
+  - The engine had no way to abort an Attempt, so this layer builds one. There is a fifth outcome,
+    `aborted`, which consumes no Attempt and excludes no Route, and a ninth Block Reason,
+    `operator abort`. The request goes in the Journal's `operator_abort_request` table (v31), written
+    by the new `yh stop --project <id>` without the Act Lease. A Card run polls for the request beside
+    its passes, kills the pass, ends the Attempt `aborted` and Blocks the Card without a reset. The
+    Expired Lease Sweep honours a request whose run died first. The Night Summary and reclaim comment
+    word it "stopped by the Operator". `engine stop` is never written for it.
+  - `yh stop` records the request before it prints, so quitting the app mid-stop changes nothing. It
+    also requests the retry of a Card whose Attempt ended on its own while the Card stays In Progress.
+    It never requests another Card's new Attempt, because the Project is not paused. It opens only that
+    Project's Journal: `EngineStopTests` checks that a second Project is left untouched.
+  - The toolbar's Stop is enabled only while the Project is `working` and an Attempt runs; the spec
+    says both. The confirmation uses the mandated wording. The Inspector toggle also gets
+    View > Show/Hide Inspector. UI tests cover the toggle and a disabled Stop for an idle Project. A
+    running Attempt needs a Journal the UI test bundle cannot build, so the Kit tests cover the abort.
+  - The per-Attempt primitive (`requestOperatorAbort(attemptID:)`) is in place for P18.11, which
+    needs only the Inspector control and a `yh` entry point for one Attempt.
+  - Existing Projects must re-run `yh setup` to provision the `operator abort` label. Until then every
+    Act fails on the missing label, and the error message now says to run setup.
 
 ### [ ] P18.11 Abort a running Attempt
 - **Work** — Abort an Attempt that is running, from the Inspector. The same limits as P18.10: the app
