@@ -2227,7 +2227,7 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
     test is deleted with the window. The Recalibrate, Settings and Overview suites pass. Surviving an app
     quit stays proved by hand, as in P14.7.
 
-### [ ] P18.15 Settings — General — Agent CLIs and routing defaults
+### [x] P18.15 Settings — General — Agent CLIs and routing defaults
 - **Work** — Agent CLIs and the base Routing Table defaults. The menu commands move to their own file
   under `App/`.
 - **Retires** — `Legacy/AgentCLI`, `Legacy/BaseRoutingTable`, their `Window` scenes and menu
@@ -2235,6 +2235,20 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
 - **Spec** — `routing/add-an-agent-cli`.
 - **Agent** — Sonnet 5 Medium or `gpt-5.6-terra medium`.
 - **Done when** — As P14.4; both legacy folders are deleted.
+- **Status** — Done on 2026-10-01 (`23e7399`).
+  - The Settings sidebar's General section gains an Agent CLIs row and a Base Routing Table row. Agent CLIs
+    is the P14.4 screen unchanged: each declared CLI with its latest Probe Result from the Ledger, and a
+    Probe on demand through `yh probe`. Base Routing Table is the P14.3 editor unchanged. Both are
+    sections in the window's back/forward history. `AgentCLIModel` and `BaseRoutingTableModel` moved to
+    `Features/Settings` as they were. `Legacy/AgentCLI` and `Legacy/BaseRoutingTable` are gone, with
+    their two `Window` scenes and menu commands.
+  - A Project's Configuration tab keeps its "Base Routing Table…" button; it now visits the section
+    through a `showSettingsSection` environment action instead of opening a window.
+  - The remaining menu commands (Setup, Settings, Check for Updates) are in `App/MenuCommands.swift`.
+    The General pane keeps a placeholder for what P18.16 moves.
+  - `AgentCLIUITests` now open Settings with Cmd+, and use the Agent CLIs row. It, `SettingsWindowUITests`
+    and `ConfigurationEditingUITests` pass. Placing the two panes as General sidebar rows is a lead
+    draft: the spec says only "the Settings window".
 
 ### [ ] P18.16 Settings — General — Linear auth, Operator identity, Orca ADE
 - **Work** — Linear authorization, the Operator's identity and the Orca ADE settings. This touches
