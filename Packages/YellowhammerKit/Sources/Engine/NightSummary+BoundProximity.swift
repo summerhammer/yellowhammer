@@ -88,7 +88,8 @@ extension NightSummary {
                 let consumed = epochAttempts.filter {
                     let resultAtClose = ($0.endedAt ?? .distantFuture) <= close ? $0.result : nil
                     return resultAtClose != AttemptOutcome.question.rawValue &&
-                        resultAtClose != AttemptOutcome.cancelled.rawValue
+                        resultAtClose != AttemptOutcome.cancelled.rawValue &&
+                        resultAtClose != AttemptOutcome.aborted.rawValue
                 }.count
                 attempts = max(attempts, consumed)
             }

@@ -119,11 +119,11 @@ struct CardRunCancellationTests {
     }
 }
 
-private struct TransientBeatFailure: Error {}
+struct TransientBeatFailure: Error {}
 
 /// Holds a pass open until the run is cancelled, polling rather than sleeping through it: a
 /// `Task.sleep` would throw `CancellationError` out of the dispatch, which the real adapter never does.
-private func waitForCancellation() async throws {
+func waitForCancellation() async throws {
     let deadline = ContinuousClock.now.advanced(by: .seconds(10))
     while !Task.isCancelled {
         guard ContinuousClock.now < deadline else {
@@ -137,7 +137,7 @@ private func waitForCancellation() async throws {
 /// A Dispatch seam that behaves like `AgentCLIProcess` under cancellation: a pass that finds its task
 /// cancelled does not throw, it comes back `aborted`, which classifies as Crashed-Unknown. Otherwise
 /// it answers from ``RehearsalDispatch``.
-private struct AbortingOnCancelDispatch: AgentDispatch {
+struct AbortingOnCancelDispatch: AgentDispatch {
     let log: CallLog
     let during: @Sendable (RunPass) async throws -> Void
 

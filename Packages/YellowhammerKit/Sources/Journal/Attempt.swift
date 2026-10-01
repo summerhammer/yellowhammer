@@ -58,8 +58,9 @@ public struct AttemptHistory: Equatable, Sendable {
     }
 
     /// The Block Reason for `epoch`, derived from a single source (Attempt, Block and Reset Ruling
-    /// 2026-09-19, OQ58): the epoch's last ENDED, consuming Attempt — a `question` ending is skipped,
-    /// and so is any still-open Attempt. `rounds-exhausted` blocks by that Attempt's last Round's Lens;
+    /// 2026-09-19, OQ58): the epoch's last ENDED, consuming Attempt — a `question` or `cancelled` ending
+    /// is skipped, and so is any still-open Attempt. An `aborted` one is NOT (unlike in
+    /// ``consumption(inEpoch:)``): as the last, the Card blocks `operator abort`. `rounds-exhausted` blocks by that Attempt's last Round's Lens;
     /// a hard failure blocks `hard failure`; a Crashed-Unknown blocks `host crash`, or `engine stop` when
     /// its run recorded that the engine stopped it (OQ92); no such Attempt at all blocks `hard failure`.
     /// Every Block path — budget spent, found already spent, or a Route exclusion leaving none — reads this.
@@ -78,6 +79,7 @@ public struct AttemptHistory: Equatable, Sendable {
         case AttemptOutcome.crashedUnknown.rawValue:
             return last.classification?.hasPrefix(AttemptEnding.engineStoppedClassificationPrefix) == true
                 ? .engineStop : .hostCrash
+        case AttemptOutcome.aborted.rawValue: return .operatorAbort
         default:
             return .hardFailure
         }
@@ -90,12 +92,10 @@ public struct AttemptHistory: Equatable, Sendable {
     public func consumption(inEpoch epoch: Int) -> AttemptConsumption {
         let ofEpoch = attempts.filter { $0.budgetEpoch == epoch }
         // An open Attempt (`result == nil`) counts as consumed: the row is written at dispatch precisely
-        // so an unclassified Attempt still binds the Bound. `question` and `cancelled` are the two
-        // non-consuming endings — asking has no resumable state to protect a budget for, and neither
-        // does a Card cancelled mid-run.
-        let consumed = ofEpoch.filter {
-            $0.result != AttemptOutcome.question.rawValue && $0.result != AttemptOutcome.cancelled.rawValue
-        }
+        // so an unclassified Attempt still binds the Bound. `question`, `cancelled` and `aborted` consume
+        // nothing: no resumable state to protect a budget for, and an abort is not the Route's failure.
+        let nonConsuming = [AttemptOutcome.question, .cancelled, .aborted].map(\.rawValue)
+        let consumed = ofEpoch.filter { !nonConsuming.contains($0.result ?? "") }
         func count(_ outcome: AttemptOutcome) -> Int {
             ofEpoch.filter { $0.result == outcome.rawValue }.count
         }
@@ -105,7 +105,7 @@ public struct AttemptHistory: Equatable, Sendable {
             roundsExhausted: count(.roundsExhausted),
             crashedUnknown: count(.crashedUnknown),
             succeeded: count(.success),
-            notConsumed: count(.question) + count(.cancelled)
+            notConsumed: count(.question) + count(.cancelled) + count(.aborted)
         )
     }
 }

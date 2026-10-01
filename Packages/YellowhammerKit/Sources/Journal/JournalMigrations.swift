@@ -120,6 +120,9 @@ enum JournalMigrations {
         migrator.registerMigration("v30-card-title") { db in
             try addCardTitleColumn(db)
         }
+        migrator.registerMigration("v31-operator-abort-request") { db in
+            try createOperatorAbortRequestTable(db)
+        }
         return migrator
     }
 }

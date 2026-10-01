@@ -12,6 +12,10 @@ public enum BlockReason: String, CaseIterable, Sendable {
     /// The final Attempt of the epoch ended Crashed-Unknown, and its run recorded that the engine
     /// stopped it and left its Lease to expire, rather than a dying host (OQ92).
     case engineStop = "engine stop"
+    /// The final Attempt of the epoch was aborted by the Operator, directly or through Stop the engine.
+    /// Distinct from `engine stop`, which stays reserved for involuntary faults; re-ready resets it
+    /// exactly like `engine stop`.
+    case operatorAbort = "operator abort"
     case unanswered = "unanswered"
     case undecided = "undecided"
     /// Unfinished work carried forward when its still-running Feature is released.

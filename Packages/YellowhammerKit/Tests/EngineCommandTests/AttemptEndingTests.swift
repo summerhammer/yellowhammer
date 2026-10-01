@@ -83,3 +83,16 @@ func exclusionReasonOnlyForCapabilityFailures() {
 func cancelledYieldsNoFailureCause() {
     #expect(FailureCause(ending: .cancelled) == nil)
 }
+
+@Test("An Operator abort is the fifth outcome: not consumed, no Route excluded, never a failure cause")
+func abortedEndingVocabulary() {
+    let ending = AttemptEnding.aborted
+    #expect(ending.outcome == .aborted)
+    #expect(AttemptOutcome.aborted.rawValue == "aborted")
+    #expect(ending.consumesAttempt == false)
+    #expect(ending.excludesRoute == false)
+    #expect(ending.exclusionReason == nil)
+    #expect(ending.classification == "aborted by the Operator")
+    #expect(ending.consumedHow == "not consumed; route not excluded (stopped by the Operator)")
+    #expect(FailureCause(ending: ending) == nil)
+}
