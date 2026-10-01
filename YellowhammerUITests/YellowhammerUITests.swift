@@ -195,6 +195,29 @@ final class OverviewWindowUITests: XCTestCase {
         XCTAssertLessThan(ownerRepo, reader)
     }
 
+    func testInspectorToggleHidesAndShowsTheInspector() {
+        let toggle = element("toolbar-inspector-toggle")
+        XCTAssertTrue(toggle.waitForExistence(timeout: 10))
+        let placeholder = app.staticTexts["Nothing Selected"]
+        XCTAssertTrue(placeholder.waitForExistence(timeout: 10))
+        app.activate()
+        toggle.click()
+        XCTAssertTrue(waitForDisappearance(of: placeholder), "The Inspector is still shown")
+        toggle.click()
+        XCTAssertTrue(placeholder.waitForExistence(timeout: 5), "The Inspector did not come back")
+    }
+
+    func testStopTheEngineIsOfferedOnlyWhileAnAttemptRuns() {
+        let stop = element("toolbar-stop-engine")
+        XCTAssertTrue(stop.waitForExistence(timeout: 10))
+        XCTAssertFalse(stop.isEnabled, "Stop the engine is offered for an idle Project")
+    }
+
+    private func waitForDisappearance(of element: XCUIElement, timeout: TimeInterval = 5) -> Bool {
+        let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: element)
+        return XCTWaiter().wait(for: [gone], timeout: timeout) == .completed
+    }
+
     func testSelectingARepoRowOpensItInTheInspector() {
         let row = element("sidebar-reader-repo-reader")
         XCTAssertTrue(row.waitForExistence(timeout: 10))

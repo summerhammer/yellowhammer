@@ -25,6 +25,8 @@ struct OverviewWindow: View {
     @State private var model = OverviewModel()
     @State private var inspected: PulseSelection?
     @State private var inspectorShown = true
+    @State private var stop = EngineStopModel()
+    @State private var confirmingStop = false
     /// The last way out whose destination is not wired yet, stated in a notice.
     @State private var wayOut: PulseDestination?
     @Environment(\.openWindow) private var openWindow
@@ -63,6 +65,14 @@ struct OverviewWindow: View {
                 .inspectorColumnWidth(min: 240, ideal: 280, max: 400)
         }
         .navigationTitle(selectedSnapshot?.name ?? "Yellowhammer")
+        .toolbar {
+            OverviewToolbar(
+                inspectorShown: $inspectorShown, stop: stop, project: selectedSnapshot, confirming: $confirmingStop
+            )
+        }
+        .stopTheEngineDialogs(
+            confirming: $confirmingStop, stop: stop, project: selectedSnapshot, afterStop: { await model.load() }
+        )
         .environment(\.openPulseDestination, route)
         .focusedSceneValue(\.overviewProject, scopedProject)
         .task { await readWhileOpen() }

@@ -54,6 +54,7 @@ struct YellowhammerApp: App {
         .windowResizability(.contentMinSize)
         .handlesExternalEvents(matching: [ProjectDeepLink.scheme])
         .commands {
+            InspectorCommands()
             CommandGroup(after: .appInfo) {
                 SetupMenuCommand()
                 ProjectWindowMenuCommand()
