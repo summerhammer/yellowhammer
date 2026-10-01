@@ -73,7 +73,8 @@ public final class JournalStore: Sendable {
         let queue = try DatabaseQueue(path: fileURL.path, configuration: config)
 
         // An existing Journal written by a build whose migrations this one does not know (for example
-        // one created before the schema was squashed into a single migration) is refused, not migrated.
+        // one created before the schema was squashed into a single migration) is refused, not migrated:
+        // `schemaOlderThanKnown` when provably older, `schemaNewerThanKnown` otherwise.
         try queue.read { db in
             if try db.tableExists("grdb_migrations") {
                 try rejectUnknownMigrations(db, path: fileURL.path)
@@ -85,7 +86,7 @@ public final class JournalStore: Sendable {
         return JournalStore(projectID: projectID, fileURL: fileURL, queue: queue, outboxSalt: try readOutboxSalt(queue))
     }
 
-    /// The app's open: read-only, never migrates. Throws JournalError.schemaNewerThanKnown if the store has migrations this build does not know, and JournalError.schemaBehind if not fully migrated (only the engine migrates). Throws JournalError.missing if the file does not exist (never creates a file).
+    /// The app's open: read-only, never migrates. Throws JournalError.schemaOlderThanKnown if every migration this build does not know is provably older (delete the Journal), JournalError.schemaNewerThanKnown if it has any other unknown migration, and JournalError.schemaBehind if not fully migrated (only the engine migrates). Throws JournalError.missing if the file does not exist (never creates a file).
     public static func openReadOnly(at fileURL: URL, projectID: ProjectID) throws -> JournalStore {
         // Check file exists
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
@@ -121,14 +122,36 @@ public final class JournalStore: Sendable {
         return JournalStore(projectID: projectID, fileURL: fileURL, queue: queue, outboxSalt: try readOutboxSalt(queue))
     }
 
-    /// Throws `JournalError.schemaNewerThanKnown` if the store has applied a migration this build does not know.
+    /// Throws if the store has applied a migration this build does not know: `JournalError.schemaOlderThanKnown`
+    /// when every unknown identifier is provably older (see ``isProvablyOlder(_:)``), else
+    /// `JournalError.schemaNewerThanKnown`.
     private static func rejectUnknownMigrations(_ db: Database, path: String) throws {
         let appliedSet = try JournalMigrations.migrator.appliedIdentifiers(db)
         let knownIdentifiers = JournalMigrations.migrationIdentifiers
         let unknown = Array(appliedSet).filter { !knownIdentifiers.contains($0) }.sorted()
         if !unknown.isEmpty {
+            if unknown.allSatisfy(isProvablyOlder) {
+                throw JournalError.schemaOlderThanKnown(path: path, unknown: unknown)
+            }
             throw JournalError.schemaNewerThanKnown(path: path, unknown: unknown)
         }
+    }
+
+    /// Whether an unknown migration identifier is provably older than this build's schema: it matches
+    /// `^v\d+-` (the retired pre-squash chain), or it is `journal-schema-M` with integer M below the
+    /// current N. Anything else (a higher M, an unparseable shape) is not provable, so the caller treats
+    /// it as newer and never advises deleting on a guess.
+    static func isProvablyOlder(_ identifier: String) -> Bool {
+        if identifier.wholeMatch(of: /v\d+-.*/) != nil {
+            return true
+        }
+        func schemaNumber(_ identifier: String) -> Int? {
+            let prefix = "journal-schema-"
+            return identifier.hasPrefix(prefix) ? Int(identifier.dropFirst(prefix.count)) : nil
+        }
+        guard let current = schemaNumber(JournalMigrations.schemaIdentifier), let number = schemaNumber(identifier)
+        else { return false }
+        return number < current
     }
 
     /// Identifiers of the migrations this build knows, in order. Last one is the current schema version.

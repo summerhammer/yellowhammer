@@ -79,39 +79,121 @@ struct JournalReadOnlyTests {
         }
     }
 
-    // MARK: - Test: openReadOnly schema newer than known
+    // MARK: - Test: unknown migrations are classified as older or newer
+
+    /// An identifier one schema version above the current one, built from `JournalMigrations.schemaIdentifier`.
+    func newerIdentifier() throws -> String {
+        let prefix = "journal-schema-"
+        let current = try #require(Int(JournalMigrations.schemaIdentifier.dropFirst(prefix.count)))
+        return "\(prefix)\(current + 1)"
+    }
+
+    /// Creates a Journal, records the given identifiers through a raw connection, and returns its URL.
+    func journal(named name: String, home: URL, injecting identifiers: [String]) throws -> (URL, ProjectID) {
+        let projectID = try #require(ProjectID(rawValue: name))
+        let fileURL = JournalStore.defaultFileURL(homeDirectory: home, id: projectID)
+        _ = try JournalStore.open(at: fileURL, projectID: projectID)
+        let raw = try DatabaseQueue(path: fileURL.path)
+        try raw.write { db in
+            for identifier in identifiers {
+                try db.execute(sql: "INSERT INTO grdb_migrations (identifier) VALUES (?)", arguments: [identifier])
+            }
+        }
+        return (fileURL, projectID)
+    }
+
+    func readOnlyError(_ fileURL: URL, _ projectID: ProjectID) -> JournalError? {
+        do {
+            _ = try JournalStore.openReadOnly(at: fileURL, projectID: projectID)
+        } catch let journalError as JournalError {
+            return journalError
+        } catch {
+            return nil
+        }
+        return nil
+    }
 
     @Test
     func openReadOnlySchemaNewer() throws {
         let home = createTempHome()
         defer { try? cleanupTempHome(home) }
 
-        let projectID = try #require(ProjectID(rawValue: "newer-schema-test"))
-        let fileURL = JournalStore.defaultFileURL(homeDirectory: home, id: projectID)
+        let (fileURL, projectID) = try journal(
+            named: "newer-schema-test", home: home, injecting: [try newerIdentifier()]
+        )
 
-        // Open normally to create and migrate
-        _ = try JournalStore.open(at: fileURL, projectID: projectID)
-
-        // Inject unknown migration
-        try JournalStore.open(at: fileURL, projectID: projectID).write { db in
-            try db.execute(
-                sql: "INSERT INTO grdb_migrations (identifier) VALUES ('v99-from-the-future')"
-            )
-        }
-
-        // Try to open read-only
-        var error: JournalError?
-        do {
-            _ = try JournalStore.openReadOnly(at: fileURL, projectID: projectID)
-        } catch let journalError as JournalError {
-            error = journalError
-        }
-
-        #expect(error != nil)
-        guard case .schemaNewerThanKnown = error else {
+        guard case .schemaNewerThanKnown = readOnlyError(fileURL, projectID) else {
             Issue.record("Expected .schemaNewerThanKnown error")
             return
         }
+    }
+
+    @Test
+    func openReadOnlyRetiredChainIsOlder() throws {
+        let home = createTempHome()
+        defer { try? cleanupTempHome(home) }
+
+        let (fileURL, projectID) = try journal(
+            named: "older-chain-test", home: home, injecting: ["v30-card-title"]
+        )
+
+        guard case .schemaOlderThanKnown(_, let unknown) = readOnlyError(fileURL, projectID) else {
+            Issue.record("Expected .schemaOlderThanKnown error")
+            return
+        }
+        #expect(unknown == ["v30-card-title"])
+    }
+
+    @Test
+    func openReadOnlyLowerSchemaNumberIsOlder() throws {
+        let home = createTempHome()
+        defer { try? cleanupTempHome(home) }
+
+        let (fileURL, projectID) = try journal(
+            named: "older-number-test", home: home, injecting: ["journal-schema-0"]
+        )
+
+        guard case .schemaOlderThanKnown = readOnlyError(fileURL, projectID) else {
+            Issue.record("Expected .schemaOlderThanKnown error")
+            return
+        }
+    }
+
+    @Test
+    func openReadOnlyMixOfOlderAndNewerIsNewer() throws {
+        let home = createTempHome()
+        defer { try? cleanupTempHome(home) }
+
+        let (fileURL, projectID) = try journal(
+            named: "mixed-test", home: home, injecting: ["v1-initial-schema", try newerIdentifier()]
+        )
+
+        guard case .schemaNewerThanKnown = readOnlyError(fileURL, projectID) else {
+            Issue.record("Expected .schemaNewerThanKnown error")
+            return
+        }
+    }
+
+    @Test
+    func openReadOnlyUnparseableIdentifierIsNewer() throws {
+        let home = createTempHome()
+        defer { try? cleanupTempHome(home) }
+
+        let (fileURL, projectID) = try journal(
+            named: "unparseable-test", home: home, injecting: ["something-else"]
+        )
+
+        guard case .schemaNewerThanKnown = readOnlyError(fileURL, projectID) else {
+            Issue.record("Expected .schemaNewerThanKnown error")
+            return
+        }
+    }
+
+    @Test
+    func olderBuildDescriptionTellsTheOperatorToDelete() {
+        let text = JournalError.schemaOlderThanKnown(path: "/tmp/p.db", unknown: ["v1-initial-schema"]).description
+        #expect(text.contains("earlier build"))
+        #expect(text.contains("Delete it"))
     }
 
     // MARK: - Test: engine open refuses a Journal with unknown migrations
@@ -121,16 +203,10 @@ struct JournalReadOnlyTests {
         let home = createTempHome()
         defer { try? cleanupTempHome(home) }
 
-        let projectID = try #require(ProjectID(rawValue: "engine-older-schema-test"))
-        let fileURL = JournalStore.defaultFileURL(homeDirectory: home, id: projectID)
-
-        // Create and migrate, then record an identifier this build does not know (as a pre-squash
-        // Journal would carry) through a raw connection.
-        _ = try JournalStore.open(at: fileURL, projectID: projectID)
-        let raw = try DatabaseQueue(path: fileURL.path)
-        try raw.write { db in
-            try db.execute(sql: "INSERT INTO grdb_migrations (identifier) VALUES ('v1-initial-schema')")
-        }
+        // A pre-squash Journal carries identifiers this build does not know.
+        let (fileURL, projectID) = try journal(
+            named: "engine-older-schema-test", home: home, injecting: ["v1-initial-schema"]
+        )
 
         var error: JournalError?
         do {
@@ -139,8 +215,8 @@ struct JournalReadOnlyTests {
             error = journalError
         }
 
-        guard case .schemaNewerThanKnown(_, let unknown) = error else {
-            Issue.record("Expected .schemaNewerThanKnown error, got \(String(describing: error))")
+        guard case .schemaOlderThanKnown(_, let unknown) = error else {
+            Issue.record("Expected .schemaOlderThanKnown error, got \(String(describing: error))")
             return
         }
         #expect(unknown == ["v1-initial-schema"])

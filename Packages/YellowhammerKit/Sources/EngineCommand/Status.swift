@@ -136,7 +136,7 @@ enum LastRunStatus: Sendable {
     /// No Journal file exists yet: this Project has never run an Act.
     case noJournal
     /// The Journal exists but could not be opened read-only (`JournalError.schemaBehind` or
-    /// `.schemaNewerThanKnown`) — reported, never thrown.
+    /// `.schemaNewerThanKnown` or `.schemaOlderThanKnown`) — reported, never thrown.
     case journalError(String)
     /// The Journal opened, but no event carries a run id.
     case noRunRecorded

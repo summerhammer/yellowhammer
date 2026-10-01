@@ -2,7 +2,11 @@ import Domain
 
 public enum JournalError: Error, Equatable, CustomStringConvertible {
     case missing(path: String)
+    /// The Journal carries migrations this build does not know and that may come from a newer build.
     case schemaNewerThanKnown(path: String, unknown: [String])
+    /// Every unknown migration is provably older: the retired pre-squash `v<N>-<slug>` chain, or a
+    /// lower `journal-schema-<M>`. The Journal must be deleted; the next Act creates a new one.
+    case schemaOlderThanKnown(path: String, unknown: [String])
     case schemaBehind(path: String, pending: [String])
     /// The run no longer holds the Project: its Act-scoped lease expired and was taken, or was released.
     case actLeaseLost(runID: RunID, holder: ActLease?)
@@ -108,7 +112,11 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
         case .missing(let path):
             "Journal not found at \(path)"
         case .schemaNewerThanKnown(let path, let unknown):
-            "Journal at \(path) has unknown migrations: \(unknown.joined(separator: ", "))"
+            "Journal at \(path) was created by a newer build of Yellowhammer " +
+                "(unknown migrations: \(unknown.joined(separator: ", "))). Update Yellowhammer to read it."
+        case .schemaOlderThanKnown(let path, _):
+            "Journal at \(path) was created by an earlier build of Yellowhammer, and this build cannot read it. " +
+                "Delete it; the next Act creates a new one."
         case .schemaBehind(let path, let pending):
             "Journal at \(path) has pending migrations: \(pending.joined(separator: ", "))"
         case .actLeaseLost(let runID, let holder):
