@@ -20,6 +20,9 @@ public enum CardRunStep: String, CaseIterable, Sendable {
     case leaseReleased = "lease-released"
     /// This run lost the Card's Lease mid-run; nothing was written as if it were complete.
     case leaseLost = "lease-lost"
+    /// The Operator's abort request was honoured: the running pass was cancelled, its process group
+    /// killed, and the Attempt ended `aborted`. The detail names the Attempt (e.g. `attempt 12`).
+    case operatorAborted = "operator-aborted"
     /// The engine stopped this run — the run was cancelled, the Act Lease was lost, or an engine fault
     /// struck while the Card was In Progress or had an open Attempt — and left the Card Lease to expire
     /// rather than release it. The detail is the cause. Written best-effort, like `.leaseLost`, and read

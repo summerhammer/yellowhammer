@@ -37,6 +37,10 @@ import Journal
 /// or by whichever Lens's Round was the last after `rounds-exhausted` — and an `attempts-exhausted` step
 /// records the Operator-facing account of how the budget was spent.
 ///
+/// The Operator can abort a running Attempt (app/stop-the-engine-for-a-project): the run polls the Journal for
+/// the Operator's request, cancels the pass, and ends the Attempt `aborted`, which consumes no Attempt, excludes
+/// no Route and Blocks the Card `operator abort` (see `CardRun+OperatorAbort.swift`).
+///
 /// Architect, worker and reviewer are internals of this run, not actors.
 public struct CardRun: CardRunner {
     public let resolver: RouteResolver
@@ -61,6 +65,8 @@ public struct CardRun: CardRunner {
     /// and placed last: a fake ``AgentDispatch`` returns no snapshot, so a test never needs to touch
     /// this, while production can never forget to wire the real fence in by omission.
     public let normalExitFencing: any NormalExitFencing
+    /// How often a running Attempt checks the Journal for the Operator's abort request.
+    public let operatorAbortPoll: Duration
 
     public init(
         resolver: RouteResolver,
@@ -71,7 +77,8 @@ public struct CardRun: CardRunner {
         attemptsPerCard: Int,
         leasePolicy: LeasePolicy = .ruled,
         resetting: any AttemptResetting,
-        normalExitFencing: any NormalExitFencing = AttributedWorktreeFence()
+        normalExitFencing: any NormalExitFencing = AttributedWorktreeFence(),
+        operatorAbortPoll: Duration = .seconds(2)
     ) {
         self.resolver = resolver
         self.dispatch = dispatch
@@ -82,6 +89,7 @@ public struct CardRun: CardRunner {
         self.leasePolicy = leasePolicy
         self.resetting = resetting
         self.normalExitFencing = normalExitFencing
+        self.operatorAbortPoll = operatorAbortPoll
     }
 
     public func run(
@@ -174,7 +182,7 @@ public struct CardRun: CardRunner {
                     try await frame.transition(.inProgress)
                     movedToInProgress = true
                 }
-                let end = try await runPasses(frame: frame)
+                let end = try await runPassesWatchingForOperatorAbort(frame: frame)
                 // A pass the engine cancelled ends `.aborted`, which reads as Crashed-Unknown: concluding
                 // it would consume the Attempt and retry, spending the whole budget on the engine's own
                 // stop. The Attempt stays open instead, for the Expired Lease Sweep to classify.

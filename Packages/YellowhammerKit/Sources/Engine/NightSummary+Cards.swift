@@ -89,6 +89,14 @@ extension NightSummary {
             let kind = recurrenceCount > 1 ? "recurrence" : "first occurrence"
             lines.append("`\(issueID)` — \(kind).")
         }
+        for record in events {
+            guard case .cardRunStep(_, let issueID, .operatorAborted, let detail) = record.event else { continue }
+            let attempt = detail.map { $0.replacingOccurrences(of: "attempt ", with: "") } ?? "?"
+            lines.append(
+                "`\(issueID)` was stopped by the Operator: Attempt \(attempt) aborted, consuming no Attempt " +
+                    "and excluding no Route. It stays Blocked (`operator abort`) until re-ready."
+            )
+        }
         return lines
     }
 }

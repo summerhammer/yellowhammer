@@ -7,7 +7,7 @@ import Foundation
 /// (``AttemptHistory/consumption(inEpoch:)``). Triage must be able to tell "three Routes couldn't do
 /// this" from "my Mac rebooted twice" from ``description`` alone.
 public struct AttemptConsumption: Equatable, Sendable {
-    /// Every Attempt of the epoch whose ending is not `question` — an open (unclassified) Attempt
+    /// Every Attempt of the epoch whose ending is not `question`, `cancelled` or `aborted` — an open (unclassified) Attempt
     /// counts too, because the row is written at dispatch, before the ending is known.
     public let consumed: Int
     /// Attempts that ended `hard failure`.
@@ -18,8 +18,9 @@ public struct AttemptConsumption: Equatable, Sendable {
     public let crashedUnknown: Int
     /// Attempts that ended `success`.
     public let succeeded: Int
-    /// Attempts that ended `question` or `cancelled` — the two endings that consume nothing: asking
-    /// has no resumable state to protect a budget for, and neither does a Card cancelled mid-run.
+    /// Attempts that ended `question`, `cancelled` or `aborted` — the endings that consume nothing: asking
+    /// has no resumable state to protect a budget for, neither does a Card cancelled mid-run, and an
+    /// Operator abort is not the Route's failure.
     public let notConsumed: Int
 
     public init(

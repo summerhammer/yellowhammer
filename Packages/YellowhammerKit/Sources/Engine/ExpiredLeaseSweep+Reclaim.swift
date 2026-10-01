@@ -68,6 +68,7 @@ extension ExpiredLeaseSweep {
         var consumedHow: String?
         var routeExcluded = false
         var isSuccess = false
+        var isAborted = false
     }
 
     /// Ends the dead run's open Attempt, if it has one, from its defensive classification; recording the
@@ -89,6 +90,7 @@ extension ExpiredLeaseSweep {
         result.consumedHow = classification.ending.consumedHow
         result.routeExcluded = classification.ending.excludesRoute
         result.isSuccess = classification.ending == .success
+        result.isAborted = classification.ending == .aborted
 
         if result.isSuccess, let commit = classification.knownGoodCommit,
             let worktree = try heldWorktree(featureID: featureID, repository: card.repository) {
@@ -114,12 +116,16 @@ extension ExpiredLeaseSweep {
         let currentCard = try journal.card(id: card.id)
         guard currentCard.state == .inProgress else { return }
 
-        let transition: CardTransition = outcome.isSuccess ? .done : .ready
+        // An abort the dead run never got to honour Blocks the Card `operator abort` rather than
+        // returning it to Ready: the Operator stopped it, and only a re-ready resumes it.
+        let transition: CardTransition =
+            outcome.isSuccess ? .done : outcome.isAborted ? .blocked(.operatorAbort) : .ready
         if let projection {
             _ = try await projection.transition(card: currentCard, to: transition)
         } else {
             try journal.transitionCard(
-                cardID: card.id, to: transition.state, runID: runID, act: act, nightID: nightID, now: now
+                cardID: card.id, to: transition.state, blockReason: transition.blockReason, runID: runID,
+                act: act, nightID: nightID, now: now
             )
         }
         guard let outbox = projection?.outbox else { return }
@@ -128,7 +134,7 @@ extension ExpiredLeaseSweep {
             context: CrashCommentContext(
                 previousRunID: reclaim.previousRunID, expiredAt: reclaim.expiredAt, engineStop: reclaim.engineStop,
                 attemptID: outcome.attemptID, consumedHow: outcome.consumedHow,
-                destination: outcome.isSuccess ? "Done" : "Ready"
+                destination: outcome.isSuccess ? "Done" : "Ready", operatorAborted: outcome.isAborted
             )
         )
     }
@@ -143,6 +149,8 @@ extension ExpiredLeaseSweep {
         let attemptID: Int64?
         let consumedHow: String?
         let destination: String
+        /// True when the Operator's abort request was recorded but the dead run never honoured it.
+        var operatorAborted = false
     }
 
     /// Posts the reclaim comment through the Outbox, `cardID` deliberately nil: the Card Lease is
@@ -154,7 +162,11 @@ extension ExpiredLeaseSweep {
     private func postReclaimComment(outbox: Outbox, card: CardRecord, context: CrashCommentContext) async throws {
         var body = "Yellowhammer reclaimed this Card: the Card is reclaimable, and no partial state was " +
             "written as if it were complete. "
-        if let engineStop = context.engineStop {
+        if context.operatorAborted {
+            body += "Run \(context.previousRunID.rawValue) held this Card's Lease and was stopped by the " +
+                "Operator before it recorded the abort; the Lease expired at " +
+                "\(context.expiredAt.formatted(.iso8601))."
+        } else if let engineStop = context.engineStop {
             body += "Run \(context.previousRunID.rawValue) held this Card's Lease and was stopped by the " +
                 "engine: \(engineStop); the Lease was left to expire at " +
                 "\(context.expiredAt.formatted(.iso8601))."
@@ -165,7 +177,9 @@ extension ExpiredLeaseSweep {
         if let attemptID = context.attemptID, let consumedHow = context.consumedHow {
             body += " Attempt \(attemptID): \(consumedHow)."
         }
-        body += " The Card returned to \(context.destination)."
+        body += context.operatorAborted
+            ? " The Card is Blocked (operator abort) until re-ready."
+            : " The Card returned to \(context.destination)."
         let key = "lease-reclaim:\(card.issueID):\(context.previousRunID.rawValue)"
         let write = OutboxWrite(
             key: key, write: .createComment(issue: BoardObjectID(rawValue: card.issueID), body: body), cardID: nil
@@ -190,6 +204,10 @@ extension ExpiredLeaseSweep {
         }
         if let status = try lastFailedExitStatus(card: card, previousRunID: previousRunID) {
             return Classification(ending: .hardFailure(.exitStatus(status)), knownGoodCommit: nil)
+        }
+        // After a finished pass (above), before the engine-stop and crash readings: mirrors the live path.
+        if try journal.isOperatorAbortRequested(attemptID: attempt.id) {
+            return Classification(ending: .aborted, knownGoodCommit: nil)
         }
         if let engineStop {
             return Classification(ending: .crashedUnknown(.engineStopped(cause: engineStop)), knownGoodCommit: nil)

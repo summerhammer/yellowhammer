@@ -1,8 +1,8 @@
 import Foundation
 
 /// How an Attempt ended: "Route exclusion — four endings, three answers"
-/// (routing/exclude-tried-routes-on-retry, object-guide Attempt). The object guide's `outcome` is the
-/// first four; `question` is the one ending that is not an outcome: the worker asked, the Card goes
+/// (routing/exclude-tried-routes-on-retry, object-guide Attempt), plus the Operator's `aborted`, a
+/// fifth outcome. The object guide's `outcome` is the first four (and `aborted`); `question` is the one ending that is not an outcome: the worker asked, the Card goes
 /// Waiting on You, and asking consumes neither a Round nor an Attempt.
 public enum AttemptEnding: Equatable, Sendable {
     case success
@@ -15,6 +15,9 @@ public enum AttemptEnding: Equatable, Sendable {
     /// consumes no Attempt budget, excludes no Route, and is never a Block Reason source — there is no
     /// resumable state to protect a budget for.
     case cancelled
+    /// The Operator aborted this Attempt, directly (Abort Attempt) or through Stop the engine. A fifth
+    /// outcome, never Crashed-Unknown: it consumes no Attempt and excludes no Route.
+    case aborted
 }
 
 /// Why an Attempt hard-failed: attributable to the CLI, either directly or through the pass's
@@ -35,6 +38,7 @@ public enum AttemptOutcome: String, CaseIterable, Sendable {
     case crashedUnknown = "Crashed-Unknown"
     case question
     case cancelled
+    case aborted
 }
 
 extension AttemptEnding {
@@ -53,27 +57,29 @@ extension AttemptEnding {
             .question
         case .cancelled:
             .cancelled
+        case .aborted:
+            .aborted
         }
     }
 
     /// True for a capability failure — hard failure or rounds-exhausted — the only two endings that
     /// exclude the Route (routing/exclude-tried-routes-on-retry). Crashed-Unknown never excludes: "a
     /// dying host is ours, not the model's." A question never excludes, and neither does success, and
-    /// neither does a cancellation.
+    /// neither does a cancellation or an Operator abort.
     public var excludesRoute: Bool {
         switch self {
         case .hardFailure, .roundsExhausted:
             true
-        case .success, .crashedUnknown, .question, .cancelled:
+        case .success, .crashedUnknown, .question, .cancelled, .aborted:
             false
         }
     }
 
-    /// True for every ending but a question or a cancellation: asking consumes neither a Round nor an
-    /// Attempt, and the Card goes Waiting on You instead; a cancellation leaves no resumable state to
-    /// protect a budget for.
+    /// True for every ending but a question, a cancellation or an Operator abort: asking consumes
+    /// neither a Round nor an Attempt, and the Card goes Waiting on You instead; a cancellation leaves
+    /// no resumable state to protect a budget for; an abort is the Operator's, not the route's.
     public var consumesAttempt: Bool {
-        self != .question && self != .cancelled
+        self != .question && self != .cancelled && self != .aborted
     }
 
     /// The `route_exclusion.reason` this ending writes, or nil when it excludes nothing.
@@ -83,7 +89,7 @@ extension AttemptEnding {
             "hard failure"
         case .roundsExhausted:
             "rounds-exhausted"
-        case .success, .crashedUnknown, .question, .cancelled:
+        case .success, .crashedUnknown, .question, .cancelled, .aborted:
             nil
         }
     }
@@ -113,6 +119,8 @@ extension AttemptEnding {
             "asked a question"
         case .cancelled:
             "Card cancelled"
+        case .aborted:
+            "aborted by the Operator"
         }
     }
 
@@ -134,6 +142,8 @@ extension AttemptEnding {
             "not consumed (asked a question)"
         case .cancelled:
             "not consumed (Card cancelled)"
+        case .aborted:
+            "not consumed; route not excluded (stopped by the Operator)"
         }
     }
 

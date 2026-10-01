@@ -24,6 +24,9 @@ extension CardRun {
         case .asked(let question):
             return try await concludeAsked(question, frame: frame)
 
+        case .ending(.aborted):
+            return try await concludeAborted(frame: frame)
+
         case .ending(let ending):
             try endAttempt(ending, frame: frame)
             guard ending.consumesAttempt else {
@@ -163,7 +166,7 @@ extension CardRun {
         return AttemptBudget(max: attemptsPerCard, consumed: consumed)
     }
 
-    private func endAttempt(_ ending: AttemptEnding, frame: CardRunFrame) throws {
+    func endAttempt(_ ending: AttemptEnding, frame: CardRunFrame) throws {
         guard let attempt = frame.attempt else { return }
         try frame.revalidateLease()
         try frame.journal.endAttempt(

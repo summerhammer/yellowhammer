@@ -61,13 +61,13 @@ private func released(_ subject: ProvisioningEntry.Subject) -> Bool {
 
 @Suite("Board provisioning")
 struct BoardProvisionerTests {
-    @Test("A bare team gets its four workflow states, both label groups and all ten labels, each reported")
+    @Test("A bare team gets its four workflow states, both label groups and all eleven labels, each reported")
     func firstRunCreatesTheDeclaredSet() async throws {
         let board = board()
         let report = try await provision(board)
 
-        #expect(await board.creates == 17)
-        #expect(report.changes.count == 17)
+        #expect(await board.creates == 18)
+        #expect(report.changes.count == 18)
         #expect(outcome(of: report, waitingOnYou) == .created)
         #expect(outcome(of: report, blocked) == .created)
         #expect(outcome(of: report, keptInFlight) == .created)
@@ -201,7 +201,7 @@ struct BoardProvisionerTests {
         let report = try await provision(board)
 
         #expect(outcome(of: report, waitingOnYou) == .present)
-        #expect(await board.creates == 16)
+        #expect(await board.creates == 17)
     }
 
     @Test("A missing Linear project with no team named is reported missing and nothing else is touched")
@@ -230,7 +230,7 @@ struct BoardProvisionerTests {
             return
         }
         #expect(report.entries[0].outcome == .created)
-        #expect(report.changes.count == 18)
+        #expect(report.changes.count == 19)
         #expect(report.linearProject?.id == BoardObjectID(rawValue: "fake-1"))
     }
 
@@ -243,7 +243,7 @@ struct BoardProvisionerTests {
 
         #expect(report.linearProject?.id == BoardObjectID(rawValue: "fake-1"))
         #expect(outcome(of: report, waitingOnYou) == .created)
-        #expect(await board.creates == 18)
+        #expect(await board.creates == 19)
     }
 
     @Test("Each team of the Linear project is provisioned on its own")
@@ -259,7 +259,7 @@ struct BoardProvisionerTests {
         }
         #expect(states.map(\.0) == ["ENG", "ENG", "ENG", "ENG", "PRD", "PRD", "PRD", "PRD"])
         #expect(states.map(\.1) == [.present, .created, .created, .created, .created, .created, .created, .created])
-        #expect(await board.creates == 33)
+        #expect(await board.creates == 35)
     }
 
     // MARK: - Override label groups (G-17, P7.6)
@@ -281,7 +281,7 @@ struct BoardProvisionerTests {
         )
 
         // 17 as before, plus three groups and 2 + 3 + 2 children.
-        #expect(await board.creates == 27)
+        #expect(await board.creates == 28)
         for group in ["Override CLI", "Override Model", "Override Effort"] {
             #expect(outcome(of: report) { if case .labelGroup(group, _) = $0 { true } else { false } } == .created)
         }
@@ -365,7 +365,7 @@ struct BoardProvisionerTests {
         #expect(prdStates.count == 4)
         #expect(prdStates.allSatisfy { $0.outcome == .created })
         // No create call reached the board for ENG at all: only PRD's 4 states + 2 groups + 10 labels.
-        #expect(await board.creates == 17)
+        #expect(await board.creates == 18)
         #expect(report.hasUnfinishedSteps)
         #expect(report.createByHandGuideline?.contains("team ENG") == true)
     }
@@ -410,8 +410,8 @@ struct BoardProvisionerTests {
         #expect(outcome(of: report, blockReasonGroup) == .created)
         // Only the refused group and its three children are unfinished.
         #expect(report.unfinished.count == 4)
-        // 4 states + the refused Object Type attempt + Block Reason's group and 8 children.
-        #expect(await board.creates == 14)
+        // 4 states + the refused Object Type attempt + Block Reason's group and 9 children.
+        #expect(await board.creates == 15)
     }
 
     @Test("A fully provisioned member team reports no changes, unaffected by the membership check")
@@ -430,7 +430,7 @@ struct BoardProvisionerTests {
         let board = board()
         let report = try await provision(board)
 
-        #expect(await board.creates == 17)
+        #expect(await board.creates == 18)
         #expect(report.entries.allSatisfy { subject in
             if case .labelGroup(let name, _) = subject.subject { return !name.hasPrefix("Override") }
             return true

@@ -160,7 +160,7 @@ struct StandingItemMigrationTests {
 
         let journal = try fixture.open()
 
-        #expect(try journal.appliedMigrations().last == "v30-card-title")
+        #expect(try journal.appliedMigrations().last == "v31-operator-abort-request")
         let refusalColumns = try journal.read { try $0.columns(in: "refusal") }.map(\.name)
         let cardColumns = try journal.read { try $0.columns(in: "card") }.map(\.name)
         #expect(refusalColumns.contains("standing_item_night_id"))

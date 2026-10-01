@@ -60,16 +60,10 @@ extension NightSummary {
             case .cardReclaimed(
                 let cardID, let issueID, let previousRunID, let attemptID, let outcome, let routeExcluded
             ):
-                let engineStop = try journal.engineStopCause(cardID: cardID, runID: previousRunID)
-                var line: String
-                if let engineStop {
-                    line = "Card `\(issueID)` was stopped by the engine: \(engineStop). Its Lease, held by run " +
-                        "`\(previousRunID)`, was left to expire and reclaimed: the Card is reclaimable, and no " +
-                        "partial state was written as if it were complete."
-                } else {
-                    line = "Card `\(issueID)`'s Lease, held by run `\(previousRunID)`, was reclaimed: the Card " +
-                        "is reclaimable, and no partial state was written as if it were complete."
-                }
+                var line = try reclaimedLine(
+                    cardID: cardID, issueID: issueID, previousRunID: previousRunID, outcome: outcome,
+                    journal: journal
+                )
                 if let attemptID, let outcome {
                     let excluded = routeExcluded ? "its Route excluded" : "its Route not excluded"
                     line += " Attempt `\(attemptID)` was classified \(outcome), \(excluded)."
@@ -88,6 +82,22 @@ extension NightSummary {
             }
         }
         return lines
+    }
+
+    /// The opening of a `cardReclaimed` line: stopped by the Operator, stopped by the engine, or a plain reclaim.
+    private static func reclaimedLine(
+        cardID: Int64, issueID: String, previousRunID: RunID, outcome: String?, journal: JournalStore
+    ) throws -> String {
+        let mandated = "the Card is reclaimable, and no partial state was written as if it were complete."
+        if outcome == AttemptEnding.aborted.consumedHow {
+            return "Card `\(issueID)` was stopped by the Operator. Its Lease, held by run " +
+                "`\(previousRunID)`, was reclaimed: \(mandated)"
+        }
+        if let engineStop = try journal.engineStopCause(cardID: cardID, runID: previousRunID) {
+            return "Card `\(issueID)` was stopped by the engine: \(engineStop). Its Lease, held by run " +
+                "`\(previousRunID)`, was left to expire and reclaimed: \(mandated)"
+        }
+        return "Card `\(issueID)`'s Lease, held by run `\(previousRunID)`, was reclaimed: \(mandated)"
     }
 
     /// The `**Exceptions:**` section: `boardWriteFailed`, `rateBudgetExhausted`, `mainlineFetchFailed`,

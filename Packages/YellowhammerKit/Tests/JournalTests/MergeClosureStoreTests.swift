@@ -67,7 +67,7 @@ struct NightTriagedAtMigrationTests {
     func migrationAddsColumn() throws {
         let fixture = try JournalFixture()
         let journal = try fixture.open()
-        #expect(try journal.appliedMigrations().last == "v30-card-title")
+        #expect(try journal.appliedMigrations().last == "v31-operator-abort-request")
 
         let runID = RunID()
         guard case .claimed = try journal.claimActLease(act: .author, runID: runID, mode: .real, now: epoch) else {

@@ -13,7 +13,7 @@ public struct RootCommand: AsyncParsableCommand {
         subcommands: [
             AuthorCommand.self, BuildCommand.self, LandCommand.self, ProbeCommand.self, SetupCommand.self,
             DoctorCommand.self, ValidateCommand.self, StatusCommand.self, ProjectCommand.self,
-            RecalibrateCommand.self, RehearseCommand.self
+            RecalibrateCommand.self, RehearseCommand.self, StopCommand.self
         ],
         defaultSubcommand: nil
     )

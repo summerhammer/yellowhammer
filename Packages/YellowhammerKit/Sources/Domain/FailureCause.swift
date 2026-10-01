@@ -13,13 +13,13 @@ public struct FailureCause: Equatable, Sendable {
     /// The Operator-facing name of the cause, as the Card's board projection shows it.
     public let summary: String
 
-    /// `nil` for a success or a question: neither is a failure, so neither has a cause to count.
+    /// `nil` for a success, a question, a cancellation or an Operator abort: none is a failure, so neither has a cause to count.
     /// `lens` is the Lens of the Round that spent the round budget; only `rounds-exhausted` reads it.
     public init?(ending: AttemptEnding, lens: Lens? = nil) {
         let outcome = ending.outcome.rawValue
         let detail: String
         switch ending {
-        case .success, .question, .cancelled:
+        case .success, .question, .cancelled, .aborted:
             return nil
         case .hardFailure(.exitStatus(let status)):
             detail = "exit status \(status)"
