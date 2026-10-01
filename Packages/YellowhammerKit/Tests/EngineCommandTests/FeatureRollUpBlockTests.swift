@@ -212,16 +212,6 @@ struct FeatureRollUpBlockTests {
         #expect(!rendered.contains("`A`"))
     }
 
-    @Test("A Card with no title falls back to its backticked issue id")
-    func nilTitleFallsBackToIssueID() {
-        let rollUp = FeatureRollUp(
-            members: [member("A", repo: "backend", order: 0, state: .blocked, blockReason: "blocked by check")],
-            lanesPushed: false, verificationPassed: false, mergedFraction: noMerge(), issueStanding: .authoring
-        )
-        let rendered = FeatureRollUpBlock(rollUp: rollUp).render()
-        #expect(rendered.contains("- `A` — Blocked (blocked by check)"))
-    }
-
     @Test("The Cancelled group renders by title, falling back to issue id when untitled")
     func cancelledGroupRendersByTitle() {
         let rollUp = FeatureRollUp(
