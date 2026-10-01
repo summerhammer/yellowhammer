@@ -334,6 +334,16 @@ extension JournalEvent {
                 "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
                 "pass": pass.rawValue, "fixture": fixture
             ]
+        case .cardCommitTrailerMissing(let cardID, let issueID, let attemptID, let commit):
+            [
+                "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
+                "commit": commit
+            ]
+        case .cardCommitTrailersUnread(let cardID, let issueID, let attemptID, let commit, let reason):
+            [
+                "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
+                "commit": commit, "reason": reason
+            ]
         case .leftoverProcessRecorded(
             let cardID, let issueID, let attemptID, let pass, let pid, let commandName, let disposition, let cwd
         ):

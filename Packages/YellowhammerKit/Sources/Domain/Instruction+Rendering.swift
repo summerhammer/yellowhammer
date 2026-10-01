@@ -12,6 +12,7 @@ extension Instruction {
             definitionOfDoneSection,
             repositorySection
         ]
+        if let commitMessagesSection { sections.append(commitMessagesSection) }
         if let wipSection { sections.append(wipSection) }
         if let answeredQuestionSection { sections.append(answeredQuestionSection) }
         if let bankedRepliesSection { sections.append(bankedRepliesSection) }
@@ -84,6 +85,21 @@ extension Instruction {
             Feature branch: \(repository.featureBranch)
             Check: \(checkLine)
             """
+    }
+
+    /// Worker pass only: the rendered commit-message template and the `Yellowhammer-Card` trailer. The
+    /// trailer sentence is omitted, never a placeholder, when the Card's key is unknown.
+    private var commitMessagesSection: String? {
+        guard pass == .worker, let request = commitMessage else { return nil }
+        var lines = ["## Commit messages", "", "Write each commit message in this format:", ""]
+        lines.append(contentsOf: request.message.split(separator: "\n", omittingEmptySubsequences: false).map {
+            $0.isEmpty ? "" : "    \($0)"
+        })
+        if let key = request.cardKey, !key.isEmpty {
+            lines.append("")
+            lines.append("End each commit message with the git trailer `Yellowhammer-Card: \(key)`.")
+        }
+        return lines.joined(separator: "\n")
     }
 
     private var wipSection: String? {

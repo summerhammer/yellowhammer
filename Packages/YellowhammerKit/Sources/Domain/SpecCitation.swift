@@ -29,6 +29,14 @@ public struct SpecCitation: Equatable, Hashable, Sendable, CustomStringConvertib
         guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else { return nil }
         return String(parts[0])
     }
+
+    /// The `<epic>/<story>` story ID of a story ID citation; nil whenever ``epic`` is nil. A `#fragment`
+    /// after the story (`auth/login#ac-2`) is stripped, from the `#` on.
+    public var story: String? {
+        guard epic != nil else { return nil }
+        guard let hash = rawValue.firstIndex(of: "#") else { return rawValue }
+        return String(rawValue[..<hash])
+    }
 }
 
 /// The result of resolving a ``SpecCitation`` against the Project's single specification source.

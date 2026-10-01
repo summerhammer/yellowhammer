@@ -1,6 +1,7 @@
 import Domain
 import Foundation
 import Journal
+import Repositories
 
 /// Runs one Card to completion (graph-execution/run-a-card, roadmap P8.4), in this order, each step
 /// appended to the event log as a ``CardRunStep``:
@@ -65,6 +66,13 @@ public struct CardRun: CardRunner {
     /// and placed last: a fake ``AgentDispatch`` returns no snapshot, so a test never needs to touch
     /// this, while production can never forget to wire the real fence in by omission.
     public let normalExitFencing: any NormalExitFencing
+    /// The Project's `commit_message` Message Template, rendered into the worker pass's instruction
+    /// (roadmap P19.4).
+    public let commitMessage: MessageTemplate
+    /// The Project's `change_type`, which fills the commit message's `{type}`.
+    public let changeType: ChangeType
+    /// Reads the worker's reported commits for the `Yellowhammer-Card` trailer, recorded only.
+    public let commitTrailers: CommitTrailerReader
     /// How often a running Attempt checks the Journal for the Operator's abort request.
     public let operatorAbortPoll: Duration
 
@@ -77,6 +85,9 @@ public struct CardRun: CardRunner {
         attemptsPerCard: Int,
         leasePolicy: LeasePolicy = .ruled,
         resetting: any AttemptResetting,
+        commitMessage: MessageTemplate = .default(.commitMessage),
+        changeType: ChangeType = .feat,
+        commitTrailers: CommitTrailerReader = CommitTrailerReader(),
         normalExitFencing: any NormalExitFencing = AttributedWorktreeFence(),
         operatorAbortPoll: Duration = .seconds(2)
     ) {
@@ -88,6 +99,9 @@ public struct CardRun: CardRunner {
         self.attemptsPerCard = attemptsPerCard
         self.leasePolicy = leasePolicy
         self.resetting = resetting
+        self.commitMessage = commitMessage
+        self.changeType = changeType
+        self.commitTrailers = commitTrailers
         self.normalExitFencing = normalExitFencing
         self.operatorAbortPoll = operatorAbortPoll
     }
