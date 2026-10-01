@@ -13,7 +13,8 @@ enum CardRunResetResult: Sendable {
 }
 
 extension CardRun {
-    /// A new Attempt starts fresh, never as a rescue (OQ60): before dispatching one, the prior
+    /// Run before every new Attempt, on every Block path, and on entering Waiting on You mid-run
+    /// (OQ106). A new Attempt starts fresh, never as a rescue (OQ60): before dispatching one, the prior
     /// Attempt's own commits plus any WIP commit are preserved under a git ref recorded against it,
     /// and the Worktree and the Feature Branch tip reset to the last known-good commit. Re-reads the
     /// WorktreeRecord fresh, so an earlier Card reaching Done in this run's own advance of

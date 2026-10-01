@@ -58,7 +58,8 @@ public struct CardRun: CardRunner {
     /// default lives in `Config`, and the Engine holds no configuration.
     public let attemptsPerCard: Int
     /// The fence → WIP-commit → preserve → reset seam (Attempt, Block and Reset Ruling 2026-09-19,
-    /// OQ60): required, with no default, so production can never forget to wire the real
+    /// OQ60), run before every new Attempt, on every Block path and when a question puts the Card in
+    /// Waiting on You (OQ106): required, with no default, so production can never forget to wire the real
     /// ``AttemptWorktreeReset`` in.
     public let resetting: any AttemptResetting
     /// The attributed Worktree fence (Normal-Exit Sweep Ruling, layer 2, issue #175), run after every
@@ -161,7 +162,8 @@ public struct CardRun: CardRunner {
     }
 
     /// Everything after the Lease is held: one Attempt after another, from the same held Lease and the
-    /// same Card run, until one ends the run — success, a question, or the Attempt budget spent (P8.7).
+    /// same Card run, until one ends the run — success, a question (after its own reset, OQ106), or the
+    /// Attempt budget spent (P8.7).
     private func runHeld(
         card: CardRecord, in lane: RepoLane, context: BuildActContext, readiness: CardReadiness
     ) async throws {

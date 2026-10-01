@@ -7,7 +7,8 @@ import Testing
 // A worker's question escalates to the Operator (roadmap P11.1; spec: bounds/escalate-a-question-to-
 // the-operator): the Attempt ends `question`, consuming no Round and no Attempt, the Card moves to
 // Waiting on You, the question is recorded in the Journal and posted as a comment through the Outbox,
-// and the Worktree is left exactly as the Attempt left it.
+// and the OQ60 reset sequence runs last, as on Block, so the Worktree is back at known-good with the
+// Attempt's work preserved (roadmap P19.5; Landing Edge Cases Ruling 2026-10-01, OQ106).
 
 private let questionText = "The DoD asks for a 40-hex commit, but the Worktree has no commits yet. " +
     "Should I create an empty commit first?"
@@ -37,7 +38,7 @@ struct CardRunQuestionTests {
         )
     }
 
-    @Test("The Card ends in Waiting on You / question, consuming no Attempt, no Round, no retry, no reset")
+    @Test("The Card ends in Waiting on You / question, consuming no Attempt, no Round, no retry")
     func endsInWaitingOnYouWithoutConsumingOrRetrying() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
@@ -47,8 +48,8 @@ struct CardRunQuestionTests {
         try await makeRun(log: log, dispatch: dispatch).run("BACK-1", in: world)
 
         // One worker pass only: no Round, no retry dispatch.
-        #expect(log.all == ["dispatch architect", "dispatch worker"])
-        #expect(!log.all.contains("reset"))
+        // The reset sequence runs once, after the asking pass, and dispatches nothing.
+        #expect(log.all == ["dispatch architect", "dispatch worker", "reset"])
 
         let attempts = try world.attempts("BACK-1")
         #expect(attempts.count == 1)
@@ -138,8 +139,8 @@ struct CardRunQuestionTests {
         #expect(comment.body.contains(questionText))
     }
 
-    @Test("The Worktree is left held, and no attempt reset ran")
-    func worktreeStaysHeldAndNoResetRuns() async throws {
+    @Test("The Worktree stays held, and the reset sequence ran once")
+    func worktreeStaysHeldAndResetRunsOnce() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
         let log = CallLog()
@@ -148,11 +149,53 @@ struct CardRunQuestionTests {
 
         try await makeRun(log: log, dispatch: dispatch, resetting: resetting).run("BACK-1", in: world)
 
-        #expect(!log.all.contains("reset"))
+        #expect(log.all.filter { $0 == "reset" }.count == 1)
         let worktree = try #require(
             try world.journal.heldWorktree(featureID: world.context.feature.id, repository: "backend")
         )
         #expect(worktree.path.contains("backend"))
+
+        let attempt = try #require(try world.attempts("BACK-1").first)
+        #expect(attempt.preservedRef == "refs/yellowhammer/attempts/test-branch/\(attempt.id)")
+        #expect(attempt.preservedCommit == "preserved-\(attempt.id)")
+        #expect(try cardRunLog(world.journal).contains(CardRunStep.attemptReset.rawValue))
+    }
+
+    @Test("A refused reset still leaves the Card Waiting on You with its question recorded and posted")
+    func refusedResetStillSurfacesTheQuestion() async throws {
+        let fixture = try OutboxJournalFixture()
+        let world = try await makeCardRunWorld(journal: try fixture.open())
+        let log = CallLog()
+        let dispatch = LoggingDispatch(log: log, script: [.worker: .workerQuestion])
+        let resetting = RecordingAttemptResetting(log: log, scripted: .refused(reason: "worktree not quiescent"))
+
+        try await makeRun(log: log, dispatch: dispatch, resetting: resetting).run("BACK-1", in: world)
+
+        let card = try world.card("BACK-1")
+        #expect(card.state == .waitingOnYou)
+        #expect(card.waitingReason == .question)
+        let attempts = try world.attempts("BACK-1")
+        #expect(attempts.count == 1)
+        #expect(attempts[0].result == "question")
+        #expect(attempts[0].preservedRef == nil)
+        #expect(try world.journal.latestCardQuestion(cardID: card.id)?.question == questionText)
+        let boards = try #require(world.boards)
+        let comment = try #require(await boards.writing.comments.first { $0.issue.rawValue == "BACK-1" })
+        #expect(comment.body.contains(questionText))
+        #expect(try cardRunLog(world.journal).contains(CardRunStep.attemptResetFailed.rawValue))
+    }
+
+    @Test("The reset runs with no Board: the Card is Waiting on You in the Journal")
+    func resetRunsWithNoBoard() async throws {
+        let fixture = try OutboxJournalFixture()
+        let world = try await makeCardRunWorld(journal: try fixture.open(), withBoard: false)
+        let log = CallLog()
+        let dispatch = LoggingDispatch(log: log, script: [.worker: .workerQuestion])
+
+        try await makeRun(log: log, dispatch: dispatch).run("BACK-1", in: world)
+
+        #expect(try world.card("BACK-1").state == .waitingOnYou)
+        #expect(log.all.filter { $0 == "reset" }.count == 1)
     }
 
     @Test("In a lane of two Cards, the first asking a question does not stop the second from running")
@@ -167,10 +210,15 @@ struct CardRunQuestionTests {
 
         try await run.run("BACK-1", in: world)
         #expect(try world.card("BACK-1").state == .waitingOnYou)
+        #expect(log.all.contains("reset"))
 
         try await run.run("BACK-2", in: world)
         #expect(try world.card("BACK-2").state == .done)
 
         #expect(log.all.filter { $0.hasSuffix("BACK-2") }.contains("dispatch worker BACK-2"))
+        // The reset ran before the lane's next Card was dispatched.
+        let resetIndex = try #require(log.all.firstIndex(of: "reset"))
+        let nextIndex = try #require(log.all.firstIndex(of: "dispatch architect BACK-2"))
+        #expect(resetIndex < nextIndex)
     }
 }

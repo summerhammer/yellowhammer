@@ -16,11 +16,11 @@ import Testing
 private let resumeQuestionText = "The DoD asks for a 40-hex commit, but the Worktree has no commits yet. " +
     "Should I create an empty commit first?"
 
-private func makeRun(dispatch: any AgentDispatch) -> CardRun {
+private func makeRun(dispatch: any AgentDispatch, resetting: RecordingAttemptResetting? = nil) -> CardRun {
     CardRun(
         resolver: cardRunResolver(), dispatch: dispatch, check: RecordingCheck(log: CallLog()),
         checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
-        resetting: RecordingAttemptResetting()
+        resetting: resetting ?? RecordingAttemptResetting()
     )
 }
 
@@ -36,10 +36,12 @@ private struct AskedQuestion {
 /// Takes an already-opened `JournalStore` rather than opening one itself: `OutboxJournalFixture` is
 /// `~Copyable`, and its `deinit` removes the Journal's directory — it must stay alive in the *caller's*
 /// scope for the whole test, or the directory is gone before the rest of the test runs.
-private func askQuestion(journal: JournalStore) async throws -> AskedQuestion {
+private func askQuestion(
+    journal: JournalStore, resetting: RecordingAttemptResetting? = nil
+) async throws -> AskedQuestion {
     let world = try await makeCardRunWorld(journal: journal)
     let dispatch = LoggingDispatch(log: CallLog(), script: [.worker: .workerQuestion])
-    try await makeRun(dispatch: dispatch).run("BACK-1", in: world)
+    try await makeRun(dispatch: dispatch, resetting: resetting).run("BACK-1", in: world)
 
     let card = try world.card("BACK-1")
     guard card.state == .waitingOnYou, card.waitingReason == .question else {
@@ -53,6 +55,14 @@ private func askQuestion(journal: JournalStore) async throws -> AskedQuestion {
 }
 
 private struct QuestionActSetupFailed: Error {}
+
+private func expectPreservedContext(in requests: [AgentDispatchRequest], commit: String, ref: String) throws {
+    for request in requests {
+        let wip = try #require(request.instruction.cardInstruction?.payloads.wip)
+        #expect(wip.commit == commit)
+        #expect(wip.note?.contains(ref) == true)
+    }
+}
 
 @Suite("An answered Card resumes in the same build Act (P11.2)")
 struct WaitingOnYouResumeTests {
@@ -108,6 +118,60 @@ struct WaitingOnYouResumeTests {
         let answerBody = WaitingOnYouAcknowledgement.answer()
         let ack = try #require(await boards.writing.comments.first { $0.body == answerBody })
         #expect(ack.issue.rawValue == "BACK-1")
+
+        // The question Attempt's preserved work is handed over as context, not a starting tree (OQ106),
+        // to every pass of the resumed run.
+        let preservedRef = "refs/yellowhammer/attempts/test-branch/\(asked.questionAttempt.id)"
+        try expectPreservedContext(
+            in: [try #require(resumeDispatch.requests.passes(.architect).first), workerRequest],
+            commit: "preserved-\(asked.questionAttempt.id)", ref: preservedRef
+        )
+        #expect(rendered.contains("## Work in progress"))
+
+        // Asking reset no counter: the question Attempt keeps its ref, no Round, no Route exclusion.
+        #expect(history[0].preservedRef == preservedRef)
+        #expect(history[0].rounds.isEmpty)
+    }
+
+    @Test("A question Attempt that preserved nothing hands the resumed run no work in progress")
+    func resumeWithNothingPreservedCarriesNoWIP() async throws {
+        let fixture = try OutboxJournalFixture()
+        let asked = try await askQuestion(
+            journal: try fixture.open(), resetting: RecordingAttemptResetting(preserves: false)
+        )
+        let world = asked.world
+
+        let replyComment = comment(
+            "reply-1", on: "BACK-1", author: humanAuthor, parent: asked.questionCommentID.rawValue, createdAt: 3_600
+        )
+        let read = DeltaRead(
+            journal: world.journal, board: FakeReadingBoard([page(comments: [replyComment])]), runID: world.runID,
+            act: .build, nightID: world.context.act.night.id
+        )
+        guard case .read = try await read.perform() else {
+            Issue.record("expected a read")
+            return
+        }
+        try await WaitingOnYouReplies.apply(context: world.context.act, unansweredNightsMax: 3)
+
+        let resumeDispatch = LoggingDispatch(log: CallLog())
+        try await makeRun(dispatch: resumeDispatch).run("BACK-1", in: world)
+
+        let worker = try #require(resumeDispatch.requests.passes(.worker).first)
+        #expect(worker.instruction.cardInstruction?.payloads.wip == nil)
+        #expect(!worker.instruction.render().contains("## Work in progress"))
+    }
+
+    @Test("A fresh run of a Card with no question Attempt carries no work in progress")
+    func freshRunCarriesNoWIP() async throws {
+        let fixture = try OutboxJournalFixture()
+        let world = try await makeCardRunWorld(journal: try fixture.open())
+        let dispatch = LoggingDispatch(log: CallLog())
+
+        try await makeRun(dispatch: dispatch).run("BACK-1", in: world)
+
+        let architect = try #require(dispatch.requests.passes(.architect).first)
+        #expect(architect.instruction.cardInstruction?.payloads.wip == nil)
     }
 
     @Test("A remark does not resume the Card")
