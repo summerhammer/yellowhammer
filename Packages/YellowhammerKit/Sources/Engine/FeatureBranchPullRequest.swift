@@ -58,7 +58,9 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
         }
 
         // One board read serves the title, the key, the URL and the description (clause order).
-        let featureObject = await findBoardObject(id: context.feature.issueID, context: context)
+        let featureObject = await BoardObjectLookup.find(
+            ids: [context.feature.issueID], board: context.act.board
+        )[context.feature.issueID]
         let (body, isPartial) = try await renderBody(
             context: context, mergeOutcome: mergeOutcome, featureObject: featureObject
         )
@@ -261,26 +263,6 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
         }
         return unmetClauses
     }
-
-    /// Pages `board.reading.objects` up to a bounded number of pages looking for `id`. The Board Port
-    /// has no read-by-id (ADR-001 write-only elsewhere too); this is the best a Port-only read offers.
-    private func findBoardObject(id: String, context: LandActLaneContext) async -> BoardObject? {
-        guard let board = context.act.board else { return nil }
-        var cursor: BoardCursor?
-        for _ in 0..<10 {
-            guard
-                let page = try? await board.reading.objects(updatedSince: nil, after: cursor, pageSize: 200)
-            else {
-                return nil
-            }
-            if let found = page.objects.first(where: { $0.key == id || $0.id.rawValue == id }) {
-                return found
-            }
-            guard let next = page.nextCursor else { return nil }
-            cursor = next
-        }
-        return nil
-    }
 }
 
 // MARK: - Title
@@ -293,7 +275,7 @@ extension FeatureBranchPullRequest {
     ) throws -> String {
         let featureClauses = try context.act.journal.clauses(issueID: context.feature.issueID)
         let primaryEpic = PullRequestTitle.primaryEpic(
-            citations: PullRequestTitle.inClauseOrder(featureClauses, description: featureObject?.description)
+            citations: ClauseOrder.inClauseOrder(featureClauses, description: featureObject?.description)
                 .map { SpecCitation($0.locationID) }
         )
         return PullRequestTitle.render(

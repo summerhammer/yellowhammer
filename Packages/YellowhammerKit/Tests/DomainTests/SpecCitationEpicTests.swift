@@ -10,3 +10,13 @@ func specCitationEpic() {
         #expect(SpecCitation(notAStory).epic == nil, "\(notAStory) is not a story ID")
     }
 }
+
+@Test("a story ID citation has a story with any #fragment stripped; anything else has none")
+func specCitationStory() {
+    #expect(SpecCitation("auth/login").story == "auth/login")
+    #expect(SpecCitation("auth/login#ac-2").story == "auth/login")
+    #expect(SpecCitation("  auth/login  ").story == "auth/login")
+    for notAStory in ["G1", "{#g5}", "#g5", "a/b/c", "/x", "x/", ""] {
+        #expect(SpecCitation(notAStory).story == nil, "\(notAStory) is not a story ID")
+    }
+}

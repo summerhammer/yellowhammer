@@ -20,6 +20,11 @@ struct CardRunFrame: Sendable {
     let branch: FeatureBranch
     let projection: BoardStateProjection?
     let instructionCard: InstructionCard
+    /// The Card's board object (the Delta Read's copy, else one board read) and its Feature Issue's:
+    /// they supply the human keys and the Feature title for the worker's commit message. Nil with no
+    /// Board, or when the board did not return them.
+    let cardObject: BoardObject?
+    let featureObject: BoardObject?
     /// Set once the Route is resolved and the Attempt recorded.
     var attempt: AttemptRecord?
     var route: Route?
@@ -135,6 +140,15 @@ extension CardRun {
         // for a Card the Journal has never reconciled a title for (issue #161; spec:
         // landing/announce-a-partial-landing).
         let object = context.deltaRead?.cardChanges.first { $0.card.id == card.id }?.object
+        var cardObject = object
+        var featureObject: BoardObject?
+        if let board = context.act.board {
+            let wanted: Set<String> = object == nil
+                ? [card.issueID, context.feature.issueID] : [context.feature.issueID]
+            let found = await BoardObjectLookup.find(ids: wanted, board: board)
+            cardObject = object ?? found[card.issueID]
+            featureObject = found[context.feature.issueID]
+        }
         var frame = CardRunFrame(
             card: card, context: context, readiness: readiness, lane: lane,
             repository: context.act.repositories?.workingRepo(named: card.repository), check: check,
@@ -142,7 +156,8 @@ extension CardRun {
             instructionCard: InstructionCard(
                 key: card.issueID, title: object?.title ?? card.title ?? card.issueID,
                 description: object?.description
-            )
+            ),
+            cardObject: cardObject, featureObject: featureObject
         )
         let banked = try journal.bankedCardReplies(cardID: card.id)
         let bankedCommentIDs = Set(banked.map { $0.reply.commentID })

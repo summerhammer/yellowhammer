@@ -72,10 +72,10 @@ struct PullRequestTitleTests {
             )
         }
         let clauses = ["c1", "c10", "c2", "c3"].map(clause)
-        #expect(PullRequestTitle.inClauseOrder(clauses, description: nil).map(\.cid) == ["c1", "c2", "c3", "c10"])
+        #expect(ClauseOrder.inClauseOrder(clauses, description: nil).map(\.cid) == ["c1", "c2", "c3", "c10"])
         let description = "- [ ] <!-- yh:clause:c3 --> x\n- [ ] <!-- yh:clause:c10 --> y"
         #expect(
-            PullRequestTitle.inClauseOrder(clauses, description: description).map(\.cid) == ["c3", "c10", "c1", "c2"]
+            ClauseOrder.inClauseOrder(clauses, description: description).map(\.cid) == ["c3", "c10", "c1", "c2"]
         )
     }
 }

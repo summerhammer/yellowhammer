@@ -98,11 +98,15 @@ extension CardRun {
         frame: CardRunFrame, payloads: InstructionPayloads, resumeSession: String?
     ) async throws -> (commit: String, session: String?) {
         let worker = try await runPass(.worker, frame: frame, payloads: payloads, resumeSession: resumeSession)
+        guard let attemptID = frame.attempt?.id else {
+            preconditionFailure("a pass is dispatched only after the Attempt is recorded")
+        }
         guard case .worker(let work) = worker.result else {
             throw CardRunError.unexpectedResult(expected: .worker, found: worker.result.pass)
         }
         switch work.outcome {
         case .completed(let commit, _):
+            try await recordMissingTrailers(commit: commit, attemptID: attemptID, frame: frame)
             return (commit, worker.session)
         case .question(let text):
             throw PassStop(ending: .question, question: text)
@@ -220,8 +224,28 @@ extension CardRun {
                 repo: repo, worktreePath: frame.worktree.path, featureBranch: frame.branch.name,
                 check: frame.check
             ),
-            route: route, payloads: payloads, resultFilePath: ""
+            route: route, payloads: payloads, commitMessage: commitMessageRequest(for: pass, frame: frame),
+            resultFilePath: ""
         )
+    }
+
+    /// The worker pass's commit message request (roadmap P19.4): the Project's template rendered with the
+    /// Card's tokens. Other passes get none. Not part of the Architectural Brief.
+    private func commitMessageRequest(for pass: RunPass, frame: CardRunFrame) -> CommitMessageRequest? {
+        guard pass == .worker else { return nil }
+        let story = WorkerCommitMessage.story(
+            clauses: frame.readiness.clauses, description: frame.cardObject?.description
+        )
+        let message = WorkerCommitMessage.render(
+            template: commitMessage, changeType: changeType,
+            inputs: WorkerCommitMessage.Inputs(
+                cardKey: frame.cardObject?.key ?? "", cardTitle: frame.instructionCard.title,
+                featureKey: frame.featureObject?.key ?? "",
+                featureTitle: frame.featureObject?.title ?? frame.context.feature.issueID,
+                repository: frame.card.repository, story: story
+            )
+        )
+        return CommitMessageRequest(message: message, cardKey: frame.cardObject?.key)
     }
 
     private static func step(of pass: RunPass) -> CardRunStep {

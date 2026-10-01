@@ -140,6 +140,20 @@ public struct InstructionPayloads: Equatable, Sendable {
     public static let none = InstructionPayloads()
 }
 
+/// The Project's commit-message Message Template, already rendered with the Card's tokens, that the worker
+/// pass's instruction asks the worker to follow. Not part of the Architectural Brief.
+public struct CommitMessageRequest: Equatable, Sendable {
+    /// The rendered `[git] commit_message` template.
+    public let message: String
+    /// The Card's human Linear identifier (such as `YLH-42`); nil when it is not known.
+    public let cardKey: String?
+
+    public init(message: String, cardKey: String? = nil) {
+        self.message = message
+        self.cardKey = cardKey
+    }
+}
+
 /// The instruction Yellowhammer composes and hands to the CLI for one pass of one dispatch. Yellowhammer
 /// owns the instruction and the result contract; the CLI owns execution — this is data plus a
 /// deterministic text rendering, nothing about tools, context management or subagents.
@@ -151,6 +165,8 @@ public struct Instruction: Equatable, Sendable {
     public let repository: InstructionRepository
     public let route: Route
     public let payloads: InstructionPayloads
+    /// The commit message the worker pass is asked to write; nil omits the section.
+    public let commitMessage: CommitMessageRequest?
     /// The absolute path the CLI must write its result file to.
     public let resultFilePath: String
 
@@ -162,6 +178,7 @@ public struct Instruction: Equatable, Sendable {
         repository: InstructionRepository,
         route: Route,
         payloads: InstructionPayloads,
+        commitMessage: CommitMessageRequest? = nil,
         resultFilePath: String
     ) {
         self.pass = pass
@@ -171,6 +188,7 @@ public struct Instruction: Equatable, Sendable {
         self.repository = repository
         self.route = route
         self.payloads = payloads
+        self.commitMessage = commitMessage
         self.resultFilePath = resultFilePath
     }
 }
