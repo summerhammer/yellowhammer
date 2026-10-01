@@ -1,14 +1,14 @@
 import Foundation
 
-/// The stub `yh` shell script `SetupWizardUITests` execs, split into its own file to keep the test
-/// class's own body under its size budget.
-extension SetupWizardUITests {
+/// The stub `yh` shell script the Setup wizard and Settings UI tests exec, shared so both test classes
+/// drive the same `--print-choices`, `--init`, `--check` and `--install-linear` answers.
+enum EngineStub {
     /// A `sh` script, read (never exec'd) by `/bin/sh`. `--print-choices` answers with a canned
     /// ``SetupChoices`` JSON line and nothing else, so the wizard's "last non-empty line" decode still
     /// works. `--init` first drains the stdin secret line, then echoes every argument as `argv: <arg>`
-    /// and prints "Setup complete." The stub writes no file.
-    static func writeStub(in directory: URL) throws -> URL {
-        let script = "#!/bin/sh\nshift\ncase \"$1\" in\n"
+    /// and prints "Setup complete." Its only files are the `/tmp` markers and argv log the tests name.
+    static func write(in directory: URL) throws -> URL {
+        let script = "#!/bin/sh\nall_args=\"$*\"\nshift\ncase \"$1\" in\n"
             + printChoicesCase + initCase + checkCase + installLinearCase
             + "  *)\n    exit 1\n    ;;\nesac\n"
         let stubURL = directory.appending(component: "yh.sh", directoryHint: .notDirectory)
@@ -52,12 +52,15 @@ extension SetupWizardUITests {
 
         """
 
-    /// `yh setup --install-linear --events json`: branches on `--remote` (roadmap P17.9). Without it,
+    /// `yh setup --install-linear --events json`: when `YH_STUB_ARGV_LOG` names a file, first appends the
+    /// full argument vector (`setup --install-linear ...`) to it as one line, so a test can assert on what
+    /// the app ran. Branches on `--remote` (roadmap P17.9). Without it,
     /// the first attempt reports every port busy when `YH_STUB_PORTS_BUSY_FIRST` is set (a Retry test);
     /// every later attempt installs. With it, the attempt fails with `relayUnreachable` when
     /// `YH_STUB_RELAY_UNREACHABLE` is set; otherwise it issues an approval link, waits, then installs.
     static let installLinearCase = """
           --install-linear)
+            if [ -n "$YH_STUB_ARGV_LOG" ]; then echo "$all_args" >> "$YH_STUB_ARGV_LOG"; fi
             is_remote=""
             for arg in "$@"; do
               if [ "$arg" = "--remote" ]; then is_remote="1"; fi

@@ -3,7 +3,7 @@ import Domain
 /// A place the Settings window can show. The sidebar's rows are these, and `SettingsHistory` is a list
 /// of them.
 enum SettingsSection: Hashable {
-    /// The machine-wide settings still to move here (P18.16).
+    /// The machine-wide settings: the Linear installation, the Operator identity and Orca ADE.
     case general
     /// The declared Agent CLIs, their latest Probe Results, and a Probe on demand.
     case agentCLIs

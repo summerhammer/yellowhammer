@@ -35,7 +35,7 @@ final class SetupWizardUITests: XCTestCase {
         try FileManager.default.createDirectory(at: configurationDirectory, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: stubDirectory, withIntermediateDirectories: true)
 
-        let stubURL = try Self.writeStub(in: stubDirectory)
+        let stubURL = try EngineStub.write(in: stubDirectory)
         let uniqueSuffix = UUID().uuidString
         installedMarker = URL(filePath: "/tmp/yh-uitest-installed-\(uniqueSuffix)")
         attemptsMarker = URL(filePath: "/tmp/yh-uitest-attempts-\(uniqueSuffix)")
@@ -263,7 +263,7 @@ final class SetupWizardUITests: XCTestCase {
 
     private func enterLinearStep(in setup: XCUIElement) throws {
         // The stub's `doctor --check linear --json` answers "no Installation" first (see
-        // `writeStub`), so the browser-install button appears once the check completes.
+        // `EngineStub`), so the browser-install button appears once the check completes.
         let installButton = setup.buttons["setup-linear-install"]
         XCTAssertTrue(installButton.waitForExistence(timeout: 10))
         installButton.click()

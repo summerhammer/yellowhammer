@@ -4,8 +4,8 @@ import SwiftUI
 
 /// The Settings window (Cmd+,): a sidebar with the machine-wide General section and the configured
 /// Projects, and a toolbar with back, forward and the current section's name. It is a separate window
-/// from the main window. A Project's Configuration is here; the steps after P18.13 fill in Recalibrate and
-/// the machine-wide settings.
+/// from the main window. A Project's Configuration, Recalibrate and the machine-wide settings
+/// (General: Linear, the Operator identity, Orca ADE; Agent CLIs; the base Routing Table) are here.
 ///
 /// Where each piece of state lives:
 /// - **The current section** is `history.current`. The sidebar's selection is derived from it, and a
@@ -13,6 +13,9 @@ import SwiftUI
 /// - **The preselection** arrives in `SettingsRequest` when a gesture opens the window, from the key
 ///   main window's Project. After it is applied, this window's selection and the main window's are
 ///   independent.
+/// - **The General pane's two models** (the Linear installation and the Operator identity) are this window's
+///   `@State`, so another sidebar row and back neither recreates them nor kills a running install. Closing the
+///   window terminates both: setup is not an Act, so no child of it survives the window.
 /// - **The configuration** is read when the window appears and each time the app becomes active, the
 ///   same way the main window reads its snapshot. It reads no Journal.
 struct SettingsWindow: View {
@@ -20,6 +23,8 @@ struct SettingsWindow: View {
 
     @State private var history = SettingsHistory()
     @State private var configured: ConfiguredProjects?
+    @State private var linearInstallation = LinearInstallationModel()
+    @State private var operatorIdentity = OperatorIdentityModel()
     /// The last request token this window has applied. A new window starts at zero, so it applies the
     /// request that opened it.
     @State private var appliedRequest = 0
@@ -61,12 +66,16 @@ struct SettingsWindow: View {
         .onAppear(perform: applyRequest)
         .onChange(of: request.token) { applyRequest() }
         .task { await readWhileOpen() }
+        .onDisappear {
+            linearInstallation.terminate()
+            operatorIdentity.terminate()
+        }
     }
 
     @ViewBuilder private var detail: some View {
         switch history.current {
         case .general:
-            GeneralSettingsPane()
+            GeneralSettingsPane(linearInstallation: linearInstallation, operatorIdentity: operatorIdentity)
         case .agentCLIs:
             AgentCLIsPane()
         case .baseRoutingTable:
@@ -109,6 +118,7 @@ struct SettingsWindow: View {
         readConfiguration()
         for await _ in NotificationCenter.default.notifications(named: NSApplication.didBecomeActiveNotification) {
             readConfiguration()
+            operatorIdentity.reloadIfClean()
         }
     }
 }
