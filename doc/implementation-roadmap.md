@@ -2250,7 +2250,7 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
     and `ConfigurationEditingUITests` pass. Placing the two panes as General sidebar rows is a lead
     draft: the spec says only "the Settings window".
 
-### [ ] P18.16 Settings — General — Linear auth, Operator identity, Orca ADE
+### [x] P18.16 Settings — General — Linear auth, Operator identity, Orca ADE
 - **Work** — Linear authorization, the Operator's identity and the Orca ADE settings. This touches
   Linear authorization, which ADR-005 and ADR-006 (both `accepted`) bind.
 - **Spec** — `board-projection/install-the-linear-app`,
@@ -2258,6 +2258,42 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
 - **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
 - **Done when** — An installation started from Settings stores its token pair and passes the
   checks of P17.7.
+- **Status** — Done on 2026-10-01 (`87e5068`).
+  - The General row of the Settings window is now a pane with three sections: Linear, Operator
+    identity and Orca ADE.
+  - **Linear.** The install state machine and its view moved out of `Legacy/SetupWizard` into
+    `Features/Shared` (`LinearInstallationModel`, `LinearInstallationView`), and the wizard uses them.
+    Settings runs the same `yh` commands as the wizard and adds nothing to them:
+    `setup --install-linear --events json [--remote]` and `doctor --check linear --json`. Storing the
+    token pair is still `yh`'s job, so the live round trip recorded under P17.8 step 4 carries over.
+    The browser round trip was not run again from Settings, because it needs an admin to approve.
+    When installed, Settings also offers "Install again" and "Request approval from an admin…",
+    because a new install replaces the token pair. The models belong to the Settings window: leaving
+    the General row does not end a running install, and closing the window does.
+  - `LinearSettingsUITests` runs the P17.7 and P17.9 checks from Settings against the stub:
+    - installed with the workspace name;
+    - all ports busy, then Retry;
+    - the remote approval link, then installed;
+    - the relay unreachable, then a local install.
+
+    It also checks that each install's recorded arguments name no credential, with `--remote` only
+    on the remote path. `SetupWizardUITests`, `SettingsWindowUITests`, `ConfigurationEditingUITests`
+    and `RecalibrateUITests` pass. Under a UI test's fixture configuration, the Linear check is
+    skipped unless a stub stands in for `yh`, as the Health group already does. Without that guard,
+    opening General would run a real `yh doctor` against the real installation.
+  - **Operator identity.** The section shows the configured identity. "Choose…" reads the candidates
+    through `yh setup --print-choices`, and Save writes `[linear].operator` as a textual edit through
+    the loader (`MachineConfiguration.settingOperator`, `Configuration.save`). It does not use
+    `yh setup --init`, which would provision every Project again. When an install finishes with no
+    Operator identity configured, the candidates are read at once, with nothing preselected (the
+    story's "the Operator identity choice follows immediately"). A UI test covers showing the
+    identity and the candidates. A save from the UI is not tested, as in P18.13.
+  - **Orca ADE.** Read-only text. Orca ADE has no key in `config.toml`, no story and no `yh doctor`
+    check, so there is nothing to set. The glossary's "Orca integration" names a sidebar group only.
+    This is a spec gap to raise. The app does not look for `orca` itself, because a Finder-launched
+    app's `PATH` would report it missing.
+  - Not fixed here: the `yh doctor` warning for a missing Operator identity tells the Operator to
+    run `yh config operator`, and that command does not exist.
 
 ### [ ] P18.17 `AddProject` sheet
 - **Work** — The Setup wizard as a sheet, shown only when a Project is added. The `extension String`
