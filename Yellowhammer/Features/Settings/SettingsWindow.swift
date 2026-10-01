@@ -56,6 +56,7 @@ struct SettingsWindow: View {
                     .accessibilityIdentifier("settings-forward")
             }
         }
+        .environment(\.showSettingsSection) { history.visit($0) }
         .accessibilityIdentifier("settings-window")
         .onAppear(perform: applyRequest)
         .onChange(of: request.token) { applyRequest() }
@@ -66,6 +67,10 @@ struct SettingsWindow: View {
         switch history.current {
         case .general:
             GeneralSettingsPane()
+        case .agentCLIs:
+            AgentCLIsPane()
+        case .baseRoutingTable:
+            BaseRoutingTablePane()
         case .refusedFiles:
             RefusedFilesPane(configured: configured)
         case let .project(id):

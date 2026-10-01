@@ -64,8 +64,6 @@ struct YellowhammerApp: App {
             }
             CommandGroup(after: .appInfo) {
                 SetupMenuCommand()
-                BaseRoutingTableMenuCommand()
-                AgentCLIMenuCommand()
                 CheckForUpdatesMenuCommand(updater: updaterController.updater)
             }
         }
@@ -82,84 +80,5 @@ struct YellowhammerApp: App {
         Window("Setup", id: SetupMenuCommand.windowID) {
             SetupWizardView()
         }
-
-        // Not Project-scoped: the base Routing Table is machine-wide, shared by every Project.
-        Window("Base Routing Table", id: BaseRoutingTableMenuCommand.windowID) {
-            BaseRoutingTableView()
-        }
-        .defaultSize(width: 560, height: 480)
-
-        // Not Project-scoped: the declared CLI Adapters and the Ledger are both machine-wide, so one
-        // Probe run serves every Project.
-        Window("Agent CLIs", id: AgentCLIMenuCommand.windowID) {
-            AgentCLIView()
-        }
-        .defaultSize(width: 640, height: 520)
-    }
-}
-
-/// A menu command needs its own `@Environment` to read `openWindow`: the App's `.commands` builder does
-/// not otherwise resolve scene environment values.
-private struct SetupMenuCommand: View {
-    static let windowID = "setup"
-
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        Button("Setup…") { openWindow(id: Self.windowID) } // glossary:ignore GL001
-    }
-}
-
-/// Opens the Settings window on the Project the key main window shows. With no main window key (the
-/// Settings window itself, say), it asks for no Project, and Settings stays where it was.
-private struct SettingsMenuCommand: View {
-    let request: SettingsRequest
-    @FocusedValue(\.overviewProject) private var project
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        Button("Settings\u{2026}") {
-            request.request(project)
-            openWindow(id: SettingsWindow.windowID)
-        }
-        .keyboardShortcut(",", modifiers: .command)
-    }
-}
-
-/// A menu command needs its own `@Environment` to read `openWindow`: the App's `.commands` builder does
-/// not otherwise resolve scene environment values.
-struct BaseRoutingTableMenuCommand: View {
-    static let windowID = "base-routing-table"
-
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        Button("Base Routing Table…") { openWindow(id: Self.windowID) }
-    }
-}
-
-/// A menu command needs its own `@Environment` to read `openWindow`: the App's `.commands` builder does
-/// not otherwise resolve scene environment values.
-struct AgentCLIMenuCommand: View {
-    static let windowID = "agent-clis"
-
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        Button("Agent CLIs…") { openWindow(id: Self.windowID) }
-    }
-}
-
-/// Sparkle's documented KVO-compliant `canCheckForUpdates`, observed so the menu item disables
-/// itself while a check is already running instead of letting the Operator start a second one.
-private struct CheckForUpdatesMenuCommand: View {
-    let updater: SPUUpdater
-
-    @State private var canCheckForUpdates = false
-
-    var body: some View {
-        Button("Check for Updates…") { updater.checkForUpdates() }
-            .disabled(!canCheckForUpdates)
-            .onReceive(updater.publisher(for: \.canCheckForUpdates)) { canCheckForUpdates = $0 }
     }
 }

@@ -53,7 +53,7 @@ struct ProjectConfigurationView: View {
 private struct ProjectConfigurationFormView: View {
     @Bindable var model: ProjectConfigurationModel
     let onSaved: () -> Void
-    @Environment(\.openWindow) private var openWindow
+    @Environment(\.showSettingsSection) private var showSettingsSection
 
     var body: some View {
         if let current = model.draft {
@@ -167,7 +167,7 @@ private struct ProjectConfigurationFormView: View {
         Section("Routing overrides") {
             RoutingEntriesEditor(entries: draft.routingOverrides)
             Button("Base Routing Table\u{2026}") {
-                openWindow(id: "base-routing-table")
+                showSettingsSection(.baseRoutingTable)
             }
             .accessibilityIdentifier("open-base-routing-table")
         }

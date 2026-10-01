@@ -1,7 +1,7 @@
 import Foundation
 import XCTest
 
-/// The Agent CLIs window driven against a stub `yh` (P14.4). The UI test runner is itself sandboxed,
+/// The Settings window's Agent CLIs pane driven against a stub `yh` (P14.4). The UI test runner is itself sandboxed,
 /// so the stub — run via `/bin/sh <stub>`, the same crossing `SetupWizardUITests` documents — cannot
 /// write a Ledger row the (unsandboxed) app under test could then read back. So this suite covers what
 /// crosses the sandbox boundary through the app itself: both declared CLIs listed as never probed, and
@@ -43,9 +43,9 @@ final class AgentCLIUITests: XCTestCase {
     }
 
     func testDeclaredCLIsListAsNeverProbedAndProbeStreamsTheLog() throws {
-        openAgentCLIWindow()
+        openAgentCLIsPane()
         let window = app.windows["Agent CLIs"]
-        XCTAssertTrue(window.waitForExistence(timeout: 10))
+        XCTAssertTrue(window.waitForExistence(timeout: 10), "The toolbar does not name the section")
 
         let claudeProbedAt = window.staticTexts["agent-cli-probed-at-claude"]
         XCTAssertTrue(claudeProbedAt.waitForExistence(timeout: 5))
@@ -78,8 +78,12 @@ final class AgentCLIUITests: XCTestCase {
             .map { String($0.dropFirst("argv: ".count)) }
     }
 
-    private func openAgentCLIWindow() {
-        app.menuBars.menuItems["Agent CLIs\u{2026}"].click()
+    private func openAgentCLIsPane() {
+        app.activate()
+        app.typeKey(",", modifierFlags: .command)
+        let row = app.descendants(matching: .any)["settings-agent-clis"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "Settings did not open")
+        row.click()
     }
 
     private static let machineTOML = """

@@ -3,8 +3,12 @@ import Domain
 /// A place the Settings window can show. The sidebar's rows are these, and `SettingsHistory` is a list
 /// of them.
 enum SettingsSection: Hashable {
-    /// The machine-wide settings. They move here from their own windows in later steps.
+    /// The machine-wide settings still to move here (P18.16).
     case general
+    /// The declared Agent CLIs, their latest Probe Results, and a Probe on demand.
+    case agentCLIs
+    /// The machine-wide base Routing Table.
+    case baseRoutingTable
     /// The Project configuration files the loader refused, with their errors.
     case refusedFiles
     /// One configured Project's Configuration and Recalibrate.
@@ -15,6 +19,8 @@ enum SettingsSection: Hashable {
     func title(in configured: ConfiguredProjects?) -> String {
         switch self {
         case .general: "General"
+        case .agentCLIs: "Agent CLIs"
+        case .baseRoutingTable: "Base Routing Table"
         case .refusedFiles: "Refused Files"
         case let .project(id): configured?.entry(for: id)?.name ?? id.rawValue
         }
