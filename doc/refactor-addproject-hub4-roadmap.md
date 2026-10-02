@@ -47,7 +47,7 @@ before each step. The story sets no step order, so the hub needs no ruling.
 
 ---
 
-### [ ] H1.1 The draft and its rules, under test
+### [x] H1.1 The draft and its rules, under test
 
 - **Work** — Move `AddProjectDraft` (with `+Navigation` and `+Summaries`), `BoundsDraft`,
   `WizardStep` and `WizardStepStatus` out of the prototype. Put the pure value logic (step order,
@@ -69,6 +69,20 @@ before each step. The story sets no step order, so the hub needs no ruling.
   summaries; a draft becoming a `SetupInvocation`; readiness blocking on each missing
   prerequisite; Bounds written only after a successful run, not when unchanged, and a refusal
   leaving the Project in place. The current sheet and `AddProjectUITests` still pass.
+- **Status** — Done on 2026-10-02 (spec b9826d6). `AddProjectDraft` (with `+Navigation`,
+  `+Summaries`, `+Invocation`), `AddProjectContext`, `Bounds+Fields` and `SetupReadiness` are in
+  `Config`, the only linked product they fit without a human in Xcode. Two names changed: the
+  steps are `AddProjectDraft.Step`, with Hub4's six (Project and Linear project are separate), and
+  `AddProjectDraft.StepStatus`. Config's existing `Bounds` replaces the prototype's `BoundsDraft`.
+  **The draft became the model's state.** `SetupWizardModel.draft` replaces its Project and
+  scheduled-job fields, `buildInvocation()` starts from `draft.setupInvocation`, and Bounds go
+  through `ProjectConfigurationModel.save()` after a successful run (`boundsFailure`). The old
+  sheet keeps its own validator and copy until H3.1. It does not gate on `readiness`, because it
+  still has the steps that set up those prerequisites. 54 new tests in `ConfigTests`. All 9
+  `AddProjectUITests` pass. **Gaps for H2.1:** `yh setup` takes no `[schedule]` flags, so the draft
+  has no Night window and the jobs step can only show the defaults. `SetupChoices` lists teams but
+  not Linear projects, so Hub4's choice cards have no list to pick from. Both need Engine work or a
+  read-only step body.
 
 ### [ ] H2.1 Hub4's step bodies in the app
 
