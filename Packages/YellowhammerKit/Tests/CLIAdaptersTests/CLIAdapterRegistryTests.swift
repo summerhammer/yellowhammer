@@ -1,4 +1,5 @@
 import CLIAdapters
+import Domain
 import Testing
 
 @Suite("CLIAdapterRegistry")
@@ -20,6 +21,13 @@ struct CLIAdapterRegistryTests {
     @Test("allNames lists all registered adapter names")
     func allNamesListsRegisteredAdapters() {
         #expect(CLIAdapterRegistry.allNames == ["claude", "codex"])
+    }
+
+    @Test("Every registered name resolves to an adapter of that name")
+    func everyRegisteredNameResolves() {
+        for name in RegisteredCLIAdapters.names {
+            #expect(CLIAdapterRegistry.adapter(named: name)?.cli == name)
+        }
     }
 
     @Test("An unknown name resolves to nil")

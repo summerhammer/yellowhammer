@@ -23,13 +23,7 @@ public struct SetupReadiness: Equatable, Sendable {
     /// loadable `config.toml`: it has neither an Operator identity nor a route.
     public init(linearInstalled: Bool, machine: MachineConfiguration?) {
         let hasOperator = machine?.operatorIdentity != nil
-        var hasRoute = false
-        if let machine {
-            let declared = Set(machine.cliAdapters.map(\.name))
-            hasRoute = machine.routingTable.contains { entry in
-                declared.contains(entry.route.cli) || entry.fallbacks.contains { declared.contains($0.cli) }
-            }
-        }
+        let hasRoute = machine?.hasRouteToDeclaredCLI ?? false
         let present: [Prerequisite: Bool] = [
             .linearInstallation: linearInstalled,
             .operatorIdentity: hasOperator,

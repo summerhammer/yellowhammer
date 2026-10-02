@@ -5,7 +5,9 @@ import SwiftUI
 
 /// The Agent CLIs pane of the Settings window's General section (P14.4, P18.15). Not Project-scoped: the
 /// declared CLI Adapters and the Ledger are both machine-wide, so one Probe run serves every Project.
-/// Lists each declared CLI with its latest Probe Result and lets the Operator run a Probe on demand.
+/// Lists each declared CLI with its latest Probe Result and lets the Operator run a Probe on demand, and
+/// declares a registered CLI Adapter not yet declared (#281). The route it needs is given in the base
+/// Routing Table pane, which this pane points to while no route names a declared CLI.
 struct AgentCLIsPane: View {
     @State private var model = AgentCLIModel()
     @Environment(\.addProject) private var addProject
@@ -20,7 +22,8 @@ struct AgentCLIsPane: View {
     @ViewBuilder private var content: some View {
         if model.configMissing {
             unavailable(
-                message: "No agent CLI is declared: `config.toml` does not exist yet.",
+                message: "`config.toml` does not exist yet. Installing Linear writes it: choose Add a Project\u{2026} "
+                    + "and install Linear there, after which an agent CLI can be declared here.",
                 offerSetup: true
             )
         } else if let failure = model.loadFailure {
@@ -54,17 +57,95 @@ private struct AgentCLIListView: View {
     @Bindable var model: AgentCLIModel
     let rows: [AgentCLIModel.CLIRow]
 
+    @Environment(\.showSettingsSection) private var showSettingsSection
+    @State private var selectedName = ""
+    @State private var executable = ""
+
     var body: some View {
         VStack(spacing: 0) {
-            List(rows) { row in
-                AgentCLIRowView(model: model, row: row)
-                    .accessibilityElement(children: .contain)
-                    .accessibilityIdentifier("agent-cli-row-\(row.name)")
+            if rows.isEmpty {
+                Text("No agent CLI is declared yet.")
+                    .foregroundStyle(.secondary)
+                    .padding()
+            } else {
+                List(rows) { row in
+                    AgentCLIRowView(model: model, row: row)
+                        .accessibilityElement(children: .contain)
+                        .accessibilityIdentifier("agent-cli-row-\(row.name)")
+                }
+            }
+            if !rows.isEmpty && !model.hasRoute {
+                noRouteNotice
+            }
+            if !model.declarableNames.isEmpty {
+                Divider()
+                declareSection
             }
             if !model.probeLog.isEmpty || model.probeExitStatus != nil {
                 Divider()
                 probeLogView
             }
+        }
+    }
+
+    private var noRouteNotice: some View {
+        HStack {
+            Text("No base route names a declared agent CLI yet.")
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("agent-cli-no-route")
+            Button("Open Base Routing Table") { showSettingsSection(.baseRoutingTable) }
+                .accessibilityIdentifier("agent-cli-open-routing-table")
+        }
+        .padding()
+    }
+
+    private var declareSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Declare an Agent CLI")
+                .font(.headline)
+            Picker("Agent CLI", selection: $selectedName) {
+                ForEach(model.declarableNames, id: \.self) { Text($0).tag($0) }
+            }
+            .accessibilityIdentifier("agent-cli-declare-name")
+            TextField("Executable (optional)", text: $executable)
+                .accessibilityIdentifier("agent-cli-declare-executable")
+            Text(
+                "Scheduled runs get a minimal PATH, so an absolute path is how yh finds the CLI "
+                    + "unattended; blank means yh looks it up on PATH."
+            )
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            if let failure = model.declareFailure {
+                Text(failure)
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+                    .accessibilityIdentifier("agent-cli-declare-failure")
+            }
+            Text(
+                "Saving rewrites \(model.file.path(percentEncoded: false)); comments and layout in it "
+                    + "are not kept. Editing the file directly stays supported."
+            )
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            HStack {
+                Spacer()
+                Button("Declare") { model.declare(name: selectedName, executable: executable) }
+                    .disabled(selectedName.isEmpty)
+                    .accessibilityIdentifier("agent-cli-declare")
+            }
+        }
+        .padding()
+        .onAppear { resetSelection() }
+        .onChange(of: model.declarableNames) { _, _ in
+            executable = ""
+            resetSelection()
+        }
+    }
+
+    /// Keeps the selection on an offered name: the first remaining one when the current is gone.
+    private func resetSelection() {
+        if !model.declarableNames.contains(selectedName) {
+            selectedName = model.declarableNames.first ?? ""
         }
     }
 

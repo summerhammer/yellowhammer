@@ -1,17 +1,23 @@
 import Foundation
 import XCTest
 
-/// The Settings window's Agent CLIs pane driven against a stub `yh` (P14.4). The UI test runner is itself sandboxed,
-/// so the stub — run via `/bin/sh <stub>`, the same crossing `AddProjectUITests` documents — cannot
+/// The Settings window's Agent CLIs pane driven against a stub `yh` (P14.4, #281). The UI test runner is itself
+/// sandboxed, so the stub — run via `/bin/sh <stub>`, the same crossing `AddProjectUITests` documents — cannot
 /// write a Ledger row the (unsandboxed) app under test could then read back. So this suite covers what
-/// crosses the sandbox boundary through the app itself: both declared CLIs listed as never probed, and
-/// running a Probe streaming the stub's echoed arguments and exit status into the window's log.
+/// crosses the sandbox boundary through the app itself: both declared CLIs listed as never probed,
+/// running a Probe streaming the stub's echoed arguments and exit status into the window's log, and
+/// declaring a CLI on a machine file that has none — the app writes `config.toml`, which the runner reads.
 ///
 /// XCTest, not Swift Testing: the `Testing` module is unavailable in a UI testing bundle.
 @MainActor
 final class AgentCLIUITests: XCTestCase {
     private var configurationDirectory: URL!
+    private var stubURL: URL!
     private var app: XCUIApplication!
+
+    private var machineFile: URL {
+        configurationDirectory.appending(component: "config.toml", directoryHint: .notDirectory)
+    }
 
     override func setUp() async throws {
         continueAfterFailure = false
@@ -21,13 +27,17 @@ final class AgentCLIUITests: XCTestCase {
         let stubDirectory = base.appending(component: "stub", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: configurationDirectory, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: stubDirectory, withIntermediateDirectories: true)
+        stubURL = try Self.writeStub(in: stubDirectory)
+    }
 
-        try Self.machineTOML.write(
-            to: configurationDirectory.appending(component: "config.toml", directoryHint: .notDirectory),
-            atomically: true, encoding: .utf8
-        )
-        let stubURL = try Self.writeStub(in: stubDirectory)
+    override func tearDown() async throws {
+        app?.terminate()
+        try? FileManager.default.removeItem(at: configurationDirectory.deletingLastPathComponent())
+    }
 
+    /// Writes `machineTOML` as `config.toml`, then launches the app against it and the stub `yh`.
+    private func launch(machineTOML: String) throws {
+        try machineTOML.write(to: machineFile, atomically: true, encoding: .utf8)
         app = XCUIApplication()
         app.launchArguments = [
             "-YellowhammerConfigurationDirectory", configurationDirectory.path(percentEncoded: false),
@@ -37,12 +47,8 @@ final class AgentCLIUITests: XCTestCase {
         app.launch()
     }
 
-    override func tearDown() async throws {
-        app.terminate()
-        try? FileManager.default.removeItem(at: configurationDirectory.deletingLastPathComponent())
-    }
-
     func testDeclaredCLIsListAsNeverProbedAndProbeStreamsTheLog() throws {
+        try launch(machineTOML: Self.machineTOML)
         openAgentCLIsPane()
         let window = app.windows["Agent CLIs"]
         XCTAssertTrue(window.waitForExistence(timeout: 10), "The toolbar does not name the section")
@@ -71,6 +77,44 @@ final class AgentCLIUITests: XCTestCase {
         XCTAssertTrue(statusText.contains("1"), statusText)
     }
 
+    /// A fresh Mac after `yh setup --install-linear`: `config.toml` exists with no CLI and no route. The
+    /// pane declares `claude` with an executable, writes it, lists it as never probed, and points to
+    /// the base Routing Table for the route the Add Project sheet still needs.
+    func testDeclaringACLIWritesItAndPointsToTheRoutingTable() throws {
+        try launch(machineTOML: Self.linearOnlyMachineTOML)
+        openAgentCLIsPane()
+        let window = app.windows["Agent CLIs"]
+        XCTAssertTrue(window.waitForExistence(timeout: 10), "The toolbar does not name the section")
+
+        let picker = window.popUpButtons["agent-cli-declare-name"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        XCTAssertEqual(picker.value as? String, "claude")
+
+        let executable = window.textFields["agent-cli-declare-executable"]
+        XCTAssertTrue(executable.waitForExistence(timeout: 5))
+        executable.click()
+        executable.typeText("/opt/homebrew/bin/claude")
+
+        window.buttons["agent-cli-declare"].click()
+
+        let probedAt = window.staticTexts["agent-cli-probed-at-claude"]
+        XCTAssertTrue(probedAt.waitForExistence(timeout: 10), "The declared CLI is not listed")
+        XCTAssertEqual(probedAt.value as? String, "Never probed")
+        XCTAssertFalse(window.staticTexts["agent-cli-declare-failure"].exists)
+
+        let written = try String(contentsOf: machineFile, encoding: .utf8)
+        XCTAssertTrue(written.contains("[cli.\"claude\"]") || written.contains("[cli.claude]"), written)
+        XCTAssertTrue(written.contains("executable = \"/opt/homebrew/bin/claude\""), written)
+
+        // `codex` is the only name left to declare.
+        XCTAssertEqual(picker.value as? String, "codex")
+
+        let noRoute = window.staticTexts["agent-cli-no-route"]
+        XCTAssertTrue(noRoute.waitForExistence(timeout: 5))
+        window.buttons["agent-cli-open-routing-table"].click()
+        XCTAssertTrue(app.windows["Base Routing Table"].waitForExistence(timeout: 10))
+    }
+
     /// Every `argv: <arg>` line the stub echoed, in order.
     private func argv(in log: String) -> [String] {
         log.split(separator: "\n")
@@ -80,7 +124,10 @@ final class AgentCLIUITests: XCTestCase {
 
     private func openAgentCLIsPane() {
         app.activate()
-        app.typeKey(",", modifierFlags: .command)
+        // The application menu's Settings item, not Cmd+,: a synthesized shortcut was dropped once while
+        // the app settled, and the menu item is the same command.
+        app.menuBars.menuBarItems["Yellowhammer"].click()
+        app.menuBars.menuItems["Settings\u{2026}"].click()
         let row = app.descendants(matching: .any)["settings-agent-clis"].firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 10), "Settings did not open")
         row.click()
@@ -97,6 +144,14 @@ final class AgentCLIUITests: XCTestCase {
 
     [[routing]]
     route = "claude/sonnet/medium"
+    """
+
+    /// What `yh setup --install-linear` writes on a Mac with no `config.toml`: no CLI, no route.
+    private static let linearOnlyMachineTOML = """
+    [linear]
+    credential = "keychain:linear"
+    [github]
+    credential = "keychain:github"
     """
 
     /// A `sh` script, read (never exec'd) by `/bin/sh`: it echoes every argument as `argv: <arg>`, then
