@@ -73,7 +73,7 @@ enum AddProjectFixtures {
     }
 }
 
-/// Starting states for the Playground and the Gallery.
+/// Starting states for the Playground.
 enum AddProjectScenario: String, CaseIterable, Identifiable {
     case fresh = "Fresh"
     case repoConflict = "Repo conflict"
@@ -127,7 +127,6 @@ enum AddProjectScenario: String, CaseIterable, Identifiable {
     private static var named: AddProjectDraft {
         var draft = AddProjectDraft()
         draft.setName("Acme")
-        draft.idConfirmed = true
         draft.linearProjectID = AddProjectFixtures.linearProjects[0].id
         return draft
     }
@@ -137,7 +136,6 @@ enum AddProjectScenario: String, CaseIterable, Identifiable {
         draft.step = .jobs
         draft.reached = .jobs
         draft.visited = Set(WizardStep.allCases)
-        draft.idConfirmed = true
         draft.repos = Array(wireframeRepos.prefix(2))
         draft.chooseSpecSource()
         return draft

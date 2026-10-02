@@ -15,7 +15,7 @@ extension AddProjectDraft {
         return trimmed.isEmpty ? projectID : trimmed
     }
 
-    /// A one-line account of what a step decided, for collapsed and checklist variants.
+    /// A one-line account of what a step decided, for the hub's step list.
     func summary(of step: WizardStep) -> String {
         switch step {
         case .project: projectSummary
@@ -31,7 +31,7 @@ extension AddProjectDraft {
         return "\(displayName) · \(linearSummary)"
     }
 
-    /// "Acme · acme", for variants that give the name and id their own step.
+    /// "Acme · acme", for the step that holds the name and id.
     var identitySummary: String {
         projectID.isEmpty ? "Not named yet" : "\(displayName) · \(projectID)"
     }
@@ -73,48 +73,7 @@ extension AddProjectDraft {
         }
     }
 
-    /// The Project file `yh setup --init` would write, for the variants that show it.
-    var projectFilePreview: String {
-        var lines = [
-            "# ~/.config/yellowhammer/projects/\(projectID.isEmpty ? "<id>" : projectID).toml",
-            "id = \"\(projectID)\"",
-            "name = \"\(displayName)\""
-        ]
-        switch linearChoice {
-        case .existing: lines.append("linear_project = \"\(linearProjectID ?? "")\"")
-        case .createInTeam: lines.append("linear_project = \"<new in \(teamKey ?? "?")>\"")
-        }
-        if specChoice == .path, !specSourcePath.isEmpty {
-            lines.append("spec_source = \"\(specSourcePath)\"")
-        }
-        for repo in repos {
-            lines += [
-                "",
-                "[[repos]]",
-                "name = \"\(repo.name)\"",
-                "path = \"\(repo.path)\"",
-                "role = \"\(repo.role)\"",
-                "check = \"\(repo.check)\""
-            ]
-        }
-        let changedBounds = BoundsDraft.all.filter {
-            bounds[keyPath: $0.keyPath] != BoundsDraft()[keyPath: $0.keyPath]
-        }
-        if !changedBounds.isEmpty {
-            lines += ["", "[limits]"]
-            lines += changedBounds.map { "\($0.key) = \(bounds[keyPath: $0.keyPath])" }
-        }
-        lines += [
-            "",
-            "[schedule]",
-            "night_start = \"\(nightStart)\"",
-            "night_end = \"\(nightEnd)\"",
-            "build_every_minutes = \(buildEveryMinutes)"
-        ]
-        return lines.joined(separator: "\n")
-    }
-
-    /// The fixture run's output, played back by every variant's last screen.
+    /// The fixture run's output, played back by the last screen.
     var runLog: [String] {
         let head = [
             "$ yh setup --init --project \(projectID)",

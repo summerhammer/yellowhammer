@@ -1,9 +1,9 @@
 #if DEBUG
 import Foundation
 
-// The Add Project wizard's state as plain values, so every variant renders the same draft and the
-// Playground can swap scenarios. Nothing here runs `yh` or touches the disk: "Choose…" picks the next
-// fixture folder and "Add Project" plays back a fixture run.
+// The Add Project wizard's state as plain values, so Hub4 renders one draft and the Playground can
+// swap scenarios. Nothing here runs `yh` or touches the disk: "Choose…" picks the next fixture folder
+// and "Add Project" plays back a fixture run.
 
 /// The wizard's five steps, in the order the wireframe gives them.
 enum WizardStep: Int, CaseIterable, Identifiable, Comparable {
@@ -39,12 +39,7 @@ enum WizardStep: Int, CaseIterable, Identifiable, Comparable {
         }
     }
 
-    /// The wireframe's qualifier, shown where a variant has room for it.
-    var qualifier: String? {
-        self == .repos ? "working, exclusive" : nil
-    }
-
-    /// One sentence on what the step decides, for variants that lead with an explanation.
+    /// One sentence on what the step decides.
     var explanation: String {
         switch self {
         case .project:
@@ -59,22 +54,11 @@ enum WizardStep: Int, CaseIterable, Identifiable, Comparable {
             "When the Night runs. launchd runs every Act; the app never schedules." // glossary:ignore GL001
         }
     }
-
-    var systemImage: String {
-        switch self {
-        case .project: "square.stack.3d.up"
-        case .repos: "folder"
-        case .specSource: "doc.text"
-        case .bounds: "gauge.with.dots.needle.33percent"
-        case .jobs: "moon.stars"
-        }
-    }
 }
 
 enum WizardStepStatus {
     case done
     case problem
-    case current
     case upcoming
 }
 
@@ -125,10 +109,10 @@ struct RepoDraft: Identifiable, Equatable {
 
 struct AddProjectDraft: Equatable {
     var step: WizardStep = .project
-    /// The furthest step reached, so a variant can let the Operator jump back but not ahead.
+    /// The furthest step reached.
     var reached: WizardStep = .project
 
-    /// The steps the Operator has opened, so a hub shows a step's problems only once it was visited.
+    /// The steps the Operator has opened, so the hub shows a step's problems only once it was visited.
     var visited: Set<WizardStep> = [.project]
 
     // Project & Linear project
@@ -136,8 +120,6 @@ struct AddProjectDraft: Equatable {
     var name = ""
     /// Whether the Operator typed the id; until then it follows the name.
     var idEdited = false
-    /// Whether the Operator confirmed the id, for variants that ask before moving on.
-    var idConfirmed = false
     var linearChoice: LinearProjectChoice = .existing
     var linearProjectID: String?
     var teamKey: String?
@@ -184,29 +166,6 @@ extension AddProjectDraft {
 
     var isComplete: Bool { WizardStep.allCases.allSatisfy(isComplete) }
 
-    /// Where a step stands for a step list: problems show only once the step has been reached, so a
-    /// fresh wizard is not a wall of red.
-    func status(of step: WizardStep) -> WizardStepStatus {
-        if step == self.step { return .current }
-        if step > reached { return .upcoming }
-        return isComplete(step) ? .done : .problem
-    }
-
-    /// Where a step stands in a hub, where any step can be opened: done when complete, a problem once
-    /// visited and still incomplete, untouched otherwise.
-    func hubStatus(of step: WizardStep) -> WizardStepStatus {
-        if isComplete(step) { return .done }
-        return visited.contains(step) ? .problem : .upcoming
-    }
-
-    var incompleteSteps: [WizardStep] { WizardStep.allCases.filter { !isComplete($0) } }
-
-    /// "Still needed: Spec Source and Schedule", or nil when every step is complete.
-    var stillNeeded: String? {
-        guard !incompleteSteps.isEmpty else { return nil }
-        return "Still needed: " + incompleteSteps.map(\.shortTitle).formatted(.list(type: .and))
-    }
-
     /// Set when a removed Project left a Journal under this id: the new Project continues its history.
     var reusesJournal: Bool { AddProjectFixtures.existingJournalIDs.contains(projectID) }
 
@@ -233,7 +192,7 @@ extension AddProjectDraft {
 
     private var projectProblems: [String] { identityProblems + linearProblems }
 
-    /// The name-and-id half of the first step, for variants that split it in two.
+    /// The name-and-id half of the first step, which Hub4 splits in two.
     var identityProblems: [String] {
         var problems: [String] = []
         let id = projectID.trimmingCharacters(in: .whitespaces)
@@ -247,7 +206,7 @@ extension AddProjectDraft {
         return problems
     }
 
-    /// The Linear half of the first step, for variants that split it in two.
+    /// The Linear half of the first step, which Hub4 splits in two.
     var linearProblems: [String] {
         var problems: [String] = []
         switch linearChoice {

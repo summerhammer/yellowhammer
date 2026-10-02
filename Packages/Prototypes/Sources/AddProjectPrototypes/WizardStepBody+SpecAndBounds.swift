@@ -3,16 +3,13 @@ import SwiftUI
 
 // MARK: - Spec Source
 
+/// Two option cards — a shared folder or one of this Project's Repos — then the candidates.
 struct SpecBlock: View {
     @Binding var draft: AddProjectDraft
-    let style: SpecStyle
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            switch style {
-            case .optionCards: optionCards
-            case .candidateList: candidateList
-            }
+            optionCards
             let problems = draft.problems(in: .specSource)
             if !problems.isEmpty, draft.visited.contains(.specSource) {
                 WizardProblemList(problems: problems)
@@ -45,19 +42,6 @@ struct SpecBlock: View {
                 }
             }
             .background(WizardTheme.surface, in: .rect(cornerRadius: 10))
-        }
-    }
-
-    private var candidateList: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            WizardBlock(
-                title: "Shared spec folders",
-                footer: "Read-only and shareable: several Projects can read the same one."
-            ) { folderRows }
-            WizardBlock(
-                title: "Repos in this Project",
-                footer: "Exclusive to this Project. It takes Repo Role \u{201c}spec\u{201d}."
-            ) { repoRows }
         }
     }
 
@@ -97,9 +81,10 @@ struct SpecBlock: View {
 
 // MARK: - Bounds
 
+/// Grouped by what happens when one fires; one sentence per Bound with the value in bold and a stepper
+/// beside it.
 struct BoundsBlock: View {
     @Binding var draft: AddProjectDraft
-    let presentation: BoundsPresentation
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -109,10 +94,7 @@ struct BoundsBlock: View {
                 WizardBlock(title: consequence.title, footer: consequence.footer) {
                     let fields = BoundsDraft.fields(consequence)
                     ForEach(fields, id: \.key) { field in
-                        switch presentation {
-                        case .explained: explainedRow(field)
-                        case .sentences: sentenceRow(field)
-                        }
+                        sentenceRow(field)
                         if field.key != fields.last?.key { Divider().padding(.leading, 12) }
                     }
                 }
@@ -127,27 +109,6 @@ struct BoundsBlock: View {
 
     private func value(_ field: BoundsDraft.Field) -> Binding<Int> {
         $draft.bounds[dynamicMember: field.keyPath]
-    }
-
-    private func explainedRow(_ field: BoundsDraft.Field) -> some View {
-        let current = draft.bounds[keyPath: field.keyPath]
-        return HStack(alignment: .top, spacing: 16) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(field.title).fontWeight(.medium)
-                Text(field.explanation).font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(field.valueText(current)).monospacedDigit().fontWeight(.semibold)
-                    Stepper(field.title, value: value(field), in: 1...20).labelsHidden()
-                }
-                defaultMark(field, current: current)
-            }
-            .frame(minWidth: 130, alignment: .trailing)
-        }
-        .padding(12)
     }
 
     private func sentenceRow(_ field: BoundsDraft.Field) -> some View {

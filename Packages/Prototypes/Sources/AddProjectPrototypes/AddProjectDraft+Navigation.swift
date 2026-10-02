@@ -27,7 +27,7 @@ extension AddProjectDraft {
         }
     }
 
-    /// Jumps to a step already reached; a variant decides whether it allows jumping ahead.
+    /// Jumps to a step already reached, or ahead when `allowingAhead`.
     mutating func go(to target: WizardStep, allowingAhead: Bool = false) {
         guard allowingAhead || target <= reached else { return }
         visited.insert(step)
@@ -45,7 +45,6 @@ extension AddProjectDraft {
     mutating func setProjectID(_ newID: String) {
         projectID = newID
         idEdited = !newID.isEmpty
-        idConfirmed = false
     }
 
     /// "Acme Mobile!" becomes "acme-mobile".
