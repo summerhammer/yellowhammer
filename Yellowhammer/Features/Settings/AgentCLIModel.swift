@@ -7,12 +7,14 @@ import Observation
 /// The machine-wide "Agent CLIs" window's model (P14.4). Not Project-scoped: the declared agent CLIs
 /// and the Ledger are both machine-wide, so one Probe run serves every Project. Lists `config.toml`'s
 /// `[cli.<name>]` entries and, for each, its latest Probe Result read from the Ledger, and lets the
-/// Operator run `yh probe <cli>` on demand. The app itself never probes and never writes the Ledger —
-/// `yh` does; this model only shells out to it and re-reads.
+/// Operator run `yh probe <cli>` on demand. It also declares a registered CLI Adapter not yet in
+/// `config.toml` (#281), written through the loader as the base Routing Table pane writes. The app itself
+/// never probes and never writes the Ledger — `yh` does; this model only shells out to it and re-reads.
 @MainActor
 @Observable
 final class AgentCLIModel {
     let directory: URL
+    let file: URL
 
     /// One declared CLI Adapter, joined with its Ledger history.
     struct CLIRow: Identifiable {
@@ -30,10 +32,17 @@ final class AgentCLIModel {
     }
 
     private(set) var rows: [CLIRow]?
+    /// `config.toml`'s text as last loaded, what a declaration is saved against.
+    private(set) var originalText: String?
+    /// The loaded machine file, carried through so a declaration re-renders it whole.
+    private(set) var machine: MachineConfiguration?
     /// Set when `config.toml` exists but could not be loaded, in the loader's own words.
     private(set) var loadFailure: String?
     /// Set when `config.toml` does not exist at all: no agent CLI is declared.
     private(set) var configMissing = false
+    /// Why the last ``declare(name:executable:)`` did not write, in the loader's own words; cleared by a
+    /// successful load or declaration.
+    private(set) var declareFailure: String?
 
     private(set) var probeLog: [String] = []
     private(set) var probeExitStatus: Int32?
@@ -46,6 +55,7 @@ final class AgentCLIModel {
 
     init(directory: URL = ConfigurationDirectory.current) {
         self.directory = directory
+        file = directory.appending(component: "config.toml", directoryHint: .notDirectory)
         load()
     }
 
@@ -53,26 +63,64 @@ final class AgentCLIModel {
     /// opened read-only and re-opened fresh on every call: nothing here outlives one load ("Nothing
     /// resident").
     func load() {
-        let file = directory.appending(component: "config.toml", directoryHint: .notDirectory)
         guard FileManager.default.fileExists(atPath: file.path(percentEncoded: false)) else {
+            clear()
             configMissing = true
-            loadFailure = nil
-            rows = nil
             return
         }
         configMissing = false
+        let text: String
         do {
-            let machine = try MachineConfiguration.load(contentsOf: file)
-            loadFailure = nil
-            rows = machine.cliAdapters.map { loadRow(name: $0.name) }
+            text = try String(contentsOf: file, encoding: .utf8)
         } catch {
+            clear()
+            loadFailure = "\(file.path(percentEncoded: false)) could not be read: \(error.localizedDescription)"
+            return
+        }
+        do {
+            let configuration = try Configuration.load(directory: directory, reading: file, as: text)
+            originalText = text
+            machine = configuration.machine
+            loadFailure = nil
+            declareFailure = nil
+            rows = configuration.machine.cliAdapters.map { loadRow(name: $0.name) }
+        } catch {
+            clear()
             loadFailure = error.description
-            rows = nil
         }
     }
 
-    /// Reloads unless a Probe is running: a running Probe still has nothing to lose (the app writes
-    /// nothing here), but its own reload once it exits is what should refresh the row.
+    /// The registered CLI Adapter names not yet declared: the only names the app offers.
+    var declarableNames: [String] { machine?.declarableCLIAdapters ?? [] }
+
+    /// Whether some base route names a declared CLI.
+    var hasRoute: Bool { machine?.hasRouteToDeclaredCLI ?? false }
+
+    /// Declares `name` (with an optional `executable`) and writes `config.toml` through the loader, then
+    /// reloads. Declaring does not probe.
+    func declare(name: String, executable: String) {
+        guard let machine, let originalText else { return }
+        do {
+            try Configuration.save(
+                machine.declaring(cliAdapter: name, executable: executable).renderedTOML,
+                to: file, in: directory, replacing: originalText
+            )
+            load()
+        } catch {
+            declareFailure = error.description
+        }
+    }
+
+    private func clear() {
+        originalText = nil
+        machine = nil
+        rows = nil
+        loadFailure = nil
+        declareFailure = nil
+    }
+
+    /// Reloads unless a Probe is running: a running Probe still has nothing to lose (a declaration being
+    /// typed lives in the view, not here), but its own reload once it exits is what should refresh the row.
     func reloadIfIdle() {
         guard !isProbing else { return }
         load()
