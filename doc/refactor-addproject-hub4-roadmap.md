@@ -97,6 +97,19 @@ before each step. The story sets no step order, so the hub needs no ruling.
   as Sonnet 5.5.
 - **Done when** — Each body and the readiness panel have an Xcode Preview in the app target and
   render against the H1 draft. No prototype type is referenced. The current sheet is unchanged.
+- **Status** — Code in on 2026-10-02 (spec b9826d6). **Not ticked: the previews are not yet seen to
+  render.** They compile against `AddProjectDraft.preview`, but Xcode Previews time out launching the
+  app target for every preview, the existing `Theme+Preview` included. Moving `@main` from
+  `AppLaunch` to the `App` did not help. Tick this step once they render. The bodies are in
+  `Features/AddProject`: `WizardStepBody` (one per `AddProjectDraft.Step`, six `#Preview`s),
+  `WizardBlocks`, `WizardRepoList` (cards only), `+SpecAndBounds`, `+Jobs`, and
+  `SetupReadinessPanel`. `WizardTheme` became DesignSystem tokens and
+  `AddProjectDraft.StepStatus.style`. `SettingsRequest` can name a section to open. The readiness
+  panel's identifiers are `setup-readiness-*` and `setup-open-settings-*`. Only `JobsSections` and
+  `WizardProblemList` came from `WizardStepContent`. The run view, status icon, sidebar row and
+  footer are hub chrome, so they move in H3.1. **Departures from the Hub4 preview, from H1.1's
+  gaps:** an existing Linear project is a pasted id, not a list, and the jobs step shows the
+  `Schedule()` defaults read-only.
 
 ### [ ] H3.1 Swap the sheet to Hub4
 
