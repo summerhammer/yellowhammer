@@ -152,3 +152,7 @@ before each step. The story sets no step order, so the hub needs no ruling.
   therefore cannot clear that row on a fresh Mac. The first Project needs `yh setup` in a terminal, or
   a hand-edited `config.toml`. The old sheet had the same gap in another form: `--install-linear`
   writes `config.toml` first, so the `--cli` and `--route` passed to `--init` afterwards were ignored.
+  **Fixed since (#281):** Settings → Agent CLIs declares a registered agent CLI (`claude`, `codex`)
+  with an optional executable, and points to the base Routing Table while no route names a declared
+  CLI. On a fresh Mac, installing Linear in the readiness panel writes `config.toml`, so the Agent
+  CLIs row can then be cleared in Settings without a terminal.
