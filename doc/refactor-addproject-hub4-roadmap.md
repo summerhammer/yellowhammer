@@ -1,0 +1,102 @@
+# Refactor Add Project to Hub4 — roadmap
+
+This roadmap rebuilds the Add Project sheet (P18.17, `Features/AddProject`) in the Hub4 layout.
+Hub4 was chosen in `Packages/Prototypes/Sources/AddProjectPrototypes` (commit `fad8b2d`). It is a
+separate roadmap from `implementation-roadmap.md`, which it does not renumber. When H3 is done,
+`implementation-roadmap.md` gets one line linking here.
+
+**Spec** — `app/add-a-project-via-the-setup-wizard`. Read it and the `app` epic's `overview.md`
+before each step. The story sets no step order, so the hub needs no ruling.
+
+## What changes, and what is already there
+
+- **Steps.** Hub4's steps are Project & Linear project, Repos, Spec Source, Bounds and Scheduled
+  jobs, in a hub that marks each step done, problem or current. It asks for confirmation before
+  the Project id becomes permanent. `SetupInvocation.Project` already carries the Linear project,
+  `specSource` and `repos`, so those steps need no Engine work.
+- **Bounds go to the config file.** `yh setup` takes no Bounds. Settings → Recalibrate edits them
+  through `ProjectConfigurationModel.save()` (P14.3's path), which writes the Project file. The
+  wizard uses that same path, *after* `yh setup --init` has written the Project file and only if
+  it succeeded. Bounds left at their defaults are not written. If the Bounds write is refused, the
+  Project still exists with default Bounds. The sheet shows the refusal as
+  `ProjectConfigurationModel.failure` reports it, says Bounds can be changed in Settings →
+  Recalibrate, and does not roll the Project back. Cancel before the run still leaves nothing
+  behind.
+- **The machine-wide steps leave the sheet.** The spec puts Linear auth, Operator identity and
+  agent CLIs / routing defaults in Settings → General. The sheet no longer has steps for them.
+  A first Project on a fresh Mac still needs them, so the sheet checks each one (the Linear
+  installation through `yh doctor`, as the sheet does today) and blocks Add Project on a missing
+  one. Where possible it lets the Operator fix it in place: the Linear installation through
+  `LinearInstallationView`. Otherwise it opens the matching Settings → General section.
+
+## Every step
+
+- **Prototype code is a source, not a dependency.** The app never links `Packages/Prototypes`.
+  Code is moved into the app or into `YellowhammerKit`, then edited there. Remove `#if DEBUG`,
+  fixtures and variant switches.
+- **No brand values.** Map `WizardTheme` onto HIG defaults and the existing `DesignSystem`.
+- **Use the glossary's terms** in type names and UI copy.
+- **The fixture guard.** A step that runs `yh` when it appears must skip it under an overridden
+  config dir that has no stub. If it does not, UI tests reach real Linear.
+- **Sidekicks.** The sidekick's effort is set by its frontmatter (`medium`) and cannot be changed
+  per call; only the model can. Every brief bans `git checkout`, `git restore` and `git stash`.
+- **Done when**, in addition to the step's own line: `swift test --package-path
+  Packages/YellowhammerKit` is green, the app builds, `swiftlint lint --strict` adds no new
+  violations, and the story's acceptance criteria are listed as met or explicitly not met.
+- One step is one layer in a `gh stack`, put on top of any open stack.
+
+---
+
+### [ ] H1 The draft and its rules, under test
+
+- **Work** — Move `AddProjectDraft` (with `+Navigation` and `+Summaries`), `BoundsDraft`,
+  `WizardStep` and `WizardStepStatus` out of the prototype. Put the pure value logic (step order,
+  each step's status, summaries, validation) where Swift Testing can reach it. That is
+  `YellowhammerKit` if it needs no SwiftUI. Then decide how this connects to `SetupWizardModel`:
+  either the draft becomes the model's state, or the model adapts to the draft.
+  - **Setup readiness.** A value saying whether each machine-wide prerequisite is present: the
+    Linear installation, the Operator identity, at least one agent CLI with a route. It is built
+    from what `yh doctor` and the config already report. It blocks Add Project while one is
+    missing.
+  - **Bounds after setup.** After a successful `yh setup --init`, the model writes changed Bounds
+    through `ProjectConfigurationModel.save()`, and surfaces a refusal as described above.
+  - Nothing visible changes yet.
+- **Lead** — Opus 5.5, High effort. Designs the connection to `SetupWizardModel` and the readiness
+  value.
+- **Sidekick** — Sonnet 5.5 (`model: sonnet`). Moves the code and writes the tests; this is a
+  cross-module brief.
+- **Done when** — Tests cover: each step's status; going from step to step in the hub; the
+  summaries; a draft becoming a `SetupInvocation`; readiness blocking on each missing
+  prerequisite; Bounds written only after a successful run, not when unchanged, and a refusal
+  leaving the Project in place. The current sheet and `AddProjectUITests` still pass.
+
+### [ ] H2 Hub4's step bodies in the app
+
+- **Work** — Move `WizardBlocks`, `WizardRepoList`, `WizardStepBody` (with `+SpecAndBounds`),
+  `WizardStepContent` and `WizardTheme` into `Features/AddProject`. Keep only the components Hub4
+  uses (`hub4Components`: locked-token identity, choice-card Linear project, option-card spec,
+  sentence Bounds) and delete the others. Add the readiness panel: one row per missing
+  prerequisite, with a fix in place (`LinearInstallationView`) or a button that opens the matching
+  Settings → General section. Connect each body to the draft from H1. They are not shown yet.
+- **Lead** — Opus 5.5, Medium effort. Reviews the result against the Hub4 preview.
+- **Sidekick** — Haiku 4.5 (default). This is mechanical; if it comes back `PARTIAL`, re-brief it
+  as Sonnet 5.5.
+- **Done when** — Each body and the readiness panel have an Xcode Preview in the app target and
+  render against the H1 draft. No prototype type is referenced. The current sheet is unchanged.
+
+### [ ] H3 Swap the sheet to Hub4
+
+- **Work** — Replace `SetupWizardView` with Hub4's layout: the readiness panel when something is
+  missing, then the hub, the step bodies, and the `addProjectConfirmation` alert before
+  `yh setup --init`. Remove the Linear, Operator identity and Agent CLI routing steps from the
+  sheet. Keep the P18.17 behaviour: Cancel is disabled and the sheet cannot be dismissed while
+  setup runs, failure shows Close, success shows Done, and `ProjectAdditions` fires. Update
+  accessibility identifiers and rework `AddProjectUITests` for hub navigation and readiness.
+  Delete the losing variants from `Packages/Prototypes` (keep Hub4 as the reference), or delete the
+  target if no one needs it.
+- **Lead** — Opus 5.5, High effort. Runs the UI tests itself; they do not run in a sidekick.
+- **Sidekick** — Sonnet 5.5 for the view swap and the prototype cleanup only.
+- **Done when** — A Project is added through the Hub4 sheet from both sidebars and from onboarding.
+  With no Linear installation the sheet blocks and offers the fix. `AddProjectUITests` passes.
+  `testWizardDrivesSetupToCompletion` is known to be flaky on main: report a timeout there as that
+  flake, not as a pass. Deep links are checked by hand.
