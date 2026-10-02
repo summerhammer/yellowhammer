@@ -58,6 +58,7 @@ struct IdentityBlock: View {
                     .labelsHidden()
                     .multilineTextAlignment(.trailing)
                     .frame(maxWidth: 260)
+                    .accessibilityIdentifier("setup-project-name")
                 }
             }
             WizardBlock(
@@ -67,9 +68,11 @@ struct IdentityBlock: View {
             ) {
                 HStack(spacing: 8) {
                     IdToken(id: draft.projectID)
+                        .accessibilityIdentifier("setup-project-id")
                     PermanentBadge()
                     Spacer()
                     Button("Edit Id…") { isEditingID = true }
+                        .accessibilityIdentifier("setup-edit-project-id")
                         .popover(isPresented: $isEditingID, arrowEdge: .bottom) { idEditor }
                 }
                 .padding(12)
@@ -91,6 +94,7 @@ struct IdentityBlock: View {
             )
             .font(.body.monospaced())
             .labelsHidden()
+            .accessibilityIdentifier("setup-project-id-field")
             Label(
                 "Choose carefully: the id can\u{2019}t be changed after the Project is added.",
                 systemImage: "exclamationmark.triangle.fill"
@@ -137,7 +141,8 @@ struct LinearBlock: View {
                 OptionCard(
                     title: "Use an existing one",
                     detail: "Pick a Linear project you already plan in.", // glossary:ignore GL001
-                    isSelected: draft.linearChoice == .existing
+                    isSelected: draft.linearChoice == .existing,
+                    identifier: "setup-linear-choice-existing"
                 ) {
                     draft.linearChoice = .existing
                 }
@@ -146,7 +151,8 @@ struct LinearBlock: View {
                     detail: draft.displayName.isEmpty
                         ? "Yellowhammer creates one in a team you choose, named after the Project."
                         : "Yellowhammer creates \u{201c}\(draft.displayName)\u{201d} in a team you choose.",
-                    isSelected: draft.linearChoice == .createInTeam
+                    isSelected: draft.linearChoice == .createInTeam,
+                    identifier: "setup-linear-choice-create"
                 ) {
                     draft.linearChoice = .createInTeam
                 }
@@ -166,6 +172,7 @@ struct LinearBlock: View {
                         .font(.body.monospaced())
                         .multilineTextAlignment(.trailing)
                         .frame(maxWidth: 260)
+                        .accessibilityIdentifier("setup-linear-project-id")
                     }
                 }
             case .createInTeam:
@@ -181,7 +188,8 @@ struct LinearBlock: View {
                             RadioRow(
                                 title: team.name,
                                 note: team.key,
-                                isSelected: draft.teamKey == team.key
+                                isSelected: draft.teamKey == team.key,
+                                identifier: "setup-team-\(team.key)"
                             ) {
                                 draft.teamKey = team.key
                             }

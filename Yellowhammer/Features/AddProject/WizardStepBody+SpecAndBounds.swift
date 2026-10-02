@@ -14,7 +14,8 @@ struct SpecBlock: View {
                     title: "A shared spec folder",
                     detail: "A checkout of the specification, kept outside this Project.",
                     points: ["Several Projects can read it", "No Repo Role, Check or Worktree"],
-                    isSelected: draft.specChoice == .path
+                    isSelected: draft.specChoice == .path,
+                    identifier: "setup-spec-choice-path"
                 ) {
                     draft.specChoice = .path
                 }
@@ -22,7 +23,8 @@ struct SpecBlock: View {
                     title: "A Repo in this Project",
                     detail: "One of this Project\u{2019}s Repos, with Repo Role \u{201c}spec\u{201d}.",
                     points: ["Belongs to this Project only", "Declared with the other Repos"],
-                    isSelected: draft.specChoice == .repo
+                    isSelected: draft.specChoice == .repo,
+                    identifier: "setup-spec-choice-repo"
                 ) {
                     draft.specChoice = .repo
                 }
@@ -72,7 +74,7 @@ struct SpecBlock: View {
                     isSelected: true
                 ) {}
             }
-            AddRow(title: "Choose Another Folder…") {
+            AddRow(title: "Choose Another Folder…", identifier: "setup-spec-choose-folder") {
                 guard let url = SetupWizardModel.chooseFolder() else { return }
                 draft.useSpecSource(SetupWizardModel.abbreviatingPath(url))
             }
@@ -87,12 +89,13 @@ struct SpecBlock: View {
                     title: repo.name,
                     subtitle: repo.displayPath,
                     note: repo.role.isEmpty ? nil : repo.role,
-                    isSelected: draft.specChoice == .repo && specRepo?.id == repo.id
+                    isSelected: draft.specChoice == .repo && specRepo?.id == repo.id,
+                    identifier: "setup-spec-repo-\(repo.name)"
                 ) {
                     draft.useSpecRepo(repo.id)
                 }
             }
-            AddRow(title: "Add the Spec as a Repo…") {
+            AddRow(title: "Add the Spec as a Repo…", identifier: "setup-spec-add-repo") {
                 guard let url = SetupWizardModel.chooseFolder() else { return }
                 draft.addSpecRepo(path: SetupWizardModel.abbreviatingPath(url))
             }

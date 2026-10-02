@@ -2,11 +2,14 @@ import Config
 import Domain
 import SwiftUI
 
-/// The Add Project sheet: everything `yh setup` does, in six steps, driven by ``SetupWizardModel``. It
-/// exists only to add a Project, reached from an Add Project action in a window, and it shows no status
-/// or cross-Project summary. Cancelling writes no Project configuration: only `yh setup --init` writes a
-/// Project file, and Cancel is disabled while it runs. (The Linear step's `--install-linear` can still
-/// store the token pair and, on a Mac with no `config.toml`, write the machine file.)
+/// The Add Project sheet: everything `yh setup` does, as a hub of six steps any of which can be opened at
+/// any time, driven by ``SetupWizardModel``. It exists only to add a Project, reached from an Add Project
+/// action in a window, and it shows no status or cross-Project summary. Machine-wide prerequisites (the
+/// Linear installation, the Operator identity, an agent CLI route) are not set here: while one is missing
+/// the readiness panel replaces the hub and points at where to set it. Cancelling before the run writes
+/// nothing: only `yh setup --init` writes a Project file, and Cancel is disabled while it runs. (The
+/// readiness panel's Linear installation can still store the token pair and, on a Mac with no
+/// `config.toml`, write the machine file.)
 struct SetupWizardView: View {
     /// Reports the added Project when the Operator presses Done, before the sheet closes.
     let onAdded: @MainActor (ProjectID) -> Void
@@ -14,303 +17,55 @@ struct SetupWizardView: View {
     /// written the Project file, so the windows that list Projects must read again.
     let onRunEnded: @MainActor () -> Void
     @State private var model = SetupWizardModel()
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(spacing: 0) {
-            Text(title(for: model.currentStep))
-                .font(.title2)
-                .padding()
+            main
             Divider()
-            ScrollView {
-                content
-                    .padding()
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            Divider()
-            footer
+            SetupWizardFooter(model: model, showsReadiness: showsHub, onAdded: onAdded)
         }
-        .frame(minWidth: 560, minHeight: 480)
+        .frame(minWidth: 860, minHeight: 600)
+        .addProjectConfirmation(
+            isPresented: $model.isConfirmingAdd,
+            displayName: model.draft.displayName,
+            projectID: model.draft.projectID
+        ) {
+            Task { await model.confirmAndRun() }
+        }
         .interactiveDismissDisabled(model.isRunning)
+        .task { await model.checkReadiness() }
         .onChange(of: model.runExitStatus) { _, status in
             if status != nil { onRunEnded() }
+        }
+        .onChange(of: model.linearInstallation.phase.isInstalled) { _, installed in
+            if installed { Task { await model.linearInstallationChanged() } }
+        }
+        // A fix made in the Settings window is seen on return; nothing polls and nothing stays resident.
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            model.loadContext()
         }
         .onDisappear { model.terminateRun() }
     }
 
-    @ViewBuilder private var content: some View {
-        switch model.currentStep {
-        case .linear:
-            SetupLinearStepView(model: model)
-        case .operatorIdentity:
-            SetupOperatorStepView(model: model)
-        case .cliRouting:
-            SetupCLIRoutingStepView(model: model)
-        case .project:
-            SetupProjectStepView(model: model)
-        case .jobs:
-            SetupJobsStepView(model: model)
-        case .review:
-            SetupReviewStepView(model: model)
-        }
+    /// Whether the hub, not the readiness check or panel, is showing. A started run always shows the hub,
+    /// which is where its log is.
+    private var showsHub: Bool {
+        model.hasStartedRun || (!model.isCheckingReadiness && !model.readiness.blocksAddProject)
     }
 
-    private var footer: some View {
-        HStack {
-            if model.currentStepIndex > 0, model.runExitStatus == nil {
-                Button("Back") { model.back() }
-                    .accessibilityIdentifier("setup-back")
-            }
-            Spacer()
-            if let status = model.runExitStatus, status != 0 {
-                Button("Close") { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                    .accessibilityIdentifier("setup-close")
-            } else if model.runExitStatus == nil {
-                Button("Cancel") { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                    .disabled(model.isRunning)
-                    .accessibilityIdentifier("setup-cancel")
-            }
-            if model.runExitStatus == 0 {
-                Button("Done") {
-                    if let id = model.declaredProjectID { onAdded(id) }
-                    dismiss()
-                }
-                .keyboardShortcut(.defaultAction)
-                .accessibilityIdentifier("setup-done")
-            }
-            if model.runExitStatus == nil {
-                Button(continueLabel) {
-                    Task { await model.continueTapped() }
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(!model.canContinue)
-                .accessibilityIdentifier("setup-continue")
-            }
+    @ViewBuilder private var main: some View {
+        if showsHub {
+            SetupWizardHub(model: model)
+        } else if model.isCheckingReadiness {
+            ProgressView("Checking this Mac…")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .accessibilityIdentifier("setup-readiness-checking")
+        } else {
+            SetupReadinessPanel(
+                readiness: model.readiness,
+                linearInstallation: model.linearInstallation,
+                onCheckAgain: { model.loadContext() }
+            )
         }
-        .padding()
-    }
-
-    private var continueLabel: String {
-        switch model.currentStep {
-        case .linear: model.isFetchingChoices ? "Checking…" : "Continue"
-        case .review: model.isRunning ? "Running…" : "Run Setup"
-        default: "Continue"
-        }
-    }
-
-    private func title(for step: SetupWizardModel.Step) -> String {
-        switch step {
-        case .linear: "Linear"
-        case .operatorIdentity: "Operator identity" // glossary:ignore GL001
-        case .cliRouting: "Agent CLIs and Routing Table" // glossary:ignore GL001
-        case .project: "Project"
-        case .jobs: "Scheduled jobs" // glossary:ignore GL001
-        case .review: "Review and run"
-        }
-    }
-}
-
-private struct SetupOperatorStepView: View {
-    @Bindable var model: SetupWizardModel
-
-    var body: some View {
-        Form {
-            if let candidates = model.choices?.operatorCandidates, !candidates.isEmpty {
-                Picker("Operator identity", selection: $model.selectedOperatorID) { // glossary:ignore GL001
-                    Text("Choose one").tag(String?.none)
-                    ForEach(candidates, id: \.id) { candidate in
-                        Text("\(candidate.displayName) (\(candidate.name))").tag(Optional(candidate.id))
-                    }
-                }
-                .accessibilityIdentifier("setup-operator-picker")
-                Text("Waiting on You issues are assigned to this person.") // glossary:ignore GL001
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text(
-                    "The workspace has no active human members to offer as the " // glossary:ignore GL001
-                        + "Operator identity."
-                )
-            }
-        }
-    }
-}
-
-private struct SetupCLIRoutingStepView: View {
-    @Bindable var model: SetupWizardModel
-
-    var body: some View {
-        Form {
-            Section("Agent CLIs") { // glossary:ignore GL001
-                ForEach(model.choices?.cliAdapters ?? [], id: \.self) { name in
-                    Toggle(name, isOn: model.cliEnabledBinding(name))
-                    if model.enabledCLIs.contains(name) {
-                        TextField("Executable path (optional)", text: model.cliExecutableBinding(name))
-                            .padding(.leading, 20)
-                    }
-                }
-            }
-            Section("Routing Table") { // glossary:ignore GL001
-                TextField("Catch-all route, cli/model/effort (optional)", text: $model.routeText)
-                    .accessibilityIdentifier("setup-route")
-                ForEach(Array(model.fallbackTexts.enumerated()), id: \.offset) { index, _ in
-                    HStack {
-                        TextField("Fallback cli/model/effort", text: $model.fallbackTexts[index])
-                        Button {
-                            model.fallbackTexts.remove(at: index)
-                        } label: {
-                            Image(systemName: "minus.circle")
-                        }
-                    }
-                }
-                Button("Add fallback") { model.fallbackTexts.append("") }
-                    .disabled(model.routeText.trimmed.isEmpty)
-            }
-        }
-    }
-}
-
-private struct SetupProjectStepView: View {
-    @Bindable var model: SetupWizardModel
-
-    var body: some View {
-        Form {
-            Section("Project") {
-                TextField("Project id", text: $model.draft.projectID)
-                    .accessibilityIdentifier("setup-project-id")
-                TextField("Name (defaults to the id)", text: $model.draft.name)
-            }
-            Section("Linear project") { // glossary:ignore GL001
-                Picker("Linear project", selection: $model.draft.linearChoice) { // glossary:ignore GL001
-                    Text("Existing").tag(AddProjectDraft.LinearProjectChoice.existing)
-                    Text("Create one in team").tag(AddProjectDraft.LinearProjectChoice.createInTeam)
-                }
-                .pickerStyle(.segmented)
-                switch model.draft.linearChoice {
-                case .existing:
-                    TextField(
-                        "Existing Linear project id", text: $model.draft.linearProjectID // glossary:ignore GL001
-                    )
-                    .accessibilityIdentifier("setup-linear-project-id")
-                case .createInTeam:
-                    Picker("Team", selection: $model.draft.teamKey) {
-                        Text("Choose a team").tag(String?.none)
-                        ForEach(model.choices?.teams ?? [], id: \.id) { team in
-                            Text("\(team.name) (\(team.key))").tag(Optional(team.key))
-                        }
-                    }
-                }
-            }
-            Section("Spec Source") { // glossary:ignore GL001
-                HStack {
-                    TextField("Path (optional)", text: $model.draft.specSourcePath)
-                    Button("Choose…") { model.chooseSpecSource() }
-                }
-                Text("Without a Spec Source, one Repo must have role \u{201c}spec\u{201d}.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            Section("Repos") { // glossary:ignore GL001
-                ForEach($model.draft.repos) { $repo in
-                    VStack(alignment: .leading) {
-                        TextField("Name", text: $repo.name)
-                            .accessibilityIdentifier("setup-repo-name")
-                        TextField("Role (spec, backend, mobile, web, …)", text: $repo.role) // glossary:ignore GL001
-                            .accessibilityIdentifier("setup-repo-role")
-                        HStack {
-                            TextField("Path", text: $repo.path)
-                                .accessibilityIdentifier("setup-repo-path")
-                            Button("Choose…") { model.chooseRepoPath(for: repo.id) }
-                        }
-                        TextField("Check (\"none\" allowed)", text: $repo.check)
-                            .accessibilityIdentifier("setup-repo-check")
-                    }
-                    .padding(.vertical, 4)
-                }
-                .onDelete { model.draft.repos.remove(atOffsets: $0) }
-                Button("Add Repo") { // glossary:ignore GL001
-                    model.draft.repos.append(AddProjectDraft.Repo(path: "", name: ""))
-                }
-                    .accessibilityIdentifier("setup-add-repo")
-            }
-            if let error = model.projectValidationError {
-                Text(error)
-                    .foregroundStyle(.red)
-                    .font(.footnote)
-            }
-        }
-    }
-}
-
-private struct SetupJobsStepView: View {
-    @Bindable var model: SetupWizardModel
-
-    var body: some View {
-        Form {
-            Picker("Scheduled jobs", selection: $model.draft.jobs) { // glossary:ignore GL001
-                Text("Install the three LaunchAgents per Project").tag(AddProjectDraft.JobsChoice.install)
-                Text("Export to a folder").tag(AddProjectDraft.JobsChoice.export)
-                Text("Not now").tag(AddProjectDraft.JobsChoice.notNow)
-            }
-            .pickerStyle(.radioGroup)
-            .accessibilityIdentifier("setup-jobs-picker")
-            if model.draft.jobs == .export {
-                HStack {
-                    TextField("Export directory", text: $model.draft.exportDirectory)
-                    Button("Choose…") { model.chooseExportDirectory() }
-                }
-                Picker("Format", selection: $model.draft.exportUsesCron) {
-                    Text("launchd").tag(false)
-                    Text("cron").tag(true)
-                }
-                .pickerStyle(.segmented)
-            }
-        }
-    }
-}
-
-private struct SetupReviewStepView: View {
-    @Bindable var model: SetupWizardModel
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if model.runExitStatus == nil {
-                summary
-            }
-            if !model.runLines.isEmpty {
-                Text(model.runLines.joined(separator: "\n"))
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityIdentifier("setup-run-log")
-            }
-            if let status = model.runExitStatus {
-                if status == 0 {
-                    Text("Setup complete.")
-                        .accessibilityIdentifier("setup-success")
-                } else {
-                    Text("Setup failed; the log above explains it.")
-                        .accessibilityIdentifier("setup-failure")
-                }
-                if let line = model.notificationStatusLine {
-                    Text(line)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("setup-notification-status")
-                }
-            }
-        }
-        .padding(.vertical)
-    }
-
-    private var summary: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Ready to run setup.")
-            Text("Declares Project \u{201c}\(model.draft.projectID)\u{201d}.")
-            Text(model.jobsSummary)
-        }
-        .foregroundStyle(.secondary)
     }
 }

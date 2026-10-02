@@ -27,6 +27,7 @@ struct RepoStepView: View {
             guard let url = SetupWizardModel.chooseFolder() else { return }
             draft.addRepo(path: SetupWizardModel.abbreviatingPath(url))
         }
+        .accessibilityIdentifier("setup-add-repo")
     }
 }
 
@@ -39,12 +40,14 @@ private struct RepoCard: View {
             HStack {
                 Image(systemName: "folder.fill").foregroundStyle(.accent)
                 TextField("Name", text: $repo.name).font(.headline).textFieldStyle(.plain)
+                    .accessibilityIdentifier("setup-repo-name")
                 Spacer()
                 Button("Remove", systemImage: "trash") {
                     draft.removeRepo(repo.id)
                 }
                 .labelStyle(.iconOnly)
                 .buttonStyle(.borderless)
+                .accessibilityIdentifier("setup-repo-remove")
             }
             HStack {
                 Text(repo.displayPath.isEmpty ? "No folder chosen" : repo.displayPath)
@@ -81,6 +84,7 @@ private struct RepoCard: View {
                         }
                         .labelsHidden()
                         .fixedSize()
+                        .accessibilityIdentifier("setup-repo-role")
                     }
                     GridRow {
                         Text("Check").foregroundStyle(.secondary)
@@ -108,6 +112,7 @@ struct CheckField: View {
             TextField("Check", text: $check, prompt: Text("make test, or none"))
                 .labelsHidden()
                 .font(.body.monospaced())
+                .accessibilityIdentifier("setup-repo-check")
             Menu {
                 ForEach(AddProjectDraft.suggestedChecks, id: \.self) { suggestion in
                     Button(suggestion) { check = suggestion }

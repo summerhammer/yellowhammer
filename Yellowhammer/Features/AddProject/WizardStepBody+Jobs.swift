@@ -29,6 +29,7 @@ struct JobsSections: View {
                 Text("Not now").tag(AddProjectDraft.JobsChoice.notNow)
             }
             .pickerStyle(.radioGroup)
+            .accessibilityIdentifier("setup-jobs-picker")
             if draft.jobs == .export {
                 LabeledContent("Folder") {
                     HStack {
