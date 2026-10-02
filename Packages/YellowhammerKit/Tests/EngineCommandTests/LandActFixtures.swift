@@ -45,6 +45,8 @@ struct StubPush: LanePushing {
     var notPushed: Set<String> = []
     /// Repositories whose push seam throws.
     var throwing: Set<String> = []
+    /// Repositories whose Feature Branch is at its base: the push reports no completed work.
+    var noCompletedWork: Set<String> = []
 
     struct PushError: Error, Equatable {}
 
@@ -52,6 +54,9 @@ struct StubPush: LanePushing {
         log.add("push:\(context.lane.repository)")
         if throwing.contains(context.lane.repository) {
             throw PushError()
+        }
+        if noCompletedWork.contains(context.lane.repository) {
+            return LanePushOutcome(kind: .noCompletedWork)
         }
         if notPushed.contains(context.lane.repository) {
             return LanePushOutcome(pushed: false, reason: "rejected")
@@ -112,6 +117,8 @@ struct LandFixture {
         try insertReconcilerCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .done)
         try insertReconcilerCard(journal, cycleID: cycleID, issueID: "MOB-1", repository: "mobile", state: .done)
         let fixture = LandFixture(journal: journal, featureID: featureID, cycleID: cycleID)
+        // Production records the touched repositories at authoring; the Cards above name them all.
+        try recordTouchedRepositories(journal, featureID: featureID, repositories: fixture.repositories)
         if worktrees {
             for repository in fixture.repositories {
                 try journal.recordWorktree(
@@ -137,4 +144,11 @@ func heldWorktreeIDs(_ journal: JournalStore, featureID: Int64) throws -> [Strin
     try Dictionary(
         uniqueKeysWithValues: journal.worktrees(featureID: featureID).map { ($0.repository, $0.isHeld) }
     )
+}
+
+/// Records `feature_repository` rows, as authoring does for the repositories a Feature's Cycle touches.
+func recordTouchedRepositories(_ journal: JournalStore, featureID: Int64, repositories: [String]) throws {
+    try journal.write { database in
+        try JournalStore.insertFeatureRepositories(database, featureID: featureID, repositories: repositories)
+    }
 }

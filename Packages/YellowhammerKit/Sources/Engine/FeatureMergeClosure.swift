@@ -4,7 +4,7 @@ import Journal
 
 /// Closes a Feature by merge (roadmap P10.8; spec: landing/announce-a-partial-landing, morning-report/
 /// triage-the-morning), the real ``PostMergeClosure``. Called by the predecessor-ancestry gate the first
-/// pass that finds every touched repository merged — before that pass's `predecessorAncestryObserved`
+/// pass that finds every repository that pushed a Feature Branch (N) merged — before that pass's `predecessorAncestryObserved`
 /// event, so a throw here leaves the Feature unclosed and is retried by the next pass.
 ///
 /// "Merging costs the Card nothing": a Card still Waiting on You is auto-Blocked with Block Reason
@@ -24,6 +24,8 @@ public struct FeatureMergeClosure: PostMergeClosure, Sendable {
         guard feature.closedBy != .verification else { return }
 
         let journal = context.journal
+        // Defence in depth: at N = 0 nothing was merged, and nothing over the empty set reads as merged.
+        guard !(try journal.pushedRepositories(featureID: feature.id)).isEmpty else { return }
         guard let cycleID = try journal.cycleID(featureID: feature.id) else {
             throw CycleArchiveFault(reason: "Feature '\(feature.issueID)' has no recorded Cycle to close by merge")
         }
@@ -32,7 +34,7 @@ public struct FeatureMergeClosure: PostMergeClosure, Sendable {
 
         // Computed after the auto-Block, from Journal state, so a retry (closedBy already `merge`)
         // recomputes the same values rather than trusting anything held in memory.
-        let mergedRepositories = try journal.touchedRepositories(featureID: feature.id).sorted()
+        let mergedRepositories = try journal.pushedRepositories(featureID: feature.id)
         let cards = try journal.cards(cycleID: cycleID)
         let blockedCards = cards.filter { $0.state == .blocked }
         let carriedForward = blockedCards.map(\.issueID).sorted()

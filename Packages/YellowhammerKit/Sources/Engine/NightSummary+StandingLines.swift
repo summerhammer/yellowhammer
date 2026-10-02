@@ -33,7 +33,7 @@ extension NightSummary {
 
         var line = "`\(featureIssueID)` — " +
             (try nightsHeldPhrase(featureID: inFlight.feature.id, night: night, journal: journal)) + "; " +
-            mergePhrase(observation: observation, touchedRepositories: inFlight.touchedRepositories)
+            mergePhrase(observation: observation, pushedRepositories: inFlight.pushedRepositories)
         if let conflicts = try conflictsPhrase(
             featureIssueID: featureIssueID, unmergedRepositories: observation?.unmerged ?? [], journal: journal
         ) {
@@ -52,10 +52,12 @@ extension NightSummary {
     }
 
     private static func mergePhrase(
-        observation: FeatureMainlineObservation?, touchedRepositories: [String]
+        observation: FeatureMainlineObservation?, pushedRepositories: [String]
     ) -> String {
+        // At N = 0 there is nothing to read: no ancestry observation will ever exist.
+        if pushedRepositories.isEmpty { return "0 of 0 Feature Branches merged" }
         guard let observation else { return "the merge state has not been read yet" }
-        return "\(observation.merged.count) of \(touchedRepositories.count) Feature Branches merged"
+        return "\(observation.merged.count) of \(pushedRepositories.count) Feature Branches merged"
     }
 
     /// Which of the still-unmerged Feature Branches carry a Mainline Conflict (``FeatureMainlineObservationReader``),

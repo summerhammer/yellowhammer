@@ -61,7 +61,10 @@ extension LandAct {
             return LandLaneProgress(laneContext: laneContext, mergeOutcome: nil, pushOutcome: nil, fault: fault)
         }
 
-        let (pushResult, pushOutcome) = await runPush(laneContext, context: context)
+        let (rawPushResult, pushOutcome) = await runPush(laneContext, context: context)
+        let pushResult = recordingNoPushedBranchOutcome(
+            rawPushResult, pushOutcome: pushOutcome, laneContext: laneContext, context: context
+        )
         record(pushResult, step: .push, repository: lane.repository, context: context)
         return LandLaneProgress(
             laneContext: laneContext, mergeOutcome: mergeOutcome, pushOutcome: pushOutcome, fault: pushResult.fault

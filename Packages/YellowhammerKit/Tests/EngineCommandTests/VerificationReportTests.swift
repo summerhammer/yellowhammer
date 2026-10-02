@@ -94,7 +94,7 @@ private func bodyInput(
 ) -> PullRequestBodyInput {
     PullRequestBodyInput(
         featureTitle: "Widgets", featureIssueURL: nil, nightID: 3, nightTimestamp: "2026-09-16",
-        repository: "backend", touchedRepositoryCount: 1, mergedCount: 0, cycleCards: cards,
+        repository: "backend", pushedRepositoryCount: 1, mergedCount: 0, cycleCards: cards,
         mergeVerdict: PullRequestBodyMergeVerdict(conflict: false, untestable: true), unmetClauses: unmet,
         verificationReport: report
     )

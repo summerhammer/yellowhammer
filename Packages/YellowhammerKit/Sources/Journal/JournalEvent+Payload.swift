@@ -413,7 +413,9 @@ extension JournalEvent {
                 return dict
             }()
         case .cycleLanded(let cycleID): ["cycle_id": String(cycleID)]
-        case .featureVerified, .featureReturned, .cycleArchived, .featureClosedByMerge: landActPayload
+        case .featureVerified, .featureReturned, .cycleArchived, .featureClosedByMerge,
+            .noPushedBranchOutcome:
+            landActPayload
         case .refusalAnswered, .authoringHaltOpened, .authoringHaltRepeated, .authoringHaltExpired,
             .authoringHaltCleared:
             authoringStopPayload

@@ -174,7 +174,7 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
         let journal = context.act.journal
         let repository = context.lane.repository
         let cards = try journal.cards(cycleID: context.cycleID)
-        let touched = try journal.touchedRepositories(featureID: context.feature.id)
+        let pushed = try journal.pushedRepositories(featureID: context.feature.id)
         let landings = try journal.landings(featureID: context.feature.id)
 
         let featureTitle = featureObject?.title ?? context.feature.issueID
@@ -205,7 +205,7 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
             nightID: context.act.night.id,
             nightTimestamp: context.act.night.nightStart.rawValue,
             repository: repository,
-            touchedRepositoryCount: touched.count,
+            pushedRepositoryCount: pushed.count,
             mergedCount: landings.count,
             cycleCards: bodyCards,
             mergeVerdict: mergeVerdict,

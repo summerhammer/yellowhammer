@@ -88,7 +88,9 @@ public struct PullRequestBodyInput: Equatable, Sendable {
     public let nightID: Int64
     public let nightTimestamp: String
     public let repository: String
-    public let touchedRepositoryCount: Int
+    /// N: the repositories that pushed a Feature Branch, so open a pull request (not the touched ones: a
+    /// repository with a No-Pushed-Branch Outcome opens none).
+    public let pushedRepositoryCount: Int
     public let mergedCount: Int
     /// Every Card of the Feature's Cycle, across every repository — a Partial Landing must list every
     /// repository's incomplete Cards, not only this lane's.
@@ -107,7 +109,7 @@ public struct PullRequestBodyInput: Equatable, Sendable {
 
     public init(
         featureTitle: String, featureIssueURL: String?, nightID: Int64, nightTimestamp: String,
-        repository: String, touchedRepositoryCount: Int, mergedCount: Int,
+        repository: String, pushedRepositoryCount: Int, mergedCount: Int,
         cycleCards: [PullRequestBodyCard], mergeVerdict: PullRequestBodyMergeVerdict,
         unmetClauses: [PullRequestBodyUnmetClause], verificationReport: VerificationReport? = nil,
         cardTitles: [String: String] = [:]
@@ -117,7 +119,7 @@ public struct PullRequestBodyInput: Equatable, Sendable {
         self.nightID = nightID
         self.nightTimestamp = nightTimestamp
         self.repository = repository
-        self.touchedRepositoryCount = touchedRepositoryCount
+        self.pushedRepositoryCount = pushedRepositoryCount
         self.mergedCount = mergedCount
         self.cycleCards = cycleCards
         self.mergeVerdict = mergeVerdict
@@ -220,8 +222,8 @@ public enum PullRequestBody {
         lines.append(carriedForwardSection(carried))
         lines.append("")
         lines.append(
-            "Merging all \(input.touchedRepositoryCount) pull requests closes the Feature unverified and "
-                + "archives its Cycle; merging fewer than \(input.touchedRepositoryCount) closes nothing "
+            "Merging all \(input.pushedRepositoryCount) pull requests closes the Feature unverified and "
+                + "archives its Cycle; merging fewer than \(input.pushedRepositoryCount) closes nothing "
                 + "and releases nothing."
         )
         lines.append(
@@ -249,15 +251,15 @@ public enum PullRequestBody {
             ? "\(waitingCount) waiting on you"
             : "\(blockedCount) blocked"
         return "**partial landing · \(landedCount) of \(totalCardCount) Cards landed · "
-            + "0 of \(input.touchedRepositoryCount) merged · \(dispositionWord)**"
+            + "0 of \(input.pushedRepositoryCount) merged · \(dispositionWord)**"
     }
 
     private static func openingLine2(
         landedCount: Int, totalCardCount: Int, uCount: Int, carriedCount: Int, input: PullRequestBodyInput
     ) -> String {
-        "This pull request is 1 of \(input.touchedRepositoryCount) for Feature '\(input.featureTitle)'. "
-            + "Merging all \(input.touchedRepositoryCount) pull requests closes the Feature unverified and "
-            + "archives its Cycle; merging fewer than \(input.touchedRepositoryCount) closes nothing and "
+        "This pull request is 1 of \(input.pushedRepositoryCount) for Feature '\(input.featureTitle)'. "
+            + "Merging all \(input.pushedRepositoryCount) pull requests closes the Feature unverified and "
+            + "archives its Cycle; merging fewer than \(input.pushedRepositoryCount) closes nothing and "
             + "releases nothing. \(landedCount) of \(totalCardCount) Cards landed; "
             + "\(uCount) Definition of Done clauses remain "
             + "unmet; \(carriedCount) unfinished Cards are carried forward and auto-Blocked awaiting Adoption."

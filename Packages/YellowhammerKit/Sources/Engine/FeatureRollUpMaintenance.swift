@@ -31,23 +31,27 @@ public struct FeatureRollUpMaintenance: Sendable {
         let conflicts = try FeatureMainlineObservationReader.conflicts(
             featureIssueID: feature.issueID, unmergedRepositories: observation?.unmerged ?? [], journal: journal
         )
-        let totalRepositories = try journal.touchedRepositories(featureID: feature.id).count
+        // N, not the touched repositories: a repository with a No-Pushed-Branch Outcome has no Feature Branch
+        // to merge, so it is in neither the numerator nor the denominator.
+        let pushedForMerge = try journal.pushedRepositories(featureID: feature.id)
+        let mergedInN = Set(observation?.merged ?? []).intersection(pushedForMerge).count
         let rollUp = FeatureRollUp(
             members: try members(feature: feature, cycleID: cycleID),
             lanesPushed: try journal.isCycleLanded(cycleID: cycleID),
             verificationPassed: try verificationPassed(cycleID: cycleID),
-            mergedFraction: MergedFraction(mergedCount: observation?.merged.count ?? 0, totalCount: totalRepositories),
+            mergedFraction: MergedFraction(mergedCount: mergedInN, totalCount: pushedForMerge.count),
             conflictingRepositories: Array(conflicts.keys),
-            pushedRepositories: try pushedRepositories(featureID: feature.id),
+            pushedRepositories: try repositoriesWithRecordedPush(featureID: feature.id),
             issueStanding: .authoring
         )
         return try await post(issueID: feature.issueID, rollUp: rollUp)
     }
 
-    /// Every repository whose Worktree for this Feature recorded a push (issue #161 part 2): a
+    /// Every repository whose Worktree for this Feature recorded a push (issue #161 part 2), for lane
+    /// headings — not N, which is ``JournalStore/pushedRepositories(featureID:)``. A
     /// released Worktree still counts (``JournalStore/worktrees(featureID:)`` returns released rows
     /// too), so a lane that pushed and was already cleaned up still reads "pushed".
-    private func pushedRepositories(featureID: Int64) throws -> Set<String> {
+    private func repositoriesWithRecordedPush(featureID: Int64) throws -> Set<String> {
         Set(try journal.worktrees(featureID: featureID).filter { $0.pushedCommit != nil }.map(\.repository))
     }
 
