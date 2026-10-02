@@ -12,7 +12,8 @@ let package = Package(
     ],
     products: [
         // A product per target only so Xcode offers a scheme to render its previews.
-        .library(name: "PulsePrototypes", targets: ["PulsePrototypes"])
+        .library(name: "PulsePrototypes", targets: ["PulsePrototypes"]),
+        .library(name: "AddProjectPrototypes", targets: ["AddProjectPrototypes"])
     ],
     dependencies: [
         .package(path: "../YellowhammerKit")
@@ -25,6 +26,11 @@ let package = Package(
                 .product(name: "Pulse", package: "YellowhammerKit")
             ],
             // The isolation the code had in the app target.
+            swiftSettings: [.defaultIsolation(MainActor.self)]
+        ),
+        // The Add Project wizard. Plain fixtures only: it reads no Journal and runs no `yh`.
+        .target(
+            name: "AddProjectPrototypes",
             swiftSettings: [.defaultIsolation(MainActor.self)]
         )
     ]
