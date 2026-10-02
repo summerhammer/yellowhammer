@@ -58,8 +58,15 @@ private struct AgentCLIListView: View {
     let rows: [AgentCLIModel.CLIRow]
 
     @Environment(\.showSettingsSection) private var showSettingsSection
-    @State private var selectedName = ""
+    @State private var selectedName: String
     @State private var executable = ""
+
+    init(model: AgentCLIModel, rows: [AgentCLIModel.CLIRow]) {
+        self.model = model
+        self.rows = rows
+        // Starts on an offered name, so the Picker never holds a selection none of its tags match.
+        _selectedName = State(initialValue: model.declarableNames.first ?? "")
+    }
 
     var body: some View {
         VStack(spacing: 0) {
