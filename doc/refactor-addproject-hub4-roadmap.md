@@ -111,7 +111,7 @@ before each step. The story sets no step order, so the hub needs no ruling.
   gaps:** an existing Linear project is a pasted id, not a list, and the jobs step shows the
   `Schedule()` defaults read-only.
 
-### [ ] H3.1 Swap the sheet to Hub4
+### [x] H3.1 Swap the sheet to Hub4
 
 - **Work** — Replace `SetupWizardView` with Hub4's layout: the readiness panel when something is
   missing, then the hub, the step bodies, and the `addProjectConfirmation` alert before
