@@ -1,4 +1,5 @@
 import AppKit
+import Config
 import Domain
 import Foundation
 import UserNotifications
@@ -9,18 +10,18 @@ import UserNotifications
 extension SetupWizardModel {
     func chooseSpecSource() {
         guard let url = Self.chooseFolder() else { return }
-        specSource = Self.abbreviatingPath(url)
+        draft.specSourcePath = Self.abbreviatingPath(url)
     }
 
-    func chooseRepoPath(for id: RepoField.ID) {
-        guard let url = Self.chooseFolder(), let index = repos.firstIndex(where: { $0.id == id }) else { return }
-        repos[index].path = Self.abbreviatingPath(url)
+    func chooseRepoPath(for id: AddProjectDraft.Repo.ID) {
+        guard let url = Self.chooseFolder(), let index = draft.repos.firstIndex(where: { $0.id == id }) else { return }
+        draft.repos[index].path = Self.abbreviatingPath(url)
     }
 
     func chooseExportDirectory() {
         // Full path, not `~`-abbreviated: `yh` takes `--export-jobs` as a literal directory path.
         guard let url = Self.chooseFolder() else { return }
-        exportDirectory = url.path(percentEncoded: false)
+        draft.exportDirectory = url.path(percentEncoded: false)
     }
 
     static func chooseFolder() -> URL? {
@@ -58,6 +59,7 @@ extension SetupWizardModel {
                 return
             }
             choices = decoded
+            draft.context.teams = decoded.teams
             selectedOperatorID = decoded.configuredOperator
             advance()
         } catch {
@@ -69,6 +71,7 @@ extension SetupWizardModel {
         isRunning = true
         runLines = []
         runExitStatus = nil
+        boundsFailure = nil
         defer { isRunning = false }
         let invocation = buildInvocation()
         do {
@@ -82,7 +85,11 @@ extension SetupWizardModel {
                 declaredProjectID = id
                 declaredProjectName = project.name ?? project.id
             }
+            if let id = declaredProjectID, let bounds = draft.boundsToWrite(afterExitStatus: status) {
+                writeBounds(bounds, for: id)
+            }
             configExists = true
+            loadContext()
             // `activeSteps` just dropped `.cliRouting` now that `configExists` flipped, so re-anchor on
             // `.review` rather than leaving `currentStepIndex` pointing past the end of the new array.
             currentStepIndex = activeSteps.firstIndex(of: .review) ?? currentStepIndex
@@ -93,6 +100,17 @@ extension SetupWizardModel {
         } catch {
             runLines.append("\(error)")
             runExitStatus = -1
+        }
+    }
+
+    /// Writes the Bounds through the Settings path after a successful setup. A refusal leaves the Project in
+    /// place with default Bounds and is reported in ``boundsFailure``; nothing is rolled back.
+    func writeBounds(_ bounds: Bounds, for id: ProjectID) {
+        let configuration = ProjectConfigurationModel(project: id, directory: configurationDirectory)
+        configuration.draft?.bounds = BoundsDraft(bounds)
+        if !configuration.save() {
+            boundsFailure = configuration.failure ?? configuration.loadFailure
+                ?? "The Bounds could not be written."
         }
     }
 
@@ -113,41 +131,20 @@ extension SetupWizardModel {
     }
 
     func buildInvocation() -> SetupInvocation {
-        SetupInvocation(
-            linearCredential: configExists || linearCredential == Self.defaultLinearCredential ? nil : linearCredential,
-            githubCredential: configExists || githubCredential == Self.defaultGitHubCredential ? nil : githubCredential,
-            cliAdapters: configExists ? [] : enabledCLIs.sorted().map { name in
-                if let executable = cliExecutables[name], !executable.trimmed.isEmpty {
-                    return "\(name)=\(executable)"
-                }
-                return name
-            },
-            route: configExists ? nil : routeText,
-            fallbacks: configExists ? [] : fallbackTexts,
-            operatorID: selectedOperatorID,
-            project: SetupInvocation.Project(
-                id: projectID.trimmed,
-                name: projectName,
-                linearProject: linearProjectMode == .existing
-                    ? .existing(existingLinearProjectID.trimmed)
-                    : .createInTeam(key: selectedTeamKey ?? ""),
-                specSource: specSource,
-                repos: repos.map {
-                    SetupInvocation.Repo(
-                        name: $0.name.trimmed, role: $0.role.trimmed, path: $0.path.trimmed,
-                        check: $0.check.trimmed
-                    )
-                }
-            ),
-            jobs: jobsInvocationValue()
-        )
-    }
-
-    private func jobsInvocationValue() -> SetupInvocation.Jobs {
-        switch jobsSelection {
-        case .install: .install
-        case .notNow: .notNow
-        case .export: .export(directory: exportDirectory, cron: exportUsesCron)
+        var invocation = draft.setupInvocation
+        invocation.linearCredential = configExists || linearCredential == Self.defaultLinearCredential
+            ? nil : linearCredential
+        invocation.githubCredential = configExists || githubCredential == Self.defaultGitHubCredential
+            ? nil : githubCredential
+        invocation.cliAdapters = configExists ? [] : enabledCLIs.sorted().map { name in
+            if let executable = cliExecutables[name], !executable.trimmed.isEmpty {
+                return "\(name)=\(executable)"
+            }
+            return name
         }
+        invocation.route = configExists ? nil : routeText
+        invocation.fallbacks = configExists ? [] : fallbackTexts
+        invocation.operatorID = selectedOperatorID
+        return invocation
     }
 }
