@@ -2519,7 +2519,7 @@ P19.7.
     Not asserted: that a live process in the Worktree is killed by this trigger's fence (the seam is
     Block's, whose fence has its own tests).
 
-### [ ] P19.6 No-Pushed-Branch Outcome, and N counts pushed branches only
+### [x] P19.6 No-Pushed-Branch Outcome, and N counts pushed branches only
 - **Work**
   - The land Act records the No-Pushed-Branch Outcome for a lane with nothing ahead of mainline,
     as its own Journal record rather than a skipped step.
@@ -2537,6 +2537,32 @@ P19.7.
 - **Done when** — A two-repository Feature with one empty lane reads `0 of 1 merged` until its one
   pull request merges, then closes; a Feature with every lane empty never closes and leaves flight
   only by `release` or re-authoring.
+- **Status** — Done on 2026-10-02 (`02f611e`). The `NoPushedBranchOutcome` event (no schema change)
+  is appended once per Feature and repository by the land Act; `JournalStore.pushedRepositories` is N.
+  - Recorded when the real push seam (`FeatureBranchLanePush`) finds the Feature Branch absent or zero
+    commits ahead of mainline, and for every touched repository no Card names (no lane, no push step;
+    in rehearsal mode too). A record that cannot be written faults the lane, so the Cycle stays unlanded
+    and the next firing retries. A rehearsal Night's laned repositories record nothing, as push is a
+    rehearsal boundary there, so N = `touched_repos` in rehearsal.
+  - N is `touched_repos` minus the repositories with a recorded outcome, read by the gate's pass, closure
+    by merge, the Roll-up's merged fraction, the standing Night Summary line and the pull request body
+    (`This pull request is 1 of N`, `0 of N merged`). A later recorded push takes a repository back into
+    N but never re-appends the outcome. `FeatureRollUp.pushedRepositories` (lane headings) is unchanged.
+  - Nothing over the empty set reads as merged: the gate skips the pass at N = 0, a pass with no merged
+    repository is never "fully merged" (also in `predecessorAncestryPreviouslyFullyMerged`), and
+    `FeatureMergeClosure` writes nothing at N = 0. `0 of 0 merged` never drops, as `MergedFraction`
+    already required `N ≥ 1` for the drop.
+  - At N = 0 an all-met verdict does not archive the Cycle: the Cycle lands and the Feature stays in
+    flight. An unmet verdict returns it as before. Raise: the spec presumes Verification fails at N = 0
+    but a verdict is model-authored, and which closed-half word such a Feature reads is unruled.
+  - Not N, deliberately: the Pulse's lane list (a no-pushed-branch repository stays a listed lane, never
+    `landed`; the Pulse renders no merged fraction yet) and the repositories handed to the verifier.
+  - Met: `open-one-pull-request-per-repository` (outside N; N = 0 rules), `announce-a-partial-landing`
+    (`<N_repos>` below `touched_repos`), `select-the-next-feature` (gate over pushed repositories),
+    `write-the-night-summary` (k = N never reached at N = 0; line persists), and `maintain-the-managed-block`
+    (`0 of 0 merged`, no drop, hash-skip holds). Both Done-when scenarios are asserted over fixture
+    repositories with the real gate and closure; the outcome is asserted through the real pusher. Not met
+    here: the `[no pull request: <repo>]` note on every surface (P19.7).
 
 ### [ ] P19.7 `[no pull request: <repo>]` beside the Roll-up
 - **Work** — Each repository with the No-Pushed-Branch Outcome is shown as
