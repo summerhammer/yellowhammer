@@ -55,6 +55,12 @@ final class LinearInstallationModel {
     private let engine = SetupEngine()
     private var installTask: Task<Void, Never>?
 
+    /// Creates an installation model with an optional starting phase.
+    /// `phase` lets a preview start past `.checking`, so its view never runs `yh`.
+    init(phase: Phase = .checking) {
+        self.phase = phase
+    }
+
     /// Runs on the first appearance of the view: an existing installation that still authorizes needs no
     /// browser round trip at all. A no-op unless the phase is still `.checking`. `yh` always reads the real
     /// configuration, so while the app is pointed at another one (a UI test's fixture) the check is not run
