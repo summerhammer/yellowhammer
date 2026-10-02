@@ -63,6 +63,7 @@ struct OverviewWindow: View {
         NavigationSplitView {
             OverviewSidebar(
                 projects: model.snapshot?.projects ?? [],
+                asOf: model.snapshot?.asOf ?? .now,
                 selection: Binding(get: { scopedProject }, set: { $0.map(rescope) }),
                 onProjectAdded: { id in
                     // Read again first, so the new row exists when the window scopes to it.
@@ -92,7 +93,8 @@ struct OverviewWindow: View {
         .navigationTitle(selectedSnapshot?.name ?? "Yellowhammer")
         .toolbar {
             OverviewToolbar(
-                inspectorShown: $inspectorShown, stop: stop, project: selectedSnapshot, confirming: $confirmingStop
+                inspectorShown: $inspectorShown, stop: stop, project: selectedSnapshot, confirming: $confirmingStop,
+                reread: model.readOnRequest
             )
         }
         .stopTheEngineDialogs(
@@ -122,7 +124,7 @@ struct OverviewWindow: View {
             OverviewUnavailable(reason: .configurationUnreadable(failure))
         } else if let snapshot = model.snapshot {
             if let selected = snapshot.project(scopedProject) {
-                PulseView(project: selected, asOf: snapshot.asOf)
+                PulseView(project: selected, asOf: snapshot.asOf, inspected: inspected)
             } else if let scopedProject {
                 // Only a deep link keeps the window scoped to an id that is not configured: any other
                 // such value is dropped (`staleProject`).

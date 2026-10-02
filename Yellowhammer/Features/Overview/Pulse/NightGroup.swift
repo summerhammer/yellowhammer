@@ -13,33 +13,37 @@ struct NightGroup: View {
     @Environment(\.openPulseDestination) private var openDestination
 
     var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 8) {
-                if let night {
-                    HStack(spacing: 6) {
-                        PulseCountBadge(text: night.state.rawValue, tint: night.state.tint)
-                        Text(night.displayVerdict)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+        PulseCard(group: .night, summary: PulseGroup.summary(of: night)) {
+            if let night {
+                Button { openDestination(.nightCard) } label: {
+                    HStack {
+                        Text(night.displayVerdict).multilineTextAlignment(.leading)
+                        Spacer(minLength: 8)
+                        Image(systemName: "arrow.up.forward.square").foregroundStyle(.secondary)
                     }
-                    .accessibilityIdentifier("night-state")
-                    if night.cardsByDisposition.isEmpty {
-                        Text("No Cards touched").foregroundStyle(.secondary)
-                    } else {
-                        NightDispositionCounts(counts: night.cardsByDisposition)
-                    }
-                    Button("Night Card") { openDestination(.nightCard) }
-                        .buttonStyle(.link)
-                        .accessibilityIdentifier("night-card-link")
-                } else {
-                    Label("No Night yet", systemImage: "moon.stars")
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("night-absence")
+                    .contentShape(.rect)
                 }
+                .buttonStyle(.plain)
+                .help("Open the Night Card in Linear")
+                .accessibilityIdentifier("night-card-link")
+                HStack(spacing: 8) {
+                    PulseCountBadge(text: night.state.rawValue, style: night.state.style)
+                    Text("started \(night.startedAt.formatted(date: .omitted, time: .shortened))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("night-state")
+                if night.cardsByDisposition.isEmpty {
+                    Text("No Cards touched").foregroundStyle(.secondary)
+                } else {
+                    NightDispositionCounts(counts: night.cardsByDisposition)
+                }
+            } else {
+                Label("No Night yet", systemImage: "moon.zzz")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("night-absence")
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } label: {
-            Label("Tonight / last Night", systemImage: "moon.stars")
         }
         .accessibilityIdentifier("pulse-night")
     }
@@ -50,9 +54,13 @@ private struct NightDispositionCounts: View {
     let counts: [DispositionCount]
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             ForEach(counts) { entry in
-                Text(entry.displayCount)
+                Label {
+                    Text(entry.displayCount).monospacedDigit()
+                } icon: {
+                    Circle().fill(entry.disposition.style).frame(width: 7, height: 7)
+                }
             }
         }
         .font(.caption)
@@ -66,16 +74,6 @@ private struct NightDispositionCounts: View {
 private extension NightPulse {
     /// `verdict_line`, or a stated unknown while it is nil (only Engine's `NightSummary` computes it).
     var displayVerdict: String { verdictLine ?? "verdict unknown" }
-}
-
-private extension NightPulseState {
-    var tint: Color {
-        switch self {
-        case .running: .green
-        case .done: .indigo
-        case .starved: .orange
-        }
-    }
 }
 
 private extension DispositionCount {

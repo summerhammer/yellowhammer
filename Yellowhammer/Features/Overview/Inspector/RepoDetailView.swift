@@ -17,40 +17,43 @@ struct RepoDetailView: View {
     var body: some View {
         InspectorPane(
             kind: "Repo",
+            systemImage: "shippingbox.fill",
+            style: lane.map { AnyShapeStyle($0.state.style) } ?? AnyShapeStyle(.neutral),
+            title: repo,
+            titleIdentifier: "repo-detail-name",
             wayOut: lane?.pullRequest.map {
                 ("Open #\($0.number) on GitHub", .pullRequest(repo: repo, number: $0.number))
             },
             note: nil,
             identifier: "repo-detail"
         ) {
-            Text(repo)
-                .font(.title3.weight(.semibold))
-                .textSelection(.enabled)
-                .accessibilityIdentifier("repo-detail-name")
             if let lane {
-                HStack(spacing: 6) {
-                    PulseCountBadge(text: lane.state.rawValue, tint: lane.state.tint)
-                    Text("\(lane.cardsDone) of \(lane.cardsTotal) Cards done")
-                        .font(.caption)
+                PulseCountBadge(text: lane.state.rawValue, style: lane.state.style)
+            }
+        } content: {
+            Section("Repo Lane") {
+                if let lane {
+                    LabeledContent("Cards", value: "\(lane.cardsDone) of \(lane.cardsTotal) done")
+                        .accessibilityIdentifier("repo-detail-lane")
+                    if let pullRequest = lane.pullRequest {
+                        LabeledContent("Pull request", value: pullRequest.label)
+                    }
+                    LaneCardList(cards: lane.cards, decisionCardIDs: decisionCardIDs)
+                } else {
+                    Label("Not in the Feature\u{2019}s lane", systemImage: "minus.circle")
                         .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("repo-detail-no-lane")
                 }
-                .accessibilityIdentifier("repo-detail-lane")
-                LaneCardList(cards: lane.cards, decisionCardIDs: decisionCardIDs)
-            } else {
-                Label("Not in the Feature\u{2019}s lane", systemImage: "minus.circle")
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("repo-detail-no-lane")
             }
             if let attempt {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Running Attempt").font(.caption).foregroundStyle(.secondary)
+                Section("Running Attempt") {
                     Button("\(attempt.cardID)  \(attempt.cardTitle)") {
                         openDestination(.inspector(.attempt(attempt.id)))
                     }
                     .buttonStyle(.link)
                     .lineLimit(1)
+                    .accessibilityIdentifier("repo-detail-attempt")
                 }
-                .accessibilityIdentifier("repo-detail-attempt")
             }
         }
     }

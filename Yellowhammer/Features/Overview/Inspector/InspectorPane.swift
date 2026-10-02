@@ -2,29 +2,67 @@ import Domain
 import Pulse
 import SwiftUI
 
-/// The frame every Inspector pane shares: a scrolling body under a caption, and the one way out pinned
-/// below. Read-only: the way out opens Linear or GitHub, where a triage gesture is made.
-struct InspectorPane<Content: View>: View {
+/// The frame every Inspector pane shares: a large header (a tinted icon tile, the kind, the title, an
+/// identifier and badges) over a grouped form of the pane's sections, and the one way out pinned below.
+/// Read-only: the way out opens Linear or GitHub, where a triage gesture is made.
+struct InspectorPane<Style: ShapeStyle, Badges: View, Content: View>: View {
     let kind: LocalizedStringResource
+    let systemImage: String
+    let style: Style
+    let title: String
+    /// The issue id or other identifier under the title, when it is not the title itself.
+    let subtitle: String?
+    /// The accessibility identifier of the title.
+    let titleIdentifier: String
     let wayOut: (title: LocalizedStringResource, destination: PulseDestination)?
     let note: LocalizedStringResource?
     let identifier: String
-    @ViewBuilder let content: Content
+    let wayOutIdentifier: String
+    let badges: Badges
+    let content: Content
     @Environment(\.openPulseDestination) private var openDestination
 
+    init(
+        kind: LocalizedStringResource,
+        systemImage: String,
+        style: Style,
+        title: String,
+        subtitle: String? = nil,
+        titleIdentifier: String,
+        wayOut: (title: LocalizedStringResource, destination: PulseDestination)?,
+        note: LocalizedStringResource?,
+        identifier: String,
+        wayOutIdentifier: String? = nil,
+        @ViewBuilder badges: () -> Badges,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.kind = kind
+        self.systemImage = systemImage
+        self.style = style
+        self.title = title
+        self.subtitle = subtitle
+        self.titleIdentifier = titleIdentifier
+        self.wayOut = wayOut
+        self.note = note
+        self.identifier = identifier
+        self.wayOutIdentifier = wayOutIdentifier ?? "\(identifier)-way-out"
+        self.badges = badges()
+        self.content = content()
+    }
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text(kind)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                content
+        Form {
+            Section {
+                EmptyView()
+            } header: {
+                header
+                    .padding(.bottom, 4)
+                    .textCase(nil)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
+            content
         }
-        .safeAreaInset(edge: .bottom) {
+        .formStyle(.grouped)
+        .safeAreaBar(edge: .bottom) {
             if let wayOut {
                 VStack(spacing: 6) {
                     Button { openDestination(wayOut.destination) } label: {
@@ -33,7 +71,7 @@ struct InspectorPane<Content: View>: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                    .accessibilityIdentifier("\(identifier)-way-out")
+                    .accessibilityIdentifier(wayOutIdentifier)
                     if let note {
                         Text(note)
                             .font(.caption)
@@ -42,62 +80,73 @@ struct InspectorPane<Content: View>: View {
                     }
                 }
                 .padding()
-                .background(.bar)
             }
         }
         .accessibilityIdentifier(identifier)
     }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.title2)
+                .foregroundStyle(style)
+                .frame(width: 44, height: 44)
+                .background(style.opacity(0.14), in: .rect(cornerRadius: 10))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(kind)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                Text(title)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier(titleIdentifier)
+                if let subtitle, subtitle != title {
+                    Text(subtitle).font(.callout.monospaced()).foregroundStyle(.secondary)
+                }
+                HStack(spacing: 6) { badges }
+            }
+            .textSelection(.enabled)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 }
 
-/// A label over a value, for the facts an Inspector pane lists.
+/// A label beside a value, for the facts an Inspector pane lists.
 struct InspectorFact: View {
     let label: LocalizedStringResource
     let value: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(label).font(.caption).foregroundStyle(.secondary)
+        LabeledContent(String(localized: label)) {
             Text(value).textSelection(.enabled)
         }
-        .accessibilityElement(children: .combine)
     }
 }
 
-/// A Repo Lane's member Cards. A Card the Pulse lists under Needs you opens its Card detail; any other
-/// is listed as a row, because the Inspector has no detail to open for it.
+/// A Repo Lane's member Cards, one row each. A Card the Pulse lists under Needs you opens its Card
+/// detail; any other is listed as a row, because the Inspector has no detail to open for it.
 struct LaneCardList: View {
     let cards: [LaneCard]
     let decisionCardIDs: Set<String>
     @Environment(\.openPulseDestination) private var openDestination
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ForEach(cards) { card in
-                HStack(spacing: 6) {
-                    if decisionCardIDs.contains(card.id) {
-                        Button("\(card.id)  \(card.title)") { openDestination(.inspector(.card(card.id))) }
-                            .buttonStyle(.link)
-                    } else {
-                        Text("\(card.id)  \(card.title)")
-                    }
-                    Spacer(minLength: 4)
-                    PulseCountBadge(text: card.state.rawValue, tint: card.state.tint)
+        ForEach(cards) { card in
+            HStack(spacing: 6) {
+                if decisionCardIDs.contains(card.id) {
+                    Button("\(card.id)  \(card.title)") { openDestination(.inspector(.card(card.id))) }
+                        .buttonStyle(.link)
+                } else {
+                    Text("\(card.id)  \(card.title)")
                 }
-                .lineLimit(1)
-                .accessibilityIdentifier("lane-card-\(card.id)")
+                Spacer(minLength: 4)
+                PulseCountBadge(text: card.state.rawValue, style: card.state.style)
             }
-        }
-    }
-}
-
-private extension CardState {
-    var tint: Color {
-        switch self {
-        case .blocked: .red
-        case .waitingOnYou: .orange
-        case .done: .purple
-        case .inProgress: .green
-        default: .secondary
+            .lineLimit(1)
+            .accessibilityIdentifier("lane-card-\(card.id)")
         }
     }
 }

@@ -2,8 +2,10 @@ import Domain
 import Pulse
 import SwiftUI
 
-/// The main window's toolbar: the standard Inspector toggle, and Stop the engine for the selected
-/// Project (spec: app/stop-the-engine-for-a-project). The app triggers and never decides or records:
+/// The main window's toolbar: the selected Project's Now line as a centred status item, a re-read of
+/// its Journal, the standard Inspector toggle, and Stop the engine for the selected Project (spec:
+/// app/stop-the-engine-for-a-project). The Now line only displays; the re-read reads again, as the app
+/// becoming active does. The app triggers and never decides or records:
 /// confirming runs `yh stop --project <id>`, which records the request in the engine, so quitting the
 /// app cannot change the outcome. Nothing is paused and nothing here polls.
 struct OverviewToolbar: ToolbarContent {
@@ -12,8 +14,24 @@ struct OverviewToolbar: ToolbarContent {
     /// The Project the window shows: Stop always targets it, never another.
     let project: ProjectSnapshot?
     @Binding var confirming: Bool
+    /// Reads every Journal again, unless a read is already running.
+    let reread: @MainActor () -> Void
 
     var body: some ToolbarContent {
+        ToolbarItem(placement: .principal) {
+            if let project, project.journalFailure == nil {
+                NowToolbarStatus(now: project.pulse.now)
+            }
+        }
+        ToolbarItem {
+            Button(action: reread) {
+                Label("Re-read Journals", systemImage: "arrow.clockwise")
+            }
+            .keyboardShortcut("r")
+            .help("Read every Project\u{2019}s Journal again")
+            .accessibilityIdentifier("toolbar-reread")
+        }
+        ToolbarSpacer(.fixed)
         ToolbarItem {
             Button {
                 inspectorShown.toggle()
@@ -49,6 +67,25 @@ struct OverviewToolbar: ToolbarContent {
         if stop.isStopping(project?.id) { return "Stopping…" }
         guard let project else { return "Stop the engine" }
         return "Stop the engine for \(project.name): abort every running Attempt in it"
+    }
+}
+
+/// The Now line, `idle — next Act unknown`, and how many Attempts run, beside the status dot.
+private struct NowToolbarStatus: View {
+    let now: Now
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle().fill(now.status.style).frame(width: 8, height: 8).accessibilityHidden(true)
+            Text(now.statusLine).lineLimit(1)
+            if !now.attempts.isEmpty {
+                Text("\u{00B7} \(now.attempts.count) running").foregroundStyle(.secondary)
+            }
+        }
+        .font(.callout)
+        .padding(.horizontal, 10)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("toolbar-now")
     }
 }
 
