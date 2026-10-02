@@ -15,40 +15,34 @@ struct CardDetailAccount: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            section("Details") {
-                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 4) {
-                    fact("Repo", detail.repo)
-                    fact("Kind", detail.kind)
-                    fact("Budget epoch", "\(detail.budgetEpoch)")
-                    fact("Attempts", "\(detail.attemptCount)", identifier: "card-detail-attempt-count")
-                    fact("Rounds", "\(detail.roundCount)", identifier: "card-detail-round-count")
-                }
+        Section("Details") {
+            fact("Repo", detail.repo)
+            fact("Kind", detail.kind)
+            fact("Budget epoch", "\(detail.budgetEpoch)")
+            fact("Attempts", "\(detail.attemptCount)", identifier: "card-detail-attempt-count")
+            fact("Rounds", "\(detail.roundCount)", identifier: "card-detail-round-count")
+        }
+        Section("Routes") {
+            fact("Tried", routeList(detail.routesTried), identifier: "card-detail-routes-tried")
+            fact("Excluded", routeList(detail.excludedRoutes), identifier: "card-detail-routes-excluded")
+        }
+        Section("Attempts") {
+            if detail.attempts.isEmpty {
+                Text("No Attempt has been recorded for this Card.")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("card-detail-no-attempts")
             }
-            section("Routes") {
-                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 4) {
-                    fact("Tried", routeList(detail.routesTried), identifier: "card-detail-routes-tried")
-                    fact("Excluded", routeList(detail.excludedRoutes), identifier: "card-detail-routes-excluded")
+            ForEach(Array(detail.attempts.enumerated()), id: \.element.id) { index, attempt in
+                DisclosureGroup(isExpanded: isExpanded(attempt)) {
+                    AttemptAccount(attempt: attempt)
+                        .padding(.top, 4)
+                } label: {
+                    AttemptLabel(number: index + 1, attempt: attempt)
                 }
-            }
-            section("Attempts") {
-                if detail.attempts.isEmpty {
-                    Text("No Attempt has been recorded for this Card.")
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("card-detail-no-attempts")
-                }
-                ForEach(Array(detail.attempts.enumerated()), id: \.element.id) { index, attempt in
-                    DisclosureGroup(isExpanded: isExpanded(attempt)) {
-                        AttemptAccount(attempt: attempt)
-                            .padding(.top, 4)
-                    } label: {
-                        AttemptLabel(number: index + 1, attempt: attempt)
-                    }
-                    .accessibilityIdentifier("card-detail-attempt-\(index + 1)")
-                }
+                .textSelection(.enabled)
+                .accessibilityIdentifier("card-detail-attempt-\(index + 1)")
             }
         }
-        .textSelection(.enabled)
     }
 
     private func isExpanded(_ attempt: CardDetail.Attempt) -> Binding<Bool> {
@@ -61,15 +55,6 @@ struct CardDetailAccount: View {
 
     private func routeList(_ routes: [String]) -> String {
         routes.isEmpty ? "none" : routes.joined(separator: ", ")
-    }
-
-    private func section(_ title: LocalizedStringKey, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-            content()
-        }
     }
 }
 
@@ -100,22 +85,22 @@ private struct AttemptAccount: View {
         VStack(alignment: .leading, spacing: 8) {
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 2) {
                 if let source = attempt.routeSource {
-                    fact("Route source", source)
+                    gridFact("Route source", source)
                 }
                 if let pin = attempt.overridePin {
-                    fact("Override", pin)
+                    gridFact("Override", pin)
                 }
-                fact("Started", attempt.startedAt.formatted(date: .abbreviated, time: .standard))
-                fact("Ended", attempt.endedAt?.formatted(date: .abbreviated, time: .standard) ?? "not ended")
+                gridFact("Started", attempt.startedAt.formatted(date: .abbreviated, time: .standard))
+                gridFact("Ended", attempt.endedAt?.formatted(date: .abbreviated, time: .standard) ?? "not ended")
                 if let classification = attempt.classification {
-                    fact("Classification", classification)
+                    gridFact("Classification", classification)
                 }
                 if let consumedHow = attempt.consumedHow {
-                    fact("Consumed", consumedHow)
+                    gridFact("Consumed", consumedHow)
                 }
                 if let preservedRef = attempt.preservedRef {
                     let preserved = [preservedRef, attempt.preservedCommit].compactMap(\.self)
-                    fact("Preserved", preserved.joined(separator: " @ "))
+                    gridFact("Preserved", preserved.joined(separator: " @ "))
                 }
             }
             .font(.callout)
@@ -195,14 +180,23 @@ private struct RecordedText: View {
     }
 }
 
-/// A labelled value. The identifier goes on the value, not the row: a modifier on a `GridRow` would
-/// make the grid lay it out as one cell spanning every column.
+/// A labelled value, one form row. The identifier goes on the value, so a test reads the value alone.
 private func fact(_ label: LocalizedStringKey, _ value: String, identifier: String? = nil) -> some View {
+    LabeledContent(label) {
+        Text(value)
+            .textSelection(.enabled)
+            .accessibilityIdentifier(identifier ?? "")
+    }
+}
+
+/// A labelled value as a grid row, for the facts inside an expanded Attempt. The identifier goes on the
+/// value, not the row: a modifier on a `GridRow` would make the grid lay it out as one cell spanning
+/// every column.
+private func gridFact(_ label: LocalizedStringKey, _ value: String) -> some View {
     GridRow {
         Text(label)
             .foregroundStyle(.secondary)
             .gridColumnAlignment(.trailing)
         Text(value)
-            .accessibilityIdentifier(identifier ?? "")
     }
 }

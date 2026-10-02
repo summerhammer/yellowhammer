@@ -15,7 +15,6 @@ struct CardDetailView: View {
     /// The landing snapshot's instant. A new one means the snapshot was re-read, so the account is too.
     let asOf: Date
     @State private var model: CardDetailModel
-    @Environment(\.openPulseDestination) private var openDestination
 
     init(project: ProjectID, card: DecisionCard, asOf: Date) {
         self.card = card
@@ -24,15 +23,30 @@ struct CardDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                CardDetailHeader(card: card, waitingReason: detail?.waitingReason)
-                account
+        InspectorPane(
+            kind: "Card",
+            systemImage: card.state == .blocked ? "exclamationmark.octagon.fill" : "questionmark.bubble.fill",
+            style: card.state.style,
+            title: card.title,
+            subtitle: card.id,
+            titleIdentifier: "card-detail-title",
+            wayOut: ("Open \(card.id) in Linear", .linearIssue(card.id)),
+            note: "Re-ready and answer happen on the Linear issue, never here.",
+            identifier: "card-detail",
+            wayOutIdentifier: "card-detail-open-linear"
+        ) {
+            // The reason beside the state: the Block Reason of a Blocked Card, or the `waiting_reason` of
+            // a Waiting on You Card once the account is read.
+            Group {
+                PulseCountBadge(text: card.state.rawValue, style: card.state.style)
+                if let reason = card.blockReason?.rawValue ?? detail?.waitingReason {
+                    PulseCountBadge(text: reason, style: card.state.style)
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
+            .accessibilityIdentifier("card-detail-state")
+        } content: {
+            account
         }
-        .safeAreaInset(edge: .bottom) { wayOut }
         .task(id: asOf) { await model.load() }
     }
 
@@ -43,83 +57,39 @@ struct CardDetailView: View {
     @ViewBuilder private var account: some View {
         switch model.read {
         case nil:
-            ProgressView()
-                .frame(maxWidth: .infinity)
-                .accessibilityIdentifier("card-detail-loading")
+            Section {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("card-detail-loading")
+            }
         case let .detail(detail):
             CardDetailAccount(detail: detail)
         case .noSuchCard:
-            Text("The Journal no longer records this Card.")
-                .foregroundStyle(.secondary)
-                .accessibilityIdentifier("card-detail-no-such-card")
+            Section {
+                Text("The Journal no longer records this Card.")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("card-detail-no-such-card")
+            }
         case .journalMissing:
-            Text("This Project has no Journal.")
-                .foregroundStyle(.secondary)
-                .accessibilityIdentifier("card-detail-journal-missing")
+            Section {
+                Text("This Project has no Journal.")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("card-detail-journal-missing")
+            }
         case let .journalFailure(failure):
-            VStack(alignment: .leading, spacing: 4) {
-                Label(
-                    "Yellowhammer can\u{2019}t read this Project\u{2019}s Journal.",
-                    systemImage: "exclamationmark.triangle"
-                )
-                Text(failure)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-            }
-            .accessibilityIdentifier("card-detail-failure")
-        }
-    }
-
-    /// The one way out: the Card's Linear issue, which carries re-ready and answer.
-    private var wayOut: some View {
-        VStack(spacing: 6) {
-            Button { openDestination(.linearIssue(card.id)) } label: {
-                Label("Open \(card.id) in Linear", systemImage: "arrow.up.forward.square")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .accessibilityIdentifier("card-detail-open-linear")
-            Text("Re-ready and answer happen on the Linear issue, never here.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding()
-        .background(.bar)
-    }
-}
-
-/// The Card's title and issue id, then its state with the reason beside it: the Block Reason of a
-/// Blocked Card, or the `waiting_reason` of a Waiting on You Card once the account is read.
-private struct CardDetailHeader: View {
-    let card: DecisionCard
-    let waitingReason: String?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("CARD")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(card.title)
-                .font(.title3.weight(.semibold))
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("card-detail-title")
-            if card.title != card.id {
-                Text(card.id)
-                    .font(.callout.monospaced())
-                    .foregroundStyle(.secondary)
-            }
-            HStack(spacing: 6) {
-                PulseCountBadge(text: card.state.rawValue, style: card.state.style)
-                if let reason = card.blockReason?.rawValue ?? waitingReason {
-                    PulseCountBadge(text: reason, style: card.state.style)
+            Section {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label(
+                        "Yellowhammer can\u{2019}t read this Project\u{2019}s Journal.",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    Text(failure)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
                 }
+                .accessibilityIdentifier("card-detail-failure")
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("card-detail-state")
         }
-        .textSelection(.enabled)
     }
 }

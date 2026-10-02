@@ -18,29 +18,40 @@ struct AttemptDetailView: View {
     var body: some View {
         InspectorPane(
             kind: "Attempt",
+            systemImage: "gearshape.2.fill",
+            style: .active,
+            title: attempt.cardTitle,
+            subtitle: attempt.cardID,
+            titleIdentifier: "attempt-detail-title",
             wayOut: ("Open \(attempt.cardID) in Linear", .linearIssue(attempt.cardID)),
             note: nil,
             identifier: "attempt-detail"
         ) {
-            VStack(alignment: .leading, spacing: 4) {
+            PulseCountBadge(text: "Round \(attempt.round)", style: .active)
+        } content: {
+            Section {
                 Button("\(attempt.cardID)  \(attempt.cardTitle)") {
                     openDestination(.inspector(.card(attempt.cardID)))
                 }
                 .buttonStyle(.link)
-                .font(.title3.weight(.semibold))
+                .lineLimit(1)
                 .accessibilityIdentifier("attempt-detail-card")
+                InspectorFact(label: "Repo", value: attempt.repo)
+                InspectorFact(label: "Route", value: attempt.route)
+                InspectorFact(label: "Round", value: String(attempt.round))
+                InspectorFact(
+                    label: "Running for",
+                    value: Duration.seconds(max(0, asOf.timeIntervalSince(attempt.startedAt)))
+                        .formatted(.units(allowed: [.hours, .minutes], width: .narrow))
+                )
+                InspectorFact(
+                    label: "Started", value: attempt.startedAt.formatted(date: .abbreviated, time: .shortened)
+                )
+                InspectorFact(label: "Status", value: attempt.status ?? "status unknown")
             }
-            InspectorFact(label: "Repo", value: attempt.repo)
-            InspectorFact(label: "Route", value: attempt.route)
-            InspectorFact(label: "Round", value: String(attempt.round))
-            InspectorFact(
-                label: "Running for",
-                value: Duration.seconds(max(0, asOf.timeIntervalSince(attempt.startedAt)))
-                    .formatted(.units(allowed: [.hours, .minutes], width: .narrow))
-            )
-            InspectorFact(label: "Started", value: attempt.startedAt.formatted(date: .abbreviated, time: .shortened))
-            InspectorFact(label: "Status", value: attempt.status ?? "status unknown")
-            abortControl
+            if attemptAbort.isAborting(project, attempt) || attemptAbort.canAbort(project, attempt) {
+                Section { abortControl }
+            }
         }
     }
 
