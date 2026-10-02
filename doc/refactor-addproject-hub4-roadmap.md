@@ -47,7 +47,7 @@ before each step. The story sets no step order, so the hub needs no ruling.
 
 ---
 
-### [ ] H1 The draft and its rules, under test
+### [ ] H1.1 The draft and its rules, under test
 
 - **Work** — Move `AddProjectDraft` (with `+Navigation` and `+Summaries`), `BoundsDraft`,
   `WizardStep` and `WizardStepStatus` out of the prototype. Put the pure value logic (step order,
@@ -70,7 +70,7 @@ before each step. The story sets no step order, so the hub needs no ruling.
   prerequisite; Bounds written only after a successful run, not when unchanged, and a refusal
   leaving the Project in place. The current sheet and `AddProjectUITests` still pass.
 
-### [ ] H2 Hub4's step bodies in the app
+### [ ] H2.1 Hub4's step bodies in the app
 
 - **Work** — Move `WizardBlocks`, `WizardRepoList`, `WizardStepBody` (with `+SpecAndBounds`),
   `WizardStepContent` and `WizardTheme` into `Features/AddProject`. Keep only the components Hub4
@@ -84,7 +84,7 @@ before each step. The story sets no step order, so the hub needs no ruling.
 - **Done when** — Each body and the readiness panel have an Xcode Preview in the app target and
   render against the H1 draft. No prototype type is referenced. The current sheet is unchanged.
 
-### [ ] H3 Swap the sheet to Hub4
+### [ ] H3.1 Swap the sheet to Hub4
 
 - **Work** — Replace `SetupWizardView` with Hub4's layout: the readiness panel when something is
   missing, then the hub, the step bodies, and the `addProjectConfirmation` alert before
