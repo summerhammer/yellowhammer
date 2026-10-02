@@ -262,3 +262,56 @@ struct FeatureRollUpTests {
         #expect(rendered == "**\(withoutConflicts.sentence)** [conflict: api] [conflict: web]")
     }
 }
+
+// MARK: - No-pull-request notes beside the sentence (P19.7; risks OQ108)
+
+extension FeatureRollUpTests {
+    @Test("No-Pushed-Branch notes render one per repository, sorted, beside the sentence and never change it")
+    func noPullRequestNotesBesideSentence() {
+        let without = FeatureRollUp(
+            members: [member("A", state: .done)], lanesPushed: true, verificationPassed: true,
+            mergedFraction: MergedFraction(mergedCount: 0, totalCount: 1), issueStanding: .authoring
+        )
+        let with = FeatureRollUp(
+            members: [member("A", state: .done)], lanesPushed: true, verificationPassed: true,
+            mergedFraction: MergedFraction(mergedCount: 0, totalCount: 1),
+            noPullRequestRepositories: ["web", "api"], issueStanding: .authoring
+        )
+        #expect(with.sentence == without.sentence)
+        #expect(with.state == without.state)
+        #expect(with.noPullRequestSuffix == " [no pull request: api] [no pull request: web]")
+        #expect(
+            "**\(with.sentence)**\(with.noPullRequestSuffix)"
+                == "**\(without.sentence)** [no pull request: api] [no pull request: web]"
+        )
+    }
+
+    @Test("No notes: both suffixes are empty and the rendered first line is the bare bold sentence")
+    func noNotesEmptySuffix() {
+        let rollUp = FeatureRollUp(
+            members: [member("A", state: .done)], lanesPushed: false, verificationPassed: false,
+            mergedFraction: noMerge(), issueStanding: .authoring
+        )
+        #expect(rollUp.noPullRequestSuffix.isEmpty)
+        #expect(rollUp.noPullRequestRepositories.isEmpty)
+        #expect(FeatureRollUpBlock(rollUp: rollUp).render() == "**\(rollUp.sentence)**\n\n### Cards\n\n"
+            + "#### `backend` — finished\n- `A` — Done")
+    }
+
+    @Test("Conflicts and notes together render conflicts first, then notes, all beside the sentence")
+    func conflictsThenNotes() {
+        let rollUp = FeatureRollUp(
+            members: [member("A", state: .done)], lanesPushed: false, verificationPassed: false,
+            mergedFraction: noMerge(), conflictingRepositories: ["web"],
+            noPullRequestRepositories: ["mobile"], issueStanding: .authoring
+        )
+        let firstLine = FeatureRollUpBlock(rollUp: rollUp).render().components(separatedBy: "\n")[0]
+        #expect(firstLine == "**\(rollUp.sentence)** [conflict: web] [no pull request: mobile]")
+    }
+
+    @Test("The shared note formatter sorts and joins with single spaces, no leading space")
+    func notesFormatter() {
+        #expect(FeatureRollUp.noPullRequestNotes(["b", "a"]) == "[no pull request: a] [no pull request: b]")
+        #expect(FeatureRollUp.noPullRequestNotes([]).isEmpty)
+    }
+}

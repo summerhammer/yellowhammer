@@ -291,3 +291,60 @@ struct FeatureRollUpMaintenanceTests {
         #expect(afterDescription.contains("banked answer waiting"))
     }
 }
+
+// MARK: - No-Pushed-Branch notes (P19.7; risks OQ108)
+
+extension FeatureRollUpMaintenanceTests {
+    @Test("A No-Pushed-Branch Outcome appearing alone reposts, beside the sentence; an unchanged repost is skipped")
+    func repostsOnNoPushedBranchOutcome() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let world = try makeRollUpWorld(journal)
+        await world.board.seed(issue: "FEAT-1", description: ManagedBlockFence.initialDescription(rendered: ""))
+        let featureID = try insertGateFeature(
+            journal, issueID: "FEAT-1", branch: "yh-proj-feat", repositories: ["backend", "frontend"], landed: true
+        )
+        let cycleID = try gateCycleID(journal, featureID: featureID)
+        try insertRollUpCard(
+            journal, cycleID: cycleID, .init(issueID: "BACK-1", repository: "backend", order: 1, state: .done)
+        )
+        let feature = try #require(try journal.feature(issueID: "FEAT-1"))
+        let maintenance = FeatureRollUpMaintenance(journal: journal, outbox: world.outbox)
+
+        let before = try await maintenance.maintain(feature: feature, cycleID: cycleID)
+        guard case .posted(let beforeHash, _) = before else {
+            Issue.record("expected posted, got \(before)")
+            return
+        }
+        let beforeDescription = try #require(await world.board.issue(BoardObjectID(rawValue: "FEAT-1"))?.description)
+        #expect(!beforeDescription.contains("[no pull request:"))
+        let beforeParts = try ManagedBlockFence.parts(of: beforeDescription).get()
+        let beforeSentence = try #require(beforeParts.block.components(separatedBy: "\n").first)
+
+        try journal.append(
+            .noPushedBranchOutcome(cycleID: cycleID, featureIssueID: "FEAT-1", repository: "frontend"),
+            act: .land, runID: world.runID, nightID: world.night.id
+        )
+        let after = try await maintenance.maintain(feature: feature, cycleID: cycleID)
+        guard case .posted(let afterHash, _) = after else {
+            Issue.record("expected posted, got \(after)")
+            return
+        }
+        #expect(afterHash != beforeHash)
+        let afterDescription = try #require(await world.board.issue(BoardObjectID(rawValue: "FEAT-1"))?.description)
+        let afterParts = try ManagedBlockFence.parts(of: afterDescription).get()
+        let afterSentence = try #require(afterParts.block.components(separatedBy: "\n").first)
+        // N drops from 2 to 1 (frontend is out of it), so only the merged fraction's own denominator moves;
+        // the note sits after the closing `**`, outside the sentence's bold span.
+        let sentence = "partial landing · 1 of 1 Cards landed · 0 of 1 merged · verification not passed"
+        #expect(beforeSentence == "**partial landing · 1 of 1 Cards landed · 0 of 2 merged · verification not passed**")
+        #expect(afterSentence == "**\(sentence)** [no pull request: frontend]")
+
+        let updates = await world.board.updateCalls
+        let pending = try journal.pendingOutboxEntries().count
+        let again = try await maintenance.maintain(feature: feature, cycleID: cycleID)
+        #expect(again == .skipped(hash: afterHash))
+        #expect(await world.board.updateCalls == updates)
+        #expect(try journal.pendingOutboxEntries().count == pending)
+    }
+}

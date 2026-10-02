@@ -106,13 +106,17 @@ public struct PullRequestBodyInput: Equatable, Sendable {
     /// ``effectiveUnmetClauses`` to resolve the report's issue ids by (issue #161; spec:
     /// landing/announce-a-partial-landing). An id missing from this lookup renders as itself.
     public let cardTitles: [String: String]
+    /// The repositories with a No-Pushed-Branch Outcome, shown as `[no pull request: <repo>]` notes beside
+    /// the Partial Landing's Roll-up sentence (roadmap P19.7; risks OQ108). A complete landing has no
+    /// Roll-up sentence, so it renders none.
+    public let noPullRequestRepositories: [String]
 
     public init(
         featureTitle: String, featureIssueURL: String?, nightID: Int64, nightTimestamp: String,
         repository: String, pushedRepositoryCount: Int, mergedCount: Int,
         cycleCards: [PullRequestBodyCard], mergeVerdict: PullRequestBodyMergeVerdict,
         unmetClauses: [PullRequestBodyUnmetClause], verificationReport: VerificationReport? = nil,
-        cardTitles: [String: String] = [:]
+        cardTitles: [String: String] = [:], noPullRequestRepositories: [String] = []
     ) {
         self.featureTitle = featureTitle
         self.featureIssueURL = featureIssueURL
@@ -126,6 +130,7 @@ public struct PullRequestBodyInput: Equatable, Sendable {
         self.unmetClauses = unmetClauses
         self.verificationReport = verificationReport
         self.cardTitles = cardTitles
+        self.noPullRequestRepositories = noPullRequestRepositories
     }
 
     /// The unmet list the body prints: every clause the report did not find `met` (unmet and
@@ -250,8 +255,10 @@ public enum PullRequestBody {
         let dispositionWord = waitingCount > 0
             ? "\(waitingCount) waiting on you"
             : "\(blockedCount) blocked"
+        let notes = input.noPullRequestRepositories.isEmpty
+            ? "" : " " + FeatureRollUp.noPullRequestNotes(input.noPullRequestRepositories)
         return "**partial landing · \(landedCount) of \(totalCardCount) Cards landed · "
-            + "0 of \(input.pushedRepositoryCount) merged · \(dispositionWord)**"
+            + "0 of \(input.pushedRepositoryCount) merged · \(dispositionWord)**" + notes
     }
 
     private static func openingLine2(

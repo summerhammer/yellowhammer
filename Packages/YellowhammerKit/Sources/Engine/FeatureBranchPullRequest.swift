@@ -175,6 +175,7 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
         let repository = context.lane.repository
         let cards = try journal.cards(cycleID: context.cycleID)
         let pushed = try journal.pushedRepositories(featureID: context.feature.id)
+        let noPullRequest = try journal.noPushedBranchRepositories(featureID: context.feature.id)
         let landings = try journal.landings(featureID: context.feature.id)
 
         let featureTitle = featureObject?.title ?? context.feature.issueID
@@ -211,7 +212,8 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
             mergeVerdict: mergeVerdict,
             unmetClauses: unmetClauses,
             verificationReport: report,
-            cardTitles: cardTitles
+            cardTitles: cardTitles,
+            noPullRequestRepositories: noPullRequest
         )
         return (PullRequestBody.render(input), input.isPartialLanding)
     }

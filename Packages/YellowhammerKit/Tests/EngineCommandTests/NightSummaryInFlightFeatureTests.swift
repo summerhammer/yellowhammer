@@ -160,6 +160,73 @@ struct NightSummaryInFlightFeatureTests {
         #expect(!line.contains("backend-only.txt"))
     }
 
+    @Test("A No-Pushed-Branch Outcome adds sorted notes at the end of the line, after any conflicts phrase (P19.7)")
+    func noPullRequestNotesAtEndOfLine() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        try await EngineInvocation(
+            act: .author, mode: .real, nightStart: nightCardNightStart, journal: journal,
+            trigger: .forced, runID: RunID(), board: board, work: { _ in }
+        ).run()
+        let night = try #require(try journal.currentNight())
+        try insertInFlightFeature(journal, featureIssueID: "FEAT-1", repositories: ["backend", "frontend", "docs"])
+
+        // No outcome: the line has no note.
+        let plain = try #require(try NightSummary.inFlightFeatureLines(night: night, journal: journal).first)
+        #expect(!plain.contains("[no pull request:"))
+
+        // N >= 1 (backend still pushed), with a conflict on the unmerged backend branch: notes come last.
+        try journal.append(
+            .predecessorAncestryObserved(
+                featureIssueID: "FEAT-1", mergedRepositories: [], unmergedRepositories: ["backend"]
+            ),
+            act: .land, runID: RunID(), nightID: night.id
+        )
+        try journal.append(
+            .mainlineConflictDetected(featureIssueID: "FEAT-1", repository: "backend", paths: ["a.txt"]),
+            act: .land, runID: RunID(), nightID: night.id
+        )
+        for repository in ["frontend", "docs"] {
+            try journal.append(
+                .noPushedBranchOutcome(cycleID: 1, featureIssueID: "FEAT-1", repository: repository),
+                act: .land, runID: RunID(), nightID: night.id
+            )
+        }
+        let withNotes = try #require(try NightSummary.inFlightFeatureLines(night: night, journal: journal).first)
+        #expect(withNotes.contains("0 of 1 Feature Branches merged"))
+        #expect(withNotes.contains("a.txt"))
+        #expect(withNotes.hasSuffix(") [no pull request: docs] [no pull request: frontend]"))
+    }
+
+    @Test("At N = 0 the line still says 0 of 0 and carries a note for every repository with the outcome (P19.7)")
+    func noPullRequestNotesAtNZero() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        try await EngineInvocation(
+            act: .author, mode: .real, nightStart: nightCardNightStart, journal: journal,
+            trigger: .forced, runID: RunID(), board: board, work: { _ in }
+        ).run()
+        let night = try #require(try journal.currentNight())
+        let ids = try insertInFlightFeature(journal, featureIssueID: "FEAT-1", repositories: ["backend", "frontend"])
+        let before = try #require(try NightSummary.inFlightFeatureLines(night: night, journal: journal).first)
+
+        for repository in ["frontend", "backend"] {
+            try journal.append(
+                .noPushedBranchOutcome(cycleID: ids.cycleID, featureIssueID: "FEAT-1", repository: repository),
+                act: .land, runID: RunID(), nightID: night.id
+            )
+        }
+        let after = try #require(try NightSummary.inFlightFeatureLines(night: night, journal: journal).first)
+        #expect(after.contains("0 of 0 Feature Branches merged"))
+        #expect(after == before.replacingOccurrences(
+            of: "the merge state has not been read yet", with: "0 of 0 Feature Branches merged"
+        ) + " [no pull request: backend] [no pull request: frontend]")
+    }
+
     @Test("The line is absent with nothing in flight, and while the in-flight Cycle has not landed")
     func absentWhenNothingInFlightOrNotLanded() async throws {
         let fixture = try NightCardJournalFixture()

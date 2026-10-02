@@ -2,8 +2,8 @@ import Domain
 
 /// Renders a ``FeatureRollUp`` as the Feature Issue's Managed Block (roadmap P12.3; spec: board-
 /// projection/maintain-the-managed-block, second story): the bold sentence (with any Mainline
-/// Conflicts beside it), then the member Cards grouped by Repo Lane, worst-severity lane first, with a
-/// trailing `#### Cancelled` group. A zero-Card Feature renders only the sentence line.
+/// Conflicts, then any No-Pushed-Branch Outcomes, beside it), then the member Cards grouped by Repo
+/// Lane, worst-severity lane first, with a trailing `#### Cancelled` group. A zero-Card Feature renders only the sentence line.
 public struct FeatureRollUpBlock {
     public let rollUp: FeatureRollUp
 
@@ -12,7 +12,7 @@ public struct FeatureRollUpBlock {
     }
 
     public func render() -> String {
-        var lines = ["**\(rollUp.sentence)**\(rollUp.conflictsSuffix)"]
+        var lines = ["**\(rollUp.sentence)**\(rollUp.conflictsSuffix)\(rollUp.noPullRequestSuffix)"]
         guard !rollUp.members.isEmpty else {
             return lines.joined(separator: "\n")
         }

@@ -85,6 +85,9 @@ public struct FeatureRollUp: Sendable {
     public let verificationPassed: Bool
     public let mergedFraction: MergedFraction
     public let conflictingRepositories: [String]
+    /// The repositories with a No-Pushed-Branch Outcome (roadmap P19.7; risks OQ108): each is shown as a
+    /// `[no pull request: <repo>]` note beside the sentence, never inside it.
+    public let noPullRequestRepositories: [String]
     /// The repositories whose lane actually pushed (issue #161 part 2): a lane's own
     /// `#### \`repo\` — pushed` heading is true of this set, never of `lanesPushed` alone, which is
     /// Cycle-wide, not per-lane.
@@ -93,11 +96,14 @@ public struct FeatureRollUp: Sendable {
 
     /// The word, or nil ("absent") when every member Card is Cancelled.
     public let state: RollUpState?
-    /// The rendered sentence, without the bold markdown and without the conflicts suffix.
+    /// The rendered sentence, without the bold markdown and without the conflicts or no-pull-request suffixes.
     public let sentence: String
     /// ` [conflict: <repo>] [conflict: <repo>]…`, sorted by repository name; empty when there are none.
     /// Rendered beside the sentence, never inside it — it never changes `state` or any slot.
     public let conflictsSuffix: String
+    /// ` [no pull request: <repo>]…`, sorted by repository name; empty when there are none. Rendered
+    /// beside the sentence after ``conflictsSuffix``, never inside it (roadmap P19.7; risks OQ108).
+    public let noPullRequestSuffix: String
 
     public init(
         members: [RollUpMember],
@@ -105,6 +111,7 @@ public struct FeatureRollUp: Sendable {
         verificationPassed: Bool,
         mergedFraction: MergedFraction,
         conflictingRepositories: [String] = [],
+        noPullRequestRepositories: [String] = [],
         pushedRepositories: Set<String> = [],
         issueStanding: FeatureIssueStanding
     ) {
@@ -113,6 +120,7 @@ public struct FeatureRollUp: Sendable {
         self.verificationPassed = verificationPassed
         self.mergedFraction = mergedFraction
         self.conflictingRepositories = conflictingRepositories
+        self.noPullRequestRepositories = noPullRequestRepositories
         self.pushedRepositories = pushedRepositories
         self.issueStanding = issueStanding
 
@@ -123,6 +131,15 @@ public struct FeatureRollUp: Sendable {
         self.state = state
         self.sentence = sentence
         self.conflictsSuffix = Self.conflictsSuffix(conflictingRepositories)
+        self.noPullRequestSuffix = noPullRequestRepositories.isEmpty
+            ? "" : " " + Self.noPullRequestNotes(noPullRequestRepositories)
+    }
+
+    /// `[no pull request: <repo>] [no pull request: <repo>]…`, sorted by repository name, no leading
+    /// space — the one place this note is spelled, shared by the Managed Block, the Night Summary's
+    /// standing line and a pull request body (roadmap P19.7; risks OQ108).
+    public static func noPullRequestNotes(_ repositories: [String]) -> String {
+        repositories.sorted().map { "[no pull request: \($0)]" }.joined(separator: " ")
     }
 
     private static func compute(
