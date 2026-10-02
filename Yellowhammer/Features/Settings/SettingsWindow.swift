@@ -114,12 +114,16 @@ struct SettingsWindow: View {
         configured = ConfiguredProjects.load()
     }
 
-    /// Visits the requested Project, once per request. A request naming no Project leaves the window
-    /// where it is.
+    /// Visits the requested Project or section, once per request. A request naming neither leaves the
+    /// window where it is.
     private func applyRequest() {
         guard request.token != appliedRequest else { return }
         appliedRequest = request.token
-        if let project = request.project { history.visit(.project(project)) }
+        if let section = request.section {
+            history.visit(section)
+        } else if let project = request.project {
+            history.visit(.project(project))
+        }
     }
 
     /// Reads the configuration when the window opens, then each time the app becomes active. The loop is
