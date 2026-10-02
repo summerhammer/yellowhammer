@@ -1,5 +1,56 @@
 # Changelog
 
+## [0.4.0](https://github.com/summerhammer/yellowhammer/compare/v0.3.0...v0.4.0) (2026-10-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* **journal:** Journals created by earlier builds are refused by both the engine and the app; delete and recreate them.
+
+### Features
+
+* **app:** add a Project through the Add Project sheet ([9ce4d60](https://github.com/summerhammer/yellowhammer/commit/9ce4d60105767e9c6f6744b7b8465bf0ffa3a3d5))
+* **app:** add the toolbar's Inspector toggle and Stop the engine ([4f5cb8e](https://github.com/summerhammer/yellowhammer/commit/4f5cb8e8a440240910cc2d4bf2881fdc007855e0))
+* **app:** agent CLIs and base Routing Table in the Settings window ([6cf2b8d](https://github.com/summerhammer/yellowhammer/commit/6cf2b8d6e90ab316e996d7ae8116778436656b80))
+* **app:** build the Inspector's Card detail ([9fadff7](https://github.com/summerhammer/yellowhammer/commit/9fadff7d71f0d8f0128a5b47b39a5f4eac5977c7))
+* **app:** build the Inspector's Feature, Attempt and Repo detail ([d7ed078](https://github.com/summerhammer/yellowhammer/commit/d7ed078d6fe4bd3afc16e2c6cd98c0c0a03d01de))
+* **app:** build the Pulse Feature group ([7afdb1c](https://github.com/summerhammer/yellowhammer/commit/7afdb1cc49e7ef0880b3d50b3586a7671cb8038a))
+* **app:** build the Pulse Health group ([24a9492](https://github.com/summerhammer/yellowhammer/commit/24a94926e7252510dee1493a9f3923c6d9fb16d8))
+* **app:** build the Pulse Tonight / last Night group ([3a70f29](https://github.com/summerhammer/yellowhammer/commit/3a70f29681a658a632338ffc796a427e80635f3d))
+* **app:** build the Settings window shell ([062c7a5](https://github.com/summerhammer/yellowhammer/commit/062c7a57a8076fa9c6a47e3ff61c2c207bb9aace))
+* **app:** build the three-column Overview window ([c973ae9](https://github.com/summerhammer/yellowhammer/commit/c973ae9555188e09bce1210c35061ff650b993c9))
+* **app:** edit a Project's Configuration in the Settings window ([b798dbc](https://github.com/summerhammer/yellowhammer/commit/b798dbce0f7974e4b44a04999841e633ba8db981))
+* **app:** Linear installation, Operator identity and Orca ADE in Settings ([446d80f](https://github.com/summerhammer/yellowhammer/commit/446d80f4f14add47a879d2aa69d779690586b0f3))
+* **app:** offer Abort Attempt on a running Attempt ([c6e873b](https://github.com/summerhammer/yellowhammer/commit/c6e873b889dca705ae74a97f1a918b7a867aab5d))
+* **app:** prototype the Pulse landing screen in Xcode Previews ([#223](https://github.com/summerhammer/yellowhammer/issues/223)) ([97aa58b](https://github.com/summerhammer/yellowhammer/commit/97aa58bbbe9344a2eab9e00de3ca251b97b83147))
+* **app:** recalibrate in the Settings window ([6187885](https://github.com/summerhammer/yellowhammer/commit/61878857af1da8800c24349ea6f148bde633a1a2))
+* **config:** Change Type and Message Templates in Project configuration ([e946395](https://github.com/summerhammer/yellowhammer/commit/e9463959ea278b47197188de312638ad6449f761))
+* **engine:** abort every running Attempt of a Project on yh stop ([cb5bc2b](https://github.com/summerhammer/yellowhammer/commit/cb5bc2b5c13eebd12497c3c1bf17286254d62b40))
+* **engine:** abort one running Attempt with yh abort ([1ffab45](https://github.com/summerhammer/yellowhammer/commit/1ffab45fc5a701aa8d8f4108d954db2dea97fad3))
+* **engine:** ask the worker for the commit-message template and record a missing Yellowhammer-Card trailer ([b978ec1](https://github.com/summerhammer/yellowhammer/commit/b978ec1488e8de82d6fd8fee4e1209947c539d9b))
+* **engine:** record the No-Pushed-Branch Outcome and count N over pushed branches ([0195e7f](https://github.com/summerhammer/yellowhammer/commit/0195e7f13a16f7cc68a7ec3a189867ac66b603ea))
+* **engine:** render each pull request title from its Message Template ([4780b58](https://github.com/summerhammer/yellowhammer/commit/4780b581fd2a27ffa12a03b4a2ed850c9efaff65))
+* **engine:** reset the lane when a question puts its Card in Waiting on You ([27f6b82](https://github.com/summerhammer/yellowhammer/commit/27f6b82ddf4c65d863e4631bd1a12905dd641c6a))
+* **engine:** show [no pull request: &lt;repo&gt;] beside the Roll-up sentence ([67dc29f](https://github.com/summerhammer/yellowhammer/commit/67dc29f57dcd45fdb34965686d8cbb861b5ad9f1))
+* **engine:** write every WIP Commit from its Message Template, with trailer and author ([9270b9a](https://github.com/summerhammer/yellowhammer/commit/9270b9a1408be7b2115bb3ff3c9573d62b7efc39))
+* **pulse:** add the Pulse module ([#226](https://github.com/summerhammer/yellowhammer/issues/226)) ([a596ef8](https://github.com/summerhammer/yellowhammer/commit/a596ef8248b29e64a682a6d5c66082b117578baf))
+
+
+### Bug Fixes
+
+* **app:** drop a window value whose Project no longer exists ([f5ba051](https://github.com/summerhammer/yellowhammer/commit/f5ba0510c7b6780aa9e00bb3e23760aea36c311d))
+* **app:** drop an activation while the window's read still runs ([b029f2b](https://github.com/summerhammer/yellowhammer/commit/b029f2b4d58700639cba3e21088c9d11437be387))
+* **app:** guard subprocess exit and debug updater ([59f5753](https://github.com/summerhammer/yellowhammer/commit/59f5753395e237d7920f611d92ba172c8f8d3400))
+* **app:** read the Card account off the main actor ([#234](https://github.com/summerhammer/yellowhammer/issues/234)) ([6f1498f](https://github.com/summerhammer/yellowhammer/commit/6f1498fefaec1ebbf78f7cc7b4c545fcad20e42a))
+* **app:** show the onboarding view on a fresh install ([4baddab](https://github.com/summerhammer/yellowhammer/commit/4baddab743ade89fe74c9feeed3604447c63fd90)), closes [#232](https://github.com/summerhammer/yellowhammer/issues/232)
+* **engine:** admit one TerminationSignals.run at a time ([144f8ee](https://github.com/summerhammer/yellowhammer/commit/144f8ee2c77baac0ae636f61a0a474425f067612)), closes [#215](https://github.com/summerhammer/yellowhammer/issues/215)
+* **journal:** tell a Journal from an earlier build from a newer one ([95d5aa7](https://github.com/summerhammer/yellowhammer/commit/95d5aa707f0f08694016c5fa86188dfddc69b22c))
+
+
+### Refactoring
+
+* **journal:** squash Journal migrations into one ([c6961fb](https://github.com/summerhammer/yellowhammer/commit/c6961fb8ddef2680725e1ce6b85df4b10ee659a2))
+
 ## [0.3.0](https://github.com/summerhammer/yellowhammer/compare/v0.2.0...v0.3.0) (2026-09-28)
 
 
