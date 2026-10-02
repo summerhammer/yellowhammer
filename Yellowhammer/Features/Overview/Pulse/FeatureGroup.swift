@@ -53,7 +53,7 @@ private struct FeatureHeader: View {
             HStack(spacing: 6) {
                 Text(feature.displayState)
                 if let rollupState = feature.rollupState {
-                    PulseCountBadge(text: rollupState.rawValue, tint: rollupState.tint)
+                    PulseCountBadge(text: rollupState.rawValue, style: rollupState.style)
                 } else {
                     Text("rollup state unknown")
                 }
@@ -78,7 +78,7 @@ private struct FeatureLaneRow: View {
             Text("\(lane.cardsDone)/\(lane.cardsTotal)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            PulseCountBadge(text: lane.state.rawValue, tint: lane.state.tint)
+            PulseCountBadge(text: lane.state.rawValue, style: lane.state.style)
             if let pullRequest = lane.pullRequest {
                 Button(pullRequest.displayLabel) {
                     openDestination(.pullRequest(repo: lane.repo, number: pullRequest.number))
@@ -99,29 +99,6 @@ private extension FeatureInFlight {
 
     /// The Feature's workflow state, or a stated unknown while it is nil (it lives in Linear).
     var displayState: String { state ?? "state unknown" }
-}
-
-extension RollUpState {
-    var tint: Color {
-        switch self {
-        case .authoring: .secondary
-        case .running: .green
-        case .needsYou, .partialLanding: .orange
-        case .blocked: .red
-        case .verified: .purple
-        }
-    }
-}
-
-extension LaneState {
-    var tint: Color {
-        switch self {
-        case .running: .green
-        case .blocked: .red
-        case .waitingOnYou: .orange
-        case .landed: .purple
-        }
-    }
 }
 
 private extension PullRequestChip {

@@ -112,9 +112,9 @@ private struct CardDetailHeader: View {
                     .foregroundStyle(.secondary)
             }
             HStack(spacing: 6) {
-                PulseCountBadge(text: card.state.rawValue, tint: tint)
+                PulseCountBadge(text: card.state.rawValue, style: card.state.style)
                 if let reason = card.blockReason?.rawValue ?? waitingReason {
-                    PulseCountBadge(text: reason, tint: tint)
+                    PulseCountBadge(text: reason, style: card.state.style)
                 }
             }
             .accessibilityElement(children: .combine)
@@ -122,6 +122,4 @@ private struct CardDetailHeader: View {
         }
         .textSelection(.enabled)
     }
-
-    private var tint: Color { card.state == .blocked ? .red : .orange }
 }

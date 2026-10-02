@@ -47,7 +47,7 @@ private struct NowStatusLine: View {
     var body: some View {
         HStack(spacing: 6) {
             Circle()
-                .fill(status == .working ? Color.green : Color.secondary)
+                .fill(status.style)
                 .frame(width: 8, height: 8)
                 .accessibilityHidden(true)
             Text(status.rawValue).fontWeight(.medium)
@@ -72,7 +72,7 @@ private struct RunningAttemptRow: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "gearshape.2.fill")
-                .foregroundStyle(.green)
+                .foregroundStyle(.active)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text("\(attempt.cardID)  \(attempt.cardTitle)").lineLimit(1)

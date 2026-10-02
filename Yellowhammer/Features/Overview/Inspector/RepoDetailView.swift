@@ -29,7 +29,7 @@ struct RepoDetailView: View {
                 .accessibilityIdentifier("repo-detail-name")
             if let lane {
                 HStack(spacing: 6) {
-                    PulseCountBadge(text: lane.state.rawValue, tint: lane.state.tint)
+                    PulseCountBadge(text: lane.state.rawValue, style: lane.state.style)
                     Text("\(lane.cardsDone) of \(lane.cardsTotal) Cards done")
                         .font(.caption)
                         .foregroundStyle(.secondary)

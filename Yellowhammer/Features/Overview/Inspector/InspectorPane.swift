@@ -81,23 +81,11 @@ struct LaneCardList: View {
                         Text("\(card.id)  \(card.title)")
                     }
                     Spacer(minLength: 4)
-                    PulseCountBadge(text: card.state.rawValue, tint: card.state.tint)
+                    PulseCountBadge(text: card.state.rawValue, style: card.state.style)
                 }
                 .lineLimit(1)
                 .accessibilityIdentifier("lane-card-\(card.id)")
             }
-        }
-    }
-}
-
-private extension CardState {
-    var tint: Color {
-        switch self {
-        case .blocked: .red
-        case .waitingOnYou: .orange
-        case .done: .purple
-        case .inProgress: .green
-        default: .secondary
         }
     }
 }

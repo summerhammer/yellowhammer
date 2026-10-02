@@ -53,7 +53,7 @@ private struct HealthFlagRow: View {
             }
         } icon: {
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
+                .foregroundStyle(.warning)
         }
         // Combining children drops the selectable detail from the label, so both are spelled out.
         .accessibilityElement(children: .ignore)

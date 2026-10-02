@@ -17,7 +17,7 @@ struct NightGroup: View {
             VStack(alignment: .leading, spacing: 8) {
                 if let night {
                     HStack(spacing: 6) {
-                        PulseCountBadge(text: night.state.rawValue, tint: night.state.tint)
+                        PulseCountBadge(text: night.state.rawValue, style: night.state.style)
                         Text(night.displayVerdict)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -66,16 +66,6 @@ private struct NightDispositionCounts: View {
 private extension NightPulse {
     /// `verdict_line`, or a stated unknown while it is nil (only Engine's `NightSummary` computes it).
     var displayVerdict: String { verdictLine ?? "verdict unknown" }
-}
-
-private extension NightPulseState {
-    var tint: Color {
-        switch self {
-        case .running: .green
-        case .done: .indigo
-        case .starved: .orange
-        }
-    }
 }
 
 private extension DispositionCount {

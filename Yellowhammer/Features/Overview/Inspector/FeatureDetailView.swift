@@ -30,7 +30,7 @@ struct FeatureDetailView: View {
                 HStack(spacing: 6) {
                     Text(feature.state ?? "state unknown")
                     if let rollupState = feature.rollupState {
-                        PulseCountBadge(text: rollupState.rawValue, tint: rollupState.tint)
+                        PulseCountBadge(text: rollupState.rawValue, style: rollupState.style)
                     } else {
                         Text("rollup state unknown")
                     }
@@ -52,7 +52,7 @@ struct FeatureDetailView: View {
                         Button(lane.repo) { openDestination(.inspector(.repo(lane.repo))) }
                             .buttonStyle(.link)
                             .font(.headline)
-                        PulseCountBadge(text: lane.state.rawValue, tint: lane.state.tint)
+                        PulseCountBadge(text: lane.state.rawValue, style: lane.state.style)
                         Text("\(lane.cardsDone)/\(lane.cardsTotal)")
                             .font(.caption)
                             .foregroundStyle(.secondary)

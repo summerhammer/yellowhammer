@@ -47,10 +47,10 @@ private struct NeedsYouCounts: View {
     var body: some View {
         HStack(spacing: 6) {
             if waitingOnYouCount > 0 {
-                PulseCountBadge(text: "\(waitingOnYouCount) Waiting on You", tint: .orange)
+                PulseCountBadge(text: "\(waitingOnYouCount) Waiting on You", style: .attention)
             }
             ForEach(blockReasonCounts.prefix(Self.topReasons), id: \.reason) { entry in
-                PulseCountBadge(text: "\(entry.count) \(entry.reason.rawValue)", tint: .red)
+                PulseCountBadge(text: "\(entry.count) \(entry.reason.rawValue)", style: .error)
             }
         }
         .accessibilityElement(children: .combine)
@@ -65,7 +65,7 @@ private struct DecisionCardRow: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: card.state == .blocked ? "exclamationmark.octagon.fill" : "questionmark.bubble.fill")
-                .foregroundStyle(card.state == .blocked ? .red : .orange)
+                .foregroundStyle(card.state.style)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(card.title).lineLimit(1)

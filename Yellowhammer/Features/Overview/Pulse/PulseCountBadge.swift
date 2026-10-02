@@ -1,13 +1,13 @@
 import SwiftUI
 
-/// A count or state on a neutral capsule, so a tint never carries the text's contrast.
-struct PulseCountBadge: View {
+/// A count or state on a neutral capsule, so a style never carries the text's contrast.
+struct PulseCountBadge<Style: ShapeStyle>: View {
     let text: String
-    var tint: Color = .secondary
+    let style: Style
 
     var body: some View {
         HStack(spacing: 4) {
-            Circle().fill(tint).frame(width: 6, height: 6)
+            Circle().fill(style).frame(width: 6, height: 6)
             Text(text).lineLimit(1)
         }
         .font(.caption)
