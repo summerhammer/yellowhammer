@@ -3,8 +3,8 @@ import Foundation
 import Journal
 import Repositories
 
-/// What the predecessor-ancestry gate does once every touched repository has merged the predecessor
-/// Feature's branch — the real close-by-merge work is ``FeatureMergeClosure`` (roadmap P10.8). Nil
+/// What the predecessor-ancestry gate does once every repository that pushed a Feature Branch (N) has
+/// merged the predecessor Feature's branch — the real close-by-merge work is ``FeatureMergeClosure`` (roadmap P10.8). Nil
 /// means skip it: there is nothing to close yet.
 public protocol PostMergeClosure: Sendable {
     func closeByMerge(feature: FeatureRecord, context: ActContext) async throws
@@ -12,10 +12,10 @@ public protocol PostMergeClosure: Sendable {
 
 /// What is wrong with the predecessor Feature's recorded state, such that the gate refuses to guess.
 public enum PredecessorAncestryGateError: Error, Sendable, Equatable {
-    /// A predecessor Feature exists but has no recorded Feature Branch, and at least one touched
-    /// repository has no recorded landing to fall back on.
+    /// A predecessor Feature exists but has no recorded Feature Branch, and at least one repository in N
+    /// has no recorded landing to fall back on.
     case predecessorBranchMissing(featureIssueID: String)
-    /// The predecessor's Cycle touched a repository this Project has no configuration for.
+    /// The predecessor's Cycle pushed a Feature Branch for a repository this Project has no configuration for.
     case predecessorRepositoryNotConfigured(featureIssueID: String, repository: String)
     /// A predecessor Feature exists, but this invocation was given no Project repositories to check
     /// ancestry against.
@@ -45,7 +45,12 @@ extension PredecessorAncestryGateError: CustomStringConvertible {
 /// Runs its ancestry pass every Night, on whichever Feature is relevant (roadmap P9.9): the in-flight
 /// Feature when one is open and its Cycle has landed, or the walk's predecessor when nothing is in
 /// flight. A repository already recorded landed reads no git at all; a Feature with a nil branch only
-/// throws when some touched repository still needs a fresh ancestry test.
+/// throws when some repository still needs a fresh ancestry test.
+///
+/// The pass runs over N (``JournalStore/pushedRepositories(featureID:)``), never over a repository with a
+/// No-Pushed-Branch Outcome: its Feature Branch sits at its base and is trivially an ancestor of
+/// mainline, so reading it as a landing is the bug OQ107 closes. Nothing over the empty set reads as
+/// merged: at N = 0 there is no pass, no landing, no observation and no closure.
 public struct PredecessorAncestryGate: PredecessorGate {
     public let ancestryTester: AncestryTester
     public let mergeTester: MergeTester
@@ -70,9 +75,9 @@ public struct PredecessorAncestryGate: PredecessorGate {
         // freshly cut from mainline is trivially an ancestor of mainline, so an unlanded Cycle must
         // never be read as a landing.
         if try journal.inFlightFeature() != nil {
-            if let inFlight = try journal.inFlightLandedFeature(), !inFlight.touchedRepositories.isEmpty {
+            if let inFlight = try journal.inFlightLandedFeature(), !inFlight.pushedRepositories.isEmpty {
                 _ = try await runAncestryPass(
-                    feature: inFlight.feature, touchedRepositories: inFlight.touchedRepositories, context: context
+                    feature: inFlight.feature, pushedRepositories: inFlight.pushedRepositories, context: context
                 )
             }
             return .landed
@@ -98,13 +103,16 @@ public struct PredecessorAncestryGate: PredecessorGate {
     ) async throws -> PredecessorGateOutcome {
         guard let predecessor else { return .landed }
 
-        // A predecessor whose Cycle touched zero repositories has nothing to check ancestry against.
-        if predecessor.touchedRepositories.isEmpty {
+        // A predecessor with N = 0 has nothing to check ancestry against: no pass and no closure. This is
+        // not "all N merged". It is unreachable for a Feature whose every repository has the No-Pushed-Branch
+        // Outcome (the land Act never archives it and closure by merge never fires, so it never becomes a
+        // predecessor); what reaches here is a Journal with no touched repositories recorded.
+        if predecessor.pushedRepositories.isEmpty {
             return .landed
         }
 
         return try await runAncestryPass(
-            feature: predecessor.feature, touchedRepositories: predecessor.touchedRepositories, context: context
+            feature: predecessor.feature, pushedRepositories: predecessor.pushedRepositories, context: context
         )
     }
 
@@ -117,18 +125,18 @@ public struct PredecessorAncestryGate: PredecessorGate {
         var indeterminate: [String] = []
     }
 
-    /// One pass over one Feature's touched repositories: repositories with a recorded landing are
+    /// One pass over one Feature's pushed repositories (N): repositories with a recorded landing are
     /// counted merged with no git read at all; the rest are ancestry-tested, a fresh landing recorded
     /// for each that merged, and a Mainline Conflict re-tested for each that did not. Records
     /// `predecessorAncestryObserved` every time it runs, and fires the closure seam the first pass that
-    /// finds every touched repository merged.
+    /// finds every repository in N merged.
     private func runAncestryPass(
-        feature: FeatureRecord, touchedRepositories: [String], context: ActContext
+        feature: FeatureRecord, pushedRepositories: [String], context: ActContext
     ) async throws -> PredecessorGateOutcome {
         let journal = context.journal
         let recordedLandings = try journal.landings(featureID: feature.id)
-        var mergedRepositories = touchedRepositories.filter { recordedLandings[$0] != nil }
-        let toTest = touchedRepositories.filter { recordedLandings[$0] == nil }
+        var mergedRepositories = pushedRepositories.filter { recordedLandings[$0] != nil }
+        let toTest = pushedRepositories.filter { recordedLandings[$0] == nil }
 
         let tested = try await testUntestedRepositories(toTest, feature: feature, context: context)
         mergedRepositories.append(contentsOf: tested.merged)
@@ -179,7 +187,7 @@ public struct PredecessorAncestryGate: PredecessorGate {
         return result
     }
 
-    /// Fires the closure seam the first pass that finds every touched repository merged, records
+    /// Fires the closure seam the first pass that finds every repository in N merged, records
     /// `predecessorAncestryObserved`, and derives this pass's outcome — indeterminate takes precedence
     /// over notLanded.
     private func recordPassOutcome(
@@ -190,7 +198,9 @@ public struct PredecessorAncestryGate: PredecessorGate {
         // Checked before this pass's own event is appended, and against the Journal rather than
         // in-memory state, so a second pass in a later process still sees the first pass's record.
         let alreadyFullyMerged = try journal.predecessorAncestryPreviouslyFullyMerged(featureIssueID: feature.issueID)
-        let fullyMerged = unmergedRepositories.isEmpty && indeterminateRepositories.isEmpty
+        // Never vacuously true: nothing over the empty set reads as merged, even if a guard above is bypassed.
+        let fullyMerged = !mergedRepositories.isEmpty && unmergedRepositories.isEmpty
+            && indeterminateRepositories.isEmpty
 
         // First pass observing all-N merged: the closure seam (P10.8) has not yet closed this
         // Feature. It runs before this pass's event is appended, so a closure that threw or died

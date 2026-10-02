@@ -343,6 +343,11 @@ public enum JournalEvent: Equatable, Sendable {
     /// The land Act landed this Cycle: once per Cycle (risks OQ8), so a later firing's trigger goes
     /// false and no Repo Lane re-opens even if a Card returns to Todo.
     case cycleLanded(cycleID: Int64)
+    /// A touched repository's Repo Lane produced no completed work, so its Feature Branch is at its base:
+    /// never pushed, no pull request (glossary: No-Pushed-Branch Outcome; risks OQ104, OQ107). Recorded,
+    /// not a failure; it takes `repository` out of the set the merged fraction and the predecessor gate
+    /// read (``JournalStore/pushedRepositories(featureID:)``). Appended once per Feature and repository.
+    case noPushedBranchOutcome(cycleID: Int64, featureIssueID: String, repository: String)
     /// Verification judged this Cycle's Definition of Done clause by clause (roadmap P10.5): once per
     /// Cycle. Counts only — never a pass/fail headline; the per-clause verdicts are in the report.
     case featureVerified(cycleID: Int64, met: Int, unmet: Int, unresolved: Int)

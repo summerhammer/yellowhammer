@@ -66,10 +66,35 @@ extension LandAct {
 
         if verdict.allClausesMet {
             record(.skipped("all clauses met"), step: .returnFeature, repository: nil, context: context)
-            return await runArchiveCycle(featureContext, context: context)
+            return await archiveWhenAnyRepositoryPushed(featureContext, feature: feature, context: context)
         }
         record(.skipped("clauses unmet"), step: .archiveCycle, repository: nil, context: context)
         return await runReturnFeature(featureContext, verdict: verdict, context: context)
+    }
+
+    /// At N = 0 — every touched repository has the No-Pushed-Branch Outcome — no pull request opened and the
+    /// spec rules the Feature is not Done. It presumes Verification fails there, but a verdict is
+    /// model-authored, so the engine must not archive on it: the Cycle is left unarchived (it still lands)
+    /// and the Feature stays in flight. A Journal that cannot be read is a Feature-scoped fault.
+    private func archiveWhenAnyRepositoryPushed(
+        _ featureContext: LandActFeatureContext, feature: FeatureRecord, context: ActContext
+    ) async -> String? {
+        let pushed: [String]
+        do {
+            pushed = try context.journal.pushedRepositories(featureID: feature.id)
+        } catch {
+            let description = String(describing: error)
+            record(.faulted(description), step: .archiveCycle, repository: nil, context: context)
+            return description
+        }
+        guard !pushed.isEmpty else {
+            record(
+                .skipped("no repository pushed a Feature Branch"), step: .archiveCycle, repository: nil,
+                context: context
+            )
+            return nil
+        }
+        return await runArchiveCycle(featureContext, context: context)
     }
 
     private func runArchiveCycle(_ featureContext: LandActFeatureContext, context: ActContext) async -> String? {

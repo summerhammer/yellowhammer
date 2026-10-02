@@ -306,3 +306,23 @@ func twoJournalsStaySeparate() throws {
     #expect(betaPulse.night?.state == .running)
     #expect(betaPulse.now.status == .working)
 }
+
+@Test("A touched repository with a No-Pushed-Branch Outcome is still listed as a lane, and is not landed")
+func noPushedBranchRepositoryStaysAListedLane() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let feature = try insertFeature(journal, issueID: "F-1")
+    try insertCard(journal, cycleID: feature.cycleID, issueID: "A-1", repository: "a", state: .done, order: 1)
+    try journal.write { db in
+        try JournalStore.insertFeatureRepositories(db, featureID: feature.featureID, repositories: ["a", "web"])
+    }
+    try journal.append(.noPushedBranchOutcome(cycleID: feature.cycleID, featureIssueID: "F-1", repository: "web"))
+    _ = try journal.recordLanding(featureID: feature.featureID, repository: "a", mainlineCommit: "abc", now: epoch)
+
+    let snapshot = try #require(try PulseSnapshot.read(from: journal, asOf: epoch).feature)
+    let lanes = Dictionary(uniqueKeysWithValues: snapshot.lanes.map { ($0.repo, $0) })
+
+    #expect(Set(lanes.keys) == ["a", "web"])
+    #expect(lanes["a"]?.state == .landed)
+    #expect(lanes["web"]?.state != .landed)
+}

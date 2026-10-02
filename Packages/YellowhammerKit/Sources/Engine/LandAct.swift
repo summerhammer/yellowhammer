@@ -17,7 +17,9 @@ import Repositories
 ///    in defence in depth: the push and open-pull-request seams are never called, and those two steps
 ///    are recorded `.rehearsalBoundary`. The merge test still runs in rehearsal — pure local git. A lane
 ///    whose seam throws is an engine fault: recorded, the lane's remaining steps are skipped, and the
-///    other lanes still run.
+///    other lanes still run. A lane whose push reports no completed work has its No-Pushed-Branch Outcome
+///    recorded once (a record that cannot be written faults the lane); so does every touched repository no
+///    Card names, which has no lane and no push step, in rehearsal mode too.
 /// 4. If no lane faulted: Verification (P10.5), judged before any pull request exists because a pull
 ///    request body is written once and carries its clause report. A rehearsal Night runs it too — its
 ///    verifier is answered by a fixture, never an agent CLI. A nil Verification seam records all three
@@ -27,7 +29,8 @@ import Repositories
 ///    phase, or Verification itself did — every lane's pull request is recorded `.skipped` and its
 ///    Worktree stays held; the Cycle stays unlanded and the next land firing retries.
 /// 6. If nothing faulted, by Verification's verdict: return the Feature (P10.6) or archive the Cycle
-///    (P10.7), never both.
+///    (P10.7), never both. When every touched repository has the outcome (N = 0) no pull request opened
+///    and the Feature is not Done: an all-met verdict does not archive the Cycle, which still lands.
 /// 7. If nothing faulted: the Cycle is marked landed. Write-back always runs, fault or not: it replays
 ///    any deferred Card state write left behind (``DeferredCardStateReplay``, issue #96 — this
 ///    Act dispatches no Card, so nothing else ever retries one) and then delivers the Outbox. A fault
@@ -94,6 +97,10 @@ public struct LandAct: Sendable {
             progress.fault.map { failures[lane.repository] = $0 }
             progresses.append(progress)
         }
+
+        failures.merge(
+            recordLanelessOutcomes(lanes: lanes, feature: feature, cycleID: cycleID, context: context)
+        ) { $1 }
 
         let verification = await runVerification(
             feature: feature, cycleID: cycleID, firstPhaseFailed: !failures.isEmpty, context: context

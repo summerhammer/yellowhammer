@@ -7,8 +7,14 @@ import GRDB
 public struct PredecessorFeature: Equatable, Sendable {
     public let feature: FeatureRecord
     /// The distinct, sorted repository names this Feature's Cycle touches, from `feature_repository`
-    /// — recorded at selection, never derived from `card` rows.
+    /// — recorded at selection, never derived from `card` rows. The record of what the Feature was meant
+    /// to touch: it never shrinks, and is not what the gate tests ancestry over (see
+    /// ``pushedRepositories``).
     public let touchedRepositories: [String]
+    /// N: the touched repositories minus those with a recorded No-Pushed-Branch Outcome
+    /// (``JournalStore/pushedRepositories(featureID:)``) — the only repositories the gate tests ancestry
+    /// over.
+    public let pushedRepositories: [String]
 }
 
 /// What walking back from the most recent archived Feature found (roadmap P9.9; spec:
@@ -29,7 +35,11 @@ public struct PredecessorWalk: Equatable, Sendable {
 /// ancestor of it, so a Cycle that has not yet landed is never read as a landing.
 public struct InFlightLandedFeature: Equatable, Sendable {
     public let feature: FeatureRecord
+    /// The record of what the Feature was meant to touch (`feature_repository`); it never shrinks.
     public let touchedRepositories: [String]
+    /// N: the touched repositories minus those with a recorded No-Pushed-Branch Outcome — the only
+    /// repositories the gate tests ancestry over.
+    public let pushedRepositories: [String]
 }
 
 extension JournalStore {
@@ -58,8 +68,11 @@ extension JournalStore {
                     continue
                 }
                 let repositories = try Self.touchedRepositories(db, featureID: feature.id)
+                let pushed = try Self.pushedRepositories(db, featureID: feature.id)
                 return PredecessorWalk(
-                    predecessor: PredecessorFeature(feature: feature, touchedRepositories: repositories),
+                    predecessor: PredecessorFeature(
+                        feature: feature, touchedRepositories: repositories, pushedRepositories: pushed
+                    ),
                     skippedReleased: skipped
                 )
             }
@@ -75,18 +88,21 @@ extension JournalStore {
         guard let (feature, cycleID) = try inFlightFeature() else { return nil }
         guard try isCycleLanded(cycleID: cycleID) else { return nil }
         let repositories = try touchedRepositories(featureID: feature.id)
-        return InFlightLandedFeature(feature: feature, touchedRepositories: repositories)
+        let pushed = try pushedRepositories(featureID: feature.id)
+        return InFlightLandedFeature(feature: feature, touchedRepositories: repositories, pushedRepositories: pushed)
     }
 
-    /// Whether a `predecessorAncestryObserved` event already recorded every one of `repositories` as
-    /// merged for `featureIssueID` — the durable record of whether the closure seam has already fired
+    /// Whether a `predecessorAncestryObserved` event already recorded at least one repository merged and
+    /// none unmerged for `featureIssueID` (an observation over no repositories is never "all merged") — the durable record of whether the closure seam has already fired
     /// for this Feature's all-merged pass, surviving process exit (nothing about it is kept in memory).
     public func predecessorAncestryPreviouslyFullyMerged(featureIssueID: String) throws -> Bool {
         try events(ofType: .predecessorAncestryObserved).contains { record in
-            guard case .predecessorAncestryObserved(let observed, _, let unmergedRepositories) = record.event else {
+            guard case .predecessorAncestryObserved(
+                let observed, let mergedRepositories, let unmergedRepositories
+            ) = record.event else {
                 return false
             }
-            return observed == featureIssueID && unmergedRepositories.isEmpty
+            return observed == featureIssueID && !mergedRepositories.isEmpty && unmergedRepositories.isEmpty
         }
     }
 

@@ -19,6 +19,11 @@ extension JournalEvent {
             )
         case .cycleArchived:
             try decodeCycleArchived(reader)
+        case .noPushedBranchOutcome:
+            .noPushedBranchOutcome(
+                cycleID: try reader.int64("cycle_id"), featureIssueID: try reader.require("feature_issue_id"),
+                repository: try reader.require("repository")
+            )
         case .featureClosedByMerge:
             try decodeFeatureClosedByMerge(reader)
         default:
@@ -30,6 +35,13 @@ extension JournalEvent {
     /// closure by merge — dispatched here so the exhaustive payload switch stays one line for all four.
     var landActPayload: [String: String]? {
         featureVerifiedPayload ?? featureReturnedPayload ?? cycleArchivedPayload ?? featureClosedByMergePayload
+            ?? noPushedBranchOutcomePayload
+    }
+
+    /// The `noPushedBranchOutcome` event's payload.
+    var noPushedBranchOutcomePayload: [String: String]? {
+        guard case .noPushedBranchOutcome(let cycleID, let featureIssueID, let repository) = self else { return nil }
+        return ["cycle_id": String(cycleID), "feature_issue_id": featureIssueID, "repository": repository]
     }
 
     /// The `featureClosedByMerge` event's payload (roadmap P10.8).

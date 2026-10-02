@@ -59,6 +59,7 @@ struct LandActPushTests {
         let env = try await Environment.make(repos: [repo])
         await env.board.seed(issue: "FEAT-1", description: nil)
         let (feature, cycleID) = try env.setUpFeature()
+        try recordTouchedRepositories(env.journal, featureID: feature.id, repositories: ["backend"])
 
         let land = LandAct(push: FeatureBranchLanePush(token: { nil }))
         let failure = await land.run(
@@ -72,6 +73,8 @@ struct LandActPushTests {
         await #expect(remote.revParse("refs/heads/yh-proj-feat") == nil)
         let comments = await env.board.comments
         #expect(comments.isEmpty)
+        // P19.6 (OQ104, OQ107): the real pusher's verdict is recorded as the No-Pushed-Branch Outcome.
+        #expect(try env.journal.noPushedBranchRepositories(featureID: feature.id) == ["backend"])
     }
 
     @Test("A Feature Branch with no commits ahead of Mainline is no completed work; nothing is pushed")
@@ -88,6 +91,7 @@ struct LandActPushTests {
         let repo = Repo(name: "backend", path: local.path, role: .backend, defaultBranch: "main")
         let env = try await Environment.make(repos: [repo])
         let (feature, cycleID) = try env.setUpFeature()
+        try recordTouchedRepositories(env.journal, featureID: feature.id, repositories: ["backend"])
 
         let land = LandAct(push: FeatureBranchLanePush(token: { nil }))
         let failure = await land.run(
@@ -99,6 +103,8 @@ struct LandActPushTests {
         let step = try #require(env.pushStep(repository: "backend"))
         #expect(step.outcome == .skipped)
         await #expect(remote.revParse("refs/heads/yh-proj-feat") == nil)
+        // P19.6 (OQ104, OQ107): the real pusher's verdict is recorded as the No-Pushed-Branch Outcome.
+        #expect(try env.journal.noPushedBranchRepositories(featureID: feature.id) == ["backend"])
     }
 
     @Test("Branch protection on the remote records a failed step and comments on the Feature Issue")

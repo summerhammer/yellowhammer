@@ -185,6 +185,8 @@ extension JournalEvent {
             .landStep
         case .cycleLanded:
             .cycleLanded
+        case .noPushedBranchOutcome:
+            .noPushedBranchOutcome
         case .featureVerified:
             .featureVerified
         case .featureReturned:
