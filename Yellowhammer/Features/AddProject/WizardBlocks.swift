@@ -74,6 +74,8 @@ struct OptionCard: View {
     let detail: String
     var points: [String] = []
     let isSelected: Bool
+    /// The Button's accessibility identifier, so a UI test can click the card; empty for none.
+    var identifier = ""
     let action: () -> Void
 
     var body: some View {
@@ -111,6 +113,7 @@ struct OptionCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier(identifier)
     }
 }
 
@@ -131,6 +134,8 @@ struct RadioRow: View {
     var note: String?
     var monospaced = false
     let isSelected: Bool
+    /// The Button's accessibility identifier; empty for none.
+    var identifier = ""
     let action: () -> Void
 
     var body: some View {
@@ -157,12 +162,15 @@ struct RadioRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier(identifier)
     }
 }
 
 /// A row that adds something to a list: an action, not a choice.
 struct AddRow: View {
     let title: String
+    /// The Button's accessibility identifier; empty for none.
+    var identifier = ""
     let action: () -> Void
 
     var body: some View {
@@ -175,6 +183,7 @@ struct AddRow: View {
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
     }
 }
 
@@ -207,6 +216,7 @@ struct IdToken: View {
         .overlay(Capsule().strokeBorder(.separator))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Project id \(id)\(locked ? ", permanent" : "")")
+        .accessibilityValue(id)
     }
 }
 

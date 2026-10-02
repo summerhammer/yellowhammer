@@ -2,56 +2,30 @@ import Config
 import Domain
 import Foundation
 import Observation
-import SwiftUI
 
-/// The Setup wizard's state and the mapping from its form fields to ``SetupInvocation``. Kept as a plain
-/// `@Observable` model, not a View, so the mapping and validation are testable without driving SwiftUI
-/// (P14.2). The app never does the Board work itself (ADR-001): every choice offered here comes from
-/// running the bundled `yh --print-choices`, and every write comes from running `yh --init`.
+/// The Add Project sheet's state: the ``AddProjectDraft`` the hub edits, the machine-wide prerequisites it
+/// checks, and the `yh setup --init` run. Kept as a plain `@Observable` model, not a View, so the mapping and
+/// validation stay testable without driving SwiftUI (P14.2). The app never does the Board work itself
+/// (ADR-001): the teams offered here come from running the bundled `yh --print-choices`, and every write
+/// comes from running `yh --init`. The sheet sets nothing machine-wide: Linear auth, the Operator identity
+/// and the agent CLIs live in Settings → General, and ``readiness`` blocks Add Project until they are there.
 @MainActor
 @Observable
 final class SetupWizardModel {
-    enum Step: CaseIterable {
-        case linear
-        case operatorIdentity
-        case cliRouting
-        case project
-        case jobs
-        case review
-    }
-
-    static let defaultLinearCredential = "keychain:linear"
-    static let defaultGitHubCredential = "keychain:github"
-
     let configurationDirectory: URL
 
-    // Step: Linear
-    var configExists: Bool
-    var linearCredential = SetupWizardModel.defaultLinearCredential
-    var githubCredential = SetupWizardModel.defaultGitHubCredential
-    var showAdvanced = false
-    var isFetchingChoices = false
-    var choicesErrorOutput: [String] = []
-    var choices: SetupChoices?
-    let linearInstallation = LinearInstallationModel()
-
-    // Step: Operator identity
-    var selectedOperatorID: String?
-
-    // Step: Agent CLIs and Routing Table
-    var enabledCLIs: Set<String> = []
-    var cliExecutables: [String: String] = [:]
-    var routeText = ""
-    var fallbackTexts: [String] = []
-
-    // Steps: Project and Scheduled jobs
     var draft = AddProjectDraft()
 
     /// The machine file as last loaded; nil when it does not load, as on a Mac where Setup has never run.
     var machineConfiguration: MachineConfiguration?
+    let linearInstallation = LinearInstallationModel()
+    var isFetchingTeams = false
+    /// `yh --print-choices`'s output when it could not list the teams; the Linear project step still takes
+    /// an existing Linear project's id without them.
+    var teamsFailure: [String] = []
 
-    // Step: Review and run
-    var currentStepIndex = 0
+    /// Whether the confirmation before `yh setup --init` is showing: adding is when the id becomes permanent.
+    var isConfirmingAdd = false
     var isRunning = false
     var runLines: [String] = []
     var runExitStatus: Int32?
@@ -67,19 +41,21 @@ final class SetupWizardModel {
 
     init(configurationDirectory: URL = ConfigurationDirectory.current) {
         self.configurationDirectory = configurationDirectory
-        configExists = ConfigurationDirectory.machineFileExists(in: configurationDirectory)
-        linearInstallation.linearCredential = { [weak self] in
-            guard let self else { return nil }
-            return configExists || linearCredential == Self.defaultLinearCredential ? nil : linearCredential
-        }
-        draft.repos = [AddProjectDraft.Repo(path: "", name: "")]
         loadContext()
     }
 
-    /// Whether each machine-wide prerequisite of Add Project is present. Hub4 blocks Add Project on it. The
-    /// current sheet still contains steps that set up these prerequisites, so it does not gate on it yet.
+    /// Whether each machine-wide prerequisite of Add Project is present. The sheet shows the hub only when
+    /// none is missing.
     var readiness: SetupReadiness {
         SetupReadiness(linearInstalled: linearInstallation.phase.isInstalled, machine: machineConfiguration)
+    }
+
+    /// Whether the Linear installation is still being checked, so readiness is not known yet.
+    var isCheckingReadiness: Bool { linearInstallation.phase == .checking }
+
+    /// Whether Add Project can be pressed: everything is present, every step is complete, and no run started.
+    var canAddProject: Bool {
+        !readiness.blocksAddProject && draft.isComplete && !isRunning && runExitStatus == nil
     }
 
     /// Reads the Project files, the Journal file names and the configuration under `configurationDirectory`
@@ -111,111 +87,16 @@ final class SetupWizardModel {
         }
     }
 
-    var activeSteps: [Step] {
-        configExists ? [.linear, .operatorIdentity, .project, .jobs, .review] : Step.allCases
+    /// Asks before adding; the confirmation's Add Project runs ``confirmAndRun()``.
+    func requestAdd() {
+        guard canAddProject else { return }
+        isConfirmingAdd = true
     }
 
-    /// Clamped rather than a bare subscript: `activeSteps` shrinks the moment `configExists` flips (the
-    /// CLI/Routing step drops out), which can otherwise leave `currentStepIndex` pointing past the end.
-    var currentStep: Step { activeSteps[min(currentStepIndex, activeSteps.count - 1)] }
-
-    var canContinue: Bool {
-        switch currentStep {
-        case .linear:
-            return !isFetchingChoices && linearInstallation.phase.isInstalled
-        case .operatorIdentity:
-            return selectedOperatorID != nil
-        case .cliRouting:
-            return true
-        case .project:
-            return projectValidationError == nil
-        case .jobs:
-            switch draft.jobs {
-            case .export: return !draft.exportDirectory.trimmed.isEmpty
-            case .install, .notNow: return true
-            }
-        case .review:
-            return !isRunning
-        }
-    }
-
-    /// Nil when the Project step's fields describe a valid declaration; a human sentence otherwise.
-    var projectValidationError: String? {
-        let trimmedID = draft.projectID.trimmed
-        guard !trimmedID.isEmpty, ProjectID(rawValue: trimmedID) != nil else {
-            return "Enter a Project id of letters, digits, underscores and hyphens."
-        }
-        let projectFileURL = configurationDirectory.appending(
-            components: "projects", "\(trimmedID).toml", directoryHint: .notDirectory
-        )
-        guard !FileManager.default.fileExists(atPath: projectFileURL.path(percentEncoded: false)) else {
-            return "A Project file for \u{201c}\(trimmedID)\u{201d} already exists."
-        }
-        switch draft.linearChoice {
-        case .existing:
-            guard !draft.linearProjectID.trimmed.isEmpty else {
-                return "Enter an existing Linear project id, or choose to create " // glossary:ignore GL001
-                    + "one in a team."
-            }
-        case .createInTeam:
-            guard draft.teamKey != nil else {
-                return "Choose a team to create the Linear project in." // glossary:ignore GL001
-            }
-        }
-        guard !draft.repos.isEmpty else { return "Add at least one Repo." }
-        // `check` is never defaulted: `check = "none"` is declared, so silence never means "no gate".
-        for repo in draft.repos where [repo.name, repo.role, repo.path, repo.check].contains(where: \.trimmed.isEmpty) {
-            return "Every Repo needs a name, role, path and check (\u{201c}none\u{201d} where nothing runs)."
-        }
-        if draft.specSourcePath.trimmed.isEmpty && !draft.repos.contains(where: { $0.role.trimmed == "spec" }) {
-            return "Without a Spec Source, one Repo must have role \u{201c}spec\u{201d}."
-        }
-        return nil
-    }
-
-    var jobsSummary: String {
-        switch draft.jobs {
-        case .install: "Installs the three LaunchAgents per Project."
-        case .export: "Exports the scheduled jobs to \(draft.exportDirectory)."
-        case .notNow: "Scheduled jobs are not generated now."
-        }
-    }
-
-    func cliEnabledBinding(_ name: String) -> Binding<Bool> {
-        Binding(
-            get: { self.enabledCLIs.contains(name) },
-            set: { enabled in
-                if enabled { self.enabledCLIs.insert(name) } else { self.enabledCLIs.remove(name) }
-            }
-        )
-    }
-
-    func cliExecutableBinding(_ name: String) -> Binding<String> {
-        Binding(
-            get: { self.cliExecutables[name] ?? "" },
-            set: { self.cliExecutables[name] = $0 }
-        )
-    }
-
-    func back() {
-        guard currentStepIndex > 0 else { return }
-        currentStepIndex -= 1
-    }
-
-    func continueTapped() async {
-        switch currentStep {
-        case .linear:
-            await fetchChoices()
-        case .review:
-            await runSetup()
-        default:
-            advance()
-        }
-    }
-
-    func advance() {
-        guard currentStepIndex < activeSteps.count - 1 else { return }
-        currentStepIndex += 1
+    /// The Operator confirmed the id: it is permanent from here.
+    func confirmAndRun() async {
+        draft.idConfirmed = true
+        await runSetup()
     }
 
     /// Terminates the current run, if any: closing the Add Project sheet is not an Act, so nothing must

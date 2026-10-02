@@ -6,6 +6,8 @@ import SwiftUI
 struct SetupReadinessPanel: View {
     let readiness: SetupReadiness
     let linearInstallation: LinearInstallationModel
+    /// Reads the machine again, so a fix made in Settings is seen without closing the sheet.
+    let onCheckAgain: () -> Void
 
     @Environment(SettingsRequest.self) private var settingsRequest
     @Environment(\.openWindow) private var openWindow
@@ -16,9 +18,11 @@ struct SetupReadinessPanel: View {
                 Text(
                     "Adding a Project needs these first. They are set once for this Mac."
                 )
+                Button("Check Again", action: onCheckAgain)
+                    .accessibilityIdentifier("setup-readiness-check-again")
             }
             ForEach(readiness.missing, id: \.self) { prerequisite in
-                Section(prerequisite.title) {
+                Section {
                     switch prerequisite {
                     case .linearInstallation:
                         Text(
@@ -46,8 +50,11 @@ struct SetupReadinessPanel: View {
                         }
                         .accessibilityIdentifier("setup-open-settings-agentCLIRoute")
                     }
+                } header: {
+                    // On the header alone: an identifier on the Section replaces every row's own.
+                    Text(prerequisite.title)
+                        .accessibilityIdentifier("setup-readiness-\(prerequisiteID(prerequisite))")
                 }
-                .accessibilityIdentifier("setup-readiness-\(prerequisiteID(prerequisite))")
             }
         }
         .formStyle(.grouped)
@@ -66,7 +73,8 @@ struct SetupReadinessPanel: View {
 #Preview {
     SetupReadinessPanel(
         readiness: SetupReadiness(linearInstalled: false, machine: nil),
-        linearInstallation: LinearInstallationModel(phase: .notInstalled)
+        linearInstallation: LinearInstallationModel(phase: .notInstalled),
+        onCheckAgain: {}
     )
     .environment(SettingsRequest())
     .frame(width: 620, height: 480)

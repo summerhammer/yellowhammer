@@ -38,11 +38,12 @@ enum EngineStub {
 
         """
 
-    /// `yh doctor --check linear --json`: "installed" once the install marker exists, else "not
-    /// installed" — the app's Linear step polls this on appearing.
+    /// `yh doctor --check linear --json`: "installed" once the install marker exists or when
+    /// `YH_STUB_LINEAR_INSTALLED` is set, else "not installed". The Add Project sheet and the Settings
+    /// General pane run this on appearing.
     static let checkCase = """
           --check)
-            if [ -f "$YH_STUB_INSTALLED_MARKER" ]; then
+            if [ -f "$YH_STUB_INSTALLED_MARKER" ] || [ -n "$YH_STUB_LINEAR_INSTALLED" ]; then
               echo '[{"check":"linear","subject":"authorization","severity":"pass","message":"ok"}]'
             else
               echo '[{"check":"linear","subject":"installation","severity":"failure","message":"no pair"}]'
