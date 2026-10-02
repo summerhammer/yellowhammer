@@ -146,7 +146,7 @@ before each step. The story sets no step order, so the hub needs no ruling.
   previews time out (H2.1). **Acceptance criteria (Add Project wizard):** the "+" in both sidebars,
   the sheet, the wizard as the only guided flow, and Cancel leaving no Project file are met and
   tested. The new row in both sidebars is built but not exercised by a test, as in P18.17: the stub
-  `yh --init` writes no Project file. **Gap, not fixed here:** on a fresh Mac no screen in the app can
+  `yh --init` writes no Project file. **Gap, not fixed here (#281):** on a fresh Mac no screen in the app can
   declare an agent CLI. Settings → Agent CLIs only lists and probes, and with no `config.toml` it
   offers "Add a Project…", which leads back to this sheet. The readiness panel's Agent CLIs button
   therefore cannot clear that row on a fresh Mac. The first Project needs `yh setup` in a terminal, or
