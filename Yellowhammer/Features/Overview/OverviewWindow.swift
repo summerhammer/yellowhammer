@@ -63,6 +63,7 @@ struct OverviewWindow: View {
         NavigationSplitView {
             OverviewSidebar(
                 projects: model.snapshot?.projects ?? [],
+                asOf: model.snapshot?.asOf ?? .now,
                 selection: Binding(get: { scopedProject }, set: { $0.map(rescope) }),
                 onProjectAdded: { id in
                     // Read again first, so the new row exists when the window scopes to it.

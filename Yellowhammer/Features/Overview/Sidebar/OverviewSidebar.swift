@@ -6,10 +6,11 @@ import SwiftUI
 /// then each of its configured Repos in `[repos]` declared order, then, nested under a Repo, the Attempt
 /// running in it while one runs. Projects are in configured order, and nothing is re-sorted.
 ///
-/// A Project row shows the Project's name and its derived `idle`/`working` status, and nothing else: no
-/// count, badge, roll-up word or health indicator (R20). When the Project's Journal could not be read,
-/// the row shows no status, because none can be derived; the Pulse states why. A Repo row shows a lane
-/// badge only while that Repo is in lane, so the badge, not the row's position, marks an active Repo.
+/// A Project row shows the Project's icon and name, and its derived `idle`/`working` status as a dot on
+/// the icon, and nothing else: no count, roll-up word or health indicator (R20). When the Project's
+/// Journal could not be read, the icon carries no dot, because no status can be derived; the Pulse states
+/// why. A Repo row shows a lane dot only while that Repo is in lane, so the dot, not the row's position,
+/// marks an active Repo. An Attempt row shows how long the Attempt has run, measured to `asOf`.
 ///
 /// Each row's values come from its own Project's snapshot alone. A Project whose configuration was
 /// refused is not in `projects`, so it never appears here (OQ79).
@@ -18,6 +19,8 @@ import SwiftUI
 /// Pulse to its Project and opens the row in the Inspector.
 struct OverviewSidebar: View {
     let projects: [ProjectSnapshot]
+    /// When the snapshot was read. An Attempt's elapsed time is measured to it, not to the clock.
+    let asOf: Date
     /// The Project the window shows. The Sidebar sets it; the window owns it.
     @Binding var selection: ProjectID?
     /// The highlighted row. Only its Project belongs to the window; which of that Project's rows is
@@ -46,11 +49,7 @@ struct OverviewSidebar: View {
                         RepoRow(projectID: row.snapshot.id, repo: repo, lane: row.snapshot.laneState(for: repo))
                             .padding(.leading, 16)
                     case let .attempt(attempt):
-                        // The running Attempt: its Card and route. No output of the agent CLI, ever.
-                        Label(attempt.sidebarLabel, systemImage: "gearshape.2")
-                            .font(.caption)
-                            .lineLimit(1)
-                            .accessibilityIdentifier("sidebar-\(row.snapshot.id.rawValue)-attempt-\(attempt.id)")
+                        AttemptRow(projectID: row.snapshot.id, attempt: attempt, asOf: asOf)
                             .padding(.leading, 32)
                             .contextMenu {
                                 if attemptAbort.canAbort(row.snapshot.id, attempt) {
@@ -111,30 +110,38 @@ struct OverviewSidebar: View {
     }
 }
 
-/// A Project row: the Project's name and its derived `idle`/`working` status, and nothing else. `status`
-/// is nil when the Project's Journal could not be read, because none can be derived.
+/// A Project row: the Project's icon and name, with its derived `idle`/`working` status as a dot on the
+/// icon, and nothing else. `status` is nil when the Project's Journal could not be read, because none can
+/// be derived, and the icon then carries no dot.
 private struct ProjectRow: View {
     let id: ProjectID
     let name: String
     let status: ProjectStatus?
 
     var body: some View {
-        HStack {
+        Label {
             Text(name)
                 .lineLimit(1)
                 .accessibilityIdentifier("sidebar-\(id.rawValue)")
-            Spacer()
-            if let status {
-                Text(status.rawValue)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("sidebar-\(id.rawValue)-status")
-            }
+        } icon: {
+            Image(systemName: "folder.fill")
+                .overlay(alignment: .bottomTrailing) {
+                    if let status {
+                        ActivityDot(style: status.style, diameter: 7)
+                            .padding(1.5)
+                            .background(.background, in: .circle)
+                            .offset(x: 3, y: 3)
+                            .help(status.rawValue)
+                            .accessibilityElement()
+                            .accessibilityLabel(status.rawValue)
+                            .accessibilityIdentifier("sidebar-\(id.rawValue)-status")
+                    }
+                }
         }
     }
 }
 
-/// A Repo row, with a lane badge only while the Repo is in lane.
+/// A Repo row, with a lane dot only while the Repo is in lane.
 private struct RepoRow: View {
     let projectID: ProjectID
     let repo: String
@@ -148,13 +155,52 @@ private struct RepoRow: View {
                 .accessibilityIdentifier("sidebar-\(projectID.rawValue)-repo-\(repo)")
             Spacer()
             if let lane {
-                Text(lane.rawValue)
-                    .font(.caption2)
-                    .padding(.horizontal, 6)
-                    .background(.quaternary, in: .capsule)
+                ActivityDot(style: lane.style, diameter: 8)
+                    .help(lane.rawValue)
+                    .accessibilityElement()
+                    .accessibilityLabel(lane.rawValue)
                     .accessibilityIdentifier("sidebar-\(projectID.rawValue)-repo-\(repo)-lane")
             }
         }
+    }
+}
+
+/// The running Attempt: its Card and route, and how long it has run. No output of the agent CLI, ever.
+private struct AttemptRow: View {
+    let projectID: ProjectID
+    let attempt: RunningAttempt
+    let asOf: Date
+
+    var body: some View {
+        HStack {
+            Label {
+                Text(attempt.sidebarLabel)
+            } icon: {
+                Image(systemName: "gearshape.2")
+                    .foregroundStyle(ProjectStatus.working.style)
+            }
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .accessibilityIdentifier("sidebar-\(projectID.rawValue)-attempt-\(attempt.id)")
+            Spacer()
+            Text(attempt.elapsed(asOf: asOf))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+        }
+        .font(.caption)
+    }
+}
+
+/// A filled dot in a state's colour. Colour is not its only signal: its caller gives it the state's word
+/// as its help tag and accessibility label.
+private struct ActivityDot<Style: ShapeStyle>: View {
+    let style: Style
+    let diameter: CGFloat
+
+    var body: some View {
+        Circle()
+            .fill(style)
+            .frame(width: diameter, height: diameter)
     }
 }
 
@@ -205,5 +251,11 @@ private extension RunningAttempt {
     /// The Attempt's Card and route. No output of the agent CLI, ever.
     var sidebarLabel: String {
         "\(cardID) \u{00B7} \(route)"
+    }
+
+    /// Time since the Attempt started, measured to `asOf`, not to the clock.
+    func elapsed(asOf: Date) -> String {
+        Duration.seconds(max(0, asOf.timeIntervalSince(startedAt)))
+            .formatted(.units(allowed: [.hours, .minutes], width: .narrow))
     }
 }
