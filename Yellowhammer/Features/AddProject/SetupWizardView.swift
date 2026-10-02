@@ -1,3 +1,4 @@
+import Config
 import Domain
 import SwiftUI
 
@@ -177,24 +178,24 @@ private struct SetupProjectStepView: View {
     var body: some View {
         Form {
             Section("Project") {
-                TextField("Project id", text: $model.projectID)
+                TextField("Project id", text: $model.draft.projectID)
                     .accessibilityIdentifier("setup-project-id")
-                TextField("Name (defaults to the id)", text: $model.projectName)
+                TextField("Name (defaults to the id)", text: $model.draft.name)
             }
             Section("Linear project") { // glossary:ignore GL001
-                Picker("Linear project", selection: $model.linearProjectMode) { // glossary:ignore GL001
-                    Text("Existing").tag(SetupWizardModel.LinearProjectMode.existing)
-                    Text("Create one in team").tag(SetupWizardModel.LinearProjectMode.createInTeam)
+                Picker("Linear project", selection: $model.draft.linearChoice) { // glossary:ignore GL001
+                    Text("Existing").tag(AddProjectDraft.LinearProjectChoice.existing)
+                    Text("Create one in team").tag(AddProjectDraft.LinearProjectChoice.createInTeam)
                 }
                 .pickerStyle(.segmented)
-                switch model.linearProjectMode {
+                switch model.draft.linearChoice {
                 case .existing:
                     TextField(
-                        "Existing Linear project id", text: $model.existingLinearProjectID // glossary:ignore GL001
+                        "Existing Linear project id", text: $model.draft.linearProjectID // glossary:ignore GL001
                     )
                     .accessibilityIdentifier("setup-linear-project-id")
                 case .createInTeam:
-                    Picker("Team", selection: $model.selectedTeamKey) {
+                    Picker("Team", selection: $model.draft.teamKey) {
                         Text("Choose a team").tag(String?.none)
                         ForEach(model.choices?.teams ?? [], id: \.id) { team in
                             Text("\(team.name) (\(team.key))").tag(Optional(team.key))
@@ -204,7 +205,7 @@ private struct SetupProjectStepView: View {
             }
             Section("Spec Source") { // glossary:ignore GL001
                 HStack {
-                    TextField("Path (optional)", text: $model.specSource)
+                    TextField("Path (optional)", text: $model.draft.specSourcePath)
                     Button("Choose…") { model.chooseSpecSource() }
                 }
                 Text("Without a Spec Source, one Repo must have role \u{201c}spec\u{201d}.")
@@ -212,7 +213,7 @@ private struct SetupProjectStepView: View {
                     .foregroundStyle(.secondary)
             }
             Section("Repos") { // glossary:ignore GL001
-                ForEach($model.repos) { $repo in
+                ForEach($model.draft.repos) { $repo in
                     VStack(alignment: .leading) {
                         TextField("Name", text: $repo.name)
                             .accessibilityIdentifier("setup-repo-name")
@@ -228,8 +229,10 @@ private struct SetupProjectStepView: View {
                     }
                     .padding(.vertical, 4)
                 }
-                .onDelete { model.repos.remove(atOffsets: $0) }
-                Button("Add Repo") { model.repos.append(SetupWizardModel.RepoField()) } // glossary:ignore GL001
+                .onDelete { model.draft.repos.remove(atOffsets: $0) }
+                Button("Add Repo") { // glossary:ignore GL001
+                    model.draft.repos.append(AddProjectDraft.Repo(path: "", name: ""))
+                }
                     .accessibilityIdentifier("setup-add-repo")
             }
             if let error = model.projectValidationError {
@@ -246,19 +249,19 @@ private struct SetupJobsStepView: View {
 
     var body: some View {
         Form {
-            Picker("Scheduled jobs", selection: $model.jobsSelection) { // glossary:ignore GL001
-                Text("Install the three LaunchAgents per Project").tag(SetupWizardModel.JobsSelection.install)
-                Text("Export to a folder").tag(SetupWizardModel.JobsSelection.export)
-                Text("Not now").tag(SetupWizardModel.JobsSelection.notNow)
+            Picker("Scheduled jobs", selection: $model.draft.jobs) { // glossary:ignore GL001
+                Text("Install the three LaunchAgents per Project").tag(AddProjectDraft.JobsChoice.install)
+                Text("Export to a folder").tag(AddProjectDraft.JobsChoice.export)
+                Text("Not now").tag(AddProjectDraft.JobsChoice.notNow)
             }
             .pickerStyle(.radioGroup)
             .accessibilityIdentifier("setup-jobs-picker")
-            if model.jobsSelection == .export {
+            if model.draft.jobs == .export {
                 HStack {
-                    TextField("Export directory", text: $model.exportDirectory)
+                    TextField("Export directory", text: $model.draft.exportDirectory)
                     Button("Choose…") { model.chooseExportDirectory() }
                 }
-                Picker("Format", selection: $model.exportUsesCron) {
+                Picker("Format", selection: $model.draft.exportUsesCron) {
                     Text("launchd").tag(false)
                     Text("cron").tag(true)
                 }
@@ -305,7 +308,7 @@ private struct SetupReviewStepView: View {
     private var summary: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Ready to run setup.")
-            Text("Declares Project \u{201c}\(model.projectID)\u{201d}.")
+            Text("Declares Project \u{201c}\(model.draft.projectID)\u{201d}.")
             Text(model.jobsSummary)
         }
         .foregroundStyle(.secondary)

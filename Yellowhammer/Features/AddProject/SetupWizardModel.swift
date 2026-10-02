@@ -20,25 +20,6 @@ final class SetupWizardModel {
         case review
     }
 
-    enum LinearProjectMode: Hashable { // glossary:ignore GL001
-        case existing
-        case createInTeam
-    }
-
-    enum JobsSelection: Hashable {
-        case install
-        case export
-        case notNow
-    }
-
-    struct RepoField: Identifiable {
-        let id = UUID()
-        var name = ""
-        var role = ""
-        var path = ""
-        var check = ""
-    }
-
     static let defaultLinearCredential = "keychain:linear"
     static let defaultGitHubCredential = "keychain:github"
 
@@ -63,19 +44,11 @@ final class SetupWizardModel {
     var routeText = ""
     var fallbackTexts: [String] = []
 
-    // Step: Project
-    var projectID = ""
-    var projectName = ""
-    var linearProjectMode: LinearProjectMode = .existing
-    var existingLinearProjectID = ""
-    var selectedTeamKey: String?
-    var specSource = ""
-    var repos: [RepoField] = [RepoField()]
+    // Steps: Project and Scheduled jobs
+    var draft = AddProjectDraft()
 
-    // Step: Scheduled jobs
-    var jobsSelection: JobsSelection = .install
-    var exportDirectory = ""
-    var exportUsesCron = false
+    /// The machine file as last loaded; nil when it does not load, as on a Mac where Setup has never run.
+    var machineConfiguration: MachineConfiguration?
 
     // Step: Review and run
     var currentStepIndex = 0
@@ -85,6 +58,10 @@ final class SetupWizardModel {
     var notificationStatusLine: String?
     var declaredProjectID: ProjectID?
     var declaredProjectName: String?
+    /// The refusal as ``ProjectConfigurationModel`` reports it, when the Bounds could not be written after a
+    /// successful setup. The Project stays in place with default Bounds and can be recalibrated in
+    /// Settings → Recalibrate.
+    var boundsFailure: String?
 
     let engine = SetupEngine()
 
@@ -94,6 +71,43 @@ final class SetupWizardModel {
         linearInstallation.linearCredential = { [weak self] in
             guard let self else { return nil }
             return configExists || linearCredential == Self.defaultLinearCredential ? nil : linearCredential
+        }
+        draft.repos = [AddProjectDraft.Repo(path: "", name: "")]
+        loadContext()
+    }
+
+    /// Whether each machine-wide prerequisite of Add Project is present. Hub4 blocks Add Project on it. The
+    /// current sheet still contains steps that set up these prerequisites, so it does not gate on it yet.
+    var readiness: SetupReadiness {
+        SetupReadiness(linearInstalled: linearInstallation.phase.isInstalled, machine: machineConfiguration)
+    }
+
+    /// Reads the Project files, the Journal file names and the configuration under `configurationDirectory`
+    /// into `draft.context` and `machineConfiguration`. Only files are read, and no Journal is opened.
+    func loadContext() {
+        let fileManager = FileManager.default
+        func baseNames(in folder: String, extension fileExtension: String) -> Set<String> {
+            let directory = configurationDirectory.appending(path: folder, directoryHint: .isDirectory)
+            let names = (try? fileManager.contentsOfDirectory(atPath: directory.path(percentEncoded: false))) ?? []
+            return Set(
+                names.filter { !$0.hasPrefix(".") && ($0 as NSString).pathExtension == fileExtension }
+                    .map { ($0 as NSString).deletingPathExtension }
+            )
+        }
+        let projectFileIDs = baseNames(in: "projects", extension: "toml")
+        let journalProjectIDs = baseNames(in: "journals", extension: "db")
+        let teams = draft.context.teams
+        if let configuration = try? Configuration.load(directory: configurationDirectory) {
+            machineConfiguration = configuration.machine
+            draft.context = AddProjectContext(
+                configuration: configuration, projectFileIDs: projectFileIDs,
+                journalProjectIDs: journalProjectIDs, teams: teams
+            )
+        } else {
+            machineConfiguration = nil
+            draft.context = AddProjectContext(
+                existingProjectIDs: projectFileIDs, journalProjectIDs: journalProjectIDs, teams: teams
+            )
         }
     }
 
@@ -116,8 +130,8 @@ final class SetupWizardModel {
         case .project:
             return projectValidationError == nil
         case .jobs:
-            switch jobsSelection {
-            case .export: return !exportDirectory.trimmed.isEmpty
+            switch draft.jobs {
+            case .export: return !draft.exportDirectory.trimmed.isEmpty
             case .install, .notNow: return true
             }
         case .review:
@@ -127,7 +141,7 @@ final class SetupWizardModel {
 
     /// Nil when the Project step's fields describe a valid declaration; a human sentence otherwise.
     var projectValidationError: String? {
-        let trimmedID = projectID.trimmed
+        let trimmedID = draft.projectID.trimmed
         guard !trimmedID.isEmpty, ProjectID(rawValue: trimmedID) != nil else {
             return "Enter a Project id of letters, digits, underscores and hyphens."
         }
@@ -137,32 +151,32 @@ final class SetupWizardModel {
         guard !FileManager.default.fileExists(atPath: projectFileURL.path(percentEncoded: false)) else {
             return "A Project file for \u{201c}\(trimmedID)\u{201d} already exists."
         }
-        switch linearProjectMode {
+        switch draft.linearChoice {
         case .existing:
-            guard !existingLinearProjectID.trimmed.isEmpty else {
+            guard !draft.linearProjectID.trimmed.isEmpty else {
                 return "Enter an existing Linear project id, or choose to create " // glossary:ignore GL001
                     + "one in a team."
             }
         case .createInTeam:
-            guard selectedTeamKey != nil else {
+            guard draft.teamKey != nil else {
                 return "Choose a team to create the Linear project in." // glossary:ignore GL001
             }
         }
-        guard !repos.isEmpty else { return "Add at least one Repo." }
+        guard !draft.repos.isEmpty else { return "Add at least one Repo." }
         // `check` is never defaulted: `check = "none"` is declared, so silence never means "no gate".
-        for repo in repos where [repo.name, repo.role, repo.path, repo.check].contains(where: \.trimmed.isEmpty) {
+        for repo in draft.repos where [repo.name, repo.role, repo.path, repo.check].contains(where: \.trimmed.isEmpty) {
             return "Every Repo needs a name, role, path and check (\u{201c}none\u{201d} where nothing runs)."
         }
-        if specSource.trimmed.isEmpty && !repos.contains(where: { $0.role.trimmed == "spec" }) {
+        if draft.specSourcePath.trimmed.isEmpty && !draft.repos.contains(where: { $0.role.trimmed == "spec" }) {
             return "Without a Spec Source, one Repo must have role \u{201c}spec\u{201d}."
         }
         return nil
     }
 
     var jobsSummary: String {
-        switch jobsSelection {
+        switch draft.jobs {
         case .install: "Installs the three LaunchAgents per Project."
-        case .export: "Exports the scheduled jobs to \(exportDirectory)."
+        case .export: "Exports the scheduled jobs to \(draft.exportDirectory)."
         case .notNow: "Scheduled jobs are not generated now."
         }
     }
