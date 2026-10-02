@@ -2564,7 +2564,7 @@ P19.7.
     repositories with the real gate and closure; the outcome is asserted through the real pusher. Not met
     here: the `[no pull request: <repo>]` note on every surface (P19.7).
 
-### [ ] P19.7 `[no pull request: <repo>]` beside the Roll-up
+### [x] P19.7 `[no pull request: <repo>]` beside the Roll-up
 - **Work** — Each repository with the No-Pushed-Branch Outcome is shown as
   `[no pull request: <repo>]` beside the Roll-up sentence, one note per repository, never inside
   it, wherever the sentence is rendered: the Feature card's Managed Block, the standing Night
@@ -2575,6 +2575,22 @@ P19.7.
 - **Agent** — Opus 5.5 High or `gpt-5.6-sol high`.
 - **Done when** — The note renders on all three surfaces beside the sentence, the six words and
   the sentence shape are unchanged, and the hash-skip still holds when nothing changed.
+- **Status** — Done on 2026-10-02 (`13a4437`). `FeatureRollUp.noPullRequestNotes` spells the note in
+  one place; every surface reads `JournalStore.noPushedBranchRepositories`, sorted, one note per repository.
+  - Managed Block: `**<sentence>**`, then any `[conflict: <repo>]` notes, then the
+    `[no pull request: <repo>]` notes. A Feature with no outcome renders byte-identically, so the hash-skip
+    holds and nothing is reposted on upgrade. The zero-Card form carries none (it never landed).
+  - Night Summary: the standing in-flight line ends with the notes, after any conflicts phrase, at N = 0
+    and at N ≥ 1. That line is not the Roll-up sentence (`k of N Feature Branches merged`); the story
+    says it carries the notes, so they end the line.
+  - Pull request body: after the bold line 1 of a Partial Landing body. Every outcome is recorded in the
+    land Act's first phase, so a body written in the second phase never misses a sibling lane's note.
+  - Raise: a complete-landing body renders no Roll-up sentence, so it carries no note, though OQ108 says
+    "each pull request body". It occurs when every laned Card is Done and a touched repository has no
+    Card. Asserted as byte-identical with and without the notes, so the gap is visible.
+  - Met: the note on all three surfaces beside the sentence (both P19.6 Done-when scenarios now assert
+    it on the Managed Block and the Night Summary line), the sentence's words and shape unchanged, and the
+    hash-skip with the note present. Not met: the complete-landing body (above).
 
 ---
 
