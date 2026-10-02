@@ -39,6 +39,12 @@ extension NightSummary {
         ) {
             line += "; \(conflicts)"
         }
+        // One `[no pull request: <repo>]` note per No-Pushed-Branch Outcome, at N = 0 too (roadmap P19.7;
+        // risks OQ108).
+        let noPullRequest = try journal.noPushedBranchRepositories(featureID: inFlight.feature.id)
+        if !noPullRequest.isEmpty {
+            line += " " + FeatureRollUp.noPullRequestNotes(noPullRequest)
+        }
         return [line]
     }
 

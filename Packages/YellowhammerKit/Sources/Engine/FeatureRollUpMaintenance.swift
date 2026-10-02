@@ -41,6 +41,7 @@ public struct FeatureRollUpMaintenance: Sendable {
             verificationPassed: try verificationPassed(cycleID: cycleID),
             mergedFraction: MergedFraction(mergedCount: mergedInN, totalCount: pushedForMerge.count),
             conflictingRepositories: Array(conflicts.keys),
+            noPullRequestRepositories: try journal.noPushedBranchRepositories(featureID: feature.id),
             pushedRepositories: try repositoriesWithRecordedPush(featureID: feature.id),
             issueStanding: .authoring
         )

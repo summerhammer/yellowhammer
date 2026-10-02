@@ -51,6 +51,11 @@ private func postRollUp(_ world: MergeWorld, context: ActContext) async throws -
     return try #require(await world.boards.writing.issue(BoardObjectID(rawValue: "FEAT-1"))?.description)
 }
 
+/// The Managed Block's first line (the bold Roll-up sentence with its notes beside it).
+private func rollUpFirstLine(_ description: String) -> String? {
+    try? ManagedBlockFence.parts(of: description).get().block.components(separatedBy: "\n").first
+}
+
 @Suite("No-Pushed-Branch Outcome: the gate, closure and N = 0 (OQ104, OQ107)")
 struct NoPushedBranchGateTests {
     @Test("One empty lane: the gate reads only the pushed repository, and merging it closes the Feature")
@@ -73,10 +78,16 @@ struct NoPushedBranchGateTests {
         let rollUpContext = try nextContext(world, after: context, repositories: repositories)
         let description = try await postRollUp(world, context: rollUpContext)
         #expect(description.contains("0 of 1 merged"))
+        // P19.7 (risks OQ108): exactly one note, for the empty lane, beside the sentence on both surfaces.
+        let noteFirstLine = try #require(rollUpFirstLine(description))
+        #expect(noteFirstLine.hasSuffix("0 of 1 merged · 1 waiting on you** [no pull request: mobile]"))
+        #expect(description.components(separatedBy: "[no pull request:").count == 2)
         let line = try #require(
             try NightSummary.inFlightFeatureLines(night: context.night, journal: world.journal).first
         )
         #expect(line.contains("0 of 1 Feature Branches merged"))
+        #expect(line.hasSuffix(" [no pull request: mobile]"))
+        #expect(line.components(separatedBy: "[no pull request:").count == 2)
 
         _ = await world.backend.run(["merge", "--no-ff", "-m", "merge", mergeClosureBranch])
         let next = try nextContext(world, after: rollUpContext, repositories: repositories)
@@ -115,6 +126,10 @@ struct NoPushedBranchGateTests {
         context = try nextContext(world, after: context, repositories: repositories)
         let description = try await postRollUp(world, context: context)
         #expect(description.contains("0 of 0 merged"))
+        let noteFirstLine = try #require(rollUpFirstLine(description))
+        #expect(noteFirstLine.hasSuffix(
+            "0 of 0 merged · 1 waiting on you** [no pull request: backend] [no pull request: mobile]"
+        ))
         let feature = try #require(try world.journal.feature(issueID: "FEAT-1"))
         let outbox = try #require(context.outbox)
         let again = try await FeatureRollUpMaintenance(journal: world.journal, outbox: outbox)
@@ -127,6 +142,7 @@ struct NoPushedBranchGateTests {
             try NightSummary.inFlightFeatureLines(night: context.night, journal: world.journal).first
         )
         #expect(line.contains("0 of 0 Feature Branches merged"))
+        #expect(line.hasSuffix(" [no pull request: backend] [no pull request: mobile]"))
 
         try await release(world, after: context, repositories: repositories)
         #expect(try world.journal.inFlightFeature() == nil)
