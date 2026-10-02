@@ -28,7 +28,8 @@ let package = Package(
             // The isolation the code had in the app target.
             swiftSettings: [.defaultIsolation(MainActor.self)]
         ),
-        // The Add Project wizard. Plain fixtures only: it reads no Journal and runs no `yh`.
+        // Hub4, the Add Project sheet's chosen layout, kept as the reference for `Yellowhammer/Features/AddProject`.
+        // Plain fixtures only: it reads no Journal and runs no `yh`.
         .target(
             name: "AddProjectPrototypes",
             swiftSettings: [.defaultIsolation(MainActor.self)]

@@ -1,14 +1,13 @@
 #if DEBUG
 import SwiftUI
 
-// Round two's building blocks. A step is a column of blocks rather than a grouped Form, so option
-// cards and radio lists can sit outside a boxed group, and every variant draws a step the same way.
+// Hub4's building blocks. A step is a column of blocks rather than a grouped Form, so option cards
+// and radio lists can sit outside a boxed group.
 
 /// A titled group: an optional header, its rows in a softly filled box, and an optional footer.
 struct WizardBlock<Content: View>: View {
     var title: String?
     var footer: String?
-    var boxed = true
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -16,13 +15,9 @@ struct WizardBlock<Content: View>: View {
             if let title {
                 Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
             }
-            if boxed {
-                VStack(alignment: .leading, spacing: 0) { content }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(WizardTheme.surface, in: .rect(cornerRadius: 10))
-            } else {
-                content
-            }
+            VStack(alignment: .leading, spacing: 0) { content }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(WizardTheme.surface, in: .rect(cornerRadius: 10))
             if let footer {
                 Text(footer).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
@@ -259,45 +254,8 @@ struct WizardNote: View {
 
 // MARK: - Hub parts
 
-/// The hub's step list: no icons, a title and the step's summary, and a trailing mark only where there
-/// is something to say — a tick when done, a count of problems once visited.
-struct WizardStepSidebar: View {
-    @Binding var draft: AddProjectDraft
-    var title: (WizardStep) -> String = \.shortTitle
-    /// Called instead of moving, so a variant can intercept leaving a step.
-    var onSelect: ((WizardStep) -> Void)?
-
-    var body: some View {
-        List(selection: selection) {
-            ForEach(WizardStep.allCases) { step in
-                row(step).tag(step)
-            }
-        }
-        .listStyle(.sidebar)
-        .scrollContentBackground(.hidden)
-        .disabled(draft.run != .notStarted)
-    }
-
-    private func row(_ step: WizardStep) -> some View {
-        WizardSidebarRow(
-            title: title(step),
-            summary: draft.summary(of: step),
-            status: draft.hubStatus(of: step),
-            problemCount: draft.problems(in: step).count
-        )
-    }
-
-    private var selection: Binding<WizardStep?> {
-        Binding {
-            draft.step
-        } set: { step in
-            guard let step else { return }
-            if let onSelect { onSelect(step) } else { draft.go(to: step, allowingAhead: true) }
-        }
-    }
-}
-
-/// One hub row: a title, its summary, and a trailing tick when done or a problem count once visited.
+/// One hub row: no icon, a title and the step's summary, and a trailing mark only where there is
+/// something to say — a tick when done, a count of problems once visited.
 struct WizardSidebarRow: View {
     let title: String
     let summary: String
@@ -326,7 +284,7 @@ struct WizardSidebarRow: View {
                     .padding(.horizontal, 6)
                     .background(WizardTheme.error, in: .capsule)
                     .accessibilityLabel("\(problemCount) problems")
-            case .current, .upcoming:
+            case .upcoming:
                 EmptyView()
             }
         }
@@ -353,19 +311,17 @@ struct WizardReadiness: View {
 /// The hub's footer: Cancel; what is still needed; Add Project — or Done and Close after the run.
 struct WizardHubFooter: View {
     @Binding var draft: AddProjectDraft
-    /// Overrides the five-step "Still needed" line, for variants that split a step.
-    var stillNeeded: String??
-    var addProject: (() -> Void)?
+    /// "Still needed: …", or nil when every page is ready.
+    let stillNeeded: String?
+    let addProject: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
             if draft.run == .notStarted {
                 WizardCancelButton(caption: false)
                 Spacer()
-                WizardReadiness(stillNeeded: stillNeeded ?? draft.stillNeeded)
-                Button("Add Project") {
-                    if let addProject { addProject() } else { draft.runSetup() }
-                }
+                WizardReadiness(stillNeeded: stillNeeded)
+                Button("Add Project", action: addProject)
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(!draft.isComplete)

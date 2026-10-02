@@ -1,21 +1,12 @@
 #if DEBUG
 import SwiftUI
 
-// Hub, refined after round two. Hub2 keeps Hub's layout and swaps in the picked components — the id
-// as a Permanent token confirmed when the Project is added, the Linear project as one list, the spec
-// source as option cards, Bounds as sentences. Hub3 is Hub2 with the first step split in two, so the
-// name and id, and the Linear project, each get a step of their own. Hub4 is Hub3 with the Linear
-// project drawn as Hub draws it: two option cards over the matching list.
-
-/// The components Hub2 and Hub3 share.
-let hubComponents = WizardComponents(
-    identity: .lockedToken, linear: .unifiedList, spec: .optionCards, bounds: .sentences
-)
-
-/// Hub4's: Hub3's, with the Linear project as option cards.
-let hub4Components = WizardComponents(
-    identity: .lockedToken, linear: .choiceCards, spec: .optionCards, bounds: .sentences
-)
+// Hub4, the layout chosen for the app's Add Project sheet and kept here as its reference; the app's
+// version is in `Yellowhammer/Features/AddProject`. A step list beside the step, a footer that says
+// what is still needed, and six pages: the first step split in two, so the name and id, and the Linear
+// project, each get a page of their own. The id is a Permanent token confirmed when the Project is
+// added, the Linear project is two option cards over the matching list, the spec source is option
+// cards, and Bounds are sentences.
 
 extension View {
     /// Asks before adding, because adding is the moment the id becomes permanent.
@@ -31,39 +22,6 @@ extension View {
             Text("The id names the Project file, its Journal and its three LaunchAgents. "
                 + "It can\u{2019}t be changed after the Project is added.")
         }
-    }
-}
-
-// MARK: - Hub2
-
-struct Hub2Wizard: View {
-    @Binding var draft: AddProjectDraft
-    @State private var confirmsAdding = false
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 0) {
-                    HubSidebarHeader(ready: draft.readyCount, total: WizardStep.allCases.count)
-                    WizardStepSidebar(draft: $draft)
-                }
-                .frame(width: 240)
-                .background(WizardTheme.surface)
-                Divider()
-                VStack(alignment: .leading, spacing: 0) {
-                    if draft.run == .notStarted {
-                        StepHeading(step: draft.step).padding([.horizontal, .top], 20)
-                        WizardStepBody(step: draft.step, draft: $draft, components: hubComponents)
-                    } else {
-                        WizardRunView(draft: draft)
-                    }
-                }
-                .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            }
-            Divider()
-            WizardHubFooter(draft: $draft) { confirmsAdding = true }
-        }
-        .addProjectConfirmation(isPresented: $confirmsAdding, draft: $draft)
     }
 }
 
@@ -84,9 +42,9 @@ private struct HubSidebarHeader: View {
     }
 }
 
-// MARK: - Hub3
+// MARK: - Hub4
 
-/// Hub3's six steps: the wizard's five, with the first split into the name and id, and the Linear
+/// Hub4's six pages: the wizard's five steps, with the first split into the name and id, and the Linear
 /// project. Both halves are still `WizardStep.project` in the draft.
 private enum HubPage: CaseIterable, Identifiable {
     case identity
@@ -158,19 +116,17 @@ private extension AddProjectDraft {
     func isComplete(_ page: HubPage) -> Bool { problems(in: page).isEmpty }
 }
 
-/// Hub3 and Hub4: the split first step, with the components a variant picks.
+/// Hub4: the step list, the page, and the footer.
 struct SplitHubWizard: View {
     @Binding var draft: AddProjectDraft
-    let components: WizardComponents
     @State private var page: HubPage
     @State private var visitedLinear = false
     @State private var confirmsAdding = false
 
     /// `opensOnLinear` lets a preview start on the Linear project step, which the draft alone cannot
     /// name: both halves of the first step are `WizardStep.project`.
-    init(draft: Binding<AddProjectDraft>, components: WizardComponents, opensOnLinear: Bool = false) {
+    init(draft: Binding<AddProjectDraft>, opensOnLinear: Bool = false) {
         _draft = draft
-        self.components = components
         let first = HubPage.first(showing: draft.wrappedValue.step)
         _page = State(initialValue: opensOnLinear && first == .identity ? .linear : first)
         _visitedLinear = State(initialValue: opensOnLinear)
@@ -235,11 +191,17 @@ struct SplitHubWizard: View {
     @ViewBuilder private var content: some View {
         switch page {
         case .identity:
-            WizardColumn { IdentityBlock(draft: $draft, style: components.identity) }
+            WizardColumn { IdentityBlock(draft: $draft) }
         case .linear:
-            WizardColumn { LinearBlock(draft: $draft, style: components.linear, showsTitle: false) }
-        default:
-            WizardStepBody(step: page.step, draft: $draft, components: components)
+            WizardColumn { LinearBlock(draft: $draft) }
+        case .repos:
+            RepoStepView(draft: $draft)
+        case .specSource:
+            WizardColumn { SpecBlock(draft: $draft) }
+        case .bounds:
+            WizardColumn { BoundsBlock(draft: $draft) }
+        case .jobs:
+            Form { JobsSections(draft: $draft) }.formStyle(.grouped)
         }
     }
 

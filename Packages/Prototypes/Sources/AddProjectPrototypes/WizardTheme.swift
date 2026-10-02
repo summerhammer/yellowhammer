@@ -3,9 +3,8 @@ import AppKit
 import SwiftUI
 
 /// The Overview's theme colours, mirrored from the app's `Theme+Defaults.swift` because this package
-/// never links the app. Colours and typography are fixed for the wizard prototypes: every variant draws
-/// with these tokens and the system text styles, and differs only in layout and components. If the app's
-/// values change, copy them here again.
+/// never links the app. Colours and typography are fixed for the wizard prototype: it draws with these
+/// tokens and the system text styles. If the app's values change, copy them here again.
 enum WizardTheme {
     static let accent = Color(light: 0x007AFF, dark: 0x0A84FF)
     static let attention = Color(light: 0xFF9500, dark: 0xFF9F0A)
@@ -38,29 +37,6 @@ private extension NSColor {
             blue: CGFloat(hex & 0xFF) / 255,
             alpha: 1
         )
-    }
-}
-
-extension WizardStepStatus {
-    /// Done is `success`, a problem is `error`, the current step is the system accent, and the rest are
-    /// `neutral` — the same roles the Pulse uses. Colour is never the only signal: every mark has a label
-    /// or a symbol.
-    var color: Color {
-        switch self {
-        case .done: WizardTheme.success
-        case .problem: WizardTheme.error
-        case .current: WizardTheme.accent
-        case .upcoming: WizardTheme.neutral
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .done: "checkmark.circle.fill"
-        case .problem: "exclamationmark.triangle.fill"
-        case .current: "circle.inset.filled"
-        case .upcoming: "circle"
-        }
     }
 }
 #endif
