@@ -12,27 +12,26 @@ struct HealthGroup: View {
     @Environment(\.openPulseDestination) private var openDestination
 
     var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 8) {
-                switch health {
-                case nil:
-                    Label("yh doctor not read", systemImage: "questionmark.circle")
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("health-unread")
-                case let flags? where flags.isEmpty:
-                    Label("No health flags", systemImage: "checkmark.seal")
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("health-absence")
-                case let flags?:
-                    ForEach(flags) { HealthFlagRow(flag: $0) }
+        PulseCard(group: .health, summary: PulseGroup.summary(of: health)) {
+            switch health {
+            case nil:
+                Label("yh doctor not read", systemImage: "questionmark.circle")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("health-unread")
+            case let flags? where flags.isEmpty:
+                Label("No health flags", systemImage: "checkmark.seal")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("health-absence")
+            case let flags?:
+                ForEach(flags) { flag in
+                    Button { openDestination(.settings) } label: { HealthFlagRow(flag: flag) }
+                        .buttonStyle(.plain)
+                        .help("Open the Project's Settings")
                 }
-                Button("Open Settings") { openDestination(.settings) }
-                    .buttonStyle(.link)
-                    .accessibilityIdentifier("pulse-health-settings")
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } label: {
-            Label("Health", systemImage: "stethoscope")
+            Button("Open Settings") { openDestination(.settings) }
+                .buttonStyle(.link)
+                .accessibilityIdentifier("pulse-health-settings")
         }
         .accessibilityIdentifier("pulse-health")
     }
@@ -43,7 +42,12 @@ private struct HealthFlagRow: View {
     let flag: HealthFlag
 
     var body: some View {
-        Label {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            // `warning` is too light for a thin glyph on a light canvas, so the icon is the filled
+            // triangle and the kind is always spelled out beside it.
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.warning)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(flag.kind.displayName)
                 Text(flag.detail)
@@ -51,10 +55,9 @@ private struct HealthFlagRow: View {
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
             }
-        } icon: {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.warning)
+            Spacer(minLength: 8)
         }
+        .contentShape(.rect)
         // Combining children drops the selectable detail from the label, so both are spelled out.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(flag.kind.displayName): \(flag.detail)")

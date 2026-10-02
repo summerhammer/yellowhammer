@@ -66,3 +66,15 @@ extension NightPulseState {
         return style
     }
 }
+
+extension PullRequestState {
+    var style: some ShapeStyle {
+        let style: ThemeShapeStyle<Color> = switch self {
+        case .open: .active
+        case .draft: .neutral
+        case .merged: .success
+        case .closed: .error
+        }
+        return style
+    }
+}

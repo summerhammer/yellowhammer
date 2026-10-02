@@ -122,7 +122,7 @@ struct OverviewWindow: View {
             OverviewUnavailable(reason: .configurationUnreadable(failure))
         } else if let snapshot = model.snapshot {
             if let selected = snapshot.project(scopedProject) {
-                PulseView(project: selected, asOf: snapshot.asOf)
+                PulseView(project: selected, asOf: snapshot.asOf, inspected: inspected)
             } else if let scopedProject {
                 // Only a deep link keeps the window scoped to an id that is not configured: any other
                 // such value is dropped (`staleProject`).

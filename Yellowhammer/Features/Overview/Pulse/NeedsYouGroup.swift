@@ -7,30 +7,30 @@ import SwiftUI
 /// the Night Card; the decision itself stays in Linear.
 struct NeedsYouGroup: View {
     let needsYou: NeedsYou
+    /// What the Inspector shows, so the Card it names is marked.
+    let inspected: PulseSelection?
     @Environment(\.openPulseDestination) private var openDestination
 
     var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 8) {
-                if needsYou.cards.isEmpty {
-                    Label("Nothing needs you", systemImage: "checkmark.circle")
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("needs-you-absence")
-                } else {
-                    NeedsYouCounts(
-                        waitingOnYouCount: needsYou.waitingOnYouCount,
-                        blockReasonCounts: needsYou.blockReasonCounts
-                    )
-                    ForEach(needsYou.cards) { card in
-                        Button { openDestination(.inspector(.card(card.id))) } label: { DecisionCardRow(card: card) }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("needs-you-card-\(card.id)")
+        PulseCard(group: .needsYou, summary: PulseGroup.summary(of: needsYou)) {
+            if needsYou.cards.isEmpty {
+                Label("Nothing needs you", systemImage: "checkmark.circle")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("needs-you-absence")
+            } else {
+                NeedsYouCounts(
+                    waitingOnYouCount: needsYou.waitingOnYouCount,
+                    blockReasonCounts: needsYou.blockReasonCounts
+                )
+                ForEach(needsYou.cards) { card in
+                    Button { openDestination(.inspector(.card(card.id))) } label: {
+                        DecisionCardRow(card: card)
+                            .pulseRowHighlight(inspected == .card(card.id))
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("needs-you-card-\(card.id)")
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } label: {
-            Label("Needs you", systemImage: "hand.raised")
         }
         .accessibilityIdentifier("pulse-needs-you")
     }
@@ -74,10 +74,7 @@ private struct DecisionCardRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
-            Text(card.blockReason?.rawValue ?? card.state.rawValue)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            PulseCountBadge(text: card.blockReason?.rawValue ?? card.state.rawValue, style: card.state.style)
         }
-        .contentShape(.rect)
     }
 }

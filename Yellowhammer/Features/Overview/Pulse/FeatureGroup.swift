@@ -12,56 +12,67 @@ import SwiftUI
 /// state is a per-chip detail, so it is simply omitted when unknown.
 struct FeatureGroup: View {
     let feature: FeatureInFlight?
+    /// What the Inspector shows, so the Feature or Repo it names is marked.
+    let inspected: PulseSelection?
     @Environment(\.openPulseDestination) private var openDestination
 
     var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 8) {
-                if let feature {
-                    FeatureHeader(feature: feature) { openDestination(.inspector(.feature(feature.id))) }
+        PulseCard(group: .feature, summary: PulseGroup.summary(of: feature)) {
+            if let feature {
+                Button { openDestination(.inspector(.feature(feature.id))) } label: {
+                    FeatureHeader(feature: feature)
+                        .pulseRowHighlight(inspected == .feature(feature.id))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("feature-title")
+                if feature.lanes.isEmpty {
+                    Label("No Repo Lane yet", systemImage: "hourglass")
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("feature-lanes-absence")
+                } else {
                     ForEach(feature.lanes) { lane in
                         FeatureLaneRow(lane: lane, openDestination: openDestination)
+                            .pulseRowHighlight(inspected == .repo(lane.repo))
                             .accessibilityIdentifier("feature-lane-\(lane.repo)")
                     }
-                } else {
-                    Label("No Feature in flight", systemImage: "flag")
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("feature-absence")
                 }
+            } else {
+                Label("No Feature in flight", systemImage: "flag.slash")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("feature-absence")
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } label: {
-            Label("Feature", systemImage: "flag")
         }
         .accessibilityIdentifier("pulse-feature")
     }
 }
 
-/// The Feature's title, `state` and `rollup_state`. The title opens the Feature's detail in the
-/// Inspector.
+/// The Feature's title over its id, `state` and `rollup_state`. The whole header opens the Feature's
+/// detail in the Inspector.
 private struct FeatureHeader: View {
     let feature: FeatureInFlight
-    let open: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Button(action: open) {
-                Text(feature.displayTitle).lineLimit(1)
-            }
-            .buttonStyle(.link)
-            .accessibilityIdentifier("feature-title")
+        VStack(alignment: .leading, spacing: 4) {
+            Text(feature.displayTitle)
+                .fontWeight(.medium)
+                .multilineTextAlignment(.leading)
             HStack(spacing: 6) {
-                Text(feature.displayState)
+                Text(feature.id).font(.caption.monospaced()).foregroundStyle(.secondary)
+                if let state = feature.state {
+                    PulseCountBadge(text: state, style: .neutral)
+                } else {
+                    Text("state unknown").font(.caption).foregroundStyle(.secondary)
+                }
                 if let rollupState = feature.rollupState {
                     PulseCountBadge(text: rollupState.rawValue, style: rollupState.style)
                 } else {
-                    Text("rollup state unknown")
+                    Text("rollup state unknown").font(.caption).foregroundStyle(.secondary)
                 }
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            .accessibilityElement(children: .combine)
             .accessibilityIdentifier("feature-state")
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -73,20 +84,38 @@ private struct FeatureLaneRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Button(lane.repo) { openDestination(.inspector(.repo(lane.repo))) }
-                .buttonStyle(.link)
+            Button { openDestination(.inspector(.repo(lane.repo))) } label: {
+                Label(lane.repo, systemImage: "shippingbox").lineLimit(1).truncationMode(.middle)
+            }
+            .buttonStyle(.plain)
+            Spacer(minLength: 8)
+            ProgressView(value: Double(lane.cardsDone), total: Double(max(lane.cardsTotal, 1)))
+                .frame(width: 64)
+                .tint(lane.state.style)
+                .accessibilityHidden(true)
             Text("\(lane.cardsDone)/\(lane.cardsTotal)")
                 .font(.caption)
+                .monospacedDigit()
                 .foregroundStyle(.secondary)
             PulseCountBadge(text: lane.state.rawValue, style: lane.state.style)
             if let pullRequest = lane.pullRequest {
-                Button(pullRequest.displayLabel) {
+                Button {
                     openDestination(.pullRequest(repo: lane.repo, number: pullRequest.number))
+                } label: {
+                    HStack(spacing: 4) {
+                        if let state = pullRequest.state {
+                            Image(systemName: "arrow.triangle.pull").foregroundStyle(state.style)
+                        } else {
+                            Image(systemName: "arrow.triangle.pull")
+                        }
+                        Text(pullRequest.label).monospacedDigit()
+                    }
                 }
-                .buttonStyle(.link)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Open pull request #\(pullRequest.number) on GitHub")
                 .accessibilityIdentifier("feature-lane-\(lane.repo)-pull-request")
             }
-            Spacer(minLength: 0)
         }
     }
 }
@@ -96,14 +125,4 @@ private struct FeatureLaneRow: View {
 private extension FeatureInFlight {
     /// The Feature's title, or its id while the title is not known.
     var displayTitle: String { title ?? id }
-
-    /// The Feature's workflow state, or a stated unknown while it is nil (it lives in Linear).
-    var displayState: String { state ?? "state unknown" }
-}
-
-private extension PullRequestChip {
-    /// `#42 open`, or just `#42` while the pull request's own state is unknown (it lives in GitHub).
-    var displayLabel: String {
-        ["#\(number)", state?.rawValue].compactMap { $0 }.joined(separator: " ")
-    }
 }

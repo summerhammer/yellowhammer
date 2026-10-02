@@ -11,52 +11,51 @@ import SwiftUI
 struct NowGroup: View {
     let now: Now
     let asOf: Date
+    /// What the Inspector shows, so the Attempt it names is marked.
+    let inspected: PulseSelection?
     @Environment(\.openPulseDestination) private var openDestination
 
     var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 8) {
-                NowStatusLine(status: now.status, nextAct: now.nextAct)
-                if now.attempts.isEmpty {
-                    Label("No Attempt running", systemImage: "pause.circle")
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("now-absence")
-                } else {
-                    ForEach(now.attempts) { attempt in
-                        Button { openDestination(.inspector(.attempt(attempt.id))) } label: {
-                            RunningAttemptRow(attempt: attempt, asOf: asOf)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("now-attempt-\(attempt.id)")
+        PulseCard(group: .now, summary: PulseGroup.summary(of: now)) {
+            NowStatus(status: now.status, nextAct: now.nextAct)
+            if now.attempts.isEmpty {
+                Label("No Attempt running", systemImage: "pause.circle")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("now-absence")
+            } else {
+                ForEach(now.attempts) { attempt in
+                    Button { openDestination(.inspector(.attempt(attempt.id))) } label: {
+                        RunningAttemptRow(attempt: attempt, asOf: asOf)
+                            .pulseRowHighlight(inspected == .attempt(attempt.id))
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("now-attempt-\(attempt.id)")
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } label: {
-            Label("Now", systemImage: "clock")
         }
         .accessibilityIdentifier("pulse-now")
     }
 }
 
-/// `idle — next Act author 01:30`; without a scheduled Act the line says it is unknown.
-private struct NowStatusLine: View {
+/// The Project's `idle`/`working` status and the next scheduled Act; without one, it says it is unknown.
+private struct NowStatus: View {
     let status: ProjectStatus
     let nextAct: ScheduledAct?
 
     var body: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(status.style)
-                .frame(width: 8, height: 8)
-                .accessibilityHidden(true)
-            Text(status.rawValue).fontWeight(.medium)
-            Text("\u{2014}").foregroundStyle(.secondary)
-            if let next = nextAct {
-                Text("next Act \(next.act.rawValue) \(next.at.formatted(date: .omitted, time: .shortened))")
-                    .foregroundStyle(.secondary)
-            } else {
-                Text("next Act unknown").foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 4) {
+            LabeledContent("Status") {
+                HStack(spacing: 6) {
+                    Circle().fill(status.style).frame(width: 8, height: 8).accessibilityHidden(true)
+                    Text(status.rawValue)
+                }
+            }
+            LabeledContent("Next Act") {
+                if let nextAct {
+                    Text("\(nextAct.act.rawValue) at \(nextAct.at.formatted(date: .omitted, time: .shortened))")
+                } else {
+                    Text("unknown")
+                }
             }
         }
         .accessibilityElement(children: .combine)
@@ -87,7 +86,6 @@ private struct RunningAttemptRow: View {
                 Text("Round \(attempt.round)").font(.caption).foregroundStyle(.secondary)
             }
         }
-        .contentShape(.rect)
     }
 }
 
