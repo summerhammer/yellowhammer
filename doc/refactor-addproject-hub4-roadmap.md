@@ -127,3 +127,28 @@ before each step. The story sets no step order, so the hub needs no ruling.
   With no Linear installation the sheet blocks and offers the fix. `AddProjectUITests` passes.
   `testWizardDrivesSetupToCompletion` is known to be flaky on main: report a timeout there as that
   flake, not as a pass. Deep links are checked by hand.
+- **Status** — Done on 2026-10-02 (spec b9826d6). `SetupWizardView` is Hub4's hub
+  (`+Hub`, `WizardRunView`): a sidebar of the six steps, the open step's body, and a footer with what
+  is still needed and Add Project, which confirms the id before `yh setup --init`. Until the Linear
+  installation has been checked the sheet says so; while a prerequisite is missing the readiness panel
+  replaces the hub. Check Again, or the sheet's window becoming key, reads the machine again. The
+  sheet sets nothing machine-wide: `yh setup --init` gets only `draft.setupInvocation`, and the teams
+  come from `--print-choices` once Linear is installed (fixture-guarded). The Linear, Operator identity
+  and Agent CLI routing steps and `SetupWizardView+Linear.swift` are gone. P18.17's behaviour is kept,
+  and Done now appears only after the Bounds write and the notification check.
+  `AddProjectUITests` (11 tests) pass, `testWizardDrivesSetupToCompletion` included. They add a
+  Project from both sidebars and from onboarding, and check that a Mac with nothing set up is
+  blocked and that installing Linear in place opens the hub. Folder picks come from
+  `-YellowhammerFolderPickerStub`, and the `yh` stub takes `YH_STUB_LINEAR_INSTALLED`. Deep links,
+  by hand against a scratch configuration: `yellowhammer://project/demo` scoped the running app's
+  window to Demo, and an unknown id opened a second window; its text was not read. This step does not
+  touch deep-link routing. The prototype keeps only Hub4, as the reference while the app-target
+  previews time out (H2.1). **Acceptance criteria (Add Project wizard):** the "+" in both sidebars,
+  the sheet, the wizard as the only guided flow, and Cancel leaving no Project file are met and
+  tested. The new row in both sidebars is built but not exercised by a test, as in P18.17: the stub
+  `yh --init` writes no Project file. **Gap, not fixed here:** on a fresh Mac no screen in the app can
+  declare an agent CLI. Settings → Agent CLIs only lists and probes, and with no `config.toml` it
+  offers "Add a Project…", which leads back to this sheet. The readiness panel's Agent CLIs button
+  therefore cannot clear that row on a fresh Mac. The first Project needs `yh setup` in a terminal, or
+  a hand-edited `config.toml`. The old sheet had the same gap in another form: `--install-linear`
+  writes `config.toml` first, so the `--cli` and `--route` passed to `--init` afterwards were ignored.
