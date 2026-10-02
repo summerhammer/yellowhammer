@@ -2332,6 +2332,7 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
     the onboarding view, cancels it, and presses Done. That suite, `SettingsWindowUITests`,
     `OverviewWindowUITests`, `AgentCLIUITests` and `LinearSettingsUITests` pass. The three deep-link
     launch tests stay skipped for #238.
+- **Rebuilt** — in Hub4's layout by [the Add Project Hub4 roadmap](refactor-addproject-hub4-roadmap.md) (H1.1–H3.1).
 
 ---
 
