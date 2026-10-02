@@ -62,6 +62,12 @@ final class OverviewModel {
         }
     }
 
+    /// The read the Operator asks for from the toolbar. Like an activation, it is dropped while a read
+    /// runs, so repeating it never stacks `yh doctor` runs.
+    func readOnRequest() {
+        readOnActivation()
+    }
+
     private func readSnapshotAndHealth() async {
         generation += 1
         let current = generation

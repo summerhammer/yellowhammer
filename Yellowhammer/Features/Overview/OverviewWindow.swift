@@ -92,7 +92,8 @@ struct OverviewWindow: View {
         .navigationTitle(selectedSnapshot?.name ?? "Yellowhammer")
         .toolbar {
             OverviewToolbar(
-                inspectorShown: $inspectorShown, stop: stop, project: selectedSnapshot, confirming: $confirmingStop
+                inspectorShown: $inspectorShown, stop: stop, project: selectedSnapshot, confirming: $confirmingStop,
+                reread: model.readOnRequest
             )
         }
         .stopTheEngineDialogs(
