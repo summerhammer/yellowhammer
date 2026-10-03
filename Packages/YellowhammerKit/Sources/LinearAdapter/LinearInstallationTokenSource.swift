@@ -3,7 +3,7 @@ import Foundation
 import Synchronization
 
 /// Obtains and refreshes the Installation's access token from a durable ``LinearTokenStore`` (P17.3,
-/// ADR-005). Refreshing happens inside `store.withRefreshLock`, a machine-wide critical section
+/// ADR-005). Refreshing happens inside `store.withRefreshLock`, a per-Installation critical section
 /// (P17.4: an flock), because Linear rotates the refresh token on every use: two Engine invocations
 /// racing to refresh the same one would strand the loser's copy.
 ///
@@ -78,9 +78,9 @@ actor LinearInstallationTokenSource {
     ) async throws(BoardError) -> String {
         let attemptedAt = clock()
         func record(_ outcome: AppInstallationTokenRefresh.Outcome) {
-            refreshLog?.record(AppInstallationTokenRefresh(
+            refreshLog?.record(
                 attemptedAt: attemptedAt, trigger: trigger, previousExpiresAt: pair.expiresAt, outcome: outcome
-            ))
+            )
         }
         let refreshed: LinearTokenPair
         do throws(RefreshFailure) {

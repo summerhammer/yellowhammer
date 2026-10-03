@@ -6,7 +6,7 @@ import Journal
 public enum DeltaReadOutcome: Equatable, Sendable {
     case read(DeltaReadReport)
     /// The board refused for its rate budget before the read completed. Nothing read this Act was acted
-    /// on, no sync point moved, and the degradation was recorded as workspace-wide.
+    /// on, no sync point moved, and the degradation was recorded as installation-wide.
     case degraded(reason: String)
 }
 

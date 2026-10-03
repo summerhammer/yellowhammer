@@ -36,7 +36,7 @@ struct Setup {
     let linearInstallSeams: LinearInstallSeams
     /// Builds the Installation token store bound to a credential reference — a seam so tests use a
     /// throwaway Keychain reference rather than the machine's real one.
-    let linearInstallationStore: (CredentialReference) -> LinearInstallationStore
+    let linearInstallationStore: (LinearInstallation) -> LinearInstallationStore
     /// `--events json`'s NDJSON sink; a no-op unless `options.eventsJSON`. Every call site decides
     /// whether to call this or ``output`` — never both, so `--events json` writes nothing else to stdout
     /// for the Linear step.

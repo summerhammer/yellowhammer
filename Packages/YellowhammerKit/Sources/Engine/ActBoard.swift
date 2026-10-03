@@ -16,11 +16,17 @@ public struct ActBoard: Sendable {
     /// drains it into the Journal. Nil for a board that records none.
     public let tokenRefreshes: AppInstallationTokenRefreshLog?
 
+    /// The App Installation this board works through. Nil for a board bound through no App
+    /// Installation (test fakes).
+    public let installation: AppInstallationLabel?
+
     public init(
         reading: any Board, writing: any BoardWriting, provisioning: any BoardProvisioning,
-        tokenRefreshes: AppInstallationTokenRefreshLog? = nil
+        tokenRefreshes: AppInstallationTokenRefreshLog? = nil,
+        installation: AppInstallationLabel? = nil
     ) {
         self.tokenRefreshes = tokenRefreshes
+        self.installation = installation
         self.reading = reading
         self.writing = writing
         self.provisioning = provisioning

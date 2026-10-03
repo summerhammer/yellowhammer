@@ -2,7 +2,7 @@ import Domain
 @testable import Engine
 @testable import EngineCommand
 import Foundation
-import Journal
+@testable import Journal
 import Testing
 
 // Every App Installation token-pair refresh an Act's board attempted is appended to the Journal, once,
@@ -12,20 +12,59 @@ import Testing
 struct TokenRefreshRecordTests {
     private static let attempted = Date(timeIntervalSince1970: 1_800_000_000)
 
+    private static let label = AppInstallationLabel(name: "acme", workspace: BoardObjectID(rawValue: "workspace-1"))
+
     private static func refreshed() -> AppInstallationTokenRefresh {
         AppInstallationTokenRefresh(
-            attemptedAt: attempted, trigger: .nearExpiry, previousExpiresAt: attempted.addingTimeInterval(60),
+            installation: label, attemptedAt: attempted, trigger: .nearExpiry,
+            previousExpiresAt: attempted.addingTimeInterval(60),
             outcome: .refreshed(expiresAt: attempted.addingTimeInterval(7200))
         )
     }
 
     private static func refused() -> AppInstallationTokenRefresh {
         AppInstallationTokenRefresh(
-            attemptedAt: attempted, trigger: .accessTokenRejected, previousExpiresAt: attempted.addingTimeInterval(60),
+            installation: label, attemptedAt: attempted, trigger: .accessTokenRejected,
+            previousExpiresAt: attempted.addingTimeInterval(60),
             outcome: .refused(.init(
                 status: 401, code: "invalid_client", description: "Client authentication failed", message: "refused"
             ))
         )
+    }
+
+    private static func record(_ refresh: AppInstallationTokenRefresh, into log: AppInstallationTokenRefreshLog) {
+        log.record(
+            attemptedAt: refresh.attemptedAt, trigger: refresh.trigger,
+            previousExpiresAt: refresh.previousExpiresAt, outcome: refresh.outcome
+        )
+    }
+
+    @Test("A refresh record made through an Act's board lands in the Journal with that board's installation")
+    func recordCarriesTheActBoardsInstallation() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let log = AppInstallationTokenRefreshLog(installation: Self.label)
+        Self.record(Self.refreshed(), into: log)
+        let board = ActBoard(
+            reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning,
+            tokenRefreshes: log, installation: Self.label
+        )
+
+        let invocation = EngineInvocation(
+            act: .build, mode: .real, nightStart: nightCardNightStart, journal: journal,
+            trigger: .forced, runID: RunID(), board: board, work: { _ in }
+        )
+        try await invocation.run()
+
+        let record = try #require(try journal.events(ofType: .appInstallationTokenRefresh).first)
+        guard case .appInstallationTokenRefresh(let refresh) = record.event else {
+            Issue.record("Event is not appInstallationTokenRefresh")
+            return
+        }
+        #expect(refresh.installation == board.installation)
+        #expect(record.event.payload?["installation"] == "acme")
+        #expect(record.event.payload?["workspace"] == "workspace-1")
     }
 
     @Test("A successful Act appends its `refreshed` record before `.actEnded`, once")
@@ -33,8 +72,8 @@ struct TokenRefreshRecordTests {
         let fixture = try NightCardJournalFixture()
         let journal = try fixture.open()
         let boards = try await makeBoards()
-        let log = AppInstallationTokenRefreshLog()
-        log.record(Self.refreshed())
+        let log = AppInstallationTokenRefreshLog(installation: Self.label)
+        Self.record(Self.refreshed(), into: log)
         let board = ActBoard(
             reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning,
             tokenRefreshes: log
@@ -62,8 +101,8 @@ struct TokenRefreshRecordTests {
         let fixture = try NightCardJournalFixture()
         let journal = try fixture.open()
         let boards = try await makeBoards()
-        let log = AppInstallationTokenRefreshLog()
-        log.record(Self.refused())
+        let log = AppInstallationTokenRefreshLog(installation: Self.label)
+        Self.record(Self.refused(), into: log)
         let reading = FakeReadingBoard([])
         await reading.script(identity: .failure(.notAuthenticated("sign-in expired")))
         let board = ActBoard(

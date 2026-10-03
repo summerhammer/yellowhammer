@@ -93,7 +93,7 @@ extension Setup {
 
     /// Runs the browser install to completion: prints (or emits, under `--events json`) the admin
     /// statement, retries on `portsBusy`/`cancelled`/`notCompleted` when interactive, refuses a
-    /// different workspace, and stores the pair under the `MachineLock` once accepted (P17.6 items 1–3).
+    /// different workspace, and stores the pair under that installation's lock once accepted (P17.6 items 1–3).
     func runLinearLocalInstall(machine: inout MachineConfiguration) async throws {
         let adminText = LinearInstallCopy.beforeBrowser(teams: await candidateTeams(machine: machine))
         report(.adminStatement(text: adminText), text: adminText)
@@ -227,7 +227,7 @@ extension Setup {
     /// re-connected (tokens under its credential, its `app_user` refreshed, its Operator identity kept); an
     /// empty registry gets a new entry; a different workspace than the registry's is refused outright
     /// (decided with the user): nothing is stored, and the fix is to remove every configured Project first.
-    /// Tokens are stored under the `MachineLock` (so a concurrent Act never reads a half-written pair).
+    /// Tokens are stored under that installation's lock (so a concurrent Act never reads a half-written pair).
     func storeInstalled(
         tokens: LinearInstallFlow.InstalledTokens, identity: LinearInstallFlow.InstalledIdentity,
         machine: inout MachineConfiguration
@@ -258,7 +258,7 @@ extension Setup {
         let pair = LinearTokenPair(
             accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, expiresAt: tokens.expiresAt
         )
-        let store = linearInstallationStore(installation.credential)
+        let store = linearInstallationStore(installation)
         do {
             try await store.tokenStore.withRefreshLock {
                 try store.tokenStore.write(pair)

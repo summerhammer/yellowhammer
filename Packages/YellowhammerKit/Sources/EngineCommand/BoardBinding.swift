@@ -8,8 +8,8 @@ import LinearAdapter
 ///
 /// The Linear identity is the Project's own App Installation (ADR-005), resolved from the machine
 /// file's registry by the name its `[board.linear] installation` key gives: its tokens live in the
-/// Keychain behind that installation's credential reference, refreshed under a machine-wide
-/// `MachineLock` (the lock stays machine-wide until roadmap L1.2); only the Linear project comes from the
+/// Keychain behind that installation's credential reference, refreshed under that
+/// installation's own `MachineLock`; only the Linear project comes from the
 /// Project's own file. Construction never touches the Keychain (no eager read): a missing or revoked
 /// Installation surfaces as `.notAuthenticated` from the first Linear call the adapter makes, inside the
 /// Act — never from binding itself. A Project naming an installation the registry lacks cannot be bound:
@@ -46,13 +46,17 @@ enum BoardBinding {
         credentials store: KeychainCredentialStore = KeychainCredentialStore(),
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
     ) throws -> ActBoard {
-        let refreshes = AppInstallationTokenRefreshLog()
+        let resolved = try installation(machine: machine, project: project)
+        let label = AppInstallationLabel(name: resolved.name, workspace: resolved.workspace)
+        let refreshes = AppInstallationTokenRefreshLog(installation: label)
         let adapter = makeLinearAdapter(
-            installation: try installation(machine: machine, project: project),
+            installation: resolved,
             linearProjectID: project.linearProject, credentials: store, homeDirectory: homeDirectory,
             refreshLog: refreshes
         )
-        return ActBoard(reading: adapter, writing: adapter, provisioning: adapter, tokenRefreshes: refreshes)
+        return ActBoard(
+            reading: adapter, writing: adapter, provisioning: adapter, tokenRefreshes: refreshes, installation: label
+        )
     }
 
     /// Binds directly from an already-resolved App Installation and Linear project id, for
@@ -72,7 +76,7 @@ enum BoardBinding {
     }
 
     /// The store holding `installation`'s tokens: its credential reference, the Keychain and the
-    /// machine-wide refresh lock.
+    /// refresh lock keyed by the installation's name.
     static func installationStore(
         for installation: LinearInstallation,
         credentials store: KeychainCredentialStore,
@@ -81,7 +85,9 @@ enum BoardBinding {
         LinearInstallationStore(
             reference: installation.credential,
             keychain: store,
-            machineLock: MachineLock(fileURL: MachineLock.defaultFileURL(homeDirectory: homeDirectory))
+            machineLock: MachineLock(
+                fileURL: MachineLock.defaultFileURL(homeDirectory: homeDirectory, installation: installation.name)
+            )
         )
     }
 

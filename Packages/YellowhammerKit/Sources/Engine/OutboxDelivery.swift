@@ -22,7 +22,7 @@ public struct OutboxDelivery: Equatable, Sendable {
     }
 
     public enum Deferral: Equatable, Sendable {
-        /// The board refused for its rate limit. The budget is workspace-wide.
+        /// The board refused for its rate limit. The budget is installation-wide.
         case rateLimited(retryAfter: Duration?)
         /// The board could not be reached or its answer could not be read.
         case transient(String)

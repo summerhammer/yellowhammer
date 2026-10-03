@@ -217,6 +217,15 @@ struct NightSummaryExceptionsTests {
                 nightID: context.night.id
             )
             try journal.append(
+                .rateBudgetExhausted(
+                    degradation: "writes deferred",
+                    installation: AppInstallationLabel(
+                        name: "acme", workspace: BoardObjectID(rawValue: "workspace-1")
+                    )
+                ),
+                act: context.act, runID: context.runID, nightID: context.night.id
+            )
+            try journal.append(
                 .mainlineFetchFailed(repository: "backend", reason: "network"), act: context.act,
                 runID: context.runID, nightID: context.night.id
             )
@@ -232,7 +241,12 @@ struct NightSummaryExceptionsTests {
 
         let lines = try NightSummary.exceptionLines(night: night, journal: journal)
         #expect(lines.contains { $0.contains("updateIssue") && $0.contains("`CARD-1`") && $0.contains("refused") })
-        #expect(lines.contains { $0.contains("workspace-wide") && $0.contains("reads only") })
+        #expect(lines.contains {
+            $0 == "The board's request budget was exhausted installation-wide: reads only."
+        })
+        #expect(lines.contains {
+            $0.contains("installation-wide, on Linear workspace \"acme\"") && $0.contains("writes deferred")
+        })
         #expect(lines.contains { $0.contains("`backend`") && $0.contains("network") })
         #expect(lines.contains { $0.contains("2026-09-10") })
         #expect(lines.contains { $0.contains("night_summary") && $0.contains("unreachable") })

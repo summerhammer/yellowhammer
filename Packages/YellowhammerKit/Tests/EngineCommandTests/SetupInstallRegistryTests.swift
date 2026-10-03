@@ -14,10 +14,10 @@ private final class RecordingStores: Sendable {
     private let throwaway = ThrowawayInstallationStores()
 
     var references: [CredentialReference] { asked.withLock { $0 } }
-    var store: LinearInstallationStore { throwaway.store(throwaway.reference) }
+    var store: LinearInstallationStore { throwaway.makeStore() }
 
-    func provide(_ reference: CredentialReference) -> LinearInstallationStore {
-        asked.withLock { $0.append(reference) }
+    func provide(_ installation: LinearInstallation) -> LinearInstallationStore {
+        asked.withLock { $0.append(installation.credential) }
         return store
     }
 }

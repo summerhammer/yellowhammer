@@ -280,8 +280,30 @@ struct OutboxTests {
         #expect(issueID == "issue-1")
     }
 
-    @Test("A rate-limit refusal leaves the write pending, stops delivery, and names the budget workspace-wide")
-    func rateLimitIsWorkspaceWide() async throws {
+    @Test("A rate-limit refusal names the Outbox's App Installation and workspace when it has one")
+    func rateLimitNamesTheInstallation() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let board = FakeWritingBoard()
+        await board.refuseNext(.rateLimited(retryAfter: nil, budget: nil))
+        let label = AppInstallationLabel(name: "acme", workspace: BoardObjectID(rawValue: "workspace-1"))
+        let outbox = try outbox(journal, board: board, installation: label)
+        _ = try outbox.accept([OutboxWrite(key: "card:1:main:1:create", write: card("Card one"))])
+
+        _ = try await outbox.deliverPending()
+
+        let event = try #require(try journal.events(ofType: .rateBudgetExhausted).first?.event)
+        guard case .rateBudgetExhausted(_, let recorded) = event else {
+            Issue.record("Event is not rateBudgetExhausted")
+            return
+        }
+        #expect(recorded == label)
+        #expect(event.payload?["installation"] == "acme")
+        #expect(event.payload?["workspace"] == "workspace-1")
+    }
+
+    @Test("A rate-limit refusal leaves the write pending, stops delivery, and names the budget installation-wide")
+    func rateLimitIsInstallationWide() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let board = FakeWritingBoard()
@@ -299,7 +321,8 @@ struct OutboxTests {
         #expect(try journal.pendingOutboxEntries().count == 2)
         let events = try journal.events(ofType: .rateBudgetExhausted)
         #expect(events.count == 1)
-        #expect(events.first?.event.payload?["budget"] == "workspace-wide")
+        #expect(events.first?.event.payload?["budget"] == "installation-wide")
+        #expect(events.first?.event.payload?["installation"] == nil)
 
         // The budget came back: both are delivered, in order.
         let retry = try await outbox.deliverPending()

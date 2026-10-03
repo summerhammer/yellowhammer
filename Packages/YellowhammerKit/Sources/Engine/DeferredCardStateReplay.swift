@@ -43,7 +43,7 @@ enum DeferredCardStateReplay {
                 reason += "; retry after \(retryAfter)"
             }
             try context.journal.append(
-                .rateBudgetExhausted(degradation: reason),
+                .rateBudgetExhausted(degradation: reason, installation: board.installation),
                 act: context.act, runID: context.runID, nightID: context.night.id
             )
             return

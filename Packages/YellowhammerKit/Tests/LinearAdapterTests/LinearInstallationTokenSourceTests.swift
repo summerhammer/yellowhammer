@@ -217,6 +217,8 @@ struct LinearInstallationTokenSourceTests {
 
 @Suite("Linear Installation token source: refresh records")
 struct TokenRefreshRecordTests {
+    private static let label = AppInstallationLabel(name: "acme", workspace: BoardObjectID(rawValue: "workspace-1"))
+
     private static func state(
         secondsFromNow: TimeInterval, clock: ManualClock, accessToken: String = "access-1"
     ) -> FakeTokenStoreState {
@@ -230,7 +232,7 @@ struct TokenRefreshRecordTests {
     func nearExpirySuccess() async throws {
         let clock = ManualClock()
         let state = Self.state(secondsFromNow: 3600, clock: clock)
-        let log = AppInstallationTokenRefreshLog()
+        let log = AppInstallationTokenRefreshLog(installation: Self.label)
         let transport = StubHTTPTransport([
             Fixture.installationGrant(accessToken: "access-2", refreshToken: "refresh-2", expiresIn: 7200)
         ])
@@ -242,7 +244,8 @@ struct TokenRefreshRecordTests {
 
         let start = clock.read()
         #expect(log.drain() == [AppInstallationTokenRefresh(
-            attemptedAt: start, trigger: .nearExpiry, previousExpiresAt: start.addingTimeInterval(3600),
+            installation: Self.label, attemptedAt: start, trigger: .nearExpiry,
+            previousExpiresAt: start.addingTimeInterval(3600),
             outcome: .refreshed(expiresAt: start.addingTimeInterval(7200))
         )])
         #expect(log.drain().isEmpty, "a record is handed out once")
@@ -252,7 +255,7 @@ struct TokenRefreshRecordTests {
     func refusedRecordsStatusCodeAndDescription() async throws {
         let clock = ManualClock()
         let state = Self.state(secondsFromNow: 60, clock: clock)
-        let log = AppInstallationTokenRefreshLog()
+        let log = AppInstallationTokenRefreshLog(installation: Self.label)
         let transport = StubHTTPTransport([
             Fixture.json(
                 #"{"error":"invalid_client","error_description":"Client authentication failed"}"#, status: 401
@@ -289,7 +292,7 @@ struct TokenRefreshRecordTests {
     func transportFailureHasNoStatus() async throws {
         let clock = ManualClock()
         let state = Self.state(secondsFromNow: 60, clock: clock)
-        let log = AppInstallationTokenRefreshLog()
+        let log = AppInstallationTokenRefreshLog(installation: Self.label)
         let transport = StubHTTPTransport([.failure(.notConnectedToInternet)])
         let source = LinearInstallationTokenSource(
             store: state.store(), transport: transport, clock: clock.read, refreshLog: log
@@ -307,7 +310,7 @@ struct TokenRefreshRecordTests {
     @Test("A 2xx with an unreadable body records `notStored`, not a refusal")
     func unreadableBodyIsNotStored() async throws {
         let clock = ManualClock()
-        let log = AppInstallationTokenRefreshLog()
+        let log = AppInstallationTokenRefreshLog(installation: Self.label)
         let source = LinearInstallationTokenSource(
             store: Self.state(secondsFromNow: 60, clock: clock).store(),
             transport: StubHTTPTransport([Fixture.json("not json at all", status: 200)]),
@@ -327,7 +330,7 @@ struct TokenRefreshRecordTests {
     func storeWriteFailureIsNotStored() async throws {
         struct WriteFailed: Error {}
         let clock = ManualClock()
-        let log = AppInstallationTokenRefreshLog()
+        let log = AppInstallationTokenRefreshLog(installation: Self.label)
         let original = LinearTokenPair(
             accessToken: "access-1", refreshToken: "refresh-1",
             expiresAt: clock.read().addingTimeInterval(60)
@@ -356,7 +359,7 @@ struct TokenRefreshRecordTests {
     func forcedPathTrigger() async throws {
         let clock = ManualClock()
         let state = Self.state(secondsFromNow: 5 * 3600, clock: clock)
-        let log = AppInstallationTokenRefreshLog()
+        let log = AppInstallationTokenRefreshLog(installation: Self.label)
         let transport = StubHTTPTransport([
             Fixture.installationGrant(accessToken: "access-2", refreshToken: "refresh-2")
         ])
@@ -374,7 +377,7 @@ struct TokenRefreshRecordTests {
     @Test("No refresh needed records nothing; a nil log breaks nothing")
     func noRefreshNoRecord() async throws {
         let clock = ManualClock()
-        let log = AppInstallationTokenRefreshLog()
+        let log = AppInstallationTokenRefreshLog(installation: Self.label)
         let fresh = LinearInstallationTokenSource(
             store: Self.state(secondsFromNow: 5 * 3600, clock: clock).store(),
             transport: StubHTTPTransport([]), clock: clock.read, refreshLog: log
@@ -393,7 +396,7 @@ struct TokenRefreshRecordTests {
     @Test("No record or stored payload carries an old or new token, even when Linear echoes one")
     func recordsCarryNoTokens() async throws {
         let clock = ManualClock()
-        let log = AppInstallationTokenRefreshLog()
+        let log = AppInstallationTokenRefreshLog(installation: Self.label)
         let echoed = Self.state(secondsFromNow: 60, clock: clock, accessToken: "old-access-secret")
         let refused = LinearInstallationTokenSource(
             store: echoed.store(),

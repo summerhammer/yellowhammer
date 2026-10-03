@@ -246,7 +246,11 @@ func defaultLinearInstallSeams() -> LinearInstallSeams {
 final class ThrowawayInstallationStores: Sendable {
     let reference = CredentialReference("keychain:yh-test-\(UUID().uuidString)")!
 
-    func store(_: CredentialReference) -> LinearInstallationStore {
+    func store(_: LinearInstallation) -> LinearInstallationStore {
+        makeStore()
+    }
+
+    func makeStore() -> LinearInstallationStore {
         LinearInstallationStore(
             reference: reference, keychain: KeychainCredentialStore(),
             machineLock: MachineLock(
@@ -283,7 +287,7 @@ func makeSetup(
     fileExists: @escaping (String) -> Bool = { _ in false },
     launchAgents: any LaunchAgentControl = RecordingLaunchAgentControl(),
     linearInstallSeams: LinearInstallSeams = defaultLinearInstallSeams(),
-    linearInstallationStore: @escaping (CredentialReference) -> LinearInstallationStore =
+    linearInstallationStore: @escaping (LinearInstallation) -> LinearInstallationStore =
         ThrowawayInstallationStores().store,
     linearInstallEvents: @escaping @Sendable (LinearInstallEvent) -> Void = { _ in }
 ) throws -> Setup {

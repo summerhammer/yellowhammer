@@ -57,8 +57,8 @@ extension JournalEvent {
             ["issue_id": issueID]
         case .notificationDeliveryFailed(let notification, let reason):
             ["notification": notification, "reason": reason]
-        case .rateBudgetExhausted(let degradation):
-            ["budget": "workspace-wide", "degradation": degradation]
+        case .rateBudgetExhausted(let degradation, let installation):
+            Self.rateBudgetPayload(degradation: degradation, installation: installation)
         case .leaseReclaimed(let previousRunID, let previousAct, let expiredAt):
             [
                 "expired_at": JournalStore.timestamp(expiredAt),

@@ -105,14 +105,25 @@ extension EngineInvocation {
             .allSatisfy { $0.nightID != night.id } ?? true
         _ = try? journal.append(.linearAuthorizationHalted, act: act, runID: runID, nightID: night.id)
         guard isFirst else { return }
-        await notify(.halted(reason: Self.linearAuthorizationCopy), notification: "halted", night: night)
+        let reason = Self.linearAuthorizationCopy(for: board?.installation)
+        await notify(.halted(reason: reason), notification: "halted", night: night)
     }
 
     /// Names the cause and the fix, whether or not a Night Card could be opened (P17.5): a refused
     /// identity cannot have written one either way, so the message is never conditioned on that.
-    private static let linearAuthorizationCopy =
-        "Linear refused Yellowhammer's sign-in. Re-run the Linear step: yh setup --install-linear, " +
-            "or the Setup view in Yellowhammer.app."
+    ///
+    /// With two App Installations the Operator cannot otherwise tell which workspace failed, so the copy
+    /// names the installation's local name. The workspace's display name is not stored, and cannot be
+    /// read while Linear refuses the sign-in (spec OQ117), so it is never used here. Without a label
+    /// (a board bound through no App Installation) the copy names no workspace.
+    static func linearAuthorizationCopy(for installation: AppInstallationLabel?) -> String {
+        let fixes = "the Linear step of yh setup, or Settings → Linear workspaces in Yellowhammer.app."
+        guard let installation else {
+            return "Linear refused Yellowhammer's sign-in. Re-connect the Linear workspace: " + fixes
+        }
+        return "Linear refused Yellowhammer's sign-in for the Linear workspace \"\(installation.name)\". "
+            + "Re-connect that workspace: " + fixes
+    }
 
     /// Writes the halted comment through the Outbox. `true` once the write is at least accepted —
     /// applied, already applied, or left pending for a later Act to replay — which is what "recorded

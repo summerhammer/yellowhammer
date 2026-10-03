@@ -61,13 +61,17 @@ func outbox(
     board: FakeWritingBoard,
     runID: RunID = RunID(),
     clock: ManualClock = ManualClock(),
+    installation: AppInstallationLabel? = nil,
     interrupt: @escaping @Sendable (OutboxEntry) throws -> Void = { _ in }
 ) throws -> Outbox {
     let claim = try journal.claimActLease(act: .build, runID: runID, mode: .rehearsal, now: clock.read())
     guard case .claimed = claim else {
         throw JournalError.actLeaseLost(runID: runID, holder: nil)
     }
-    return Outbox(journal: journal, board: board, runID: runID, act: .build, clock: clock.read, interrupt: interrupt)
+    return Outbox(
+        journal: journal, board: board, runID: runID, act: .build, installation: installation, clock: clock.read,
+        interrupt: interrupt
+    )
 }
 
 /// Inserts a Feature → Cycle → Card chain and returns the Card's Journal id.

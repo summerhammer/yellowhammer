@@ -11,8 +11,8 @@ import Journal
 /// state: a Card the board re-stated is reported, not adopted; the one exception is Cancelled, which
 /// Yellowhammer reads and never writes, and which takes effect here, at the Act boundary. When the
 /// board refuses for its rate budget the read degrades — nothing read is acted on, no sync point
-/// moves — and the degradation is recorded as workspace-wide, because the budget is the identity's
-/// and shared by every Project on the board tonight.
+/// moves — and the degradation is recorded as installation-wide, because the budget is the App
+/// Installation's and shared by every Project on that same App Installation.
 public struct DeltaRead: Sendable {
     // swiftlint:disable:previous type_body_length
     public let journal: JournalStore
@@ -24,6 +24,9 @@ public struct DeltaRead: Sendable {
     /// The names of the Project's Repos, so a Card whose board copy names a repository outside the
     /// Project is reported as an invariant break. Nil skips that check.
     public let repositories: Set<String>?
+    /// The App Installation the read goes through, named on a rate-budget record. Nil for a board bound
+    /// through none.
+    public let installation: AppInstallationLabel?
     /// `first` on each root of the compound query. A page that overflows is followed by its cursor.
     public var pageSize: Int
     /// A read that has not reached its last page after this many requests stops rather than loop.
@@ -38,6 +41,7 @@ public struct DeltaRead: Sendable {
         act: Act? = nil,
         nightID: Int64? = nil,
         repositories: Set<String>? = nil,
+        installation: AppInstallationLabel? = nil,
         pageSize: Int = 50,
         clock: @escaping @Sendable () -> Date = { Date() }
     ) {
@@ -47,6 +51,7 @@ public struct DeltaRead: Sendable {
         self.act = act
         self.nightID = nightID
         self.repositories = repositories
+        self.installation = installation
         self.pageSize = pageSize
         self.clock = clock
     }
@@ -100,7 +105,7 @@ public struct DeltaRead: Sendable {
         if let retryAfter {
             reason += "; retry after \(retryAfter)"
         }
-        try append(.rateBudgetExhausted(degradation: reason))
+        try append(.rateBudgetExhausted(degradation: reason, installation: installation))
         return .degraded(reason: reason)
     }
 

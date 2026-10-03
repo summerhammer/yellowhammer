@@ -2,7 +2,7 @@ import Foundation
 
 /// The request budget as the board last reported it.
 ///
-/// The budget is workspace-wide and shared across Projects: every Project reading the same board draws
+/// The budget is the App Installation's and shared by its Projects: every Project on the same installation draws
 /// on it, so it is never attributable to one Project's own reads. Every field is optional, because a
 /// missing or renamed signal must never fail a request.
 public struct BoardBudget: Equatable, Sendable {

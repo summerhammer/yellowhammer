@@ -58,7 +58,7 @@ extension JournalEvent {
                 reason: try reader.require("reason")
             )
         case .rateBudgetExhausted:
-            .rateBudgetExhausted(degradation: try reader.require("degradation"))
+            try Self.decodeRateBudgetExhausted(reader)
         case .leaseReclaimed:
             try Self.decodeLeaseReclaimed(reader)
         case .cardLeaseReclaimed:

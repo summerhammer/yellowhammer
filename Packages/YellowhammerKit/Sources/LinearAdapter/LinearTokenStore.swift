@@ -1,7 +1,7 @@
 import Foundation
 
 /// The Installation's persisted token pair, read and written by whatever backs it (P17.4: the Keychain
-/// plus a machine-wide flock). `read` returns nil when Yellowhammer is not installed. `withRefreshLock`
+/// plus a per-Installation flock). `read` returns nil when Yellowhammer is not installed. `withRefreshLock`
 /// wraps the critical section around a read-refresh-write so two concurrent Engine invocations never
 /// race to refresh the same refresh token — Linear rotates it, so a lost race would lock the loser out.
 public struct LinearTokenStore: Sendable {

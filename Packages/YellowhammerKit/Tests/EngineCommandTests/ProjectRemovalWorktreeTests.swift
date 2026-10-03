@@ -260,8 +260,9 @@ func rerunAfterPartialFailureReplaysTheSameComment() async throws {
     #expect(commentsAfterSecond.count == 1)
 }
 
-@Test("An installation missing from the registry fails only the release comment, with the binding error")
-func removalWithUndeclaredInstallationRecordsCommentFailure() async throws {
+@Test("An installation missing from the registry skips the release comment and the removal succeeds")
+// swiftlint:disable:next function_body_length
+func removalWithUndeclaredInstallationSkipsTheComment() async throws {
     let directory = ConfigurationDirectory()
     try directory.writeMachineFile()
     let repo = TestGitRepo(name: "orphan")
@@ -287,18 +288,20 @@ func removalWithUndeclaredInstallationRecordsCommentFailure() async throws {
     let journal = try JournalStore.openSeeded(
         configurationDirectory: directory.url, projectID: try #require(ProjectID(rawValue: "alpha"))
     )
-    _ = try await seedRemovableProject(journal, mode: .rehearsal, repo: repo, pushedCommit: headCommit)
+    let seeded = try await seedRemovableProject(journal, mode: .rehearsal, repo: repo, pushedCommit: headCommit)
 
     let output = RecordingOutput()
     let workspace = RemovalFakeWorkspace()
+    let bound = Recorder<Bool>()
     let removal = ProjectRemoval(
         configurationDirectory: directory.url,
         homeDirectory: home.url,
         output: { output.record($0) },
         console: ScriptedConsole(answers: ["y"]),
         launchAgents: RecordingLaunchAgentControl(),
-        bindBoard: { configuration, project in
-            try BoardBinding.actBoard(machine: configuration.machine, project: project).writing
+        bindBoard: { _, _ in
+            bound.record(true)
+            throw BoardError.notAuthenticated("must not be called")
         },
         workspace: workspace,
         git: GitRunner(),
@@ -308,12 +311,45 @@ func removalWithUndeclaredInstallationRecordsCommentFailure() async throws {
 
     let succeeded = await removal.run(id: "alpha", yes: true)
 
-    // Today's behaviour for a binding failure (roadmap L1.2 turns this into a skip): the comment step
-    // fails, the other steps still ran, and the removal is not recorded.
-    #expect(!succeeded)
+    // Spec OQ109 item 10: the skipped comment is a succeeded step. The board is never bound, the skip is
+    // reported, the other steps ran, and the removal is recorded.
+    #expect(succeeded)
+    #expect(bound.value == nil)
     #expect(output.lines.contains {
-        $0.contains("could not comment on") && $0.contains("Project alpha names Linear App Installation \"gone\"")
-            && $0.contains("which config.toml does not declare")
+        $0.contains("skipped the release comment on \(seeded.featureIssueID)")
+            && $0.contains("Linear App Installation \"gone\" is not in config.toml")
     })
+    #expect(!output.lines.contains { $0.contains("could not comment on") })
     #expect(workspace.removeCalls == [WorktreeID(rawValue: "wt-1")])
+    #expect(try journal.events().contains { $0.type == .projectRemoved })
+    #expect(!FileManager.default.fileExists(
+        atPath: directory.url.appending(components: "projects", "alpha.toml").path(percentEncoded: false)
+    ))
+}
+
+@Test("A present installation whose authorization Linear refuses still fails the comment step (OQ119)")
+func removalWithRefusedInstallationKeepsTheProjectFile() async throws {
+    let directory = ConfigurationDirectory()
+    try directory.writeMachineFile()
+    try directory.writeValidProjectFile(id: "alpha")
+    let home = try RemovalHomeFixture(projectID: "alpha", plists: false, logs: false)
+    let journal = try JournalStore.openSeeded(
+        configurationDirectory: directory.url, projectID: try #require(ProjectID(rawValue: "alpha"))
+    )
+    _ = try await seedRemovableProject(journal, mode: .rehearsal, repo: nil)
+
+    let output = RecordingOutput()
+    let board = FakeWritingBoard()
+    await board.refuseNext(.notAuthenticated("sign-in expired"))
+    let removal = makeRemoval(directory: directory, home: home, output: output, board: board)
+
+    let succeeded = await removal.run(id: "alpha", yes: true)
+
+    #expect(!succeeded)
+    #expect(output.lines.contains { $0.contains("could not comment on FEAT-1") })
+    #expect(!output.lines.contains { $0.contains("skipped the release comment") })
+    #expect(try !journal.events().contains { $0.type == .projectRemoved })
+    #expect(FileManager.default.fileExists(
+        atPath: directory.url.appending(components: "projects", "alpha.toml").path(percentEncoded: false)
+    ))
 }

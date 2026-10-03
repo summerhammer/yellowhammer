@@ -110,10 +110,16 @@ extension NightSummary {
             case .boardWriteFailed(_, let operation, let issueID, let reason):
                 let named = issueID.map { " on `\($0)`" } ?? ""
                 lines.append("A board write permanently failed: \(operation)\(named) — \(reason).")
-            case .rateBudgetExhausted(let degradation):
-                lines.append(
-                    "The board's request budget was exhausted workspace-wide: \(degradation)."
-                )
+            case .rateBudgetExhausted(let degradation, let installation):
+                if let installation {
+                    lines.append(
+                        "The board's request budget was exhausted installation-wide, on Linear workspace "
+                            + "\"\(installation.name)\" (shared by every Project on that workspace's App "
+                            + "Installation): \(degradation)."
+                    )
+                } else {
+                    lines.append("The board's request budget was exhausted installation-wide: \(degradation).")
+                }
             case .mainlineFetchFailed(let repository, let reason):
                 lines.append("Fetching mainline for `\(repository)` failed: \(reason).")
             case .absentNightDetected(let nightStart):

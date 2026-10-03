@@ -45,13 +45,19 @@ public struct AppInstallationTokenRefresh: Equatable, Sendable {
         case notStored(message: String)
     }
 
+    /// The App Installation whose pair this attempt refreshed.
+    public let installation: AppInstallationLabel
     public let attemptedAt: Date
     public let trigger: Trigger
     /// The stored pair's `expiresAt` before the attempt.
     public let previousExpiresAt: Date
     public let outcome: Outcome
 
-    public init(attemptedAt: Date, trigger: Trigger, previousExpiresAt: Date, outcome: Outcome) {
+    public init(
+        installation: AppInstallationLabel, attemptedAt: Date, trigger: Trigger, previousExpiresAt: Date,
+        outcome: Outcome
+    ) {
+        self.installation = installation
         self.attemptedAt = attemptedAt
         self.trigger = trigger
         self.previousExpiresAt = previousExpiresAt
@@ -59,14 +65,25 @@ public struct AppInstallationTokenRefresh: Equatable, Sendable {
     }
 }
 
-/// Collects the refresh attempts an Act's board makes, for the Engine to drain into the Journal. Each
-/// record is handed out exactly once.
+/// Collects the refresh attempts an Act's board makes through one App Installation, for the Engine to
+/// drain into the Journal. Each record is handed out exactly once, stamped with that installation.
 public final class AppInstallationTokenRefreshLog: Sendable {
     private let records = Mutex<[AppInstallationTokenRefresh]>([])
 
-    public init() { }
+    public let installation: AppInstallationLabel
 
-    public func record(_ refresh: AppInstallationTokenRefresh) {
+    public init(installation: AppInstallationLabel) {
+        self.installation = installation
+    }
+
+    public func record(
+        attemptedAt: Date, trigger: AppInstallationTokenRefresh.Trigger, previousExpiresAt: Date,
+        outcome: AppInstallationTokenRefresh.Outcome
+    ) {
+        let refresh = AppInstallationTokenRefresh(
+            installation: installation, attemptedAt: attemptedAt, trigger: trigger,
+            previousExpiresAt: previousExpiresAt, outcome: outcome
+        )
         records.withLock { $0.append(refresh) }
     }
 

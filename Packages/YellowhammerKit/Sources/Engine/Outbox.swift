@@ -16,6 +16,7 @@ import Journal
 /// The Outbox is scoped to the Journal it was handed, which is one Project's; it cannot address
 /// another Project's entries or Linear project.
 public struct Outbox: Sendable {
+    // swiftlint:disable:previous type_body_length
     public let journal: JournalStore
     public let board: any BoardWriting
     public let runID: RunID
@@ -25,6 +26,9 @@ public struct Outbox: Sendable {
     /// How many transient failures (the board unreachable, a response unreadable) a write survives
     /// before it is recorded as permanently failed. A rate-limit refusal never counts.
     public var attemptLimit = 3
+    /// The App Installation the board writes through, named on a rate-budget record. Nil for a board
+    /// bound through none.
+    public let installation: AppInstallationLabel?
 
     let clock: @Sendable () -> Date
     /// Serialises deliveries: the build Act's Repo Lanes run concurrently and each posts board state
@@ -41,9 +45,13 @@ public struct Outbox: Sendable {
         runID: RunID,
         act: Act? = nil,
         nightID: Int64? = nil,
+        installation: AppInstallationLabel? = nil,
         clock: @escaping @Sendable () -> Date = { Date() }
     ) {
-        self.init(journal: journal, board: board, runID: runID, act: act, nightID: nightID, clock: clock) { _ in }
+        self.init(
+            journal: journal, board: board, runID: runID, act: act, nightID: nightID, installation: installation,
+            clock: clock
+        ) { _ in }
     }
 
     init(
@@ -52,12 +60,14 @@ public struct Outbox: Sendable {
         runID: RunID,
         act: Act? = nil,
         nightID: Int64? = nil,
+        installation: AppInstallationLabel? = nil,
         clock: @escaping @Sendable () -> Date = { Date() },
         interrupt: @escaping @Sendable (OutboxEntry) throws -> Void
     ) {
         self.journal = journal
         self.board = board
         self.runID = runID
+        self.installation = installation
         self.act = act
         self.nightID = nightID
         self.clock = clock
@@ -282,10 +292,11 @@ public struct Outbox: Sendable {
     private func refused(_ entry: OutboxEntry, write: BoardWrite, error: BoardError) throws -> OutboxDelivery {
         switch error {
         case .rateLimited(let retryAfter, _):
-            // The budget is the identity's, shared by every Project on the board tonight: named as
-            // workspace-wide, never as this Project's own excess. The entry stays pending, untouched.
+            // The budget is the App Installation's, shared by every Project on it: named as
+            // installation-wide, never as this Project's own excess. The entry stays pending, untouched.
             try append(.rateBudgetExhausted(
-                degradation: "board write \(write.operation) deferred; \(String(describing: error))"
+                degradation: "board write \(write.operation) deferred; \(String(describing: error))",
+                installation: installation
             ))
             let deferral = OutboxDelivery.Deferral.rateLimited(retryAfter: retryAfter)
             return OutboxDelivery(entry: entry, outcome: .deferred(deferral))
