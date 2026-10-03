@@ -111,6 +111,7 @@ struct LinearWorkspaceProvisioningTests {
         #expect(!projects[0].isCompleted && !projects[0].isCanceled)
         #expect(projects[1].isCompleted && !projects[1].isCanceled)
         #expect(!projects[2].isCompleted && projects[2].isCanceled)
+        #expect(try Fixture.variables(transport.requests[1])["first"] as? Int == 50)
         #expect(try Fixture.variables(transport.requests[2])["after"] as? String == "cursor-a")
     }
 }

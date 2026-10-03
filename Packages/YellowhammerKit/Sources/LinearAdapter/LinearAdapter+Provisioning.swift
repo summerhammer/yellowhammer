@@ -93,7 +93,9 @@ extension LinearAdapter: BoardProvisioning {
         var after: String?
 
         while true {
-            var variables: [String: any Sendable] = ["first": 250]
+            // 50, not the 250 the other reads page by: each Linear project nests a teams connection, and
+            // Linear refused 250 per page live as too complex (16,900 against its limit of 10,000).
+            var variables: [String: any Sendable] = ["first": 50]
             if let after {
                 variables["after"] = after
             }
