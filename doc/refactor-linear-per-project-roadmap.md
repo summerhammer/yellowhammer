@@ -437,6 +437,25 @@ does not renumber it; that file gets one line linking here.
 - **Lead** — Opus 5.5 Medium; does the live steps. **Sidekick** — Haiku for the Python and docs.
 - **Done when** — The rehearsal suite and CI Python tests pass; a rehearsal Night runs on the new
   configuration; the live re-connect is recorded here with the date.
+- **Status** — Scripts and docs done (`1bb36a8`, `d9aa33c`, `10222d0`); live re-connect done 2026-10-03.
+  `scratch_linear.py`, the rehearsal suite, `release_gate.py record`, the shell-not-host harness and
+  `verify_installed.py` read `[board.linear.installations.<name>]` and `[board.linear]`; `--installation
+  NAME` selects one (default the sole entry; none, or several without it, refused). The suite passes it to
+  `yh setup --init` and `scratch_linear.py reset`; `reset`/`check` refuse a Project on another
+  installation. Found beyond the list: `verify_installed.py` matched doctor's old exact line; the
+  shell-not-host harness read `linear_project`; the opt-in live Swift suites read Keychain account `linear`
+  (now `YH_LINEAR_INSTALLATION` → `linear-<name>`). The runbook still described `client_credentials`; it is
+  rewritten. **Live, 2026-10-03:** the old installed build removed `yellowhammer` (release comment
+  posted); its schema-1 Journal is archived, not deleted; Keychain `linear` and `[linear]` removed. A
+  local Release build (Developer ID, not notarized) was installed; `yh setup --install-linear --events
+  json` registered `summerhammer` (same workspace); the Operator restored with `yh config operator`; the
+  Project re-added with `--init --installation summerhammer --linear-project <same id>` (`protected_paths`
+  restored by hand: `--repo` cannot carry them). `yh doctor --check linear` passes all three per-installation
+  checks; `yh rehearse --project yellowhammer` ran author, build and land, exit 0, and the new Journal
+  records the workspace. LaunchAgents are **not** reinstalled yet (awaiting the user's call). Python CI suites green
+  (scratch-linear 34, rehearsal-suite 188, shell-not-host 45, verify_installed 33). **Owed:** the live
+  rehearsal suite (`rehearsal_suite.py run`, ~45 min; it re-creates the `rehearsal-suite-a/-b` Projects
+  removed 2026-10-01). Interactive `yh setup` cannot run under the `!` prefix (no stdin; prompts cancel).
 
 ## Spec gaps to raise (do not edit the spec)
 
