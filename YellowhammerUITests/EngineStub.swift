@@ -21,6 +21,7 @@ enum EngineStub {
           --print-choices)
             echo '{"operatorCandidates":[{"id":"user-op","name":"operator","displayName":"Operator Person"}],\
         "configuredOperator":null,"teams":[{"id":"team-1","key":"ENG","name":"Engineering"}],\
+        "linearProjects":[{"id":"proj-listed","name":"Acme Mobile","teamNames":["Engineering"]}],\
         "cliAdapters":["claude","codex"]}'
             exit 0
             ;;
