@@ -419,7 +419,7 @@ does not renumber it; that file gets one line linking here.
 
 ## Phase L4 — Scripts, docs and this Mac
 
-### [ ] L4.1 Scripts, runbooks and the live re-connect
+### [x] L4.1 Scripts, runbooks and the live re-connect
 
 - **Work** — `scripts/rehearsal-suite` (`suite_env.py:194` reads `[linear] operator`), its tests,
   `scripts/scratch-linear/`, `scripts/ci/tests/test_verify_installed.py`, `test_release_gate.py`,
@@ -453,9 +453,10 @@ does not renumber it; that file gets one line linking here.
   restored by hand: `--repo` cannot carry them). `yh doctor --check linear` passes all three per-installation
   checks; `yh rehearse --project yellowhammer` ran author, build and land, exit 0, and the new Journal
   records the workspace. LaunchAgents are **not** reinstalled yet (awaiting the user's call). Python CI suites green
-  (scratch-linear 34, rehearsal-suite 188, shell-not-host 45, verify_installed 33). **Owed:** the live
-  rehearsal suite (`rehearsal_suite.py run`, ~45 min; it re-creates the `rehearsal-suite-a/-b` Projects
-  removed 2026-10-01). Interactive `yh setup` cannot run under the `!` prefix (no stdin; prompts cancel).
+  (scratch-linear 34, rehearsal-suite 188, shell-not-host 45, verify_installed 33). The live rehearsal suite
+  (`rehearsal_suite.py run --installation summerhammer`) passed 13/13 on 2026-10-03, then `teardown` removed
+  both suite Projects (scenario 13's `conflict/shared` fixture tree is not removed by teardown; deleted by
+  hand). Interactive `yh setup` cannot run under the `!` prefix (no stdin; prompts cancel).
 
 ## Spec gaps to raise (do not edit the spec)
 
