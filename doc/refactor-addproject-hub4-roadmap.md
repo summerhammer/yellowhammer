@@ -82,9 +82,11 @@ before each step. The story sets no step order, so the hub needs no ruling.
   `AddProjectUITests` pass. **Gaps for H2.1:** `yh setup` takes no `[schedule]` flags, so the draft
   has no Night window and the jobs step can only show the defaults. `SetupChoices` lists teams but
   not Linear projects, so Hub4's choice cards have no list to pick from. Both need Engine work or a
-  read-only step body.
+  read-only step body. **Fixed since:** `yh setup --init` takes `--night-start`, `--night-end` and
+  `--build-every-minutes` for the Project it declares, and `--print-choices` lists the active Linear
+  projects (`SetupChoices.linearProjects`). The draft carries a `schedule`; see H2.1.
 
-### [ ] H2.1 Hub4's step bodies in the app
+### [x] H2.1 Hub4's step bodies in the app
 
 - **Work** — Move `WizardBlocks`, `WizardRepoList`, `WizardStepBody` (with `+SpecAndBounds`),
   `WizardStepContent` and `WizardTheme` into `Features/AddProject`. Keep only the components Hub4
@@ -109,7 +111,12 @@ before each step. The story sets no step order, so the hub needs no ruling.
   `WizardProblemList` came from `WizardStepContent`. The run view, status icon, sidebar row and
   footer are hub chrome, so they move in H3.1. **Departures from the Hub4 preview, from H1.1's
   gaps:** an existing Linear project is a pasted id, not a list, and the jobs step shows the
-  `Schedule()` defaults read-only.
+  `Schedule()` defaults read-only. **Rendered since (2026-10-03):** the hardened runtime blocked the
+  preview host from loading into the app. With it off for Debug only (Release keeps it, for
+  notarization), all eight app-target previews render, these six and the readiness panel included.
+  **Departures closed since:** the Linear project step lists the active Linear projects as choices,
+  with the pasted id kept for one that is not listed. The jobs step edits the Night window, and only
+  the fields that differ from the defaults reach `yh setup --init`.
 
 ### [x] H3.1 Swap the sheet to Hub4
 
@@ -146,7 +153,10 @@ before each step. The story sets no step order, so the hub needs no ruling.
   previews time out (H2.1). **Acceptance criteria (Add Project wizard):** the "+" in both sidebars,
   the sheet, the wizard as the only guided flow, and Cancel leaving no Project file are met and
   tested. The new row in both sidebars is built but not exercised by a test, as in P18.17: the stub
-  `yh --init` writes no Project file. **Gap, not fixed here (#281):** on a fresh Mac no screen in the app can
+  `yh --init` writes no Project file. **Tested since (2026-10-03):** the stub's `--init` writes a
+  minimal Project file into a `/tmp` folder that the test configuration's `projects` links to. All
+  three ways in assert the row in both sidebars, so every Add Project wizard criterion is now met and
+  tested. **Gap, not fixed here (#281):** on a fresh Mac no screen in the app can
   declare an agent CLI. Settings → Agent CLIs only lists and probes, and with no `config.toml` it
   offers "Add a Project…", which leads back to this sheet. The readiness panel's Agent CLIs button
   therefore cannot clear that row on a fresh Mac. The first Project needs `yh setup` in a terminal, or
