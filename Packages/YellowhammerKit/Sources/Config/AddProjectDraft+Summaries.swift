@@ -27,6 +27,11 @@ extension AddProjectDraft {
     }
 
     private var linearSummary: String {
+        guard let installation = linearInstallationName else { return "No Linear workspace" }
+        return "\(linearProjectSummary) \u{b7} \(installation)"
+    }
+
+    private var linearProjectSummary: String {
         switch linearChoice {
         case .existing:
             let id = linearProjectID.trimmingCharacters(in: .whitespacesAndNewlines)

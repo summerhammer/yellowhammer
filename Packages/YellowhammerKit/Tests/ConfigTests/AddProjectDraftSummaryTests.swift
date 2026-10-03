@@ -20,15 +20,16 @@ struct AddProjectDraftSummaryTests {
     @Test("Linear project summary: existing, and new in a team by name or by key")
     func linear() {
         var draft = AddProjectDraft()
-        #expect(draft.summary(of: .linearProject) == "No Linear project")
+        draft.linearInstallationName = "acme"
+        #expect(draft.summary(of: .linearProject) == "No Linear project \u{b7} acme")
         draft.linearProjectID = " ACME "
-        #expect(draft.summary(of: .linearProject) == "\u{201c}ACME\u{201d}")
+        #expect(draft.summary(of: .linearProject) == "\u{201c}ACME\u{201d} \u{b7} acme")
         draft.linearChoice = .createInTeam
-        #expect(draft.summary(of: .linearProject) == "No team")
+        #expect(draft.summary(of: .linearProject) == "No team \u{b7} acme")
         draft.teamKey = "ENG"
-        #expect(draft.summary(of: .linearProject) == "New in ENG")
+        #expect(draft.summary(of: .linearProject) == "New in ENG \u{b7} acme")
         draft.context.teams = [SetupChoices.Team(id: "t1", key: "ENG", name: "Engineering")]
-        #expect(draft.summary(of: .linearProject) == "New in Engineering")
+        #expect(draft.summary(of: .linearProject) == "New in Engineering \u{b7} acme")
     }
 
     @Test("Repos summary")
@@ -92,18 +93,21 @@ struct AddProjectDraftSummaryTests {
             let first = draft.summary(of: step).first
             #expect(first?.isUppercase == true || first == "\u{201c}", "\(step)")
         }
+        // The summary opens with the Linear project, then names the workspace.
+        draft.linearInstallationName = "acme"
         draft.linearProjectID = "X"
-        #expect(draft.summary(of: .linearProject).first == "\u{201c}")
+        #expect(draft.summary(of: .linearProject) == "\u{201c}X\u{201d} \u{b7} acme")
     }
 
     @Test("Linear project summary names a listed project; an unlisted id shows as typed") // glossary:ignore GL001
     func linearListedProject() {
         var draft = AddProjectDraft()
+        draft.linearInstallationName = "acme"
         draft.context.linearProjects = [SetupChoices.LinearProject(id: "p1", name: "Acme Web", teamNames: ["Eng"])]
         draft.linearProjectID = "p1"
-        #expect(draft.summary(of: .linearProject) == "\u{201c}Acme Web\u{201d}")
+        #expect(draft.summary(of: .linearProject) == "\u{201c}Acme Web\u{201d} \u{b7} acme")
         draft.linearProjectID = "other"
-        #expect(draft.summary(of: .linearProject) == "\u{201c}other\u{201d}")
+        #expect(draft.summary(of: .linearProject) == "\u{201c}other\u{201d} \u{b7} acme")
     }
 
     @Test("Bounds fields cover the six Bounds with their defaults")

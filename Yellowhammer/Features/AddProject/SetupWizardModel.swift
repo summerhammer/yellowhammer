@@ -1,14 +1,17 @@
 import Config
 import Domain
 import Foundation
+import Journal
 import Observation
 
-/// The Add Project sheet's state: the ``AddProjectDraft`` the hub edits, the machine-wide prerequisites it
+/// The Add Project sheet's state: the ``AddProjectDraft`` the hub edits, the machine-wide prerequisite it
 /// checks, and the `yh setup --init` run. Kept as a plain `@Observable` model, not a View, so the mapping and
 /// validation stay testable without driving SwiftUI (P14.2). The app never does the Board work itself
 /// (ADR-001): the teams offered here come from running the bundled `yh --print-choices`, and every write
-/// comes from running `yh --init`. The sheet sets nothing machine-wide: Linear auth, the Operator identity
-/// and the agent CLIs live in Settings → General, and ``readiness`` blocks Add Project until they are there.
+/// comes from running `yh`. The agent CLI route lives in Settings → General, and ``readiness`` blocks Add
+/// Project until it is there. The Linear workspace and its Operator identity are chosen in the Linear step
+/// through ``linearWorkspaces``; a workspace connected there is machine configuration, not the Project's, so
+/// it stays in `config.toml` when the sheet is cancelled and nothing undoes it.
 @MainActor
 @Observable
 final class SetupWizardModel {
@@ -18,7 +21,8 @@ final class SetupWizardModel {
 
     /// The machine file as last loaded; nil when it does not load, as on a Mac where Setup has never run.
     var machineConfiguration: MachineConfiguration?
-    let linearInstallation = LinearInstallationModel()
+    /// The Linear workspaces list the Linear step chooses from, and connects another to.
+    let linearWorkspaces: LinearWorkspacesModel
     var isFetchingTeams = false
     /// `yh --print-choices`'s output when it could not list the teams; the Linear project step still takes
     /// an existing Linear project's id without them.
@@ -38,20 +42,28 @@ final class SetupWizardModel {
     var boundsFailure: String?
 
     let engine = SetupEngine()
+    /// The `--print-choices` run for the selected installation; a new one per fetch, so a stale run can be
+    /// terminated without disturbing the next.
+    @ObservationIgnored var teamsEngine = SetupEngine()
+    @ObservationIgnored var teamsFetchGeneration = 0
 
     init(configurationDirectory: URL = ConfigurationDirectory.current) {
         self.configurationDirectory = configurationDirectory
+        linearWorkspaces = LinearWorkspacesModel(directory: configurationDirectory)
+        linearWorkspaces.onConnected = { [weak self] name in
+            guard let self else { return }
+            loadContext()
+            Task { await self.selectLinearInstallation(name) }
+        }
+        linearWorkspaces.onChanged = { [weak self] in self?.loadContext() }
         loadContext()
     }
 
-    /// Whether each machine-wide prerequisite of Add Project is present. The sheet shows the hub only when
-    /// none is missing.
+    /// Whether the machine-wide prerequisite of Add Project is present. The sheet shows the hub only when
+    /// it is.
     var readiness: SetupReadiness {
-        SetupReadiness(linearInstalled: linearInstallation.phase.isInstalled, machine: machineConfiguration)
+        SetupReadiness(machine: machineConfiguration)
     }
-
-    /// Whether the Linear installation is still being checked, so readiness is not known yet.
-    var isCheckingReadiness: Bool { linearInstallation.phase == .checking }
 
     /// Whether Add Project can be pressed: everything is present, every step is complete, and no run started.
     var canAddProject: Bool {
@@ -59,7 +71,10 @@ final class SetupWizardModel {
     }
 
     /// Reads the Project files, the Journal file names and the configuration under `configurationDirectory`
-    /// into `draft.context` and `machineConfiguration`. Only files are read, and no Journal is opened.
+    /// into `draft.context` and `machineConfiguration`, and reloads ``linearWorkspaces`` to match (unless an
+    /// Operator choice is mid-edit). The Journal of an id that has no Project file is opened read-only to learn
+    /// its Linear workspace; nothing is ever written (the app may read Journals). A selected installation that
+    /// is gone from the registry stays selected: validation reports it.
     func loadContext() {
         let fileManager = FileManager.default
         func baseNames(in folder: String, extension fileExtension: String) -> Set<String> {
@@ -72,23 +87,39 @@ final class SetupWizardModel {
         }
         let projectFileIDs = baseNames(in: "projects", extension: "toml")
         let journalProjectIDs = baseNames(in: "journals", extension: "db")
+        let keptJournals = readKeptJournals(ids: journalProjectIDs.subtracting(projectFileIDs))
         let teams = draft.context.teams
+        let linearProjects = draft.context.linearProjects
+        linearWorkspaces.reloadIfClean()
         if let configuration = try? Configuration.load(directory: configurationDirectory) {
             machineConfiguration = configuration.machine
             draft.context = AddProjectContext(
                 configuration: configuration, projectFileIDs: projectFileIDs,
-                journalProjectIDs: journalProjectIDs, teams: teams,
-                // The entry the wizard's own Linear step installed into, else the only one, until the
-                // wizard offers a choice (roadmap L3.2).
-                linearInstallationName: linearInstallation.installedInstallationName
-                    ?? configuration.machine.soleLinearInstallation?.name
+                journalProjectIDs: journalProjectIDs, teams: teams, linearProjects: linearProjects,
+                keptJournals: keptJournals
             )
         } else {
             machineConfiguration = nil
             draft.context = AddProjectContext(
-                existingProjectIDs: projectFileIDs, journalProjectIDs: journalProjectIDs, teams: teams
+                existingProjectIDs: projectFileIDs, journalProjectIDs: journalProjectIDs, teams: teams,
+                linearProjects: linearProjects, keptJournals: keptJournals
             )
         }
+    }
+
+    /// What each kept Journal records, opened read-only. An id that is not a valid `ProjectID` is skipped.
+    private func readKeptJournals(ids: Set<String>) -> [String: AddProjectContext.KeptJournal] {
+        var kept: [String: AddProjectContext.KeptJournal] = [:]
+        for id in ids {
+            guard let projectID = ProjectID(rawValue: id) else { continue }
+            let fileURL = JournalStore.defaultFileURL(configurationDirectory: configurationDirectory, id: projectID)
+            do {
+                kept[id] = .workspace(try JournalStore.openReadOnly(at: fileURL, projectID: projectID).linearWorkspace)
+            } catch {
+                kept[id] = .unreadable("\(error)")
+            }
+        }
+        return kept
     }
 
     /// Asks before adding; the confirmation's Add Project runs ``confirmAndRun()``.
@@ -106,7 +137,8 @@ final class SetupWizardModel {
     /// Terminates the current run, if any: closing the Add Project sheet is not an Act, so nothing must
     /// survive it.
     func terminateRun() {
-        linearInstallation.terminate()
+        linearWorkspaces.terminate()
+        teamsEngine.terminate()
         engine.terminate()
     }
 }

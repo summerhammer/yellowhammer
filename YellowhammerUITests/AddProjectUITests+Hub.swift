@@ -6,9 +6,12 @@ import XCTest
 extension AddProjectUITests {
     /// Fills every step through the hub, in an order no linear wizard would take, then confirms and runs
     /// setup and checks the `yh setup --init` argument vector. `beforeAdding` runs on the filled hub, just
-    /// before Add Project; `checkArguments` gets the recorded argument vector.
+    /// before Add Project; `checkArguments` gets the recorded argument vector. `installation` is the Linear
+    /// workspace the Linear step chooses; `choosesInstallation: false` skips the click when a test already
+    /// selected it (a workspace just connected in the step is selected by the wizard).
     func driveHubToCompletion(
-        in sheet: XCUIElement, linearProject: String = "proj-1", // glossary:ignore GL001
+        in sheet: XCUIElement, installation: String = "acme", choosesInstallation: Bool = true,
+        linearProject: String = "proj-1", // glossary:ignore GL001
         beforeAdding: () -> Void = {}, checkArguments: ([String]) -> Void = { _ in }
     ) {
         XCTAssertTrue(element("setup-step-project").waitForExistence(timeout: 10))
@@ -16,6 +19,7 @@ extension AddProjectUITests {
         XCTAssertFalse(addProject.isEnabled)
 
         // Project: the id follows the name.
+        element("setup-step-project").click()
         typeName("Demo")
         let projectID = element("setup-project-id")
         XCTAssertTrue(projectID.waitForExistence(timeout: 5))
@@ -28,12 +32,9 @@ extension AddProjectUITests {
         addRepo.click()
         XCTAssertTrue(sheet.textFields["setup-repo-check"].firstMatch.waitForExistence(timeout: 5))
 
-        // Linear project: an existing one, by id.
+        // Linear workspace, then the Linear project: an existing one, by id.
         element("setup-step-linearProject").click()
-        let linearID = sheet.textFields["setup-linear-project-id"]
-        XCTAssertTrue(linearID.waitForExistence(timeout: 5))
-        linearID.click()
-        linearID.typeText("proj-1")
+        fillLinearStep(in: sheet, installation: choosesInstallation ? installation : nil)
 
         // Spec Source: the picked Repo becomes the spec, which declares its Check "none".
         element("setup-step-specSource").click()
@@ -64,11 +65,27 @@ extension AddProjectUITests {
         let log = app.staticTexts["setup-run-log"]
         XCTAssertTrue(log.exists)
         let recorded = argv(in: (log.value as? String) ?? "")
-        assertProjectArguments(recorded, linearProject: linearProject)
+        assertProjectArguments(
+            recorded, installation: installation, linearProject: linearProject // glossary:ignore GL001
+        )
         checkArguments(recorded)
 
         done.click()
         XCTAssertTrue(sheet.waitForNonExistence(timeout: 10))
+    }
+
+    /// On the open Linear step: chooses the workspace (when `installation` is given), then types an existing
+    /// Linear project's id.
+    func fillLinearStep(in sheet: XCUIElement, installation: String?) {
+        if let installation {
+            let row = element("setup-linear-installation-\(installation)")
+            XCTAssertTrue(row.waitForExistence(timeout: 5))
+            row.click()
+        }
+        let linearID = sheet.textFields["setup-linear-project-id"]
+        XCTAssertTrue(linearID.waitForExistence(timeout: 5))
+        linearID.click()
+        linearID.typeText("proj-1")
     }
 
     /// The story's "completing the wizard adds the new Project's row to the main window's Sidebar … and to
@@ -84,15 +101,18 @@ extension AddProjectUITests {
     }
 
     /// The Project the hub drive declares, and nothing machine-wide.
-    func assertProjectArguments(_ recorded: [String], linearProject: String) { // glossary:ignore GL001
+    func assertProjectArguments(
+        _ recorded: [String], installation: String, linearProject: String
+    ) { // glossary:ignore GL001
         XCTAssertTrue(recorded.contains("--init"))
+        XCTAssertEqual(value(after: "--installation", in: recorded), installation)
         XCTAssertEqual(value(after: "--project", in: recorded), "demo") // glossary:ignore GL001
         XCTAssertEqual(value(after: "--project-name", in: recorded), "Demo") // glossary:ignore GL001
         XCTAssertEqual(value(after: "--linear-project", in: recorded), linearProject) // glossary:ignore GL001
         XCTAssertEqual(value(after: "--repo", in: recorded), "acme-backend,spec,\(Self.pickedFolder),none")
         XCTAssertTrue(recorded.contains("--install-jobs"))
         // The sheet sets nothing machine-wide: setup keeps the configured Operator, CLIs and routes.
-        for flag in ["--operator", "--cli", "--route", "--fallback", "--linear-credential"] {
+        for flag in ["--operator", "--cli", "--route", "--fallback"] {
             XCTAssertFalse(recorded.contains(flag), "\(flag) was passed")
         }
     }

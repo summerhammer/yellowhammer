@@ -43,6 +43,17 @@ extension AddProjectDraft {
         .joined(separator: "-")
     }
 
+    /// Selects the Linear workspace by its local name. A different workspace clears what belonged to the
+    /// previous one: its teams, its Linear projects and the choices made from them.
+    public mutating func selectLinearInstallation(_ name: String) {
+        guard linearInstallationName != name else { return }
+        linearInstallationName = name
+        teamKey = nil
+        linearProjectID = ""
+        context.teams = []
+        context.linearProjects = []
+    }
+
     // MARK: Repos and the Spec Source
 
     public static let suggestedRoles = ["backend", "mobile", "web", "infra", "spec"]

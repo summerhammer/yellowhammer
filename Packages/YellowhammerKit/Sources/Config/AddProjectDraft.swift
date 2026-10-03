@@ -47,7 +47,8 @@ public struct AddProjectDraft: Equatable, Sendable {
             case .project:
                 "Name the Project. Its id names the Project file, its Journal and its LaunchAgents."
             case .linearProject: // glossary:ignore GL001
-                "Link the Linear project its Features come from, or create one in a team." // glossary:ignore GL001
+                "Choose the Linear workspace, then link the Linear project " // glossary:ignore GL001
+                    + "its Features come from, or create one in a team." // glossary:ignore GL001
             case .repos:
                 "The working Repos this Project builds in. A working Repo belongs to exactly one Project."
             case .specSource:
@@ -134,6 +135,8 @@ public struct AddProjectDraft: Equatable, Sendable {
     public var idConfirmed = false
 
     // Linear project
+    /// The local name of the Linear App Installation the Operator selected; nil is not chosen.
+    public var linearInstallationName: String?
     public var linearChoice: LinearProjectChoice = .existing
     /// A typed or picked Linear project id; trimmed empty means not chosen.
     public var linearProjectID = ""
@@ -191,6 +194,12 @@ extension AddProjectDraft {
         return "Still needed: " + incompleteSteps.map(\.shortTitle).formatted(Self.listStyle)
     }
 
+    /// The registry entry the Operator selected, or nil when none is chosen or the name is not in the registry.
+    public var selectedLinearInstallation: LinearInstallation? {
+        guard let linearInstallationName else { return nil }
+        return context.linearInstallations.first { $0.name == linearInstallationName }
+    }
+
     /// Set when a removed Project left a Journal under this id: the new Project continues its history.
     public var reusesJournal: Bool {
         let id = projectID.trimmingCharacters(in: .whitespaces)
@@ -229,10 +238,37 @@ extension AddProjectDraft {
         if context.existingProjectIDs.contains(id) {
             return ["A Project \u{201c}\(id)\u{201d} already exists."]
         }
-        return []
+        return keptJournalProblems(id: id)
+    }
+
+    /// Mirrors `yh setup`'s refusal of a kept Journal that cannot be reused.
+    private func keptJournalProblems(id: String) -> [String] {
+        guard reusesJournal, let kept = context.keptJournals[id] else { return [] }
+        let waysOut = "Choose a new Project id, or archive the old Journal (move it out of journals/) first."
+        switch kept {
+        case .unreadable(let reason):
+            return ["The kept Journal for \u{201c}\(id)\u{201d} cannot be read (\(reason)). " + waysOut]
+        case .workspace(let workspace):
+            guard let installation = selectedLinearInstallation, installation.workspace != workspace else { return [] }
+            return [
+                "The kept Journal for \u{201c}\(id)\u{201d} was built against another Linear workspace than "
+                    + "\u{201c}\(installation.name)\u{201d}. " + waysOut
+            ]
+        }
     }
 
     private var linearProblems: [String] {
+        if context.linearInstallations.isEmpty { return ["Connect a Linear workspace."] }
+        guard let installation = selectedLinearInstallation else {
+            return ["Choose the Linear workspace, or connect another."]
+        }
+        if installation.operatorIdentity == nil {
+            return ["Choose your Operator identity in \u{201c}\(installation.name)\u{201d}."]
+        }
+        return linearProjectProblems
+    }
+
+    private var linearProjectProblems: [String] {
         switch linearChoice {
         case .existing where linearProjectID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty:
             ["Choose the Linear project, or create one in a team."] // glossary:ignore GL001

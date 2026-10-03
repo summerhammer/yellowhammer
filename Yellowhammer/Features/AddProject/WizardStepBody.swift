@@ -7,6 +7,9 @@ import SwiftUI
 struct WizardStepBody: View {
     let step: AddProjectDraft.Step
     @Binding var draft: AddProjectDraft
+    /// The Linear step's workspaces list, and what selecting one does.
+    let linearWorkspaces: LinearWorkspacesModel
+    let onSelectInstallation: (String) -> Void
 
     var body: some View {
         switch step {
@@ -16,7 +19,7 @@ struct WizardStepBody: View {
             }
         case .linearProject:
             WizardColumn {
-                LinearBlock(draft: $draft)
+                LinearBlock(draft: $draft, workspaces: linearWorkspaces, onSelect: onSelectInstallation)
             }
         case .repos:
             RepoStepView(draft: $draft)
@@ -131,11 +134,83 @@ struct IdentityBlock: View {
 
 // MARK: - Linear project
 
-/// The choice between an existing Linear project or creating a new one in a team.
+/// The Linear step: which Linear workspace (an App Installation in the registry) the Project uses, then the
+/// choice between an existing Linear project or creating a new one in a team.
 struct LinearBlock: View {
     @Binding var draft: AddProjectDraft
+    let workspaces: LinearWorkspacesModel
+    let onSelect: (String) -> Void
+    @State private var isConnecting = false
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            workspaceBlock
+            if draft.selectedLinearInstallation == nil {
+                Text("Choose the Linear workspace first.")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("setup-linear-choose-workspace-first")
+            } else {
+                projectChoice
+            }
+            if draft.visited.contains(.linearProject) {
+                let problems = draft.problems(in: .linearProject)
+                if !problems.isEmpty {
+                    WizardProblemList(problems: problems)
+                }
+            }
+        }
+    }
+
+    // MARK: Linear workspace
+
+    @ViewBuilder private var workspaceBlock: some View {
+        if workspaces.workspaces.isEmpty {
+            WizardBlock(title: "Linear workspace", boxed: false) {
+                Text("Yellowhammer connects to Linear through its own app, approved once by a workspace admin.")
+                    .foregroundStyle(.secondary)
+                connectView
+            }
+        } else {
+            WizardBlock(title: "Linear workspace") {
+                ForEach(workspaces.workspaces) { workspace in
+                    let label = workspaces.label(for: workspace)
+                    RadioRow(
+                        title: label,
+                        subtitle: label == workspace.name ? nil : workspace.name,
+                        note: workspace.operatorIdentity?.rawValue ?? "No Operator identity yet",
+                        isSelected: draft.linearInstallationName == workspace.name,
+                        identifier: "setup-linear-installation-\(workspace.name)"
+                    ) {
+                        onSelect(workspace.name)
+                    }
+                }
+            }
+            if let name = draft.linearInstallationName,
+               let workspace = workspaces.workspaces.first(where: { $0.name == name }),
+               workspace.operatorIdentity == nil,
+               let operatorModel = workspaces.operatorModel(for: name) {
+                OperatorIdentityRow(model: operatorModel, name: name, identifierPrefix: "setup-linear-operator")
+            }
+            if isConnecting {
+                connectView
+            } else {
+                Button("Connect another Linear workspace\u{2026}") { isConnecting = true }
+                    .accessibilityIdentifier("setup-linear-connect-another")
+            }
+        }
+    }
+
+    private var connectView: some View {
+        VStack(alignment: .leading) {
+            LinearInstallationView(
+                model: workspaces.connectAnother, offersReinstall: workspaces.connectAnother.phase.isInstalled
+            )
+        }
+    }
+
+    // MARK: Linear project
+
+    @ViewBuilder private var projectChoice: some View {
         VStack(alignment: .leading, spacing: 20) {
             OptionCards {
                 OptionCard(
@@ -214,42 +289,52 @@ struct LinearBlock: View {
                     }
                 }
             }
-            if draft.visited.contains(.linearProject) {
-                let problems = draft.problems(in: .linearProject)
-                if !problems.isEmpty {
-                    WizardProblemList(problems: problems)
-                }
-            }
         }
     }
 }
 
 #Preview("Project") {
     @Previewable @State var draft = AddProjectDraft.preview
-    WizardStepBody(step: .project, draft: $draft).frame(width: 620, height: 560)
+    WizardStepBody.preview(.project, $draft).frame(width: 620, height: 560)
 }
 
 #Preview("Linear project") {
     @Previewable @State var draft = AddProjectDraft.preview
-    WizardStepBody(step: .linearProject, draft: $draft).frame(width: 620, height: 560)
+    WizardStepBody.preview(.linearProject, $draft).frame(width: 620, height: 560)
 }
 
 #Preview("Repos") {
     @Previewable @State var draft = AddProjectDraft.preview
-    WizardStepBody(step: .repos, draft: $draft).frame(width: 620, height: 560)
+    WizardStepBody.preview(.repos, $draft).frame(width: 620, height: 560)
 }
 
 #Preview("Spec Source") {
     @Previewable @State var draft = AddProjectDraft.preview
-    WizardStepBody(step: .specSource, draft: $draft).frame(width: 620, height: 560)
+    WizardStepBody.preview(.specSource, $draft).frame(width: 620, height: 560)
 }
 
 #Preview("Bounds") {
     @Previewable @State var draft = AddProjectDraft.preview
-    WizardStepBody(step: .bounds, draft: $draft).frame(width: 620, height: 560)
+    WizardStepBody.preview(.bounds, $draft).frame(width: 620, height: 560)
 }
 
 #Preview("Scheduled jobs") {
     @Previewable @State var draft = AddProjectDraft.preview
-    WizardStepBody(step: .jobs, draft: $draft).frame(width: 620, height: 560)
+    WizardStepBody.preview(.jobs, $draft).frame(width: 620, height: 560)
+}
+
+extension LinearWorkspacesModel {
+    /// A list read from a folder that holds no `config.toml`, so a preview never runs `yh`.
+    @MainActor static var preview: LinearWorkspacesModel {
+        LinearWorkspacesModel(directory: FileManager.default.temporaryDirectory.appending(path: "yellowhammer-preview"))
+    }
+}
+
+extension WizardStepBody {
+    /// A step for a preview: its workspaces list never runs `yh`, and selecting does nothing.
+    static func preview(_ step: AddProjectDraft.Step, _ draft: Binding<AddProjectDraft>) -> WizardStepBody {
+        WizardStepBody(
+            step: step, draft: draft, linearWorkspaces: .preview, onSelectInstallation: { _ in }
+        )
+    }
 }

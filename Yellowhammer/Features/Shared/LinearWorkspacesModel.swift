@@ -3,15 +3,16 @@ import Domain
 import Foundation
 import Observation
 
-/// The Settings window's Linear workspaces list (L3.1): one row per App Installation in `config.toml`'s
+/// The Linear workspaces list, in Settings → Linear workspaces (L3.1) and in the Add Project wizard's
+/// Linear step (L3.2): one row per App Installation in `config.toml`'s
 /// `[board.linear.installations.<name>]` registry, with per row a re-connect, a removal and the Operator
 /// identity, and one connect-another install. The app decides nothing (ADR-001): every change is a `yh`
 /// invocation built in `Domain`, `config.toml` is only ever read here, and a refusal is `yh`'s own words.
 ///
 /// The child models (a re-connect and an Operator identity per row) are keyed by the installation's local
 /// name and kept across reloads, so a reload never kills a running install; a row that disappears drops
-/// its models. Owned by `SettingsWindow`, so another sidebar row and back neither recreates it nor kills
-/// a running install.
+/// its models. Owned by `SettingsWindow` or by the wizard's model, so another sidebar row and back neither
+/// recreates it nor kills a running install.
 @MainActor
 @Observable
 final class LinearWorkspacesModel {
@@ -50,6 +51,12 @@ final class LinearWorkspacesModel {
     private(set) var removing: String?
     /// The install that adds a workspace to the registry (untargeted).
     let connectAnother = LinearInstallationModel(installation: nil, phase: .notInstalled)
+
+    /// Called after a connect-another install finished and the list reloaded, with the connected entry's
+    /// local name, so the Add Project wizard can select it.
+    @ObservationIgnored var onConnected: (@MainActor (String) -> Void)?
+    /// Called after an Operator identity was saved and the list reloaded.
+    @ObservationIgnored var onChanged: (@MainActor () -> Void)?
 
     @ObservationIgnored private var reconnectModels: [String: LinearInstallationModel] = [:]
     @ObservationIgnored private var operatorModels: [String: OperatorIdentityModel] = [:]
@@ -227,6 +234,7 @@ final class LinearWorkspacesModel {
                 let model = OperatorIdentityModel(installation: row.name, configured: row.operatorIdentity)
                 model.onSaved = { [weak self] in
                     self?.load()
+                    self?.onChanged?()
                 }
                 operatorModels[row.name] = model
             }
@@ -242,5 +250,6 @@ final class LinearWorkspacesModel {
             Task { await model.fetchCandidates() }
         }
         Task { await refreshStatus() }
+        if isConnectAnother, let installed { onConnected?(installed) }
     }
 }

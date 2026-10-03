@@ -76,15 +76,6 @@ public struct MachineConfiguration: Equatable, Sendable {
     public func linearInstallation(for project: ProjectConfiguration) -> LinearInstallation? {
         linearInstallation(named: project.linearInstallationName)
     }
-
-    /// The registry's only entry; nil unless there is exactly one.
-    ///
-    /// TEMPORARY bridge for machine-only consumers (setup, doctor Check 4, the app's Operator identity
-    /// and Setup readiness) that have no Project to select an installation by. Roadmap step L3.2 deletes
-    /// it. Project-scoped code must use ``linearInstallation(for:)`` instead.
-    public var soleLinearInstallation: LinearInstallation? {
-        linearInstallations.count == 1 ? linearInstallations[0] : nil
-    }
 }
 
 extension MachineConfiguration {

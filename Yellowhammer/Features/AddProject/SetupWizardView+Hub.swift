@@ -28,7 +28,10 @@ struct SetupWizardHub: View {
                     if model.draft.step == .linearProject, !model.teamsFailure.isEmpty {
                         teamsFailure
                     }
-                    WizardStepBody(step: model.draft.step, draft: $model.draft)
+                    WizardStepBody(
+                        step: model.draft.step, draft: $model.draft, linearWorkspaces: model.linearWorkspaces,
+                        onSelectInstallation: { name in Task { await model.selectLinearInstallation(name) } }
+                    )
                 }
             }
             .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
