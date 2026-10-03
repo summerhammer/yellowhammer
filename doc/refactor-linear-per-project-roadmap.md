@@ -264,7 +264,7 @@ does not renumber it; that file gets one line linking here.
   OQ109 items 7, 8, 14. **Not met here**: Settings' *Remove* running the command is L3's. `Spec:`
   cites `d04d9c2` (OQ116 exists only there).
 
-### [ ] L2.3 `yh doctor` Check 4 per installation
+### [x] L2.3 `yh doctor` Check 4 per installation
 
 - **Work** — Check 4 runs per installation (Keychain, authorization under that installation's lock,
   Operator), each finding naming the installation, its workspace and the Projects it serves. An
@@ -276,6 +276,34 @@ does not renumber it; that file gets one line linking here.
 - **Lead** — Opus 5.5 Medium. **Sidekick** — Sonnet.
 - **Done when** — Tests for each finding with two installations; the JSON row shape is pinned by a
   test the app's decoder also uses.
+- **Status** — Done on 2026-10-03 (`02323a3`). Check 4 runs per registry entry in registry order:
+  Keychain → authorization (`workspaceMembers()`, refreshed under that installation's lock) → Operator,
+  then an `[info]` line when no Project uses it, then a team-membership finding per Project it serves.
+  Each finding's message is prefixed `installation <name> (workspace "<name>"; Projects a, b): `; the
+  name comes from a new Board Port read, `BoardProvisioning.workspace()` (ID, name, URL key, the
+  `organization` query), made before authorization; a revoked installation fails both reads and is
+  named by its local name alone (OQ117). `yh doctor --json` rows are one shared `Domain.DoctorFindingRow`
+  (encoded by `DoctorCommand`, decoded by `HealthFlag.read` and `LinearInstallationModel`), pinned by
+  `DoctorFindingRowTests`; rows gain optional `installation`, `workspace`, `workspaceName`, `projects`,
+  so today's four-field rows (the UI-test `EngineStub`) still decode. `[info]` (JSON `"info"`) is
+  outside the tally and the exit code. **Missing installation**: the strict load already refuses such
+  a Project (Check 1, `undeclaredLinearInstallation`); Check 4 *also* reports a `linear` failure, subject
+  `project`, naming the Project, the missing name and both fixes, so `--check linear` sees it — one
+  fault, two failure lines. Its subject is not `installation`, so Health does not show it as a revoked
+  installation. **Local choices:** under `--project`, an installation's findings are kept only when it
+  serves that Project (an unreferenced installation's `[info]` drops); team findings use subject `team`.
+  ACs met: *Per installation* (names installation, live workspace name, Projects); *Unreferenced
+  installation* (`[info]`, names `yh config remove-installation`); *Missing installation*; *No
+  installation* (both cases); *Keychain tokens*, *Linear authorization*, *Operator identity* (missing
+  names `--installation <name>` and the Projects; stale; valid), each per installation; the `[info]`
+  output tag; OQ109 item 8. **Not met**: *Board provisioning* is only half built — doctor never had this
+  check; L2.3 adds the membership half through the Project's installation (non-member team names the
+  Settings → Members fix; `FORBIDDEN` is a permission refusal, never "not visible", OQ80), but does
+  **not** verify that every provisioned or mapped item exists. The copy names Settings → Linear
+  workspaces, which L3.1 builds; the app still reads the first `authorization` row (L3.1) and copies
+  Health flags onto every Project (L3.3). Not run live: the workspace read and membership check are
+  proved on stub transports and fakes only. `Spec:` cites `d04d9c2` (OQ116's command in the `[info]`
+  line and OQ117's live name exist only there).
 
 ## Phase L3 — The app
 
