@@ -32,11 +32,20 @@ public struct SetupInvocation: Equatable, Sendable {
         public var linearProject: LinearProject
         public var specSource: String?
         public var repos: [Repo]
+        /// `--night-start HH:MM`, `--night-end HH:MM`, `--build-every-minutes N`: the `[schedule]` window.
+        /// Nil means the flag is not passed and the field keeps its default.
+        public var nightStart: String?
+        public var nightEnd: String?
+        public var buildEveryMinutes: Int?
 
         public init(
             id: String, name: String? = nil, linearProject: LinearProject,
-            specSource: String? = nil, repos: [Repo] = []
+            specSource: String? = nil, repos: [Repo] = [],
+            nightStart: String? = nil, nightEnd: String? = nil, buildEveryMinutes: Int? = nil
         ) {
+            self.nightStart = nightStart
+            self.nightEnd = nightEnd
+            self.buildEveryMinutes = buildEveryMinutes
             self.id = id
             self.name = name
             self.linearProject = linearProject
@@ -103,6 +112,11 @@ public struct SetupInvocation: Equatable, Sendable {
                 Self.appendOption(&arguments, "--linear-team", key)
             }
             Self.appendOption(&arguments, "--spec-source", project.specSource)
+            Self.appendOption(&arguments, "--night-start", project.nightStart)
+            Self.appendOption(&arguments, "--night-end", project.nightEnd)
+            if let minutes = project.buildEveryMinutes {
+                arguments += ["--build-every-minutes", String(minutes)]
+            }
             for repo in project.repos {
                 arguments += ["--repo", try Self.repoArgument(repo)]
             }

@@ -84,6 +84,9 @@ func makeArguments(
     linearProject: String? = nil,
     linearTeam: String? = nil,
     specSource: String? = nil,
+    nightStart: String? = nil,
+    nightEnd: String? = nil,
+    buildEveryMinutes: String? = nil,
     repo: [String] = [],
     installJobs: Bool = false,
     exportJobs: String? = nil,
@@ -107,6 +110,9 @@ func makeArguments(
     appendOption(&arguments, "--linear-project", linearProject) // glossary:ignore GL001
     appendOption(&arguments, "--linear-team", linearTeam)
     appendOption(&arguments, "--spec-source", specSource)
+    appendOption(&arguments, "--night-start", nightStart)
+    appendOption(&arguments, "--night-end", nightEnd)
+    appendOption(&arguments, "--build-every-minutes", buildEveryMinutes)
     appendOption(&arguments, "--export-jobs", exportJobs)
     appendRepeated(&arguments, "--cli", cli)
     appendRepeated(&arguments, "--fallback", fallback)

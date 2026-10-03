@@ -1,4 +1,5 @@
 import ArgumentParser
+import Config
 @testable import EngineCommand
 import Foundation
 import Testing
@@ -27,6 +28,50 @@ struct SetupOptionsParsingTests {
     func projectOptionsWithoutProjectRefused() {
         let arguments = makeArguments(projectName: "Demo")
         #expect(throws: (any Error).self) { try SetupCommand.parse(arguments) }
+    }
+
+    @Test("--night-start, --night-end and --build-every-minutes parse into the schedule")
+    func scheduleOptionsParse() throws {
+        let arguments = makeArguments(
+            project: "demo", linearProject: "proj-1",
+            nightStart: "23:30", nightEnd: "05:15", buildEveryMinutes: "20"
+        )
+        let options = try SetupOptions(command: try SetupCommand.parse(arguments))
+        #expect(options.schedule.nightStart == TimeOfDay(hour: 23, minute: 30))
+        #expect(options.schedule.nightEnd == TimeOfDay(hour: 5, minute: 15))
+        #expect(options.schedule.buildEveryMinutes == 20)
+    }
+
+    @Test("Omitted schedule options keep the defaults")
+    func omittedScheduleOptionsKeepDefaults() throws {
+        let arguments = makeArguments(project: "demo", linearProject: "proj-1", nightEnd: "07:00")
+        let options = try SetupOptions(command: try SetupCommand.parse(arguments))
+        #expect(options.schedule.nightStart == Schedule().nightStart)
+        #expect(options.schedule.nightEnd == TimeOfDay(hour: 7, minute: 0))
+        #expect(options.schedule.buildEveryMinutes == Schedule().buildEveryMinutes)
+    }
+
+    @Test("Schedule options without --project are refused", arguments: [
+        makeArguments(nightStart: "22:00"),
+        makeArguments(nightEnd: "06:00"),
+        makeArguments(buildEveryMinutes: "15")
+    ])
+    func scheduleOptionsWithoutProjectRefused(arguments: [String]) {
+        #expect(throws: (any Error).self) { try SetupCommand.parse(arguments) }
+    }
+
+    @Test("A malformed time or a non-integer build interval is refused, naming the flag", arguments: [
+        (makeArguments(project: "demo", linearProject: "proj-1", nightStart: "25:00"), "--night-start"),
+        (makeArguments(project: "demo", linearProject: "proj-1", nightEnd: "6am"), "--night-end"),
+        (makeArguments(project: "demo", linearProject: "proj-1", buildEveryMinutes: "often"), "--build-every-minutes")
+    ])
+    func malformedScheduleOptionRefused(arguments: [String], flag: String) throws {
+        do {
+            _ = try SetupCommand.parse(arguments)
+            Issue.record("expected a validation error")
+        } catch {
+            #expect(SetupCommand.message(for: error).contains(flag))
+        }
     }
 
     @Test("A --fallback without --route is refused")

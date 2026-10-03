@@ -69,6 +69,15 @@ public struct SetupCommand: AsyncParsableCommand {
     @Option(name: .customLong("spec-source"), help: "The Project's Spec Source path.")
     public var specSource: String?
 
+    @Option(name: .customLong("night-start"), help: "The Project's Night start, as `HH:MM`; default 22:00.")
+    public var nightStart: String?
+
+    @Option(name: .customLong("night-end"), help: "The Project's Night end, as `HH:MM`; default 06:00.")
+    public var nightEnd: String?
+
+    @Option(name: .customLong("build-every-minutes"), help: "Minutes between build firings; default 15.")
+    public var buildEveryMinutes: String?
+
     @Option(name: .customLong("repo"), help: "A Repo, as `name,role,path,check`.")
     public var repo: [String] = []
 

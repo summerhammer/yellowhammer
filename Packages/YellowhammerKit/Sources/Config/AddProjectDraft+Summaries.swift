@@ -55,7 +55,6 @@ extension AddProjectDraft {
     }
 
     private var jobsSummary: String {
-        let schedule = Schedule()
         let window = "\(schedule.nightStart)–\(schedule.nightEnd), build every \(schedule.buildEveryMinutes) min"
         return switch jobs {
         case .install:

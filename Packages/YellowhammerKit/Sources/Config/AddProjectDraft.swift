@@ -150,6 +150,8 @@ public struct AddProjectDraft: Equatable, Sendable {
     public var bounds = Bounds()
 
     // Scheduled jobs
+    /// The Project's `[schedule]`: the Night window and the build interval its LaunchAgents are generated from.
+    public var schedule = Schedule()
     public var jobs: JobsChoice = .install
     public var exportDirectory = ""
     public var exportUsesCron = false
@@ -281,6 +283,12 @@ extension AddProjectDraft {
     }
 
     private var jobsProblems: [String] {
+        if schedule.nightStart == schedule.nightEnd {
+            return ["The Night cannot start and end at the same time."]
+        }
+        if schedule.buildEveryMinutes < 1 {
+            return ["Build every must be at least 1 minute."]
+        }
         if jobs == .export, exportDirectory.trimmingCharacters(in: .whitespaces).isEmpty {
             return ["Choose the folder to export the scheduled jobs to."] // glossary:ignore GL001
         }
