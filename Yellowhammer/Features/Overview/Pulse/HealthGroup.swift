@@ -27,6 +27,8 @@ struct HealthGroup: View {
                     Button { openDestination(.settings) } label: { HealthFlagRow(flag: flag) }
                         .buttonStyle(.plain)
                         .help("Open the Project's Settings")
+                        // On the Button, which is the accessibility element the row's label becomes.
+                        .accessibilityIdentifier("health-flag")
                 }
             }
             Button("Open Settings") { openDestination(.settings) }
@@ -61,7 +63,6 @@ private struct HealthFlagRow: View {
         // Combining children drops the selectable detail from the label, so both are spelled out.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(flag.kind.displayName): \(flag.detail)")
-        .accessibilityIdentifier("health-flag")
     }
 }
 

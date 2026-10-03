@@ -34,6 +34,9 @@ struct PulseCard<Content: View>: View {
         .padding(14)
         .background(group.style.opacity(0.07), in: .rect(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(group.style.opacity(0.22)))
+        // A container, as the GroupBox it replaced was: without one, the group's identifier would
+        // replace every row's own.
+        .accessibilityElement(children: .contain)
     }
 }
 
