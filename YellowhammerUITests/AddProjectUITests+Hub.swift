@@ -74,6 +74,18 @@ extension AddProjectUITests {
         XCTAssertTrue(sheet.waitForNonExistence(timeout: 10))
     }
 
+    /// The story's "completing the wizard adds the new Project's row to the main window's Sidebar … and to
+    /// the Settings window's own Project sidebar". Opening Settings through the menu brings an open
+    /// Settings window forward rather than opening another.
+    func assertProjectRowInBothSidebars(_ id: String) {
+        XCTAssertTrue(element("sidebar-\(id)").waitForExistence(timeout: 10), "no main window Sidebar row")
+        app.menuBars.menuBarItems["Yellowhammer"].click()
+        app.menuBars.menuItems["Settings\u{2026}"].click()
+        XCTAssertTrue(
+            element("settings-project-\(id)").waitForExistence(timeout: 10), "no Settings window sidebar row"
+        )
+    }
+
     func element(_ identifier: String) -> XCUIElement {
         app.descendants(matching: .any)[identifier].firstMatch
     }
