@@ -278,10 +278,10 @@ public struct EngineInvocation: Sendable {
             try await maintainRollUps(night: night, outbox: outbox)
             // Posts `closed` once the Night Card's completion is recorded; `opened` never posts (G-10).
             try await closeNightIfNeeded(night, card: nightCard, outbox: outbox)
-            _ = try? journal.append(.actEnded, act: act, runID: runID, nightID: night.id)
+            appendClosing(.actEnded, night: night)
         } catch {
             let reason = String(describing: error)
-            _ = try? journal.append(.actIncomplete(reason: reason), act: act, runID: runID, nightID: night.id)
+            appendClosing(.actIncomplete(reason: reason), night: night)
             if error.isLinearAuthorizationFailure {
                 await notifyLinearAuthorizationHalted(night: night)
             } else {

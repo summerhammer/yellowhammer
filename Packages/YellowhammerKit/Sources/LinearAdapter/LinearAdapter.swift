@@ -20,11 +20,14 @@ public actor LinearAdapter: Board {
         linearProjectID: String,
         tokenStore: LinearTokenStore,
         transport: any HTTPTransport = URLSessionHTTPTransport(),
-        clock: @escaping @Sendable () -> Date = { Date() }
+        clock: @escaping @Sendable () -> Date = { Date() },
+        refreshLog: AppInstallationTokenRefreshLog? = nil
     ) {
         self.linearProjectID = linearProjectID
         self.transport = transport
-        tokens = LinearInstallationTokenSource(store: tokenStore, transport: transport, clock: clock)
+        tokens = LinearInstallationTokenSource(
+            store: tokenStore, transport: transport, clock: clock, refreshLog: refreshLog
+        )
     }
 
     /// The outcome of a GraphQL request that may succeed, fail, or encounter a conflict on insert.

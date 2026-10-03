@@ -56,6 +56,8 @@ public enum JournalEvent: Equatable, Sendable {
     /// `unanswered_nights_max` (no clock reads this event — it simply never advances, since nothing
     /// dispatched).
     case linearAuthorizationHalted
+    /// One attempt to refresh the App Installation's token pair, succeeded or refused. Carries no token.
+    case appInstallationTokenRefresh(AppInstallationTokenRefresh)
     case mainlineFetchFailed(repository: String, reason: String)
     /// The resumption self-audit found a Night that never opened (OQ12): a calendar date
     /// between two recorded Nights with no Night row. Recorded on the Night that resumed, by its

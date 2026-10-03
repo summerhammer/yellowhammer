@@ -19,6 +19,8 @@ extension JournalEvent {
             .actStoodDown
         case .linearAuthorizationHalted:
             .linearAuthorizationHalted
+        case .appInstallationTokenRefresh:
+            .appInstallationTokenRefresh
         case .mainlineFetchFailed:
             .mainlineFetchFailed
         case .absentNightDetected:

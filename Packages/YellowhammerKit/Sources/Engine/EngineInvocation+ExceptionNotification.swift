@@ -158,4 +158,15 @@ extension EngineInvocation {
         guard singleLine.count > limit else { return singleLine }
         return "\(singleLine.prefix(limit))…"
     }
+
+    /// Appends the Act's closing event (`.actEnded`, or `.actIncomplete` on the way out) after each
+    /// App Installation token-pair refresh the board attempted this Act, so the record precedes it.
+    /// The log is drained, so each record lands exactly once. Best-effort, like every other event;
+    /// every Linear call an Act makes happens after its Night opened, so the Night is always known.
+    func appendClosing(_ closing: JournalEvent, night: NightRecord) {
+        for refresh in board?.tokenRefreshes?.drain() ?? [] {
+            _ = try? journal.append(.appInstallationTokenRefresh(refresh), act: act, runID: runID, nightID: night.id)
+        }
+        _ = try? journal.append(closing, act: act, runID: runID, nightID: night.id)
+    }
 }

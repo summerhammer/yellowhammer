@@ -1,0 +1,86 @@
+import Domain
+@testable import Engine
+@testable import EngineCommand
+import Foundation
+import Journal
+import Testing
+
+// Every App Installation token-pair refresh an Act's board attempted is appended to the Journal, once,
+// before the Act's closing event: `.actEnded` on success, `.actIncomplete` on failure.
+
+@Suite("Token refresh records reach the Journal")
+struct TokenRefreshRecordTests {
+    private static let attempted = Date(timeIntervalSince1970: 1_800_000_000)
+
+    private static func refreshed() -> AppInstallationTokenRefresh {
+        AppInstallationTokenRefresh(
+            attemptedAt: attempted, trigger: .nearExpiry, previousExpiresAt: attempted.addingTimeInterval(60),
+            outcome: .refreshed(expiresAt: attempted.addingTimeInterval(7200))
+        )
+    }
+
+    private static func refused() -> AppInstallationTokenRefresh {
+        AppInstallationTokenRefresh(
+            attemptedAt: attempted, trigger: .accessTokenRejected, previousExpiresAt: attempted.addingTimeInterval(60),
+            outcome: .refused(.init(
+                status: 401, code: "invalid_client", description: "Client authentication failed", message: "refused"
+            ))
+        )
+    }
+
+    @Test("A successful Act appends its `refreshed` record before `.actEnded`, once")
+    func successfulActRecordsBeforeActEnded() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let log = AppInstallationTokenRefreshLog()
+        log.record(Self.refreshed())
+        let board = ActBoard(
+            reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning,
+            tokenRefreshes: log
+        )
+
+        let invocation = EngineInvocation(
+            act: .build, mode: .real, nightStart: nightCardNightStart, journal: journal,
+            trigger: .forced, runID: RunID(), board: board, work: { _ in }
+        )
+        try await invocation.run()
+
+        let records = try journal.events()
+        let types = records.map(\.type)
+        let refreshIndex = try #require(types.firstIndex(of: .appInstallationTokenRefresh))
+        let endedIndex = try #require(types.firstIndex(of: .actEnded))
+        #expect(refreshIndex < endedIndex)
+        #expect(types.filter { $0 == .appInstallationTokenRefresh }.count == 1)
+        #expect(records[refreshIndex].event == .appInstallationTokenRefresh(Self.refreshed()))
+        #expect(records[refreshIndex].nightID != nil)
+        #expect(log.drain().isEmpty)
+    }
+
+    @Test("A failing Act appends its `refused` record before `.actIncomplete`")
+    func failingActRecordsBeforeActIncomplete() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let log = AppInstallationTokenRefreshLog()
+        log.record(Self.refused())
+        let reading = FakeReadingBoard([])
+        await reading.script(identity: .failure(.notAuthenticated("sign-in expired")))
+        let board = ActBoard(
+            reading: reading, writing: boards.writing, provisioning: boards.provisioning, tokenRefreshes: log
+        )
+
+        let invocation = EngineInvocation(
+            act: .build, mode: .real, nightStart: nightCardNightStart, journal: journal,
+            trigger: .forced, runID: RunID(), board: board, work: { _ in }
+        )
+        await #expect(throws: (any Error).self) { try await invocation.run() }
+
+        let types = try journal.events().map(\.type)
+        let refreshIndex = try #require(types.firstIndex(of: .appInstallationTokenRefresh))
+        let incompleteIndex = try #require(types.firstIndex(of: .actIncomplete))
+        #expect(refreshIndex < incompleteIndex)
+        #expect(types.filter { $0 == .appInstallationTokenRefresh }.count == 1)
+        #expect(types.contains(.linearAuthorizationHalted))
+    }
+}

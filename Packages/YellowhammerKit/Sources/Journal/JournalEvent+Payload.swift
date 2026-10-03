@@ -21,6 +21,7 @@ extension JournalEvent {
                 "holder_mode": holder.mode.rawValue
             ]
         case .linearAuthorizationHalted: nil
+        case .appInstallationTokenRefresh(let refresh): Self.payload(of: refresh)
         case .mainlineFetchFailed(let repository, let reason):
             ["reason": reason, "repository": repository]
         case .absentNightDetected(let nightStart):
