@@ -15,14 +15,18 @@ public struct AddProjectContext: Equatable, Sendable {
     public var journalProjectIDs: Set<String>
     /// The Linear teams `yh setup --print-choices` returned.
     public var teams: [SetupChoices.Team]
+    /// The active Linear projects `yh setup --print-choices` returned, in the board's order. // glossary:ignore GL001
+    public var linearProjects: [SetupChoices.LinearProject] // glossary:ignore GL001
 
     public init(
         existingProjectIDs: Set<String> = [],
         repoOwners: [String: String] = [:],
         specSourceReaders: [String: [String]] = [:],
         journalProjectIDs: Set<String> = [],
-        teams: [SetupChoices.Team] = []
+        teams: [SetupChoices.Team] = [],
+        linearProjects: [SetupChoices.LinearProject] = []
     ) {
+        self.linearProjects = linearProjects
         self.existingProjectIDs = existingProjectIDs
         self.repoOwners = repoOwners
         self.specSourceReaders = specSourceReaders
@@ -35,7 +39,8 @@ public struct AddProjectContext: Equatable, Sendable {
         configuration: Configuration,
         projectFileIDs: Set<String>,
         journalProjectIDs: Set<String>,
-        teams: [SetupChoices.Team] = []
+        teams: [SetupChoices.Team] = [],
+        linearProjects: [SetupChoices.LinearProject] = []
     ) {
         var owners: [String: String] = [:]
         var readers: [String: [String]] = [:]
@@ -52,7 +57,8 @@ public struct AddProjectContext: Equatable, Sendable {
             repoOwners: owners,
             specSourceReaders: readers,
             journalProjectIDs: journalProjectIDs,
-            teams: teams
+            teams: teams,
+            linearProjects: linearProjects
         )
     }
 

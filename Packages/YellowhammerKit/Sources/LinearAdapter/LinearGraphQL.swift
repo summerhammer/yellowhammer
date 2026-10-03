@@ -192,6 +192,15 @@ enum LinearGraphQL {
         }
         """
 
+    static let projectsQuery = """
+        query YellowhammerProjects($first: Int!, $after: String) {
+          projects(first: $first, after: $after) {
+            pageInfo { hasNextPage endCursor }
+            nodes { id name completedAt canceledAt teams { nodes { id key name } } }
+          }
+        }
+        """
+
     static let labelsQuery = """
         query YellowhammerLabels($teamId: ID!, $first: Int!, $after: String) {
           issueLabels(filter: { or: [

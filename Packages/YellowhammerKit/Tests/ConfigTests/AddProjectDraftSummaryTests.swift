@@ -96,6 +96,16 @@ struct AddProjectDraftSummaryTests {
         #expect(draft.summary(of: .linearProject).first == "\u{201c}")
     }
 
+    @Test("Linear project summary names a listed project; an unlisted id shows as typed") // glossary:ignore GL001
+    func linearListedProject() {
+        var draft = AddProjectDraft()
+        draft.context.linearProjects = [SetupChoices.LinearProject(id: "p1", name: "Acme Web", teamNames: ["Eng"])]
+        draft.linearProjectID = "p1"
+        #expect(draft.summary(of: .linearProject) == "\u{201c}Acme Web\u{201d}")
+        draft.linearProjectID = "other"
+        #expect(draft.summary(of: .linearProject) == "\u{201c}other\u{201d}")
+    }
+
     @Test("Bounds fields cover the six Bounds with their defaults")
     func boundsFields() {
         #expect(Bounds.fields.count == 6)

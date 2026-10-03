@@ -81,4 +81,36 @@ struct LinearWorkspaceProvisioningTests {
         #expect(teams[1] == BoardTeam(id: BoardObjectID(rawValue: "team-2"), key: "PRD", name: "Product"))
         #expect(try Fixture.variables(transport.requests[2])["after"] as? String == "cursor-a")
     }
+
+    @Test("Linear projects decode teams and the completed/canceled flags, and paginate") // glossary:ignore GL001
+    func linearProjectsDecodeFlagsAndPaginate() async throws {
+        let transport = StubHTTPTransport([
+            Fixture.token(),
+            Fixture.json("""
+                {"data":{"projects":{"pageInfo":{"hasNextPage":true,"endCursor":"cursor-a"},"nodes":[
+                  {"id":"p1","name":"Active","completedAt":null,"canceledAt":null,
+                   "teams":{"nodes":[{"id":"team-1","key":"ENG","name":"Engineering"}]}},
+                  {"id":"p2","name":"Done","completedAt":"2026-01-01T00:00:00.000Z","canceledAt":null,
+                   "teams":{"nodes":[]}}
+                ]}}}
+                """),
+            Fixture.json("""
+                {"data":{"projects":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[
+                  {"id":"p3","name":"Dropped","completedAt":null,"canceledAt":"2026-02-01T00:00:00.000Z",
+                   "teams":{"nodes":[]}}
+                ]}}}
+                """)
+        ])
+        let adapter = Fixture.adapter(transport)
+
+        let projects = try await adapter.linearProjects()
+
+        #expect(projects.map(\.id.rawValue) == ["p1", "p2", "p3"])
+        let engineering = BoardTeam(id: BoardObjectID(rawValue: "team-1"), key: "ENG", name: "Engineering")
+        #expect(projects[0].teams == [engineering])
+        #expect(!projects[0].isCompleted && !projects[0].isCanceled)
+        #expect(projects[1].isCompleted && !projects[1].isCanceled)
+        #expect(!projects[2].isCompleted && projects[2].isCanceled)
+        #expect(try Fixture.variables(transport.requests[2])["after"] as? String == "cursor-a")
+    }
 }

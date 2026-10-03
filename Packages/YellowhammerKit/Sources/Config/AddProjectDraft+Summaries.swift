@@ -30,7 +30,9 @@ extension AddProjectDraft {
         switch linearChoice {
         case .existing:
             let id = linearProjectID.trimmingCharacters(in: .whitespacesAndNewlines)
-            return id.isEmpty ? "No Linear project" : "\u{201c}\(id)\u{201d}" // glossary:ignore GL001
+            if id.isEmpty { return "No Linear project" } // glossary:ignore GL001
+            let listed = context.linearProjects.first { $0.id == id }
+            return "\u{201c}\(listed?.name ?? id)\u{201d}"
         case .createInTeam:
             guard let teamKey else { return "No team" }
             let team = context.teams.first { $0.key == teamKey }

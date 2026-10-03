@@ -68,6 +68,7 @@ extension SetupWizardModel {
                 return
             }
             draft.context.teams = decoded.teams
+            draft.context.linearProjects = decoded.linearProjects
         } catch {
             teamsFailure = ["\(error)"]
         }

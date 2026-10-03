@@ -29,4 +29,14 @@ struct SetupChoicesTests {
 
         #expect(decoded == choices)
     }
+
+    @Test("JSON without linearProjects decodes with an empty list") // glossary:ignore GL001
+    func missingLinearProjectsDecodesEmpty() throws {
+        let json = """
+            {"operatorCandidates":[],"teams":[],"cliAdapters":["claude"]}
+            """
+        let decoded = try JSONDecoder().decode(SetupChoices.self, from: Data(json.utf8))
+        #expect(decoded.linearProjects.isEmpty)
+        #expect(decoded.configuredOperator == nil)
+    }
 }

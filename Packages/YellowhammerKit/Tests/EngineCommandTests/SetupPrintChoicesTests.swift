@@ -31,6 +31,50 @@ struct SetupPrintChoicesTests {
         ))
     }
 
+    @Test("Completed and cancelled Linear projects are dropped, the board's order kept") // glossary:ignore GL001
+    func linearProjectsFilteredInBoardOrder() async throws {
+        let directory = ConfigurationDirectory()
+        let board = await makeBoard()
+        let team = BoardTeam(id: BoardObjectID(rawValue: "team-1"), key: "ENG", name: "Engineering")
+        func project(_ id: String, completed: Bool = false, canceled: Bool = false) -> BoardLinearProject {
+            BoardLinearProject(
+                id: BoardObjectID(rawValue: id), name: "Name \(id)", teams: [team],
+                isCompleted: completed, isCanceled: canceled
+            )
+        }
+        await board.setLinearProjects([
+            project("b"), project("done", completed: true), project("a"), project("gone", canceled: true)
+        ])
+        let output = RecordingOutput()
+        let setup = try makeSetup(arguments: ["--print-choices"], directory: directory, board: board, output: output)
+
+        try await setup.run()
+
+        let data = try #require(output.lines.first?.data(using: .utf8))
+        let choices = try JSONDecoder().decode(SetupChoices.self, from: data)
+        #expect(choices.linearProjects == [
+            SetupChoices.LinearProject(id: "b", name: "Name b", teamNames: ["Engineering"]),
+            SetupChoices.LinearProject(id: "a", name: "Name a", teamNames: ["Engineering"])
+        ])
+    }
+
+    @Test("A failing Linear projects read still prints the teams and candidates") // glossary:ignore GL001
+    func failedProjectsReadKeepsTeams() async throws {
+        let directory = ConfigurationDirectory()
+        let board = await makeBoard(teams: [engineeringTeam])
+        await board.failLinearProjects(with: .unreadableResponse("boom"))
+        let output = RecordingOutput()
+        let setup = try makeSetup(arguments: ["--print-choices"], directory: directory, board: board, output: output)
+
+        try await setup.run()
+
+        let data = try #require(output.lines.first?.data(using: .utf8))
+        let choices = try JSONDecoder().decode(SetupChoices.self, from: data)
+        #expect(choices.linearProjects.isEmpty)
+        #expect(choices.teams == [SetupChoices.Team(id: "team-1", key: "ENG", name: "Engineering")])
+        #expect(!choices.operatorCandidates.isEmpty)
+    }
+
     @Test("The configured Operator is reported only while still a candidate") // glossary:ignore GL001
     func configuredOperatorReportedOnlyWhileCandidate() async throws {
         let directory = ConfigurationDirectory()

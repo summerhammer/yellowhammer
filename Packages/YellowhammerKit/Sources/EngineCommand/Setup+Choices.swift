@@ -19,7 +19,12 @@ extension Setup {
         let board = bindProvisioning(machine, "")
         let members = try await authorize(board: board)
         let teams = try await fetchTeams(board: board)
-        output(try encodeChoicesJSON(makeChoices(machine: machine, members: members, teams: teams)))
+        // A failed projects read must not cost the Operator the teams and candidates already in hand:
+        // the step falls back to pasting an id, so an empty list is the honest degradation.
+        let projects = (try? await board.linearProjects()) ?? []
+        output(try encodeChoicesJSON(
+            makeChoices(machine: machine, members: members, teams: teams, projects: projects)
+        ))
     }
 
     private func loadMachineConfigurationForChoices() throws -> MachineConfiguration {
@@ -49,7 +54,8 @@ extension Setup {
     }
 
     private func makeChoices(
-        machine: MachineConfiguration, members: [BoardMember], teams: [BoardTeam]
+        machine: MachineConfiguration, members: [BoardMember], teams: [BoardTeam],
+        projects: [BoardLinearProject]
     ) -> SetupChoices {
         let candidates = OperatorIdentity.candidates(from: members)
         let configuredOperator = machine.operatorIdentity.flatMap { configured in
@@ -61,6 +67,11 @@ extension Setup {
             },
             configuredOperator: configuredOperator,
             teams: teams.map { SetupChoices.Team(id: $0.id.rawValue, key: $0.key, name: $0.name) },
+            linearProjects: projects.filter { !$0.isCompleted && !$0.isCanceled }.map { project in
+                SetupChoices.LinearProject(
+                    id: project.id.rawValue, name: project.name, teamNames: project.teams.map(\.name)
+                )
+            },
             cliAdapters: CLIAdapterRegistry.allNames
         )
     }
