@@ -16,6 +16,8 @@ enum DoctorSeverity: Equatable, Sendable {
     case pass
     case warning
     case failure
+    /// Context only: never counted in the summary and never affects the exit code.
+    case info
 
     /// The tag printed in `[tag]` at the start of a finding's line.
     var tag: String {
@@ -23,6 +25,7 @@ enum DoctorSeverity: Equatable, Sendable {
         case .pass: "pass"
         case .warning: "warn"
         case .failure: "FAIL"
+        case .info: "info"
         }
     }
 }
@@ -36,4 +39,15 @@ struct DoctorFinding: Equatable, Sendable {
     let message: String
     /// The Project this finding is scoped to, or nil when it is machine-scoped.
     let projectID: ProjectID?
+    /// The App Installation this finding is about, when it is scoped to one.
+    var installation: DoctorInstallationScope?
+}
+
+/// The App Installation a finding names: its local name, its workspace (the registered id, and the
+/// name read live where it could be read) and the Projects it serves, in Project id order.
+struct DoctorInstallationScope: Equatable, Sendable {
+    let name: String
+    let workspace: String?
+    let workspaceName: String?
+    let projects: [ProjectID]
 }

@@ -36,14 +36,6 @@ final class LinearInstallationModel {
         }
     }
 
-    /// One row of `yh doctor --check linear --json`'s output — a plain local mirror, since the app does
-    /// not link `EngineCommand` (only `yh` reads/writes the Keychain and the Board).
-    struct DoctorFindingRow: Decodable {
-        let subject: String
-        let severity: String
-        let message: String
-    }
-
     private(set) var phase: Phase = .checking
     /// Whether the running (or most recently ended) attempt used `--remote` (roadmap P17.9) — so a
     /// same-path retry (`startLinearInstall()`, no argument) repeats it.
@@ -78,11 +70,7 @@ final class LinearInstallationModel {
         let status = try? await engine.run(arguments: ["doctor", "--check", "linear", "--json"]) {
             lines.append($0)
         }
-        guard status != nil,
-              let lastLine = lines.last(where: { !$0.isEmpty }),
-              let data = lastLine.data(using: .utf8),
-              let findings = try? JSONDecoder().decode([DoctorFindingRow].self, from: data)
-        else {
+        guard status != nil, let findings = DoctorFindingRow.decodeLastLine(lines) else {
             phase = .notInstalled
             return
         }

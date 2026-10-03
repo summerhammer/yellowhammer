@@ -115,3 +115,32 @@ struct LinearWorkspaceProvisioningTests {
         #expect(try Fixture.variables(transport.requests[2])["after"] as? String == "cursor-a")
     }
 }
+
+@Suite("Linear workspace identity")
+struct LinearWorkspaceIdentityTests {
+    @Test("workspace() decodes the organization's id, name and urlKey")
+    func workspaceDecodes() async throws {
+        let transport = StubHTTPTransport([
+            Fixture.token(),
+            Fixture.json(#"{"data":{"organization":{"id":"org-1","name":"Acme","urlKey":"acme"}}}"#)
+        ])
+        let adapter = Fixture.adapter(transport)
+
+        let workspace = try await adapter.workspace()
+
+        #expect(workspace == BoardWorkspace(id: "org-1", name: "Acme", urlKey: "acme"))
+        let query = try #require(try Fixture.body(transport.requests[1])["query"] as? String)
+        #expect(query.contains("organization { id name urlKey }"))
+    }
+
+    @Test("A refused workspace read maps like the sibling reads")
+    func workspaceRefusal() async throws {
+        let adapter = Fixture.adapter(StubHTTPTransport([
+            Fixture.token(),
+            Fixture.json(#"{"errors":[{"message":"Forbidden"}]}"#, status: 403)
+        ]))
+        await #expect(throws: BoardError.self) {
+            _ = try await adapter.workspace()
+        }
+    }
+}

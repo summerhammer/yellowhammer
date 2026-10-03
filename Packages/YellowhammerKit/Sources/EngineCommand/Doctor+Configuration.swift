@@ -40,7 +40,7 @@ extension Doctor {
 
     /// `invalid.id` when known, else the id parsed from the file's last path component
     /// (`<id>.toml`), matching `Status.matchesFilter`'s rule — nil when neither is available.
-    private func projectID(forInvalid invalid: InvalidProject) -> ProjectID? {
+    func projectID(forInvalid invalid: InvalidProject) -> ProjectID? {
         if let id = invalid.id {
             return id
         }
