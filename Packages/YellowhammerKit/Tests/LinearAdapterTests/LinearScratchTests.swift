@@ -7,11 +7,11 @@ import Testing
 
 /// Against the real scratch Linear workspace — the done-condition a stub cannot prove. Opt-in only:
 ///
-///     YH_LINEAR_SCRATCH_TESTS=1 YH_LINEAR_PROJECT_ID=… \
+///     YH_LINEAR_SCRATCH_TESTS=1 YH_LINEAR_INSTALLATION=<local name> YH_LINEAR_PROJECT_ID=… \
 ///         swift test --package-path Packages/YellowhammerKit --filter LinearScratchTests
 ///
 /// The Installation's token pair is read from (and refreshed pairs written back to) the Keychain item
-/// behind `keychain:linear`, as the JSON `LinearTokenPair.encoded()` shape (P17.3/P17.4). The Keychain is
+/// `linear-<name>` (the App Installation named by `YH_LINEAR_INSTALLATION`), as the JSON `LinearTokenPair.encoded()` shape (P17.3/P17.4). The Keychain is
 /// read and written with `Security` directly, because this test target may import only its own adapter
 /// (MB2) — it cannot import `Config`'s `KeychainCredentialStore` or `MachineLock`. A live run is a
 /// single process, so no cross-process refresh lock is needed here; the lock closure just runs its body.
@@ -152,12 +152,18 @@ struct LinearScratchTests {
     /// Builds a live adapter from the Installation's pair stored in the Keychain, or nil (having printed
     /// why) when none is there — split out so every `@Test` shares the same skip message shape.
     private static func installedAdapter(linearProjectID: String, skipMessage: String) -> LinearAdapter? {
-        guard let json = Self.keychainSecret(account: "linear") else {
-            print("\(skipMessage) skipped: no Keychain item for service dev.yellowhammer, account linear")
+        let installation = ProcessInfo.processInfo.environment["YH_LINEAR_INSTALLATION"] ?? ""
+        guard !installation.isEmpty else {
+            print("\(skipMessage) skipped: YH_LINEAR_INSTALLATION is not set")
+            return nil
+        }
+        let account = "linear-\(installation)"
+        guard let json = Self.keychainSecret(account: account) else {
+            print("\(skipMessage) skipped: no Keychain item for service dev.yellowhammer, account \(account)")
             return nil
         }
         guard let pair = try? LinearTokenPair(storedJSON: json) else {
-            print("\(skipMessage) skipped: the Keychain item for dev.yellowhammer/linear is not a stored pair")
+            print("\(skipMessage) skipped: the Keychain item for dev.yellowhammer/\(account) is not a stored pair")
             return nil
         }
         let box = Mutex(pair)
@@ -166,7 +172,7 @@ struct LinearScratchTests {
             write: { newValue in
                 box.withLock { $0 = newValue }
                 if let encoded = try? newValue.encoded() {
-                    Self.storeKeychainSecret(encoded, account: "linear")
+                    Self.storeKeychainSecret(encoded, account: account)
                 }
             },
             withRefreshLock: { try await $0() }

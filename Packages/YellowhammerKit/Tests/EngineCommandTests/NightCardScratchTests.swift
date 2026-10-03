@@ -9,11 +9,11 @@ import Testing
 
 /// Against the real scratch Linear workspace — the done-condition a stub cannot prove. Opt-in only:
 ///
-///     YH_LINEAR_SCRATCH_TESTS=1 YH_LINEAR_PROJECT_ID=… \
+///     YH_LINEAR_SCRATCH_TESTS=1 YH_LINEAR_INSTALLATION=<local name> YH_LINEAR_PROJECT_ID=… \
 ///         swift test --package-path Packages/YellowhammerKit --filter NightCardScratchTests
 ///
-/// Uses the Installation's token pair already stored in the Keychain (P17.3/P17.4) via `BoardBinding`
-/// — no client id or secret of its own.
+/// Uses the token pair of the App Installation named `YH_LINEAR_INSTALLATION`, already stored in the Keychain
+/// item `linear-<name>` (P17.3/P17.4), via `BoardBinding` — no client id or secret of its own.
 @Suite(
     "Open and close the Night Card (live)",
     .enabled(if: ProcessInfo.processInfo.environment["YH_LINEAR_SCRATCH_TESTS"] == "1")
@@ -58,14 +58,19 @@ struct NightCardScratchTests {
             print("NightCardScratchTests skipped: YH_LINEAR_PROJECT_ID is not set")
             return nil
         }
-        guard keychainSecret(account: "linear") != nil else {
-            print("NightCardScratchTests skipped: no Keychain item for service dev.yellowhammer, account linear")
+        guard let installation = environment["YH_LINEAR_INSTALLATION"], !installation.isEmpty else {
+            print("NightCardScratchTests skipped: YH_LINEAR_INSTALLATION is not set")
+            return nil
+        }
+        guard keychainSecret(account: "linear-\(installation)") != nil else {
+            print("NightCardScratchTests skipped: no Keychain item for service dev.yellowhammer, "
+                + "account linear-\(installation)")
             return nil
         }
 
         let machine = try MachineConfiguration.parse("""
-            [board.linear.installations.acme]
-            credential = "keychain:linear"
+            [board.linear.installations."\(installation)"]
+            credential = "keychain:linear-\(installation)"
             workspace = "workspace-1"
             app_user = "app-user-1"
 
@@ -76,7 +81,7 @@ struct NightCardScratchTests {
         let project = try ProjectConfiguration.parse("""
             id = "yellowhammer"
             name = "Yellowhammer"
-            board = { linear = { installation = "acme", project = "\(linearProjectID)" } }
+            board = { linear = { installation = "\(installation)", project = "\(linearProjectID)" } }
             spec_source = "~/Developer/yellowhammer-spec"
 
             [[repos]]
