@@ -114,6 +114,23 @@ struct LinearTeamsListConnection: Decodable {
     let nodes: [LinearTeamNode]
 }
 
+struct LinearProjectsPayload: Decodable {
+    let projects: LinearProjectsListConnection
+}
+
+struct LinearProjectsListConnection: Decodable {
+    let pageInfo: LinearPageInfo
+    let nodes: [LinearProjectListNode]
+}
+
+struct LinearProjectListNode: Decodable {
+    let id: String
+    let name: String
+    let completedAt: String?
+    let canceledAt: String?
+    let teams: LinearTeamsConnection
+}
+
 struct LinearLabelsPayload: Decodable {
     let issueLabels: LinearLabelsConnection
 }

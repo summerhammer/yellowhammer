@@ -20,6 +20,11 @@ extension AddProjectDraft {
             teams: [
                 SetupChoices.Team(id: "team1", key: "acme", name: "Acme"),
                 SetupChoices.Team(id: "team2", key: "internal", name: "Internal")
+            ],
+            linearProjects: [
+                SetupChoices.LinearProject(id: "lp-web", name: "Acme Web", teamNames: ["Acme"]),
+                SetupChoices.LinearProject(id: "lp-ios", name: "Acme iOS", teamNames: ["Acme", "Internal"]),
+                SetupChoices.LinearProject(id: "lp-ops", name: "Operations", teamNames: ["Internal"])
             ]
         )
         draft.addRepo(path: "~/dev/acme/acme-mobile")

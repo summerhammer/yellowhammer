@@ -88,6 +88,39 @@ extension LinearAdapter: BoardProvisioning {
         return allTeams
     }
 
+    public func linearProjects() async throws(BoardError) -> [BoardLinearProject] {
+        var all: [BoardLinearProject] = []
+        var after: String?
+
+        while true {
+            var variables: [String: any Sendable] = ["first": 250]
+            if let after {
+                variables["after"] = after
+            }
+            let payload: LinearProjectsPayload = try await perform(LinearGraphQL.projectsQuery, variables: variables)
+            all.append(contentsOf: payload.projects.nodes.map { node in
+                BoardLinearProject(
+                    id: BoardObjectID(rawValue: node.id),
+                    name: node.name,
+                    teams: node.teams.nodes.map {
+                        BoardTeam(id: BoardObjectID(rawValue: $0.id), key: $0.key, name: $0.name)
+                    },
+                    isCompleted: node.completedAt != nil,
+                    isCanceled: node.canceledAt != nil
+                )
+            })
+            if !payload.projects.pageInfo.hasNextPage {
+                break
+            }
+            guard let endCursor = payload.projects.pageInfo.endCursor else {
+                throw .unreadableResponse("Linear indicated more results but provided no cursor")
+            }
+            after = endCursor
+        }
+
+        return all
+    }
+
     public func linearProject() async throws(BoardError) -> BoardProjectScope {
         let payload: LinearProjectPayload = try await perform(
             LinearGraphQL.projectQuery, variables: ["id": linearProjectID]

@@ -15,6 +15,11 @@ public protocol BoardProvisioning: Sendable {
     /// Every team in the workspace. Workspace-scoped, not Linear-project-scoped.
     func teams() async throws(BoardError) -> [BoardTeam]
 
+    /// Every Linear project the identity can see, completed and cancelled ones included, each flagged;
+    /// the adapter does not filter (setup does). Archived projects are excluded by the board.
+    /// Workspace-scoped, not bound to this Project's Linear project.
+    func linearProjects() async throws(BoardError) -> [BoardLinearProject]
+
     /// The teams Yellowhammer's own identity is a **member** of (Board Provisioning Ruling, OQ80): a
     /// team the App Installation did not select is invisible to this identity and never appears here,
     /// whether or not `teams()` can see it read-only. Setup checks membership before any create in a
@@ -59,6 +64,24 @@ public struct BoardProjectScope: Hashable, Sendable {
         self.id = id
         self.name = name
         self.teams = teams
+    }
+}
+
+/// A Linear project as the workspace lists it: the scope plus the flags setup filters on. The adapter
+/// reports the flags; it does not filter.
+public struct BoardLinearProject: Hashable, Sendable {
+    public var id: BoardObjectID
+    public var name: String
+    public var teams: [BoardTeam]
+    public var isCompleted: Bool
+    public var isCanceled: Bool
+
+    public init(id: BoardObjectID, name: String, teams: [BoardTeam], isCompleted: Bool, isCanceled: Bool) {
+        self.id = id
+        self.name = name
+        self.teams = teams
+        self.isCompleted = isCompleted
+        self.isCanceled = isCanceled
     }
 }
 

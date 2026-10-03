@@ -57,6 +57,19 @@ actor FakeProvisioningBoard: BoardProvisioning {
 
     func teams() async throws(BoardError) -> [BoardTeam] { boardTeams }
 
+    /// What ``linearProjects()`` reports; empty by default.
+    var boardLinearProjects: [BoardLinearProject] = []
+    /// When set, ``linearProjects()`` throws it.
+    var linearProjectsFailure: BoardError?
+
+    func setLinearProjects(_ projects: [BoardLinearProject]) { boardLinearProjects = projects }
+    func failLinearProjects(with error: BoardError?) { linearProjectsFailure = error }
+
+    func linearProjects() async throws(BoardError) -> [BoardLinearProject] {
+        if let linearProjectsFailure { throw linearProjectsFailure }
+        return boardLinearProjects
+    }
+
     /// Excludes `team` from ``memberTeams()`` — the app is installed and can see the team read-only,
     /// but is not a member of it.
     func excludeMembership(of team: BoardObjectID) { excludedMemberTeams.insert(team) }

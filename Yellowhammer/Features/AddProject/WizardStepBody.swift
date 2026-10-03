@@ -159,8 +159,25 @@ struct LinearBlock: View {
             }
             switch draft.linearChoice {
             case .existing:
+                if !draft.context.linearProjects.isEmpty {
+                    WizardBlock(boxed: true) {
+                        ForEach(draft.context.linearProjects, id: \.id) { project in
+                            RadioRow(
+                                title: project.name,
+                                note: project.teamNames.joined(separator: ", "),
+                                isSelected: draft.linearProjectID == project.id,
+                                identifier: "setup-linear-project-\(project.id)"
+                            ) {
+                                draft.linearProjectID = project.id
+                            }
+                        }
+                    }
+                }
                 WizardBlock(
-                    footer: "Copy it from the Linear project\u{2019}s URL or its settings." // glossary:ignore GL001
+                    footer: draft.context.linearProjects.isEmpty
+                        ? "Copy it from the Linear project\u{2019}s URL or its settings." // glossary:ignore GL001
+                        // glossary:ignore GL001
+                        : "Not listed? Paste its id from the Linear project\u{2019}s URL or settings."
                 ) {
                     WizardBlockRow(label: "Linear project id") { // glossary:ignore GL001
                         TextField(
