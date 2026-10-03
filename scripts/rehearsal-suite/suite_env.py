@@ -114,6 +114,7 @@ def render_project_toml(
     *,
     project_id,
     name,
+    installation,
     linear_project,
     spec_source,
     repos,
@@ -123,13 +124,16 @@ def render_project_toml(
     fallbacks=("claude/opus/high",),
 ):
     """Renders one Project's TOML file exactly as `ProjectConfigurationDecoder` expects it: id,
-    name, linear_project, spec_source, [[repos]] (path/role/check/protected_paths), [limits],
-    [schedule], and a single [[routing]] override."""
+    name, spec_source, [board.linear] (installation, project), [[repos]]
+    (path/role/check/protected_paths), [limits], [schedule], and a single [[routing]] override."""
     lines = [
         f"id = {_toml_string(project_id)}",
         f"name = {_toml_string(name)}",
-        f"linear_project = {_toml_string(linear_project)}",
         f"spec_source = {_toml_string(spec_source)}",
+        "",
+        "[board.linear]",
+        f"installation = {_toml_string(installation)}",
+        f"project = {_toml_string(linear_project)}",
         "",
     ]
     for repo in repos:
@@ -175,8 +179,13 @@ def render_project_toml(
 
 
 def read_linear_project(configuration_directory, project_id):
-    """The `linear_project` the earlier `yh setup --init` wrote, preserved across scenario rewrites."""
+    """The `[board.linear] project` the earlier `yh setup --init` wrote, preserved across scenario rewrites."""
     return scratch_linear.load_linear_project_id(configuration_directory, project_id)
+
+
+def read_project_installation(configuration_directory, project_id):
+    """The `[board.linear] installation` the earlier `yh setup --init` wrote, preserved likewise."""
+    return scratch_linear.load_project_installation(configuration_directory, project_id)
 
 
 def write_project_file(configuration_directory, project_id, text):
@@ -190,14 +199,15 @@ def project_file_path(configuration_directory, project_id):
     return configuration_directory / "projects" / f"{project_id}.toml"
 
 
-def read_operator_identity(configuration_directory):
-    """`[linear] operator` from `config.toml`, or None when unset."""
+def read_operator_identity(configuration_directory, installation_name):
+    """`operator` of `[board.linear.installations.<name>]` in `config.toml`, or None when unset."""
     path = configuration_directory / "config.toml"
     if not path.is_file():
         return None
     with path.open("rb") as handle:
         data = tomllib.load(handle)
-    return (data.get("linear") or {}).get("operator")
+    installations = data.get("board", {}).get("linear", {}).get("installations", {})
+    return (installations.get(installation_name) or {}).get("operator")
 
 
 # MARK: - Stand-in commits (a rehearsal Night never dispatches an agent CLI to make one)
@@ -837,6 +847,9 @@ class Environment:
     act_timeout: float
     transport: object = None
     yh: YhRunner = None
+    #: The App Installation's local name: from `--installation`, else resolved to the sole entry
+    #: by `resolve_installation` (which stores the resolved name back here).
+    installation: str | None = None
     app_client: object = None
     team_id: str = None
     linear: LinearReader = None
@@ -857,17 +870,31 @@ class Environment:
         return snapshot_journal(self.configuration_directory, self.work_directory, scenario, project_id, label, step)
 
 
-def make_environment(app, team, root, work_directory, configuration_directory, act_timeout, transport=None):
+def make_environment(
+    app, team, root, work_directory, configuration_directory, act_timeout, transport=None, installation=None
+):
     transport = transport or scratch_linear.HTTPTransport()
     env = Environment(
         app=app, team=team, root=root, work_directory=work_directory,
         configuration_directory=configuration_directory, act_timeout=act_timeout, transport=transport,
+        installation=installation,
     )
     env.yh = YhRunner(env.yh_executable, work_directory, act_timeout)
     return env
 
 
 # MARK: - Ensure Projects exist / reset
+
+
+def resolve_installation(env):
+    """The App Installation this run uses (`env.installation`, else the sole one in `config.toml`),
+    resolved once: the resolved local name is stored back on `env.installation`."""
+    try:
+        machine = scratch_linear.load_machine_config(env.configuration_directory, env.installation)
+    except scratch_linear.SetupFailed as error:
+        raise SetupFailed(str(error)) from error
+    env.installation = machine.name
+    return machine
 
 
 def ensure_project(env, project_id):
@@ -877,9 +904,11 @@ def ensure_project(env, project_id):
     if project_file.is_file():
         return
     name = SUITE_PROJECTS[project_id]
+    installation = resolve_installation(env).name
     manifest = build_fixture_tree(env.root, project_id, force=False)
     args = [
-        "--init", "--project", project_id, "--project-name", name, "--linear-team", env.team,
+        "--init", "--project", project_id, "--project-name", name, "--installation", installation,
+        "--linear-team", env.team,
         "--spec-source", manifest["spec_source"],
     ]
     for repo in default_repo_declarations(manifest):
@@ -919,6 +948,7 @@ def _reset_worktrees_and_scratch_linear(env, project_id):
     reset_args = [
         sys.executable, str(SCRIPTS_DIR / "scratch-linear" / "scratch_linear.py"),
         "--configuration-directory", str(env.configuration_directory),
+        "--installation", resolve_installation(env).name,
         "reset", "--team", env.team, "--project", project_id,
     ]
     result = subprocess.run(reset_args, capture_output=True, text=True)
@@ -945,8 +975,9 @@ def write_scenario_project_file(
     route="claude/sonnet/medium", fallbacks=("claude/opus/high",),
 ):
     """Rewrites the Project file with this scenario's [limits]/checks/Protected Paths and the
-    Routing Table override, keeping the `linear_project` the first `yh setup --init` wrote."""
+    Routing Table override, keeping the `[board.linear]` `installation` and `project` the first `yh setup --init` wrote."""
     linear_project = read_linear_project(env.configuration_directory, project_id)
+    installation = read_project_installation(env.configuration_directory, project_id)
     repos = default_repo_declarations(manifest)
     if repo_overrides:
         by_name = {repo["name"]: repo for repo in repos}
@@ -955,6 +986,7 @@ def write_scenario_project_file(
     text = render_project_toml(
         project_id=project_id,
         name=SUITE_PROJECTS.get(project_id, project_id),
+        installation=installation,
         linear_project=linear_project,
         spec_source=manifest["spec_source"],
         repos=repos,
@@ -982,7 +1014,7 @@ def _running_yh_processes():
 def resolve_app_client(env):
     """Builds the scratch app's Linear client and resolves the scratch team, setting
     `env.app_client`, `env.team_id` and `env.linear`. Shared by `preflight` and `teardown_preflight`."""
-    machine = scratch_linear.load_machine_config(env.configuration_directory)
+    machine = resolve_installation(env)
     try:
         token = scratch_linear.resolve_access_token(
             env.configuration_directory, machine, lambda: env.yh_executable,
@@ -1144,9 +1176,9 @@ def teardown_project(env, project_id, *, dry_run=False):
     returns `(ok, messages)`.
 
     Steps 1 and 2 are re-run-safety gates: `projects/<id>.toml` is the only record of this Project's
-    `linear_project`, and step 2 deletes it. So a step-1 failure or a step-2 failure stops this
+    `[board.linear] project`, and step 2 deletes it. So a step-1 failure or a step-2 failure stops this
     Project's teardown right there (steps 3-5 do not run) and keeps the Project file — a re-run can
-    then read `linear_project` again and finish the job. Once step 2 has succeeded the file is gone,
+    then read `[board.linear] project` again and finish the job. Once step 2 has succeeded the file is gone,
     so a step-4 failure from there on names the Linear project id for the Operator to trash by hand."""
     messages = []
     ok = True
@@ -1166,7 +1198,7 @@ def teardown_project(env, project_id, *, dry_run=False):
         try:
             linear_project_id = scratch_linear.load_linear_project_id(env.configuration_directory, project_id)
         except scratch_linear.ProjectError as error:
-            info(f"{project_id}: could not read linear_project from the Project file: {error}")
+            info(f"{project_id}: could not read [board.linear] project from the Project file: {error}")
 
     # Step 1: non-primary Orca Worktrees, then scratch Linear reset (archives issues, deletes the Journal).
     if has_project_file:
@@ -1229,7 +1261,7 @@ def teardown_project(env, project_id, *, dry_run=False):
             fail(f"{project_id}: {error}")
 
     # Step 4: trash the Linear project (restorable; tolerates it already being gone). By the time this
-    # step can run, either there was never a `linear_project` to delete, or steps 1-2 already succeeded
+    # step can run, either there was never a `[board.linear] project` to delete, or steps 1-2 already succeeded
     # and the Project file is gone — so a failure here names the id for the Operator to trash by hand.
     if linear_project_id:
         if dry_run:
@@ -1256,7 +1288,7 @@ def teardown_project(env, project_id, *, dry_run=False):
                         "by hand"
                     )
     else:
-        info(f"{project_id}: no linear_project to delete")
+        info(f"{project_id}: no [board.linear] project to delete")
 
     # Step 5: the fixture tree.
     if project_root.is_dir():

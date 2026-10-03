@@ -19,6 +19,8 @@ python3 scripts/rehearsal-suite/rehearsal_suite.py run \
     --app .build/app/Build/Products/Debug/Yellowhammer.app --team YLH
 ```
 
+`--installation NAME` picks the App Installation the suite runs against (default: the sole installation;
+none, or several without the flag, is refused); `run` and `teardown` take it, and so does `release_gate.py`.
 `--scenario N` (repeatable) runs a subset; `list` prints the scenarios. Exit codes: `0` every selected
 scenario passed, `1` a scenario failed, `2` the suite could not be set up (nothing was run). Logs, every
 `yh` invocation's output and a Journal snapshot after every step are left in the work directory it
@@ -29,9 +31,10 @@ wait out a real ten-minute Lease TTL.
 
 - A built `Yellowhammer.app` with `yh` in `Contents/MacOS`.
 - **Orca ADE** running (`orca status` reports the runtime ready).
-- The **scratch Linear environment** (P15.1, `scripts/scratch-linear/README.md`): the scratch app's
-  client id in `config.toml` and its secret in `keychain:linear`; the scratch team exists and the app is
-  a member of it.
+- The **scratch Linear environment** (P15.1, `scripts/scratch-linear/README.md`): the scratch workspace's App
+  Installation is registered in `config.toml` (token pair in Keychain item `linear-<name>`); the scratch
+  team exists and the app is a member of it. A production installation may be on the Mac too, as long as
+  `--installation` names the scratch one.
 - An **Operator credential** — a Linear personal API key of a human member of the scratch workspace,
   never the scratch app — for the Operator's own gestures on the board (replying to a question,
   Cancel and reopen, editing a Card's declared scope). The Engine tells a human's comment from its own
@@ -50,9 +53,9 @@ wait out a real ten-minute Lease TTL.
 
 - **Rehearsal Projects** `rehearsal-suite-a` and `rehearsal-suite-b` in `~/.config/yellowhammer/projects/`
   (`yh` always reads that directory, and rehearsal uses the machine's one real Ledger). The first run
-  creates each with `yh setup --init --linear-team <team>`, which creates its scratch Linear project
+  creates each with `yh setup --init --installation <name> --linear-team <team>`, which creates its scratch Linear project
   and provisions the team; no LaunchAgent is ever installed (`--install-jobs` is never passed). Later runs
-  reuse them. Before every scenario the suite rewrites the Project file (keeping its `linear_project`)
+  reuse them. Before every scenario the suite rewrites the Project file (keeping its `[board.linear]` table, `installation` and `project`)
   with that scenario's `[limits]`, `check` commands and Protected Paths, and a Routing Table override of
   `claude/sonnet/medium` with fallback `claude/opus/high` — Verification never runs on a Route that wrote
   the Cycle's code, so a single-Route table could never land. **These are real Projects, not sandboxed
@@ -86,17 +89,17 @@ rest) is left — it is shared across every Project on the team, not owned by an
 Every step is idempotent: a step whose target is already gone is reported and skipped, not treated as a
 failure, so re-running `teardown` after a partial failure (network blip, a step interrupted) finishes the
 job. A missing Project file skips the scratch Linear reset and `yh project remove` for that Project (there
-is no `linear_project` to read and no Project to remove) but still unregisters its Orca setups and deletes
+is no `[board.linear] project` to read and no Project to remove) but still unregisters its Orca setups and deletes
 its fixture tree. `--dry-run` performs every read-only lookup (Project files, Orca Worktrees, Orca setups,
 fixture directories) and prints exactly what each step would do, sending no mutation and deleting nothing.
 
-`projects/<id>.toml` is the only record of a Project's `linear_project`, and step 2 deletes it — so a
+`projects/<id>.toml` is the only record of a Project's `[board.linear] project`, and step 2 deletes it — so a
 step-1 or step-2 failure stops that Project's teardown right there (steps 3-5 do not run) and keeps the
-Project file, so a re-run can read `linear_project` again and finish the job. If step 4 (`projectDelete`)
+Project file, so a re-run can read it again and finish the job. If step 4 (`projectDelete`)
 fails after step 2 already succeeded, the Project file is gone by then; the failure message names the
 Linear project id so the Operator can trash it by hand.
 
-Preflight (a built `yh`, Orca ready, no `yh` process running for a suite Project, the scratch app client
+Preflight (a built `yh`, Orca ready, no `yh` process running for a suite Project, the installation
 resolves) fails fast with nothing changed. Otherwise a per-Project failure is recorded and teardown moves
 on to the next Project; the command prints a summary and exits `0` only if every step for every Project
 succeeded, `1` if anything failed, `2` if preflight itself failed.
@@ -213,7 +216,7 @@ python3 scripts/rehearsal-suite/release_gate.py check --evidence-directory .buil
 
 `record` runs the suite (its own `--work-directory` nested inside `--evidence-directory`) and writes
 `suite.log`, a `journals/` copy of every Journal snapshot the run left behind, `night-cards.md`
-(every Night Card the run's Journals hold, linked through the scratch app credential — falling back
+(every Night Card the run's Journals hold, linked through the scratch installation's credential — falling back
 to the bare issue id if the fetch fails), and `verdict.json` (commit sha, tree cleanliness, the
 scenarios selected, and a PASS/FAIL per scenario). `check` exits 0 only when `verdict.json` says
 every scenario passed, the tree was clean, and the recorded commit matches `--commit` (default

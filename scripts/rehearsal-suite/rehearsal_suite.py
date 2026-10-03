@@ -5,7 +5,7 @@ Rehearsal scenario suite (P15.3): runs scripted end-to-end rehearsal Nights agai
 `README.md` for the full contract, the Prerequisites, and what each of the 13 scenarios checks.
 
   run --app PATH --team KEY [--scenario N ...] [--root DIR] [--work-directory DIR]
-      [--configuration-directory DIR] [--act-timeout SECONDS]
+      [--configuration-directory DIR] [--installation NAME] [--act-timeout SECONDS]
     Runs the selected scenarios (default: all). Exit codes: 0 every selected scenario passed,
     1 a scenario failed, 2 the suite could not be set up (nothing was run).
 
@@ -109,6 +109,7 @@ def run_command(args):
     env = suite_env.make_environment(
         app=app, team=args.team, root=root, work_directory=work_directory,
         configuration_directory=configuration_directory, act_timeout=args.act_timeout,
+        installation=args.installation,
     )
 
     try:
@@ -145,6 +146,7 @@ def teardown_command(args):
     env = suite_env.make_environment(
         app=app, team=args.team, root=root, work_directory=work_directory,
         configuration_directory=configuration_directory, act_timeout=600.0,
+        installation=args.installation,
     )
 
     try:
@@ -193,6 +195,10 @@ def parse_arguments(argv):
         help="default ~/.config/yellowhammer (yh itself always reads this default)",
     )
     run_parser.add_argument(
+        "--installation", metavar="NAME", default=None,
+        help="the App Installation in config.toml (default: the sole one)",
+    )
+    run_parser.add_argument(
         "--act-timeout", type=float, default=600.0, help="seconds any single yh invocation may take"
     )
 
@@ -215,6 +221,10 @@ def parse_arguments(argv):
     teardown_parser.add_argument(
         "--work-directory", type=Path, default=None,
         help="where the `yh project remove` log goes (default: a fresh temp dir)",
+    )
+    teardown_parser.add_argument(
+        "--installation", metavar="NAME", default=None,
+        help="the App Installation in config.toml (default: the sole one)",
     )
     teardown_parser.add_argument(
         "--dry-run", action="store_true",

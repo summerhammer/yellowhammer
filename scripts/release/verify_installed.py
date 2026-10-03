@@ -26,7 +26,7 @@ The five checks:
   3. launchd jobs           — the three generated LaunchAgents point at the installed yh, are
                               loaded, and the selected Act's job actually fires it.
   4. yh doctor              — probes pass, Orca ADE meets the minimum version, and the
-                              production Linear client id is the one configured.
+                              Linear App Installation's authorization succeeds.
   5. Shell, not host        — an Act fires and finishes whether or not the app was ever opened,
                               and quitting the app mid-Act does not kill it.
 
@@ -484,8 +484,10 @@ class Verifier:
         lines = (out or "").splitlines()
         if not any(line.startswith("[pass] probes:") for line in lines):
             return False, "no '[pass] probes:' line in yh doctor output"
-        if not any("[pass] linear: Linear authorization succeeded" in line for line in lines):
-            return False, "no '[pass] linear: Linear authorization succeeded' line in yh doctor output"
+        if not any(
+            line.startswith("[pass] linear:") and "Linear authorization succeeded" in line for line in lines
+        ):
+            return False, "no '[pass] linear: ... Linear authorization succeeded' line in yh doctor output"
 
         orca_path = shutil.which("orca", path=path_value)
         if not orca_path:

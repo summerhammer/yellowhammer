@@ -258,6 +258,18 @@ class ParseArgumentsTests(unittest.TestCase):
         args = rehearsal_suite.parse_arguments(["teardown", "--app", "/tmp/App.app", "--team", "YLH"])
         self.assertFalse(args.dry_run)
 
+    def test_installation_flag_is_optional_on_run_and_teardown(self):
+        run = rehearsal_suite.parse_arguments(["run", "--app", "/tmp/App.app", "--team", "YLH"])
+        self.assertIsNone(run.installation)
+        run = rehearsal_suite.parse_arguments(
+            ["run", "--app", "/tmp/App.app", "--team", "YLH", "--installation", "my-ws"]
+        )
+        self.assertEqual(run.installation, "my-ws")
+        teardown = rehearsal_suite.parse_arguments(
+            ["teardown", "--app", "/tmp/App.app", "--team", "YLH", "--installation", "my-ws"]
+        )
+        self.assertEqual(teardown.installation, "my-ws")
+
 
 if __name__ == "__main__":
     unittest.main()

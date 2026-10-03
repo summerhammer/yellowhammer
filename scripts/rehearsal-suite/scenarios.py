@@ -671,11 +671,13 @@ def scenario_6(env, checks):
     checks.expect(board_card["state"]["name"] == "Blocked", f"N3: board state is Blocked (got {board_card['state']})")
     label_names = {label["name"] for label in board_card.get("labels", {}).get("nodes", [])}
     checks.expect("unanswered" in label_names, f"N3: label 'unanswered' present (got {label_names})")
-    operator_id = suite_env.read_operator_identity(env.configuration_directory)
+    operator_id = suite_env.read_operator_identity(
+        env.configuration_directory, suite_env.resolve_installation(env).name
+    )
     assignee = board_card.get("assignee") or {}
     checks.expect(
         operator_id is not None and assignee.get("id") == operator_id,
-        f"N3: assignee is [linear] operator (got {assignee}, expected {operator_id})",
+        f"N3: assignee is the installation's operator (got {assignee}, expected {operator_id})",
     )
 
 
