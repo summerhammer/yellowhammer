@@ -297,6 +297,23 @@ final class AddProjectUITests: XCTestCase {
         assertProjectRowInBothSidebars("demo")
     }
 
+    /// The Night window set in the sheet reaches `yh setup --init`; the fields left at their defaults do not.
+    func testWizardPassesAnEditedNightWindow() throws {
+        try launchApp(machineReady: true, linearInstalled: true)
+        let sheet = openAddProjectSheet()
+        driveHubToCompletion(in: sheet) {
+            element("setup-step-jobs").click()
+            let nightStart = sheet.popUpButtons["setup-night-start"]
+            XCTAssertTrue(nightStart.waitForExistence(timeout: 5))
+            nightStart.click()
+            sheet.menuItems["23:00"].click()
+        } checkArguments: { recorded in
+            XCTAssertEqual(value(after: "--night-start", in: recorded), "23:00")
+            XCTAssertFalse(recorded.contains("--night-end"))
+            XCTAssertFalse(recorded.contains("--build-every-minutes"))
+        }
+    }
+
     func testWizardAddsAProjectFromTheSettingsSidebar() throws {
         try launchApp(machineReady: true, linearInstalled: true)
         driveHubToCompletion(in: openAddProjectSheetFromSettings())
