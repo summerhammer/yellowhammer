@@ -58,7 +58,7 @@ struct SetupPrintChoicesTests {
         ])
     }
 
-    @Test("A failing Linear projects read still prints the teams and candidates") // glossary:ignore GL001
+    @Test("A failing Linear projects read warns and still prints the teams and candidates") // glossary:ignore GL001
     func failedProjectsReadKeepsTeams() async throws {
         let directory = ConfigurationDirectory()
         let board = await makeBoard(teams: [engineeringTeam])
@@ -68,7 +68,9 @@ struct SetupPrintChoicesTests {
 
         try await setup.run()
 
-        let data = try #require(output.lines.first?.data(using: .utf8))
+        #expect(output.lines.count == 2)
+        #expect(output.lines.first?.hasPrefix("warning: could not list the Linear projects") == true)
+        let data = try #require(output.lines.last?.data(using: .utf8))
         let choices = try JSONDecoder().decode(SetupChoices.self, from: data)
         #expect(choices.linearProjects.isEmpty)
         #expect(choices.teams == [SetupChoices.Team(id: "team-1", key: "ENG", name: "Engineering")])
