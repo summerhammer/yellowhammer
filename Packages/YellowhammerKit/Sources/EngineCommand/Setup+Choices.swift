@@ -7,8 +7,9 @@ import Foundation
 extension Setup {
     /// `--print-choices`: never prompts, writes no configuration file. Loads `config.toml` when present
     /// (invalid means throw, as elsewhere), or builds one in memory from the credential defaults; then
-    /// binds the workspace board, authorizes, and reads its teams. Prints exactly one line: the
-    /// JSON-encoded ``SetupChoices``.
+    /// binds the workspace board, authorizes, and reads its teams and Linear projects. Its last line is the
+    /// JSON-encoded ``SetupChoices``, the line the app decodes; a failed Linear projects read is reported
+    /// on one `warning:` line before it.
     func printChoices() async throws {
         let machine = try loadMachineConfigurationForChoices()
         guard credentials.secret(for: machine.linearCredential) != nil else {
@@ -20,8 +21,14 @@ extension Setup {
         let members = try await authorize(board: board)
         let teams = try await fetchTeams(board: board)
         // A failed projects read must not cost the Operator the teams and candidates already in hand:
-        // the step falls back to pasting an id, so an empty list is the honest degradation.
-        let projects = (try? await board.linearProjects()) ?? []
+        // the step falls back to pasting an id, so it prints an empty list, and says why.
+        let projects: [BoardLinearProject]
+        do {
+            projects = try await board.linearProjects()
+        } catch {
+            output("warning: could not list the Linear projects: \(error)") // glossary:ignore GL001
+            projects = []
+        }
         output(try encodeChoicesJSON(
             makeChoices(machine: machine, members: members, teams: teams, projects: projects)
         ))
