@@ -39,6 +39,7 @@ func projectMinimalFileLoads() throws {
     let expected = ProjectConfiguration(
         id: try projectID("minimal"),
         name: "Minimal Project",
+        linearInstallationName: "acme",
         linearProject: "MIN",
         specSource: "~/dev/minimal-spec",
         repos: [
@@ -88,6 +89,7 @@ func projectFullFileLoads() throws {
     let expected = ProjectConfiguration(
         id: try projectID("full"),
         name: "Full Project",
+        linearInstallationName: "acme",
         linearProject: "FULL",
         repos: fullFixtureRepos,
         bounds: Bounds(

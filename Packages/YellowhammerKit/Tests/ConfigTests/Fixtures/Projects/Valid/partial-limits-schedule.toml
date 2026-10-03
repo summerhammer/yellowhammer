@@ -1,7 +1,10 @@
 id = "partial-limits-schedule"
 name = "Partial Project"
-linear_project = "PARTIAL"
 spec_source = "~/dev/partial-spec"
+
+[board.linear]
+installation = "acme"
+project = "PARTIAL"
 
 [[repos]]
 name = "main"

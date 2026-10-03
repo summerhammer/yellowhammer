@@ -123,8 +123,10 @@ struct SetupScheduledJobsExportTests {
     func missingToolWarnsButSucceeds() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
-            [linear]
+            [board.linear.installations.acme]
             credential = "keychain:linear"
+            workspace = "workspace-1"
+            app_user = "app-user-1"
 
             [github]
             credential = "keychain:github"

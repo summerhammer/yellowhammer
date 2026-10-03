@@ -94,7 +94,9 @@ extension Configuration {
     /// Loads `directory` as ``load(directory:)`` does, except that no Project's `change_type` or Message
     /// Template is validated: a refused one is recorded in ``ProjectConfiguration/unvalidatedTemplates``
     /// and its default stands in. For `yh project remove`, which validates only what it uses
-    /// (spec: Configuration schema; OQ103(f)). Everything else is checked as usual.
+    /// (spec: Configuration schema; OQ103(f)). It also accepts a Project whose `[board.linear] installation`
+    /// names no registry entry (OQ109 item 10), so such a Project can still be removed; a Project with
+    /// no `installation` key is still refused. Everything else is checked as usual.
     public static func loadLeniently(directory: URL) throws(ConfigurationError) -> Configuration {
         try load(directory: directory, substitution: nil, lenientTemplates: true)
     }
@@ -105,6 +107,9 @@ extension Configuration {
         let machineFileURL = directory.appending(component: "config.toml", directoryHint: .notDirectory)
         let machine = try loadMachine(at: machineFileURL, substitution: substitution)
         let declaredCLIAdapters = Set(machine.cliAdapters.map(\.name))
+        // The lenient removal load accepts an installation name missing from the registry.
+        let declaredLinearInstallations: Set<String>? = lenientTemplates
+            ? nil : Set(machine.linearInstallations.map(\.name))
 
         var decoded: [(file: String, configuration: ProjectConfiguration)] = []
         var invalid: [InvalidProject] = []
@@ -112,7 +117,8 @@ extension Configuration {
             let file = url.path(percentEncoded: false)
             do {
                 let configuration = try loadProject(
-                    at: url, declaredCLIAdapters: declaredCLIAdapters, substitution: substitution,
+                    at: url, declaredCLIAdapters: declaredCLIAdapters,
+                    declaredLinearInstallations: declaredLinearInstallations, substitution: substitution,
                     lenientTemplates: lenientTemplates
                 )
                 decoded.append((file, configuration))
@@ -159,8 +165,8 @@ extension Configuration {
 
     /// Reads `url`, or parses `substitution`'s text in its place when `url` is the substituted file.
     private static func loadProject(
-        at url: URL, declaredCLIAdapters: Set<String>, substitution: (file: URL, text: String)?,
-        lenientTemplates: Bool
+        at url: URL, declaredCLIAdapters: Set<String>, declaredLinearInstallations: Set<String>?,
+        substitution: (file: URL, text: String)?, lenientTemplates: Bool
     ) throws(ConfigurationError) -> ProjectConfiguration {
         if let substitution, samePath(substitution.file, url) {
             return try ProjectConfiguration.parse(
@@ -168,11 +174,13 @@ extension Configuration {
                 file: url.path(percentEncoded: false),
                 fileStem: url.deletingPathExtension().lastPathComponent,
                 declaredCLIAdapters: declaredCLIAdapters,
+                declaredLinearInstallations: declaredLinearInstallations,
                 lenientTemplates: lenientTemplates
             )
         }
         return try ProjectConfiguration.load(
-            contentsOf: url, declaredCLIAdapters: declaredCLIAdapters, lenientTemplates: lenientTemplates
+            contentsOf: url, declaredCLIAdapters: declaredCLIAdapters,
+            declaredLinearInstallations: declaredLinearInstallations, lenientTemplates: lenientTemplates
         )
     }
 

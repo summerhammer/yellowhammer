@@ -1,6 +1,6 @@
 id = "routing-invalid-route"
 name = "Routing Bad"
-linear_project = "RB"
+board = { linear = { installation = "acme", project = "RB" } }
 
 [[repos]]
 name = "repo"

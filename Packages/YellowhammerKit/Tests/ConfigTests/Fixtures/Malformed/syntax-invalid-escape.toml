@@ -1,4 +1,4 @@
 # Machine configuration
 
-[linear]
+[board.linear.installations.acme]
 credential = "keychain:\linear"

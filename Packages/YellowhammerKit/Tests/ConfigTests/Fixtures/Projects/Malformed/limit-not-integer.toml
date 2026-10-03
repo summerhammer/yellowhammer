@@ -1,6 +1,6 @@
 id = "limit-not-integer"
 name = "Limit Not Integer"
-linear_project = "LNI"
+board = { linear = { installation = "acme", project = "LNI" } }
 
 [[repos]]
 name = "repo"

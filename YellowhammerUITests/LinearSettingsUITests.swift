@@ -161,8 +161,10 @@ final class LinearSettingsUITests: XCTestCase {
     /// The configured Operator identity shows, and "Choose…" reads the candidates through `yh`.
     func testOperatorIdentityShowsTheConfiguredIdAndOffersCandidates() throws {
         try """
-        [linear]
+        [board.linear.installations.acme]
         credential = "keychain:linear"
+        workspace = "workspace-1"
+        app_user = "app-user-1"
         operator = "user-op"
         [github]
         credential = "keychain:github"

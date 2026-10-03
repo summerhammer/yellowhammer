@@ -3,7 +3,7 @@ import Domain
 import Foundation
 import Observation
 
-/// The machine-wide Operator identity — `config.toml`'s `[linear].operator` — editable from the Settings
+/// The machine-wide Operator identity — `config.toml`'s `[board.linear.installations.<name>].operator` — editable from the Settings
 /// window's General pane (P18.16). The candidates come from running the bundled `yh` (`SetupInvocation
 /// .choicesArguments`), never from a Board adapter of the app's own (ADR-001); the write is a textual edit
 /// of `config.toml` through the loader, which leaves every other line untouched.
@@ -16,6 +16,9 @@ final class OperatorIdentityModel {
     private(set) var originalText: String?
     /// The configured Operator identity, as `config.toml` holds it.
     private(set) var configured: BoardObjectID?
+    /// The local name of the App Installation ``configured`` belongs to; nil when `config.toml` declares
+    /// no installation, or more than one.
+    private(set) var installationName: String?
     /// Whether `config.toml` does not exist yet, so there is nothing to edit.
     private(set) var configMissing = false
     /// Why `config.toml` could not be loaded, in the loader's own words.
@@ -57,6 +60,7 @@ final class OperatorIdentityModel {
         guard let text = try? String(contentsOf: file, encoding: .utf8) else {
             originalText = nil
             configured = nil
+            installationName = nil
             configMissing = true
             loadFailure = nil
             return
@@ -65,12 +69,15 @@ final class OperatorIdentityModel {
         do {
             let configuration = try Configuration.load(directory: directory, reading: file, as: text)
             originalText = text
-            configured = configuration.machine.operatorIdentity
+            let sole = configuration.machine.soleLinearInstallation
+            configured = sole?.operatorIdentity
+            installationName = sole?.name
             loadFailure = nil
             failure = nil
         } catch {
             originalText = nil
             configured = nil
+            installationName = nil
             loadFailure = error.description
         }
     }
@@ -114,16 +121,20 @@ final class OperatorIdentityModel {
         }
     }
 
-    /// Writes the selected candidate as `[linear].operator`. On success the model reloads from disk. On
+    /// Writes the selected candidate as `[board.linear.installations.<name>].operator`. On success the model reloads from disk. On
     /// refusal the selection is kept exactly as the Operator left it.
     func save() {
         guard let selection, let originalText else { return }
+        guard let installationName else {
+            failure = "config.toml has no Linear App Installation. Run the Linear install again to create it."
+            return
+        }
         let edited = MachineConfiguration.settingOperator(
-            BoardObjectID(rawValue: selection), inFileText: originalText
+            BoardObjectID(rawValue: selection), installation: installationName, inFileText: originalText
         )
         guard edited != originalText else {
             if configured?.rawValue != selection {
-                failure = "config.toml has no [linear] table. Run the Linear install again to create it."
+                failure = "config.toml has no Linear App Installation. Run the Linear install again to create it."
             }
             return
         }

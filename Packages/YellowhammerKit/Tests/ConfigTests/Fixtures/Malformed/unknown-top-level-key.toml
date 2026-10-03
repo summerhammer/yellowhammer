@@ -1,7 +1,7 @@
 # Machine configuration
 schedule = "nightly"
-[linear]
-credential = "keychain:linear"
+# No Linear App Installations are declared;
+# the registry may be empty.
 
 [github]
 credential = "keychain:github"

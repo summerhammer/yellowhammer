@@ -118,7 +118,7 @@ struct SetupTests {
         ))
     }
 
-    @Test("--linear-team creates the Linear project exactly once and writes its id as linear_project")
+    @Test("--linear-team creates the Linear project exactly once and writes its id under [board.linear]")
     func linearTeamCreatesProjectOnce() async throws {
         let directory = ConfigurationDirectory()
         let board = await makeBoard(project: nil)
@@ -133,7 +133,9 @@ struct SetupTests {
         let projectText = try String(
             contentsOf: directory.url.appending(components: "projects", "demo.toml"), encoding: .utf8
         )
-        #expect(projectText.contains(#"linear_project = "fake-1""#)) // glossary:ignore GL001
+        let project = try ProjectConfiguration.parse(projectText, file: "demo.toml")
+        #expect(project.linearProject == "fake-1")
+        #expect(project.linearInstallationName == "acme")
         let createsAfterFirst = await board.creates
 
         let setup2 = try makeSetup(arguments: arguments, directory: directory, board: board)
@@ -235,7 +237,8 @@ struct SetupTests {
         let arguments = makeArguments(operatorID: "user-op")
         let credentials = RecordingCredentialStore()
         let setup = try makeSetup(
-            arguments: arguments, directory: directory, board: board, credentials: credentials
+            arguments: arguments, directory: directory, board: board, credentials: credentials,
+            linearInstallSeams: busyLinearInstallSeams()
         )
 
         await #expect(throws: SetupError.self) { try await setup.run() }
@@ -246,8 +249,10 @@ struct SetupTests {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
             # do not touch this line
-            [linear]
+            [board.linear.installations.acme]
             credential = "keychain:linear"
+            workspace = "workspace-1"
+            app_user = "app-user-1"
 
             [github]
             credential = "keychain:github"

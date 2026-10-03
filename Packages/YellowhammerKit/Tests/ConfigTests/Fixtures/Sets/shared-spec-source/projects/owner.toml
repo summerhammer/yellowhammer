@@ -1,6 +1,6 @@
 id = "owner"
 name = "Owner"
-linear_project = "OWN"
+board = { linear = { installation = "acme", project = "OWN" } }
 
 [[repos]]
 name = "spec"

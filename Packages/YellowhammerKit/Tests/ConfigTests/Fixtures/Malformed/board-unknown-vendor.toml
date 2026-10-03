@@ -1,5 +1,5 @@
-# Machine configuration
-[linear]
+[board.jira]
+workspace = "ws-1"
 
 [github]
 credential = "keychain:github"

@@ -1,0 +1,10 @@
+id = "top-level-linear-table"
+name = "top-level-linear-table"
+[linear]
+project = "X"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"

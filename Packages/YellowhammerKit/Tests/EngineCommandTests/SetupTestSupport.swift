@@ -2,6 +2,7 @@ import Config
 import Domain
 @testable import EngineCommand
 import Foundation
+import Security
 import Synchronization
 
 let engineeringTeam = BoardTeam(id: BoardObjectID(rawValue: "team-1"), key: "ENG", name: "Engineering")
@@ -194,7 +195,38 @@ struct NeverCalledPortHolderLookup: PortHolderLookup {
     func holder(port: Int) async -> PortHolder? { nil }
 }
 
-func defaultLinearInstallSeams() -> LinearInstallSeams {
+/// The happy-path seams: binds the first port, echoes the flow's own `state` back, and exchanges
+/// through a `StubHTTPTransport` scripted with a token grant and a confirm reply.
+func happyPathSeams(
+    workspaceID: String = "workspace-1", workspaceName: String = "Acme", appUserID: String = "app-user-1",
+    opened: URLRecorder = URLRecorder()
+) -> LinearInstallSeams {
+    let state = Mutex("")
+    let transport = StubHTTPTransport([
+        InstallFlowFixture.installationGrant(accessToken: "at-1", refreshToken: "rt-1"),
+        InstallFlowFixture.json(
+            #"{"data":{"viewer":{"id":"\#(appUserID)","name":"Yellowhammer"},"#
+                + #""organization":{"id":"\#(workspaceID)","name":"\#(workspaceName)"}}}"#
+        )
+    ])
+    return LinearInstallSeams(
+        portBinder: { port in
+            InstallListener(port: port) {
+                .init(code: "code", state: state.withLock { $0 }, error: nil, errorDescription: nil)
+            }
+        },
+        holderLookup: NeverCalledPortHolderLookup(),
+        opener: { url in
+            let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            state.withLock { $0 = items.first(where: { $0.name == "state" })?.value ?? "" }
+            opened.record(url)
+        },
+        transport: transport.send
+    )
+}
+
+/// Every loopback port busy: an install attempt fails before it opens a browser.
+func busyLinearInstallSeams() -> LinearInstallSeams {
     LinearInstallSeams(
         portBinder: { port in throw LoopbackCallbackServer.BindError.busy(port: port) },
         holderLookup: NeverCalledPortHolderLookup(),
@@ -203,12 +235,45 @@ func defaultLinearInstallSeams() -> LinearInstallSeams {
     )
 }
 
+/// The default seams of ``makeSetup``: an install, if the run needs one, succeeds in workspace
+/// "Acme" (`workspace-1`, app user `app-user-1`).
+func defaultLinearInstallSeams() -> LinearInstallSeams {
+    happyPathSeams()
+}
+
+/// A Keychain-backed ``LinearInstallationStore`` under a unique throwaway reference, whose item is
+/// deleted when the last copy of the provider is released.
+final class ThrowawayInstallationStores: Sendable {
+    let reference = CredentialReference("keychain:yh-test-\(UUID().uuidString)")!
+
+    func store(_: CredentialReference) -> LinearInstallationStore {
+        LinearInstallationStore(
+            reference: reference, keychain: KeychainCredentialStore(),
+            machineLock: MachineLock(
+                fileURL: FileManager.default.temporaryDirectory
+                    .appending(component: "yh-test-lock-\(UUID().uuidString).lock", directoryHint: .notDirectory)
+            )
+        )
+    }
+
+    deinit {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: KeychainCredentialStore.service,
+            kSecAttrAccount as String: String(reference.rawValue.dropFirst("keychain:".count))
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
+}
+
 func makeSetup(
     arguments: [String],
     directory: borrowing ConfigurationDirectory,
     board: FakeProvisioningBoard,
     console: ScriptedConsole = ScriptedConsole(),
-    credentials: RecordingCredentialStore = RecordingCredentialStore(seed: ["keychain:linear": "test-secret"]),
+    credentials: RecordingCredentialStore = RecordingCredentialStore(
+        seed: ["keychain:linear": "test-secret", "keychain:linear-acme": "test-secret"]
+    ),
     output: RecordingOutput = RecordingOutput(),
     notifications: NotificationRegistrationStub = NotificationRegistrationStub(.allowed),
     homeDirectory: URL = FileManager.default.temporaryDirectory
@@ -218,15 +283,8 @@ func makeSetup(
     fileExists: @escaping (String) -> Bool = { _ in false },
     launchAgents: any LaunchAgentControl = RecordingLaunchAgentControl(),
     linearInstallSeams: LinearInstallSeams = defaultLinearInstallSeams(),
-    linearInstallationStore: @escaping (CredentialReference) -> LinearInstallationStore = { reference in
-        LinearInstallationStore(
-            reference: reference, keychain: KeychainCredentialStore(),
-            machineLock: MachineLock(
-                fileURL: FileManager.default.temporaryDirectory
-                    .appending(component: "yh-test-lock-\(UUID().uuidString).lock", directoryHint: .notDirectory)
-            )
-        )
-    },
+    linearInstallationStore: @escaping (CredentialReference) -> LinearInstallationStore =
+        ThrowawayInstallationStores().store,
     linearInstallEvents: @escaping @Sendable (LinearInstallEvent) -> Void = { _ in }
 ) throws -> Setup {
     let command = try SetupCommand.parse(arguments)

@@ -1,0 +1,12 @@
+[board.linear.installations.acme]
+credential = "keychain:linear-acme"
+workspace = "workspace-1"
+app_user = "app-user-1"
+
+[github]
+credential = "keychain:github"
+
+[cli.claude]
+
+[[routing]]
+route = "claude/sonnet"

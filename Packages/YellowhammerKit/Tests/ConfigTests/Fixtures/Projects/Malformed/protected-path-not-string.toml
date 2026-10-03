@@ -1,6 +1,6 @@
 id = "protected-path-not-string"
 name = "Protected Path Not String"
-linear_project = "PPNS"
+board = { linear = { installation = "acme", project = "PPNS" } }
 
 [[repos]]
 name = "repo"

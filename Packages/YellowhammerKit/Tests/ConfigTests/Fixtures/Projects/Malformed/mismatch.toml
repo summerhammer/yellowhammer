@@ -1,6 +1,6 @@
 id = "other-project"
 name = "Mismatch ID"
-linear_project = "MM"
+board = { linear = { installation = "acme", project = "MM" } }
 
 [[repos]]
 name = "repo"

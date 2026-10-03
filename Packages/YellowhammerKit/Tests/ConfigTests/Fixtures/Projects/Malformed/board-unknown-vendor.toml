@@ -1,0 +1,10 @@
+id = "board-unknown-vendor"
+name = "board-unknown-vendor"
+[board.jira]
+project = "X"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"

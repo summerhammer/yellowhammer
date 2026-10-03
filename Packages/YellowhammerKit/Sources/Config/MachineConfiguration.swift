@@ -1,40 +1,78 @@
 import Domain
 import Foundation
 
-/// The machine-wide configuration file: the Linear App Installation (ADR-005), the machine default
-/// GitHub credential, the declared CLI Adapters and the base Routing Table.
-public struct MachineConfiguration: Equatable, Sendable {
-    public var linearCredential: CredentialReference
-    /// The Installation's workspace id (`[linear].workspace`), nil until installed (P17.6 writes it).
-    public var linearWorkspace: BoardObjectID?
-    /// The Installation's app user id (`[linear].app_user`), nil until installed.
-    public var linearAppUser: BoardObjectID?
-    public var gitHubCredential: CredentialReference
-    /// In file order.
-    public var cliAdapters: [CLIAdapterDeclaration]
-    /// The base Routing Table, in file order.
-    public var routingTable: [RoutingEntry]
-    /// The Operator identity's Linear user id (`[linear].operator`), nil when unconfigured or configured
+/// One Linear App Installation in the machine file's registry (`[board.linear.installations.<name>]`):
+/// the credential, the Linear workspace it was installed into, its app user and the optional Operator
+/// identity. Each Project selects exactly one by ``name``.
+public struct LinearInstallation: Equatable, Sendable {
+    /// The local name, the table key. Chosen by the Operator; not a Linear identifier.
+    public var name: String
+    public var credential: CredentialReference
+    /// The Linear workspace id (`workspace`) this App Installation was installed into.
+    public var workspace: BoardObjectID
+    /// The App Installation's app user id (`app_user`).
+    public var appUser: BoardObjectID
+    /// The Operator identity's Linear user id (`operator`), nil when unconfigured or configured
     /// empty — a missing Operator identity is never a load-time validation failure (Operator Identity
     /// Ruling — 2026-09-23).
     public var operatorIdentity: BoardObjectID?
 
     public init(
-        linearCredential: CredentialReference,
-        linearWorkspace: BoardObjectID? = nil,
-        linearAppUser: BoardObjectID? = nil,
-        gitHubCredential: CredentialReference,
-        cliAdapters: [CLIAdapterDeclaration],
-        routingTable: [RoutingEntry],
+        name: String,
+        credential: CredentialReference,
+        workspace: BoardObjectID,
+        appUser: BoardObjectID,
         operatorIdentity: BoardObjectID? = nil
     ) {
-        self.linearCredential = linearCredential
-        self.linearWorkspace = linearWorkspace
-        self.linearAppUser = linearAppUser
+        self.name = name
+        self.credential = credential
+        self.workspace = workspace
+        self.appUser = appUser
+        self.operatorIdentity = operatorIdentity
+    }
+}
+
+/// The machine-wide configuration file: the registry of Linear App Installations (ADR-005), the machine
+/// default GitHub credential, the declared CLI Adapters and the base Routing Table.
+public struct MachineConfiguration: Equatable, Sendable {
+    /// The registry of App Installations, in file order; zero or more.
+    public var linearInstallations: [LinearInstallation]
+    public var gitHubCredential: CredentialReference
+    /// In file order.
+    public var cliAdapters: [CLIAdapterDeclaration]
+    /// The base Routing Table, in file order.
+    public var routingTable: [RoutingEntry]
+
+    public init(
+        linearInstallations: [LinearInstallation] = [],
+        gitHubCredential: CredentialReference,
+        cliAdapters: [CLIAdapterDeclaration],
+        routingTable: [RoutingEntry]
+    ) {
+        self.linearInstallations = linearInstallations
         self.gitHubCredential = gitHubCredential
         self.cliAdapters = cliAdapters
         self.routingTable = routingTable
-        self.operatorIdentity = operatorIdentity
+    }
+
+    /// The registry entry called `name`, or nil.
+    public func linearInstallation(named name: String) -> LinearInstallation? {
+        linearInstallations.first { $0.name == name }
+    }
+
+    /// The App Installation `project` selects. Nil only for a Project loaded leniently
+    /// (``Configuration/loadLeniently(directory:)``) whose installation name is missing from the registry.
+    public func linearInstallation(for project: ProjectConfiguration) -> LinearInstallation? {
+        linearInstallation(named: project.linearInstallationName)
+    }
+
+    /// The registry's only entry; nil unless there is exactly one.
+    ///
+    /// TEMPORARY bridge for machine-only consumers (setup, doctor Check 4, the app's Operator identity
+    /// and Setup readiness) that have no Project to select an installation by. Roadmap step L3.2 deletes
+    /// it. Project-scoped code must use ``linearInstallation(for:)`` instead.
+    public var soleLinearInstallation: LinearInstallation? {
+        linearInstallations.count == 1 ? linearInstallations[0] : nil
     }
 }
 

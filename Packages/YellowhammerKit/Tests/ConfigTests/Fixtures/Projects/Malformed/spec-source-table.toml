@@ -1,6 +1,6 @@
 id = "spec-source-table"
 name = "Spec Source Table"
-linear_project = "SST"
+board = { linear = { installation = "acme", project = "SST" } }
 
 [[repos]]
 name = "backend"

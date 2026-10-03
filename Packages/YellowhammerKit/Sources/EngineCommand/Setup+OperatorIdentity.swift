@@ -7,16 +7,20 @@ extension Setup {
     /// Nothing after this step runs if it throws (no Project file is written, no provisioning happens).
     /// Writes the file only when the value changes, re-parsing the result to confirm it is still valid
     /// before writing.
-    func setOperatorIdentity(machine: inout MachineConfiguration, members: [BoardMember]) throws {
+    func setOperatorIdentity(
+        machine: inout MachineConfiguration, installation: LinearInstallation, members: [BoardMember]
+    ) throws {
         let candidates = OperatorIdentity.candidates(from: members)
         let chosen = try resolveOperatorID(
-            candidates: candidates, members: members, configured: machine.operatorIdentity
+            candidates: candidates, members: members, configured: installation.operatorIdentity
         )
 
-        if chosen != machine.operatorIdentity {
-            try writeOperatorIdentity(chosen)
+        if chosen != installation.operatorIdentity {
+            try writeOperatorIdentity(chosen, installation: installation.name)
         }
-        machine.operatorIdentity = chosen
+        if let index = machine.linearInstallations.firstIndex(where: { $0.name == installation.name }) {
+            machine.linearInstallations[index].operatorIdentity = chosen
+        }
         output("Operator: \(chosen.rawValue)")
     }
 
@@ -80,7 +84,7 @@ extension Setup {
             + "Pass --operator <id>."
     }
 
-    private func writeOperatorIdentity(_ id: BoardObjectID) throws {
+    private func writeOperatorIdentity(_ id: BoardObjectID, installation name: String) throws {
         let path = machineFileURL.path(percentEncoded: false)
         let text: String
         do {
@@ -88,7 +92,10 @@ extension Setup {
         } catch {
             throw SetupError("could not read \(path): \(error)")
         }
-        let updated = MachineConfiguration.settingOperator(id, inFileText: text)
+        let updated = MachineConfiguration.settingOperator(id, installation: name, inFileText: text)
+        guard updated != text else {
+            throw SetupError("\(path) has no [board.linear.installations.\(name)] to hold the Operator identity")
+        }
         do {
             _ = try MachineConfiguration.parse(updated, file: path)
         } catch {

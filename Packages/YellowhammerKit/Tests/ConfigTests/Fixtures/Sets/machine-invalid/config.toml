@@ -1,2 +1,1 @@
-[github]
-credential = "keychain:github"
+# A machine file without its required [github] table.

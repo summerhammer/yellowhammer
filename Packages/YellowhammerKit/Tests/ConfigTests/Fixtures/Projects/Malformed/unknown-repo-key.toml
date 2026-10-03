@@ -1,6 +1,6 @@
 id = "unknown-repo-key"
 name = "Unknown Repo"
-linear_project = "UR"
+board = { linear = { installation = "acme", project = "UR" } }
 
 [[repos]]
 name = "repo"

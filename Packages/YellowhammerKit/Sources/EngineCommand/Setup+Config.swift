@@ -95,7 +95,7 @@ extension Setup {
         return InstallEntry(source: source, destination: destination, action: identical ? .present : .differs)
     }
 
-    /// Setup itself writes `[linear].operator` into the installed machine file (step 3), so a prepared
+    /// Setup itself writes `[board.linear.installations.<name>].operator` into the installed machine file (step 3), so a prepared
     /// `config.toml` without it must still compare `present` on the next identical run: the destination
     /// counts as unchanged when it is exactly the prepared text with that one line set.
     private func differsOnlyByOperator(source: Data, destination: Data) -> Bool {
@@ -104,9 +104,12 @@ extension Setup {
               let installed = try? MachineConfiguration.parse(
                   destinationText, file: machineFileURL.path(percentEncoded: false)
               ),
-              let operatorIdentity = installed.operatorIdentity
+              let sole = installed.soleLinearInstallation,
+              let operatorIdentity = sole.operatorIdentity
         else { return false }
-        return MachineConfiguration.settingOperator(operatorIdentity, inFileText: sourceText) == destinationText
+        return MachineConfiguration.settingOperator(
+            operatorIdentity, installation: sole.name, inFileText: sourceText
+        ) == destinationText
     }
 
     private func installFile(_ entry: InstallEntry) throws {

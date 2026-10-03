@@ -1,6 +1,6 @@
 id = "invalid@id!"
 name = "Invalid ID"
-linear_project = "INV"
+board = { linear = { installation = "acme", project = "INV" } }
 
 [[repos]]
 name = "repo"

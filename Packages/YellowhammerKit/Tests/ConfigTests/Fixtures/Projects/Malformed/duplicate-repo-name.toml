@@ -1,6 +1,6 @@
 id = "duplicate-repo-name"
 name = "Duplicate Repo"
-linear_project = "DR"
+board = { linear = { installation = "acme", project = "DR" } }
 
 [[repos]]
 name = "repo"

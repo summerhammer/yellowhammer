@@ -145,7 +145,7 @@ func invalidMachineFileFailsTheLoad() throws {
         Issue.record("expected the load to fail")
         return
     }
-    #expect(error.key == "linear")
+    #expect(error.key == "github")
     #expect(error.reason == .missingTable)
 }
 
@@ -160,4 +160,71 @@ func conflictErrorPrints() throws {
             == "/cfg/projects/alpha.toml:8: repos[0].path: repository is also declared as a working Repo "
             + "by Project \"beta\" (/cfg/projects/beta.toml)"
     )
+}
+
+@Test("A Project naming an installation missing from the registry is refused alone; its sibling loads")
+func undeclaredInstallationRefusesOneProject() throws {
+    let configuration = try Configuration.load(directory: set("undeclared-installation"))
+    #expect(configuration.projects.map(\.id) == [try projectID("good")])
+    #expect(configuration.machine.linearInstallations.map(\.name) == ["acme"])
+
+    let good = try #require(configuration.projects.first)
+    #expect(configuration.machine.linearInstallation(for: good)?.name == "acme")
+
+    let badFile = try projectFile("undeclared-installation", "bad")
+    #expect(configuration.invalidProjects == [
+        InvalidProject(
+            file: badFile,
+            id: nil,
+            errors: [
+                ConfigurationError(
+                    file: badFile, line: 6, key: "board.linear.installation",
+                    reason: .undeclaredLinearInstallation("missing")
+                )
+            ]
+        )
+    ])
+}
+
+@Test("The lenient removal load accepts an installation missing from the registry")
+func lenientLoadAcceptsUndeclaredInstallation() throws {
+    let configuration = try Configuration.loadLeniently(directory: set("undeclared-installation"))
+    #expect(configuration.projects.map(\.id.rawValue) == ["bad", "good"])
+    #expect(configuration.invalidProjects.isEmpty)
+    let bad = try #require(configuration.projects.first)
+    #expect(bad.linearInstallationName == "missing")
+    #expect(configuration.machine.linearInstallation(for: bad) == nil)
+}
+
+@Test("The lenient removal load still refuses a Project with no installation key")
+func lenientLoadRefusesMissingInstallationKey() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appending(component: "yh-lenient-\(UUID().uuidString)", directoryHint: .isDirectory)
+    let projects = directory.appending(component: "projects", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: projects, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let machineFile = try set("undeclared-installation").appending(component: "config.toml")
+    let machine = try String(contentsOf: machineFile, encoding: .utf8)
+    try machine.write(to: directory.appending(component: "config.toml"), atomically: true, encoding: .utf8)
+    let project = """
+        id = "keyless"
+        name = "Keyless"
+        spec_source = "~/spec"
+
+        [board.linear]
+        project = "KL"
+
+        [[repos]]
+        name = "r"
+        path = "~/keyless"
+        role = "backend"
+        check = "none"
+        """
+    try project.write(to: projects.appending(component: "keyless.toml"), atomically: true, encoding: .utf8)
+
+    let configuration = try Configuration.loadLeniently(directory: directory)
+    #expect(configuration.projects.isEmpty)
+    let error = try #require(configuration.invalidProjects.first?.errors.first)
+    #expect(error.key == "board.linear.installation")
+    #expect(error.reason == .missingKey)
 }

@@ -1,0 +1,12 @@
+[board.linear.installations.acme]
+credential = "keychain:linear-acme"
+workspace = "ws-1"
+app_user = "app-1"
+
+[board.linear.installations.beta]
+credential = "keychain:linear-beta"
+workspace = "ws-1"
+app_user = "app-2"
+
+[github]
+credential = "keychain:github"

@@ -1,0 +1,13 @@
+id = "good"
+name = "good"
+spec_source = "~/dev/spec"
+
+[board.linear]
+installation = "acme"
+project = "GOOD"
+
+[[repos]]
+name = "good"
+path = "~/dev/good"
+role = "backend"
+check = "swift test"

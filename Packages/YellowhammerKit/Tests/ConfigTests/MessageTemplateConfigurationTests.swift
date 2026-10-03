@@ -6,7 +6,7 @@ import Testing
 private let base = """
     id = "alpha"
     name = "Alpha"
-    linear_project = "ALP"
+    board = { linear = { installation = "acme", project = "ALP" } }
     spec_source = "~/spec"
     """
 
@@ -100,7 +100,7 @@ func gitTableKeys() {
 
 @Test("The machine file still refuses Project-file keys")
 func machineFileRejectsProjectKeys() {
-    let machine = "[linear]\ncredential = \"keychain:linear\"\n\n"
+    let machine = ""
     let cases: [(String, String)] = [
         ("", "change_type"),
         ("[github]\ncredential = \"c\"\n\n[git]\ncommit_message = \"{type}\"", "git"),
@@ -161,10 +161,12 @@ func badTemplateIsolatesProject() throws {
     let projects = directory.appending(component: "projects", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: projects, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: directory) }
-    try "[linear]\ncredential = \"keychain:linear\"\n\n[github]\ncredential = \"keychain:github\"\n"
-        .write(to: directory.appending(component: "config.toml"), atomically: true, encoding: .utf8)
+    let machineText = "[board.linear.installations.acme]\ncredential = \"keychain:linear\"\n"
+        + "workspace = \"w1\"\napp_user = \"u1\"\n\n[github]\ncredential = \"keychain:github\"\n"
+    try machineText.write(to: directory.appending(component: "config.toml"), atomically: true, encoding: .utf8)
     func file(_ id: String, _ path: String, _ extra: String) -> String {
-        "id = \"\(id)\"\nname = \"\(id)\"\nlinear_project = \"\(id)\"\nspec_source = \"~/spec\"\n\n"
+        "id = \"\(id)\"\nname = \"\(id)\"\nspec_source = \"~/spec\"\n\n"
+            + "[board.linear]\ninstallation = \"acme\"\nproject = \"\(id)\"\n\n"
             + "[[repos]]\nname = \"b\"\npath = \"\(path)\"\nrole = \"backend\"\ncheck = \"none\"\n\n\(extra)\n"
     }
     try file("good", "~/good", "").write(

@@ -15,7 +15,7 @@ struct Doctor {
     /// criterion). Never reads or stores a secret.
     let credentials: any SetupCredentialStore
     /// `linearProjectID` is always `""`: doctor only ever calls workspace-scoped methods.
-    let bindProvisioning: (MachineConfiguration, String) -> any BoardProvisioning
+    let bindProvisioning: (LinearInstallation, String) -> any BoardProvisioning
     let launchAgents: any LaunchAgentControl
     let git: GitRunner
     /// Runs `yh probe <name>` for one declared CLI. Real seam: `ProbeCommand.parse([name]).run(...)`.

@@ -1,6 +1,6 @@
 id = "two-spec-repos"
 name = "Two Spec Repos"
-linear_project = "TSR"
+board = { linear = { installation = "acme", project = "TSR" } }
 
 [[repos]]
 name = "spec-a"

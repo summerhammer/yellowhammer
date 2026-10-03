@@ -10,7 +10,7 @@ import Security
 /// so this type never decodes or encodes anything — it only moves a string between the Keychain and
 /// that codec, and wires the refresh lock.
 public struct LinearInstallationStore: Sendable {
-    private let reference: CredentialReference
+    public let reference: CredentialReference
     private let keychain: KeychainCredentialStore
     private let machineLock: MachineLock
 

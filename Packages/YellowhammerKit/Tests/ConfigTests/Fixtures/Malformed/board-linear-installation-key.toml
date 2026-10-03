@@ -1,2 +1,5 @@
+[board.linear]
+installation = "acme"
+
 [github]
 credential = "keychain:github"

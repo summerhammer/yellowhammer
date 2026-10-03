@@ -14,10 +14,10 @@ struct SetupInteractiveTests {
         let board = await makeBoard(members: [operatorMember, secondCandidateMember])
         let arguments = makeArguments(initialize: false)
         let console = ScriptedConsole(answers: [
-            "", // Linear credential -> default
             "", // GitHub credential -> default
             "", // CLI Adapters -> none
             "", // catch-all route -> none
+            "", // Linear is not installed: "Are you a workspace admin?" -> install here
             "", // Operator: empty re-asks
             "99", // Operator: out of range re-asks
             "2", // Operator: candidate #2
@@ -41,7 +41,8 @@ struct SetupInteractiveTests {
             initialize: false, operatorID: "user-op"
         )
         let console = ScriptedConsole(answers: [
-            "", "", "", "", // Linear/GitHub credential, CLI Adapters, catch-all route
+            "", "", "", // GitHub credential, CLI Adapters, catch-all route
+            "", // Linear is not installed: "Are you a workspace admin?" -> install here
             "y", // Declare a Project now?
             "demo", // Project id
             "", // Project name -> default
@@ -59,7 +60,9 @@ struct SetupInteractiveTests {
         let projectText = try String(
             contentsOf: directory.url.appending(components: "projects", "demo.toml"), encoding: .utf8
         )
-        #expect(projectText.contains(#"linear_project = "fake-1""#)) // glossary:ignore GL001
+        let project = try ProjectConfiguration.parse(projectText, file: "demo.toml")
+        #expect(project.linearProject == "fake-1")
+        #expect(project.linearInstallationName == "acme")
 
         // A second interactive run, declining to declare the Project again, creates nothing further.
         let secondConsole = ScriptedConsole(answers: ["n"])
@@ -79,13 +82,14 @@ struct SetupInteractiveTests {
         let console = ScriptedConsole(answers: ["c"])
         let credentials = RecordingCredentialStore()
         let setup = try makeSetup(
-            arguments: arguments, directory: directory, board: board, console: console, credentials: credentials
+            arguments: arguments, directory: directory, board: board, console: console, credentials: credentials,
+            linearInstallSeams: busyLinearInstallSeams()
         )
 
         await #expect(throws: SetupError.self) { try await setup.run() }
 
         // The admin question (roadmap P17.9) asks first and consumes "c" (not "r": local path); every
-        // port bound busy by `defaultLinearInstallSeams()` then offers retry/cancel exactly once, with
+        // port bound busy by `busyLinearInstallSeams()` then offers retry/cancel exactly once, with
         // no more scripted answers left, so it throws too.
         #expect(console.prompts.count == 2)
     }
@@ -96,6 +100,7 @@ struct SetupInteractiveTests {
         let board = await makeBoard(members: [operatorMember, secondCandidateMember])
         let arguments = makeArguments(initialize: false)
         let console = ScriptedConsole(answers: ["", "", "", ""])
+        // GitHub, CLI, route, install-here; then EOF at the Operator
         let setup = try makeSetup(arguments: arguments, directory: directory, board: board, console: console)
 
         await #expect(throws: SetupError.self) { try await setup.run() }

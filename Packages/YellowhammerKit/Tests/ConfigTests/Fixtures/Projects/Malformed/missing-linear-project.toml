@@ -1,6 +1,9 @@
 id = "missing-linear-project"
 name = "Missing Linear Project"
 
+[board.linear]
+installation = "acme"
+
 [[repos]]
 name = "repo"
 path = "~/path"

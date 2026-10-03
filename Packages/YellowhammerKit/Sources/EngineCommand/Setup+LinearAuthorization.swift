@@ -7,24 +7,34 @@ extension Setup {
     /// Installation token pair exists yet, re-authorizes an existing one, and offers to reinstall when
     /// Linear refuses it (a revoked installation, or an expired sign-in). Returns the workspace members
     /// — the immediate authorization proof — for the Operator identity choice that follows.
-    func authorizeOrInstallLinear(machine: inout MachineConfiguration) async throws -> [BoardMember] {
+    func authorizeOrInstallLinear(
+        machine: inout MachineConfiguration
+    ) async throws -> (members: [BoardMember], installation: LinearInstallation) {
         if case .installLinear = options.mode {
             // "Re-running the Linear step of setup" always re-installs, whether or not the existing
             // pair (if any) still authorizes — it is the general fix action, and also usable proactively.
             try await runLinearInstall(machine: &machine)
-        } else if credentials.secret(for: machine.linearCredential) == nil {
-            try await runLinearInstall(machine: &machine)
-        } else {
-            let board = bindProvisioning(machine, "")
+        } else if let sole = machine.soleLinearInstallation, credentials.secret(for: sole.credential) != nil {
+            let board = bindProvisioning(sole, "")
             do {
-                return try await board.workspaceMembers()
+                return (try await board.workspaceMembers(), sole)
             } catch BoardError.notAuthenticated {
                 try await handleRefusedInstallation(machine: &machine)
             } catch {
                 throw SetupError("Linear authorization failed: \(error)")
             }
+        } else {
+            try await runLinearInstall(machine: &machine)
         }
-        return try await authorize(board: bindProvisioning(machine, ""))
+        // The bridge (roadmap L3.2 deletes it): this version of setup connects one Linear workspace, so the
+        // install just stored is the registry's only entry.
+        guard let installation = machine.soleLinearInstallation else {
+            throw SetupError(
+                "config.toml declares \(machine.linearInstallations.count) Linear App Installations; "
+                    + "this version of yh setup connects one"
+            )
+        }
+        return (try await authorize(board: bindProvisioning(installation, "")), installation)
     }
 
     /// `workspaceMembers()` is the authorization proof: it is the first call this Linear identity makes.
@@ -195,19 +205,50 @@ extension Setup {
         return false
     }
 
-    /// A different workspace is refused outright (decided with the user): nothing is stored, and the
-    /// fix is to remove every configured Project first. Otherwise stores the pair under the
-    /// `MachineLock` (so a concurrent Act never reads a half-written pair), writes `workspace`/`app_user`,
-    /// and reports the workspace name.
+    /// The interim local name of a registry entry created by `yh setup`, until roadmap L2.1 replaces it
+    /// with the workspace's URL key: the workspace name lowercased, every run of characters outside
+    /// `[a-z0-9]` collapsed to one `-`, `-` trimmed at both ends, and `linear` when nothing is left.
+    static func interimInstallationName(workspaceName: String) -> String {
+        var name = ""
+        var pendingDash = false
+        for scalar in workspaceName.lowercased().unicodeScalars {
+            if ("a"..."z").contains(scalar) || ("0"..."9").contains(scalar) {
+                if pendingDash, !name.isEmpty { name += "-" }
+                pendingDash = false
+                name.unicodeScalars.append(scalar)
+            } else {
+                pendingDash = true
+            }
+        }
+        return name.isEmpty ? "linear" : name
+    }
+
+    /// Stores a finished install. An entry already in the registry for the installed workspace is
+    /// re-connected (tokens under its credential, its `app_user` refreshed, its Operator identity kept); an
+    /// empty registry gets a new entry; a different workspace than the registry's is refused outright
+    /// (decided with the user): nothing is stored, and the fix is to remove every configured Project first.
+    /// Tokens are stored under the `MachineLock` (so a concurrent Act never reads a half-written pair).
     func storeInstalled(
         tokens: LinearInstallFlow.InstalledTokens, identity: LinearInstallFlow.InstalledIdentity,
         machine: inout MachineConfiguration
     ) async throws {
-        let newWorkspace = BoardObjectID(rawValue: identity.workspaceID)
-        if let existing = machine.linearWorkspace, existing != newWorkspace {
+        let workspace = BoardObjectID(rawValue: identity.workspaceID)
+        let appUser = BoardObjectID(rawValue: identity.appUserID)
+        var installation: LinearInstallation
+        if let existing = machine.linearInstallations.first(where: { $0.workspace == workspace }) {
+            installation = existing
+            installation.appUser = appUser
+        } else if machine.linearInstallations.isEmpty {
+            let name = Self.interimInstallationName(workspaceName: identity.workspaceName)
+            let credential = options.linearCredential ?? CredentialReference("keychain:linear-\(name)")
+            guard let credential else { throw SetupError("a credential reference must not be empty") }
+            installation = LinearInstallation(
+                name: name, credential: credential, workspace: workspace, appUser: appUser
+            )
+        } else {
             let text = "This installation is in Linear workspace \(identity.workspaceName), but " +
-                "Yellowhammer is set up for a different workspace. Remove its Projects first " +
-                "(yh project remove <id>), then re-run setup."
+                "Yellowhammer is set up for a different workspace. This version of yh setup connects one " +
+                "Linear workspace; remove its Projects first (yh project remove <id>), then re-run setup."
             if options.eventsJSON {
                 linearInstallEvents(.failed(reason: .differentWorkspace, text: text))
             }
@@ -217,7 +258,7 @@ extension Setup {
         let pair = LinearTokenPair(
             accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, expiresAt: tokens.expiresAt
         )
-        let store = linearInstallationStore(machine.linearCredential)
+        let store = linearInstallationStore(installation.credential)
         do {
             try await store.tokenStore.withRefreshLock {
                 try store.tokenStore.write(pair)
@@ -226,16 +267,18 @@ extension Setup {
             throw SetupError("could not store the Installation's tokens: \(error)")
         }
 
-        let appUser = BoardObjectID(rawValue: identity.appUserID)
-        try writeLinearInstallation(workspace: newWorkspace, appUser: appUser)
-        machine.linearWorkspace = newWorkspace
-        machine.linearAppUser = appUser
+        try writeLinearInstallation(installation)
+        if let index = machine.linearInstallations.firstIndex(where: { $0.name == installation.name }) {
+            machine.linearInstallations[index] = installation
+        } else {
+            machine.linearInstallations.append(installation)
+        }
 
         let text = "Yellowhammer is installed in the Linear workspace \(identity.workspaceName)."
         report(.installed(workspaceName: identity.workspaceName), text: text)
     }
 
-    private func writeLinearInstallation(workspace: BoardObjectID, appUser: BoardObjectID) throws {
+    private func writeLinearInstallation(_ installation: LinearInstallation) throws {
         let path = machineFileURL.path(percentEncoded: false)
         let text: String
         do {
@@ -243,9 +286,7 @@ extension Setup {
         } catch {
             throw SetupError("could not read \(path): \(error)")
         }
-        let updated = MachineConfiguration.settingLinearInstallation(
-            workspace: workspace, appUser: appUser, inFileText: text
-        )
+        let updated = MachineConfiguration.settingLinearInstallation(installation, inFileText: text)
         do {
             _ = try MachineConfiguration.parse(updated, file: path)
         } catch {
@@ -280,7 +321,8 @@ extension Setup {
 
     private func resolveTeamByKey(_ key: String, machine: MachineConfiguration) async -> BoardTeam {
         guard
-            let allTeams = try? await bindProvisioning(machine, "").teams(),
+            let sole = machine.soleLinearInstallation,
+            let allTeams = try? await bindProvisioning(sole, "").teams(),
             let match = allTeams.first(where: { $0.key == key })
         else {
             return BoardTeam(id: BoardObjectID(rawValue: key), key: key, name: key)
@@ -289,8 +331,10 @@ extension Setup {
     }
 
     private func existingInstallationStillAuthorizes(machine: MachineConfiguration) async -> Bool {
-        guard credentials.secret(for: machine.linearCredential) != nil else { return false }
-        return (try? await bindProvisioning(machine, "").workspaceMembers()) != nil
+        guard let sole = machine.soleLinearInstallation, credentials.secret(for: sole.credential) != nil else {
+            return false
+        }
+        return (try? await bindProvisioning(sole, "").workspaceMembers()) != nil
     }
 
     /// Every configured Project's Linear project's teams (best effort, one board call each, errors
@@ -299,7 +343,10 @@ extension Setup {
         guard let configuration = try? Configuration.load(directory: configurationDirectory) else { return [] }
         var teams: [BoardTeam] = []
         for project in configuration.projects {
-            guard let scope = try? await bindProvisioning(machine, project.linearProject).linearProject() else {
+            guard
+                let installation = machine.linearInstallation(for: project),
+                let scope = try? await bindProvisioning(installation, project.linearProject).linearProject()
+            else {
                 continue
             }
             teams.append(contentsOf: scope.teams)

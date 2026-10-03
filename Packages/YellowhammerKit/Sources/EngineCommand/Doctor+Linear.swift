@@ -7,7 +7,21 @@ extension Doctor {
     /// authorization, then the Operator identity (Operator Identity Ruling, OQ66: a stale Operator
     /// identity is flagged, never a load-time failure).
     func runLinearCheck(machine: MachineConfiguration) async -> [DoctorFinding] {
-        guard credentials.secret(for: machine.linearCredential) != nil else {
+        guard !machine.linearInstallations.isEmpty else {
+            return [finding(
+                .linear, subject: "installation", .failure,
+                "no Linear App Installation is configured; run the Linear step: " +
+                    "yh setup --install-linear, or the Setup view in Yellowhammer.app"
+            )]
+        }
+        guard let sole = machine.soleLinearInstallation else {
+            return [finding(
+                .linear, subject: "installation", .failure,
+                "config.toml declares \(machine.linearInstallations.count) Linear App Installations; "
+                    + "this version of yh doctor checks exactly one"
+            )]
+        }
+        guard credentials.secret(for: sole.credential) != nil else {
             return [finding(
                 .linear, subject: "installation", .failure,
                 "no Linear Installation token pair found; re-run the Linear step: " +
@@ -17,7 +31,7 @@ extension Doctor {
 
         let members: [BoardMember]
         do {
-            let board = bindProvisioning(machine, "")
+            let board = bindProvisioning(sole, "")
             members = try await board.workspaceMembers()
         } catch .notAuthenticated {
             return [finding(
@@ -32,12 +46,12 @@ extension Doctor {
         }
 
         var findings = [finding(.linear, subject: "authorization", .pass, "Linear authorization succeeded")]
-        findings.append(operatorIdentityFinding(machine: machine, members: members))
+        findings.append(operatorIdentityFinding(installation: sole, members: members))
         return findings
     }
 
-    private func operatorIdentityFinding(machine: MachineConfiguration, members: [BoardMember]) -> DoctorFinding {
-        guard let configured = machine.operatorIdentity else {
+    private func operatorIdentityFinding(installation: LinearInstallation, members: [BoardMember]) -> DoctorFinding {
+        guard let configured = installation.operatorIdentity else {
             return finding(
                 .linear, subject: "operator", .warning,
                 "no Operator identity configured; Waiting on You issues will be left " // glossary:ignore GL001

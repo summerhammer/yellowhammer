@@ -9,8 +9,22 @@ private let identityFixtures: [MalformedFixture] = [
     MalformedFixture("non-ascii-project-id", line: 1, key: "id", .invalidProjectID("café")),
     MalformedFixture("mismatch", line: 1, key: "id", .projectIDMismatch(fileStem: "mismatch")),
     MalformedFixture("missing-name", line: 1, key: "name", .missingKey),
-    MalformedFixture("missing-linear-project", line: 1, key: "linear_project", .missingKey),
+    MalformedFixture("missing-linear-project", line: 4, key: "board.linear.project", .missingKey),
     MalformedFixture("unknown-top-key", line: 4, key: "unknown_key", .unknownKey)
+]
+
+/// `[board.linear] installation` and `project` replace the top-level `linear_project`, which is refused
+/// as an unknown key: no migration and no named legacy error.
+private let boardFixtures: [MalformedFixture] = [
+    MalformedFixture("board-missing", line: 1, key: "board", .missingTable),
+    MalformedFixture("board-without-vendor", line: 3, key: "board.linear", .missingTable),
+    MalformedFixture("board-unknown-vendor", line: 3, key: "board.jira", .unknownKey),
+    MalformedFixture("board-two-vendors", line: 7, key: "board.jira", .unknownKey),
+    MalformedFixture("board-installations-table", line: 3, key: "board.linear.installations", .unknownKey),
+    MalformedFixture("top-level-linear-project", line: 3, key: "linear_project", .unknownKey), // glossary:ignore GL001
+    MalformedFixture("top-level-linear-table", line: 3, key: "linear", .unknownKey),
+    MalformedFixture("missing-installation", line: 3, key: "board.linear.installation", .missingKey),
+    MalformedFixture("board-empty-installation", line: 4, key: "board.linear.installation", .emptyString)
 ]
 
 private let repoFixtures: [MalformedFixture] = [
@@ -75,11 +89,12 @@ private let specificationSourceFixtures: [MalformedFixture] = [
     )
 ]
 
-@Test(
-    "Each malformed Project file is reported with its file, line and key",
-    arguments: identityFixtures + repoFixtures + limitsAndScheduleFixtures + credentialAndRoutingFixtures
-        + specificationSourceFixtures
-)
+private let allProjectFixtures: [MalformedFixture] = [
+    identityFixtures, boardFixtures, repoFixtures, limitsAndScheduleFixtures, credentialAndRoutingFixtures,
+    specificationSourceFixtures
+].flatMap { $0 }
+
+@Test("Each malformed Project file is reported with its file, line and key", arguments: allProjectFixtures)
 func malformedProjectFixture(_ fixture: MalformedFixture) throws {
     let url = try #require(
         Bundle.module.url(forResource: fixture.name, withExtension: "toml", subdirectory: "Fixtures/Projects/Malformed")
@@ -100,8 +115,11 @@ func parseSkipsFileStemCheck() throws {
     let text = """
     id = "anything"
     name = "Anything"
-    linear_project = "ANY"
     spec_source = "~/spec"
+
+    [board.linear]
+    installation = "acme"
+    project = "ANY"
 
     [[repos]]
     name = "repo"
@@ -117,8 +135,11 @@ func parseSkipsFileStemCheck() throws {
 private let overrideText = """
 id = "override"
 name = "Override"
-linear_project = "OVR"
 spec_source = "~/spec"
+
+[board.linear]
+installation = "acme"
+project = "OVR"
 
 [[repos]]
 name = "repo"
@@ -144,7 +165,31 @@ func overrideAdapterCheckNeedsTheDeclaredAdapters() throws {
         Issue.record("expected the override to be refused")
         return
     }
-    #expect(error.line == 15)
+    #expect(error.line == 18)
     #expect(error.key == "routing[0].fallbacks[0]")
     #expect(error.reason == .undeclaredCLIAdapter("gemini"))
+}
+
+@Test("An installation the registry does not declare is refused only when the registry is known")
+func installationCheckNeedsTheDeclaredInstallations() throws {
+    let unchecked = try ProjectConfiguration.parse(overrideText, file: "/tmp/override.toml")
+    #expect(unchecked.linearInstallationName == "acme")
+    #expect(unchecked.linearProject == "OVR")
+
+    let declared = try ProjectConfiguration.parse(
+        overrideText, file: "/tmp/override.toml", declaredLinearInstallations: ["acme", "other"]
+    )
+    #expect(declared == unchecked)
+
+    let checked = Result { () throws(ConfigurationError) in
+        try ProjectConfiguration.parse(overrideText, file: "/tmp/override.toml", declaredLinearInstallations: ["other"])
+    }
+    guard case .failure(let error) = checked else {
+        Issue.record("expected the installation to be refused")
+        return
+    }
+    #expect(error.line == 6)
+    #expect(error.key == "board.linear.installation")
+    #expect(error.reason == .undeclaredLinearInstallation("acme"))
+    #expect(error.description.contains("config.toml"))
 }

@@ -7,7 +7,6 @@ import Testing
 struct MachineConfigurationCLIAdaptersTests {
     private func machine(adapters: [String], routes: [(String, [String])] = []) throws -> MachineConfiguration {
         MachineConfiguration(
-            linearCredential: try editingCredential("keychain:linear"),
             gitHubCredential: try editingCredential("keychain:github"),
             cliAdapters: adapters.map { CLIAdapterDeclaration(name: $0) },
             routingTable: try routes.map { cli, fallbacks in
@@ -63,9 +62,6 @@ struct MachineConfigurationCLIAdaptersTests {
         defer { cleanupEditingDirectory(directory) }
         let file = editingMachineFileURL(directory)
         let text = """
-            [linear]
-            credential = "keychain:linear"
-
             [github]
             credential = "keychain:github"
             """

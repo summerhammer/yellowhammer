@@ -7,8 +7,10 @@ import Testing
 @Suite("Doctor: probes check")
 struct DoctorProbesTests {
     private static let machineFileWithClaude = """
-        [linear]
+        [board.linear.installations.acme]
         credential = "keychain:linear"
+        workspace = "workspace-1"
+        app_user = "app-user-1"
 
         [github]
         credential = "keychain:github"

@@ -38,8 +38,10 @@ final class AddProjectUITests: XCTestCase {
     /// A machine file with every machine-wide prerequisite but the Linear installation: an Operator
     /// identity, and a declared agent CLI with a route.
     private static let readyMachineTOML = """
-    [linear]
+    [board.linear.installations.acme]
     credential = "keychain:linear"
+    workspace = "workspace-1"
+    app_user = "app-user-1"
     operator = "user-op"
     [github]
     credential = "keychain:github"

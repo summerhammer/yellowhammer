@@ -40,7 +40,7 @@ struct DoctorConfigurationTests {
         try directory.writeProjectFile(id: "broken", """
             id = "broken"
             name = "broken"
-            linear_project = "broken"
+            board = { linear = { installation = "acme", project = "broken" } }
             spec_source = "~/Developer/broken-spec"
 
             [[repos]]
@@ -78,34 +78,14 @@ struct DoctorConfigurationTests {
         #expect(findings[0].severity == .failure)
     }
 
-    @Test("A legacy [linear].client_id fails, naming the withdrawn client-credentials setup")
-    func legacyClientIDFails() async throws {
-        let directory = ConfigurationDirectory()
-        try directory.writeMachineFile("""
-            [linear]
-            credential = "keychain:linear"
-            client_id = "yellowhammer-client-id"
-
-            [github]
-            credential = "keychain:github"
-            """)
-        try directory.writeValidProjectFile(id: "alpha")
-
-        let doctor = makeDoctor(directory: directory)
-        let findings = await doctor.run()
-
-        #expect(findings.count == 1)
-        #expect(findings[0].check == .configuration)
-        #expect(findings[0].severity == .failure)
-        #expect(findings[0].message.contains("re-run the Linear step of yh setup"))
-    }
-
     @Test("A routing entry without fallbacks warns")
     func routingEntryWithoutFallbacksWarns() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
-            [linear]
+            [board.linear.installations.acme]
             credential = "keychain:linear"
+            workspace = "workspace-1"
+            app_user = "app-user-1"
 
             [github]
             credential = "keychain:github"

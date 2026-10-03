@@ -1,0 +1,5 @@
+[linear]
+credential = "keychain:linear"
+
+[github]
+credential = "keychain:github"

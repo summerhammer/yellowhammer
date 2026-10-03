@@ -8,16 +8,18 @@ extension Setup {
     /// ``ProjectDeclaration`` from the options under `--init`, or loops interactive prompts, and writes
     /// each through the one shared path.
     func writeProjectsIfNeeded(
-        machine: MachineConfiguration, board: any BoardProvisioning
+        machine: MachineConfiguration, installationName: String, board: any BoardProvisioning
     ) async throws {
         switch options.mode {
         case .config, .printChoices, .installLinear:
             return
         case .initialize:
             guard let declaration = try optionProjectDeclaration() else { return }
-            try await writeProject(declaration, machine: machine, board: board)
+            try await writeProject(
+                declaration, machine: machine, installationName: installationName, board: board
+            )
         case .interactive:
-            try await interactiveProjectLoop(machine: machine, board: board)
+            try await interactiveProjectLoop(machine: machine, installationName: installationName, board: board)
         }
     }
 
@@ -41,7 +43,8 @@ extension Setup {
     /// must not leave an orphan Linear project), resolves the Linear project — creating it in a team
     /// when asked — and writes the file.
     func writeProject(
-        _ declaration: ProjectDeclaration, machine: MachineConfiguration, board: any BoardProvisioning
+        _ declaration: ProjectDeclaration, machine: MachineConfiguration, installationName: String,
+        board: any BoardProvisioning
     ) async throws {
         let projectFileURL = configurationDirectory.appending(
             components: "projects", "\(declaration.id.rawValue).toml", directoryHint: .notDirectory
@@ -53,12 +56,17 @@ extension Setup {
         }
 
         let declaredCLIAdapters = Set(machine.cliAdapters.map(\.name))
-        try validateProjectShape(declaration, declaredCLIAdapters: declaredCLIAdapters, at: path)
+        try validateProjectShape(
+            declaration, installationName: installationName, machine: machine,
+            declaredCLIAdapters: declaredCLIAdapters, at: path
+        )
 
         let linearProjectID = try await resolveLinearProjectID(
             declaration.linearProject, name: declaration.name, board: board
         )
-        let project = makeProjectConfiguration(declaration, linearProject: linearProjectID)
+        let project = makeProjectConfiguration(
+            declaration, installationName: installationName, linearProject: linearProjectID
+        )
         do {
             try FileManager.default.createDirectory(
                 at: projectFileURL.deletingLastPathComponent(), withIntermediateDirectories: true
@@ -71,22 +79,27 @@ extension Setup {
     }
 
     private func makeProjectConfiguration(
-        _ declaration: ProjectDeclaration, linearProject: String
+        _ declaration: ProjectDeclaration, installationName: String, linearProject: String
     ) -> ProjectConfiguration {
         ProjectConfiguration(
-            id: declaration.id, name: declaration.name, linearProject: linearProject,
+            id: declaration.id, name: declaration.name, linearInstallationName: installationName,
+            linearProject: linearProject,
             specSource: declaration.specSource, repos: declaration.repos, bounds: Bounds(),
             schedule: declaration.schedule
         )
     }
 
     private func validateProjectShape(
-        _ declaration: ProjectDeclaration, declaredCLIAdapters: Set<String>, at path: String
+        _ declaration: ProjectDeclaration, installationName: String, machine: MachineConfiguration,
+        declaredCLIAdapters: Set<String>, at path: String
     ) throws {
-        let placeholder = makeProjectConfiguration(declaration, linearProject: "placeholder")
+        let placeholder = makeProjectConfiguration(
+            declaration, installationName: installationName, linearProject: "placeholder"
+        )
         do {
             _ = try ProjectConfiguration.parse(
-                placeholder.renderedTOML, file: path, declaredCLIAdapters: declaredCLIAdapters
+                placeholder.renderedTOML, file: path, declaredCLIAdapters: declaredCLIAdapters,
+                declaredLinearInstallations: Set(machine.linearInstallations.map(\.name))
             )
         } catch {
             throw SetupError("Project \(declaration.id): \(error)")

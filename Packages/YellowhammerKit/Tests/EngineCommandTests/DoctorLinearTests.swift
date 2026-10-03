@@ -8,8 +8,10 @@ struct DoctorLinearTests {
     func fullyHealthyPasses() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
-            [linear]
+            [board.linear.installations.acme]
             credential = "keychain:linear"
+            workspace = "workspace-1"
+            app_user = "app-user-1"
             operator = "user-op"
 
             [github]
@@ -104,8 +106,10 @@ struct DoctorLinearTests {
     func deactivatedOperatorWarns() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
-            [linear]
+            [board.linear.installations.acme]
             credential = "keychain:linear"
+            workspace = "workspace-1"
+            app_user = "app-user-1"
             operator = "user-dead"
 
             [github]
@@ -132,5 +136,51 @@ struct DoctorLinearTests {
         let findings = await doctor.run()
 
         #expect(findings.contains { $0.check == .linear && $0.subject == "operator" && $0.severity == .warning })
+    }
+
+    @Test("No App Installation configured: one installation failure naming the setup fix")
+    func zeroInstallationsFails() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile("[github]\ncredential = \"keychain:github\"\n")
+        let board = await makeBoard(members: [operatorMember])
+
+        let doctor = makeDoctor(directory: directory, board: board, checks: [.configuration, .linear])
+        let findings = await doctor.run()
+
+        let linearFindings = findings.filter { $0.check == .linear }
+        #expect(linearFindings.count == 1)
+        #expect(linearFindings[0].severity == .failure)
+        #expect(linearFindings[0].subject == "installation")
+        #expect(linearFindings[0].message.contains("no Linear App Installation is configured"))
+        #expect(linearFindings[0].message.contains("yh setup --install-linear"))
+    }
+
+    @Test("Two App Installations: one installation failure naming the count")
+    func twoInstallationsFails() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile("""
+            [board.linear.installations.acme]
+            credential = "keychain:linear"
+            workspace = "workspace-1"
+            app_user = "app-user-1"
+
+            [board.linear.installations.beta]
+            credential = "keychain:linear-beta"
+            workspace = "workspace-2"
+            app_user = "app-user-2"
+
+            [github]
+            credential = "keychain:github"
+            """)
+        let board = await makeBoard(members: [operatorMember])
+
+        let doctor = makeDoctor(directory: directory, board: board, checks: [.configuration, .linear])
+        let findings = await doctor.run()
+
+        let linearFindings = findings.filter { $0.check == .linear }
+        #expect(linearFindings.count == 1)
+        #expect(linearFindings[0].severity == .failure)
+        #expect(linearFindings[0].subject == "installation")
+        #expect(linearFindings[0].message.contains("declares 2 Linear App Installations"))
     }
 }

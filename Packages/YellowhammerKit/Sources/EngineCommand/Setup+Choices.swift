@@ -6,18 +6,18 @@ import Foundation
 
 extension Setup {
     /// `--print-choices`: never prompts, writes no configuration file. Loads `config.toml` when present
-    /// (invalid means throw, as elsewhere), or builds one in memory from the credential defaults; then
-    /// binds the workspace board, authorizes, and reads its teams and Linear projects. Its last line is the
+    /// (invalid means throw, as elsewhere), or reads none; then binds the sole App Installation's board, authorizes, and reads its teams and Linear projects. Its last line is the
     /// JSON-encoded ``SetupChoices``, the line the app decodes; a failed Linear projects read is reported
     /// on one `warning:` line before it.
     func printChoices() async throws {
         let machine = try loadMachineConfigurationForChoices()
-        guard credentials.secret(for: machine.linearCredential) != nil else {
+        let installation = try soleInstallationForChoices(machine)
+        guard credentials.secret(for: installation.credential) != nil else {
             throw SetupError(
                 "Yellowhammer is not installed in a Linear workspace yet; run yh setup --install-linear"
             )
         }
-        let board = bindProvisioning(machine, "")
+        let board = bindProvisioning(installation, "")
         let members = try await authorize(board: board)
         let teams = try await fetchTeams(board: board)
         // A failed projects read must not cost the Operator the teams and candidates already in hand:
@@ -30,11 +30,11 @@ extension Setup {
             projects = []
         }
         output(try encodeChoicesJSON(
-            makeChoices(machine: machine, members: members, teams: teams, projects: projects)
+            makeChoices(installation: installation, members: members, teams: teams, projects: projects)
         ))
     }
 
-    private func loadMachineConfigurationForChoices() throws -> MachineConfiguration {
+    private func loadMachineConfigurationForChoices() throws -> MachineConfiguration? {
         let path = machineFileURL.path(percentEncoded: false)
         if FileManager.default.fileExists(atPath: path) {
             do {
@@ -43,13 +43,24 @@ extension Setup {
                 throw SetupError("\(path) is invalid: \(error)")
             }
         }
-        // Non-empty literals: never fail.
-        let linearCredential = options.linearCredential ?? CredentialReference(SetupOptions.defaultLinearCredential)!
-        let gitHubCredential = options.githubCredential ?? CredentialReference(SetupOptions.defaultGitHubCredential)!
-        return MachineConfiguration(
-            linearCredential: linearCredential, gitHubCredential: gitHubCredential,
-            cliAdapters: [], routingTable: []
-        )
+        return nil
+    }
+
+    /// Choices are read through exactly one App Installation (the machine-only bridge, roadmap L3.2).
+    private func soleInstallationForChoices(_ machine: MachineConfiguration?) throws -> LinearInstallation {
+        let count = machine?.linearInstallations.count ?? 0
+        guard count > 0, let machine else {
+            throw SetupError(
+                "Yellowhammer is not installed in a Linear workspace yet; run yh setup --install-linear"
+            )
+        }
+        guard let sole = machine.soleLinearInstallation else {
+            throw SetupError(
+                "config.toml declares \(count) Linear App Installations; "
+                    + "this version of yh setup --print-choices reads one"
+            )
+        }
+        return sole
     }
 
     private func fetchTeams(board: any BoardProvisioning) async throws -> [BoardTeam] {
@@ -61,11 +72,11 @@ extension Setup {
     }
 
     private func makeChoices(
-        machine: MachineConfiguration, members: [BoardMember], teams: [BoardTeam],
+        installation: LinearInstallation, members: [BoardMember], teams: [BoardTeam],
         projects: [BoardLinearProject]
     ) -> SetupChoices {
         let candidates = OperatorIdentity.candidates(from: members)
-        let configuredOperator = machine.operatorIdentity.flatMap { configured in
+        let configuredOperator = installation.operatorIdentity.flatMap { configured in
             candidates.contains { $0.id == configured } ? configured.rawValue : nil
         }
         return SetupChoices(

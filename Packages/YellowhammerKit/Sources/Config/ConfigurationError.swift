@@ -28,8 +28,10 @@ public struct ConfigurationError: Error, Equatable, Sendable {
         case secondSpecificationSource(firstLine: Int)
         case undeclaredCLIAdapter(String)
         case workingRepoConflict(project: ProjectID, file: String)
-        /// `[linear].client_id`, from the withdrawn client-credentials setup (P17.4).
-        case legacyLinearClientID
+        /// Two registry entries name one Linear workspace; reported on the second entry's `workspace`.
+        case duplicateLinearWorkspace(firstInstallation: String, firstLine: Int)
+        /// A Project's `installation` names no `[board.linear.installations.<name>]` in the machine file.
+        case undeclaredLinearInstallation(String)
         /// A Message Template names `{name}`, which is not a token of its template. `key` is the
         /// template's own key (`commit_message`); `accepted` lists the tokens it does take.
         case unknownTemplateToken(name: String, key: String, accepted: [String])
@@ -112,9 +114,12 @@ extension ConfigurationError.Reason: CustomStringConvertible {
             return "route names CLI \"\(cli)\", which has no [cli.\(cli)] adapter declaration"
         case .workingRepoConflict(let project, let file):
             return "repository is also declared as a working Repo by Project \"\(project.rawValue)\" (\(file))"
-        case .legacyLinearClientID:
-            return "this configuration names a Linear client id from the withdrawn client-credentials " +
-                "setup; re-run the Linear step of yh setup"
+        case .duplicateLinearWorkspace(let firstInstallation, let firstLine):
+            return "workspace is already used by installation \"\(firstInstallation)\" on line \(firstLine); "
+                + "a Linear workspace is installed once"
+        case .undeclaredLinearInstallation(let name):
+            return "Project names installation \"\(name)\", which has no [board.linear.installations.\(name)] "
+                + "in the machine file config.toml"
         case .unknownTemplateToken(let name, let key, let accepted):
             return "names {\(name)}, which is not a \(key) token; the tokens are \(accepted.joined(separator: ", "))"
         case .unterminatedTemplateBrace(let key):
