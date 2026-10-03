@@ -1,3 +1,4 @@
+import Domain
 import Testing
 
 @testable import Pulse
@@ -16,14 +17,14 @@ private struct Finding {
         self.message = message
     }
 
-    var json: String {
-        #"{"check":"\#(check)","message":"\#(message)","severity":"\#(severity)","subject":"\#(subject)"}"#
+    var row: DoctorFindingRow {
+        DoctorFindingRow(check: check, subject: subject, severity: severity, message: message)
     }
 }
 
 /// `yh doctor --json`'s last line, with one row per finding given.
 private func doctorOutput(_ findings: [Finding]) -> [String] {
-    ["[" + findings.map(\.json).joined(separator: ",") + "]"]
+    [DoctorFindingRow.encodeLine(findings.map(\.row))]
 }
 
 @Test("Health reads the three flags from yh doctor's findings, in flag order, each with its message")

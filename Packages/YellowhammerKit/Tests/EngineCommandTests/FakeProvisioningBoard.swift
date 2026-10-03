@@ -57,6 +57,19 @@ actor FakeProvisioningBoard: BoardProvisioning {
 
     func teams() async throws(BoardError) -> [BoardTeam] { boardTeams }
 
+    /// What ``workspace()`` reports.
+    var boardWorkspace = BoardWorkspace(id: "workspace-1", name: "Workspace One", urlKey: "workspace-one")
+    /// When set, ``workspace()`` throws it.
+    var workspaceFailure: BoardError?
+
+    func setWorkspace(_ workspace: BoardWorkspace) { boardWorkspace = workspace }
+    func failWorkspace(with error: BoardError?) { workspaceFailure = error }
+
+    func workspace() async throws(BoardError) -> BoardWorkspace {
+        if let workspaceFailure { throw workspaceFailure }
+        return boardWorkspace
+    }
+
     /// What ``linearProjects()`` reports; empty by default.
     var boardLinearProjects: [BoardLinearProject] = []
     /// When set, ``linearProjects()`` throws it.

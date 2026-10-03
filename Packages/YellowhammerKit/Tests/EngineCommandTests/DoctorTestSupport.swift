@@ -3,12 +3,30 @@ import Domain
 @testable import EngineCommand
 import Foundation
 import Repositories
+import Synchronization
+
+/// Every `bindProvisioning` call a ``Doctor`` made: (installation name, linearProjectID), in order.
+final class DoctorBindLog: Sendable {
+    struct Call: Equatable {
+        let installation: String
+        let linearProjectID: String
+    }
+
+    private let storage = Mutex<[Call]>([])
+    var calls: [Call] { storage.withLock { $0 } }
+
+    func record(installation: String, linearProjectID: String) {
+        storage.withLock { $0.append(Call(installation: installation, linearProjectID: linearProjectID)) }
+    }
+}
 
 /// Builds a ``Doctor`` with every seam faked or injected against a temp directory, mirroring
 /// `makeSetup`. Never touches the real home directory, Keychain or launchctl.
 func makeDoctor(
     directory: borrowing ConfigurationDirectory,
     board: FakeProvisioningBoard = FakeProvisioningBoard(project: nil),
+    boards: [String: FakeProvisioningBoard] = [:],
+    binds: DoctorBindLog = DoctorBindLog(),
     console: ScriptedConsole = ScriptedConsole(),
     credentials: RecordingCredentialStore = RecordingCredentialStore(seed: ["keychain:linear": "test-secret"]),
     output: RecordingOutput = RecordingOutput(),
@@ -29,7 +47,10 @@ func makeDoctor(
         output: { output.record($0) },
         console: console,
         credentials: credentials,
-        bindProvisioning: { _, _ in board },
+        bindProvisioning: { installation, linearProjectID in
+            binds.record(installation: installation.name, linearProjectID: linearProjectID)
+            return boards[installation.name] ?? board
+        },
         launchAgents: launchAgents,
         git: git,
         runProbe: runProbe,

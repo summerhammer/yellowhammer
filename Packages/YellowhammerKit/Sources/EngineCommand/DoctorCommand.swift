@@ -84,21 +84,18 @@ public struct DoctorCommand: AsyncParsableCommand {
         return [parsed]
     }
 
-    /// One compact JSON array, `[{"check":...,"subject":...,"severity":...,"message":...}]` — no
-    /// `projectID`, since `--json` is only used machine-wide so far (P17.7).
-    private static func encodeFindingsJSON(_ findings: [DoctorFinding]) -> String {
-        let rows = findings.map { finding in
-            DoctorFindingJSON(
+    /// One compact JSON array of `DoctorFindingRow`s — no `projectID`; a finding scoped to an App
+    /// Installation also carries its name, workspace and Projects.
+    static func encodeFindingsJSON(_ findings: [DoctorFinding]) -> String {
+        DoctorFindingRow.encodeLine(findings.map { finding in
+            DoctorFindingRow(
                 check: finding.check.rawValue, subject: finding.subject,
-                severity: severityString(finding.severity), message: finding.message
+                severity: severityString(finding.severity), message: finding.message,
+                installation: finding.installation?.name, workspace: finding.installation?.workspace,
+                workspaceName: finding.installation?.workspaceName,
+                projects: finding.installation?.projects.map(\.rawValue)
             )
-        }
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        guard let data = try? encoder.encode(rows), let text = String(data: data, encoding: .utf8) else {
-            return "[]"
-        }
-        return text
+        })
     }
 
     private static func severityString(_ severity: DoctorSeverity) -> String {
@@ -106,6 +103,7 @@ public struct DoctorCommand: AsyncParsableCommand {
         case .pass: "pass"
         case .warning: "warning"
         case .failure: "failure"
+        case .info: "info"
         }
     }
 
@@ -142,12 +140,4 @@ struct DoctorRunOptions {
     let probe: Bool
     let checks: [DoctorCheck]
     let projectFilter: ProjectID?
-}
-
-/// `--json`'s one row: a plain mirror of `DoctorFinding`, minus `projectID` (P17.7, the app's own read).
-struct DoctorFindingJSON: Encodable {
-    let check: String
-    let subject: String
-    let severity: String
-    let message: String
 }

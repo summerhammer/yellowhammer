@@ -3,69 +3,178 @@ import Domain
 import Engine
 
 extension Doctor {
-    /// Check 4 (shift-scheduling/diagnose-the-installation): the Installation's own token pair, then
-    /// authorization, then the Operator identity (Operator Identity Ruling, OQ66: a stale Operator
-    /// identity is flagged, never a load-time failure).
-    func runLinearCheck(machine: MachineConfiguration) async -> [DoctorFinding] {
-        guard !machine.linearInstallations.isEmpty else {
+    /// Check 4 (shift-scheduling/diagnose-the-installation): runs once per App Installation in the
+    /// registry, in registry order. Each installation gets its token pair check, authorization and Operator
+    /// identity (Operator Identity Ruling, OQ66: a stale Operator identity is flagged, never a load-time
+    /// failure), an info line when no Project uses it, and then board membership for each Project it serves.
+    ///
+    /// A Project naming an installation that is not in the registry is refused by the strict configuration
+    /// load, and Check 1 reports that; Check 4 reports it too, as a missing installation, so that
+    /// `--check linear` sees it.
+    func runLinearCheck(configuration: Configuration) async -> [DoctorFinding] {
+        let installations = configuration.machine.linearInstallations
+        let missing = missingInstallationFindings(configuration: configuration)
+        guard !installations.isEmpty else {
+            guard configuration.projects.isEmpty, missing.isEmpty else { return missing }
             return [finding(
-                .linear, subject: "installation", .failure,
-                "no Linear App Installation is configured; run the Linear step: " +
-                    "yh setup --install-linear, or the Setup view in Yellowhammer.app"
+                .linear, subject: "installation", .info,
+                "no Linear workspace is connected; connect one with `yh setup --install-linear`, " +
+                    "or Settings → Linear workspaces in Yellowhammer.app"
             )]
         }
-        guard let sole = machine.soleLinearInstallation else {
-            return [finding(
-                .linear, subject: "installation", .failure,
-                "config.toml declares \(machine.linearInstallations.count) Linear App Installations; "
-                    + "this version of yh doctor checks exactly one"
-            )]
+        var findings: [DoctorFinding] = []
+        for installation in installations {
+            let served = configuration.projects.filter { $0.linearInstallationName == installation.name }
+            findings += await installationFindings(installation, serving: served)
         }
-        guard credentials.secret(for: sole.credential) != nil else {
-            return [finding(
-                .linear, subject: "installation", .failure,
-                "no Linear Installation token pair found; re-run the Linear step: " +
-                    "yh setup --install-linear, or the Setup view in Yellowhammer.app"
-            )]
+        return findings + missing
+    }
+
+    /// One failure per refused Project whose `installation` names no registry entry, in Project id order.
+    private func missingInstallationFindings(configuration: Configuration) -> [DoctorFinding] {
+        var refused: [(id: ProjectID, name: String)] = []
+        for invalid in configuration.invalidProjects {
+            guard let id = projectID(forInvalid: invalid) else { continue }
+            for error in invalid.errors {
+                if case .undeclaredLinearInstallation(let name) = error.reason {
+                    refused.append((id, name))
+                }
+            }
+        }
+        return refused.sorted { $0.id.rawValue < $1.id.rawValue }.map { id, name in
+            finding(
+                .linear, subject: "project", .failure,
+                "Project \(id) names installation \(name), which is not in the registry; " // glossary:ignore GL001
+                    + "connect that workspace with `yh setup --install-linear` and enter \(name) as its local "
+                    + "name, or remove the Project (`yh project remove \(id)`) and add it again",
+                project: id,
+                installation: DoctorInstallationScope(
+                    name: name, workspace: nil, workspaceName: nil, projects: [id]
+                )
+            )
+        }
+    }
+
+    private func installationFindings(
+        _ installation: LinearInstallation, serving served: [ProjectConfiguration]
+    ) async -> [DoctorFinding] {
+        let projectIDs = served.map(\.id)
+        func scope(_ workspaceName: String?) -> DoctorInstallationScope {
+            DoctorInstallationScope(
+                name: installation.name, workspace: installation.workspace.rawValue,
+                workspaceName: workspaceName, projects: projectIDs
+            )
         }
 
+        guard credentials.secret(for: installation.credential) != nil else {
+            return [linearFinding(
+                scope(nil), "installation", .failure,
+                "no Linear Installation token pair found; re-connect this workspace: "
+                    + Self.reconnectFix(installation)
+            )]
+        }
+        let board = bindProvisioning(installation, "")
+        let workspaceName = try? await board.workspace().name
         let members: [BoardMember]
-        do {
-            let board = bindProvisioning(sole, "")
-            members = try await board.workspaceMembers()
-        } catch .notAuthenticated {
-            return [finding(
-                .linear, subject: "authorization", .failure,
-                "the Linear installation was revoked or its sign-in expired; re-run the Linear step: " +
-                    "yh setup --install-linear, or the Setup view in Yellowhammer.app"
-            )]
-        } catch .unreachable {
-            return [finding(.linear, subject: "authorization", .failure, "Linear could not be reached")]
-        } catch {
-            return [finding(.linear, subject: "authorization", .failure, "Linear authorization failed: \(error)")]
+        switch await authorize(board, installation: installation, scope: scope(workspaceName)) {
+        case .failure(let failure):
+            return [failure.finding]
+        case .success(let read):
+            members = read
         }
 
-        var findings = [finding(.linear, subject: "authorization", .pass, "Linear authorization succeeded")]
-        findings.append(operatorIdentityFinding(installation: sole, members: members))
+        var findings = [
+            linearFinding(scope(workspaceName), "authorization", .pass, "Linear authorization succeeded"),
+            operatorIdentityFinding(
+                installation: installation, members: members, scope: scope(workspaceName)
+            )
+        ]
+        if served.isEmpty {
+            findings.append(linearFinding(
+                scope(workspaceName), "installation", .info,
+                "no Project uses this installation; if you no longer use it, run "
+                    + "`yh config remove-installation \(installation.name)`"
+            ))
+        }
+        for project in served {
+            findings += await boardMembershipFindings(
+                project: project, installation: installation, workspaceName: workspaceName
+            )
+        }
         return findings
     }
 
-    private func operatorIdentityFinding(installation: LinearInstallation, members: [BoardMember]) -> DoctorFinding {
+    /// The workspace's members, or the one authorization failure finding.
+    private func authorize(
+        _ board: any BoardProvisioning, installation: LinearInstallation, scope: DoctorInstallationScope
+    ) async -> Result<[BoardMember], DoctorFindingFailure> {
+        func failure(_ message: String) -> Result<[BoardMember], DoctorFindingFailure> {
+            .failure(DoctorFindingFailure(
+                finding: linearFinding(scope, "authorization", .failure, message)
+            ))
+        }
+        do {
+            return .success(try await board.workspaceMembers())
+        } catch .notAuthenticated {
+            return failure(
+                "the Linear installation was revoked or its sign-in expired; a workspace admin must approve "
+                    + "the app again: " + Self.reconnectFix(installation)
+            )
+        } catch .unreachable {
+            return failure("Linear could not be reached")
+        } catch {
+            return failure("Linear authorization failed: \(error)")
+        }
+    }
+
+    private func linearFinding(
+        _ scope: DoctorInstallationScope, _ subject: String, _ severity: DoctorSeverity, _ message: String
+    ) -> DoctorFinding {
+        finding(.linear, subject: subject, severity, Self.installationPrefix(scope) + message, installation: scope)
+    }
+
+    /// `installation acme (workspace "Acme Inc"; Projects alpha, beta): ` — the workspace name only when it
+    /// was read live; `no Projects` when the installation serves none.
+    static func installationPrefix(_ scope: DoctorInstallationScope) -> String {
+        var parts: [String] = []
+        if let name = scope.workspaceName {
+            parts.append("workspace \"\(name)\"")
+        }
+        let projects = scope.projects.map(\.rawValue).joined(separator: ", ")
+        parts.append(scope.projects.isEmpty ? "no Projects" : "Projects " + projects)
+        return "installation \(scope.name) (\(parts.joined(separator: "; "))): "
+    }
+
+    static func reconnectFix(_ installation: LinearInstallation) -> String {
+        "`yh setup --install-linear --installation \(installation.name)`, "
+            + "or Settings → Linear workspaces in Yellowhammer.app"
+    }
+
+    private func operatorIdentityFinding(
+        installation: LinearInstallation, members: [BoardMember], scope: DoctorInstallationScope
+    ) -> DoctorFinding {
         guard let configured = installation.operatorIdentity else {
-            return finding(
-                .linear, subject: "operator", .warning,
-                "no Operator identity configured; Waiting on You issues will be left " // glossary:ignore GL001
-                    + "unassigned; run `yh config operator --installation \(installation.name)`"
+            let served = scope.projects.isEmpty
+                ? "the Projects it serves" : scope.projects.map(\.rawValue).joined(separator: ", ")
+            return linearFinding(
+                scope, "operator", .warning,
+                "no Operator identity configured; Waiting on You issues of \(served) " // glossary:ignore GL001
+                    + "will be left unassigned; run `yh config operator --installation \(installation.name)`"
             )
         }
         let candidates = OperatorIdentity.candidates(from: members)
         guard candidates.contains(where: { $0.id == configured }) else {
-            return finding(
-                .linear, subject: "operator", .warning,
+            return linearFinding(
+                scope, "operator", .warning,
                 "the configured Operator identity \(configured.rawValue) is no longer a " // glossary:ignore GL001
                     + "candidate (deactivated, removed, or an app)"
             )
         }
-        return finding(.linear, subject: "operator", .pass, "Operator identity \(configured.rawValue) is a candidate")
+        return linearFinding(scope, "operator", .pass, "Operator identity \(configured.rawValue) is a candidate")
     }
+}
+
+/// An authorization failure, carried as a `Result`'s error.
+struct DoctorFindingFailure: Error {
+    let finding: DoctorFinding
 }

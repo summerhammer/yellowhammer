@@ -8,6 +8,10 @@ import Foundation
 /// an implementation translates and never decides. The Engine's provisioner reads presence on each run
 /// to ensure idempotency: running provisioning twice changes nothing on the second run.
 public protocol BoardProvisioning: Sendable {
+    /// The workspace's identity: ID, name and URL key. Workspace-scoped, read as this installation's app
+    /// user.
+    func workspace() async throws(BoardError) -> BoardWorkspace
+
     /// Every member of the workspace, deactivated ones included, each flagged; the adapter does not
     /// filter. Workspace-scoped, not Linear-project-scoped.
     func workspaceMembers() async throws(BoardError) -> [BoardMember]
@@ -51,6 +55,19 @@ public protocol BoardProvisioning: Sendable {
     func createLabel(
         name: String, team: BoardObjectID, isGroup: Bool, parent: BoardObjectID?
     ) async throws(BoardError) -> BoardLabel
+}
+
+/// A workspace as the board reports it. `id` is an opaque vendor ID.
+public struct BoardWorkspace: Hashable, Sendable {
+    public var id: String
+    public var name: String
+    public var urlKey: String
+
+    public init(id: String, name: String, urlKey: String) {
+        self.id = id
+        self.name = name
+        self.urlKey = urlKey
+    }
 }
 
 /// A Linear project as it exists on the board, with its teams.

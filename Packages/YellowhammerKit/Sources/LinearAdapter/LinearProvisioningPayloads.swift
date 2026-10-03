@@ -69,6 +69,16 @@ struct LinearWorkflowStateCreateData: Decodable {
     let workflowState: LinearWorkflowStateNode?
 }
 
+struct LinearWorkspacePayload: Decodable {
+    let organization: LinearWorkspaceNode
+}
+
+struct LinearWorkspaceNode: Decodable {
+    let id: String
+    let name: String
+    let urlKey: String
+}
+
 struct LinearUsersPayload: Decodable {
     let users: LinearUsersConnection
 }

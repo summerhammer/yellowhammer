@@ -2,188 +2,109 @@ import Domain
 @testable import EngineCommand
 import Testing
 
-@Suite("Doctor: linear check")
+@Suite("Doctor: linear check, per App Installation")
 struct DoctorLinearTests {
-    @Test("Pair present, members OK and operator active passes")
-    func fullyHealthyPasses() async throws {
-        let directory = ConfigurationDirectory()
-        try directory.writeMachineFile("""
-            [board.linear.installations.acme]
-            credential = "keychain:linear"
-            workspace = "workspace-1"
-            app_user = "app-user-1"
-            operator = "user-op"
+    @Test("Both healthy: each installation passes, naming its workspace and Projects, bound once by name")
+    func bothHealthy() async throws {
+        let fixture = try await DoctorLinearFixture()
+        let findings = await fixture.doctor().run()
 
-            [github]
-            credential = "keychain:github"
-            """)
-        try directory.writeValidProjectFile(id: "alpha")
-        let board = await makeBoard(members: [operatorMember])
-
-        let doctor = makeDoctor(directory: directory, board: board, checks: [.configuration, .linear])
-        let findings = await doctor.run()
-
-        #expect(!findings.contains { $0.severity == .failure })
-        #expect(findings.contains { $0.check == .linear && $0.severity == .pass && $0.subject == "authorization" })
-        #expect(findings.contains { $0.check == .linear && $0.severity == .pass && $0.subject == "operator" })
+        #expect(!findings.contains { $0.check == .linear && ($0.severity == .failure || $0.severity == .warning) })
+        let acmeAuth = try #require(findings.linear("acme", subject: "authorization").first)
+        #expect(acmeAuth.severity == .pass)
+        #expect(acmeAuth.message
+            == #"installation acme (workspace "Acme Inc"; Projects alpha, gamma): Linear authorization succeeded"#)
+        #expect(findings.linear("acme", subject: "operator").first?.severity == .pass)
+        let globexAuth = try #require(findings.linear("globex", subject: "authorization").first)
+        #expect(globexAuth.message
+            == #"installation globex (workspace "Globex Corp"; Projects beta): Linear authorization succeeded"#)
+        #expect(findings.linear("globex", subject: "operator").first?.severity == .pass)
+        let workspaceBinds = fixture.binds.calls.filter { $0.linearProjectID.isEmpty }
+        #expect(workspaceBinds.map(\.installation) == ["acme", "globex"])
     }
 
-    @Test("No Installation token pair fails, naming the setup fix, and skips the rest of the check")
-    func missingInstallationFails() async throws {
-        let directory = ConfigurationDirectory()
-        try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
-        let board = await makeBoard(members: [operatorMember])
+    @Test("Keychain missing on acme only: acme fails with the re-connect fix, globex is unaffected")
+    func keychainMissing() async throws {
+        let fixture = try await DoctorLinearFixture()
+        let credentials = RecordingCredentialStore(seed: ["keychain:linear-globex": "secret"])
+        let findings = await fixture.doctor(credentials: credentials).run()
 
-        let doctor = makeDoctor(
-            directory: directory, board: board, credentials: RecordingCredentialStore(),
-            checks: [.configuration, .linear]
-        )
-        let findings = await doctor.run()
-
-        let linearFindings = findings.filter { $0.check == .linear }
-        #expect(linearFindings.count == 1)
-        #expect(linearFindings[0].severity == .failure)
-        #expect(linearFindings[0].subject == "installation")
-        #expect(linearFindings[0].message.contains("re-run the Linear step: yh setup --install-linear"))
+        let acme = findings.linear("acme")
+        #expect(acme.count == 1)
+        #expect(acme[0].severity == .failure)
+        #expect(acme[0].subject == "installation")
+        #expect(acme[0].message.contains("yh setup --install-linear --installation acme"))
+        #expect(acme[0].message.contains("Settings → Linear workspaces"))
+        #expect(!acme[0].message.contains("workspace \""))
+        #expect(findings.linear("globex", subject: "authorization").first?.severity == .pass)
     }
 
-    @Test("A revoked or expired Installation (notAuthenticated) fails, naming who must approve it again")
-    func notAuthenticatedFails() async throws {
-        let directory = ConfigurationDirectory()
-        try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
-        let board = await makeBoard(members: [operatorMember])
-        await board.refuseWorkspaceMembersNext(.notAuthenticated("token revoked"))
+    @Test("acme revoked: failure containing revoked and the workspace, globex passes")
+    func revoked() async throws {
+        let fixture = try await DoctorLinearFixture()
+        await fixture.acme.refuseWorkspaceMembersNext(.notAuthenticated("token revoked"))
+        let findings = await fixture.doctor().run()
 
-        let doctor = makeDoctor(directory: directory, board: board, checks: [.configuration, .linear])
-        let findings = await doctor.run()
-
-        let linearFindings = findings.filter { $0.check == .linear }
-        #expect(linearFindings.count == 1)
-        #expect(linearFindings[0].severity == .failure)
-        #expect(linearFindings[0].subject == "authorization")
-        #expect(linearFindings[0].message.contains("re-run the Linear step: yh setup --install-linear"))
-        // The app's Health group tells a revoked Installation from an unreachable Linear by this word.
-        #expect(linearFindings[0].message.contains("revoked"))
+        let acme = try #require(findings.linear("acme", subject: "authorization").first)
+        #expect(acme.severity == .failure)
+        #expect(acme.message.contains("revoked"))
+        #expect(acme.message.contains(#"workspace "Acme Inc""#))
+        #expect(acme.message.contains("--installation acme"))
+        #expect(findings.linear("acme", subject: "operator").isEmpty)
+        #expect(findings.linear("acme", subject: "team").isEmpty)
+        #expect(findings.linear("globex", subject: "authorization").first?.severity == .pass)
     }
 
-    @Test("Linear unreachable fails with a plain network message")
-    func unreachableFails() async throws {
-        let directory = ConfigurationDirectory()
-        try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
-        let board = await makeBoard(members: [operatorMember])
-        await board.refuseWorkspaceMembersNext(.unreachable("timed out"))
+    @Test("acme unreachable: Linear could not be reached, globex passes")
+    func unreachable() async throws {
+        let fixture = try await DoctorLinearFixture()
+        await fixture.acme.refuseWorkspaceMembersNext(.unreachable("timed out"))
+        let findings = await fixture.doctor().run()
 
-        let doctor = makeDoctor(directory: directory, board: board, checks: [.configuration, .linear])
-        let findings = await doctor.run()
-
-        let linearFindings = findings.filter { $0.check == .linear }
-        #expect(linearFindings.count == 1)
-        #expect(linearFindings[0].severity == .failure)
-        #expect(linearFindings[0].message == "Linear could not be reached")
+        let acme = try #require(findings.linear("acme", subject: "authorization").first)
+        #expect(acme.severity == .failure)
+        #expect(acme.message.hasSuffix("Linear could not be reached"))
+        #expect(findings.linear("globex", subject: "authorization").first?.severity == .pass)
     }
 
-    @Test("workspaceMembers() throwing some other failure still fails, generically")
-    func workspaceMembersThrowingFails() async throws {
-        let directory = ConfigurationDirectory()
-        try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
-        let board = await makeBoard(members: [operatorMember])
-        await board.refuseWorkspaceMembersNext(.refused("no"))
+    @Test("Another authorization failure fails generically")
+    func otherFailure() async throws {
+        let fixture = try await DoctorLinearFixture()
+        await fixture.acme.refuseWorkspaceMembersNext(.refused("no"))
+        let findings = await fixture.doctor().run()
 
-        let doctor = makeDoctor(directory: directory, board: board, checks: [.configuration, .linear])
-        let findings = await doctor.run()
-
-        let linearFindings = findings.filter { $0.check == .linear }
-        #expect(linearFindings.count == 1)
-        #expect(linearFindings[0].severity == .failure)
-        #expect(linearFindings[0].message.contains("Linear authorization failed"))
+        let acme = try #require(findings.linear("acme", subject: "authorization").first)
+        #expect(acme.severity == .failure)
+        #expect(acme.message.contains("Linear authorization failed"))
     }
 
-    @Test("A deactivated configured operator warns")
-    func deactivatedOperatorWarns() async throws {
-        let directory = ConfigurationDirectory()
-        try directory.writeMachineFile("""
-            [board.linear.installations.acme]
-            credential = "keychain:linear"
-            workspace = "workspace-1"
-            app_user = "app-user-1"
-            operator = "user-dead"
+    @Test("Operator missing on acme, stale on globex: each warns, scoped to its installation")
+    func operatorWarnings() async throws {
+        let fixture = try await DoctorLinearFixture(operators: ["globex": "user-gone"])
+        let findings = await fixture.doctor().run()
 
-            [github]
-            credential = "keychain:github"
-            """)
-        try directory.writeValidProjectFile(id: "alpha")
-        let board = await makeBoard(members: [operatorMember, deactivatedMember])
-
-        let doctor = makeDoctor(directory: directory, board: board, checks: [.configuration, .linear])
-        let findings = await doctor.run()
-
-        #expect(findings.contains { $0.check == .linear && $0.subject == "operator" && $0.severity == .warning })
-        #expect(!findings.contains { $0.severity == .failure })
+        let acme = try #require(findings.linear("acme", subject: "operator").first)
+        #expect(acme.severity == .warning)
+        #expect(acme.message.contains("yh config operator --installation acme"))
+        #expect(acme.message.contains("alpha, gamma"))
+        #expect(acme.message.contains("unassigned"))
+        let globex = try #require(findings.linear("globex", subject: "operator").first)
+        #expect(globex.severity == .warning)
+        #expect(globex.message.contains("no longer a candidate"))
+        #expect(globex.installation?.projects.map(\.rawValue) == ["beta"])
     }
 
-    @Test("No configured operator warns")
-    func noOperatorConfiguredWarns() async throws {
-        let directory = ConfigurationDirectory()
-        try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
-        let board = await makeBoard(members: [operatorMember])
+    @Test("A failed workspace name read leaves acme named by its local name alone; globex keeps its name")
+    func workspaceNameReadFails() async throws {
+        let fixture = try await DoctorLinearFixture()
+        await fixture.acme.failWorkspace(with: .unreachable("no"))
+        let findings = await fixture.doctor().run()
 
-        let doctor = makeDoctor(directory: directory, board: board, checks: [.configuration, .linear])
-        let findings = await doctor.run()
-
-        #expect(findings.contains { $0.check == .linear && $0.subject == "operator" && $0.severity == .warning })
-        #expect(findings.contains {
-            $0.subject == "operator" && $0.message.contains("yh config operator --installation acme")
-        })
-    }
-
-    @Test("No App Installation configured: one installation failure naming the setup fix")
-    func zeroInstallationsFails() async throws {
-        let directory = ConfigurationDirectory()
-        try directory.writeMachineFile("[github]\ncredential = \"keychain:github\"\n")
-        let board = await makeBoard(members: [operatorMember])
-
-        let doctor = makeDoctor(directory: directory, board: board, checks: [.configuration, .linear])
-        let findings = await doctor.run()
-
-        let linearFindings = findings.filter { $0.check == .linear }
-        #expect(linearFindings.count == 1)
-        #expect(linearFindings[0].severity == .failure)
-        #expect(linearFindings[0].subject == "installation")
-        #expect(linearFindings[0].message.contains("no Linear App Installation is configured"))
-        #expect(linearFindings[0].message.contains("yh setup --install-linear"))
-    }
-
-    @Test("Two App Installations: one installation failure naming the count")
-    func twoInstallationsFails() async throws {
-        let directory = ConfigurationDirectory()
-        try directory.writeMachineFile("""
-            [board.linear.installations.acme]
-            credential = "keychain:linear"
-            workspace = "workspace-1"
-            app_user = "app-user-1"
-
-            [board.linear.installations.beta]
-            credential = "keychain:linear-beta"
-            workspace = "workspace-2"
-            app_user = "app-user-2"
-
-            [github]
-            credential = "keychain:github"
-            """)
-        let board = await makeBoard(members: [operatorMember])
-
-        let doctor = makeDoctor(directory: directory, board: board, checks: [.configuration, .linear])
-        let findings = await doctor.run()
-
-        let linearFindings = findings.filter { $0.check == .linear }
-        #expect(linearFindings.count == 1)
-        #expect(linearFindings[0].severity == .failure)
-        #expect(linearFindings[0].subject == "installation")
-        #expect(linearFindings[0].message.contains("declares 2 Linear App Installations"))
+        let acme = try #require(findings.linear("acme", subject: "authorization").first)
+        #expect(acme.severity == .pass)
+        #expect(acme.message == "installation acme (Projects alpha, gamma): Linear authorization succeeded")
+        #expect(acme.installation?.workspaceName == nil)
+        #expect(!findings.contains { $0.message.contains("could not read") })
+        #expect(findings.linear("globex", subject: "authorization").first?.message.contains("Globex Corp") == true)
     }
 }

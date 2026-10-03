@@ -1,3 +1,4 @@
+import Domain
 import Foundation
 
 extension HealthFlag {
@@ -10,29 +11,19 @@ extension HealthFlag {
     /// A finding that is none of the three flags (git, `launchd`, a Linear that cannot be reached) is not
     /// a Health flag, and is left to `yh doctor` itself.
     public static func read(doctorOutput lines: [String]) -> [HealthFlag]? {
-        guard let last = lines.last(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }),
-              let findings = try? JSONDecoder().decode([DoctorFindingRow].self, from: Data(last.utf8))
-        else {
+        guard let findings = DoctorFindingRow.decodeLastLine(lines) else {
             return nil
         }
-        let flags = findings.compactMap(\.flag)
+        let flags = findings.compactMap(flag(for:))
         return HealthFlagKind.allCases.flatMap { kind in flags.filter { $0.kind == kind } }
     }
-}
 
-/// One row of `yh doctor --json`. A local mirror: `Pulse` does not link `EngineCommand`.
-private struct DoctorFindingRow: Decodable {
-    let check: String
-    let subject: String
-    let severity: String
-    let message: String
-
-    var flag: HealthFlag? {
-        kind.map { HealthFlag(kind: $0, detail: message) }
+    private static func flag(for row: DoctorFindingRow) -> HealthFlag? {
+        kind(of: row).map { HealthFlag(kind: $0, detail: row.message) }
     }
 
-    private var kind: HealthFlagKind? {
-        switch (check, subject, severity) {
+    private static func kind(of row: DoctorFindingRow) -> HealthFlagKind? {
+        switch (row.check, row.subject, row.severity) {
         // Warned both when the configured Operator identity is no longer a candidate and when none is
         // configured: either way Waiting on You issues go unassigned (OQ66).
         case ("linear", "operator", "warning"):
@@ -41,7 +32,7 @@ private struct DoctorFindingRow: Decodable {
         case ("linear", "installation", "failure"):
             .appInstallationRevoked
         // The finding has no reason code, so revocation is told from "cannot be reached" by its wording.
-        case ("linear", "authorization", "failure") where message.contains("revoked"):
+        case ("linear", "authorization", "failure") where row.message.contains("revoked"):
             .appInstallationRevoked
         case ("probes", _, "failure"):
             .probeFailure

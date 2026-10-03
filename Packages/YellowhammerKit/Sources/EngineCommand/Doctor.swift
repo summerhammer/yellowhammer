@@ -14,7 +14,8 @@ struct Doctor {
     /// Presence-only: whether an Installation token pair exists in the Keychain (Check 4's first
     /// criterion). Never reads or stores a secret.
     let credentials: any SetupCredentialStore
-    /// `linearProjectID` is always `""`: doctor only ever calls workspace-scoped methods.
+    /// `linearProjectID` is `""` for the workspace-scoped reads (identity, members) and the Project's own
+    /// Linear project for the board-membership check.
     let bindProvisioning: (LinearInstallation, String) -> any BoardProvisioning
     let launchAgents: any LaunchAgentControl
     let git: GitRunner
@@ -61,7 +62,7 @@ struct Doctor {
             findings += await runGitCheck(configuration: configuration)
         }
         if checks.contains(.linear) {
-            findings += await runLinearCheck(machine: configuration.machine)
+            findings += await runLinearCheck(configuration: configuration)
         }
         if checks.contains(.launchd) {
             findings += await runLaunchdCheck(configuration: configuration)
@@ -89,10 +90,15 @@ struct Doctor {
         }
     }
 
-    /// Keeps only machine-scoped findings and findings scoped to `projectFilter`, when set.
+    /// Keeps only machine-scoped findings, findings scoped to `projectFilter`, and findings of an
+    /// installation that serves it, when set.
     private func keptFindings(_ findings: [DoctorFinding]) -> [DoctorFinding] {
         guard let projectFilter else { return findings }
-        return findings.filter { $0.projectID == nil || $0.projectID == projectFilter }
+        return findings.filter { finding in
+            if finding.projectID == nil, finding.installation == nil { return true }
+            return finding.projectID == projectFilter
+                || finding.installation?.projects.contains(projectFilter) == true
+        }
     }
 
     private func printSummary(_ findings: [DoctorFinding]) {
@@ -106,8 +112,11 @@ struct Doctor {
 
     func finding(
         _ check: DoctorCheck, subject: String, _ severity: DoctorSeverity, _ message: String,
-        project: ProjectID? = nil
+        project: ProjectID? = nil, installation: DoctorInstallationScope? = nil
     ) -> DoctorFinding {
-        DoctorFinding(check: check, subject: subject, severity: severity, message: message, projectID: project)
+        DoctorFinding(
+            check: check, subject: subject, severity: severity, message: message, projectID: project,
+            installation: installation
+        )
     }
 }
