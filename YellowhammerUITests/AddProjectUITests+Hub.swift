@@ -5,8 +5,11 @@ import XCTest
 /// length limits.
 extension AddProjectUITests {
     /// Fills every step through the hub, in an order no linear wizard would take, then confirms and runs
-    /// setup and checks the `yh setup --init` argument vector.
-    func driveHubToCompletion(in sheet: XCUIElement) {
+    /// setup and checks the `yh setup --init` argument vector. `beforeAdding` runs on the filled hub, just
+    /// before Add Project; `checkArguments` gets the recorded argument vector.
+    func driveHubToCompletion(
+        in sheet: XCUIElement, beforeAdding: () -> Void = {}, checkArguments: ([String]) -> Void = { _ in }
+    ) {
         XCTAssertTrue(element("setup-step-project").waitForExistence(timeout: 10))
         let addProject = sheet.buttons["setup-add-project"]
         XCTAssertFalse(addProject.isEnabled)
@@ -41,6 +44,7 @@ extension AddProjectUITests {
         specRepo.click()
 
         // Bounds and Scheduled jobs are complete at their defaults.
+        beforeAdding()
         XCTAssertTrue(addProject.waitForEnabled(timeout: 5))
         addProject.click()
         let confirm = app.buttons["setup-confirm-add"]
@@ -59,16 +63,8 @@ extension AddProjectUITests {
         let log = app.staticTexts["setup-run-log"]
         XCTAssertTrue(log.exists)
         let recorded = argv(in: (log.value as? String) ?? "")
-        XCTAssertTrue(recorded.contains("--init"))
-        XCTAssertEqual(value(after: "--project", in: recorded), "demo") // glossary:ignore GL001
-        XCTAssertEqual(value(after: "--project-name", in: recorded), "Demo") // glossary:ignore GL001
-        XCTAssertEqual(value(after: "--linear-project", in: recorded), "proj-1") // glossary:ignore GL001
-        XCTAssertEqual(value(after: "--repo", in: recorded), "acme-backend,spec,\(Self.pickedFolder),none")
-        XCTAssertTrue(recorded.contains("--install-jobs"))
-        // The sheet sets nothing machine-wide: setup keeps the configured Operator, CLIs and routes.
-        for flag in ["--operator", "--cli", "--route", "--fallback", "--linear-credential"] {
-            XCTAssertFalse(recorded.contains(flag), "\(flag) was passed")
-        }
+        assertProjectArguments(recorded)
+        checkArguments(recorded)
 
         done.click()
         XCTAssertTrue(sheet.waitForNonExistence(timeout: 10))
@@ -84,6 +80,20 @@ extension AddProjectUITests {
         XCTAssertTrue(
             element("settings-project-\(id)").waitForExistence(timeout: 10), "no Settings window sidebar row"
         )
+    }
+
+    /// The Project the hub drive declares, and nothing machine-wide.
+    func assertProjectArguments(_ recorded: [String]) {
+        XCTAssertTrue(recorded.contains("--init"))
+        XCTAssertEqual(value(after: "--project", in: recorded), "demo") // glossary:ignore GL001
+        XCTAssertEqual(value(after: "--project-name", in: recorded), "Demo") // glossary:ignore GL001
+        XCTAssertEqual(value(after: "--linear-project", in: recorded), "proj-1") // glossary:ignore GL001
+        XCTAssertEqual(value(after: "--repo", in: recorded), "acme-backend,spec,\(Self.pickedFolder),none")
+        XCTAssertTrue(recorded.contains("--install-jobs"))
+        // The sheet sets nothing machine-wide: setup keeps the configured Operator, CLIs and routes.
+        for flag in ["--operator", "--cli", "--route", "--fallback", "--linear-credential"] {
+            XCTAssertFalse(recorded.contains(flag), "\(flag) was passed")
+        }
     }
 
     func element(_ identifier: String) -> XCUIElement {
