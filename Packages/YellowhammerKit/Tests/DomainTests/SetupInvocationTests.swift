@@ -2,6 +2,25 @@ import Domain
 import Testing
 
 struct SetupInvocationTests {
+    @Test("The schedule flags follow --spec-source and precede --repo, only when set")
+    func scheduleFlagsPositionAndOmission() throws {
+        let repo = SetupInvocation.Repo(name: "backend", role: "backend", path: "~/b", check: "none")
+        let set = SetupInvocation(project: SetupInvocation.Project(
+            id: "demo", linearProject: .existing("proj-1"), specSource: "~/spec", repos: [repo],
+            nightStart: "23:00", nightEnd: "05:30", buildEveryMinutes: 20
+        ))
+        let arguments = try set.arguments()
+        let tail = Array(arguments.suffix(10))
+        #expect(tail == [
+            "--spec-source", "~/spec", "--night-start", "23:00", "--night-end", "05:30",
+            "--build-every-minutes", "20", "--repo", "backend,backend,~/b,none"
+        ])
+        let unset = SetupInvocation(project: SetupInvocation.Project(id: "demo", linearProject: .existing("proj-1")))
+        let plain = try unset.arguments()
+        #expect(!plain.contains("--night-start") && !plain.contains("--night-end"))
+        #expect(!plain.contains("--build-every-minutes"))
+    }
+
     @Test("A full invocation builds every option, in order")
     func fullInvocationBuildsEveryOption() throws {
         let invocation = SetupInvocation(

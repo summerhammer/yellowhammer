@@ -12,6 +12,7 @@ extension AddProjectDraft {
         case .createInTeam: .createInTeam(key: teamKey ?? "")
         }
         let spec = specSourcePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        let defaults = Schedule()
         let project = SetupInvocation.Project(
             id: projectID.trimmingCharacters(in: .whitespacesAndNewlines),
             name: name,
@@ -24,7 +25,11 @@ extension AddProjectDraft {
                     path: $0.path.trimmingCharacters(in: .whitespacesAndNewlines),
                     check: $0.check.trimmingCharacters(in: .whitespacesAndNewlines)
                 )
-            }
+            },
+            nightStart: schedule.nightStart == defaults.nightStart ? nil : "\(schedule.nightStart)",
+            nightEnd: schedule.nightEnd == defaults.nightEnd ? nil : "\(schedule.nightEnd)",
+            buildEveryMinutes: schedule.buildEveryMinutes == defaults.buildEveryMinutes
+                ? nil : schedule.buildEveryMinutes
         )
         let jobs: SetupInvocation.Jobs = switch self.jobs {
         case .install: .install

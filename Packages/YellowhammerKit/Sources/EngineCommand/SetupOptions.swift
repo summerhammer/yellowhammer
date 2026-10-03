@@ -62,6 +62,9 @@ struct SetupOptions {
     let linearProjectID: String?
     let linearTeam: String?
     let specSource: String?
+    /// The `[schedule]` from `--night-start`, `--night-end` and `--build-every-minutes`; omitted flags
+    /// keep their defaults.
+    let schedule: Schedule
     /// In `--repo` order.
     let repos: [RepoDeclaration]
     let jobs: JobsRequest
@@ -92,6 +95,7 @@ struct SetupOptions {
             linearProjectID = command.linearProject
             linearTeam = command.linearTeam
             specSource = command.specSource
+            schedule = try Self.parseSchedule(command)
             repos = try command.repo.map(Self.parseRepo)
         } else {
             projectID = nil
@@ -99,6 +103,7 @@ struct SetupOptions {
             linearProjectID = nil
             linearTeam = nil
             specSource = nil
+            schedule = Schedule()
             repos = []
         }
     }
@@ -142,6 +147,9 @@ struct SetupOptions {
             (command.linearProject != nil, "--linear-project"), // glossary:ignore GL001
             (command.linearTeam != nil, "--linear-team"),
             (command.specSource != nil, "--spec-source"),
+            (command.nightStart != nil, "--night-start"),
+            (command.nightEnd != nil, "--night-end"),
+            (command.buildEveryMinutes != nil, "--build-every-minutes"),
             (!command.repo.isEmpty, "--repo"),
             (!command.cli.isEmpty, "--cli"),
             (command.route != nil, "--route"),
@@ -217,13 +225,42 @@ struct SetupOptions {
     private static func validateProjectOptionScope(_ command: SetupCommand) throws {
         guard command.project == nil else { return }
         guard command.projectName == nil, command.linearProject == nil, command.linearTeam == nil,
-              command.specSource == nil, command.repo.isEmpty
+              command.specSource == nil, command.repo.isEmpty, command.nightStart == nil,
+              command.nightEnd == nil, command.buildEveryMinutes == nil
         else {
             throw ValidationError(
                 "--project-name, --linear-project, --linear-team, " // glossary:ignore GL001
-                    + "--spec-source and --repo require --project" // glossary:ignore GL001
+                    + "--spec-source, --night-start, --night-end, --build-every-minutes " // glossary:ignore GL001
+                    + "and --repo require --project" // glossary:ignore GL001
             )
         }
+    }
+
+    /// `--night-start`/`--night-end` as `HH:MM`, `--build-every-minutes` as an integer; omitted flags keep
+    /// `Schedule()`'s defaults. Whether the window itself is acceptable is checked when the Project is
+    /// written, before anything is created.
+    private static func parseSchedule(_ command: SetupCommand) throws -> Schedule {
+        var schedule = Schedule()
+        if let raw = command.nightStart {
+            schedule.nightStart = try parseTime(raw, option: "--night-start")
+        }
+        if let raw = command.nightEnd {
+            schedule.nightEnd = try parseTime(raw, option: "--night-end")
+        }
+        if let raw = command.buildEveryMinutes {
+            guard let minutes = Int(raw) else {
+                throw ValidationError("--build-every-minutes must be an integer, got \"\(raw)\"")
+            }
+            schedule.buildEveryMinutes = minutes
+        }
+        return schedule
+    }
+
+    private static func parseTime(_ raw: String, option: String) throws -> TimeOfDay {
+        guard let time = TimeOfDay(raw) else {
+            throw ValidationError("\(option) must be \"HH:MM\", got \"\(raw)\"")
+        }
+        return time
     }
 
     /// `<name>[=<executable>]`, `name` checked against `CLIAdapterRegistry.allNames`.

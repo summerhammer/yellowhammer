@@ -33,7 +33,7 @@ extension Setup {
         }
         return ProjectDeclaration(
             id: id, name: options.projectName ?? id.rawValue, linearProject: linearProject,
-            specSource: options.specSource, repos: options.repos
+            specSource: options.specSource, repos: options.repos, schedule: options.schedule
         )
     }
 
@@ -75,7 +75,8 @@ extension Setup {
     ) -> ProjectConfiguration {
         ProjectConfiguration(
             id: declaration.id, name: declaration.name, linearProject: linearProject,
-            specSource: declaration.specSource, repos: declaration.repos, bounds: Bounds(), schedule: Schedule()
+            specSource: declaration.specSource, repos: declaration.repos, bounds: Bounds(),
+            schedule: declaration.schedule
         )
     }
 
@@ -89,6 +90,14 @@ extension Setup {
             )
         } catch {
             throw SetupError("Project \(declaration.id): \(error)")
+        }
+        // The loader accepts any two times; the LaunchAgents cannot be generated from a 24-hour window or a
+        // build interval that leaves no firing, so refuse it here, before the Project file or a Linear
+        // project exists.
+        do {
+            _ = try placeholder.schedule.firings(staggerIndex: 0)
+        } catch {
+            throw SetupError("Project \(declaration.id): invalid [schedule]: \(error.message)")
         }
     }
 

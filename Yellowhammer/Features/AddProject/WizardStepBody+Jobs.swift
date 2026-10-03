@@ -6,15 +6,28 @@ import SwiftUI
 struct JobsSections: View {
     @Binding var draft: AddProjectDraft
 
+    private static let times = (0..<24).compactMap { TimeOfDay(hour: $0, minute: 0) }
+
     var body: some View {
-        let schedule = Schedule()
         Section(
             header: Text("The Night"),
-            footer: Text("Every Project starts with these defaults.").foregroundStyle(.secondary)
+            footer: Text(
+                "The Night window is per Project. The LaunchAgents are generated from it when setup runs."
+            )
+            .foregroundStyle(.secondary)
         ) {
-            LabeledContent("Starts", value: schedule.nightStart.description)
-            LabeledContent("Ends", value: schedule.nightEnd.description)
-            LabeledContent("Build every", value: "\(schedule.buildEveryMinutes) min")
+            Picker("Starts", selection: $draft.schedule.nightStart) {
+                ForEach(Self.times, id: \.self) { Text($0.description).tag($0) }
+            }
+            .accessibilityIdentifier("setup-night-start")
+            Picker("Ends", selection: $draft.schedule.nightEnd) {
+                ForEach(Self.times, id: \.self) { Text($0.description).tag($0) }
+            }
+            .accessibilityIdentifier("setup-night-end")
+            Stepper(value: $draft.schedule.buildEveryMinutes, in: 5...120, step: 5) {
+                LabeledContent("Build every", value: "\(draft.schedule.buildEveryMinutes) min")
+            }
+            .accessibilityIdentifier("setup-build-every")
         }
         Section(
             header: Text("Scheduled jobs"), // glossary:ignore GL001

@@ -14,4 +14,5 @@ struct ProjectDeclaration {
     let linearProject: LinearProjectChoice
     let specSource: String?
     let repos: [RepoDeclaration]
+    var schedule: Schedule = Schedule()
 }

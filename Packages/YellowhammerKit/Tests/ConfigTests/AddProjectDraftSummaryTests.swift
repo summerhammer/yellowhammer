@@ -60,6 +60,14 @@ struct AddProjectDraftSummaryTests {
         #expect(draft.summary(of: .bounds) == "4 Rounds \u{b7} 3 Attempts \u{b7} 3 Nights")
     }
 
+    @Test("Jobs summary shows an edited window")
+    func jobsEditedWindow() throws {
+        var draft = AddProjectDraft()
+        draft.schedule.nightStart = try #require(TimeOfDay("23:30"))
+        draft.schedule.buildEveryMinutes = 20
+        #expect(draft.summary(of: .jobs) == "LaunchAgents \u{b7} 23:30\u{2013}06:00, build every 20 min")
+    }
+
     @Test("Jobs summary takes its window from the Schedule defaults")
     func jobs() {
         let schedule = Schedule()

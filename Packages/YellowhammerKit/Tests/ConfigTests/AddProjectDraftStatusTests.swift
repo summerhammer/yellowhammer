@@ -155,6 +155,15 @@ struct AddProjectDraftStatusTests {
         #expect(draft.problems(in: .bounds) == ["Attempts per Card must be at least 1."])
     }
 
+    @Test("A Night that starts and ends at the same time is a problem on the jobs step")
+    func jobsProblemWhenNightStartEqualsEnd() throws {
+        var draft = completeAddProjectDraft()
+        draft.schedule.nightEnd = draft.schedule.nightStart
+        #expect(draft.problems(in: .jobs) == ["The Night cannot start and end at the same time."])
+        draft.schedule.nightEnd = try #require(TimeOfDay("07:00"))
+        #expect(draft.problems(in: .jobs).isEmpty)
+    }
+
     @Test("Exporting the scheduled jobs needs a folder")
     func jobsProblems() {
         var draft = AddProjectDraft()

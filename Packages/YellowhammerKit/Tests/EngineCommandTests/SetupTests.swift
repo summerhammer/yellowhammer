@@ -74,6 +74,50 @@ struct SetupTests {
         #expect(await board.creates == createsAfterFirst)
     }
 
+    @Test("--night-start, --night-end and --build-every-minutes are written as the [schedule] table")
+    func scheduleOptionsAreWrittenToTheProjectFile() async throws {
+        let directory = ConfigurationDirectory()
+        let board = await makeBoard(
+            project: BoardProjectScope(id: BoardObjectID(rawValue: "proj-1"), name: "demo", teams: [engineeringTeam])
+        )
+        let arguments = makeArguments(
+            operatorID: "user-op", project: "demo", linearProject: "proj-1",
+            specSource: "~/dev/demo-spec", nightStart: "23:00", nightEnd: "05:30", buildEveryMinutes: "20",
+            repo: ["backend,backend,~/dev/demo-backend,swift test"]
+        )
+        let setup = try makeSetup(arguments: arguments, directory: directory, board: board)
+
+        try await setup.run()
+
+        let configuration = try Configuration.load(directory: directory.url)
+        let schedule = try #require(configuration.projects.first).schedule
+        #expect(schedule.nightStart == TimeOfDay(hour: 23, minute: 0))
+        #expect(schedule.nightEnd == TimeOfDay(hour: 5, minute: 30))
+        #expect(schedule.buildEveryMinutes == 20)
+    }
+
+    @Test(
+        "A refused schedule writes no Project file and creates no Linear project",
+        arguments: [("22:00", "22:00", "15"), ("22:00", "06:00", "0")]
+    )
+    func refusedScheduleWritesAndCreatesNothing(start: String, end: String, minutes: String) async throws {
+        let directory = ConfigurationDirectory()
+        let board = await makeBoard(project: nil)
+        let arguments = makeArguments(
+            operatorID: "user-op", project: "demo", linearTeam: "ENG",
+            specSource: "~/dev/demo-spec", nightStart: start, nightEnd: end, buildEveryMinutes: minutes,
+            repo: ["backend,backend,~/dev/demo-backend,swift test"]
+        )
+        let setup = try makeSetup(arguments: arguments, directory: directory, board: board)
+
+        await #expect(throws: (any Error).self) { try await setup.run() }
+
+        #expect(await board.creates == 0)
+        #expect(!FileManager.default.fileExists(
+            atPath: directory.url.appending(components: "projects", "demo.toml").path(percentEncoded: false)
+        ))
+    }
+
     @Test("--linear-team creates the Linear project exactly once and writes its id as linear_project")
     func linearTeamCreatesProjectOnce() async throws {
         let directory = ConfigurationDirectory()

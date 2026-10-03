@@ -27,6 +27,22 @@ struct AddProjectDraftInvocationTests {
         ])
     }
 
+    @Test("Only the schedule fields that differ from the defaults are passed")
+    func scheduleFlagsOnlyWhenChanged() throws {
+        var draft = completeAddProjectDraft()
+        draft.schedule.nightStart = try #require(TimeOfDay("23:00"))
+        draft.schedule.buildEveryMinutes = 30
+        let project = try #require(draft.setupInvocation.project)
+        #expect(project.nightStart == "23:00")
+        #expect(project.nightEnd == nil)
+        #expect(project.buildEveryMinutes == 30)
+        let arguments = try draft.setupInvocation.arguments()
+        #expect(arguments.contains("--night-start"))
+        #expect(!arguments.contains("--night-end"))
+        #expect(arguments.contains("--build-every-minutes"))
+        #expect(!(try completeAddProjectDraft().setupInvocation.arguments()).contains("--night-start"))
+    }
+
     @Test("Creating the Linear project in a team passes the team key")
     func createInTeam() throws {
         var draft = completeAddProjectDraft()
