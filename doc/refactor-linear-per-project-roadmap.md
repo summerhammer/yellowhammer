@@ -89,7 +89,7 @@ does not renumber it; that file gets one line linking here.
 
 ## Phase L1 — Configuration and the engine
 
-### [ ] L1.1 The registry and the Project's selection in `Config`
+### [x] L1.1 The registry and the Project's selection in `Config`
 
 - **Work**
   - `LinearInstallation` value (name, credential, workspace, appUser, operator) and
