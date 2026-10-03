@@ -350,8 +350,11 @@ class TestLoadProject(unittest.TestCase):
             project_file.write_text("""
 id = "alpha"
 name = "Alpha Project"
-linear_project = "LINEAR-ALPHA"
 spec_source = "~/repos/spec"
+
+[board.linear]
+installation = "scratch"
+project = "LINEAR-ALPHA"
 
 [[repos]]
 name = "backend"

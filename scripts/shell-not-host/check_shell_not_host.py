@@ -176,7 +176,7 @@ def load_project(configuration_directory, project_id):
                 expanded.append((os.path.expanduser(path), label))
         return ProjectFacts(
             id=project_id, name=data.get("name", project_id),
-            linear_project=data.get("linear_project", ""),
+            linear_project=data.get("board", {}).get("linear", {}).get("project", ""),
             paths=tuple(sorted(set(expanded), key=lambda pair: -len(pair[0]))),
         )
     raise SetupFailed(f"no Project with id {project_id!r} in {configuration_directory / 'projects'}")

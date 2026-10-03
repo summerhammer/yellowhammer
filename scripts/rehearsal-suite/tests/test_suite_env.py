@@ -22,6 +22,11 @@ FRESH_APP_PAIR = {
 }
 
 
+MACHINE_CONFIG = (
+    '[board.linear.installations.scratch]\n'
+    'credential = "keychain:linear-scratch"\nworkspace = "ws-1"\napp_user = "app-1"\noperator = "user-123"\n'
+)
+
 # MARK: - Project TOML rendering
 
 
@@ -30,7 +35,7 @@ class RenderProjectTomlTests(unittest.TestCase):
         text = suite_env.render_project_toml(
             project_id="rehearsal-suite-a",
             name="Rehearsal Suite A",
-            linear_project="11111111-1111-4111-8111-111111111111",
+            installation="scratch", linear_project="11111111-1111-4111-8111-111111111111",
             spec_source="/tmp/spec",
             repos=[
                 {"name": "fixture-backend", "path": "/tmp/backend", "role": "backend"},
@@ -40,7 +45,9 @@ class RenderProjectTomlTests(unittest.TestCase):
         data = tomllib.loads(text)
         self.assertEqual(data["id"], "rehearsal-suite-a")
         self.assertEqual(data["name"], "Rehearsal Suite A")
-        self.assertEqual(data["linear_project"], "11111111-1111-4111-8111-111111111111")
+        self.assertEqual(data["board"]["linear"]["project"], "11111111-1111-4111-8111-111111111111")
+        self.assertEqual(data["board"]["linear"]["installation"], "scratch")
+        self.assertNotIn("linear_project", data)
         self.assertEqual(data["spec_source"], "/tmp/spec")
         self.assertEqual(len(data["repos"]), 2)
         self.assertEqual(data["repos"][0]["check"], "true")
@@ -55,7 +62,7 @@ class RenderProjectTomlTests(unittest.TestCase):
         text = suite_env.render_project_toml(
             project_id="rehearsal-suite-a",
             name="A",
-            linear_project="lp",
+            installation="scratch", linear_project="lp",
             spec_source="/tmp/spec",
             repos=[
                 {
@@ -80,7 +87,7 @@ class RenderProjectTomlTests(unittest.TestCase):
         text = suite_env.render_project_toml(
             project_id="p",
             name='Name with "quotes" and \\backslash',
-            linear_project="lp",
+            installation="scratch", linear_project="lp",
             spec_source="/tmp/spec",
             repos=[{"name": "r", "path": "/tmp/r", "role": "backend"}],
         )
@@ -294,6 +301,8 @@ class ResetProjectTests(unittest.TestCase):
             app=Path(tmp.name) / "App.app", team="YLH", root=root, work_directory=Path(tmp.name) / "work",
             configuration_directory=Path(tmp.name) / "config", act_timeout=60, transport=mock.Mock(),
         )
+        (Path(tmp.name) / "config").mkdir(parents=True, exist_ok=True)
+        (Path(tmp.name) / "config" / "config.toml").write_text(MACHINE_CONFIG)
         worktrees = [
             {"id": "wt-main", "path": str(clone_path), "branch": "main"},
             {"id": "wt-feature", "path": "/tmp/orca/workspaces/fixture-backend/yh-a-f1", "branch": "yh-a-f1"},
@@ -302,11 +311,14 @@ class ResetProjectTests(unittest.TestCase):
         reset_result = mock.Mock(returncode=0, stdout="", stderr="")
         with mock.patch.object(suite_env, "orca_worktree_list", return_value=worktrees), \
              mock.patch.object(suite_env, "orca_worktree_rm") as rm_mock, \
-             mock.patch.object(suite_env.subprocess, "run", return_value=reset_result), \
+             mock.patch.object(suite_env.subprocess, "run", return_value=reset_result) as run_mock, \
              mock.patch.object(suite_env, "build_fixture_tree", return_value=rebuilt_manifest), \
              mock.patch.object(suite_env, "orca_repo_add") as add_mock:
             result = suite_env.reset_project(env, "rehearsal-suite-a")
         rm_mock.assert_called_once_with("wt-feature")
+        reset_command = run_mock.call_args.args[0]
+        self.assertEqual(reset_command[reset_command.index("--installation") + 1], "scratch")
+        self.assertLess(reset_command.index("--installation"), reset_command.index("reset"))
         self.assertEqual(result, rebuilt_manifest)
         add_mock.assert_called_once_with(str(clone_path))
 
@@ -318,6 +330,8 @@ class ResetProjectTests(unittest.TestCase):
             app=Path(tmp.name) / "App.app", team="YLH", root=root, work_directory=Path(tmp.name) / "work",
             configuration_directory=Path(tmp.name) / "config", act_timeout=60, transport=mock.Mock(),
         )
+        (Path(tmp.name) / "config").mkdir(parents=True, exist_ok=True)
+        (Path(tmp.name) / "config" / "config.toml").write_text(MACHINE_CONFIG)
         failure_result = mock.Mock(returncode=2, stdout="", stderr="guard failed")
         with mock.patch.object(suite_env.subprocess, "run", return_value=failure_result):
             with self.assertRaises(suite_env.SetupFailed) as ctx:
@@ -330,20 +344,101 @@ class ReadOperatorIdentityTests(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         config_dir = Path(tmp.name)
-        (config_dir / "config.toml").write_text('[linear]\noperator = "user-123"\n')
-        self.assertEqual(suite_env.read_operator_identity(config_dir), "user-123")
+        (config_dir / "config.toml").write_text(MACHINE_CONFIG)
+        self.assertEqual(suite_env.read_operator_identity(config_dir, "scratch"), "user-123")
+
+    def test_reads_the_named_installations_operator(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        config_dir = Path(tmp.name)
+        (config_dir / "config.toml").write_text(
+            MACHINE_CONFIG + '\n[board.linear.installations."my-ws"]\n'
+            'credential = "keychain:linear-other"\nworkspace = "ws-2"\napp_user = "app-2"\noperator = "user-456"\n'
+        )
+        self.assertEqual(suite_env.read_operator_identity(config_dir, "my-ws"), "user-456")
+        self.assertEqual(suite_env.read_operator_identity(config_dir, "scratch"), "user-123")
+        self.assertIsNone(suite_env.read_operator_identity(config_dir, "unknown"))
 
     def test_missing_file_returns_none(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        self.assertIsNone(suite_env.read_operator_identity(Path(tmp.name)))
+        self.assertIsNone(suite_env.read_operator_identity(Path(tmp.name), "scratch"))
 
     def test_missing_key_returns_none(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         config_dir = Path(tmp.name)
-        (config_dir / "config.toml").write_text('[linear]\ncredential = "keychain:linear"\n')
-        self.assertIsNone(suite_env.read_operator_identity(config_dir))
+        (config_dir / "config.toml").write_text(MACHINE_CONFIG.replace('operator = "user-123"\n', ""))
+        self.assertIsNone(suite_env.read_operator_identity(config_dir, "scratch"))
+
+
+class InstallationTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / "root"
+        self.config_dir = Path(self.tmp.name) / "config"
+        (self.config_dir / "projects").mkdir(parents=True)
+        self.second = (
+            '\n[board.linear.installations."my-ws"]\n'
+            'credential = "keychain:linear-other"\nworkspace = "ws-2"\napp_user = "app-2"\n'
+        )
+
+    def make_env(self, installation=None):
+        return suite_env.make_environment(
+            app=Path(self.tmp.name) / "App.app", team="YLH", root=self.root,
+            work_directory=Path(self.tmp.name) / "work", configuration_directory=self.config_dir,
+            act_timeout=60, transport=mock.Mock(), installation=installation,
+        )
+
+    def test_sole_installation_is_resolved_and_stored(self):
+        (self.config_dir / "config.toml").write_text(MACHINE_CONFIG)
+        env = self.make_env()
+        self.assertIsNone(env.installation)
+        self.assertEqual(suite_env.resolve_installation(env).name, "scratch")
+        self.assertEqual(env.installation, "scratch")
+
+    def test_several_installations_need_a_name(self):
+        (self.config_dir / "config.toml").write_text(MACHINE_CONFIG + self.second)
+        with self.assertRaises(suite_env.SetupFailed) as ctx:
+            suite_env.resolve_installation(self.make_env())
+        self.assertIn("--installation <name>", str(ctx.exception))
+        env = self.make_env("my-ws")
+        self.assertEqual(suite_env.resolve_installation(env).credential, "keychain:linear-other")
+
+    def test_ensure_project_passes_the_installation_to_setup_init(self):
+        (self.config_dir / "config.toml").write_text(MACHINE_CONFIG + self.second)
+        env = self.make_env("my-ws")
+        env.yh = mock.Mock()
+        env.yh.run_setup.return_value = (0, "", Path("/dev/null"))
+        manifest = {"spec_source": "/tmp/spec", "repos": []}
+        with mock.patch.object(suite_env, "build_fixture_tree", return_value=manifest), \
+             mock.patch.object(suite_env, "default_repo_declarations", return_value=[]):
+            suite_env.ensure_project(env, "rehearsal-suite-a")
+        args = env.yh.run_setup.call_args.args[1]
+        self.assertEqual(args[args.index("--installation") + 1], "my-ws")
+
+    def test_scenario_project_file_preserves_installation_and_project(self):
+        (self.config_dir / "config.toml").write_text(MACHINE_CONFIG)
+        path = suite_env.project_file_path(self.config_dir, "rehearsal-suite-a")
+        path.write_text(
+            'id = "rehearsal-suite-a"\n\n[board.linear]\ninstallation = "my-ws"\nproject = "lp-a"\n'
+        )
+        env = self.make_env()
+        manifest = {"spec_source": "/tmp/spec", "repos": []}
+        with mock.patch.object(suite_env, "default_repo_declarations", return_value=[]):
+            suite_env.write_scenario_project_file(env, "rehearsal-suite-a", manifest)
+        data = tomllib.loads(path.read_text())
+        self.assertEqual(data["board"]["linear"], {"installation": "my-ws", "project": "lp-a"})
+        self.assertNotIn("linear_project", data)
+
+    def test_rendered_table_precedes_repos(self):
+        text = suite_env.render_project_toml(
+            project_id="p", name="p", installation="scratch", linear_project="lp", spec_source="/tmp/spec",
+            repos=[{"name": "r", "path": "/tmp/r", "role": "backend"}],
+        )
+        self.assertLess(text.index("[board.linear]"), text.index("[[repos]]"))
+        self.assertLess(text.index("spec_source"), text.index("[board.linear]"))
 
 
 class StandInCommitTests(unittest.TestCase):
@@ -724,7 +819,7 @@ class PreflightOrderingTests(unittest.TestCase):
 
     def test_team_not_found_fails(self):
         self._make_yh_executable()
-        (self.configuration_directory / "config.toml").write_text('[linear]\ncredential = "keychain:linear"\n')
+        (self.configuration_directory / "config.toml").write_text(MACHINE_CONFIG)
         git_result = mock.Mock(returncode=0, stdout="git version 2.40.0\n")
         with mock.patch.object(suite_env, "orca_status_ready", return_value=True), \
              mock.patch.object(suite_env.subprocess, "run", return_value=git_result), \
@@ -736,7 +831,7 @@ class PreflightOrderingTests(unittest.TestCase):
 
     def test_operator_credential_only_checked_when_needed(self):
         self._make_yh_executable()
-        (self.configuration_directory / "config.toml").write_text('[linear]\ncredential = "keychain:linear"\n')
+        (self.configuration_directory / "config.toml").write_text(MACHINE_CONFIG)
         git_result = mock.Mock(returncode=0, stdout="git version 2.40.0\n")
         with mock.patch.object(suite_env, "orca_status_ready", return_value=True), \
              mock.patch.object(suite_env.subprocess, "run", return_value=git_result), \
@@ -750,7 +845,7 @@ class PreflightOrderingTests(unittest.TestCase):
 
     def test_operator_credential_checked_for_scenario_5(self):
         self._make_yh_executable()
-        (self.configuration_directory / "config.toml").write_text('[linear]\ncredential = "keychain:linear"\n')
+        (self.configuration_directory / "config.toml").write_text(MACHINE_CONFIG)
         git_result = mock.Mock(returncode=0, stdout="git version 2.40.0\n")
         with mock.patch.object(suite_env, "orca_status_ready", return_value=True), \
              mock.patch.object(suite_env.subprocess, "run", return_value=git_result), \
@@ -768,7 +863,7 @@ class PreflightOrderingTests(unittest.TestCase):
 
     def test_operator_credential_same_viewer_as_app_fails(self):
         self._make_yh_executable()
-        (self.configuration_directory / "config.toml").write_text('[linear]\ncredential = "keychain:linear"\n')
+        (self.configuration_directory / "config.toml").write_text(MACHINE_CONFIG)
         git_result = mock.Mock(returncode=0, stdout="git version 2.40.0\n")
         with mock.patch.object(suite_env, "orca_status_ready", return_value=True), \
              mock.patch.object(suite_env.subprocess, "run", return_value=git_result), \
@@ -787,7 +882,7 @@ class PreflightOrderingTests(unittest.TestCase):
 
     def _preflight_with_lease(self, lease_active):
         self._make_yh_executable()
-        (self.configuration_directory / "config.toml").write_text('[linear]\ncredential = "keychain:linear"\n')
+        (self.configuration_directory / "config.toml").write_text(MACHINE_CONFIG)
         git_result = mock.Mock(returncode=0, stdout="git version 2.40.0\n")
         with mock.patch.object(suite_env, "orca_status_ready", return_value=True), \
              mock.patch.object(suite_env.subprocess, "run", return_value=git_result), \
@@ -1026,6 +1121,8 @@ class TeardownProjectTests(unittest.TestCase):
             work_directory=Path(self.tmp.name) / "work", configuration_directory=self.config_dir,
             act_timeout=60, transport=mock.Mock(),
         )
+        self.config_dir.mkdir(parents=True, exist_ok=True)
+        (self.config_dir / "config.toml").write_text(MACHINE_CONFIG)
         self.env.yh = FakeYhRunner()
         self.app_client = FakeAppClient()
         self.env.app_client = self.app_client
@@ -1033,7 +1130,9 @@ class TeardownProjectTests(unittest.TestCase):
     def _write_project_file(self, project_id, linear_project_id):
         path = suite_env.project_file_path(self.config_dir, project_id)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(f'id = "{project_id}"\nlinear_project = "{linear_project_id}"\n')
+        path.write_text(
+            f'id = "{project_id}"\n\n[board.linear]\ninstallation = "scratch"\nproject = "{linear_project_id}"\n'
+        )
 
     def _write_fixture_tree(self, project_id):
         project_dir = self.root / project_id

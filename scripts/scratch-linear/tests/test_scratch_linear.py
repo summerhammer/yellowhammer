@@ -86,12 +86,30 @@ def write_toml(path, text):
     path.write_text(text)
 
 
-def write_machine_config(directory, credential="keychain:linear"):
-    write_toml(directory / "config.toml", f'[linear]\ncredential = "{credential}"\n')
+def installation_table(name, credential, workspace, operator=None):
+    header = f'"{name}"' if not name.replace("-", "").replace("_", "").isalnum() else name
+    text = (
+        f"[board.linear.installations.{header}]\n"
+        f'credential = "{credential}"\nworkspace = "{workspace}"\napp_user = "app-{name}"\n'
+    )
+    if operator:
+        text += f'operator = "{operator}"\n'
+    return text
 
 
-def write_project(directory, project_id, linear_project_id):
-    write_toml(directory / "projects" / f"{project_id}.toml", f'linear_project = "{linear_project_id}"\n')
+def write_machine_config(directory, credential="keychain:linear-scratch", name="scratch"):
+    write_toml(directory / "config.toml", installation_table(name, credential, f"ws-{name}"))
+
+
+def write_machine_config_with(directory, tables):
+    write_toml(directory / "config.toml", "\n".join(tables))
+
+
+def write_project(directory, project_id, linear_project_id, installation="scratch"):
+    write_toml(
+        directory / "projects" / f"{project_id}.toml",
+        f'id = "{project_id}"\n\n[board.linear]\ninstallation = "{installation}"\nproject = "{linear_project_id}"\n',
+    )
 
 
 ACT_LEASE_SCHEMA = """
@@ -579,6 +597,115 @@ class InvalidProjectIdTests(unittest.TestCase):
         with redirect_stderr(stderr), self.assertRaises(SystemExit) as context:
             scratch_linear.parse_arguments(["reset", "--team", "SCRATCH", "--project", "../etc"])
         self.assertEqual(context.exception.code, 2)
+
+
+class InstallationSelectionTests(ScratchLinearTestCase):
+    def two_installations(self):
+        write_machine_config_with(self.configuration_directory, [
+            installation_table("scratch", "keychain:linear-scratch", "ws-1", operator="op-1"),
+            installation_table("my-ws", "keychain:linear-other", "ws-2"),
+        ])
+
+    def test_sole_entry_is_the_default(self):
+        machine = scratch_linear.load_machine_config(self.configuration_directory)
+        self.assertEqual(machine.name, "scratch")
+        self.assertEqual(machine.credential, "keychain:linear-scratch")
+        self.assertEqual(machine.workspace, "ws-scratch")
+        self.assertEqual(machine.app_user, "app-scratch")
+        self.assertIsNone(machine.operator)
+
+    def test_named_selection_among_several(self):
+        self.two_installations()
+        machine = scratch_linear.load_machine_config(self.configuration_directory, "my-ws")
+        self.assertEqual(machine.name, "my-ws")
+        self.assertEqual(machine.credential, "keychain:linear-other")
+        scratch = scratch_linear.load_machine_config(self.configuration_directory, "scratch")
+        self.assertEqual(scratch.operator, "op-1")
+
+    def test_zero_installations_is_refused(self):
+        write_toml(self.configuration_directory / "config.toml", '[general]\nsomething = "x"\n')
+        with self.assertRaises(scratch_linear.SetupFailed) as context:
+            scratch_linear.load_machine_config(self.configuration_directory)
+        self.assertEqual(
+            str(context.exception), "no Linear installation in config.toml; run yh setup --install-linear"
+        )
+
+    def test_missing_config_file_is_refused(self):
+        (self.configuration_directory / "config.toml").unlink()
+        with self.assertRaises(scratch_linear.SetupFailed) as context:
+            scratch_linear.load_machine_config(self.configuration_directory)
+        self.assertIn("no Linear installation in config.toml", str(context.exception))
+
+    def test_several_without_a_name_is_refused(self):
+        self.two_installations()
+        with self.assertRaises(scratch_linear.SetupFailed) as context:
+            scratch_linear.load_machine_config(self.configuration_directory)
+        message = str(context.exception)
+        self.assertIn("my-ws", message)
+        self.assertIn("scratch", message)
+        self.assertIn("--installation <name>", message)
+
+    def test_unknown_name_is_refused_naming_registered_ones(self):
+        self.two_installations()
+        with self.assertRaises(scratch_linear.SetupFailed) as context:
+            scratch_linear.load_machine_config(self.configuration_directory, "nope")
+        message = str(context.exception)
+        self.assertIn("'nope'", message)
+        self.assertIn("my-ws, scratch", message)
+
+    def test_installation_flag_is_parsed(self):
+        args = scratch_linear.parse_arguments(["--installation", "my-ws", "check", "--team", "SCRATCH"])
+        self.assertEqual(args.installation, "my-ws")
+        args = scratch_linear.parse_arguments(["check", "--team", "SCRATCH"])
+        self.assertIsNone(args.installation)
+
+    def test_flag_selects_the_keychain_account(self):
+        self.two_installations()
+        accounts = []
+
+        def keychain(account):
+            accounts.append(account)
+            return fresh_pair()
+        self.keychain = keychain
+
+        def handler(query, variables):
+            return data_response({"teams": {"nodes": [TEAM]}})
+        self.set_graphql_handler(handler)
+        args = Args(team="SCRATCH", project=[], installation="my-ws")
+        code, out, err = self.run_command(scratch_linear.check_command, args)
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual(accounts, ["linear-other"])
+
+    def test_reset_refuses_a_project_on_another_installation(self):
+        self.two_installations()
+        write_project(self.configuration_directory, "proj-a", "lp-a", installation="my-ws")
+
+        def handler(query, variables):
+            if "teams(" in query:
+                return data_response({"teams": {"nodes": [TEAM]}})
+            raise AssertionError(f"unexpected query: {query} (nothing else may be sent)")
+        self.set_graphql_handler(handler)
+        args = Args(team="SCRATCH", project=["proj-a"], dry_run=False, keep_journal=False, installation="scratch")
+        code, out, err = self.run_command(scratch_linear.reset_command, args)
+        self.assertEqual(code, 2)
+        self.assertIn("'my-ws'", err)
+        self.assertIn("'scratch'", err)
+        self.assertIn("nothing was changed", err)
+
+    def test_check_fails_a_project_on_another_installation(self):
+        self.two_installations()
+        write_project(self.configuration_directory, "proj-a", "lp-a", installation="my-ws")
+
+        def handler(query, variables):
+            if "teams(" in query:
+                return data_response({"teams": {"nodes": [TEAM]}})
+            raise AssertionError(f"unexpected query: {query}")
+        self.set_graphql_handler(handler)
+        args = Args(team="SCRATCH", project=["proj-a"], installation="scratch")
+        code, out, err = self.run_command(scratch_linear.check_command, args)
+        self.assertEqual(code, 1)
+        self.assertIn("FAIL Project proj-a", out)
+        self.assertIn("'my-ws'", out)
 
 
 class CredentialReferenceTests(ScratchLinearTestCase):

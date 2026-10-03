@@ -20,6 +20,8 @@ Subcommands:
     exactly the scratch team — a Linear project shared with, or living in, any other team is a FAIL,
     since that is what keeps a production Linear project safe from this tool. Also reports, per
     Project, the informational count of non-archived issues.
+    A Project whose `[board.linear] installation` is not the resolved installation is a FAIL: it
+    lives in another workspace and this token cannot see it.
     Exit codes: 0 every check passed, 1 some check failed, 2 the check could not be set up.
 
   reset --team KEY --project ID [--project ID ...] [--dry-run] [--keep-journal]
@@ -27,19 +29,24 @@ Subcommands:
     --keep-journal) deletes that Project's Journal. `--project` is required — there is no "reset
     every Project" default. Every Project is guarded before any Project is touched: if any Project
     fails a guard (its Linear project file is missing or incomplete, its Linear project is outside
-    the scratch team, or its Journal's Act lease has not expired — a Night is running), nothing is
+    the scratch team, its `[board.linear] installation` is not the resolved installation, or its Journal's Act lease has not expired — a Night is running), nothing is
     changed anywhere and the tool exits 2. `--dry-run` reports what would happen and sends no
     mutation and deletes nothing.
     Exit codes: 0 success, 1 a write failed, 2 a setup or guard error (nothing was changed).
 
 Credentials (P17.8: the App Installation replaces the withdrawn `client_credentials` identity):
-this tool never calls the Linear token endpoint and never writes the Keychain. It reads the
-Installation's token pair from the Keychain item `security find-generic-password -s
-dev.yellowhammer -a <account> -w` (the account from the `credential` reference in `config.toml`
-— `keychain:<account>`, default `keychain:linear`), and uses its `access_token` when more than
-two hours remain before `expires_at`. Otherwise it runs `yh doctor --check linear --json`, which
-refreshes the pair under the machine-wide lock, then re-reads the Keychain item once. Still stale
-or missing after that: "no working Linear installation on this Mac; run yh setup --install-linear".
+this tool never calls the Linear token endpoint and never writes the Keychain. The machine file
+`config.toml` declares zero or more named App Installations under
+`[board.linear.installations.<name>]`, each with a required `credential` (`keychain:<account>`),
+`workspace` and `app_user`, and an optional `operator`. The global `--installation NAME` picks one;
+without it the sole declared installation is used (none, or several without the flag, is a
+refusal). The tool reads that installation's token pair from the Keychain item `security
+find-generic-password -s dev.yellowhammer -a <account> -w`, and uses its `access_token` when more
+than two hours remain before `expires_at`. Otherwise it runs `yh doctor --check linear --json`,
+which refreshes the pair under that installation's lock, then re-reads the Keychain item once.
+Still stale or missing after that: "no working Linear installation on this Mac; run yh setup
+--install-linear". A Project names its installation in `[board.linear] installation`; reset and
+check refuse a Project on any other installation.
 The token is never printed anywhere, including error messages.
 """
 
@@ -201,7 +208,8 @@ class LinearClient:
     """Sends GraphQL requests with an already-resolved Installation access token. No OAuth flow of
     its own: the token comes from `resolve_access_token`, which reads it from the Keychain."""
 
-    def __init__(self, transport, access_token, *, graphql_url=GRAPHQL_URL):
+    def __init__(self, transport, access_token, *, graphql_url=GRAPHQL_URL, installation_name=None):
+        self.installation_name = installation_name
         self._transport = transport
         self._access_token = access_token
         self._graphql_url = graphql_url
@@ -271,22 +279,49 @@ def archive_issue(client, issue_id):
 
 @dataclass(frozen=True)
 class MachineConfig:
+    """One App Installation from `[board.linear.installations.<name>]`."""
+
+    name: str
     credential: str
     workspace: str | None = None
     app_user: str | None = None
+    operator: str | None = None
 
 
-def load_machine_config(configuration_directory):
+def load_machine_config(configuration_directory, installation=None):
+    """The named App Installation, or the sole one when `installation` is None."""
     path = configuration_directory / "config.toml"
-    if not path.is_file():
-        return MachineConfig(credential="keychain:linear")
-    with path.open("rb") as handle:
-        data = tomllib.load(handle)
-    linear = data.get("linear", {})
+    entries = {}
+    if path.is_file():
+        with path.open("rb") as handle:
+            data = tomllib.load(handle)
+        entries = data.get("board", {}).get("linear", {}).get("installations", {})
+    if installation is not None:
+        if installation not in entries:
+            registered = ", ".join(sorted(entries)) or "none"
+            raise SetupFailed(
+                f"no Linear installation named {installation!r} in config.toml (registered: {registered})"
+            )
+        name = installation
+    elif not entries:
+        raise SetupFailed("no Linear installation in config.toml; run yh setup --install-linear")
+    elif len(entries) > 1:
+        raise SetupFailed(
+            f"config.toml has several Linear installations ({', '.join(sorted(entries))}); "
+            "pass --installation <name>"
+        )
+    else:
+        name = next(iter(entries))
+    entry = entries[name]
+    credential = entry.get("credential")
+    if not credential:
+        raise SetupFailed(f"Linear installation {name!r} has no credential in config.toml")
     return MachineConfig(
-        credential=linear.get("credential", "keychain:linear"),
-        workspace=linear.get("workspace"),
-        app_user=linear.get("app_user"),
+        name=name,
+        credential=credential,
+        workspace=entry.get("workspace"),
+        app_user=entry.get("app_user"),
+        operator=entry.get("operator"),
     )
 
 
@@ -298,27 +333,52 @@ def parse_credential_reference(raw):
 
 
 def build_client(configuration_directory, args, transport, *, keychain_reader=keychain_token_pair):
-    machine = load_machine_config(configuration_directory)
+    machine = load_machine_config(configuration_directory, getattr(args, "installation", None))
     token = resolve_access_token(
         configuration_directory, machine, lambda: resolve_yh_path(args), keychain_reader=keychain_reader
     )
-    return LinearClient(transport, token)
+    return LinearClient(transport, token, installation_name=machine.name)
 
 
 def project_file_path(configuration_directory, project_id):
     return configuration_directory / "projects" / f"{project_id}.toml"
 
 
-def load_linear_project_id(configuration_directory, project_id):
+def _load_board_linear(configuration_directory, project_id):
     path = project_file_path(configuration_directory, project_id)
     if not path.is_file():
         raise ProjectError(f"no Project file at {path}")
     with path.open("rb") as handle:
         data = tomllib.load(handle)
-    linear_project_id = data.get("linear_project")
+    return data.get("board", {}).get("linear", {})
+
+
+def load_linear_project_id(configuration_directory, project_id):
+    linear_project_id = _load_board_linear(configuration_directory, project_id).get("project")
     if not linear_project_id:
-        raise ProjectError(f"Project {project_id!r} has no linear_project")
+        raise ProjectError(f"Project {project_id!r} has no [board.linear] project")
     return linear_project_id
+
+
+def load_project_installation(configuration_directory, project_id):
+    """The Project's `[board.linear] installation`."""
+    installation = _load_board_linear(configuration_directory, project_id).get("installation")
+    if not installation:
+        raise ProjectError(f"Project {project_id!r} has no [board.linear] installation")
+    return installation
+
+
+def installation_mismatch(configuration_directory, project_id, installation_name):
+    """An error message when the Project lives on another installation, else empty. Raises
+    ProjectError for a missing or incomplete Project file."""
+    project_installation = load_project_installation(configuration_directory, project_id)
+    if project_installation != installation_name:
+        return (
+            f"Project {project_id!r} uses Linear installation {project_installation!r} but this run "
+            f"resolved installation {installation_name!r}; that Project lives in another workspace "
+            "and must not be touched with this token (pass --installation to match)"
+        )
+    return ""
 
 
 def default_project_ids(configuration_directory):
@@ -382,13 +442,16 @@ def verify_team_membership(client, linear_project_id, team):
     return True, ""
 
 
-def guard_project(client, configuration_directory, project_id, team):
+def guard_project(client, configuration_directory, project_id, team, installation_name):
     """Every reset guard for one Project. Returns (linear_project_id, error) — error is empty on
     success."""
     try:
         linear_project_id = load_linear_project_id(configuration_directory, project_id)
+        mismatch = installation_mismatch(configuration_directory, project_id, installation_name)
     except ProjectError as error:
         return None, str(error)
+    if mismatch:
+        return None, mismatch
     ok, message = verify_team_membership(client, linear_project_id, team)
     if not ok:
         return None, message
@@ -406,6 +469,7 @@ def report(ok, message):
 
 def check_command(args, configuration_directory, transport, keychain_reader=keychain_token_pair):
     client = build_client(configuration_directory, args, transport, keychain_reader=keychain_reader)
+    installation_name = client.installation_name
     overall_ok = True
 
     team = None
@@ -425,8 +489,13 @@ def check_command(args, configuration_directory, transport, keychain_reader=keyc
     for project_id in project_ids:
         try:
             linear_project_id = load_linear_project_id(configuration_directory, project_id)
+            mismatch = installation_mismatch(configuration_directory, project_id, installation_name)
         except ProjectError as error:
             print(report(False, f"Project {project_id}: {error}"))
+            overall_ok = False
+            continue
+        if mismatch:
+            print(report(False, f"Project {project_id}: {mismatch}"))
             overall_ok = False
             continue
         try:
@@ -503,6 +572,7 @@ def handle_journal(configuration_directory, project_id, keep):
 
 def reset_command(args, configuration_directory, transport, keychain_reader=keychain_token_pair):
     client = build_client(configuration_directory, args, transport, keychain_reader=keychain_reader)
+    installation_name = client.installation_name
     team = find_team(client, args.team)
     if team is None:
         raise SetupFailed(f"no Linear team with key {args.team!r}")
@@ -510,7 +580,9 @@ def reset_command(args, configuration_directory, transport, keychain_reader=keyc
     resolved = {}
     guard_failures = []
     for project_id in args.project:
-        linear_project_id, message = guard_project(client, configuration_directory, project_id, team)
+        linear_project_id, message = guard_project(
+            client, configuration_directory, project_id, team, installation_name
+        )
         if message:
             guard_failures.append(f"{project_id}: {message}")
         else:
@@ -559,6 +631,11 @@ def parse_arguments(argv):
     parser.add_argument(
         "--configuration-directory", type=Path, default=DEFAULT_CONFIGURATION_DIRECTORY,
         help="default ~/.config/yellowhammer",
+    )
+    parser.add_argument(
+        "--installation", metavar="NAME", default=None,
+        help="the App Installation (a name under [board.linear.installations] in config.toml); "
+        "default: the sole one",
     )
     parser.add_argument(
         "--yh", help="the yh executable, for a refresh (`doctor --check linear --json`) "

@@ -274,7 +274,8 @@ class VerifyInstalledTestCase(unittest.TestCase):
         config_dir = self.home / ".config" / "yellowhammer"
         config_dir.mkdir(parents=True)
         (config_dir / "config.toml").write_text(
-            '[general]\nsomething = "x"\n\n[linear]\ncredential = "keychain:linear"\n'
+            '[general]\nsomething = "x"\n\n[board.linear.installations.scratch]\n'
+            'credential = "keychain:linear-scratch"\nworkspace = "ws-1"\napp_user = "app-1"\n'
         )
 
     def setup_orca(self, bin_dir, version=ORCA_VERSION):
@@ -482,6 +483,40 @@ class VerifyInstalledTestCase(unittest.TestCase):
         verifier.evidence_directory.mkdir(parents=True)
         passed, reason = verifier.check_doctor([])
         self.assertTrue(passed, reason)
+
+    def test_doctor_passes_with_the_installation_line_format(self):
+        path_env = str(self.root / "path-bin")
+        self.write_all_plists(path_env=path_env)
+        self.write_config_toml()
+        self.setup_orca(Path(path_env))
+        self.run.on(
+            starts_with("env", "-i"),
+            (
+                0,
+                "[pass] probes: ok\n[pass] linear: installation scratch (workspace \"Acme\"; Projects a, b): "
+                "Linear authorization succeeded\n",
+                "",
+            ),
+        )
+        verifier = self.make_verifier()
+        verifier.evidence_directory.mkdir(parents=True)
+        passed, reason = verifier.check_doctor([])
+        self.assertTrue(passed, reason)
+
+    def test_doctor_fails_when_linear_authorization_line_missing(self):
+        path_env = str(self.root / "path-bin")
+        self.write_all_plists(path_env=path_env)
+        self.write_config_toml()
+        self.setup_orca(Path(path_env))
+        self.run.on(
+            starts_with("env", "-i"),
+            (0, "[pass] probes: ok\n[fail] linear: installation scratch: authorization refused\n", ""),
+        )
+        verifier = self.make_verifier()
+        verifier.evidence_directory.mkdir(parents=True)
+        passed, reason = verifier.check_doctor([])
+        self.assertFalse(passed)
+        self.assertIn("Linear authorization succeeded", reason)
 
     def test_doctor_fails_when_probe_line_missing(self):
         path_env = str(self.root / "path-bin")

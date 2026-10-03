@@ -9,9 +9,11 @@ pull request — this tool is unrelated to those three boundaries; it only manag
 
 One **scratch Linear team**, shared by every rehearsing Project, lives inside the **scratch
 workspace** — the same workspace Yellowhammer's App Installation (P17.3–P17.7) is installed into on
-this machine, whose token pair the Keychain holds. Each rehearsing Project has its own **scratch
-Linear project** inside that team. Only the scratch workspace's own installation ever lands in
-`keychain:linear` on a developer machine; production's never does.
+this machine, whose token pair the Keychain holds (item `linear-<name>`). Each rehearsing Project has
+its own **scratch Linear project** inside that team. A machine may hold several installations at once;
+every script here acts through one of them, picked by `--installation NAME` (default: the sole
+installation; none, or several without the flag, is refused). The scratch tools only ever touch the
+installation they are given, so name the scratch one on a Mac that also holds production's.
 
 Worktrees are out of scope here — Orca ADE owns them, and the throwaway Repos a rehearsal Project
 points at are P15.2's concern, not this tool's.
@@ -20,12 +22,15 @@ points at are P15.2's concern, not this tool's.
 
 1. Install Yellowhammer's Linear app into the scratch workspace: `yh setup --install-linear`. This
    opens the browser for a workspace admin to approve — no client id, no secret, ever (the
-   `client_credentials` identity this tool used before P17.6 is withdrawn). On the install screen,
+   `client_credentials` identity this tool used before P17.6 is withdrawn). Re-connecting a registered
+   workspace replaces its tokens and keeps its name and Operator identity
+   (`yh setup --install-linear --installation <name>`). On the install screen,
    choose **"Only select teams… → SCRATCH"** (the scratch team) rather than the preselected "All
    public teams" — only the former makes the app user a **member** of the team, which the
-   label/workflow creates below need. The tokens land in the Keychain (`keychain:linear` by
-   default) and `~/.config/yellowhammer/config.toml`'s `[linear]` gets `workspace`/`app_user`; `yh
-   doctor --check linear --json` confirms it afterwards.
+   label/workflow creates below need. The tokens land in the Keychain (service `dev.yellowhammer`, account `linear-<name>`) and
+   `~/.config/yellowhammer/config.toml` gets a `[board.linear.installations.<name>]` table with
+   `credential`, `workspace` and `app_user`; `<name>` defaults to the workspace URL key. `yh doctor
+   --check linear --json` confirms it afterwards.
 
 2. In the scratch team (already created by hand in Linear's UI — this tool and `yh setup` both only
    ever provision *inside* an existing team, neither one ever creates one):
@@ -42,12 +47,13 @@ points at are P15.2's concern, not this tool's.
      group's `Feature`. Rename or delete it in the scratch workspace.
 
 3. For each rehearsing Project, generate its configuration and provision its Linear project inside
-   the scratch team with `yh setup --init` (`Packages/YellowhammerKit/Sources/EngineCommand/
+   the scratch team with `yh setup --init --installation <name>` (`Packages/YellowhammerKit/Sources/EngineCommand/
    SetupCommand.swift`, `SetupOptions.swift`). Repos and Spec Source point at throwaway checkouts
    (P15.2); the paths below are placeholders:
 
    ```sh
    yh setup --init \
+     --installation <scratch-installation-name> \
      --cli claude \
      --route claude/sonnet/medium \
      --operator <operator-linear-user-id> \
@@ -57,10 +63,11 @@ points at are P15.2's concern, not this tool's.
      --repo 'app,backend,/path/to/throwaway/rehearsal-a-app,swift build'
    ```
 
-   `yh setup --print-choices` lists the Operator candidates and the teams the app can see, and
+   `yh setup --print-choices [--installation <name>]` lists the Operator candidates and the teams the app can see, and
    writes nothing.
 
-   This creates the Linear project inside team `SCRATCH` (since `--linear-project` was not given)
+   This writes `[board.linear]` with `installation` and `project` in the Project file, and creates the
+   Linear project inside team `SCRATCH` (since `--linear-project` was not given)
    and runs `Engine.BoardProvisioner` for it (workflow states, the `Object Type` and `Block Reason`
    label groups — P5.3). Re-running the same `yh setup --init` keeps the existing Project file
    (so no second Linear project is created) and provisioning reports no changes.
@@ -68,7 +75,7 @@ points at are P15.2's concern, not this tool's.
 4. Confirm the shape holds:
 
    ```sh
-   python3 scripts/scratch-linear/scratch_linear.py check --team SCRATCH
+   python3 scripts/scratch-linear/scratch_linear.py [--installation NAME] check --team SCRATCH
    ```
 
 ## Between rehearsal runs
@@ -76,11 +83,11 @@ points at are P15.2's concern, not this tool's.
 A rehearsal Night leaves scratch issues and a Journal behind. Reset before the next run:
 
 ```sh
-python3 scripts/scratch-linear/scratch_linear.py reset --team SCRATCH --project rehearsal-a --dry-run
-python3 scripts/scratch-linear/scratch_linear.py reset --team SCRATCH --project rehearsal-a
+python3 scripts/scratch-linear/scratch_linear.py [--installation NAME] reset --team SCRATCH --project rehearsal-a --dry-run
+python3 scripts/scratch-linear/scratch_linear.py [--installation NAME] reset --team SCRATCH --project rehearsal-a
 ```
 
-`--project` is required and repeatable — there is deliberately no "reset every Project" default, so
+`--installation` is a global flag, given before the subcommand. `--project` is required and repeatable — there is deliberately no "reset every Project" default, so
 a typo never wipes a Project you did not name.
 
 **What `reset` touches:** it archives every non-archived issue in the named Project's Linear
@@ -91,7 +98,8 @@ that no longer exist, so the Journal goes too by default.
 
 **What it never touches:** provisioning — workflow states, labels, label groups, the Linear project
 itself, and the team are never created, renamed, or deleted. It refuses to run at all (exit 2,
-nothing changed) if a named Project's Linear project is outside the scratch team, is shared with
+nothing changed) if a named Project's `[board.linear] installation` is a different installation, if its
+Linear project is outside the scratch team, is shared with
 another team, or if its Journal's Act lease has not expired (a Night is running).
 
 A second `reset` against an already-clean Project is a no-op and says so.

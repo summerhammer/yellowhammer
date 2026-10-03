@@ -84,7 +84,9 @@ def git_tree_dirty(repo_root=REPO_ROOT):
 # MARK: - Running the suite and parsing its summary
 
 
-def run_suite(app, team, work_directory, scenario_numbers=None, act_timeout=None, python_executable=None):
+def run_suite(
+    app, team, work_directory, scenario_numbers=None, act_timeout=None, python_executable=None, installation=None
+):
     """Runs `rehearsal_suite.py run` as a subprocess, tee'ing every line to stdout as it arrives.
     Returns (returncode, lines) — `lines` is every line of combined stdout/stderr, in order."""
     python_executable = python_executable or sys.executable
@@ -92,6 +94,8 @@ def run_suite(app, team, work_directory, scenario_numbers=None, act_timeout=None
         python_executable, str(SUITE_DIR / "rehearsal_suite.py"), "run",
         "--app", str(app), "--team", team, "--work-directory", str(work_directory),
     ]
+    if installation is not None:
+        command += ["--installation", installation]
     for number in scenario_numbers or []:
         command += ["--scenario", str(number)]
     if act_timeout is not None:
@@ -180,16 +184,19 @@ def collect_night_cards(groups):
 class _NoOverrideArgs:
     yh = None
 
+    def __init__(self, installation=None):
+        self.installation = installation
 
-def build_linear_client(configuration_directory, transport=None, keychain_reader=None):
+
+def build_linear_client(configuration_directory, transport=None, keychain_reader=None, installation=None):
     transport = transport or scratch_linear.HTTPTransport()
     keychain_reader = keychain_reader or scratch_linear.keychain_token_pair
     return scratch_linear.build_client(
-        configuration_directory, _NoOverrideArgs(), transport, keychain_reader=keychain_reader
+        configuration_directory, _NoOverrideArgs(installation), transport, keychain_reader=keychain_reader
     )
 
 
-def resolve_night_card_links(issue_ids, configuration_directory=None, transport=None):
+def resolve_night_card_links(issue_ids, configuration_directory=None, transport=None, installation=None):
     """Maps each issue id to its Linear `url`, read through the scratch app credential. Falls back
     to the bare issue id — for any single issue, or for all of them — on any failure: a missing
     credential, a network error, or Linear refusing the request."""
@@ -197,7 +204,7 @@ def resolve_night_card_links(issue_ids, configuration_directory=None, transport=
         return {}
     configuration_directory = configuration_directory or scratch_linear.DEFAULT_CONFIGURATION_DIRECTORY
     try:
-        client = build_linear_client(configuration_directory, transport=transport)
+        client = build_linear_client(configuration_directory, transport=transport, installation=installation)
     except Exception:  # noqa: BLE001 - any setup failure just means every link falls back
         client = None
 
@@ -232,7 +239,9 @@ def write_night_cards_markdown(entries, links, path):
     path.write_text("\n".join(lines).rstrip() + "\n")
 
 
-def write_evidence(work_directory, evidence_directory, configuration_directory=None, transport=None):
+def write_evidence(
+    work_directory, evidence_directory, configuration_directory=None, transport=None, installation=None
+):
     """Copies every Journal snapshot into `evidence_directory/journals/` and writes
     `night-cards.md`. Raises on any failure — the caller treats that as evidence not written."""
     journals_directory = evidence_directory / "journals"
@@ -241,7 +250,10 @@ def write_evidence(work_directory, evidence_directory, configuration_directory=N
     groups = group_snapshots_by_run(db_files, work_directory)
     entries = collect_night_cards(groups)
     issue_ids = sorted({issue_id for rows in entries.values() for _, issue_id in rows})
-    links = resolve_night_card_links(issue_ids, configuration_directory=configuration_directory, transport=transport)
+    links = resolve_night_card_links(
+        issue_ids, configuration_directory=configuration_directory, transport=transport,
+        installation=installation,
+    )
     write_night_cards_markdown(entries, links, evidence_directory / "night-cards.md")
 
 
@@ -270,6 +282,7 @@ def record_command(args):
     returncode, lines = run_suite(
         app=args.app, team=args.team, work_directory=work_directory,
         scenario_numbers=args.scenario, act_timeout=args.act_timeout,
+        installation=args.installation,
     )
 
     log_text = "\n".join(lines)
@@ -279,7 +292,7 @@ def record_command(args):
 
     evidence_written = True
     try:
-        write_evidence(work_directory, evidence_directory)
+        write_evidence(work_directory, evidence_directory, installation=args.installation)
     except Exception as error:  # noqa: BLE001 - any evidence failure blocks the checklist below
         print(f"release_gate: could not write evidence: {error}", file=sys.stderr)
         evidence_written = False
@@ -374,6 +387,11 @@ def parse_arguments(argv):
     )
     record_parser.add_argument(
         "--act-timeout", type=float, default=None, help="seconds any single yh invocation may take"
+    )
+
+    record_parser.add_argument(
+        "--installation", metavar="NAME", default=None,
+        help="the App Installation in config.toml, passed to the suite (default: the sole one)",
     )
 
     check_parser = subparsers.add_parser("check", help="exit 0 only if the evidence is a clean green")
