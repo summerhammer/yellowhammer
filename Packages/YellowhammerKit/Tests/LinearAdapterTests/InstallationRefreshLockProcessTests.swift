@@ -175,8 +175,9 @@ struct InstallationRefreshLockProcessTests {
         let betaLock = MachineLock.defaultFileURL(homeDirectory: home, installation: "beta")
         #expect(acmeLock.lastPathComponent == "linear-token-acme.lock")
         #expect(betaLock.lastPathComponent == "linear-token-beta.lock")
-        // An acme Act holding its lock far longer than the beta refresh below can take.
-        let child = RefreshingChild(lockPath: acmeLock, holdSeconds: 20)
+        // An acme Act holding its lock far longer than any parallel suite run takes. The child is
+        // terminated in the defer, so the hold bounds only a regression, never a passing run.
+        let child = RefreshingChild(lockPath: acmeLock, holdSeconds: 300)
         try child.startAndWaitUntilLocked()
         defer { child.terminateAndWait() }
 
@@ -188,14 +189,12 @@ struct InstallationRefreshLockProcessTests {
             transport: endpoint, clock: { now }
         )
 
-        let start = ContinuousClock.now
         let token = try await source.token()
-        let elapsed = start.duration(to: .now)
 
         #expect(token == "access-mine")
         #expect(endpoint.requestCount == 1)
-        // Generous: a parallel suite run queues work, but nothing near the child's 20 s hold.
-        #expect(elapsed < .seconds(10), "beta's refresh waited on acme's lock")
-        #expect(child.isRunning, "acme's lock must still have been held throughout")
+        // No wall-clock bound: a parallel run queues every test for tens of seconds. The child
+        // releases acme's lock only by exiting, so it still running proves beta never waited on it.
+        #expect(child.isRunning, "beta's refresh waited on acme's lock")
     }
 }
