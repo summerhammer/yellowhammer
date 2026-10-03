@@ -123,7 +123,7 @@ does not renumber it; that file gets one line linking here.
   routing or CLI save keeps the registry; a Configuration save keeps `[board.linear]`; an Act binds
   the Project's own installation's credential and Operator.
 
-### [ ] L1.2 One lock, budget and halt per installation
+### [x] L1.2 One lock, budget and halt per installation
 
 - **Work** — `MachineLock` keyed by installation (`linear-token-<name>.lock`); two Projects on one
   installation still make one refresh, on two installations never wait. `AppInstallationTokenRefresh`
@@ -140,6 +140,21 @@ does not renumber it; that file gets one line linking here.
 - **Done when** — Two processes on one installation make one token request; on two installations
   neither blocks; the refresh event decodes with the installation; removal with a missing
   installation exits successfully and reports the skipped comment.
+- **Status** — Done on 2026-10-03 (`827d740`). `MachineLock.defaultFileURL(homeDirectory:installation:)`
+  gives `linear-token-<name>.lock` (name percent-encoded, so injective and path-safe); setup's token
+  store seam takes the `LinearInstallation`. A Domain `AppInstallationLabel` (local name, workspace
+  ID) rides on `ActBoard` into the Engine: the refresh record and its payload carry `installation` and
+  `workspace` (decoding requires both; L1.3 refuses older Journals), `RateBudgetExhausted` says
+  `installation-wide` and names both, and the halt notification names the workspace by its local name
+  (OQ117: the display name is not stored and cannot be read while Linear refuses). Removal skips the
+  comment only for a *missing* installation; a present but refused one still fails (OQ119).
+  `InstallationRefreshLockProcessTests` run a python child holding the real per-installation path.
+  ACs met: *Keeping it alive* (one lock per installation; the lock holds no state); *When it stops
+  working* (the copy names the workspace, as drafted); the delta-read and Outbox rate-limit records
+  (installation-wide, workspace named as drafted); removal's item 10 and its drafted
+  succeeded-step rule. Not touched here: doctor's own re-connect copy (`Doctor+Linear.swift`) is L2.3's.
+  `Spec:` lines cite `d04d9c2`, not `ab837d1`: OQ117 and OQ119, which shape the halt copy and the
+  removal skip, exist only there.
 
 ### [ ] L1.3 The Journal records its Linear workspace
 
