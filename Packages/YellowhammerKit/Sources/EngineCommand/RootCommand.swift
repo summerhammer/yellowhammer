@@ -192,7 +192,10 @@ extension ActCommand {
 
     public func run() async throws {
         let homeDirectory = FileManager.default.homeDirectoryForCurrentUser
-        try await run(configurationDirectory: Configuration.defaultDirectoryURL(homeDirectory: homeDirectory))
+        // A failure is written with a timestamp (`ActLog`), since launchd's log line carries none.
+        try await ActLog.reportingFailure(of: Self.self) {
+            try await run(configurationDirectory: Configuration.defaultDirectoryURL(homeDirectory: homeDirectory))
+        }
     }
 
     func run(configurationDirectory: URL) async throws {
