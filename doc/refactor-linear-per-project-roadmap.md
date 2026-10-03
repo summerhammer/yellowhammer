@@ -347,7 +347,7 @@ does not renumber it; that file gets one line linking here.
   connect still has no headless form (spec gap above), so Settings' connect uses the proposed name.
   `Spec:` cites `d04d9c2` (OQ116's command and OQ117's live name exist only there).
 
-### [ ] L3.2 Add Project — the Linear step and readiness
+### [x] L3.2 Add Project — the Linear step and readiness
 
 - **Work** — The Linear step lists installations plus *Connect another Linear workspace…*, and
   connects straight away when there are none; the choice goes into `AddProjectDraft` and
@@ -359,6 +359,31 @@ does not renumber it; that file gets one line linking here.
 - **Lead** — Opus 5.5 High; runs `AddProjectUITests` itself. **Sidekick** — Sonnet.
 - **Done when** — `grep -rn soleLinearInstallation` finds nothing; UI tests cover choosing a listed
   installation, connecting another, and the empty registry going straight to connecting.
+- **Status** — Done on 2026-10-03 (`b4bca20`). The wizard owns a `LinearWorkspacesModel` (moved to
+  `Features/Shared` with `OperatorIdentityModel` and a shared `OperatorIdentityRow`); the Linear step lists
+  its rows (workspace name from the doctor read, else the local name; Operator identity) with nothing
+  preselected, plus *Connect another Linear workspace…*, and shows the connect view at once when the registry
+  is empty. `AddProjectDraft.linearInstallationName` is the choice; selecting another clears the teams, Linear
+  projects and choices made from them, and `--print-choices --installation` runs per selection (a stale run is
+  terminated and its answer dropped). A connect selects the new entry and opens its Operator candidates; the
+  step's problems are, in order, no installation, none selected, no Operator identity, then the Linear
+  project's. `SetupReadiness` keeps only `agentCLIRoute`. **Reused id:** the wizard opens each kept Journal
+  (no Project file under its id) read-only and the Project step refuses a different workspace or an
+  unreadable Journal, mirroring L1.3's `yh setup`; with no installation selected yet it says nothing.
+  `soleLinearInstallation` is deleted. **UI-test harness:** the runner is sandboxed and cannot write `/tmp`,
+  and the stub cannot write the runner's container, so the stub's connect and Operator save wait on a gate
+  file in the container (`YH_STUB_GATE_DIR`) while the test makes the `config.toml` edit `yh` would make.
+  ACs met (`add-a-project-via-the-setup-wizard`, *The Linear step*): the listing and selection written as
+  `[board.linear] installation`; the Linear project chosen from that installation's workspace (OQ115, as
+  drafted); connect another runs the install and the Operator choice, adds and selects it; no installation
+  goes straight to connecting; a connected installation stays after Cancel and is listed next time
+  (drafted); *Reused Project id* — refused / reopened on the Project step. UI tests: choosing a listed
+  installation (`--print-choices --installation scratch`, `--init --installation scratch`); connect another,
+  Operator saved, survives Cancel; empty registry connects, then completes with `--installation acme`;
+  ports-busy, remote-approval and relay-unreachable connects select the new entry. **Not UI-tested**: the
+  reused-id refusal (unit tests in `AddProjectDraftLinearStepTests` only); a refused Operator save in the
+  wizard. The editable local name at connect still has no headless form (spec gap), so the wizard's connect
+  uses the proposed name. `Spec:` cites `d04d9c2` (OQ115 and OQ117 exist only there).
 
 ### [ ] L3.3 The Project's workspace and its Health
 
