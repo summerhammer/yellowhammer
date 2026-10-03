@@ -35,7 +35,9 @@ public struct StopCommand: AsyncParsableCommand {
             stop.reportNothingToStop()
             return
         }
-        let journal = try JournalStore.open(configurationDirectory: configurationDirectory, projectID: resolved.id)
+        let journal = try JournalStore.openExisting(
+            configurationDirectory: configurationDirectory, projectID: resolved.id
+        )
         try await stop.run(journal: journal)
     }
 }

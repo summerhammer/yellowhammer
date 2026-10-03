@@ -3,7 +3,8 @@ import Foundation
 import GRDB
 
 /// One Project's Journal. Single-writer: the engine invocation for that Project is its only writer,
-/// and it opens no other Project's. The app opens a Journal read-only and never migrates it.
+/// and it opens no other Project's. The app opens a Journal read-only and never migrates it. The
+/// Journal records the Linear workspace it was created against and is never re-pointed at another.
 public final class JournalStore: Sendable {
     public let projectID: ProjectID
     public let fileURL: URL
@@ -12,6 +13,9 @@ public final class JournalStore: Sendable {
     /// Project's fresh Journal never recomputes an id that resolves to an issue archived under the
     /// previous one.
     public let outboxSalt: String
+    /// The Linear workspace of the App Installation this Journal was built against
+    /// (`project_state.linear_workspace`), recorded when the Journal was created and read once here.
+    public let linearWorkspace: BoardObjectID
     private let queue: DatabaseQueue
 
     /// How long a connection waits for SQLite's lock before failing with `SQLITE_BUSY`. The app reads
@@ -19,11 +23,39 @@ public final class JournalStore: Sendable {
     /// transaction; neither holds the lock for long.
     static let busyTimeout: TimeInterval = 5
 
-    private init(projectID: ProjectID, fileURL: URL, queue: DatabaseQueue, outboxSalt: String) {
+    private init(
+        projectID: ProjectID,
+        fileURL: URL,
+        queue: DatabaseQueue,
+        outboxSalt: String,
+        linearWorkspace: BoardObjectID
+    ) {
         self.projectID = projectID
         self.fileURL = fileURL
         self.queue = queue
         self.outboxSalt = outboxSalt
+        self.linearWorkspace = linearWorkspace
+    }
+
+    /// The `project_state.linear_workspace` column, read once at open.
+    private static func readLinearWorkspace(_ queue: DatabaseQueue) throws -> BoardObjectID {
+        try queue.read { db in
+            BoardObjectID(
+                rawValue: try String.fetchOne(db, sql: "SELECT linear_workspace FROM project_state WHERE id = 1") ?? ""
+            )
+        }
+    }
+
+    private static func makeStore(
+        projectID: ProjectID, fileURL: URL, queue: DatabaseQueue
+    ) throws -> JournalStore {
+        JournalStore(
+            projectID: projectID,
+            fileURL: fileURL,
+            queue: queue,
+            outboxSalt: try readOutboxSalt(queue),
+            linearWorkspace: try readLinearWorkspace(queue)
+        )
     }
 
     /// The `project_state.outbox_salt` column, read once at open.
@@ -48,23 +80,60 @@ public final class JournalStore: Sendable {
     }
 
     /// The engine's open, for the Project the invocation fires for: creates the file and its parent
-    /// directory on first use and migrates forward to the current schema. It is the only writable open,
-    /// and it addresses a Journal by Project id only, never by path.
-    public static func open(configurationDirectory: URL, projectID: ProjectID) throws -> JournalStore {
+    /// directory on first use and migrates forward to the current schema. It addresses a Journal by
+    /// Project id only, never by path. `linearWorkspace` is the Linear workspace of the Project's App
+    /// Installation; it is recorded only when this open creates the Journal. An existing Journal keeps the
+    /// workspace it was created with: this open neither compares nor overwrites it.
+    public static func open(
+        configurationDirectory: URL, projectID: ProjectID, linearWorkspace: BoardObjectID
+    ) throws -> JournalStore {
         let fileURL = defaultFileURL(configurationDirectory: configurationDirectory, id: projectID)
-        return try open(at: fileURL, projectID: projectID)
+        return try open(at: fileURL, projectID: projectID, linearWorkspace: linearWorkspace)
     }
 
-    /// Convenience: `open(configurationDirectory:projectID:)` under `~/.config/yellowhammer`.
-    public static func open(homeDirectory: URL, projectID: ProjectID) throws -> JournalStore {
-        try open(at: defaultFileURL(homeDirectory: homeDirectory, id: projectID), projectID: projectID)
+    /// Convenience: `open(configurationDirectory:projectID:linearWorkspace:)` under `~/.config/yellowhammer`.
+    public static func open(
+        homeDirectory: URL, projectID: ProjectID, linearWorkspace: BoardObjectID
+    ) throws -> JournalStore {
+        try open(
+            at: defaultFileURL(homeDirectory: homeDirectory, id: projectID),
+            projectID: projectID,
+            linearWorkspace: linearWorkspace
+        )
     }
 
     /// Opens a Journal at an explicit path. Internal so that no module can address a Journal other
     /// than by its Project's id; tests use it for fixtures.
-    static func open(at fileURL: URL, projectID: ProjectID) throws -> JournalStore {
-        let directory = fileURL.deletingLastPathComponent()
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    static func open(at fileURL: URL, projectID: ProjectID, linearWorkspace: BoardObjectID) throws -> JournalStore {
+        try openWritable(
+            at: fileURL,
+            projectID: projectID,
+            migrator: JournalMigrations.migrator(linearWorkspace: linearWorkspace),
+            creating: true
+        )
+    }
+
+    /// The engine's non-creating open, for callers that act only on a Journal that already exists (abort,
+    /// stop, Project removal): throws `JournalError.missing` if the file does not exist and never creates
+    /// it. It rejects unknown migrations as ``open(configurationDirectory:projectID:linearWorkspace:)``
+    /// does, and migrates with no workspace, so a creation still pending throws
+    /// `JournalError.linearWorkspaceRequired` rather than inventing one.
+    public static func openExisting(configurationDirectory: URL, projectID: ProjectID) throws -> JournalStore {
+        let fileURL = defaultFileURL(configurationDirectory: configurationDirectory, id: projectID)
+        return try openWritable(
+            at: fileURL, projectID: projectID, migrator: JournalMigrations.migrator, creating: false
+        )
+    }
+
+    private static func openWritable(
+        at fileURL: URL, projectID: ProjectID, migrator: DatabaseMigrator, creating: Bool
+    ) throws -> JournalStore {
+        if creating {
+            let directory = fileURL.deletingLastPathComponent()
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        } else if !FileManager.default.fileExists(atPath: fileURL.path) {
+            throw JournalError.missing(path: fileURL.path)
+        }
 
         var config = Configuration()
         config.foreignKeysEnabled = true
@@ -81,9 +150,9 @@ public final class JournalStore: Sendable {
             }
         }
 
-        try JournalMigrations.migrator.migrate(queue)
+        try migrator.migrate(queue)
 
-        return JournalStore(projectID: projectID, fileURL: fileURL, queue: queue, outboxSalt: try readOutboxSalt(queue))
+        return try makeStore(projectID: projectID, fileURL: fileURL, queue: queue)
     }
 
     /// The app's open: read-only, never migrates. Throws JournalError.schemaOlderThanKnown if every migration this build does not know is provably older (delete the Journal), JournalError.schemaNewerThanKnown if it has any other unknown migration, and JournalError.schemaBehind if not fully migrated (only the engine migrates). Throws JournalError.missing if the file does not exist (never creates a file).
@@ -119,7 +188,7 @@ public final class JournalStore: Sendable {
             }
         }
 
-        return JournalStore(projectID: projectID, fileURL: fileURL, queue: queue, outboxSalt: try readOutboxSalt(queue))
+        return try makeStore(projectID: projectID, fileURL: fileURL, queue: queue)
     }
 
     /// Throws if the store has applied a migration this build does not know: `JournalError.schemaOlderThanKnown`

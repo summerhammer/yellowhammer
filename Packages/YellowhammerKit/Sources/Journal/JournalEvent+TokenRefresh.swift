@@ -76,7 +76,7 @@ extension JournalEvent {
             throw JournalError.eventUnreadable(id: reader.rowID)
         }
         // `installation` and `workspace` are required, not optional: a Journal written before these keys is
-        // refused and recreated at roadmap L1.3's `journal-schema-2`, and pre-1.0 the Journal is never
+        // refused and recreated at `journal-schema-2` (roadmap L1.3), and pre-1.0 the Journal is never
         // migrated incrementally, so no readable row lacks them.
         let installation = AppInstallationLabel(
             name: try reader.require("installation"),

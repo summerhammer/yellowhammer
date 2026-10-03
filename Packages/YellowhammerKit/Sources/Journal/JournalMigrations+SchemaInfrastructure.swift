@@ -1,3 +1,4 @@
+import Domain
 import Foundation
 import GRDB
 
@@ -161,18 +162,25 @@ extension JournalMigrations {
     /// The single Project-state row. `outbox_salt` salts every Outbox client id this Journal computes
     /// (`OutboxClientID.make`) so a Project reset — Journal deleted, its Linear issues archived —
     /// never re-addresses an archived issue on replay. The row is inserted with a fresh random salt;
-    /// the column default stays empty.
-    static func createProjectStateTable(_ db: Database) throws {
+    /// the column default stays empty. `linear_workspace` records the Linear workspace of the App
+    /// Installation the Journal was built against, in the same insert, so it is never absent and has no
+    /// placeholder: a creation with no workspace throws.
+    static func createProjectStateTable(_ db: Database, linearWorkspace: BoardObjectID?) throws {
+        guard let linearWorkspace else { throw JournalError.linearWorkspaceRequired }
         try db.create(table: "project_state") { table in
             table.column("id", .integer).primaryKey()
                 .check(sql: "id = 1")
             table.column("consecutive_refusals", .integer).notNull().defaults(to: 0)
             table.column("outbox_salt", .text).notNull().defaults(to: "")
+            table.column("linear_workspace", .text).notNull()
         }
         // Insert the single row
         try db.execute(
-            sql: "INSERT INTO project_state (id, consecutive_refusals, outbox_salt) VALUES (1, 0, ?)",
-            arguments: [UUID().uuidString.lowercased()]
+            sql: """
+            INSERT INTO project_state (id, consecutive_refusals, outbox_salt, linear_workspace)
+            VALUES (1, 0, ?, ?)
+            """,
+            arguments: [UUID().uuidString.lowercased(), linearWorkspace.rawValue]
         )
     }
 

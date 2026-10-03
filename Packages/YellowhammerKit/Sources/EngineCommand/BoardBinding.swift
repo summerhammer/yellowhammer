@@ -91,6 +91,14 @@ enum BoardBinding {
         )
     }
 
+    /// The Linear workspace of the App Installation `project` selects: what a Journal created for the
+    /// Project records.
+    static func workspace(
+        machine: MachineConfiguration, project: ProjectConfiguration
+    ) throws(BoardBindingError) -> BoardObjectID {
+        try installation(machine: machine, project: project).workspace
+    }
+
     private static func installation(
         machine: MachineConfiguration, project: ProjectConfiguration
     ) throws(BoardBindingError) -> LinearInstallation {

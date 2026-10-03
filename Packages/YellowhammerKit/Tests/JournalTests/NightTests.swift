@@ -29,7 +29,7 @@ private let nightStart = NightStart(rawValue: "2026-09-15")!
 
 @Test("The Journal has the single schema migration")
 func migrationIdentifiersAreTheSingleSchema() throws {
-    #expect(JournalStore.migrationIdentifiers == ["journal-schema-1"])
+    #expect(JournalStore.migrationIdentifiers == ["journal-schema-2"])
 }
 
 @Test("Opening a Night records it and returns isFirstAct: true")

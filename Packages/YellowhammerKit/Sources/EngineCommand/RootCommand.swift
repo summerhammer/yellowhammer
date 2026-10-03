@@ -62,8 +62,11 @@ extension ActCommand {
         let (configuration, project) = try ProjectResolution.resolve(
             projectArgument: project, configurationDirectory: configurationDirectory
         )
-        // The invocation is scoped to the resolved Project: this is the one Journal it is given.
-        let journal = try JournalStore.open(configurationDirectory: configurationDirectory, projectID: project.id)
+        // The one Journal this invocation is given; a creating open records the installation's workspace.
+        let journal = try JournalStore.open(
+            configurationDirectory: configurationDirectory, projectID: project.id,
+            linearWorkspace: BoardBinding.workspace(machine: configuration.machine, project: project)
+        )
         let mode: NightMode = rehearsal ? .rehearsal : .real
         let trigger = try makeTrigger()
         // Rehearsal-only (P15.3): a real Night ignores this variable entirely, read only alongside

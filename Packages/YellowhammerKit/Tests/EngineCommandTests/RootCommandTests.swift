@@ -3,6 +3,7 @@ import Domain
 import Engine
 @testable import EngineCommand
 import Foundation
+import Journal
 import Testing
 
 @Test("The command is named yh")
@@ -51,4 +52,23 @@ func actWithoutProjectFailsToParse(_ act: Act) {
     #expect(throws: (any Error).self) {
         try RootCommand.parseAsRoot([act.rawValue])
     }
+}
+
+@Test("An Act invocation creates the Project's Journal with its App Installation's Linear workspace")
+func actInvocationRecordsInstallationWorkspace() throws {
+    let directory = ConfigurationDirectory()
+    try directory.writeMachineFile(
+        ConfigurationDirectory.machineFile.replacingOccurrences(of: "workspace-1", with: "workspace-z")
+    )
+    try directory.writeValidProjectFile(id: "yellowhammer")
+    let projectID = try #require(ProjectID(rawValue: "yellowhammer"))
+    let fileURL = JournalStore.defaultFileURL(configurationDirectory: directory.url, id: projectID)
+    #expect(!FileManager.default.fileExists(atPath: fileURL.path))
+
+    let parsed = try RootCommand.parseAsRoot(["author", "--project", "yellowhammer"])
+    let command = try #require(parsed as? any ActCommand)
+    _ = try command.makeInvocation(configurationDirectory: directory.url, now: Date(), bindBoard: nil)
+
+    let journal = try JournalStore.openReadOnly(at: fileURL, projectID: projectID)
+    #expect(journal.linearWorkspace == BoardObjectID(rawValue: "workspace-z"))
 }
