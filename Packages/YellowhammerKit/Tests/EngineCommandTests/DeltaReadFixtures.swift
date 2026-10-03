@@ -25,13 +25,14 @@ let stateWaiting = BoardWorkflowState(id: BoardObjectID(rawValue: "s-waiting"), 
 
 func deltaRead(
     _ journal: JournalStore, board: FakeReadingBoard, repositories: Set<String>? = nil,
-    clock: ManualClock = ManualClock()
+    clock: ManualClock = ManualClock(), installation: AppInstallationLabel? = nil
 ) throws -> (DeltaRead, RunID) {
     let runID = RunID()
     let claim = try journal.claimActLease(act: .build, runID: runID, mode: .rehearsal, now: clock.read())
     guard case .claimed = claim else { throw JournalError.actLeaseLost(runID: runID, holder: nil) }
     let read = DeltaRead(
-        journal: journal, board: board, runID: runID, act: .build, repositories: repositories, clock: clock.read
+        journal: journal, board: board, runID: runID, act: .build, repositories: repositories,
+        installation: installation, clock: clock.read
     )
     return (read, runID)
 }

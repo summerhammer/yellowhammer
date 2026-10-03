@@ -299,14 +299,10 @@ public struct EngineInvocation: Sendable {
     /// the Night afterwards, since `open` may have recorded its Night Card issue id.
     private func openNightCardIfNeeded(night: NightRecord) async throws -> (Outbox?, NightCardMaintenance?) {
         guard let board else { return (nil, nil) }
-        let boxed: Outbox
-        if let outboxKill {
-            boxed = Outbox(journal: journal, board: board.writing, runID: runID, act: act, nightID: night.id) {
-                outboxKill.interrupt($0)
-            }
-        } else {
-            boxed = Outbox(journal: journal, board: board.writing, runID: runID, act: act, nightID: night.id)
-        }
+        let boxed = Outbox(
+            journal: journal, board: board.writing, runID: runID, act: act, nightID: night.id,
+            installation: board.installation
+        ) { [outboxKill] in outboxKill?.interrupt($0) }
         let maintenance = NightCardMaintenance(
             journal: journal, outbox: boxed, provisioning: board.provisioning, bounds: nightCardBounds
         )

@@ -5,7 +5,7 @@ import LinearAdapter
 import Security
 
 /// Builds the Installation's `LinearAdapter.LinearTokenStore` (P17.3, ADR-005) from the Keychain and a
-/// machine-wide `MachineLock` (Linear App Installation Ruling, items 3 and 11). Thin glue only: the
+/// the installation's own `MachineLock` (Linear App Installation Ruling, items 3 and 11). Thin glue only: the
 /// JSON codec itself lives on `LinearTokenPair` in `LinearAdapter` (`encoded()` / `init(storedJSON:)`),
 /// so this type never decodes or encodes anything — it only moves a string between the Keychain and
 /// that codec, and wires the refresh lock.

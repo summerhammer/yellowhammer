@@ -91,9 +91,10 @@ public enum JournalEvent: Equatable, Sendable {
     /// Fire-and-forget: the failure is recorded, never acted on.
     case notificationDeliveryFailed(notification: String, reason: String)
     /// The board's request budget was exhausted and the Act did less work. The budget is the
-    /// identity's, shared by every Project running that night, so the record names it workspace-wide
-    /// and never attributes the exhaustion to this Project's own reads.
-    case rateBudgetExhausted(degradation: String)
+    /// App Installation's, shared by every Project on that installation, so the record names it
+    /// installation-wide (and the workspace, when known) and never attributes the exhaustion to this
+    /// Project's own reads.
+    case rateBudgetExhausted(degradation: String, installation: AppInstallationLabel? = nil)
     /// An expired Act-scoped lease was taken over by a new run: the previous run crashed or slept past its TTL.
     case leaseReclaimed(previousRunID: RunID, previousAct: Act, expiredAt: Date)
     /// An expired Card-scoped lease was taken over by a new run: the previous run crashed or slept past its TTL.

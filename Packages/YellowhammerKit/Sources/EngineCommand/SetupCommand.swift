@@ -148,10 +148,14 @@ public struct SetupCommand: AsyncParsableCommand {
             fileExists: { FileManager.default.isExecutableFile(atPath: $0) },
             launchAgents: LaunchctlLaunchAgentControl(),
             linearInstallSeams: .production(),
-            linearInstallationStore: { reference in
+            linearInstallationStore: { installation in
                 LinearInstallationStore(
-                    reference: reference, keychain: KeychainCredentialStore(),
-                    machineLock: MachineLock(fileURL: MachineLock.defaultFileURL(homeDirectory: homeDirectory))
+                    reference: installation.credential, keychain: KeychainCredentialStore(),
+                    machineLock: MachineLock(
+                        fileURL: MachineLock.defaultFileURL(
+                            homeDirectory: homeDirectory, installation: installation.name
+                        )
+                    )
                 )
             },
             linearInstallEvents: { event in

@@ -66,6 +66,35 @@ struct MachineLockTests {
             .appending(component: "yh-machine-lock-\(UUID().uuidString).lock", directoryHint: .notDirectory)
     }
 
+    private let home = URL(fileURLWithPath: "/tmp/yh-home", isDirectory: true)
+
+    @Test("An installation's default lock file is linear-token-<name>.lock under ~/.config/yellowhammer")
+    func defaultFileURLForInstallation() {
+        let url = MachineLock.defaultFileURL(homeDirectory: home, installation: "acme")
+        #expect(url.path == "/tmp/yh-home/.config/yellowhammer/linear-token-acme.lock")
+    }
+
+    @Test("Distinct installation names get distinct lock files")
+    func distinctNamesDistinctFiles() {
+        let acme = MachineLock.defaultFileURL(homeDirectory: home, installation: "acme")
+        let other = MachineLock.defaultFileURL(homeDirectory: home, installation: "other")
+        #expect(acme != other)
+    }
+
+    @Test("A name containing a slash stays one path component directly in the directory")
+    func slashStaysOneComponent() {
+        let url = MachineLock.defaultFileURL(homeDirectory: home, installation: "a/b")
+        #expect(url.deletingLastPathComponent().path == "/tmp/yh-home/.config/yellowhammer")
+        #expect(url.lastPathComponent == "linear-token-a%2Fb.lock")
+    }
+
+    @Test("a/b and a%2Fb do not collide")
+    func escapingIsInjective() {
+        let slash = MachineLock.defaultFileURL(homeDirectory: home, installation: "a/b")
+        let percent = MachineLock.defaultFileURL(homeDirectory: home, installation: "a%2Fb")
+        #expect(slash != percent)
+    }
+
     @Test("withLock blocks until a sibling process' flock on the same file is released")
     func blocksAcrossProcesses() async throws {
         let path = temporaryLockPath()

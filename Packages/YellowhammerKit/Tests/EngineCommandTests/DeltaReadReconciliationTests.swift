@@ -10,7 +10,7 @@ import Testing
 // request; Yellowhammer's own comments are filtered by identity; Cancelled is read and never written;
 // deleted or re-stated Cards are reconciled against the Journal, which stays authoritative; a Card
 // moved to another repository is reported rather than dispatched; a rate-budget refusal degrades the
-// read and is recorded as workspace-wide. These run against an in-memory Linear stand-in.
+// read and is recorded as installation-wide. These run against an in-memory Linear stand-in.
 
 @Suite("Delta Read reconciliation")
 struct DeltaReadReconciliationTests {
@@ -109,7 +109,7 @@ struct DeltaReadReconciliationTests {
 
     // MARK: - Rate budget
 
-    @Test("A rate-limit refusal degrades the read: nothing is acted on, the sync point stays, and it is workspace-wide")
+    @Test("A rate-limit refusal degrades the read: nothing is acted on, the sync point stays, installation-wide")
     func rateLimitDegrades() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
@@ -134,11 +134,31 @@ struct DeltaReadReconciliationTests {
         #expect(try journal.boardSyncPoint() == nil)
         let events = try journal.events(ofType: .rateBudgetExhausted)
         #expect(events.count == 1)
-        if case .rateBudgetExhausted(let degradation)? = events.first?.event {
+        if case .rateBudgetExhausted(let degradation, _)? = events.first?.event {
             #expect(degradation.contains("nothing read this Act is acted on"))
         }
-        #expect(events.first?.event.payload?["budget"] == "workspace-wide")
+        #expect(events.first?.event.payload?["budget"] == "installation-wide")
         #expect(try journal.events(ofType: .deltaReadCompleted).isEmpty)
+    }
+
+    @Test("A degraded read names the Delta Read's App Installation and workspace when it has one")
+    func rateLimitNamesTheInstallation() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let board = FakeReadingBoard([.failure(.rateLimited(retryAfter: nil, budget: nil))])
+        let label = AppInstallationLabel(name: "acme", workspace: BoardObjectID(rawValue: "workspace-1"))
+        let (read, _) = try deltaRead(journal, board: board, installation: label)
+
+        _ = try await read.perform()
+
+        let event = try #require(try journal.events(ofType: .rateBudgetExhausted).first?.event)
+        guard case .rateBudgetExhausted(_, let recorded) = event else {
+            Issue.record("Event is not rateBudgetExhausted")
+            return
+        }
+        #expect(recorded == label)
+        #expect(event.payload?["installation"] == "acme")
+        #expect(event.payload?["workspace"] == "workspace-1")
     }
 
     @Test("A board that cannot be reached fails the read rather than acting on nothing")

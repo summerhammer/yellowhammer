@@ -271,7 +271,7 @@ func notificationDeliveryFailedRoundTrips() throws {
     #expect(reason == "User disabled")
 }
 
-@Test("rateBudgetExhausted event contains workspace-wide budget and round-trips")
+@Test("rateBudgetExhausted event contains installation-wide budget and round-trips")
 func rateBudgetExhaustedRoundTrips() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
@@ -279,25 +279,46 @@ func rateBudgetExhaustedRoundTrips() throws {
 
     try journal.append(.rateBudgetExhausted(degradation: "3 fewer cycles"), act: .build, runID: run, now: epoch)
 
-    // Verify payload contains workspace-wide budget string
+    // Verify payload contains installation-wide budget string
     try journal.read { db in
         let payloadJSON: String? = try String.fetchOne(db, sql: "SELECT payload FROM event LIMIT 1")
         #expect(payloadJSON != nil)
         if let payloadJSON {
             let data = payloadJSON.data(using: .utf8) ?? Data()
             let dict = try JSONDecoder().decode([String: String].self, from: data)
-            #expect(dict["budget"] == "workspace-wide")
+            #expect(dict["budget"] == "installation-wide")
             #expect(dict["degradation"] == "3 fewer cycles")
+            #expect(dict["installation"] == nil)
+            #expect(dict["workspace"] == nil)
         }
     }
 
     let records = try journal.events()
     #expect(records.count == 1)
-    guard case .rateBudgetExhausted(let degradation) = records[0].event else {
+    guard case .rateBudgetExhausted(let degradation, let installation) = records[0].event else {
         Issue.record("Event is not rateBudgetExhausted")
         return
     }
     #expect(degradation == "3 fewer cycles")
+    #expect(installation == nil)
+}
+
+@Test("rateBudgetExhausted carries its App Installation's name and workspace when given one")
+func rateBudgetExhaustedCarriesInstallation() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let label = AppInstallationLabel(name: "acme", workspace: BoardObjectID(rawValue: "workspace-1"))
+
+    try journal.append(
+        .rateBudgetExhausted(degradation: "reads only", installation: label), act: .build, runID: RunID(),
+        now: epoch
+    )
+
+    let event = try #require(try journal.events().first?.event)
+    #expect(event == .rateBudgetExhausted(degradation: "reads only", installation: label))
+    #expect(event.payload?["budget"] == "installation-wide")
+    #expect(event.payload?["installation"] == "acme")
+    #expect(event.payload?["workspace"] == "workspace-1")
 }
 
 @Test("leaseReclaimed event round-trips")
@@ -359,20 +380,21 @@ func appInstallationTokenRefreshRoundTrips() throws {
     let journal = try fixture.open()
     let run = RunID()
     let previous = epoch.addingTimeInterval(60)
+    let label = AppInstallationLabel(name: "acme", workspace: BoardObjectID(rawValue: "workspace-1"))
     let refreshed = AppInstallationTokenRefresh(
-        attemptedAt: epoch, trigger: .nearExpiry, previousExpiresAt: previous,
+        installation: label, attemptedAt: epoch, trigger: .nearExpiry, previousExpiresAt: previous,
         outcome: .refreshed(expiresAt: epoch.addingTimeInterval(7200))
     )
     let refused = AppInstallationTokenRefresh(
-        attemptedAt: epoch, trigger: .accessTokenRejected, previousExpiresAt: previous,
+        installation: label, attemptedAt: epoch, trigger: .accessTokenRejected, previousExpiresAt: previous,
         outcome: .refused(.init(status: 401, code: "invalid_client", description: "No", message: "m"))
     )
     let transport = AppInstallationTokenRefresh(
-        attemptedAt: epoch, trigger: .nearExpiry, previousExpiresAt: previous,
+        installation: label, attemptedAt: epoch, trigger: .nearExpiry, previousExpiresAt: previous,
         outcome: .unreachable(message: "unreachable")
     )
     let notStored = AppInstallationTokenRefresh(
-        attemptedAt: epoch, trigger: .nearExpiry, previousExpiresAt: previous,
+        installation: label, attemptedAt: epoch, trigger: .nearExpiry, previousExpiresAt: previous,
         outcome: .notStored(message: "could not store")
     )
 
@@ -387,6 +409,12 @@ func appInstallationTokenRefreshRoundTrips() throws {
         JournalEvent.appInstallationTokenRefresh($0).payload?["outcome"]
     } == ["refreshed", "refused", "unreachable", "not-stored"])
     #expect(JournalEvent.appInstallationTokenRefresh(refused).payload?.keys.sorted() == [
-        "attempted_at", "code", "description", "message", "outcome", "previous_expires_at", "status", "trigger"
+        "attempted_at", "code", "description", "installation", "message", "outcome", "previous_expires_at", "status",
+        "trigger", "workspace"
     ])
+    #expect(JournalEvent.appInstallationTokenRefresh(refreshed).payload?["installation"] == "acme")
+    #expect(JournalEvent.appInstallationTokenRefresh(refreshed).payload?["workspace"] == "workspace-1")
+    for case .appInstallationTokenRefresh(let decoded) in records.map(\.event) {
+        #expect(decoded.installation == label)
+    }
 }

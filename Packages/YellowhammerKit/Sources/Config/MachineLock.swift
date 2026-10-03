@@ -1,8 +1,9 @@
 import Darwin
 import Foundation
 
-/// A machine-wide exclusive lock on an empty file (Linear App Installation Ruling, item 3 and 11):
-/// every Engine invocation and the app itself share one refresh critical section, so two processes
+/// An exclusive lock on an empty file, one per App Installation (Linear App Installation Ruling,
+/// item 3 and 11; OQ109 item 8): every Engine invocation and the app itself acting through that
+/// Installation share one refresh critical section, so two processes
 /// racing to refresh the Installation's rotating refresh token never both succeed — Linear invalidates
 /// the old one the moment the new one is issued, so the loser of an unlocked race would be stranded.
 ///
@@ -16,10 +17,19 @@ public struct MachineLock: Sendable {
         self.fileURL = fileURL
     }
 
-    /// The default location, alongside the rest of Yellowhammer's machine-scoped configuration.
-    public static func defaultFileURL(homeDirectory: URL) -> URL {
-        homeDirectory.appending(
-            components: ".config", "yellowhammer", "linear-token.lock", directoryHint: .notDirectory
+    /// The default location of one App Installation's lock, alongside the rest of Yellowhammer's
+    /// machine-scoped configuration (OQ109 item 8). Two Projects on the same Installation share
+    /// this file; two Installations never do.
+    ///
+    /// The Installation's name is a TOML table key and may hold any character, so it is
+    /// percent-encoded: every character outside `[A-Za-z0-9._-]`, `%` included, becomes its UTF-8
+    /// `%XX` bytes. That keeps the mapping injective (`a/b` and `a%2Fb` stay distinct) and keeps
+    /// `/` from ever forming a path.
+    public static func defaultFileURL(homeDirectory: URL, installation name: String) -> URL {
+        let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-")
+        let escaped = name.addingPercentEncoding(withAllowedCharacters: allowed) ?? name
+        return homeDirectory.appending(
+            components: ".config", "yellowhammer", "linear-token-\(escaped).lock", directoryHint: .notDirectory
         )
     }
 

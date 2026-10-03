@@ -172,7 +172,7 @@ public struct BuildAct: Sendable {
         guard let board = context.board else { return nil }
         let read = DeltaRead(
             journal: context.journal, board: board.reading, runID: context.runID, act: context.act,
-            nightID: context.night.id, repositories: nil
+            nightID: context.night.id, repositories: nil, installation: board.installation
         )
         return try await read.perform()
     }

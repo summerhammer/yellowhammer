@@ -39,7 +39,7 @@ enum PostLandingReplies {
 
         let read = DeltaRead(
             journal: context.journal, board: board.reading, runID: context.runID, act: context.act,
-            nightID: context.night.id, repositories: nil
+            nightID: context.night.id, repositories: nil, installation: board.installation
         )
         switch try await read.perform() {
         case .read:

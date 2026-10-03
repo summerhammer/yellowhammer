@@ -31,8 +31,44 @@ private final class NotificationRecorder: Sendable {
 @Suite("Linear authorization halt (P17.5)")
 struct LinearAuthorizationHaltTests {
     private static let authorizationCopy =
-        "Linear refused Yellowhammer's sign-in. Re-run the Linear step: yh setup --install-linear, " +
-            "or the Setup view in Yellowhammer.app."
+        "Linear refused Yellowhammer's sign-in. Re-connect the Linear workspace: " +
+            "the Linear step of yh setup, or Settings → Linear workspaces in Yellowhammer.app."
+    private static let labelledCopy =
+        "Linear refused Yellowhammer's sign-in for the Linear workspace \"acme\". " +
+            "Re-connect that workspace: the Linear step of yh setup, or Settings → Linear workspaces " +
+            "in Yellowhammer.app."
+
+    @Test("A labelled board's authorization halt names the workspace and both fixes")
+    func labelledHaltNamesTheWorkspace() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let reading = FakeReadingBoard([])
+        await reading.script(identity: .failure(.notAuthenticated("sign-in expired")))
+        let board = ActBoard(
+            reading: reading, writing: boards.writing, provisioning: boards.provisioning,
+            installation: AppInstallationLabel(name: "acme", workspace: BoardObjectID(rawValue: "workspace-1"))
+        )
+        let recorder = NotificationRecorder()
+        let invocation = EngineInvocation(
+            act: .build, mode: .real, nightStart: nightCardNightStart, journal: journal,
+            trigger: .forced, runID: RunID(), board: board,
+            notifier: ExceptionNotifier { recorder.record($0) },
+            work: { _ in }
+        )
+
+        await #expect(throws: (any Error).self) { try await invocation.run() }
+
+        let notification = try #require(recorder.notifications.first)
+        guard case .halted(let reason) = notification.event else {
+            Issue.record("expected .halted, got \(notification.event)")
+            return
+        }
+        #expect(reason == Self.labelledCopy)
+        #expect(reason.contains("\"acme\""))
+        #expect(reason.contains("the Linear step of yh setup"))
+        #expect(reason.contains("Settings → Linear workspaces in Yellowhammer.app"))
+    }
 
     @Test("A refused identity halts before the Night Card, before work, records the cause once, and posts once")
     func preflightRefusalHaltsBeforeNightCardAndWork() async throws {
