@@ -84,11 +84,11 @@ before each step. The story sets no step order, so the hub needs no ruling.
   not Linear projects, so Hub4's choice cards have no list to pick from. Both need Engine work or a
   read-only step body. **Fixed since:** `yh setup --init` takes `--night-start`, `--night-end` and
   `--build-every-minutes` for the Project it declares, and `--print-choices` lists the active Linear
-  projects (`SetupChoices.linearProjects`). The draft carries a `schedule`; see H2.1. **Live run
-  owed:** the `projects` query is checked against Linear's published schema and stub transports only.
-  On 2026-10-03 this Mac's Linear installation was refused (HTTP 401 `invalid_client`) before the
-  query ran. Re-install, then run `yh setup --print-choices` once. A failed read prints a `warning:`
-  line and no Linear projects.
+  projects (`SetupChoices.linearProjects`). The draft carries a `schedule`; see H2.1. **Run live
+  2026-10-03**, after re-installing Linear: at 250 per page Linear refused the `projects` query as too
+  complex (16,900 against its limit of 10,000), because each Linear project nests a teams connection.
+  At 50 per page `yh setup --print-choices` listed the scratch workspace's five Linear projects with
+  their team. Stub transports cannot catch a complexity refusal; only a live run does.
 
 ### [x] H2.1 Hub4's step bodies in the app
 
