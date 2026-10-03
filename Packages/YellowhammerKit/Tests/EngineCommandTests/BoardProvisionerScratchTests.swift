@@ -8,11 +8,11 @@ import Testing
 
 /// Against the real scratch Linear workspace — the done-condition a stub cannot prove. Opt-in only:
 ///
-///     YH_LINEAR_SCRATCH_TESTS=1 YH_LINEAR_PROJECT_ID=… \
+///     YH_LINEAR_SCRATCH_TESTS=1 YH_LINEAR_INSTALLATION=<local name> YH_LINEAR_PROJECT_ID=… \
 ///         swift test --package-path Packages/YellowhammerKit --filter BoardProvisionerScratchTests
 ///
-/// Uses the Installation's token pair already stored in the Keychain (P17.3/P17.4) via `BoardBinding`
-/// — no client id or secret of its own.
+/// Uses the token pair of the App Installation named `YH_LINEAR_INSTALLATION`, already stored in the Keychain
+/// item `linear-<name>` (P17.3/P17.4), via `BoardBinding` — no client id or secret of its own.
 @Suite(
     "Linear provisioning (live)",
     .enabled(if: ProcessInfo.processInfo.environment["YH_LINEAR_SCRATCH_TESTS"] == "1")
@@ -25,14 +25,13 @@ struct BoardProvisionerScratchTests {
             print("BoardProvisionerScratchTests skipped: YH_LINEAR_PROJECT_ID is not set")
             return
         }
-        guard Self.keychainSecret(account: "linear") != nil else {
-            print("BoardProvisionerScratchTests skipped: no Keychain item for service dev.yellowhammer, account linear")
+        guard let installation = Self.storedInstallation(environment) else {
             return
         }
 
         let machine = try MachineConfiguration.parse("""
-            [board.linear.installations.acme]
-            credential = "keychain:linear"
+            [board.linear.installations."\(installation)"]
+            credential = "keychain:linear-\(installation)"
             workspace = "workspace-1"
             app_user = "app-user-1"
 
@@ -43,7 +42,7 @@ struct BoardProvisionerScratchTests {
         let project = try ProjectConfiguration.parse("""
             id = "yellowhammer"
             name = "Yellowhammer"
-            board = { linear = { installation = "acme", project = "\(linearProjectID)" } }
+            board = { linear = { installation = "\(installation)", project = "\(linearProjectID)" } }
             spec_source = "~/Developer/yellowhammer-spec"
 
             [[repos]]
@@ -75,6 +74,20 @@ struct BoardProvisionerScratchTests {
         // A collision is reported again, never resolved by overwriting it.
         #expect(report1.collisions.map(\.subject) == report2.collisions.map(\.subject))
         print(report2)
+    }
+
+    /// The local name in `YH_LINEAR_INSTALLATION` when its Keychain item exists; nil, having printed why, otherwise.
+    private static func storedInstallation(_ environment: [String: String]) -> String? {
+        guard let installation = environment["YH_LINEAR_INSTALLATION"], !installation.isEmpty else {
+            print("BoardProvisionerScratchTests skipped: YH_LINEAR_INSTALLATION is not set")
+            return nil
+        }
+        guard keychainSecret(account: "linear-\(installation)") != nil else {
+            print("BoardProvisionerScratchTests skipped: no Keychain item for service dev.yellowhammer, "
+                + "account linear-\(installation)")
+            return nil
+        }
+        return installation
     }
 
     private static func keychainSecret(account: String) -> String? {
