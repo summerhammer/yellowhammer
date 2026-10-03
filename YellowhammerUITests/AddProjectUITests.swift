@@ -314,6 +314,18 @@ final class AddProjectUITests: XCTestCase {
         }
     }
 
+    /// A Linear project `--print-choices` lists is picked in place of a pasted id.
+    func testWizardPicksAListedLinearProject() throws {
+        try launchApp(machineReady: true, linearInstalled: true)
+        let sheet = openAddProjectSheet()
+        driveHubToCompletion(in: sheet, linearProject: "proj-listed") { // glossary:ignore GL001
+            element("setup-step-linearProject").click()
+            let listed = element("setup-linear-project-proj-listed")
+            XCTAssertTrue(listed.waitForExistence(timeout: 5))
+            listed.click()
+        }
+    }
+
     func testWizardAddsAProjectFromTheSettingsSidebar() throws {
         try launchApp(machineReady: true, linearInstalled: true)
         driveHubToCompletion(in: openAddProjectSheetFromSettings())

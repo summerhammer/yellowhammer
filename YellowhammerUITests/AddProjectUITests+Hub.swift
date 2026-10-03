@@ -8,7 +8,8 @@ extension AddProjectUITests {
     /// setup and checks the `yh setup --init` argument vector. `beforeAdding` runs on the filled hub, just
     /// before Add Project; `checkArguments` gets the recorded argument vector.
     func driveHubToCompletion(
-        in sheet: XCUIElement, beforeAdding: () -> Void = {}, checkArguments: ([String]) -> Void = { _ in }
+        in sheet: XCUIElement, linearProject: String = "proj-1", // glossary:ignore GL001
+        beforeAdding: () -> Void = {}, checkArguments: ([String]) -> Void = { _ in }
     ) {
         XCTAssertTrue(element("setup-step-project").waitForExistence(timeout: 10))
         let addProject = sheet.buttons["setup-add-project"]
@@ -63,7 +64,7 @@ extension AddProjectUITests {
         let log = app.staticTexts["setup-run-log"]
         XCTAssertTrue(log.exists)
         let recorded = argv(in: (log.value as? String) ?? "")
-        assertProjectArguments(recorded)
+        assertProjectArguments(recorded, linearProject: linearProject)
         checkArguments(recorded)
 
         done.click()
@@ -83,11 +84,11 @@ extension AddProjectUITests {
     }
 
     /// The Project the hub drive declares, and nothing machine-wide.
-    func assertProjectArguments(_ recorded: [String]) {
+    func assertProjectArguments(_ recorded: [String], linearProject: String) { // glossary:ignore GL001
         XCTAssertTrue(recorded.contains("--init"))
         XCTAssertEqual(value(after: "--project", in: recorded), "demo") // glossary:ignore GL001
         XCTAssertEqual(value(after: "--project-name", in: recorded), "Demo") // glossary:ignore GL001
-        XCTAssertEqual(value(after: "--linear-project", in: recorded), "proj-1") // glossary:ignore GL001
+        XCTAssertEqual(value(after: "--linear-project", in: recorded), linearProject) // glossary:ignore GL001
         XCTAssertEqual(value(after: "--repo", in: recorded), "acme-backend,spec,\(Self.pickedFolder),none")
         XCTAssertTrue(recorded.contains("--install-jobs"))
         // The sheet sets nothing machine-wide: setup keeps the configured Operator, CLIs and routes.
