@@ -11,10 +11,11 @@ import XCTest
 /// itself sandboxed, so a file it creates lives inside its own container, and the (unsandboxed) app under
 /// test cannot exec anything there directly — `Process.run()` fails with EPERM regardless of permissions.
 /// `/bin/sh`, a system binary, is what the app execs; `/bin/sh` then merely reads the stub file, which
-/// works across the container boundary. The stub itself writes nothing, for the same reason: a file its
-/// child process (also inside the runner's container by inheritance) tried to create would hit the same
-/// wall, so every result crosses back to the test only via the stub's stdout, which the app streams into
-/// the wizard's own run log.
+/// works across the container boundary. The stub writes nothing into the runner's container, for the same
+/// reason: a file its child process (also inside the runner's container by inheritance) tried to create
+/// there would hit the same wall. Its results cross back via its stdout, which the app streams into the
+/// wizard's own run log, and via real `/tmp` paths: the configuration's `projects` folder is a symlink
+/// into `/tmp`, so the Project file the stub's `--init` writes reaches both sidebars.
 ///
 /// XCTest, not Swift Testing: the `Testing` module is unavailable in a UI testing bundle.
 @MainActor
@@ -27,6 +28,9 @@ final class AddProjectUITests: XCTestCase {
     private var installedMarker: URL!
     private var attemptsMarker: URL!
     private var checkedMarker: URL!
+    /// Where the stub's `--init` writes the Project file; the configuration's `projects` folder is a symlink
+    /// to it, so the app finds the new Project where the real `yh setup --init` would put it.
+    private var projectsDirectory: URL!
 
     /// The one folder every pick returns. It need not exist: the stub `yh` never reads it.
     static let pickedFolder = "/tmp/acme-backend"
@@ -60,6 +64,11 @@ final class AddProjectUITests: XCTestCase {
         installedMarker = URL(filePath: "/tmp/yh-uitest-installed-\(uniqueSuffix)")
         attemptsMarker = URL(filePath: "/tmp/yh-uitest-attempts-\(uniqueSuffix)")
         checkedMarker = URL(filePath: "/tmp/yh-uitest-checked-\(uniqueSuffix)")
+        projectsDirectory = URL(filePath: "/tmp/yh-uitest-projects-\(uniqueSuffix)", directoryHint: .isDirectory)
+        try FileManager.default.createSymbolicLink(
+            at: configurationDirectory.appending(component: "projects", directoryHint: .isDirectory),
+            withDestinationURL: projectsDirectory
+        )
 
         app = XCUIApplication()
         app.launchArguments = [
@@ -71,7 +80,8 @@ final class AddProjectUITests: XCTestCase {
         app.launchEnvironment = [
             "YH_STUB_INSTALLED_MARKER": installedMarker.path(percentEncoded: false),
             "YH_STUB_ATTEMPTS_MARKER": attemptsMarker.path(percentEncoded: false),
-            "YH_STUB_CHECKED_MARKER": checkedMarker.path(percentEncoded: false)
+            "YH_STUB_CHECKED_MARKER": checkedMarker.path(percentEncoded: false),
+            "YH_STUB_PROJECTS_DIR": projectsDirectory.path(percentEncoded: false)
         ]
     }
 
@@ -114,6 +124,7 @@ final class AddProjectUITests: XCTestCase {
         try? FileManager.default.removeItem(at: installedMarker)
         try? FileManager.default.removeItem(at: attemptsMarker)
         try? FileManager.default.removeItem(at: checkedMarker)
+        try? FileManager.default.removeItem(at: projectsDirectory)
     }
 
     // MARK: - Opening and cancelling
@@ -283,11 +294,13 @@ final class AddProjectUITests: XCTestCase {
     func testWizardDrivesSetupToCompletion() throws {
         try launchApp(machineReady: true, linearInstalled: true)
         driveHubToCompletion(in: openAddProjectSheet())
+        assertProjectRowInBothSidebars("demo")
     }
 
     func testWizardAddsAProjectFromTheSettingsSidebar() throws {
         try launchApp(machineReady: true, linearInstalled: true)
         driveHubToCompletion(in: openAddProjectSheetFromSettings())
+        assertProjectRowInBothSidebars("demo")
     }
 
     /// A Mac whose machine file is ready but has no Project yet shows the onboarding view, whose button
@@ -300,5 +313,6 @@ final class AddProjectUITests: XCTestCase {
         let sheet = app.sheets.firstMatch
         XCTAssertTrue(sheet.waitForExistence(timeout: 10))
         driveHubToCompletion(in: sheet)
+        assertProjectRowInBothSidebars("demo")
     }
 }

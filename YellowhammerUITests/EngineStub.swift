@@ -6,7 +6,8 @@ enum EngineStub {
     /// A `sh` script, read (never exec'd) by `/bin/sh`. `--print-choices` answers with a canned
     /// ``SetupChoices`` JSON line and nothing else, so the wizard's "last non-empty line" decode still
     /// works. `--init` first drains the stdin secret line, then echoes every argument as `argv: <arg>`
-    /// and prints "Setup complete." Its only files are the `/tmp` markers and argv log the tests name.
+    /// and prints "Setup complete." Its only files are the `/tmp` markers, argv log and Project files the
+    /// tests name.
     static func write(in directory: URL) throws -> URL {
         let script = "#!/bin/sh\nall_args=\"$*\"\nshift\ncase \"$1\" in\n"
             + printChoicesCase + initCase + checkCase + installLinearCase
@@ -26,12 +27,33 @@ enum EngineStub {
 
         """
 
+    /// When `YH_STUB_PROJECTS_DIR` names a directory, `--init` also writes a minimal Project file there,
+    /// named by `--project`'s value, as the real `yh setup --init` writes `projects/<id>.toml`. The tests
+    /// point the configuration's `projects` folder at that `/tmp` directory with a symlink, because the
+    /// stub cannot write into the UI test runner's container.
     static let initCase = """
           --init)
             read -r _
+            project_id=""
+            previous=""
             for arg in "$@"; do
               echo "argv: $arg"
+              if [ "$previous" = "--project" ]; then project_id="$arg"; fi
+              previous="$arg"
             done
+            if [ -n "$YH_STUB_PROJECTS_DIR" ] && [ -n "$project_id" ]; then
+              mkdir -p "$YH_STUB_PROJECTS_DIR"
+              project_file="$YH_STUB_PROJECTS_DIR/$project_id.toml"
+              echo 'id = "'"$project_id"'"' > "$project_file"
+              echo 'name = "'"$project_id"'"' >> "$project_file"
+              echo 'linear_project = "proj-1"' >> "$project_file"
+              echo 'spec_source = "/tmp/acme-spec"' >> "$project_file"
+              echo '[[repos]]' >> "$project_file"
+              echo 'name = "backend"' >> "$project_file"
+              echo 'path = "/tmp/acme-backend"' >> "$project_file"
+              echo 'role = "backend"' >> "$project_file"
+              echo 'check = "none"' >> "$project_file"
+            fi
             echo "Setup complete."
             exit 0
             ;;
