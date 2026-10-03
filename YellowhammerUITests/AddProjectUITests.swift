@@ -26,6 +26,7 @@ final class AddProjectUITests: XCTestCase {
     /// ports-busy-then-retry scenario.
     private var installedMarker: URL!
     private var attemptsMarker: URL!
+    private var checkedMarker: URL!
 
     /// The one folder every pick returns. It need not exist: the stub `yh` never reads it.
     static let pickedFolder = "/tmp/acme-backend"
@@ -58,6 +59,7 @@ final class AddProjectUITests: XCTestCase {
         let uniqueSuffix = UUID().uuidString
         installedMarker = URL(filePath: "/tmp/yh-uitest-installed-\(uniqueSuffix)")
         attemptsMarker = URL(filePath: "/tmp/yh-uitest-attempts-\(uniqueSuffix)")
+        checkedMarker = URL(filePath: "/tmp/yh-uitest-checked-\(uniqueSuffix)")
 
         app = XCUIApplication()
         app.launchArguments = [
@@ -68,18 +70,21 @@ final class AddProjectUITests: XCTestCase {
         ]
         app.launchEnvironment = [
             "YH_STUB_INSTALLED_MARKER": installedMarker.path(percentEncoded: false),
-            "YH_STUB_ATTEMPTS_MARKER": attemptsMarker.path(percentEncoded: false)
+            "YH_STUB_ATTEMPTS_MARKER": attemptsMarker.path(percentEncoded: false),
+            "YH_STUB_CHECKED_MARKER": checkedMarker.path(percentEncoded: false)
         ]
     }
 
     /// `machineReady`: writes ``readyMachineTOML``, so only the Linear installation can be missing.
     /// `linearInstalled`: the stub's `doctor --check linear` reports an installation from the start.
+    /// `linearInstalledOnce`: only its first `doctor --check linear` reports one; the installation is
+    /// revoked after that.
     /// `portsBusyFirst`: the stub's first `--install-linear` attempt reports every port busy; the
     /// second (a Retry) installs, matching OQ94's "setup stops before the browser" then a fresh attempt.
     /// `relayUnreachable`: a `--remote` attempt fails with `relayUnreachable` instead of issuing a link
     /// (roadmap P17.9).
     private func launchApp(
-        machineReady: Bool = false, linearInstalled: Bool = false,
+        machineReady: Bool = false, linearInstalled: Bool = false, linearInstalledOnce: Bool = false,
         portsBusyFirst: Bool = false, relayUnreachable: Bool = false
     ) throws {
         if machineReady {
@@ -90,6 +95,9 @@ final class AddProjectUITests: XCTestCase {
         }
         if linearInstalled {
             app.launchEnvironment["YH_STUB_LINEAR_INSTALLED"] = "1"
+        }
+        if linearInstalledOnce {
+            app.launchEnvironment["YH_STUB_LINEAR_INSTALLED_ONCE"] = "1"
         }
         if portsBusyFirst {
             app.launchEnvironment["YH_STUB_PORTS_BUSY_FIRST"] = "1"
@@ -105,6 +113,7 @@ final class AddProjectUITests: XCTestCase {
         try? FileManager.default.removeItem(at: configurationDirectory.deletingLastPathComponent())
         try? FileManager.default.removeItem(at: installedMarker)
         try? FileManager.default.removeItem(at: attemptsMarker)
+        try? FileManager.default.removeItem(at: checkedMarker)
     }
 
     // MARK: - Opening and cancelling
@@ -136,6 +145,32 @@ final class AddProjectUITests: XCTestCase {
         let projects = configurationDirectory.appending(component: "projects", directoryHint: .isDirectory)
         let files = (try? FileManager.default.contentsOfDirectory(atPath: projects.path(percentEncoded: false))) ?? []
         XCTAssertTrue(files.filter { $0.hasSuffix(".toml") }.isEmpty)
+    }
+
+    /// Each time the sheet opens, it starts a fresh session: it checks the Linear installation again, so
+    /// a revocation made while it was closed shows up, and it keeps no draft and no step from the last
+    /// time it was open (issue #218).
+    func testReopeningTheSheetStartsAFreshSession() throws {
+        try launchApp(machineReady: true, linearInstalledOnce: true)
+        var sheet = openAddProjectSheet()
+        XCTAssertTrue(element("setup-step-project").waitForExistence(timeout: 10))
+        typeName("Demo")
+        element("setup-step-repos").click()
+        XCTAssertTrue(sheet.buttons["setup-add-repo"].waitForExistence(timeout: 5))
+        sheet.buttons["setup-cancel"].click()
+        XCTAssertTrue(sheet.waitForNonExistence(timeout: 10))
+
+        // The installation was revoked while the sheet was closed: reopening finds it missing.
+        sheet = openAddProjectSheet()
+        let install = sheet.buttons["setup-linear-install"]
+        XCTAssertTrue(install.waitForExistence(timeout: 10))
+        XCTAssertFalse(element("setup-step-project").exists)
+
+        // Installed again, the hub opens on the Project step with an empty name.
+        install.click()
+        let name = app.textFields["setup-project-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 10))
+        XCTAssertEqual(name.value as? String, "")
     }
 
     /// The Settings window's Sidebar offers Add Project too.
