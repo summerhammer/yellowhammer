@@ -3,46 +3,40 @@ import Domain
 import Foundation
 import Observation
 
-/// The machine-wide Operator identity — `config.toml`'s `[board.linear.installations.<name>].operator` — editable from the Settings
-/// window's General pane (P18.16). The candidates come from running the bundled `yh` (`SetupInvocation
-/// .choicesArguments`), never from a Board adapter of the app's own (ADR-001); the write is a textual edit
-/// of `config.toml` through the loader, which leaves every other line untouched.
+/// One App Installation's Operator identity — `config.toml`'s `[board.linear.installations.<name>].operator` —
+/// editable from the Settings window's Linear workspaces list (P18.16, L3.1). The candidates come from
+/// running the bundled `yh` (`SetupInvocation.choicesArguments`) and the write is `yh config operator`
+/// (`ConfigInvocation.operatorArguments`); the app reads no Board and edits no file of its own (ADR-001).
+/// The model holds no configuration: the list passes the configured identity in, and reloads after a save.
 @MainActor
 @Observable
 final class OperatorIdentityModel {
-    let directory: URL
-    let file: URL
-
-    private(set) var originalText: String?
-    /// The configured Operator identity, as `config.toml` holds it.
+    /// The local name of the App Installation this identity belongs to.
+    let installation: String
+    /// The configured Operator identity, as the list last read it from `config.toml`.
     private(set) var configured: BoardObjectID?
-    /// The local name of the App Installation ``configured`` belongs to; nil when `config.toml` declares
-    /// no installation, or more than one.
-    private(set) var installationName: String?
-    /// Whether `config.toml` does not exist yet, so there is nothing to edit.
-    private(set) var configMissing = false
-    /// Why `config.toml` could not be loaded, in the loader's own words.
-    private(set) var loadFailure: String?
 
     private(set) var candidates: [SetupChoices.Member] = []
     /// The picker's selection: a candidate's id, or nil for "Choose one".
     var selection: String?
     private(set) var isFetching = false
+    private(set) var isSaving = false
     /// The sentence the pane shows above ``fetchFailure``: the usual cause is that Linear is not installed.
     static let fetchFailureSummary =
         "The Operator identity candidates could not be read from Linear. " // glossary:ignore GL001
             + "Install Yellowhammer in the Linear workspace first."
     /// Why the candidates could not be read, one line per line of `yh`'s output; shown monospaced.
     private(set) var fetchFailure: [String] = []
-    /// Why the last ``save()`` did not write; cleared by a fresh load, a fetch or a revert.
+    /// Why the last ``save()`` did not write, in `yh`'s own words; cleared by a fetch, a revert or a save.
     var failure: String?
+    /// Called after a save `yh` accepted, so the list reloads `config.toml`.
+    var onSaved: (@MainActor () -> Void)?
 
     private let engine = SetupEngine()
 
-    init(directory: URL = ConfigurationDirectory.current) {
-        self.directory = directory
-        file = directory.appending(component: "config.toml", directoryHint: .notDirectory)
-        load()
+    init(installation: String, configured: BoardObjectID?) {
+        self.installation = installation
+        self.configured = configured
     }
 
     /// Whether the picker differs from the configured identity. False until the candidates are fetched,
@@ -54,43 +48,9 @@ final class OperatorIdentityModel {
         candidates.first { $0.id == configured?.rawValue }
     }
 
-    /// Reads `file`'s text first, then loads the whole directory substituting it in place of the file on
-    /// disk, so ``originalText`` and the loaded identity always agree by construction.
-    func load() {
-        guard let text = try? String(contentsOf: file, encoding: .utf8) else {
-            originalText = nil
-            configured = nil
-            installationName = nil
-            configMissing = true
-            loadFailure = nil
-            return
-        }
-        configMissing = false
-        do {
-            let configuration = try Configuration.load(directory: directory, reading: file, as: text)
-            originalText = text
-            let sole = configuration.machine.soleLinearInstallation
-            configured = sole?.operatorIdentity
-            installationName = sole?.name
-            loadFailure = nil
-            failure = nil
-        } catch {
-            originalText = nil
-            configured = nil
-            installationName = nil
-            loadFailure = error.description
-        }
-    }
-
-    /// Reloads `config.toml` from disk, leaving the picker's selection alone.
-    func reload() {
-        load()
-    }
-
-    /// Reloads from disk only when there is nothing unsaved to lose and no fetch is running.
-    func reloadIfClean() {
-        guard !isDirty, !isFetching else { return }
-        load()
+    /// The list read `config.toml` again: the picker's selection is left alone.
+    func update(configured: BoardObjectID?) {
+        self.configured = configured
     }
 
     /// Runs `yh setup --print-choices` and stores the Operator candidates, preselecting the configured one.
@@ -99,10 +59,7 @@ final class OperatorIdentityModel {
         fetchFailure = []
         failure = nil
         defer { isFetching = false }
-        let arguments = SetupInvocation.choicesArguments(
-            // The one installation loaded from config.toml, until the settings pane offers a choice (roadmap L3.2).
-            installation: installationName, githubCredential: nil
-        )
+        let arguments = SetupInvocation.choicesArguments(installation: installation, githubCredential: nil)
         var lines: [String] = []
         do {
             let status = try await engine.run(arguments: arguments, standardInput: nil) { lines.append($0) }
@@ -124,28 +81,28 @@ final class OperatorIdentityModel {
         }
     }
 
-    /// Writes the selected candidate as `[board.linear.installations.<name>].operator`. On success the model reloads from disk. On
-    /// refusal the selection is kept exactly as the Operator left it.
-    func save() {
-        guard let selection, let originalText else { return }
-        guard let installationName else {
-            failure = "config.toml has no Linear App Installation. Run the Linear install again to create it."
-            return
-        }
-        let edited = MachineConfiguration.settingOperator(
-            BoardObjectID(rawValue: selection), installation: installationName, inFileText: originalText
-        )
-        guard edited != originalText else {
-            if configured?.rawValue != selection {
-                failure = "config.toml has no Linear App Installation. Run the Linear install again to create it."
-            }
-            return
-        }
+    /// Runs `yh config operator --installation <name> <user-id>` for the selected candidate. On success the
+    /// picker is cleared (so nothing is dirty) and ``onSaved`` runs; on refusal the selection stays exactly as
+    /// the Operator left it and ``failure`` carries `yh`'s own lines.
+    func save() async {
+        guard let selection else { return }
+        isSaving = true
+        failure = nil
+        defer { isSaving = false }
+        var lines: [String] = []
         do {
-            try Configuration.save(edited, to: file, in: directory, replacing: originalText)
-            load()
+            let status = try await engine.run(
+                arguments: ConfigInvocation.operatorArguments(installation: installation, userID: selection)
+            ) { lines.append($0) }
+            guard status == 0 else {
+                failure = lines.isEmpty ? "yh exited \(status)." : lines.joined(separator: "\n")
+                return
+            }
+            candidates = []
+            self.selection = nil
+            onSaved?()
         } catch {
-            failure = error.description
+            failure = "\(error)"
         }
     }
 

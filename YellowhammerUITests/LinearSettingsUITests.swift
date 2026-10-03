@@ -2,9 +2,10 @@ import Foundation
 import XCTest
 
 /// The Settings window's General pane driven against the shared stub `yh` (`EngineStub`): the Linear
-/// install (P17.7/P17.9, now from Settings) and the Operator identity (P18.16). The stub's run
+/// workspaces list (roadmap L3.1) — connecting another workspace (P17.7/P17.9), re-connecting, removing
+/// and changing one workspace's Operator identity. The stub's run
 /// environment and `/tmp` markers follow `AddProjectUITests`; it also appends each `--install-linear`
-/// argument vector to `YH_STUB_ARGV_LOG`, so a test can assert on what the app ran.
+/// `config` argument vector to `YH_STUB_ARGV_LOG`, so a test can assert on what the app ran.
 ///
 /// XCTest, not Swift Testing: the `Testing` module is unavailable in a UI testing bundle.
 @MainActor
@@ -77,14 +78,17 @@ final class LinearSettingsUITests: XCTestCase {
             XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
         }
         app.activate()
-        app.typeKey(",", modifierFlags: .command)
+        // The application menu's Settings item, not Cmd+,: a synthesized shortcut was dropped once while
+        // the app settled, and the menu item is the same command.
+        app.menuBars.menuBarItems["Yellowhammer"].click()
+        app.menuBars.menuItems["Settings\u{2026}"].click()
         let general = element("settings-general")
         XCTAssertTrue(general.waitForExistence(timeout: 5))
         general.click()
         XCTAssertTrue(element("settings-general-pane").waitForExistence(timeout: 5))
     }
 
-    /// The argument vectors the stub recorded for `--install-linear`, one per attempt.
+    /// The argument vectors the stub recorded for `--install-linear` and `config`, one per run.
     private func recordedArguments() -> [String] {
         let contents = (try? String(contentsOf: argvLog, encoding: .utf8)) ?? ""
         return contents.split(separator: "\n").map(String.init)
@@ -157,33 +161,181 @@ final class LinearSettingsUITests: XCTestCase {
         installLocally()
         XCTAssertTrue(element("setup-linear-installed").waitForExistence(timeout: 10))
     }
+}
 
-    /// The configured Operator identity shows, and "Choose…" reads the candidates through `yh`.
-    func testOperatorIdentityShowsTheConfiguredIdAndOffersCandidates() throws {
-        try """
-        [board.linear.installations.acme]
-        credential = "keychain:linear"
-        workspace = "workspace-1"
-        app_user = "app-user-1"
-        operator = "user-op"
-        [github]
-        credential = "keychain:github"
+// MARK: - The Linear workspaces list (roadmap L3.1)
 
-        [cli.claude]
+extension LinearSettingsUITests {
+    /// Two App Installations; Project `alpha` uses `acme`, none uses `scratch`, whose Operator identity is
+    /// not one of the stub's candidates.
+    private static let twoInstallationsTOML = """
+    [board.linear.installations.acme]
+    credential = "keychain:linear-acme"
+    workspace = "workspace-1"
+    app_user = "app-user-1"
+    operator = "user-op"
 
-        [[routing]]
-        route = "claude/sonnet"
-        """.write(to: configurationDirectory.appending(component: "config.toml"), atomically: true, encoding: .utf8)
+    [board.linear.installations.scratch]
+    credential = "keychain:linear-scratch"
+    workspace = "workspace-2"
+    app_user = "app-user-2"
+    operator = "user-old"
+
+    [github]
+    credential = "keychain:github"
+
+    [cli.claude]
+
+    [[routing]]
+    route = "claude/sonnet/medium"
+    """
+
+    private static let alphaProjectTOML = """
+    id = "alpha"
+    name = "Alpha"
+    spec_source = "~/dev/alpha-spec"
+
+    [board.linear]
+    installation = "acme"
+    project = "ALPHA"
+
+    [[repos]]
+    name = "backend"
+    path = "~/dev/alpha-backend"
+    role = "backend"
+    check = "swift test"
+    """
+
+    /// `yh doctor --check linear --json`'s rows for the two installations: `acme` authorizes and has its
+    /// workspace name; `scratch` was revoked, so Linear gave no name for it.
+    private static let twoInstallationsDoctorRows = """
+    [{"check":"linear","installation":"acme","message":"ok","projects":["alpha"],"severity":"pass",\
+    "subject":"authorization","workspace":"workspace-1","workspaceName":"Acme Corp"},\
+    {"check":"linear","installation":"scratch","message":"installation scratch: revoked","projects":[],\
+    "severity":"failure","subject":"authorization","workspace":"workspace-2"}]
+    """
+
+    private func writeTwoInstallations() throws {
+        try Self.twoInstallationsTOML.write(
+            to: configurationDirectory.appending(component: "config.toml"), atomically: true, encoding: .utf8
+        )
+        let projects = configurationDirectory.appending(component: "projects", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: projects, withIntermediateDirectories: true)
+        try Self.alphaProjectTOML.write(
+            to: projects.appending(component: "alpha.toml"), atomically: true, encoding: .utf8
+        )
+        app.launchEnvironment["YH_STUB_DOCTOR_ROWS"] = Self.twoInstallationsDoctorRows
+    }
+
+    func testTwoWorkspacesAreListedWithTheirNamesOperatorsAndProjects() throws {
+        try writeTwoInstallations()
         showGeneralSettings(waitingFor: nil)
 
-        let configured = element("settings-operator-configured")
-        XCTAssertTrue(configured.waitForExistence(timeout: 10))
-        let ids = app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'user-op' OR label CONTAINS 'user-op'"))
-        XCTAssertTrue(ids.firstMatch.waitForExistence(timeout: 5))
+        let acme = element("settings-linear-workspace-acme")
+        XCTAssertTrue(acme.waitForExistence(timeout: 10))
+        // The workspace name read live through yh doctor; the local name stands in where none was read.
+        let deadline = Date().addingTimeInterval(10)
+        while !text(of: acme).contains("Acme Corp"), Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        XCTAssertTrue(text(of: acme).contains("Acme Corp"), text(of: acme))
+        let scratch = element("settings-linear-workspace-scratch")
+        XCTAssertTrue(scratch.exists)
+        XCTAssertTrue(text(of: scratch).contains("scratch"), text(of: scratch))
 
-        let choose = element("settings-operator-choose")
-        XCTAssertTrue(choose.waitForExistence(timeout: 5))
+        XCTAssertTrue(text(of: element("settings-linear-operator-acme")).contains("user-op"))
+        XCTAssertTrue(text(of: element("settings-linear-operator-scratch")).contains("user-old"))
+        XCTAssertTrue(text(of: element("settings-linear-projects-acme")).contains("alpha"))
+        let status = element("settings-linear-status-scratch")
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        XCTAssertTrue(text(of: status).contains("revoked"), text(of: status))
+        // Connecting another workspace stays on offer beside the list.
+        XCTAssertTrue(element("setup-linear-install").exists)
+    }
+
+    func testReconnectRunsTheInstallForThatWorkspaceOnly() throws {
+        try writeTwoInstallations()
+        showGeneralSettings(waitingFor: nil)
+
+        let reconnect = element("settings-linear-reconnect-scratch")
+        XCTAssertTrue(reconnect.waitForExistence(timeout: 10))
+        reconnect.click()
+        let progress = element("settings-linear-reconnect-progress-scratch")
+        XCTAssertTrue(progress.waitForExistence(timeout: 10))
+        XCTAssertTrue(element("setup-linear-installed").waitForExistence(timeout: 10))
+
+        let recorded = recordedArguments()
+        XCTAssertEqual(recorded.count, 1, "\(recorded)")
+        let line = recorded.first ?? ""
+        XCTAssertTrue(line.contains("setup --install-linear --events json --installation scratch"), line)
+        XCTAssertFalse(line.contains("--remote"), line)
+    }
+
+    func testRemoveIsRefusedWhileAProjectUsesTheWorkspace() throws {
+        try writeTwoInstallations()
+        app.launchEnvironment["YH_STUB_INSTALLATION_USERS"] = "acme=alpha"
+        showGeneralSettings(waitingFor: nil)
+
+        let remove = element("settings-linear-remove-acme")
+        XCTAssertTrue(remove.waitForExistence(timeout: 10))
+        remove.click()
+        // The confirmation says the app stays installed in Linear before anything runs.
+        let staysInstalled = app.staticTexts.matching(
+            NSPredicate(format: "value CONTAINS 'stays installed' OR label CONTAINS 'stays installed'")
+        )
+        XCTAssertTrue(staysInstalled.firstMatch.waitForExistence(timeout: 5))
+        let confirm = app.sheets.buttons["Remove"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        confirm.click()
+
+        let failure = element("settings-linear-remove-failure-acme")
+        XCTAssertTrue(failure.waitForExistence(timeout: 10))
+        XCTAssertTrue(text(of: failure).contains("alpha"), text(of: failure))
+        XCTAssertTrue(element("settings-linear-workspace-acme").exists)
+        XCTAssertTrue(recordedArguments().contains("config remove-installation acme"), "\(recordedArguments())")
+    }
+
+    func testRemoveOfAnUnusedWorkspaceSaysItStaysInstalledInLinear() throws {
+        try writeTwoInstallations()
+        showGeneralSettings(waitingFor: nil)
+
+        let remove = element("settings-linear-remove-scratch")
+        XCTAssertTrue(remove.waitForExistence(timeout: 10))
+        remove.click()
+        let confirm = app.sheets.buttons["Remove"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        confirm.click()
+
+        let removed = element("settings-linear-removed")
+        XCTAssertTrue(removed.waitForExistence(timeout: 10))
+        XCTAssertTrue(text(of: removed).contains("stays installed"), text(of: removed))
+        XCTAssertTrue(recordedArguments().contains("config remove-installation scratch"), "\(recordedArguments())")
+    }
+
+    /// "Change Operator…" reads that workspace's candidates and saves through `yh config operator`.
+    func testChangeOperatorRecordsConfigOperatorForThatInstallation() throws {
+        try writeTwoInstallations()
+        showGeneralSettings(waitingFor: nil)
+
+        let choose = element("settings-linear-operator-choose-scratch")
+        XCTAssertTrue(choose.waitForExistence(timeout: 10))
         choose.click()
-        XCTAssertTrue(element("settings-operator-picker").waitForExistence(timeout: 10))
+        let picker = app.popUpButtons["settings-linear-operator-picker-scratch"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 10))
+        picker.click()
+        let candidate = app.menuItems["Operator Person (operator)"]
+        XCTAssertTrue(candidate.waitForExistence(timeout: 5))
+        candidate.click()
+        let save = element("settings-linear-operator-save-scratch")
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        save.click()
+
+        let deadline = Date().addingTimeInterval(10)
+        while !recordedArguments().contains("config operator --installation scratch user-op"), Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        XCTAssertTrue(
+            recordedArguments().contains("config operator --installation scratch user-op"), "\(recordedArguments())"
+        )
     }
 }
