@@ -1,24 +1,39 @@
 import SwiftUI
 
-/// The machine-wide settings of the Settings window's General section (P18.16): the Linear App
-/// Installation, the Operator identity and Orca ADE. Agent CLIs and the base Routing Table have panes of
-/// their own (P18.15). Both models are owned by `SettingsWindow`, so moving to another sidebar row and back
-/// neither recreates them nor kills a running install.
+/// The machine-wide settings of the Settings window's General section (P18.16, L3.1): the Linear
+/// workspaces — one row per App Installation, and a way to connect another — and Orca ADE. Agent CLIs and
+/// the base Routing Table have panes of their own (P18.15). The model is owned by `SettingsWindow`, so
+/// moving to another sidebar row and back neither recreates it nor kills a running install.
 struct GeneralSettingsPane: View {
-    let linearInstallation: LinearInstallationModel
-    let operatorIdentity: OperatorIdentityModel
+    let model: LinearWorkspacesModel
 
     var body: some View {
         Form {
-            Section("Linear") { // glossary:ignore GL001
+            Section("Linear workspaces") {
                 Text(
                     "Yellowhammer connects to Linear through its own app, approved once by a " // glossary:ignore GL001
                         + "workspace admin — on this Mac, or remotely through a link you send them."
                 )
                 .foregroundStyle(.secondary)
-                LinearInstallationView(model: linearInstallation, offersReinstall: true)
+                if let loadFailure = model.loadFailure {
+                    Text(loadFailure)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .accessibilityIdentifier("settings-linear-load-failure")
+                }
+                ForEach(model.workspaces) { workspace in
+                    LinearWorkspaceRow(model: model, workspace: workspace)
+                }
+                if !model.removalMessage.isEmpty {
+                    Text(model.removalMessage.joined(separator: "\n"))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .accessibilityIdentifier("settings-linear-removed")
+                }
             }
-            OperatorIdentitySection(model: operatorIdentity)
+            Section(model.workspaces.isEmpty ? "Connect a Linear workspace" : "Connect another Linear workspace") {
+                LinearInstallationView(model: model.connectAnother, offersReinstall: true)
+            }
             Section("Orca ADE") { // glossary:ignore GL001
                 Text("Orca ADE creates, places and cleans up every Worktree; Yellowhammer only records their paths.")
                     .foregroundStyle(.secondary)
@@ -31,13 +46,7 @@ struct GeneralSettingsPane: View {
             .accessibilityIdentifier("settings-orca-ade")
         }
         .formStyle(.grouped)
-        .onChange(of: linearInstallation.phase.isInstalled) { _, isInstalled in
-            // The Operator identity choice follows the install immediately.
-            guard isInstalled else { return }
-            operatorIdentity.reload()
-            guard operatorIdentity.configured == nil else { return }
-            Task { await operatorIdentity.fetchCandidates() }
-        }
+        .onAppear { model.refreshStatusOnFirstAppearance() }
         .accessibilityIdentifier("settings-general-pane")
     }
 }

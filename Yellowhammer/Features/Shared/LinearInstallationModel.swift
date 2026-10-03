@@ -40,9 +40,11 @@ final class LinearInstallationModel {
     /// Whether the running (or most recently ended) attempt used `--remote` (roadmap P17.9) — so a
     /// same-path retry (`startLinearInstall()`, no argument) repeats it.
     private(set) var lastLinearInstallWasRemote = false
-    /// The registry entry passed as `--installation` (a re-connect target), read when an attempt starts;
-    /// nil connects untargeted. Nothing sets it until the app offers a choice (roadmap L3.1).
-    var installation: @MainActor () -> String? = { nil }
+    /// The registry entry passed as `--installation` (a re-connect target); nil connects untargeted.
+    let installationName: String?
+    /// Called once an attempt has installed and `yh` has exited, so an owner that outlives the view (the Settings
+    /// window's Linear workspaces list) can reload without a view being on screen.
+    var onInstalled: (@MainActor () -> Void)?
     /// The local name of the registry entry the most recent attempt installed into, from its `installed`
     /// event: a new entry, or the existing one a re-connect replaced. nil until an attempt installs.
     private(set) var installedInstallationName: String?
@@ -52,7 +54,8 @@ final class LinearInstallationModel {
 
     /// Creates an installation model with an optional starting phase.
     /// `phase` lets a preview start past `.checking`, so its view never runs `yh`.
-    init(phase: Phase = .checking) {
+    init(installation: String? = nil, phase: Phase = .checking) {
+        installationName = installation
         self.phase = phase
     }
 
@@ -74,16 +77,14 @@ final class LinearInstallationModel {
             phase = .notInstalled
             return
         }
-        guard let authorization = findings.first(where: { $0.subject == "authorization" }) else {
-            // No "authorization" finding at all means the installation check (subject "installation")
-            // is what failed: no token pair yet.
-            phase = .notInstalled
-            return
-        }
-        if authorization.severity == "pass" {
+        switch LinearInstallationStatus.interpret(findings, installation: installationName) {
+        case .connected:
             phase = .installed(workspaceName: nil)
-        } else {
-            phase = .failed(text: authorization.message, reason: nil, wasRemote: false)
+        case .authorizationFailed(let message):
+            phase = .failed(text: message, reason: nil, wasRemote: false)
+        case .noTokenPair, .unknown:
+            // No "authorization" finding means the installation check is what failed: no token pair yet.
+            phase = .notInstalled
         }
     }
 
@@ -114,7 +115,7 @@ final class LinearInstallationModel {
     }
 
     private func runLinearInstall(remote: Bool) async {
-        let arguments = SetupInvocation.installLinearArguments(installation: installation(), remote: remote)
+        let arguments = SetupInvocation.installLinearArguments(installation: installationName, remote: remote)
         do {
             let status = try await engine.run(arguments: arguments) { [weak self] line in
                 self?.handleLinearInstallLine(line)
@@ -122,6 +123,8 @@ final class LinearInstallationModel {
             if status != 0, !phase.isInstalled, !isTerminalPhase {
                 phase = .failed(text: "yh exited \(status).", reason: nil, wasRemote: remote)
             }
+            // After the process ended, so the configuration it wrote is complete when the owner reloads.
+            if status == 0, phase.isInstalled { onInstalled?() }
         } catch {
             phase = .failed(text: "\(error)", reason: nil, wasRemote: remote)
         }

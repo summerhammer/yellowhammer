@@ -10,7 +10,8 @@ enum EngineStub {
     /// tests name.
     static func write(in directory: URL) throws -> URL {
         let script = "#!/bin/sh\nall_args=\"$*\"\nshift\ncase \"$1\" in\n"
-            + printChoicesCase + initCase + checkCase + installLinearCase
+            + printChoicesCase + initCase + checkCase + installLinearCase + operatorCase
+            + removeInstallationCase
             + "  *)\n    exit 1\n    ;;\nesac\n"
         let stubURL = directory.appending(component: "yh.sh", directoryHint: .notDirectory)
         try script.write(to: stubURL, atomically: true, encoding: .utf8)
@@ -67,9 +68,15 @@ enum EngineStub {
     /// `YH_STUB_LINEAR_INSTALLED` is set, else "not installed". When `YH_STUB_LINEAR_INSTALLED_ONCE` is set,
     /// the first check also reports "installed" and touches `YH_STUB_CHECKED_MARKER`, so later checks see a
     /// revoked installation until an install touches the install marker. The Add Project sheet and the
-    /// Settings General pane run this on appearing.
+    /// Settings General pane run this on appearing. When `YH_STUB_DOCTOR_ROWS` is set (non-empty), its value
+    /// is echoed verbatim as the single output line, before any other logic, so a test can supply
+    /// per-installation rows carrying `installation`, `workspaceName` and `projects`.
     static let checkCase = """
           --check)
+            if [ -n "$YH_STUB_DOCTOR_ROWS" ]; then
+              echo "$YH_STUB_DOCTOR_ROWS"
+              exit 0
+            fi
             installed=""
             if [ -f "$YH_STUB_INSTALLED_MARKER" ] || [ -n "$YH_STUB_LINEAR_INSTALLED" ]; then installed="1"; fi
             if [ -n "$YH_STUB_LINEAR_INSTALLED_ONCE" ] && [ ! -f "$YH_STUB_CHECKED_MARKER" ]; then
@@ -88,7 +95,8 @@ enum EngineStub {
 
     /// `yh setup --install-linear --events json`: when `YH_STUB_ARGV_LOG` names a file, first appends the
     /// full argument vector (`setup --install-linear ...`) to it as one line, so a test can assert on what
-    /// the app ran. Branches on `--remote` (roadmap P17.9). Without it,
+    /// the app ran. Branches on `--remote` (roadmap P17.9). The `installed` event carries `installation`:
+    /// the value after `--installation` when passed, else `acme` locally and `scratch` remotely. Without it,
     /// the first attempt reports every port busy when `YH_STUB_PORTS_BUSY_FIRST` is set (a Retry test);
     /// every later attempt installs. With it, the attempt fails with `relayUnreachable` when
     /// `YH_STUB_RELAY_UNREACHABLE` is set; otherwise it issues an approval link, waits, then installs.
@@ -96,8 +104,12 @@ enum EngineStub {
           --install-linear)
             if [ -n "$YH_STUB_ARGV_LOG" ]; then echo "$all_args" >> "$YH_STUB_ARGV_LOG"; fi
             is_remote=""
+            install_name=""
+            install_prev=""
             for arg in "$@"; do
               if [ "$arg" = "--remote" ]; then is_remote="1"; fi
+              if [ "$install_prev" = "--installation" ]; then install_name="$arg"; fi
+              install_prev="$arg"
             done
             if [ -n "$is_remote" ]; then
         \(remoteInstallBody)    fi
@@ -121,7 +133,8 @@ enum EngineStub {
               printf '%s\\n' "$head"',"text":"'"$text"'"}'
               echo '{"event":"awaitingRemoteApproval"}'
               sleep 4
-              echo '{"event":"installed","workspaceName":"scratch"}'
+              [ -n "$install_name" ] || install_name="scratch"
+              echo '{"event":"installed","workspaceName":"scratch","installation":"'"$install_name"'"}'
               touch "$YH_STUB_INSTALLED_MARKER"
               exit 0
 
@@ -141,9 +154,62 @@ enum EngineStub {
             fi
             echo '{"event":"browserOpened","url":"https://linear.app/oauth/authorize"}'
             echo '{"event":"awaitingApproval"}'
-            echo '{"event":"installed","workspaceName":"Acme"}'
+            [ -n "$install_name" ] || install_name="acme"
+            echo '{"event":"installed","workspaceName":"Acme","installation":"'"$install_name"'"}'
             touch "$YH_STUB_INSTALLED_MARKER"
             exit 0
+
+        """
+
+    /// `yh config operator [--installation <name>] <user-id>`: appends the full argument vector to
+    /// `YH_STUB_ARGV_LOG` when set, then prints the real command's success lines and exits 0. When
+    /// `YH_STUB_OPERATOR_REFUSAL` is set it echoes that text and exits 1 instead.
+    static let operatorCase = """
+          operator)
+            if [ -n "$YH_STUB_ARGV_LOG" ]; then echo "$all_args" >> "$YH_STUB_ARGV_LOG"; fi
+            if [ -n "$YH_STUB_OPERATOR_REFUSAL" ]; then
+              echo "$YH_STUB_OPERATOR_REFUSAL"
+              exit 1
+            fi
+            operator_installation=""
+            operator_id=""
+            operator_prev=""
+            for arg in "$@"; do
+              if [ "$operator_prev" = "--installation" ]; then operator_installation="$arg"; fi
+              operator_id="$arg"
+              operator_prev="$arg"
+            done
+            echo "Installation $operator_installation: Operator identity is now $operator_id"
+            echo "The change applies from the next Act; it does not reassign issues already in Waiting on You."
+            exit 0
+            ;;
+
+        """
+
+    /// `yh config remove-installation <name>`: appends the full argument vector to `YH_STUB_ARGV_LOG` when
+    /// set. `YH_STUB_INSTALLATION_USERS` holds space-separated `name=project` pairs; when a pair's name
+    /// equals the argument, prints the real refusal (Projects joined with ", ") and exits 1. Otherwise prints
+    /// the real two success lines and exits 0.
+    static let removeInstallationCase = """
+          remove-installation)
+            if [ -n "$YH_STUB_ARGV_LOG" ]; then echo "$all_args" >> "$YH_STUB_ARGV_LOG"; fi
+            removal_users=""
+            for pair in $YH_STUB_INSTALLATION_USERS; do
+              if [ "${pair%%=*}" = "$2" ]; then
+                removal_users="${removal_users:+$removal_users, }${pair#*=}"
+              fi
+            done
+            if [ -n "$removal_users" ]; then
+              removal_name="installation \\"$2\\" was not removed: Project $removal_users"
+              removal_name="$removal_name uses installation \\"$2\\"; remove it first:"
+              echo "$removal_name yh project remove $removal_users"
+              exit 1
+            fi
+            echo "Installation $2 removed: its entry in config.toml and its Keychain items."
+            echo "Yellowhammer stays installed in that Linear workspace until a workspace admin removes it" \\
+              "in Linear's settings."
+            exit 0
+            ;;
 
         """
 }
