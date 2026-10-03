@@ -385,7 +385,7 @@ does not renumber it; that file gets one line linking here.
   wizard. The editable local name at connect still has no headless form (spec gap), so the wizard's connect
   uses the proposed name. `Spec:` cites `d04d9c2` (OQ115 and OQ117 exist only there).
 
-### [ ] L3.3 The Project's workspace and its Health
+### [x] L3.3 The Project's workspace and its Health
 
 - **Work** — Settings → Project → Configuration shows the workspace and installation name
   read-only, and the Linear project under it. `OverviewModel` stops copying one set of Linear
@@ -395,6 +395,27 @@ does not renumber it; that file gets one line linking here.
 - **Lead** — Opus 5.5 Medium. **Sidekick** — Sonnet.
 - **Done when** — `HealthFlagReadTests` cover two installations; a UI test shows a revoked
   installation on its own Projects only.
+- **Status** — Done on 2026-10-03 (`9e7b00c`). `HealthFlag.flags(in:for:)` filters the decoded `yh doctor --json`
+  rows per Project. `OverviewModel` keeps the rows and fills each Project's Health from them. The stale
+  Operator identity and App Installation revoked flags are kept only when the row's `projects` names the
+  Project. `projects == []` (an installation no Project uses) and a missing `projects` are on no Pulse, never
+  broadcast. Probe failures are machine-wide and stay on every Project. `linear`/`project` (a missing
+  installation) is still not a flag. `HealthFlag.destination` sends the two installation flags to the new
+  `PulseDestination.linearWorkspaces` (Settings → General) and a probe failure to the Project's entry. The
+  Configuration tab gains a read-only **Linear** section: the workspace name, the installation's local name,
+  and a fixed-for-life caption, with the editable Linear project field under them. The workspace name comes
+  from the Settings window's `LinearWorkspacesModel` doctor read, which a Project entry now also starts (once
+  per window). The local name is shown when that read has not run (OQ117). ACs met
+  (`land-on-the-sidebar-and-pulse`, *Health*): the Operator identity and App Installation flags are those of
+  the Project's own installation, naming its workspace (in `yh doctor`'s own message); other installations'
+  flags are not shown; *drafted*: those two flags open Settings → Linear workspaces. Met in
+  `add-a-project-via-the-setup-wizard`: a Project's **CONFIGURATION** tab shows the workspace and local name
+  read-only. Tests: `HealthFlagReadTests` covers a two-installation fixture (`acme` revoked serving a and b,
+  `scratch` stale serving c, an unused `old`, a row without `projects`, a probe failure). UI tests:
+  `HealthGroupUITests` (revoked `acme` shows on `archive` and `owner`, not on `reader`, which uses `scratch`;
+  the flag opens Settings → General's `acme` row) and `SettingsWindowUITests` (read-only workspace and
+  installation rows). **Not UI-tested**: the Configuration tab showing a live workspace name rather than the
+  local name, because no fixture stub answers `doctor --check linear`. `Spec:` cites `ab837d1`.
 
 ## Phase L4 — Scripts, docs and this Mac
 
