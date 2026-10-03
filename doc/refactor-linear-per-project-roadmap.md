@@ -156,7 +156,7 @@ does not renumber it; that file gets one line linking here.
   `Spec:` lines cite `d04d9c2`, not `ab837d1`: OQ117 and OQ119, which shape the halt copy and the
   removal skip, exist only there.
 
-### [ ] L1.3 The Journal records its Linear workspace
+### [x] L1.3 The Journal records its Linear workspace
 
 - **Work** — Edit `journal-schema-1` in place to `journal-schema-2`, adding the workspace ID,
   written when `EngineCommand` creates the Journal from the Project's installation. Engine and app
@@ -168,6 +168,23 @@ does not renumber it; that file gets one line linking here.
 - **Lead** — Opus 5.5 High. **Sidekick** — Sonnet.
 - **Done when** — Tests: a new Journal holds the workspace; a different-workspace re-add is refused
   by `yh setup --init`; a same-workspace re-add reopens; the app refuses a schema-1 Journal.
+- **Status** — Done on 2026-10-03 (`7a4ea32`). `project_state.linear_workspace` (NOT NULL) is
+  written in the same insert as `outbox_salt`, from a migrator built with the workspace, so a
+  Journal is never without one; a migration run with none throws `linearWorkspaceRequired`.
+  `JournalStore.open(…, linearWorkspace:)` is the only creating open (`RootCommand` passes the
+  Project's installation's workspace); abort, stop and removal use the new non-creating
+  `openExisting`, so removal still works with a missing installation. An existing Journal keeps its
+  workspace: the engine neither compares nor overwrites it. **Not built**: an engine-side refusal
+  when the Project's installation names another workspace than its Journal (reachable only by
+  hand-editing `installation`; no spec rule). Setup's check sits in `writeProject` after the
+  kept-Project-file guard and before any Linear write; besides a different workspace it also
+  **refuses a kept Journal it cannot read** (a schema-1 Journal included), since its workspace cannot
+  be verified and every Act would refuse it. The spec is silent on that case; it is a local choice.
+  Test overloads in each test target keep the old `open` signatures with fixture workspace
+  `workspace-1`. ACs met: `loop-state` (the Journal records the workspace at creation; setup reads
+  it); the wizard's *Reused Project id* for `yh setup` (refused / reopened, `--init` and
+  interactive); OQ109 item 12. Not met here: the wizard showing the refusal on its Project step is
+  L3.2's.
 
 ## Phase L2 — `yh`
 
