@@ -42,10 +42,12 @@ enum BoardBinding {
         credentials store: KeychainCredentialStore = KeychainCredentialStore(),
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
     ) -> ActBoard {
+        let refreshes = AppInstallationTokenRefreshLog()
         let adapter = makeLinearAdapter(
-            machine: machine, linearProjectID: project.linearProject, credentials: store, homeDirectory: homeDirectory
+            machine: machine, linearProjectID: project.linearProject, credentials: store, homeDirectory: homeDirectory,
+            refreshLog: refreshes
         )
-        return ActBoard(reading: adapter, writing: adapter, provisioning: adapter)
+        return ActBoard(reading: adapter, writing: adapter, provisioning: adapter, tokenRefreshes: refreshes)
     }
 
     /// Binds directly from an already-resolved Linear project id, for `yh setup`/`yh doctor`, which
@@ -67,13 +69,16 @@ enum BoardBinding {
         machine: MachineConfiguration,
         linearProjectID: String,
         credentials store: KeychainCredentialStore,
-        homeDirectory: URL
+        homeDirectory: URL,
+        refreshLog: AppInstallationTokenRefreshLog? = nil
     ) -> LinearAdapter {
         let installationStore = LinearInstallationStore(
             reference: machine.linearCredential,
             keychain: store,
             machineLock: MachineLock(fileURL: MachineLock.defaultFileURL(homeDirectory: homeDirectory))
         )
-        return LinearAdapter(linearProjectID: linearProjectID, tokenStore: installationStore.tokenStore)
+        return LinearAdapter(
+            linearProjectID: linearProjectID, tokenStore: installationStore.tokenStore, refreshLog: refreshLog
+        )
     }
 }

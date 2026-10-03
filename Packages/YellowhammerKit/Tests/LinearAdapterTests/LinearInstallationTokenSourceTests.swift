@@ -214,3 +214,208 @@ struct LinearInstallationTokenSourceTests {
         #expect(transport.requests.count == 1)
     }
 }
+
+@Suite("Linear Installation token source: refresh records")
+struct TokenRefreshRecordTests {
+    private static func state(
+        secondsFromNow: TimeInterval, clock: ManualClock, accessToken: String = "access-1"
+    ) -> FakeTokenStoreState {
+        FakeTokenStoreState(LinearTokenPair(
+            accessToken: accessToken, refreshToken: "refresh-1",
+            expiresAt: clock.read().addingTimeInterval(secondsFromNow)
+        ))
+    }
+
+    @Test("A near-expiry refresh that succeeds records one `refreshed` record with both expiries")
+    func nearExpirySuccess() async throws {
+        let clock = ManualClock()
+        let state = Self.state(secondsFromNow: 3600, clock: clock)
+        let log = AppInstallationTokenRefreshLog()
+        let transport = StubHTTPTransport([
+            Fixture.installationGrant(accessToken: "access-2", refreshToken: "refresh-2", expiresIn: 7200)
+        ])
+        let source = LinearInstallationTokenSource(
+            store: state.store(), transport: transport, clock: clock.read, refreshLog: log
+        )
+
+        _ = try await source.token()
+
+        let start = clock.read()
+        #expect(log.drain() == [AppInstallationTokenRefresh(
+            attemptedAt: start, trigger: .nearExpiry, previousExpiresAt: start.addingTimeInterval(3600),
+            outcome: .refreshed(expiresAt: start.addingTimeInterval(7200))
+        )])
+        #expect(log.drain().isEmpty, "a record is handed out once")
+    }
+
+    @Test("A 401 invalid_client records one `refused` record with status, code and description")
+    func refusedRecordsStatusCodeAndDescription() async throws {
+        let clock = ManualClock()
+        let state = Self.state(secondsFromNow: 60, clock: clock)
+        let log = AppInstallationTokenRefreshLog()
+        let transport = StubHTTPTransport([
+            Fixture.json(
+                #"{"error":"invalid_client","error_description":"Client authentication failed"}"#, status: 401
+            )
+        ])
+        let source = LinearInstallationTokenSource(
+            store: state.store(), transport: transport, clock: clock.read, refreshLog: log
+        )
+
+        do {
+            _ = try await source.token()
+            Issue.record("expected a throw")
+        } catch .notAuthenticated(let message) {
+            #expect(message.hasSuffix("HTTP 401 (invalid_client: Client authentication failed)"))
+        } catch {
+            Issue.record("unexpected error type: \(error)")
+        }
+
+        let records = log.drain()
+        #expect(records.count == 1)
+        let record = try #require(records.first)
+        #expect(record.trigger == .nearExpiry)
+        guard case .refused(let refusal) = record.outcome else {
+            Issue.record("expected refused")
+            return
+        }
+        #expect(refusal.status == 401)
+        #expect(refusal.code == "invalid_client")
+        #expect(refusal.description == "Client authentication failed")
+        #expect(refusal.message.contains("invalid_client: Client authentication failed"))
+    }
+
+    @Test("A transport failure records `refused` with no status")
+    func transportFailureHasNoStatus() async throws {
+        let clock = ManualClock()
+        let state = Self.state(secondsFromNow: 60, clock: clock)
+        let log = AppInstallationTokenRefreshLog()
+        let transport = StubHTTPTransport([.failure(.notConnectedToInternet)])
+        let source = LinearInstallationTokenSource(
+            store: state.store(), transport: transport, clock: clock.read, refreshLog: log
+        )
+
+        _ = try? await source.token()
+
+        guard case .unreachable(let message)? = log.drain().first?.outcome else {
+            Issue.record("expected unreachable")
+            return
+        }
+        #expect(message.contains("could not be reached"))
+    }
+
+    @Test("A 2xx with an unreadable body records `notStored`, not a refusal")
+    func unreadableBodyIsNotStored() async throws {
+        let clock = ManualClock()
+        let log = AppInstallationTokenRefreshLog()
+        let source = LinearInstallationTokenSource(
+            store: Self.state(secondsFromNow: 60, clock: clock).store(),
+            transport: StubHTTPTransport([Fixture.json("not json at all", status: 200)]),
+            clock: clock.read, refreshLog: log
+        )
+
+        _ = try? await source.token()
+
+        guard case .notStored(let message)? = log.drain().first?.outcome else {
+            Issue.record("expected notStored")
+            return
+        }
+        #expect(!message.isEmpty)
+    }
+
+    @Test("A 2xx whose new pair cannot be written records `notStored`")
+    func storeWriteFailureIsNotStored() async throws {
+        struct WriteFailed: Error {}
+        let clock = ManualClock()
+        let log = AppInstallationTokenRefreshLog()
+        let original = LinearTokenPair(
+            accessToken: "access-1", refreshToken: "refresh-1",
+            expiresAt: clock.read().addingTimeInterval(60)
+        )
+        let store = LinearTokenStore(
+            read: { original }, write: { _ in throw WriteFailed() }, withRefreshLock: { body in try await body() }
+        )
+        let source = LinearInstallationTokenSource(
+            store: store,
+            transport: StubHTTPTransport([Fixture.installationGrant(accessToken: "a2", refreshToken: "r2")]),
+            clock: clock.read, refreshLog: log
+        )
+
+        _ = try? await source.token()
+
+        let records = log.drain()
+        #expect(records.count == 1)
+        guard case .notStored(let message)? = records.first?.outcome else {
+            Issue.record("expected notStored")
+            return
+        }
+        #expect(!message.isEmpty)
+    }
+
+    @Test("The forced path after a rejected access token records trigger access-token-rejected")
+    func forcedPathTrigger() async throws {
+        let clock = ManualClock()
+        let state = Self.state(secondsFromNow: 5 * 3600, clock: clock)
+        let log = AppInstallationTokenRefreshLog()
+        let transport = StubHTTPTransport([
+            Fixture.installationGrant(accessToken: "access-2", refreshToken: "refresh-2")
+        ])
+        let source = LinearInstallationTokenSource(
+            store: state.store(), transport: transport, clock: clock.read, refreshLog: log
+        )
+
+        _ = try await source.recoverFromUnauthorized(rejected: "access-1")
+
+        let records = log.drain()
+        #expect(records.count == 1)
+        #expect(records.first?.trigger == .accessTokenRejected)
+    }
+
+    @Test("No refresh needed records nothing; a nil log breaks nothing")
+    func noRefreshNoRecord() async throws {
+        let clock = ManualClock()
+        let log = AppInstallationTokenRefreshLog()
+        let fresh = LinearInstallationTokenSource(
+            store: Self.state(secondsFromNow: 5 * 3600, clock: clock).store(),
+            transport: StubHTTPTransport([]), clock: clock.read, refreshLog: log
+        )
+        _ = try await fresh.token()
+        #expect(log.drain().isEmpty)
+
+        let unlogged = LinearInstallationTokenSource(
+            store: Self.state(secondsFromNow: 60, clock: clock).store(),
+            transport: StubHTTPTransport([Fixture.installationGrant(accessToken: "a2", refreshToken: "r2")]),
+            clock: clock.read
+        )
+        #expect(try await unlogged.token() == "a2")
+    }
+
+    @Test("No record or stored payload carries an old or new token, even when Linear echoes one")
+    func recordsCarryNoTokens() async throws {
+        let clock = ManualClock()
+        let log = AppInstallationTokenRefreshLog()
+        let echoed = Self.state(secondsFromNow: 60, clock: clock, accessToken: "old-access-secret")
+        let refused = LinearInstallationTokenSource(
+            store: echoed.store(),
+            transport: StubHTTPTransport([Fixture.json(
+                #"{"error":"invalid_grant","error_description":"bad old-access-secret and refresh-1"}"#, status: 400
+            )]),
+            clock: clock.read, refreshLog: log
+        )
+        _ = try? await refused.token()
+        let succeeded = LinearInstallationTokenSource(
+            store: Self.state(secondsFromNow: 60, clock: clock, accessToken: "old-access-secret").store(),
+            transport: StubHTTPTransport([
+                Fixture.installationGrant(accessToken: "new-access-secret", refreshToken: "new-refresh-secret")
+            ]),
+            clock: clock.read, refreshLog: log
+        )
+        _ = try await succeeded.token()
+
+        let text = String(describing: log.drain())
+        #expect(text.contains("<redacted>"))
+        for secret in ["old-access-secret", "refresh-1", "new-access-secret", "new-refresh-secret"] {
+            #expect(!text.contains(secret), "\(secret) leaked into a refresh record")
+        }
+    }
+}

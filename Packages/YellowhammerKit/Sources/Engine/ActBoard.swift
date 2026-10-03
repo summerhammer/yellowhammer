@@ -12,7 +12,15 @@ public struct ActBoard: Sendable {
     public let writing: any BoardWriting
     public let provisioning: any BoardProvisioning
 
-    public init(reading: any Board, writing: any BoardWriting, provisioning: any BoardProvisioning) {
+    /// The refresh attempts this Act's board made of the App Installation's token pair; the Engine
+    /// drains it into the Journal. Nil for a board that records none.
+    public let tokenRefreshes: AppInstallationTokenRefreshLog?
+
+    public init(
+        reading: any Board, writing: any BoardWriting, provisioning: any BoardProvisioning,
+        tokenRefreshes: AppInstallationTokenRefreshLog? = nil
+    ) {
+        self.tokenRefreshes = tokenRefreshes
         self.reading = reading
         self.writing = writing
         self.provisioning = provisioning

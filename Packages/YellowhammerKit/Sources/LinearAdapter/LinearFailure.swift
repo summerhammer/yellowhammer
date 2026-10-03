@@ -40,9 +40,20 @@ struct LinearFailure {
         if (500..<600).contains(response.statusCode) {
             return .unreachable(scrub("Linear answered with HTTP \(response.statusCode)"))
         }
-        let code = (try? JSONDecoder().decode(OAuthError.self, from: data))?.error.map { " (\($0))" } ?? ""
+        let detail = refusalDetail(data)
+        let described = [detail.code, detail.description].compactMap { $0 }.joined(separator: ": ")
+        let code = described.isEmpty ? "" : " (\(described))"
         let message = "Linear refused Yellowhammer's sign-in with HTTP \(response.statusCode)\(code)"
         return .notAuthenticated(scrub(message))
+    }
+
+    /// The OAuth `error` and `error_description` of a refusal's body, each scrubbed; nil when absent.
+    func refusalDetail(_ data: Data) -> (code: String?, description: String?) {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let body = try? decoder.decode(OAuthError.self, from: data)
+        let description = body?.errorDescription.map(scrub).flatMap { $0.isEmpty ? nil : $0 }
+        return (body?.error.map(scrub), description)
     }
 
     /// A non-2xx GraphQL response. Nil when the status is a success.
@@ -139,12 +150,13 @@ struct LinearFailure {
         }
     }
 
-    private func scrub(_ message: String) -> String {
+    func scrub(_ message: String) -> String {
         secrets.filter { !$0.isEmpty }.reduce(message) { $0.replacingOccurrences(of: $1, with: "<redacted>") }
     }
 
     private struct OAuthError: Decodable {
         let error: String?
+        let errorDescription: String?
     }
 
     struct Empty: Decodable {}

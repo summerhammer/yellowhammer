@@ -58,7 +58,7 @@ func eventTypeRawValues() {
         "AuthoringHaltCleared", "FeatureClosedByMerge", "FeatureSettled", "FeatureReleased",
         "SettleValueNotHonoured", "CardUnansweredBoundFired",
         "AdoptionRefused", "CardAdopted", "AdoptionUntestable",
-        "FeatureReselected", "ReselectionBoundReached", "RefusalPromotedToStandingItem",
+        "FeatureReselected", "ReselectionBoundReached", "RefusalPromotedToStandingItem", "AppInstallationTokenRefresh",
         "CardPromotedToStandingItem", "ProjectRemoved"
     ]
     let actual = JournalEventType.allCases.map { $0.rawValue }.sorted()
@@ -351,4 +351,42 @@ func cardLeaseReclaimedRoundTrips() throws {
     #expect(readCardID == cardID)
     #expect(readRunID == previousRun)
     #expect(readExpiredAt == expiredAt)
+}
+
+@Test("appInstallationTokenRefresh events round-trip, refreshed and refused, and carry no token keys")
+func appInstallationTokenRefreshRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+    let previous = epoch.addingTimeInterval(60)
+    let refreshed = AppInstallationTokenRefresh(
+        attemptedAt: epoch, trigger: .nearExpiry, previousExpiresAt: previous,
+        outcome: .refreshed(expiresAt: epoch.addingTimeInterval(7200))
+    )
+    let refused = AppInstallationTokenRefresh(
+        attemptedAt: epoch, trigger: .accessTokenRejected, previousExpiresAt: previous,
+        outcome: .refused(.init(status: 401, code: "invalid_client", description: "No", message: "m"))
+    )
+    let transport = AppInstallationTokenRefresh(
+        attemptedAt: epoch, trigger: .nearExpiry, previousExpiresAt: previous,
+        outcome: .unreachable(message: "unreachable")
+    )
+    let notStored = AppInstallationTokenRefresh(
+        attemptedAt: epoch, trigger: .nearExpiry, previousExpiresAt: previous,
+        outcome: .notStored(message: "could not store")
+    )
+
+    for refresh in [refreshed, refused, transport, notStored] {
+        try journal.append(.appInstallationTokenRefresh(refresh), act: .build, runID: run, now: epoch)
+    }
+    let records = try journal.events()
+
+    #expect(records.map(\.event) == [refreshed, refused, transport, notStored].map { .appInstallationTokenRefresh($0) })
+    #expect(records.allSatisfy { $0.type == .appInstallationTokenRefresh })
+    #expect([refreshed, refused, transport, notStored].map {
+        JournalEvent.appInstallationTokenRefresh($0).payload?["outcome"]
+    } == ["refreshed", "refused", "unreachable", "not-stored"])
+    #expect(JournalEvent.appInstallationTokenRefresh(refused).payload?.keys.sorted() == [
+        "attempted_at", "code", "description", "message", "outcome", "previous_expires_at", "status", "trigger"
+    ])
 }

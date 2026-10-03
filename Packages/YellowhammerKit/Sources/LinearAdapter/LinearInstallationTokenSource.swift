@@ -18,14 +18,17 @@ actor LinearInstallationTokenSource {
     private let store: LinearTokenStore
     private let transport: any HTTPTransport
     private let clock: @Sendable () -> Date
+    private let refreshLog: AppInstallationTokenRefreshLog?
     private var cached: LinearTokenPair?
 
     init(
         clientID: String = LinearAppInstallation.clientID,
         store: LinearTokenStore,
         transport: any HTTPTransport,
-        clock: @escaping @Sendable () -> Date = { Date() }
+        clock: @escaping @Sendable () -> Date = { Date() },
+        refreshLog: AppInstallationTokenRefreshLog? = nil
     ) {
+        self.refreshLog = refreshLog
         self.clientID = clientID
         self.store = store
         self.transport = transport
@@ -58,7 +61,7 @@ actor LinearInstallationTokenSource {
             cached = pair
             return pair.accessToken
         }
-        return try await refreshAndStore(pair)
+        return try await refreshAndStore(pair, trigger: .nearExpiry)
     }
 
     private func forceRefreshed(rejected: String) async throws(BoardError) -> String {
@@ -67,12 +70,33 @@ actor LinearInstallationTokenSource {
             cached = pair
             return pair.accessToken
         }
-        return try await refreshAndStore(pair)
+        return try await refreshAndStore(pair, trigger: .accessTokenRejected)
     }
 
-    private func refreshAndStore(_ pair: LinearTokenPair) async throws(BoardError) -> String {
-        let refreshed = try await performRefresh(refreshToken: pair.refreshToken)
-        try writePair(refreshed)
+    private func refreshAndStore(
+        _ pair: LinearTokenPair, trigger: AppInstallationTokenRefresh.Trigger
+    ) async throws(BoardError) -> String {
+        let attemptedAt = clock()
+        func record(_ outcome: AppInstallationTokenRefresh.Outcome) {
+            refreshLog?.record(AppInstallationTokenRefresh(
+                attemptedAt: attemptedAt, trigger: trigger, previousExpiresAt: pair.expiresAt, outcome: outcome
+            ))
+        }
+        let refreshed: LinearTokenPair
+        do throws(RefreshFailure) {
+            refreshed = try await performRefresh(replacing: pair)
+        } catch {
+            record(error.outcome)
+            throw error.boardError
+        }
+        do throws(BoardError) {
+            try writePair(refreshed)
+        } catch {
+            // Linear rotated the pair but it could not be stored; the message is already scrubbed.
+            record(.notStored(message: String(describing: error)))
+            throw error
+        }
+        record(.refreshed(expiresAt: refreshed.expiresAt))
         cached = refreshed
         return refreshed.accessToken
     }
@@ -107,28 +131,60 @@ actor LinearInstallationTokenSource {
         }
     }
 
-    private func performRefresh(refreshToken: String) async throws(BoardError) -> LinearTokenPair {
+    /// A refresh that did not yield a stored pair: the error the Act reports, and the outcome the
+    /// Journal records (never `.refreshed`).
+    private struct RefreshFailure: Error {
+        let boardError: BoardError
+        let outcome: AppInstallationTokenRefresh.Outcome
+
+        static func unreachable(_ boardError: BoardError) -> RefreshFailure {
+            RefreshFailure(boardError: boardError, outcome: .unreachable(message: String(describing: boardError)))
+        }
+
+        static func refused(
+            _ boardError: BoardError, status: Int, code: String?, description: String?
+        ) -> RefreshFailure {
+            RefreshFailure(boardError: boardError, outcome: .refused(.init(
+                status: status, code: code, description: description, message: String(describing: boardError)
+            )))
+        }
+
+        /// Linear answered 2xx but its body was not a usable token pair.
+        static func notStored(_ boardError: BoardError) -> RefreshFailure {
+            RefreshFailure(boardError: boardError, outcome: .notStored(message: String(describing: boardError)))
+        }
+    }
+
+    private func performRefresh(replacing pair: LinearTokenPair) async throws(RefreshFailure) -> LinearTokenPair {
         var request = URLRequest(url: LinearAppInstallation.tokenEndpoint)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.httpBody = Data(LinearAppInstallation.formBody([
             ("grant_type", "refresh_token"),
-            ("refresh_token", refreshToken),
+            ("refresh_token", pair.refreshToken),
             ("client_id", clientID)
         ]).utf8)
 
-        let failure = LinearFailure(secrets: secrets + [refreshToken])
+        let failure = LinearFailure(secrets: secrets + [pair.accessToken, pair.refreshToken])
         let data: Data
         let response: HTTPURLResponse
         do {
             (data, response) = try await transport.send(request)
         } catch {
-            throw failure.transport(error)
+            throw .unreachable(failure.transport(error))
         }
         guard (200..<300).contains(response.statusCode) else {
-            throw failure.installationTokenRefused(data, response)
+            let detail = failure.refusalDetail(data)
+            throw .refused(
+                failure.installationTokenRefused(data, response),
+                status: response.statusCode, code: detail.code, description: detail.description
+            )
         }
-        return try LinearAppInstallation.decodeTokenPair(data, clock: clock, failure: failure)
+        do {
+            return try LinearAppInstallation.decodeTokenPair(data, clock: clock, failure: failure)
+        } catch {
+            throw .notStored(error)
+        }
     }
 
     /// Runs `body` inside `store.withRefreshLock`, translating whatever it throws back into
