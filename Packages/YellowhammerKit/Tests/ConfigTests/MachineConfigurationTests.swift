@@ -175,25 +175,6 @@ func absentOperatorIsNil() throws {
     #expect(configuration.linearInstallations.first?.operatorIdentity == nil)
 }
 
-@Test("soleLinearInstallation is nil for zero or two entries and the entry for exactly one")
-func soleInstallation() throws {
-    func installation(_ name: String) throws -> LinearInstallation {
-        LinearInstallation(
-            name: name, credential: try credential("keychain:\(name)"),
-            workspace: BoardObjectID(rawValue: "ws-\(name)"), appUser: BoardObjectID(rawValue: "au-\(name)")
-        )
-    }
-    func machine(_ installations: [LinearInstallation]) throws -> MachineConfiguration {
-        MachineConfiguration(
-            linearInstallations: installations, gitHubCredential: try credential("keychain:github"),
-            cliAdapters: [], routingTable: []
-        )
-    }
-    #expect(try machine([]).soleLinearInstallation == nil)
-    #expect(try machine([installation("a")]).soleLinearInstallation == (try installation("a")))
-    #expect(try machine([installation("a"), installation("b")]).soleLinearInstallation == nil)
-}
-
 @Test("linearInstallation(for:) returns the Project's own entry among several")
 func installationForProject() throws {
     func installation(_ name: String) throws -> LinearInstallation {

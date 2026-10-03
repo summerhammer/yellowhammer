@@ -9,6 +9,7 @@ struct AddProjectDraftInvocationTests {
     func complete() throws {
         let draft = completeAddProjectDraft()
         let expected = SetupInvocation(
+            installation: "acme",
             project: SetupInvocation.Project(
                 id: "acme", name: "Acme", linearProject: .existing("ACME"), specSource: "/work/acme-spec",
                 repos: [
@@ -21,7 +22,8 @@ struct AddProjectDraftInvocationTests {
         )
         #expect(draft.setupInvocation == expected)
         #expect(try draft.setupInvocation.arguments() == [
-            "setup", "--init", "--project", "acme", "--project-name", "Acme", "--linear-project", "ACME",
+            "setup", "--init", "--installation", "acme", "--project", "acme", "--project-name", "Acme",
+            "--linear-project", "ACME",
             "--spec-source", "/work/acme-spec", "--repo", "acme-backend,backend,/work/acme-backend,make test",
             "--install-jobs"
         ])
@@ -97,10 +99,10 @@ struct AddProjectDraftInvocationTests {
         #expect(draft.setupInvocation.jobs == .export(directory: "/out", cron: false))
     }
 
-    @Test("The context's Linear App Installation is passed as --installation")
-    func contextInstallationIsCarried() throws {
+    @Test("The draft's selected Linear App Installation is passed as --installation")
+    func draftInstallationIsCarried() throws {
         var draft = completeAddProjectDraft()
-        draft.context.linearInstallationName = "acme"
+        draft.linearInstallationName = "acme"
         let invocation = draft.setupInvocation
         #expect(invocation.installation == "acme")
         let arguments = try invocation.arguments()
@@ -111,7 +113,6 @@ struct AddProjectDraftInvocationTests {
     @Test("Nothing machine-wide is carried")
     func nothingMachineWide() {
         let invocation = completeAddProjectDraft().setupInvocation
-        #expect(invocation.installation == nil)
         #expect(invocation.githubCredential == nil)
         #expect(invocation.cliAdapters.isEmpty)
         #expect(invocation.route == nil)

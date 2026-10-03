@@ -70,6 +70,8 @@ struct AddProjectDraftStatusTests {
     @Test("Linear project problems")
     func linearProblems() {
         var draft = AddProjectDraft()
+        draft.context.linearInstallations = [addProjectInstallation()]
+        draft.selectLinearInstallation("acme")
         #expect(draft.problems(in: .linearProject) == ["Choose the Linear project, or create one in a team."])
         draft.linearProjectID = "   "
         #expect(!draft.isComplete(.linearProject))

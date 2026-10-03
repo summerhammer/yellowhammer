@@ -85,7 +85,8 @@ struct SetupLinearInstallTests {
         #expect(opened.urls.count == 1)
         #expect(try store.tokenStore.read() != nil)
         let machine = try MachineConfiguration.load(contentsOf: directory.url.appending(component: "config.toml"))
-        let installation = try #require(machine.soleLinearInstallation)
+        #expect(machine.linearInstallations.count == 1)
+        let installation = try #require(machine.linearInstallations.first)
         #expect(installation.workspace == BoardObjectID(rawValue: "workspace-1"))
         #expect(installation.appUser == BoardObjectID(rawValue: "app-user-1"))
         #expect(installation.operatorIdentity == BoardObjectID(rawValue: "user-op"))
@@ -126,7 +127,8 @@ struct SetupLinearInstallTests {
         try await setup.run()
 
         let machine = try MachineConfiguration.load(contentsOf: directory.url.appending(component: "config.toml"))
-        #expect(machine.soleLinearInstallation?.operatorIdentity == BoardObjectID(rawValue: "user-op"))
+        #expect(machine.linearInstallations.count == 1)
+        #expect(machine.linearInstallations.first?.operatorIdentity == BoardObjectID(rawValue: "user-op"))
         // Untouched: the Project file's content, byte for byte.
         let projectPath = directory.url.appending(components: "projects", "demo.toml")
         #expect(FileManager.default.fileExists(atPath: projectPath.path(percentEncoded: false)))

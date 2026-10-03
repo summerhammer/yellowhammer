@@ -29,49 +29,46 @@ struct SetupReadinessTests {
         )
     }
 
-    @Test("Everything present blocks nothing")
+    @Test("A route present blocks nothing")
     func allPresent() throws {
-        let readiness = SetupReadiness(linearInstalled: true, machine: try machine())
+        let readiness = SetupReadiness(machine: try machine())
         #expect(readiness.missing.isEmpty)
         #expect(!readiness.blocksAddProject)
     }
 
-    @Test("Each prerequisite missing on its own blocks with exactly that one")
-    func eachAlone() throws {
-        let noLinear = SetupReadiness(linearInstalled: false, machine: try machine())
-        #expect(noLinear.missing == [.linearInstallation])
-        #expect(noLinear.blocksAddProject)
-
-        let noOperator = SetupReadiness(linearInstalled: true, machine: try machine(operatorIdentity: nil))
-        #expect(noOperator.missing == [.operatorIdentity])
-
-        let noRoute = SetupReadiness(linearInstalled: true, machine: try machine(adapters: ["codex"]))
-        #expect(noRoute.missing == [.agentCLIRoute])
+    @Test("A missing Operator identity does not block: the Linear step owns it")
+    func operatorIdentityIsNotAPrerequisite() throws {
+        #expect(SetupReadiness(machine: try machine(operatorIdentity: nil)).missing.isEmpty)
     }
 
-    @Test("No machine file lacks the Operator identity and the route")
+    @Test("A missing route blocks with exactly that one")
+    func noRoute() throws {
+        let readiness = SetupReadiness(machine: try machine(adapters: ["codex"]))
+        #expect(readiness.missing == [.agentCLIRoute])
+        #expect(readiness.blocksAddProject)
+    }
+
+    @Test("No machine file lacks the route")
     func noMachine() {
-        let readiness = SetupReadiness(linearInstalled: true, machine: nil)
-        #expect(readiness.missing == [.operatorIdentity, .agentCLIRoute])
-        let none = SetupReadiness(linearInstalled: false, machine: nil)
-        #expect(none.missing == SetupReadiness.Prerequisite.allCases)
+        let readiness = SetupReadiness(machine: nil)
+        #expect(readiness.missing == SetupReadiness.Prerequisite.allCases)
+        #expect(readiness.missing == [.agentCLIRoute])
     }
 
     @Test("A fallback naming a declared CLI counts; a route naming an undeclared CLI does not")
     func fallbackCounts() throws {
         let viaFallback = SetupReadiness(
-            linearInstalled: true, machine: try machine(adapters: ["codex"], route: "claude", fallbacks: ["codex"])
+            machine: try machine(adapters: ["codex"], route: "claude", fallbacks: ["codex"])
         )
         #expect(viaFallback.missing.isEmpty)
         let undeclared = SetupReadiness(
-            linearInstalled: true, machine: try machine(adapters: ["codex"], route: "claude", fallbacks: ["gemini"])
+            machine: try machine(adapters: ["codex"], route: "claude", fallbacks: ["gemini"])
         )
         #expect(undeclared.missing == [.agentCLIRoute])
     }
 
     @Test("Every prerequisite has a title")
     func titles() {
-        #expect(SetupReadiness.Prerequisite.allCases.map(\.title)
-            == ["Linear installation", "Operator identity", "An agent CLI with a route"])
+        #expect(SetupReadiness.Prerequisite.allCases.map(\.title) == ["An agent CLI with a route"])
     }
 }

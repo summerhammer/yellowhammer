@@ -1,16 +1,13 @@
 import Domain
 
-/// Whether each machine-wide prerequisite of Add Project is present.
+/// Whether each machine-wide prerequisite of Add Project is present. Linear and the Operator identity
+/// are not among them: the wizard's Linear step chooses the Linear workspace and its Operator identity.
 public struct SetupReadiness: Equatable, Sendable {
     public enum Prerequisite: CaseIterable, Sendable {
-        case linearInstallation
-        case operatorIdentity
         case agentCLIRoute
 
         public var title: String {
             switch self {
-            case .linearInstallation: "Linear installation"
-            case .operatorIdentity: "Operator identity"
             case .agentCLIRoute: "An agent CLI with a route"
             }
         }
@@ -19,16 +16,10 @@ public struct SetupReadiness: Equatable, Sendable {
     /// The prerequisites that are absent, in `allCases` order.
     public let missing: [Prerequisite]
 
-    /// `linearInstalled` is what `yh doctor --check linear` reported. A nil `machine` is a Mac with no
-    /// loadable `config.toml`: it has neither an Operator identity nor a route.
-    public init(linearInstalled: Bool, machine: MachineConfiguration?) {
-        let hasOperator = machine?.soleLinearInstallation?.operatorIdentity != nil
+    /// A nil `machine` is a Mac with no loadable `config.toml`: it has no route.
+    public init(machine: MachineConfiguration?) {
         let hasRoute = machine?.hasRouteToDeclaredCLI ?? false
-        let present: [Prerequisite: Bool] = [
-            .linearInstallation: linearInstalled,
-            .operatorIdentity: hasOperator,
-            .agentCLIRoute: hasRoute
-        ]
+        let present: [Prerequisite: Bool] = [.agentCLIRoute: hasRoute]
         missing = Prerequisite.allCases.filter { present[$0] != true }
     }
 

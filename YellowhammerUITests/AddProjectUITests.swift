@@ -20,7 +20,7 @@ import XCTest
 /// XCTest, not Swift Testing: the `Testing` module is unavailable in a UI testing bundle.
 @MainActor
 final class AddProjectUITests: XCTestCase {
-    private var configurationDirectory: URL!
+    var configurationDirectory: URL!
     var app: XCUIApplication!
     /// Real, unsandboxed `/tmp` paths (never inside the UI test runner's own container, which the
     /// app-spawned stub cannot write into): the stub's only cross-invocation state, for the
@@ -31,26 +31,17 @@ final class AddProjectUITests: XCTestCase {
     /// Where the stub's `--init` writes the Project file; the configuration's `projects` folder is a symlink
     /// to it, so the app finds the new Project where the real `yh setup --init` would put it.
     private var projectsDirectory: URL!
+    /// The stub's argument log (`YH_STUB_ARGV_LOG`), one line per recorded `yh` call; set in every test.
+    var argvLog: URL!
+    /// `config/config.toml`, in the runner's container. The stub can read it but not write it, so the edits
+    /// `yh` would make to it (a connected entry, a saved Operator identity) are made by the test, behind the
+    /// stub's gates (`YH_STUB_GATE_DIR`, ``openGate(_:)``).
+    var machineFile: URL!
+    /// The stub's gate directory, in the runner's container.
+    private var gateDirectory: URL!
 
     /// The one folder every pick returns. It need not exist: the stub `yh` never reads it.
     static let pickedFolder = "/tmp/acme-backend"
-
-    /// A machine file with every machine-wide prerequisite but the Linear installation: an Operator
-    /// identity, and a declared agent CLI with a route.
-    private static let readyMachineTOML = """
-    [board.linear.installations.acme]
-    credential = "keychain:linear"
-    workspace = "workspace-1"
-    app_user = "app-user-1"
-    operator = "user-op"
-    [github]
-    credential = "keychain:github"
-
-    [cli.claude]
-
-    [[routing]]
-    route = "claude/sonnet/medium"
-    """
 
     override func setUp() async throws {
         continueAfterFailure = false
@@ -58,8 +49,11 @@ final class AddProjectUITests: XCTestCase {
             .appending(component: "yellowhammer-setup-ui-\(UUID().uuidString)", directoryHint: .isDirectory)
         configurationDirectory = base.appending(component: "config", directoryHint: .isDirectory)
         let stubDirectory = base.appending(component: "stub", directoryHint: .isDirectory)
+        gateDirectory = base.appending(component: "gates", directoryHint: .isDirectory)
+        machineFile = configurationDirectory.appending(component: "config.toml", directoryHint: .notDirectory)
         try FileManager.default.createDirectory(at: configurationDirectory, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: stubDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: gateDirectory, withIntermediateDirectories: true)
 
         let stubURL = try EngineStub.write(in: stubDirectory)
         let uniqueSuffix = UUID().uuidString
@@ -67,6 +61,7 @@ final class AddProjectUITests: XCTestCase {
         attemptsMarker = URL(filePath: "/tmp/yh-uitest-attempts-\(uniqueSuffix)")
         checkedMarker = URL(filePath: "/tmp/yh-uitest-checked-\(uniqueSuffix)")
         projectsDirectory = URL(filePath: "/tmp/yh-uitest-projects-\(uniqueSuffix)", directoryHint: .isDirectory)
+        argvLog = URL(filePath: "/tmp/yh-uitest-argv-\(uniqueSuffix)")
         try FileManager.default.createSymbolicLink(
             at: configurationDirectory.appending(component: "projects", directoryHint: .isDirectory),
             withDestinationURL: projectsDirectory
@@ -83,33 +78,28 @@ final class AddProjectUITests: XCTestCase {
             "YH_STUB_INSTALLED_MARKER": installedMarker.path(percentEncoded: false),
             "YH_STUB_ATTEMPTS_MARKER": attemptsMarker.path(percentEncoded: false),
             "YH_STUB_CHECKED_MARKER": checkedMarker.path(percentEncoded: false),
-            "YH_STUB_PROJECTS_DIR": projectsDirectory.path(percentEncoded: false)
+            "YH_STUB_PROJECTS_DIR": projectsDirectory.path(percentEncoded: false),
+            "YH_STUB_ARGV_LOG": argvLog.path(percentEncoded: false),
+            "YH_STUB_GATE_DIR": gateDirectory.path(percentEncoded: false)
         ]
     }
 
-    /// `machineReady`: writes ``readyMachineTOML``, so only the Linear installation can be missing.
-    /// `linearInstalled`: the stub's `doctor --check linear` reports an installation from the start.
-    /// `linearInstalledOnce`: only its first `doctor --check linear` reports one; the installation is
-    /// revoked after that.
+    /// `machine`: the `config.toml` to start from (``readyMachineTOML`` and its siblings); nil is a Mac where
+    /// Setup has never run, with no `config.toml`.
+    /// `connectName`: the local name the stub's next connect reports (`YH_STUB_CONNECT_NAME`).
     /// `portsBusyFirst`: the stub's first `--install-linear` attempt reports every port busy; the
     /// second (a Retry) installs, matching OQ94's "setup stops before the browser" then a fresh attempt.
     /// `relayUnreachable`: a `--remote` attempt fails with `relayUnreachable` instead of issuing a link
     /// (roadmap P17.9).
-    private func launchApp(
-        machineReady: Bool = false, linearInstalled: Bool = false, linearInstalledOnce: Bool = false,
-        portsBusyFirst: Bool = false, relayUnreachable: Bool = false
+    func launchApp(
+        machine: String? = nil, connectName: String? = nil, portsBusyFirst: Bool = false,
+        relayUnreachable: Bool = false
     ) throws {
-        if machineReady {
-            try Self.readyMachineTOML.write(
-                to: configurationDirectory.appending(component: "config.toml", directoryHint: .notDirectory),
-                atomically: true, encoding: .utf8
-            )
+        if let machine {
+            try machine.write(to: machineFile, atomically: true, encoding: .utf8)
         }
-        if linearInstalled {
-            app.launchEnvironment["YH_STUB_LINEAR_INSTALLED"] = "1"
-        }
-        if linearInstalledOnce {
-            app.launchEnvironment["YH_STUB_LINEAR_INSTALLED_ONCE"] = "1"
+        if let connectName {
+            app.launchEnvironment["YH_STUB_CONNECT_NAME"] = connectName
         }
         if portsBusyFirst {
             app.launchEnvironment["YH_STUB_PORTS_BUSY_FIRST"] = "1"
@@ -120,6 +110,20 @@ final class AddProjectUITests: XCTestCase {
         app.launch()
     }
 
+    /// Appends `text` to `config.toml` as its own lines, as the edit a gated stub run stands for.
+    func appendToMachine(_ text: String) throws {
+        let handle = try FileHandle(forWritingTo: machineFile)
+        defer { try? handle.close() }
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data(("\n" + text + "\n").utf8))
+    }
+
+    /// Lets a stub run waiting on the gate `name` finish (`EngineStub.waitForGate`).
+    func openGate(_ name: String) {
+        let gate = gateDirectory.appending(component: name, directoryHint: .notDirectory)
+        XCTAssertTrue(FileManager.default.createFile(atPath: gate.path(percentEncoded: false), contents: nil))
+    }
+
     override func tearDown() async throws {
         app.terminate()
         try? FileManager.default.removeItem(at: configurationDirectory.deletingLastPathComponent())
@@ -127,6 +131,7 @@ final class AddProjectUITests: XCTestCase {
         try? FileManager.default.removeItem(at: attemptsMarker)
         try? FileManager.default.removeItem(at: checkedMarker)
         try? FileManager.default.removeItem(at: projectsDirectory)
+        try? FileManager.default.removeItem(at: argvLog)
     }
 
     // MARK: - Opening and cancelling
@@ -139,16 +144,18 @@ final class AddProjectUITests: XCTestCase {
         XCTAssertTrue(app.buttons["open-setup"].exists)
         XCTAssertTrue(app.buttons["sidebar-add-project"].exists)
         XCTAssertFalse(app.staticTexts["Yellowhammer can\u{2019}t read its configuration."].exists)
-        // The onboarding button opens the Add Project sheet, which offers the Linear installation first.
+        // The onboarding button opens the Add Project sheet, which asks for the agent CLI route first; the
+        // Linear workspace is chosen later, in the Linear step.
         app.buttons["open-setup"].click()
         let sheet = app.sheets.firstMatch
         XCTAssertTrue(sheet.waitForExistence(timeout: 10))
-        XCTAssertTrue(sheet.buttons["setup-linear-install"].waitForExistence(timeout: 10))
+        XCTAssertTrue(sheet.buttons["setup-open-settings-agentCLIRoute"].waitForExistence(timeout: 10))
+        XCTAssertFalse(sheet.buttons["setup-linear-install"].exists)
     }
 
     /// Cancelling the sheet closes it and leaves no Project file behind.
     func testCancelClosesTheSheetAndWritesNoProjectFile() throws {
-        try launchApp(machineReady: true, linearInstalled: true)
+        try launchApp(machine: Self.readyMachineTOML)
         let sheet = openAddProjectSheet()
         XCTAssertTrue(element("setup-step-project").waitForExistence(timeout: 10))
         typeName("Demo")
@@ -160,11 +167,10 @@ final class AddProjectUITests: XCTestCase {
         XCTAssertTrue(files.filter { $0.hasSuffix(".toml") }.isEmpty)
     }
 
-    /// Each time the sheet opens, it starts a fresh session: it checks the Linear installation again, so
-    /// a revocation made while it was closed shows up, and it keeps no draft and no step from the last
+    /// Each time the sheet opens, it starts a fresh session: it keeps no draft and no step from the last
     /// time it was open (issue #218).
     func testReopeningTheSheetStartsAFreshSession() throws {
-        try launchApp(machineReady: true, linearInstalledOnce: true)
+        try launchApp(machine: Self.readyMachineTOML)
         var sheet = openAddProjectSheet()
         XCTAssertTrue(element("setup-step-project").waitForExistence(timeout: 10))
         typeName("Demo")
@@ -173,135 +179,50 @@ final class AddProjectUITests: XCTestCase {
         sheet.buttons["setup-cancel"].click()
         XCTAssertTrue(sheet.waitForNonExistence(timeout: 10))
 
-        // The installation was revoked while the sheet was closed: reopening finds it missing.
+        // Reopened, the hub opens on the Project step with an empty name.
         sheet = openAddProjectSheet()
-        let install = sheet.buttons["setup-linear-install"]
-        XCTAssertTrue(install.waitForExistence(timeout: 10))
-        XCTAssertFalse(element("setup-step-project").exists)
-
-        // Installed again, the hub opens on the Project step with an empty name.
-        install.click()
         let name = app.textFields["setup-project-name"]
         XCTAssertTrue(name.waitForExistence(timeout: 10))
         XCTAssertEqual(name.value as? String, "")
+        XCTAssertTrue(sheet.buttons["setup-cancel"].exists)
     }
 
     /// The Settings window's Sidebar offers Add Project too.
     func testAddProjectFromSettingsOpensTheSheet() throws {
         try launchApp()
         let sheet = openAddProjectSheetFromSettings()
-        XCTAssertTrue(sheet.buttons["setup-linear-install"].waitForExistence(timeout: 10))
+        XCTAssertTrue(sheet.buttons["setup-open-settings-agentCLIRoute"].waitForExistence(timeout: 10))
         sheet.buttons["setup-cancel"].click()
         XCTAssertTrue(sheet.waitForNonExistence(timeout: 10))
     }
 
     // MARK: - Readiness
 
-    /// A Mac with nothing set up blocks Add Project: one row per missing prerequisite, the Linear one
-    /// fixed in place and the other two sent to Settings. Installing Linear clears only its own row.
-    func testReadinessBlocksAddProjectUntilEveryPrerequisiteIsPresent() throws {
+    /// A Mac with nothing set up blocks Add Project on the agent CLI route alone: the Linear workspace and
+    /// the Operator identity are chosen in the Linear step, so the panel has no row for them.
+    func testReadinessBlocksAddProjectUntilTheAgentCLIRouteIsPresent() throws {
         try launchApp()
         let sheet = openAddProjectSheet()
-        XCTAssertTrue(sheet.buttons["setup-linear-install"].waitForExistence(timeout: 10))
-        XCTAssertTrue(sheet.buttons["setup-open-settings-operatorIdentity"].exists)
-        XCTAssertTrue(sheet.buttons["setup-open-settings-agentCLIRoute"].exists)
-        XCTAssertFalse(element("setup-step-project").exists)
-        XCTAssertFalse(sheet.buttons["setup-add-project"].isEnabled)
-
-        sheet.buttons["setup-linear-install"].click()
-        XCTAssertTrue(sheet.buttons["setup-linear-install"].waitForNonExistence(timeout: 10))
-        XCTAssertTrue(sheet.buttons["setup-open-settings-operatorIdentity"].exists)
-        XCTAssertTrue(sheet.buttons["setup-open-settings-agentCLIRoute"].exists)
-        XCTAssertFalse(element("setup-step-project").exists)
-        XCTAssertFalse(sheet.buttons["setup-add-project"].isEnabled)
-    }
-
-    /// P17.7: with only the Linear installation missing, installing it in place opens the hub.
-    func testInstallingLinearInPlaceOpensTheHub() throws {
-        try launchApp(machineReady: true)
-        let sheet = openAddProjectSheet()
-
-        let installButton = sheet.buttons["setup-linear-install"]
-        XCTAssertTrue(installButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(sheet.buttons["setup-open-settings-agentCLIRoute"].waitForExistence(timeout: 10))
+        XCTAssertFalse(element("setup-readiness-linearInstallation").exists)
+        XCTAssertFalse(element("setup-readiness-operatorIdentity").exists)
         XCTAssertFalse(sheet.buttons["setup-open-settings-operatorIdentity"].exists)
-        XCTAssertFalse(sheet.buttons["setup-open-settings-agentCLIRoute"].exists)
-        installButton.click()
-
-        XCTAssertTrue(element("setup-step-project").waitForExistence(timeout: 10))
-    }
-
-    /// P17.7, OQ94: all three ports busy stops before the browser and offers Retry; a Retry re-runs
-    /// the attempt, which the stub then reports installed.
-    func testLinearPortsBusyThenRetryInstalls() throws {
-        try launchApp(machineReady: true, portsBusyFirst: true)
-        let sheet = openAddProjectSheet()
-
-        let installButton = sheet.buttons["setup-linear-install"]
-        XCTAssertTrue(installButton.waitForExistence(timeout: 10))
-        installButton.click()
-
-        let portsBusy = sheet.staticTexts["setup-linear-ports-busy"]
-        XCTAssertTrue(portsBusy.waitForExistence(timeout: 10))
-        let retryButton = sheet.buttons["setup-linear-retry"]
-        XCTAssertTrue(retryButton.exists)
-        retryButton.click()
-
-        XCTAssertTrue(element("setup-step-project").waitForExistence(timeout: 10))
-    }
-
-    /// P17.9: requesting remote approval shows the approval link and a waiting indicator, then opens the
-    /// hub once the stub reports `installed`.
-    func testLinearRemoteApprovalShowsLinkThenInstalls() throws {
-        try launchApp(machineReady: true)
-        let sheet = openAddProjectSheet()
-
-        let requestButton = sheet.buttons["setup-linear-request-remote"]
-        XCTAssertTrue(requestButton.waitForExistence(timeout: 10))
-        requestButton.click()
-
-        let link = sheet.staticTexts["setup-linear-approval-link"]
-        XCTAssertTrue(link.waitForExistence(timeout: 10))
-        let linkText = link.value as? String ?? link.label
-        XCTAssertTrue(linkText.contains("https://app.yellowhammer.dev/install/test-session"))
-        // A `ProgressView`, not a static text: matched by identifier across element types.
-        XCTAssertTrue(
-            sheet.descendants(matching: .any)["setup-linear-awaiting-remote"].waitForExistence(timeout: 10)
-        )
-
-        XCTAssertTrue(element("setup-step-project").waitForExistence(timeout: 10))
-    }
-
-    /// P17.9: a relay the Mac cannot reach offers both a retry and a local sign-in; the local sign-in
-    /// installs.
-    func testLinearRelayUnreachableOffersRetryAndLocalSignIn() throws {
-        try launchApp(machineReady: true, relayUnreachable: true)
-        let sheet = openAddProjectSheet()
-
-        let requestButton = sheet.buttons["setup-linear-request-remote"]
-        XCTAssertTrue(requestButton.waitForExistence(timeout: 10))
-        requestButton.click()
-
-        let retryButton = sheet.buttons["setup-linear-retry"]
-        let installButton = sheet.buttons["setup-linear-install"]
-        XCTAssertTrue(retryButton.waitForExistence(timeout: 10))
-        XCTAssertTrue(installButton.exists)
-
-        installButton.click()
-
-        XCTAssertTrue(element("setup-step-project").waitForExistence(timeout: 10))
+        XCTAssertFalse(sheet.buttons["setup-linear-install"].exists)
+        XCTAssertFalse(element("setup-step-project").exists)
+        XCTAssertFalse(sheet.buttons["setup-add-project"].isEnabled)
     }
 
     // MARK: - Adding a Project
 
     func testWizardDrivesSetupToCompletion() throws {
-        try launchApp(machineReady: true, linearInstalled: true)
+        try launchApp(machine: Self.readyMachineTOML)
         driveHubToCompletion(in: openAddProjectSheet())
         assertProjectRowInBothSidebars("demo")
     }
 
     /// The Night window set in the sheet reaches `yh setup --init`; the fields left at their defaults do not.
     func testWizardPassesAnEditedNightWindow() throws {
-        try launchApp(machineReady: true, linearInstalled: true)
+        try launchApp(machine: Self.readyMachineTOML)
         let sheet = openAddProjectSheet()
         driveHubToCompletion(in: sheet) {
             element("setup-step-jobs").click()
@@ -318,7 +239,7 @@ final class AddProjectUITests: XCTestCase {
 
     /// A Linear project `--print-choices` lists is picked in place of a pasted id.
     func testWizardPicksAListedLinearProject() throws {
-        try launchApp(machineReady: true, linearInstalled: true)
+        try launchApp(machine: Self.readyMachineTOML)
         let sheet = openAddProjectSheet()
         driveHubToCompletion(in: sheet, linearProject: "proj-listed") { // glossary:ignore GL001
             element("setup-step-linearProject").click()
@@ -329,7 +250,7 @@ final class AddProjectUITests: XCTestCase {
     }
 
     func testWizardAddsAProjectFromTheSettingsSidebar() throws {
-        try launchApp(machineReady: true, linearInstalled: true)
+        try launchApp(machine: Self.readyMachineTOML)
         driveHubToCompletion(in: openAddProjectSheetFromSettings())
         assertProjectRowInBothSidebars("demo")
     }
@@ -337,7 +258,7 @@ final class AddProjectUITests: XCTestCase {
     /// A Mac whose machine file is ready but has no Project yet shows the onboarding view, whose button
     /// opens the same sheet.
     func testWizardAddsAProjectFromOnboarding() throws {
-        try launchApp(machineReady: true, linearInstalled: true)
+        try launchApp(machine: Self.readyMachineTOML)
         let onboarding = app.buttons["open-setup"]
         XCTAssertTrue(onboarding.waitForExistence(timeout: 10))
         onboarding.click()

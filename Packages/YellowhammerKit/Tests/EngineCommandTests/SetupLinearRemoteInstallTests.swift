@@ -227,7 +227,8 @@ struct SetupLinearRemoteInstallTests {
 
         #expect(try store.tokenStore.read() != nil)
         let machine = try MachineConfiguration.load(contentsOf: directory.url.appending(component: "config.toml"))
-        let installation = try #require(machine.soleLinearInstallation)
+        #expect(machine.linearInstallations.count == 1)
+        let installation = try #require(machine.linearInstallations.first)
         #expect(installation.workspace == BoardObjectID(rawValue: "workspace-1"))
         #expect(installation.appUser == BoardObjectID(rawValue: "app-user-1"))
     }

@@ -39,7 +39,7 @@ extension AddProjectDraft {
                 directory: exportDirectory.trimmingCharacters(in: .whitespacesAndNewlines), cron: exportUsesCron
             )
         }
-        return SetupInvocation(installation: context.linearInstallationName, project: project, jobs: jobs)
+        return SetupInvocation(installation: linearInstallationName, project: project, jobs: jobs)
     }
 
     /// The Bounds to write after `yh setup --init` exited with `status`: nil unless it succeeded and

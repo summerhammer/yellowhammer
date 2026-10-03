@@ -30,35 +30,41 @@ extension SetupWizardModel {
         (url.path(percentEncoded: false) as NSString).abbreviatingWithTildeInPath
     }
 
-    /// Runs when the sheet appears: checks the Linear installation, then, if it is there, reads what it
-    /// unlocks. The check runs here rather than in the readiness panel, so a ready Mac never flashes it.
-    func checkReadiness() async {
-        await linearInstallation.checkExistingLinearInstallation()
-        await linearInstallationChanged()
-    }
-
-    /// The Linear installation was found or just installed: `--install-linear` may have written the machine
-    /// file on a Mac that had none, and the teams can now be read.
-    func linearInstallationChanged() async {
-        loadContext()
-        guard linearInstallation.phase.isInstalled, draft.context.teams.isEmpty else { return }
+    /// Runs when the sheet appears: reads the Linear workspaces' names once, then, if an installation is
+    /// already selected, reads what it unlocks.
+    func appeared() async {
+        linearWorkspaces.refreshStatusOnFirstAppearance()
+        guard draft.linearInstallationName != nil else { return }
         await fetchTeams()
     }
 
-    /// Reads the teams a Linear project can be created in. `yh` always reads the real configuration, so while
-    /// the app is pointed at another one (a UI test's fixture) it is not run unless a stub stands in for it.
+    /// Selects the Linear workspace by its local name. A different one clears the previous workspace's
+    /// choices and reads its own teams and Linear projects; the same one changes nothing.
+    func selectLinearInstallation(_ name: String) async {
+        guard draft.linearInstallationName != name else { return }
+        draft.selectLinearInstallation(name)
+        await fetchTeams()
+    }
+
+    /// Reads the teams and Linear projects of the selected installation. `yh` always reads the real
+    /// configuration, so while the app is pointed at another one (a UI test's fixture) it is not run unless a
+    /// stub stands in for it. A response for an installation that is no longer selected is dropped.
     func fetchTeams() async {
-        guard !ConfigurationDirectory.isOverridden || SetupEngine.isStubbed, !isFetchingTeams else { return }
+        guard !ConfigurationDirectory.isOverridden || SetupEngine.isStubbed,
+              let installation = draft.linearInstallationName else { return }
+        teamsEngine.terminate()
+        let fetchEngine = SetupEngine()
+        teamsEngine = fetchEngine
+        teamsFetchGeneration += 1
+        let generation = teamsFetchGeneration
         isFetchingTeams = true
         teamsFailure = []
-        defer { isFetchingTeams = false }
-        let arguments = SetupInvocation.choicesArguments(
-            // The installation loadContext() resolved, until the wizard offers a choice (roadmap L3.2).
-            installation: draft.context.linearInstallationName, githubCredential: nil
-        )
+        defer { if generation == teamsFetchGeneration { isFetchingTeams = false } }
+        let arguments = SetupInvocation.choicesArguments(installation: installation, githubCredential: nil)
         var lines: [String] = []
         do {
-            let status = try await engine.run(arguments: arguments, standardInput: nil) { lines.append($0) }
+            let status = try await fetchEngine.run(arguments: arguments, standardInput: nil) { lines.append($0) }
+            guard generation == teamsFetchGeneration, draft.linearInstallationName == installation else { return }
             guard status == 0 else {
                 teamsFailure = lines.isEmpty ? ["yh exited \(status)."] : lines
                 return
@@ -73,6 +79,7 @@ extension SetupWizardModel {
             draft.context.teams = decoded.teams
             draft.context.linearProjects = decoded.linearProjects
         } catch {
+            guard generation == teamsFetchGeneration, draft.linearInstallationName == installation else { return }
             teamsFailure = ["\(error)"]
         }
     }

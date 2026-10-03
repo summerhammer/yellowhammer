@@ -22,7 +22,9 @@ struct LinearWorkspaceRow: View {
                     .accessibilityIdentifier("settings-linear-status-\(name)")
             }
             if let operatorModel = model.operatorModel(for: name) {
-                OperatorIdentityRow(model: operatorModel, name: name)
+                OperatorIdentityRow(
+                    model: operatorModel, name: name, identifierPrefix: "settings-linear-operator"
+                )
             }
             if let reconnect = model.reconnectModel(for: name) {
                 reconnectContent(reconnect)
@@ -100,84 +102,6 @@ struct LinearWorkspaceRow: View {
                 .foregroundStyle(.red)
                 .textSelection(.enabled)
                 .accessibilityIdentifier("settings-linear-remove-failure-\(name)")
-        }
-    }
-}
-
-/// The Operator identity part of a Linear workspace row: the configured identity, and a picker over the
-/// workspace's Operator candidates, which `yh` reads from Linear when the Operator asks.
-private struct OperatorIdentityRow: View {
-    @Bindable var model: OperatorIdentityModel
-    let name: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            configuredContent
-            chooser
-            if let failure = model.failure {
-                Text(failure)
-                    .foregroundStyle(.red)
-                    .textSelection(.enabled)
-                    .accessibilityIdentifier("settings-linear-operator-failure-\(name)")
-            }
-        }
-    }
-
-    @ViewBuilder private var configuredContent: some View {
-        if let configured = model.configured {
-            LabeledContent("Operator identity") { // glossary:ignore GL001
-                VStack(alignment: .trailing) {
-                    if let candidate = model.configuredCandidate {
-                        Text("\(candidate.displayName) (\(candidate.name))")
-                    }
-                    Text(configured.rawValue)
-                        .font(.system(.footnote, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
-            }
-            .accessibilityIdentifier("settings-linear-operator-\(name)")
-        } else {
-            Text(
-                "No Operator identity is configured; " // glossary:ignore GL001
-                    + "Waiting on You issues are left unassigned."
-            )
-            .foregroundStyle(.secondary)
-            .accessibilityIdentifier("settings-linear-operator-\(name)")
-        }
-    }
-
-    @ViewBuilder private var chooser: some View {
-        Button("Change Operator\u{2026}") { Task { await model.fetchCandidates() } } // glossary:ignore GL001
-            .disabled(model.isFetching || model.isSaving)
-            .accessibilityIdentifier("settings-linear-operator-choose-\(name)")
-        if model.isFetching {
-            ProgressView()
-        }
-        if !model.fetchFailure.isEmpty {
-            Text(OperatorIdentityModel.fetchFailureSummary)
-                .foregroundStyle(.secondary)
-            Text(model.fetchFailure.joined(separator: "\n"))
-                .font(.system(.body, design: .monospaced))
-                .textSelection(.enabled)
-                .accessibilityIdentifier("settings-linear-operator-fetch-failure-\(name)")
-        }
-        if !model.candidates.isEmpty {
-            Picker("Operator identity", selection: $model.selection) { // glossary:ignore GL001
-                Text("Choose one").tag(String?.none)
-                ForEach(model.candidates, id: \.id) { candidate in
-                    Text("\(candidate.displayName) (\(candidate.name))").tag(Optional(candidate.id))
-                }
-            }
-            .accessibilityIdentifier("settings-linear-operator-picker-\(name)")
-            HStack {
-                Button("Save") { Task { await model.save() } }
-                    .disabled(!model.isDirty || model.selection == nil || model.isSaving)
-                    .accessibilityIdentifier("settings-linear-operator-save-\(name)")
-                Button("Revert") { model.revert() }
-                    .disabled(!model.isDirty || model.isSaving)
-                    .accessibilityIdentifier("settings-linear-operator-revert-\(name)")
-            }
         }
     }
 }

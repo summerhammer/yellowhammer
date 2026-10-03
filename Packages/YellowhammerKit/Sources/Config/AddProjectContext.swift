@@ -17,9 +17,17 @@ public struct AddProjectContext: Equatable, Sendable {
     public var teams: [SetupChoices.Team]
     /// The active Linear projects `yh setup --print-choices` returned, in the board's order. // glossary:ignore GL001
     public var linearProjects: [SetupChoices.LinearProject] // glossary:ignore GL001
-    /// The local name of the Linear App Installation the wizard's `yh setup` calls act on, passed as
-    /// `--installation`. nil passes none.
-    public var linearInstallationName: String?
+    /// The Linear App Installation registry (`[board.linear.installations.*]`), in config order.
+    public var linearInstallations: [LinearInstallation]
+    /// What each kept Journal records, by Project id. The app fills it; Config never opens a Journal.
+    public var keptJournals: [String: KeptJournal]
+
+    /// What a Journal left under an id says about the Linear workspace it was built against.
+    public enum KeptJournal: Equatable, Sendable {
+        case workspace(BoardObjectID)
+        /// The Journal cannot be opened; the reason.
+        case unreadable(String)
+    }
 
     public init(
         existingProjectIDs: Set<String> = [],
@@ -28,9 +36,11 @@ public struct AddProjectContext: Equatable, Sendable {
         journalProjectIDs: Set<String> = [],
         teams: [SetupChoices.Team] = [],
         linearProjects: [SetupChoices.LinearProject] = [],
-        linearInstallationName: String? = nil
+        linearInstallations: [LinearInstallation] = [],
+        keptJournals: [String: KeptJournal] = [:]
     ) {
-        self.linearInstallationName = linearInstallationName
+        self.linearInstallations = linearInstallations
+        self.keptJournals = keptJournals
         self.linearProjects = linearProjects
         self.existingProjectIDs = existingProjectIDs
         self.repoOwners = repoOwners
@@ -46,7 +56,7 @@ public struct AddProjectContext: Equatable, Sendable {
         journalProjectIDs: Set<String>,
         teams: [SetupChoices.Team] = [],
         linearProjects: [SetupChoices.LinearProject] = [],
-        linearInstallationName: String? = nil
+        keptJournals: [String: KeptJournal] = [:]
     ) {
         var owners: [String: String] = [:]
         var readers: [String: [String]] = [:]
@@ -65,7 +75,8 @@ public struct AddProjectContext: Equatable, Sendable {
             journalProjectIDs: journalProjectIDs,
             teams: teams,
             linearProjects: linearProjects,
-            linearInstallationName: linearInstallationName
+            linearInstallations: configuration.machine.linearInstallations,
+            keptJournals: keptJournals
         )
     }
 

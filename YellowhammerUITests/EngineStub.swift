@@ -9,7 +9,7 @@ enum EngineStub {
     /// and prints "Setup complete." Its only files are the `/tmp` markers, argv log and Project files the
     /// tests name.
     static func write(in directory: URL) throws -> URL {
-        let script = "#!/bin/sh\nall_args=\"$*\"\nshift\ncase \"$1\" in\n"
+        let script = "#!/bin/sh\nall_args=\"$*\"\n" + waitForGate + "shift\ncase \"$1\" in\n"
             + printChoicesCase + initCase + checkCase + installLinearCase + operatorCase
             + removeInstallationCase
             + "  *)\n    exit 1\n    ;;\nesac\n"
@@ -18,8 +18,28 @@ enum EngineStub {
         return stubURL
     }
 
+    /// `wait_for_gate <name>`: when `YH_STUB_GATE_DIR` is set, waits (at most 30 s) until the file
+    /// `$YH_STUB_GATE_DIR/<name>` exists. The gate directory is in the UI test runner's container, which the
+    /// stub can read but not write: so a stub run that `yh` would end by editing `config.toml` (a connect,
+    /// an Operator save) waits there while the test makes that edit itself, then opens the gate.
+    static let waitForGate = """
+    wait_for_gate() {
+      [ -n "$YH_STUB_GATE_DIR" ] || return 1
+      gate_waits=0
+      while [ ! -e "$YH_STUB_GATE_DIR/$1" ] && [ "$gate_waits" -lt 300 ]; do
+        sleep 0.1
+        gate_waits=$((gate_waits + 1))
+      done
+      return 0
+    }
+
+    """
+
+    /// When `YH_STUB_ARGV_LOG` names a file, the full argument vector (`setup --print-choices ...`, so a
+    /// test can see `--installation <name>`) is appended to it as one line before the answer.
     static let printChoicesCase = """
           --print-choices)
+            if [ -n "$YH_STUB_ARGV_LOG" ]; then echo "$all_args" >> "$YH_STUB_ARGV_LOG"; fi
             echo '{"operatorCandidates":[{"id":"user-op","name":"operator","displayName":"Operator Person"}],\
         "configuredOperator":null,"teams":[{"id":"team-1","key":"ENG","name":"Engineering"}],\
         "linearProjects":[{"id":"proj-listed","name":"Acme Mobile","teamNames":["Engineering"]}],\
@@ -30,17 +50,19 @@ enum EngineStub {
         """
 
     /// When `YH_STUB_PROJECTS_DIR` names a directory, `--init` also writes a minimal Project file there,
-    /// named by `--project`'s value, as the real `yh setup --init` writes `projects/<id>.toml`. The tests
+    /// named by `--project`'s value (its `installation` is the value after `--installation`, else `acme`), as the real `yh setup --init` writes `projects/<id>.toml`. The tests
     /// point the configuration's `projects` folder at that `/tmp` directory with a symlink, because the
     /// stub cannot write into the UI test runner's container.
     static let initCase = """
           --init)
             read -r _
             project_id=""
+            init_installation="acme"
             previous=""
             for arg in "$@"; do
               echo "argv: $arg"
               if [ "$previous" = "--project" ]; then project_id="$arg"; fi
+              if [ "$previous" = "--installation" ]; then init_installation="$arg"; fi
               previous="$arg"
             done
             if [ -n "$YH_STUB_PROJECTS_DIR" ] && [ -n "$project_id" ]; then
@@ -50,7 +72,7 @@ enum EngineStub {
               echo 'name = "'"$project_id"'"' >> "$project_file"
               echo 'spec_source = "/tmp/acme-spec"' >> "$project_file"
               echo '[board.linear]' >> "$project_file"
-              echo 'installation = "acme"' >> "$project_file"
+              echo 'installation = "'"$init_installation"'"' >> "$project_file"
               echo 'project = "proj-1"' >> "$project_file"
               echo '[[repos]]' >> "$project_file"
               echo 'name = "backend"' >> "$project_file"
@@ -96,9 +118,11 @@ enum EngineStub {
     /// `yh setup --install-linear --events json`: when `YH_STUB_ARGV_LOG` names a file, first appends the
     /// full argument vector (`setup --install-linear ...`) to it as one line, so a test can assert on what
     /// the app ran. Branches on `--remote` (roadmap P17.9). The `installed` event carries `installation`:
-    /// the value after `--installation` when passed, else `acme` locally and `scratch` remotely. Without it,
-    /// the first attempt reports every port busy when `YH_STUB_PORTS_BUSY_FIRST` is set (a Retry test);
-    /// every later attempt installs. With it, the attempt fails with `relayUnreachable` when
+    /// the value after `--installation` when passed, else `YH_STUB_CONNECT_NAME` when set, else `acme`
+    /// locally and `scratch` remotely. Just before `installed`, the attempt waits on the `install` gate
+    /// (``waitForGate``), so a test can first write the entry `yh` would add to `config.toml`. Without
+    /// `--remote`, the first attempt reports every port busy when `YH_STUB_PORTS_BUSY_FIRST` is set (a Retry
+    /// test); every later attempt installs. With it, the attempt fails with `relayUnreachable` when
     /// `YH_STUB_RELAY_UNREACHABLE` is set; otherwise it issues an approval link, waits, then installs.
     static let installLinearCase = """
           --install-linear)
@@ -111,6 +135,7 @@ enum EngineStub {
               if [ "$install_prev" = "--installation" ]; then install_name="$arg"; fi
               install_prev="$arg"
             done
+            [ -n "$install_name" ] || install_name="$YH_STUB_CONNECT_NAME"
             if [ -n "$is_remote" ]; then
         \(remoteInstallBody)    fi
         \(localInstallBody)    ;;
@@ -120,7 +145,8 @@ enum EngineStub {
     /// Not a raw string: each `\\` here is one `\` in the emitted `.sh` file. The approval link's event
     /// is built with `printf '%s\n'`, which prints its argument verbatim (unlike `echo`, whose escape
     /// handling differs between shells), so `text` carries the two-character JSON escape `\n`. The
-    /// `sleep` keeps the waiting phase on screen long enough for the test to read the link.
+    /// gate (or, without one, the `sleep`) keeps the waiting phase on screen long enough for the test to
+    /// read the link.
     static let remoteInstallBody = """
               echo '{"event":"adminStatement","text":"An admin must approve."}'
               if [ -n "$YH_STUB_RELAY_UNREACHABLE" ]; then
@@ -132,7 +158,7 @@ enum EngineStub {
               head='{"event":"approvalLinkIssued","url":"'"$link"'","expiresIn":900'
               printf '%s\\n' "$head"',"text":"'"$text"'"}'
               echo '{"event":"awaitingRemoteApproval"}'
-              sleep 4
+              wait_for_gate install || sleep 4
               [ -n "$install_name" ] || install_name="scratch"
               echo '{"event":"installed","workspaceName":"scratch","installation":"'"$install_name"'"}'
               touch "$YH_STUB_INSTALLED_MARKER"
@@ -154,6 +180,7 @@ enum EngineStub {
             fi
             echo '{"event":"browserOpened","url":"https://linear.app/oauth/authorize"}'
             echo '{"event":"awaitingApproval"}'
+            wait_for_gate install
             [ -n "$install_name" ] || install_name="acme"
             echo '{"event":"installed","workspaceName":"Acme","installation":"'"$install_name"'"}'
             touch "$YH_STUB_INSTALLED_MARKER"
@@ -162,7 +189,8 @@ enum EngineStub {
         """
 
     /// `yh config operator [--installation <name>] <user-id>`: appends the full argument vector to
-    /// `YH_STUB_ARGV_LOG` when set, then prints the real command's success lines and exits 0. When
+    /// `YH_STUB_ARGV_LOG` when set, waits on the `operator` gate (``waitForGate``) so a test can first write
+    /// the identity to `config.toml`, then prints the real command's success lines and exits 0. When
     /// `YH_STUB_OPERATOR_REFUSAL` is set it echoes that text and exits 1 instead.
     static let operatorCase = """
           operator)
@@ -179,6 +207,7 @@ enum EngineStub {
               operator_id="$arg"
               operator_prev="$arg"
             done
+            wait_for_gate operator
             echo "Installation $operator_installation: Operator identity is now $operator_id"
             echo "The change applies from the next Act; it does not reassign issues already in Waiting on You."
             exit 0
