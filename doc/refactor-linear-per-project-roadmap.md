@@ -325,6 +325,8 @@ does not renumber it; that file gets one line linking here.
 - The key name `[board.linear] project` for the Linear project id (OQ110 item 3 implies the table;
   no key is named).
 - No `yh` command is named for removing an installation; `--installation` on setup is unnamed.
+- The editable local name at connect has no headless form: `yh setup --install-linear --events json`
+  (the app's path) cannot take a chosen name, so L3.1/L3.2 need a flag the spec does not name.
 - The workspace *name* has no source but a live read; the spec lists it in Settings and setup.
 - Item 11's premise ("no installation exists yet") was false on the development Mac.
 - OQ109's unsettled case — removal when the installation is present but its authorization is
