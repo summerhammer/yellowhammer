@@ -21,7 +21,7 @@ struct SetupScheduledJobsInstallTests {
         try writeTwoProjects(directory)
         let scope = BoardProjectScope(id: BoardObjectID(rawValue: "proj-1"), name: "demo", teams: [engineeringTeam])
         let board = await makeBoard(project: scope)
-        let arguments = makeArguments(operatorID: "user-op", installJobs: true)
+        let arguments = makeArguments(operatorID: "user-op", installJobs: true, installation: "acme")
         let setup = try makeSetup(
             arguments: arguments, directory: directory, board: board,
             homeDirectory: homeDirectory, yhExecutablePath: "/usr/local/bin/yh",
@@ -94,7 +94,7 @@ struct SetupScheduledJobsInstallTests {
         let directory = ConfigurationDirectory()
         try writeTwoProjects(directory)
         let board = await makeBoard()
-        let arguments = makeArguments(operatorID: "user-op", installJobs: true)
+        let arguments = makeArguments(operatorID: "user-op", installJobs: true, installation: "acme")
         let homeDirectory = freshHomeDirectory()
 
         let launchAgents1 = RecordingLaunchAgentControl()
@@ -129,7 +129,7 @@ struct SetupScheduledJobsInstallTests {
         )
         // alpha sorts first; its provisioning read is refused, beta's is not.
         await board.refuseNext(.refused("boom"))
-        let arguments = makeArguments(operatorID: "user-op", installJobs: true)
+        let arguments = makeArguments(operatorID: "user-op", installJobs: true, installation: "acme")
         let homeDirectory = freshHomeDirectory()
         let launchAgents = RecordingLaunchAgentControl()
         let setup = try makeSetup(
@@ -156,7 +156,7 @@ struct SetupScheduledJobsInstallTests {
         try directory.writeMachineFile()
         try directory.writeValidProjectFile(id: "alpha")
         let board = await makeBoard()
-        let arguments = makeArguments(operatorID: "user-op", installJobs: true)
+        let arguments = makeArguments(operatorID: "user-op", installJobs: true, installation: "acme")
         let homeDirectory = freshHomeDirectory()
         let launchAgents = RecordingLaunchAgentControl(
             failingLabels: ["dev.yellowhammer.alpha.author"]

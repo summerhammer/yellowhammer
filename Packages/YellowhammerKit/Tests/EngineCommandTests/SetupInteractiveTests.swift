@@ -18,6 +18,7 @@ struct SetupInteractiveTests {
             "", // CLI Adapters -> none
             "", // catch-all route -> none
             "", // Linear is not installed: "Are you a workspace admin?" -> install here
+            "", // Local name -> proposed
             "", // Operator: empty re-asks
             "99", // Operator: out of range re-asks
             "2", // Operator: candidate #2
@@ -43,6 +44,7 @@ struct SetupInteractiveTests {
         let console = ScriptedConsole(answers: [
             "", "", "", // GitHub credential, CLI Adapters, catch-all route
             "", // Linear is not installed: "Are you a workspace admin?" -> install here
+            "", // Local name -> proposed
             "y", // Declare a Project now?
             "demo", // Project id
             "", // Project name -> default
@@ -67,7 +69,8 @@ struct SetupInteractiveTests {
         // A second interactive run, declining to declare the Project again, creates nothing further.
         let secondConsole = ScriptedConsole(answers: ["n"])
         let secondSetup = try makeSetup(
-            arguments: arguments, directory: directory, board: board, console: secondConsole
+            arguments: arguments + ["--installation", "acme"], directory: directory, board: board,
+            console: secondConsole
         )
         try await secondSetup.run()
         #expect(await board.creates >= 1)
@@ -78,7 +81,7 @@ struct SetupInteractiveTests {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
         let board = await makeBoard()
-        let arguments = makeArguments(initialize: false, operatorID: "user-op")
+        let arguments = makeArguments(initialize: false, operatorID: "user-op", installation: "acme")
         let console = ScriptedConsole(answers: ["c"])
         let credentials = RecordingCredentialStore()
         let setup = try makeSetup(

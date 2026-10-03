@@ -99,7 +99,10 @@ final class OperatorIdentityModel {
         fetchFailure = []
         failure = nil
         defer { isFetching = false }
-        let arguments = SetupInvocation.choicesArguments(linearCredential: nil, githubCredential: nil)
+        let arguments = SetupInvocation.choicesArguments(
+            // The one installation loaded from config.toml, until the settings pane offers a choice (roadmap L3.2).
+            installation: installationName, githubCredential: nil
+        )
         var lines: [String] = []
         do {
             let status = try await engine.run(arguments: arguments, standardInput: nil) { lines.append($0) }

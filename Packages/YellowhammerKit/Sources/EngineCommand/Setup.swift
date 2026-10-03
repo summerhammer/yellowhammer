@@ -72,10 +72,10 @@ struct Setup {
         }
 
         var machine = try loadOrCreateMachineFile()
-        let members: [BoardMember]
-        let installation: LinearInstallation
+        let request = try resolveLinearRequest(machine: machine)
+        let selected: (members: [BoardMember], installation: LinearInstallation)?
         do {
-            (members, installation) = try await authorizeOrInstallLinear(machine: &machine)
+            selected = try await authorizeLinear(request, machine: &machine)
         } catch {
             guard case .installLinear = options.mode else {
                 // No Linear installation: the steps that need none still run (configuration validation,
@@ -95,15 +95,18 @@ struct Setup {
         if case .installLinear = options.mode {
             // "Re-running the Linear step of setup": only this step and the Operator identity choice
             // (when none is configured) run; every Project's configuration is untouched.
-            if installation.operatorIdentity == nil {
-                try setOperatorIdentity(machine: &machine, installation: installation, members: members)
+            if let selected, selected.installation.operatorIdentity == nil {
+                try setOperatorIdentity(
+                    machine: &machine, installation: selected.installation, members: selected.members
+                )
             }
             return
         }
-        try setOperatorIdentity(machine: &machine, installation: installation, members: members)
-
-        let board = bindProvisioning(installation, "")
-        try await writeProjectsIfNeeded(machine: machine, installation: installation, board: board)
+        if let selected {
+            try setOperatorIdentity(machine: &machine, installation: selected.installation, members: selected.members)
+            let board = bindProvisioning(selected.installation, "")
+            try await writeProjectsIfNeeded(machine: machine, installation: selected.installation, board: board)
+        }
 
         let configuration = try validateConfiguration()
         let (provisioningFailedIDs, unfinishedProvisioning) = await provisionProjects(

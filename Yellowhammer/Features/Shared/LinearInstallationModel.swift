@@ -48,9 +48,9 @@ final class LinearInstallationModel {
     /// Whether the running (or most recently ended) attempt used `--remote` (roadmap P17.9) — so a
     /// same-path retry (`startLinearInstall()`, no argument) repeats it.
     private(set) var lastLinearInstallWasRemote = false
-    /// The credential reference passed as `--linear-credential`, read when an attempt starts. The Setup
-    /// wizard sets it to a non-default reference only before `config.toml` exists; nil passes none.
-    var linearCredential: @MainActor () -> String? = { nil }
+    /// The registry entry passed as `--installation` (a re-connect target), read when an attempt starts;
+    /// nil connects untargeted. Nothing sets it until the app offers a choice (roadmap L3.1).
+    var installation: @MainActor () -> String? = { nil }
 
     private let engine = SetupEngine()
     private var installTask: Task<Void, Never>?
@@ -123,7 +123,7 @@ final class LinearInstallationModel {
     }
 
     private func runLinearInstall(remote: Bool) async {
-        let arguments = SetupInvocation.installLinearArguments(linearCredential: linearCredential(), remote: remote)
+        let arguments = SetupInvocation.installLinearArguments(installation: installation(), remote: remote)
         do {
             let status = try await engine.run(arguments: arguments) { [weak self] line in
                 self?.handleLinearInstallLine(line)
@@ -164,7 +164,7 @@ final class LinearInstallationModel {
             phase = .portsBusy(text: text, ports: ports)
         case .failed(let reason, let text):
             handleFailed(reason: reason, text: text)
-        case .installed(let workspaceName):
+        case .installed(let workspaceName, _):
             phase = .installed(workspaceName: workspaceName)
         }
     }

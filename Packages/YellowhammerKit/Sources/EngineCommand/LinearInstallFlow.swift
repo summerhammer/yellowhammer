@@ -63,11 +63,13 @@ public struct LinearInstallFlow: Sendable {
         public let appUserID: String
         public let workspaceID: String
         public let workspaceName: String
+        public let workspaceURLKey: String
 
-        public init(appUserID: String, workspaceID: String, workspaceName: String) {
+        public init(appUserID: String, workspaceID: String, workspaceName: String, workspaceURLKey: String) {
             self.appUserID = appUserID
             self.workspaceID = workspaceID
             self.workspaceName = workspaceName
+            self.workspaceURLKey = workspaceURLKey
         }
     }
 
@@ -166,7 +168,7 @@ public struct LinearInstallFlow: Sendable {
             ),
             identity: InstalledIdentity(
                 appUserID: identity.appUserID.rawValue, workspaceID: identity.workspaceID.rawValue,
-                workspaceName: identity.workspaceName
+                workspaceName: identity.workspaceName, workspaceURLKey: identity.workspaceURLKey
             )
         )
     }

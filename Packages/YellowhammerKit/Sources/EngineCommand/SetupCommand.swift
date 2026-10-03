@@ -32,10 +32,10 @@ public struct SetupCommand: AsyncParsableCommand {
     public var printChoices: Bool = false
 
     @Option(
-        name: .customLong("linear-credential"),
-        help: "Credential reference of the entry a Linear install creates (default keychain:linear-<name>)."
+        name: .customLong("installation"),
+        help: "The local name of the Linear App Installation this run acts on."
     )
-    public var linearCredential: String?
+    public var installation: String?
 
     @Option(
         name: .customLong("github-credential"), help: "Reference to the GitHub credential (default keychain:github)."

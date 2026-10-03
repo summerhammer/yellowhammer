@@ -95,21 +95,25 @@ extension Setup {
         return InstallEntry(source: source, destination: destination, action: identical ? .present : .differs)
     }
 
-    /// Setup itself writes `[board.linear.installations.<name>].operator` into the installed machine file (step 3), so a prepared
-    /// `config.toml` without it must still compare `present` on the next identical run: the destination
-    /// counts as unchanged when it is exactly the prepared text with that one line set.
+    /// Setup itself writes `[board.linear.installations.<name>].operator` into the installed machine file
+    /// (step 3), so a prepared `config.toml` without it must still compare `present` on the next identical
+    /// run: the destination counts as unchanged when it is exactly the prepared text with each
+    /// installation's `operator` line set to the destination's.
     private func differsOnlyByOperator(source: Data, destination: Data) -> Bool {
         guard let sourceText = String(data: source, encoding: .utf8),
               let destinationText = String(data: destination, encoding: .utf8),
               let installed = try? MachineConfiguration.parse(
                   destinationText, file: machineFileURL.path(percentEncoded: false)
-              ),
-              let sole = installed.soleLinearInstallation,
-              let operatorIdentity = sole.operatorIdentity
+              )
         else { return false }
-        return MachineConfiguration.settingOperator(
-            operatorIdentity, installation: sole.name, inFileText: sourceText
-        ) == destinationText
+        var expected = sourceText
+        for installation in installed.linearInstallations {
+            guard let operatorIdentity = installation.operatorIdentity else { continue }
+            expected = MachineConfiguration.settingOperator(
+                operatorIdentity, installation: installation.name, inFileText: expected
+            )
+        }
+        return expected == destinationText
     }
 
     private func installFile(_ entry: InstallEntry) throws {

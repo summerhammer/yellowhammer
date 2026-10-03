@@ -123,7 +123,7 @@ private func graphQLReply() -> StubHTTPTransport.Reply {
         body: Data(
             #"""
             {"data":{"viewer":{"id":"app-user-1","name":"Yellowhammer"},
-             "organization":{"id":"workspace-1","name":"Acme"}}}
+             "organization":{"id":"workspace-1","name":"Acme","urlKey":"acme"}}}
             """#.utf8
         )
     )
@@ -163,6 +163,7 @@ struct LinearRemoteInstallFlowTests {
         }
         #expect(tokens.accessToken == "at-1")
         #expect(identity.workspaceName == "Acme")
+        #expect(identity.workspaceURLKey == "acme")
 
         let seen = capturedEvents.withLock { $0 }
         #expect(seen.count == 2)

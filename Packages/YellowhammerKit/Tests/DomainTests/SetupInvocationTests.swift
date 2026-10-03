@@ -24,7 +24,7 @@ struct SetupInvocationTests {
     @Test("A full invocation builds every option, in order")
     func fullInvocationBuildsEveryOption() throws {
         let invocation = SetupInvocation(
-            linearCredential: "keychain:linear",
+            installation: "main",
             githubCredential: "keychain:github",
             cliAdapters: ["claude", "codex=codex-bin"],
             route: "claude/sonnet/medium",
@@ -42,7 +42,7 @@ struct SetupInvocationTests {
 
         #expect(try invocation.arguments() == [
             "setup", "--init",
-            "--linear-credential", "keychain:linear",
+            "--installation", "main",
             "--github-credential", "keychain:github",
             "--cli", "claude",
             "--cli", "codex=codex-bin",
@@ -66,7 +66,7 @@ struct SetupInvocationTests {
     @Test("nil and empty (after trimming) options are omitted")
     func emptyOptionsAreOmitted() throws {
         let invocation = SetupInvocation(
-            linearCredential: nil, githubCredential: "", cliAdapters: ["  ", ""]
+            installation: nil, githubCredential: "", cliAdapters: ["  ", ""]
         )
 
         #expect(try invocation.arguments() == ["setup", "--init"])
@@ -135,29 +135,29 @@ struct SetupInvocationTests {
     @Test("choicesArguments builds --print-choices with only the Linear options") // glossary:ignore GL001
     func choicesArgumentsBuildsPrintChoices() {
         let arguments = SetupInvocation.choicesArguments(
-            linearCredential: "keychain:linear", githubCredential: "keychain:github"
+            installation: "main", githubCredential: "keychain:github"
         )
 
         #expect(arguments == [
             "setup", "--print-choices",
-            "--linear-credential", "keychain:linear",
+            "--installation", "main",
             "--github-credential", "keychain:github"
         ])
     }
 
     @Test("choicesArguments omits absent options") // glossary:ignore GL001
     func choicesArgumentsOmitsAbsentOptions() {
-        let arguments = SetupInvocation.choicesArguments(linearCredential: nil, githubCredential: nil)
+        let arguments = SetupInvocation.choicesArguments(installation: nil, githubCredential: nil)
 
         #expect(arguments == ["setup", "--print-choices"])
     }
 
     @Test("installLinearArguments builds --install-linear --events json") // glossary:ignore GL001
     func installLinearArgumentsBuildsInstallLinear() {
-        let arguments = SetupInvocation.installLinearArguments(linearCredential: "keychain:linear")
+        let arguments = SetupInvocation.installLinearArguments(installation: "main")
 
         #expect(arguments == [
-            "setup", "--install-linear", "--events", "json", "--linear-credential", "keychain:linear"
+            "setup", "--install-linear", "--events", "json", "--installation", "main"
         ])
     }
 
@@ -170,10 +170,10 @@ struct SetupInvocationTests {
 
     @Test("installLinearArguments appends --remote when true") // glossary:ignore GL001
     func installLinearArgumentsAppendsRemote() {
-        let arguments = SetupInvocation.installLinearArguments(linearCredential: "keychain:linear", remote: true)
+        let arguments = SetupInvocation.installLinearArguments(installation: "main", remote: true)
 
         #expect(arguments == [
-            "setup", "--install-linear", "--events", "json", "--linear-credential", "keychain:linear", "--remote"
+            "setup", "--install-linear", "--events", "json", "--installation", "main", "--remote"
         ])
     }
 }

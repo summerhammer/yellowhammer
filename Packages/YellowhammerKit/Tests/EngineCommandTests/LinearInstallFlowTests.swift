@@ -80,7 +80,7 @@ struct LinearInstallFlowTests {
         let transport = StubHTTPTransport([
             InstallFlowFixture.installationGrant(accessToken: "at-1", refreshToken: "rt-1"),
             InstallFlowFixture.json(#"{"data":{"viewer":{"id":"app-user-1","name":"Yellowhammer"},"#
-                + #""organization":{"id":"workspace-1","name":"Acme"}}}"#)
+                + #""organization":{"id":"workspace-1","name":"Acme","urlKey":"acme"}}}"#)
         ])
         let state = Mutex("")
         let flow = LinearInstallFlow(
@@ -105,6 +105,7 @@ struct LinearInstallFlowTests {
         }
         #expect(tokens.accessToken == "at-1")
         #expect(identity.workspaceName == "Acme")
+        #expect(identity.workspaceURLKey == "acme")
         #expect(opener.openedURLs.count == 1)
         let items = URLComponents(url: opener.openedURLs[0], resolvingAgainstBaseURL: false)?.queryItems ?? []
         let redirectItem = items.first(where: { $0.name == "redirect_uri" })?.value
@@ -118,7 +119,7 @@ struct LinearInstallFlowTests {
         let transport = StubHTTPTransport([
             InstallFlowFixture.installationGrant(accessToken: "at-1", refreshToken: "rt-1"),
             InstallFlowFixture.json(#"{"data":{"viewer":{"id":"app-user-1","name":"Yellowhammer"},"#
-                + #""organization":{"id":"workspace-1","name":"Acme"}}}"#)
+                + #""organization":{"id":"workspace-1","name":"Acme","urlKey":"acme"}}}"#)
         ])
         let state = Mutex("")
         let events = Mutex<[LinearInstallFlow.Event]>([])

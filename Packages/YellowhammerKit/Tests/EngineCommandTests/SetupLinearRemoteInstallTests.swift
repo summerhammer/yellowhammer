@@ -9,7 +9,7 @@ import Testing
 // approval install path's decision, outcome handling and NDJSON emission, with the Code Relay and
 // Linear's own transport both stubbed through one routing transport — no real socket or network call.
 
-private let relayTestBaseURL = URL(string: "https://relay.test")!
+let relayTestBaseURL = URL(string: "https://relay.test")!
 
 /// One `eventsJSONRemoteFailureReasons` case — named fields instead of a tuple (SwiftLint's
 /// `large_tuple`).
@@ -21,7 +21,7 @@ private struct RemoteFailureCase {
 
 /// One scripted reply, keyed by how `RelayRoutingTransport` classifies a request — the Code Relay's two
 /// endpoints, plus Linear's own token/GraphQL endpoints the remote flow's exchange reaches directly.
-private enum RelayRoute: Hashable {
+enum RelayRoute: Hashable {
     case relaySession
     case relayStatus(String)
     case linearToken
@@ -30,7 +30,7 @@ private enum RelayRoute: Hashable {
 
 /// Routes each request to a queue of scripted replies by host + path, since a remote-install attempt
 /// interleaves relay polls with a later Linear call — a single FIFO queue can't express that sequence.
-private final class RelayRoutingTransport: Sendable {
+final class RelayRoutingTransport: Sendable {
     private let queues: Mutex<[RelayRoute: [StubHTTPTransport.Reply]]>
     private let captured: Mutex<[URLRequest]>
 
@@ -77,7 +77,7 @@ private final class RelayRoutingTransport: Sendable {
 
 /// A manual clock plus a `sleep` that advances it instead of actually waiting, so a remote-install
 /// attempt's poll never really sleeps in a test.
-private final class RemoteInstallClock: Sendable {
+final class RemoteInstallClock: Sendable {
     private let now: Mutex<Date>
     init(_ start: Date = Date(timeIntervalSince1970: 0)) { now = Mutex(start) }
     func clock() -> Date { now.withLock { $0 } }
@@ -87,7 +87,7 @@ private final class RemoteInstallClock: Sendable {
     }
 }
 
-private func relaySessionReply(sessionID: String = "s1", expiresIn: Int = 900) -> StubHTTPTransport.Reply {
+func relaySessionReply(sessionID: String = "s1", expiresIn: Int = 900) -> StubHTTPTransport.Reply {
     .response(
         status: 201, headers: ["Content-Type": "application/json"],
         body: Data(
@@ -100,29 +100,31 @@ private func relaySessionReply(sessionID: String = "s1", expiresIn: Int = 900) -
     )
 }
 
-private func relayStatusReply(_ body: String, status: Int = 200) -> StubHTTPTransport.Reply {
+func relayStatusReply(_ body: String, status: Int = 200) -> StubHTTPTransport.Reply {
     .response(status: status, headers: ["Content-Type": "application/json"], body: Data(body.utf8))
 }
 
-private let relayPendingReply = relayStatusReply(#"{"status":"pending"}"#)
-private let relayApprovedReply = relayStatusReply(#"{"status":"approved","code":"the-code"}"#)
+let relayPendingReply = relayStatusReply(#"{"status":"pending"}"#)
+let relayApprovedReply = relayStatusReply(#"{"status":"approved","code":"the-code"}"#)
 
-private func linearTokenReply() -> StubHTTPTransport.Reply {
+func linearTokenReply() -> StubHTTPTransport.Reply {
     .response(
         status: 200, headers: ["Content-Type": "application/json"],
         body: Data(#"{"access_token":"at-1","refresh_token":"rt-1","token_type":"Bearer","expires_in":7200}"#.utf8)
     )
 }
 
-private func linearGraphQLReply(
-    workspaceID: String = "workspace-1", workspaceName: String = "Acme", appUserID: String = "app-user-1"
+func linearGraphQLReply(
+    workspaceID: String = "workspace-1", workspaceName: String = "Acme", workspaceURLKey: String = "acme",
+    appUserID: String = "app-user-1"
 ) -> StubHTTPTransport.Reply {
     .response(
         status: 200, headers: ["Content-Type": "application/json"],
         body: Data(
             (
                 #"{"data":{"viewer":{"id":"\#(appUserID)","name":"Yellowhammer"},"#
-                    + #""organization":{"id":"\#(workspaceID)","name":"\#(workspaceName)"}}}"#
+                    + #""organization":{"id":"\#(workspaceID)","name":"\#(workspaceName)","#
+                    + #""urlKey":"\#(workspaceURLKey)"}}}"#
             ).utf8
         )
     )
@@ -130,7 +132,7 @@ private func linearGraphQLReply(
 
 /// Remote-only seams: the portBinder/opener are never reached unless a test explicitly switches to the
 /// local path, in which case pass `portBinder`/`opener` for a working loopback (see `localLoopback*`).
-private func remoteSeams(
+func remoteSeams(
     transport: RelayRoutingTransport, clock: RemoteInstallClock,
     portBinder: @escaping @Sendable (Int) throws -> any CallbackListening = { port in
         throw LoopbackCallbackServer.BindError.busy(port: port)
@@ -166,7 +168,7 @@ private func localLoopbackSeamPair(
 
 /// A throwaway `LinearInstallationStore` bound to a fresh keychain reference and lock file, so remote-
 /// install tests can assert on what was (or was not) stored without touching the machine's real ones.
-private func freshLinearInstallationStore() -> (store: LinearInstallationStore, reference: CredentialReference) {
+func freshLinearInstallationStore() -> (store: LinearInstallationStore, reference: CredentialReference) {
     let reference = CredentialReference("keychain:test-install-\(UUID().uuidString)")!
     let lockPath = FileManager.default.temporaryDirectory
         .appending(component: "yh-test-lock-\(UUID().uuidString).lock", directoryHint: .notDirectory)
@@ -220,7 +222,7 @@ struct SetupLinearRemoteInstallTests {
         #expect(url == "https://relay.test/install/s1")
         #expect(expiresIn == 900)
         #expect(recorded[2] == .awaitingRemoteApproval)
-        #expect(recorded[3] == .installed(workspaceName: "Acme"))
+        #expect(recorded[3] == .installed(workspaceName: "Acme", installation: "acme"))
         #expect(recorded.count == 4)
 
         #expect(try store.tokenStore.read() != nil)
@@ -228,51 +230,6 @@ struct SetupLinearRemoteInstallTests {
         let installation = try #require(machine.soleLinearInstallation)
         #expect(installation.workspace == BoardObjectID(rawValue: "workspace-1"))
         #expect(installation.appUser == BoardObjectID(rawValue: "app-user-1"))
-    }
-
-    @Test("Remote into a different workspace: failed(differentWorkspace), nothing stored")
-    func remoteIntoDifferentWorkspaceRefused() async throws {
-        let directory = ConfigurationDirectory()
-        try directory.writeMachineFile("""
-            [board.linear.installations.acme]
-            credential = "keychain:linear"
-            workspace = "workspace-old"
-            app_user = "app-user-old"
-
-            [github]
-            credential = "keychain:github"
-            """)
-        let original = try String(contentsOf: directory.url.appending(component: "config.toml"), encoding: .utf8)
-        let board = await makeBoard(members: [operatorMember])
-        let transport = RelayRoutingTransport([
-            .relaySession: [relaySessionReply()],
-            .relayStatus("s1"): [relayApprovedReply],
-            .linearToken: [linearTokenReply()],
-            .linearGraphQL: [linearGraphQLReply(workspaceID: "workspace-new", workspaceName: "Other")]
-        ])
-        let clock = RemoteInstallClock()
-        let seams = remoteSeams(transport: transport, clock: clock)
-        let credentials = RecordingCredentialStore()
-        let events = Mutex<[LinearInstallEvent]>([])
-        let (store, _) = freshLinearInstallationStore()
-        let arguments = makeArguments(initialize: false, installLinear: true, events: "json", remote: true)
-        let setup = try makeSetup(
-            arguments: arguments, directory: directory, board: board, credentials: credentials,
-            linearInstallSeams: seams, linearInstallationStore: { _ in store },
-            linearInstallEvents: { event in events.withLock { $0.append(event) } }
-        )
-
-        await #expect(throws: SetupError.self) { try await setup.run() }
-
-        #expect(try store.tokenStore.read() == nil)
-        let recorded = events.withLock { $0 }
-        guard case .failed(let reason, _) = recorded.last else {
-            Issue.record("expected .failed last, got \(String(describing: recorded.last))")
-            return
-        }
-        #expect(reason == .differentWorkspace)
-        let text = try String(contentsOf: directory.url.appending(component: "config.toml"), encoding: .utf8)
-        #expect(text == original)
     }
 
     @Test("Events-json rejected/expired/relayUnreachable/relayRateLimited each fail with the matching reason")
@@ -338,7 +295,7 @@ struct SetupLinearRemoteInstallTests {
         let credentials = RecordingCredentialStore()
         let console = ScriptedConsole(answers: ["r"])
         let (store, _) = freshLinearInstallationStore()
-        let arguments = makeArguments(initialize: false, operatorID: "user-op")
+        let arguments = makeArguments(initialize: false, operatorID: "user-op", installation: "acme")
         let setup = try makeSetup(
             arguments: arguments, directory: directory, board: board, console: console, credentials: credentials,
             linearInstallSeams: seams, linearInstallationStore: { _ in store }
@@ -368,7 +325,7 @@ struct SetupLinearRemoteInstallTests {
         let credentials = RecordingCredentialStore()
         let console = ScriptedConsole(answers: ["r", "l"])
         let (store, _) = freshLinearInstallationStore()
-        let arguments = makeArguments(initialize: false, operatorID: "user-op")
+        let arguments = makeArguments(initialize: false, operatorID: "user-op", installation: "acme")
         let setup = try makeSetup(
             arguments: arguments, directory: directory, board: board, console: console, credentials: credentials,
             linearInstallSeams: seams, linearInstallationStore: { _ in store }
@@ -397,7 +354,7 @@ struct SetupLinearRemoteInstallTests {
         let credentials = RecordingCredentialStore()
         let console = ScriptedConsole(answers: ["r", "n"])
         let (store, _) = freshLinearInstallationStore()
-        let arguments = makeArguments(initialize: false, operatorID: "user-op")
+        let arguments = makeArguments(initialize: false, operatorID: "user-op", installation: "acme")
         let setup = try makeSetup(
             arguments: arguments, directory: directory, board: board, console: console, credentials: credentials,
             linearInstallSeams: seams, linearInstallationStore: { _ in store }
@@ -426,7 +383,7 @@ struct SetupLinearRemoteInstallTests {
         let output = RecordingOutput()
         let console = ScriptedConsole(answers: ["i", "r"])
         let (store, _) = freshLinearInstallationStore()
-        let arguments = makeArguments(initialize: false, operatorID: "user-op")
+        let arguments = makeArguments(initialize: false, operatorID: "user-op", installation: "acme")
         let setup = try makeSetup(
             arguments: arguments, directory: directory, board: board, console: console, credentials: credentials,
             output: output, linearInstallSeams: failingCallbackSeamsWithRelay(

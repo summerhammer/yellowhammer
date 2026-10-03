@@ -3,6 +3,7 @@ import Config
 import Domain
 @testable import EngineCommand
 import Foundation
+import Synchronization
 import Testing
 
 @Suite("yh setup --print-choices")
@@ -18,7 +19,10 @@ struct SetupPrintChoicesTests {
             teams: [engineeringTeam]
         )
         let output = RecordingOutput()
-        let setup = try makeSetup(arguments: ["--print-choices"], directory: directory, board: board, output: output)
+        let setup = try makeSetup(
+            arguments: ["--print-choices", "--installation", "acme"], directory: directory, board: board,
+            output: output
+        )
 
         try await setup.run()
 
@@ -51,7 +55,10 @@ struct SetupPrintChoicesTests {
             project("b"), project("done", completed: true), project("a"), project("gone", canceled: true)
         ])
         let output = RecordingOutput()
-        let setup = try makeSetup(arguments: ["--print-choices"], directory: directory, board: board, output: output)
+        let setup = try makeSetup(
+            arguments: ["--print-choices", "--installation", "acme"], directory: directory, board: board,
+            output: output
+        )
 
         try await setup.run()
 
@@ -70,7 +77,10 @@ struct SetupPrintChoicesTests {
         let board = await makeBoard(teams: [engineeringTeam])
         await board.failLinearProjects(with: .unreadableResponse("boom"))
         let output = RecordingOutput()
-        let setup = try makeSetup(arguments: ["--print-choices"], directory: directory, board: board, output: output)
+        let setup = try makeSetup(
+            arguments: ["--print-choices", "--installation", "acme"], directory: directory, board: board,
+            output: output
+        )
 
         try await setup.run()
 
@@ -99,7 +109,7 @@ struct SetupPrintChoicesTests {
         let board = await makeBoard(members: [operatorMember], teams: [engineeringTeam])
         let output = RecordingOutput()
         let setup = try makeSetup(
-            arguments: ["--print-choices"], directory: directory, board: board, output: output
+            arguments: ["--print-choices", "--installation", "acme"], directory: directory, board: board, output: output
         )
 
         try await setup.run()
@@ -125,7 +135,7 @@ struct SetupPrintChoicesTests {
         let board = await makeBoard(members: [operatorMember, deactivatedMember], teams: [engineeringTeam])
         let output = RecordingOutput()
         let setup = try makeSetup(
-            arguments: ["--print-choices"], directory: directory, board: board, output: output
+            arguments: ["--print-choices", "--installation", "acme"], directory: directory, board: board, output: output
         )
 
         try await setup.run()
@@ -135,39 +145,93 @@ struct SetupPrintChoicesTests {
         #expect(choices.configuredOperator == nil)
     }
 
-    @Test("No Installation token pair yet: --print-choices throws, naming the fix") // glossary:ignore GL001
+    @Test("--installation naming an entry without a token pair refuses, naming the fix") // glossary:ignore GL001
     func missingInstallationThrows() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
-        let board = await makeBoard()
-        let credentials = RecordingCredentialStore()
         let setup = try makeSetup(
-            arguments: ["--print-choices"], directory: directory, board: board, credentials: credentials
+            arguments: ["--print-choices", "--installation", "acme"], directory: directory, board: await makeBoard(),
+            credentials: RecordingCredentialStore()
         )
 
-        await #expect(throws: SetupError.self) { try await setup.run() }
+        let error = await #expect(throws: SetupError.self) { try await setup.run() }
+
+        #expect(error?.description.contains("yh setup --install-linear --installation acme") == true)
     }
 
-    @Test("No App Installation at all: --print-choices says Yellowhammer is not installed yet") // glossary:ignore GL001
-    func noInstallationThrowsNotInstalled() async throws {
+    @Test("--installation naming no entry refuses with the unknown-installation message") // glossary:ignore GL001
+    func unknownInstallationRefused() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+        let setup = try makeSetup(
+            arguments: ["--print-choices", "--installation", "nope"], directory: directory, board: await makeBoard()
+        )
+
+        let error = await #expect(throws: SetupError.self) { try await setup.run() }
+
+        #expect(error?.description == Setup.unknownInstallationMessage("nope", connected: ["acme"]))
+    }
+
+    @Test("No --installation lists every entry in file order and makes no Linear call") // glossary:ignore GL001
+    func noFlagListsRegistryOnly() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile("""
+            [board.linear.installations.beta]
+            credential = "keychain:linear-beta"
+            workspace = "workspace-2"
+            app_user = "app-user-2"
+            operator = "user-op"
+
+            [board.linear.installations.acme]
+            credential = "keychain:linear"
+            workspace = "workspace-1"
+            app_user = "app-user-1"
+
+            [github]
+            credential = "keychain:github"
+            """)
+        let bound = Mutex<[String]>([])
+        let output = RecordingOutput()
+        let setup = try makeSetup(
+            arguments: ["--print-choices"], directory: directory, board: await makeBoard(), output: output,
+            onBind: { installation in bound.withLock { $0.append(installation.name) } }
+        )
+
+        try await setup.run()
+
+        #expect(bound.withLock { $0 }.isEmpty)
+        #expect(output.lines.count == 1)
+        let choices = try JSONDecoder().decode(SetupChoices.self, from: Data(try #require(output.lines.first).utf8))
+        #expect(choices.installations == [
+            SetupChoices.Installation(name: "beta", workspace: "workspace-2", operatorIdentity: "user-op"),
+            SetupChoices.Installation(name: "acme", workspace: "workspace-1", operatorIdentity: nil)
+        ])
+        #expect(choices.operatorCandidates.isEmpty)
+        #expect(choices.teams.isEmpty)
+        #expect(choices.linearProjects.isEmpty)
+        #expect(choices.configuredOperator == nil)
+    }
+
+    @Test("No --installation and no entries, or no config.toml, prints an empty registry") // glossary:ignore GL001
+    func noFlagWithoutEntriesPrintsEmptyRegistry() async throws {
         for machineFile in [nil, "[github]\ncredential = \"keychain:github\"\n"] as [String?] {
             let directory = ConfigurationDirectory()
             if let machineFile { try directory.writeMachineFile(machineFile) }
+            let output = RecordingOutput()
             let setup = try makeSetup(
-                arguments: ["--print-choices"], directory: directory, board: await makeBoard()
+                arguments: ["--print-choices"], directory: directory, board: await makeBoard(), output: output
             )
-            do {
-                try await setup.run()
-                Issue.record("expected a SetupError")
-            } catch let error as SetupError {
-                #expect(error.description.contains("not installed in a Linear workspace yet"))
-                #expect(error.description.contains("yh setup --install-linear"))
-            }
+
+            try await setup.run()
+
+            let line = try #require(output.lines.first)
+            #expect(output.lines.count == 1)
+            #expect(line.contains("\"installations\":[]"))
         }
     }
 
-    @Test("Two App Installations: --print-choices reads exactly one and names the count") // glossary:ignore GL001
-    func twoInstallationsThrowCount() async throws {
+    @Test("--installation reads one entry and still lists the whole registry") // glossary:ignore GL001
+    func scopedReadIncludesFullRegistry() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
             [board.linear.installations.acme]
@@ -183,14 +247,17 @@ struct SetupPrintChoicesTests {
             [github]
             credential = "keychain:github"
             """)
-        let setup = try makeSetup(arguments: ["--print-choices"], directory: directory, board: await makeBoard())
-        do {
-            try await setup.run()
-            Issue.record("expected a SetupError")
-        } catch let error as SetupError {
-            #expect(error.description.contains("config.toml declares 2 Linear App Installations"))
-            #expect(error.description.contains("reads one"))
-        }
+        let output = RecordingOutput()
+        let setup = try makeSetup(
+            arguments: ["--print-choices", "--installation", "acme"], directory: directory,
+            board: await makeBoard(teams: [engineeringTeam]), output: output
+        )
+
+        try await setup.run()
+
+        let choices = try JSONDecoder().decode(SetupChoices.self, from: Data(try #require(output.lines.last).utf8))
+        #expect(choices.installations.map(\.name) == ["acme", "beta"])
+        #expect(choices.teams == [SetupChoices.Team(id: "team-1", key: "ENG", name: "Engineering")])
     }
 
     @Test("--print-choices is mutually exclusive with --init") // glossary:ignore GL001
@@ -223,11 +290,11 @@ struct SetupPrintChoicesTests {
         }
     }
 
-    @Test("--print-choices allows the Linear credential options") // glossary:ignore GL001
+    @Test("--print-choices allows the Linear options") // glossary:ignore GL001
     func printChoicesAllowsLinearOptions() throws {
         let command = try SetupCommand.parse([
             "--print-choices",
-            "--linear-credential", "keychain:linear", "--github-credential", "keychain:github"
+            "--installation", "main", "--github-credential", "keychain:github"
         ])
         let options = try SetupOptions(command: command)
 

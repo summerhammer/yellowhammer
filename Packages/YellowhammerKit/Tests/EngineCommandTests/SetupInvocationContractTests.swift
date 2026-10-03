@@ -12,7 +12,7 @@ struct SetupInvocationContractTests {
     @Test("A full --init invocation parses back to the matching SetupOptions") // glossary:ignore GL001
     func fullInitInvocationParsesBack() throws {
         let invocation = SetupInvocation(
-            linearCredential: "keychain:linear",
+            installation: "main",
             githubCredential: "keychain:github",
             cliAdapters: ["claude"],
             route: "claude/sonnet/medium",
@@ -33,7 +33,7 @@ struct SetupInvocationContractTests {
         let options = try SetupOptions(command: command)
 
         #expect(options.mode == .initialize)
-        #expect(options.linearCredential == CredentialReference("keychain:linear"))
+        #expect(options.installation == "main")
         #expect(options.githubCredential == CredentialReference("keychain:github"))
         #expect(options.cliAdapters == [CLIAdapterDeclaration(name: "claude")])
         #expect(options.route?.route == Route(cli: "claude", model: "sonnet", effort: "medium"))
@@ -70,14 +70,14 @@ struct SetupInvocationContractTests {
     @Test("choicesArguments parses back as --print-choices, no Project or generating options") // glossary:ignore GL001
     func choicesArgumentsParsesBack() throws {
         let arguments = Array(SetupInvocation.choicesArguments(
-            linearCredential: "keychain:linear", githubCredential: "keychain:github"
+            installation: "main", githubCredential: "keychain:github"
         ).dropFirst())
 
         let command = try SetupCommand.parse(arguments)
         let options = try SetupOptions(command: command)
 
         #expect(options.mode == .printChoices)
-        #expect(options.linearCredential == CredentialReference("keychain:linear"))
+        #expect(options.installation == "main")
         #expect(options.githubCredential == CredentialReference("keychain:github"))
         #expect(options.projectID == nil)
     }

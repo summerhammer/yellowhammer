@@ -149,7 +149,7 @@ public struct LinearRemoteInstallFlow: Sendable {
                 ),
                 identity: LinearInstallFlow.InstalledIdentity(
                     appUserID: identity.appUserID.rawValue, workspaceID: identity.workspaceID.rawValue,
-                    workspaceName: identity.workspaceName
+                    workspaceName: identity.workspaceName, workspaceURLKey: identity.workspaceURLKey
                 )
             )
         } catch {

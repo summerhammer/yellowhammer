@@ -95,7 +95,7 @@ struct LinearAppInstallationTests {
     func confirmDecodesIdentity() async throws {
         let transport = StubHTTPTransport([
             Fixture.json(#"{"data":{"viewer":{"id":"app-user-1","name":"Yellowhammer"},"#
-                + #""organization":{"id":"workspace-1","name":"Acme"}}}"#)
+                + #""organization":{"id":"workspace-1","name":"Acme","urlKey":"acme"}}}"#)
         ])
         let tokens = LinearTokenPair(
             accessToken: "access-1", refreshToken: "refresh-1", expiresAt: Date(timeIntervalSince1970: 1_800_003_600)
@@ -106,6 +106,7 @@ struct LinearAppInstallationTests {
         #expect(identity.appUserID == BoardObjectID(rawValue: "app-user-1"))
         #expect(identity.workspaceID == BoardObjectID(rawValue: "workspace-1"))
         #expect(identity.workspaceName == "Acme")
+        #expect(identity.workspaceURLKey == "acme")
     }
 
     @Test("Neither token ever appears in a description, even after a failure")

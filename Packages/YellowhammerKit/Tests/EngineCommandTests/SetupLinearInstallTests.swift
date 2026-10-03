@@ -73,7 +73,7 @@ struct SetupLinearInstallTests {
         let store = LinearInstallationStore(
             reference: reference, keychain: KeychainCredentialStore(), machineLock: MachineLock(fileURL: lockPath)
         )
-        let arguments = makeArguments(initialize: false, operatorID: "user-op")
+        let arguments = makeArguments(initialize: false, operatorID: "user-op", installation: "acme")
         let console = ScriptedConsole()
         let setup = try makeSetup(
             arguments: arguments, directory: directory, board: board, console: console, credentials: credentials,
@@ -89,7 +89,7 @@ struct SetupLinearInstallTests {
         #expect(installation.workspace == BoardObjectID(rawValue: "workspace-1"))
         #expect(installation.appUser == BoardObjectID(rawValue: "app-user-1"))
         #expect(installation.operatorIdentity == BoardObjectID(rawValue: "user-op"))
-        #expect(output.lines.contains { $0.contains("installed in the Linear workspace Acme") })
+        #expect(output.lines.contains { $0.contains("installed in the Linear workspace Acme (as acme)") })
         #expect(output.lines.contains { $0.contains("Operator: user-op") })
     }
 
@@ -130,42 +130,6 @@ struct SetupLinearInstallTests {
         // Untouched: the Project file's content, byte for byte.
         let projectPath = directory.url.appending(components: "projects", "demo.toml")
         #expect(FileManager.default.fileExists(atPath: projectPath.path(percentEncoded: false)))
-    }
-
-    @Test("A different workspace is refused: nothing stored, config unchanged")
-    func differentWorkspaceRefused() async throws {
-        let directory = ConfigurationDirectory()
-        try directory.writeMachineFile("""
-            [board.linear.installations.acme]
-            credential = "keychain:linear"
-            workspace = "workspace-old"
-            app_user = "app-user-old"
-
-            [github]
-            credential = "keychain:github"
-            """)
-        let original = try String(contentsOf: directory.url.appending(component: "config.toml"), encoding: .utf8)
-        let board = await makeBoard(members: [operatorMember])
-        let seams = happyPathSeams(workspaceID: "workspace-new", workspaceName: "Other")
-        let credentials = RecordingCredentialStore()
-        let reference = try #require(CredentialReference("keychain:test-install-\(UUID().uuidString)"))
-        let store = LinearInstallationStore(
-            reference: reference, keychain: KeychainCredentialStore(),
-            machineLock: MachineLock(fileURL: FileManager.default.temporaryDirectory.appending(
-                component: "yh-test-lock-\(UUID().uuidString).lock", directoryHint: .notDirectory
-            ))
-        )
-        let arguments = makeArguments(initialize: false, installLinear: true)
-        let setup = try makeSetup(
-            arguments: arguments, directory: directory, board: board, credentials: credentials,
-            linearInstallSeams: seams, linearInstallationStore: { _ in store }
-        )
-
-        await #expect(throws: SetupError.self) { try await setup.run() }
-
-        #expect(try store.tokenStore.read() == nil)
-        let text = try String(contentsOf: directory.url.appending(component: "config.toml"), encoding: .utf8)
-        #expect(text == original)
     }
 
     @Test("portsBusy, non-interactive: fails, the browser opener is never called")
@@ -210,7 +174,7 @@ struct SetupLinearInstallTests {
         let board = await makeBoard()
         await board.refuseWorkspaceMembersNext(.notAuthenticated("token revoked"))
         let credentials = RecordingCredentialStore(seed: ["keychain:linear": "test-secret"])
-        let arguments = makeArguments(initialize: true, operatorID: "user-op")
+        let arguments = makeArguments(initialize: true, operatorID: "user-op", installation: "acme")
         let setup = try makeSetup(
             arguments: arguments, directory: directory, board: board, credentials: credentials
         )
@@ -259,7 +223,7 @@ struct SetupLinearInstallTests {
             return
         }
         #expect(recorded[2] == .awaitingApproval)
-        #expect(recorded[3] == .installed(workspaceName: "Acme"))
+        #expect(recorded[3] == .installed(workspaceName: "Acme", installation: "acme"))
         #expect(recorded.count == 4)
     }
 
@@ -301,7 +265,7 @@ struct SetupLinearInstallTests {
         let credentials = RecordingCredentialStore()
         let output = RecordingOutput()
         let notifications = NotificationRegistrationStub(.allowed)
-        let arguments = makeArguments(initialize: true, operatorID: "user-op")
+        let arguments = makeArguments(initialize: true, operatorID: "user-op", installation: "acme")
         let setup = try makeSetup(
             arguments: arguments, directory: directory, board: board, credentials: credentials,
             output: output, notifications: notifications, linearInstallSeams: portsBusySeams()
@@ -327,7 +291,9 @@ struct SetupLinearInstallTests {
         let seams = happyPathSeams(opened: opened)
         let credentials = RecordingCredentialStore(seed: ["keychain:linear": "existing-secret"])
         let output = RecordingOutput()
-        let arguments = makeArguments(initialize: false, operatorID: "user-op", installLinear: true)
+        let arguments = makeArguments(
+            initialize: false, operatorID: "user-op", installLinear: true, installation: "acme"
+        )
         let setup = try makeSetup(
             arguments: arguments, directory: directory, board: board, credentials: credentials, output: output,
             linearInstallSeams: seams

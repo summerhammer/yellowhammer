@@ -25,7 +25,8 @@ struct LinearInstallEventTests {
                 text: "send this link to a workspace admin"
             ),
             .awaitingRemoteApproval,
-            .installed(workspaceName: "Acme"),
+            .installed(workspaceName: "Acme", installation: "acme"),
+            .installed(workspaceName: "Acme", installation: nil),
             .failed(reason: .cancelled, text: "the Operator cancelled"),
             .failed(reason: .expired, text: "the link expired"),
             .failed(reason: .rejected, text: "the admin declined"),
@@ -61,6 +62,15 @@ struct LinearInstallEventTests {
         let line = #"{"event":"awaitingApproval"}"#
         let decoded = try JSONDecoder().decode(LinearInstallEvent.self, from: Data(line.utf8))
         #expect(decoded == .awaitingApproval)
+    }
+
+    @Test("An installed line without the installation key still decodes")
+    func installedWithoutInstallationDecodes() throws {
+        let line = #"{"event":"installed","workspaceName":"Acme"}"#
+        let decoded = try JSONDecoder().decode(LinearInstallEvent.self, from: Data(line.utf8))
+        #expect(decoded == .installed(workspaceName: "Acme", installation: nil))
+        let encoded = try LinearInstallEvent.installed(workspaceName: "Acme", installation: "acme").ndjsonLine()
+        #expect(encoded.contains(#""installation":"acme""#))
     }
 
     @Test("An unknown event name fails to decode")
