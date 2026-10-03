@@ -307,7 +307,7 @@ does not renumber it; that file gets one line linking here.
 
 ## Phase L3 — The app
 
-### [ ] L3.1 Settings → General → Linear workspaces
+### [x] L3.1 Settings → General → Linear workspaces
 
 - **Work** — Replace the Linear and Operator identity sections with a **Linear workspaces** list:
   local name, workspace name, Operator identity; per workspace re-connect, remove (with the
@@ -320,6 +320,32 @@ does not renumber it; that file gets one line linking here.
   views and models; EngineStub grows `--installation`, `config` and per-installation doctor rows.
 - **Done when** — UI tests: two workspaces listed; re-connect; remove refused while a Project uses
   it; change Operator records `config operator --installation`.
+- **Status** — Done on 2026-10-03 (`2c3095f`). `LinearWorkspacesModel` (owned by `SettingsWindow`) reads
+  `config.toml` and the Project files and writes nothing; a row shows the workspace name from
+  `yh doctor --check linear --json` (`Domain.LinearInstallationStatus`, the local name when none was read,
+  OQ117), the Projects that name it, the doctor's status, the Operator identity, and *Re-connect…*
+  (`yh setup --install-linear --installation <name>`, locally or by admin link), *Change Operator…*
+  (`yh config operator --installation <name>`, `Domain.ConfigInvocation`, pinned against the parsers) and
+  *Remove…* (`yh config remove-installation <name>`; the confirmation says the app stays installed in
+  Linear, and `yh`'s refusal or success lines are shown verbatim). *Connect another Linear workspace* is
+  the untargeted install; a new entry without an Operator identity opens its candidates at once.
+  Child models are keyed by local name and survive reloads. `LinearInstallationModel` takes the
+  installation name at init. **Local choice / fix:** the doctor read runs once per window, on the pane's
+  first appearance, in a model-owned task — a view `.task` was cancelled when navigation recreated the
+  pane, which ended the read with nothing to retry it (caught by the UI test). It is not re-read on app
+  activation; `config.toml` is. ACs met: OQ109 item 9 (connect, re-connect, remove, change the Operator,
+  per workspace); *Removing an installation* (Remove runs the command; both refusals and the
+  stays-installed copy reach the UI); *Re-connecting a workspace* (targeted by `--installation`);
+  *Choosing* — fixed for the Project's life (no Settings control changes it); the Settings half of the
+  OQ117 workspace name. UI tests: two workspaces listed with names, Operators and Projects; re-connect
+  runs only that installation; remove refused while `alpha` uses it; remove succeeds with the
+  stays-installed copy; Change Operator records `config operator --installation scratch user-op`.
+  **Not UI-tested**: connect-another's follow-on Operator fetch; an Operator save `yh` refuses; removal
+  refused because a Project file fails to decode (the same verbatim-lines path). **Not met here**: the
+  wizard still builds an untargeted `LinearInstallationModel`, reads the first `authorization` row and
+  uses `soleLinearInstallation` (L3.2); Health opening this list (L3.3). The editable local name at
+  connect still has no headless form (spec gap above), so Settings' connect uses the proposed name.
+  `Spec:` cites `d04d9c2` (OQ116's command and OQ117's live name exist only there).
 
 ### [ ] L3.2 Add Project — the Linear step and readiness
 
