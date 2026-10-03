@@ -52,7 +52,10 @@ extension SetupWizardModel {
         isFetchingTeams = true
         teamsFailure = []
         defer { isFetchingTeams = false }
-        let arguments = SetupInvocation.choicesArguments(linearCredential: nil, githubCredential: nil)
+        let arguments = SetupInvocation.choicesArguments(
+            // One installation until the wizard offers a choice (roadmap L3.1).
+            installation: draft.context.linearInstallationName, githubCredential: nil
+        )
         var lines: [String] = []
         do {
             let status = try await engine.run(arguments: arguments, standardInput: nil) { lines.append($0) }

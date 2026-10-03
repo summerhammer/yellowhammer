@@ -115,7 +115,7 @@ struct SetupReusedProjectIDTests {
             "n" // Add another repo?
         ]
         let console = ScriptedConsole(
-            answers: ["", "", "", "", "y", "demo"] + project + ["demo2"] + project + ["n"]
+            answers: ["", "", "", "", "", "y", "demo"] + project + ["demo2"] + project + ["n"]
         )
         let output = RecordingOutput()
         let setup = try makeSetup(

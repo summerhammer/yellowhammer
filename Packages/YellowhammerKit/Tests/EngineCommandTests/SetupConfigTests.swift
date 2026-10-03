@@ -20,8 +20,7 @@ struct SetupConfigTests {
         let destination = ConfigurationDirectory()
         let board = await preparedBoard()
         let arguments = makeArguments(
-            initialize: false, config: prepared.path, operatorID: "user-op"
-        )
+            initialize: false, config: prepared.path, operatorID: "user-op", installation: "acme")
         let output = RecordingOutput()
         let console = ScriptedConsole()
         let setup = try makeSetup(
@@ -57,8 +56,7 @@ struct SetupConfigTests {
         let destination = ConfigurationDirectory()
         let board = await preparedBoard()
         let arguments = makeArguments(
-            initialize: false, config: prepared.path, operatorID: "user-op"
-        )
+            initialize: false, config: prepared.path, operatorID: "user-op", installation: "acme")
         try await makeSetup(arguments: arguments, directory: destination, board: board).run()
 
         let output = RecordingOutput()
@@ -77,8 +75,7 @@ struct SetupConfigTests {
         let destination = ConfigurationDirectory()
         let board = await preparedBoard()
         let arguments = makeArguments(
-            initialize: false, config: prepared.path, operatorID: "user-op"
-        )
+            initialize: false, config: prepared.path, operatorID: "user-op", installation: "acme")
         try await makeSetup(arguments: arguments, directory: destination, board: board).run()
         let machineFile = destination.url.appending(component: "config.toml")
         let afterFirstRun = try String(contentsOf: machineFile, encoding: .utf8)

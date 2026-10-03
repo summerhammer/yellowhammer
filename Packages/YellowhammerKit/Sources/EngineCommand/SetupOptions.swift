@@ -40,7 +40,6 @@ enum JobsRequest: Equatable {
 /// to their default — so interactive mode can tell "given" from "default" and skip the prompt only for
 /// the former.
 struct SetupOptions {
-    static let defaultLinearCredential = "keychain:linear"
     static let defaultGitHubCredential = "keychain:github"
 
     let mode: SetupMode
@@ -50,7 +49,9 @@ struct SetupOptions {
     /// `--remote` (roadmap P17.9): requests admin approval through the Code Relay instead of signing in
     /// on this Mac. Only meaningful with `--install-linear`.
     let remoteApproval: Bool
-    let linearCredential: CredentialReference?
+    /// `--installation`: the local name of the Linear App Installation this run acts on (a re-connect
+    /// target under `--install-linear`).
+    let installation: String?
     let githubCredential: CredentialReference?
     /// In `--cli` order.
     let cliAdapters: [CLIAdapterDeclaration]
@@ -73,7 +74,7 @@ struct SetupOptions {
         mode = try Self.parseMode(command)
         eventsJSON = try Self.parseEventsJSON(command)
         remoteApproval = try Self.parseRemoteApproval(command)
-        linearCredential = try Self.parseCredential(command.linearCredential, option: "--linear-credential")
+        installation = try Self.parseInstallation(command.installation)
         githubCredential = try Self.parseCredential(command.githubCredential, option: "--github-credential")
         operatorID = command.operatorID.map { BoardObjectID(rawValue: $0) }
 
@@ -202,6 +203,14 @@ struct SetupOptions {
             throw ValidationError("--remote requires --install-linear")
         }
         return true
+    }
+
+    private static func parseInstallation(_ raw: String?) throws -> String? {
+        guard let raw else { return nil }
+        guard !raw.trimmingCharacters(in: .whitespaces).isEmpty else {
+            throw ValidationError("--installation must not be empty")
+        }
+        return raw
     }
 
     private static func parseCredential(_ raw: String?, option: String) throws -> CredentialReference? {

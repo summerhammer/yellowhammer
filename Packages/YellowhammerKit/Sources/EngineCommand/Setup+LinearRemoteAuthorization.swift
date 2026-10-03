@@ -19,8 +19,11 @@ extension Setup {
     /// approval link, polls for the admin's decision, and — once approved — exchanges directly with
     /// Linear. Every non-installed outcome offers a retry (a fresh session) or, for an unreachable relay,
     /// a fallback to the local path; `--events json` never prompts, and always fails naming the reason.
-    func runLinearRemoteInstall(machine: inout MachineConfiguration) async throws {
-        let adminText = LinearInstallCopy.beforeRemoteApproval(teams: await candidateTeams(machine: machine))
+    func runLinearRemoteInstall(
+        machine: inout MachineConfiguration, target: LinearInstallation?
+    ) async throws -> LinearInstallation {
+        let teams = await candidateTeams(machine: machine, target: target)
+        let adminText = LinearInstallCopy.beforeRemoteApproval(teams: teams)
         report(.adminStatement(text: adminText), text: adminText)
 
         let flow = makeRemoteFlow()
@@ -31,10 +34,9 @@ extension Setup {
             } catch let error as LinearRemoteInstallFlow.FlowError {
                 throw remoteContractError(error)
             }
-            if try await handleRemoteOutcome(outcome, machine: &machine) {
-                continue
+            if let installation = try await handleRemoteOutcome(outcome, target: target, machine: &machine) {
+                return installation
             }
-            return
         }
     }
 
@@ -67,40 +69,40 @@ extension Setup {
         })
     }
 
-    /// `true` to retry the remote attempt from the top; `false` once `.installed` was stored, or once
-    /// `.relayUnreachable` switched to (and completed via) the local path.
+    /// `nil` to retry the remote attempt from the top; the resulting entry once `.installed` was stored, or
+    /// once `.relayUnreachable` switched to (and completed via) the local path.
     private func handleRemoteOutcome(
-        _ outcome: LinearRemoteInstallFlow.Outcome, machine: inout MachineConfiguration
-    ) async throws -> Bool {
+        _ outcome: LinearRemoteInstallFlow.Outcome, target: LinearInstallation?,
+        machine: inout MachineConfiguration
+    ) async throws -> LinearInstallation? {
         switch outcome {
         case .installed(let tokens, let identity):
-            try await storeInstalled(tokens: tokens, identity: identity, machine: &machine)
-            return false
+            return try await storeInstalled(tokens: tokens, identity: identity, target: target, machine: &machine)
         case .rejected:
             try await requestNewLink(
                 reason: .rejected, text: "The workspace admin declined the installation in Linear."
             )
-            return true
+            return nil
         case .expired:
             try await requestNewLink(
                 reason: .expired, text: "The approval link expired before an admin approved it."
             )
-            return true
+            return nil
         case .notCompleted(let linearError):
             try await requestNewLink(
                 reason: .notCompleted,
                 text: "Linear did not complete the installation: \(linearError). "
                     + "An approval can be used only once; request a new link."
             )
-            return true
+            return nil
         case .relayRateLimited:
             _ = try await handleRemoteFailedAttempt(
                 reason: .relayRateLimited, text: "app.yellowhammer.dev is busy right now. Try again in a minute.",
                 prompt: "[r]etry or [c]ancel? "
             ) { $0.hasPrefix("r") ? RemoteRetryDecision.retry : nil }
-            return true
+            return nil
         case .relayUnreachable(let detail):
-            return try await handleRelayUnreachable(detail: detail, machine: &machine)
+            return try await handleRelayUnreachable(detail: detail, target: target, machine: &machine)
         }
     }
 
@@ -113,8 +115,8 @@ extension Setup {
     }
 
     private func handleRelayUnreachable(
-        detail: String, machine: inout MachineConfiguration
-    ) async throws -> Bool {
+        detail: String, target: LinearInstallation?, machine: inout MachineConfiguration
+    ) async throws -> LinearInstallation? {
         let text = "Setup could not reach app.yellowhammer.dev (\(detail)). Retry, or sign in "
             + "on this Mac as a workspace admin instead."
         let decision = try await handleRemoteFailedAttempt(
@@ -124,9 +126,8 @@ extension Setup {
             if answer.hasPrefix("r") { return .retry }
             return answer.hasPrefix("l") ? .switchToLocal : nil
         }
-        guard case .switchToLocal = decision else { return true }
-        try await runLinearLocalInstall(machine: &machine)
-        return false
+        guard case .switchToLocal = decision else { return nil }
+        return try await runLinearLocalInstall(machine: &machine, target: target)
     }
 
     private func remoteContractError(_ error: LinearRemoteInstallFlow.FlowError) -> SetupError {

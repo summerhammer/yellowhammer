@@ -60,7 +60,9 @@ struct SetupTests {
         )
         let createsAfterFirst = await board.creates
 
-        let setup2 = try makeSetup(arguments: arguments, directory: directory, board: board)
+        let setup2 = try makeSetup(
+            arguments: arguments + ["--installation", "acme"], directory: directory, board: board
+        )
         try await setup2.run()
 
         let machineTextAfterSecond = try String(
@@ -138,7 +140,9 @@ struct SetupTests {
         #expect(project.linearInstallationName == "acme")
         let createsAfterFirst = await board.creates
 
-        let setup2 = try makeSetup(arguments: arguments, directory: directory, board: board)
+        let setup2 = try makeSetup(
+            arguments: arguments + ["--installation", "acme"], directory: directory, board: board
+        )
         try await setup2.run()
         #expect(await board.creates == createsAfterFirst)
     }
@@ -234,7 +238,7 @@ struct SetupTests {
     func missingInstallationThrowsGuidance() async throws {
         let directory = ConfigurationDirectory()
         let board = await makeBoard()
-        let arguments = makeArguments(operatorID: "user-op")
+        let arguments = makeArguments(operatorID: "user-op", installation: "acme")
         let credentials = RecordingCredentialStore()
         let setup = try makeSetup(
             arguments: arguments, directory: directory, board: board, credentials: credentials,
@@ -258,7 +262,7 @@ struct SetupTests {
             credential = "keychain:github"
             """)
         let board = await makeBoard()
-        let arguments = makeArguments(operatorID: "user-op")
+        let arguments = makeArguments(operatorID: "user-op", installation: "acme")
         let setup = try makeSetup(arguments: arguments, directory: directory, board: board)
 
         try await setup.run()
@@ -313,7 +317,7 @@ struct SetupTests {
         let board = await makeBoard(
             project: BoardProjectScope(id: BoardObjectID(rawValue: "proj-1"), name: "healthy", teams: [engineeringTeam])
         )
-        let arguments = makeArguments(operatorID: "user-op")
+        let arguments = makeArguments(operatorID: "user-op", installation: "acme")
         let output = RecordingOutput()
         let setup = try makeSetup(arguments: arguments, directory: directory, board: board, output: output)
 

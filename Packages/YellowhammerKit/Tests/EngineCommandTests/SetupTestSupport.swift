@@ -94,7 +94,8 @@ func makeArguments(
     cron: Bool = false,
     installLinear: Bool = false,
     events: String? = nil,
-    remote: Bool = false
+    remote: Bool = false,
+    installation: String? = nil
 ) -> [String] {
     var arguments: [String] = []
     if initialize { arguments.append("--init") }
@@ -102,6 +103,7 @@ func makeArguments(
     if cron { arguments.append("--cron") }
     if installLinear { arguments.append("--install-linear") }
     if remote { arguments.append("--remote") }
+    appendOption(&arguments, "--installation", installation)
     appendOption(&arguments, "--events", events)
     appendOption(&arguments, "--config", config)
     appendOption(&arguments, "--route", route)
@@ -198,7 +200,8 @@ struct NeverCalledPortHolderLookup: PortHolderLookup {
 /// The happy-path seams: binds the first port, echoes the flow's own `state` back, and exchanges
 /// through a `StubHTTPTransport` scripted with a token grant and a confirm reply.
 func happyPathSeams(
-    workspaceID: String = "workspace-1", workspaceName: String = "Acme", appUserID: String = "app-user-1",
+    workspaceID: String = "workspace-1", workspaceName: String = "Acme", workspaceURLKey: String = "acme",
+    appUserID: String = "app-user-1",
     opened: URLRecorder = URLRecorder()
 ) -> LinearInstallSeams {
     let state = Mutex("")
@@ -206,7 +209,8 @@ func happyPathSeams(
         InstallFlowFixture.installationGrant(accessToken: "at-1", refreshToken: "rt-1"),
         InstallFlowFixture.json(
             #"{"data":{"viewer":{"id":"\#(appUserID)","name":"Yellowhammer"},"#
-                + #""organization":{"id":"\#(workspaceID)","name":"\#(workspaceName)"}}}"#
+                + #""organization":{"id":"\#(workspaceID)","name":"\#(workspaceName)","#
+                    + #""urlKey":"\#(workspaceURLKey)"}}}"#
         )
     ])
     return LinearInstallSeams(
@@ -289,7 +293,8 @@ func makeSetup(
     linearInstallSeams: LinearInstallSeams = defaultLinearInstallSeams(),
     linearInstallationStore: @escaping (LinearInstallation) -> LinearInstallationStore =
         ThrowawayInstallationStores().store,
-    linearInstallEvents: @escaping @Sendable (LinearInstallEvent) -> Void = { _ in }
+    linearInstallEvents: @escaping @Sendable (LinearInstallEvent) -> Void = { _ in },
+    onBind: @escaping @Sendable (LinearInstallation) -> Void = { _ in }
 ) throws -> Setup {
     let command = try SetupCommand.parse(arguments)
     let options = try SetupOptions(command: command)
@@ -299,7 +304,10 @@ func makeSetup(
         output: { output.record($0) },
         console: console,
         credentials: credentials,
-        bindProvisioning: { _, _ in board },
+        bindProvisioning: { installation, _ in
+            onBind(installation)
+            return board
+        },
         registerNotifications: { await notifications.call() },
         homeDirectory: homeDirectory,
         yhExecutablePath: yhExecutablePath,

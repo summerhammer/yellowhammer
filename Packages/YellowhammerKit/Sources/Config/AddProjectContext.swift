@@ -17,6 +17,9 @@ public struct AddProjectContext: Equatable, Sendable {
     public var teams: [SetupChoices.Team]
     /// The active Linear projects `yh setup --print-choices` returned, in the board's order. // glossary:ignore GL001
     public var linearProjects: [SetupChoices.LinearProject] // glossary:ignore GL001
+    /// The local name of the Linear App Installation the wizard's `yh setup` calls act on, passed as
+    /// `--installation`. nil passes none.
+    public var linearInstallationName: String?
 
     public init(
         existingProjectIDs: Set<String> = [],
@@ -24,8 +27,10 @@ public struct AddProjectContext: Equatable, Sendable {
         specSourceReaders: [String: [String]] = [:],
         journalProjectIDs: Set<String> = [],
         teams: [SetupChoices.Team] = [],
-        linearProjects: [SetupChoices.LinearProject] = []
+        linearProjects: [SetupChoices.LinearProject] = [],
+        linearInstallationName: String? = nil
     ) {
+        self.linearInstallationName = linearInstallationName
         self.linearProjects = linearProjects
         self.existingProjectIDs = existingProjectIDs
         self.repoOwners = repoOwners
@@ -40,7 +45,8 @@ public struct AddProjectContext: Equatable, Sendable {
         projectFileIDs: Set<String>,
         journalProjectIDs: Set<String>,
         teams: [SetupChoices.Team] = [],
-        linearProjects: [SetupChoices.LinearProject] = []
+        linearProjects: [SetupChoices.LinearProject] = [],
+        linearInstallationName: String? = nil
     ) {
         var owners: [String: String] = [:]
         var readers: [String: [String]] = [:]
@@ -58,7 +64,8 @@ public struct AddProjectContext: Equatable, Sendable {
             specSourceReaders: readers,
             journalProjectIDs: journalProjectIDs,
             teams: teams,
-            linearProjects: linearProjects
+            linearProjects: linearProjects,
+            linearInstallationName: linearInstallationName
         )
     }
 

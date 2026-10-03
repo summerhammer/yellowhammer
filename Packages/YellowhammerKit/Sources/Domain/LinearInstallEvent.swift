@@ -15,7 +15,8 @@ public enum LinearInstallEvent: Equatable, Sendable {
     case approvalLinkIssued(url: String, expiresInSeconds: Int, text: String)
     /// Setup is polling the Code Relay for the admin's decision.
     case awaitingRemoteApproval
-    case installed(workspaceName: String)
+    /// The pair was stored; `installation` is the registry entry's local name (absent in older output).
+    case installed(workspaceName: String, installation: String?)
     /// The attempt did not end in an installation, for `reason`, with Linear's or setup's own text.
     case failed(reason: FailureReason, text: String)
 
@@ -36,6 +37,7 @@ public enum LinearInstallEvent: Equatable, Sendable {
     public enum FailureReason: String, Equatable, Sendable, Codable {
         case cancelled
         case notCompleted
+        /// A re-connect aimed at one Linear App Installation was approved in another Linear workspace.
         case differentWorkspace
         case portsBusy
         case other
@@ -52,7 +54,7 @@ public enum LinearInstallEvent: Equatable, Sendable {
 
 extension LinearInstallEvent: Codable {
     private enum CodingKeys: String, CodingKey {
-        case event, text, ports, url, workspaceName, reason, expiresIn
+        case event, text, ports, url, workspaceName, installation, reason, expiresIn
     }
 
     public init(from decoder: any Decoder) throws {
@@ -79,7 +81,10 @@ extension LinearInstallEvent: Codable {
         case "awaitingRemoteApproval":
             self = .awaitingRemoteApproval
         case "installed":
-            self = .installed(workspaceName: try container.decode(String.self, forKey: .workspaceName))
+            self = .installed(
+                workspaceName: try container.decode(String.self, forKey: .workspaceName),
+                installation: try container.decodeIfPresent(String.self, forKey: .installation)
+            )
         case "failed":
             self = .failed(
                 reason: try container.decode(FailureReason.self, forKey: .reason),
@@ -114,9 +119,10 @@ extension LinearInstallEvent: Codable {
             try container.encode(text, forKey: .text)
         case .awaitingRemoteApproval:
             try container.encode("awaitingRemoteApproval", forKey: .event)
-        case .installed(let workspaceName):
+        case .installed(let workspaceName, let installation):
             try container.encode("installed", forKey: .event)
             try container.encode(workspaceName, forKey: .workspaceName)
+            try container.encodeIfPresent(installation, forKey: .installation)
         case .failed(let reason, let text):
             try container.encode("failed", forKey: .event)
             try container.encode(reason, forKey: .reason)

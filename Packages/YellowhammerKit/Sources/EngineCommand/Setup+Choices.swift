@@ -6,15 +6,33 @@ import Foundation
 
 extension Setup {
     /// `--print-choices`: never prompts, writes no configuration file. Loads `config.toml` when present
-    /// (invalid means throw, as elsewhere), or reads none; then binds the sole App Installation's board, authorizes, and reads its teams and Linear projects. Its last line is the
-    /// JSON-encoded ``SetupChoices``, the line the app decodes; a failed Linear projects read is reported
-    /// on one `warning:` line before it.
+    /// (invalid means throw, as elsewhere), or reads none. It always lists the registry (`installations`).
+    /// Without `--installation` that is all it does: no credential lookup and no Linear call. With
+    /// `--installation <name>` it also binds that entry's board, authorizes, and reads its teams and Linear
+    /// projects. Its last line is the JSON-encoded ``SetupChoices``, the line the app decodes; a failed
+    /// Linear projects read is reported on one `warning:` line before it.
     func printChoices() async throws {
         let machine = try loadMachineConfigurationForChoices()
-        let installation = try soleInstallationForChoices(machine)
+        let registry = machine?.linearInstallations ?? []
+        let listed = registry.map {
+            SetupChoices.Installation(
+                name: $0.name, workspace: $0.workspace.rawValue, operatorIdentity: $0.operatorIdentity?.rawValue
+            )
+        }
+        guard let name = options.installation else {
+            output(try encodeChoicesJSON(SetupChoices(
+                operatorCandidates: [], configuredOperator: nil, teams: [],
+                cliAdapters: CLIAdapterRegistry.allNames, installations: listed
+            )))
+            return
+        }
+        guard let installation = machine?.linearInstallation(named: name) else {
+            throw SetupError(Self.unknownInstallationMessage(name, connected: registry.map(\.name)))
+        }
         guard credentials.secret(for: installation.credential) != nil else {
             throw SetupError(
-                "Yellowhammer is not installed in a Linear workspace yet; run yh setup --install-linear"
+                "Yellowhammer is not installed in the Linear workspace of \(name) yet; "
+                    + "run yh setup --install-linear --installation \(name)"
             )
         }
         let board = bindProvisioning(installation, "")
@@ -30,7 +48,10 @@ extension Setup {
             projects = []
         }
         output(try encodeChoicesJSON(
-            makeChoices(installation: installation, members: members, teams: teams, projects: projects)
+            makeChoices(
+                installation: installation, members: members, teams: teams, projects: projects,
+                installations: listed
+            )
         ))
     }
 
@@ -46,23 +67,6 @@ extension Setup {
         return nil
     }
 
-    /// Choices are read through exactly one App Installation (the machine-only bridge, roadmap L3.2).
-    private func soleInstallationForChoices(_ machine: MachineConfiguration?) throws -> LinearInstallation {
-        let count = machine?.linearInstallations.count ?? 0
-        guard count > 0, let machine else {
-            throw SetupError(
-                "Yellowhammer is not installed in a Linear workspace yet; run yh setup --install-linear"
-            )
-        }
-        guard let sole = machine.soleLinearInstallation else {
-            throw SetupError(
-                "config.toml declares \(count) Linear App Installations; "
-                    + "this version of yh setup --print-choices reads one"
-            )
-        }
-        return sole
-    }
-
     private func fetchTeams(board: any BoardProvisioning) async throws -> [BoardTeam] {
         do {
             return try await board.teams()
@@ -73,7 +77,7 @@ extension Setup {
 
     private func makeChoices(
         installation: LinearInstallation, members: [BoardMember], teams: [BoardTeam],
-        projects: [BoardLinearProject]
+        projects: [BoardLinearProject], installations: [SetupChoices.Installation]
     ) -> SetupChoices {
         let candidates = OperatorIdentity.candidates(from: members)
         let configuredOperator = installation.operatorIdentity.flatMap { configured in
@@ -90,7 +94,8 @@ extension Setup {
                     id: project.id.rawValue, name: project.name, teamNames: project.teams.map(\.name)
                 )
             },
-            cliAdapters: CLIAdapterRegistry.allNames
+            cliAdapters: CLIAdapterRegistry.allNames,
+            installations: installations
         )
     }
 

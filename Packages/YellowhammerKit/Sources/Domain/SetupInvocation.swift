@@ -62,7 +62,8 @@ public struct SetupInvocation: Equatable, Sendable {
         case export(directory: String, cron: Bool)
     }
 
-    public var linearCredential: String?
+    /// The local name of the Linear App Installation the run acts on (`--installation`).
+    public var installation: String?
     public var githubCredential: String?
     /// `"name"` or `"name=executable"`, in `--cli` order.
     public var cliAdapters: [String]
@@ -74,7 +75,7 @@ public struct SetupInvocation: Equatable, Sendable {
     public var jobs: Jobs
 
     public init(
-        linearCredential: String? = nil,
+        installation: String? = nil,
         githubCredential: String? = nil,
         cliAdapters: [String] = [],
         route: String? = nil,
@@ -83,7 +84,7 @@ public struct SetupInvocation: Equatable, Sendable {
         project: Project? = nil,
         jobs: Jobs = .notNow
     ) {
-        self.linearCredential = linearCredential
+        self.installation = installation
         self.githubCredential = githubCredential
         self.cliAdapters = cliAdapters
         self.route = route
@@ -96,7 +97,7 @@ public struct SetupInvocation: Equatable, Sendable {
     /// `["setup", "--init", ...]`, the app's non-interactive `yh setup` invocation.
     public func arguments() throws(SetupInvocationError) -> [String] {
         var arguments = ["setup", "--init"]
-        Self.appendOption(&arguments, "--linear-credential", linearCredential)
+        Self.appendOption(&arguments, "--installation", installation)
         Self.appendOption(&arguments, "--github-credential", githubCredential)
         Self.appendRepeated(&arguments, "--cli", cliAdapters)
         Self.appendOption(&arguments, "--route", route)
@@ -135,10 +136,10 @@ public struct SetupInvocation: Equatable, Sendable {
 
     /// `["setup", "--print-choices", ...]`: never prompts, writes no configuration file.
     public static func choicesArguments(
-        linearCredential: String?, githubCredential: String?
+        installation: String?, githubCredential: String?
     ) -> [String] {
         var arguments = ["setup", "--print-choices"] // glossary:ignore GL001
-        appendOption(&arguments, "--linear-credential", linearCredential)
+        appendOption(&arguments, "--installation", installation)
         appendOption(&arguments, "--github-credential", githubCredential)
         return arguments
     }
@@ -146,9 +147,9 @@ public struct SetupInvocation: Equatable, Sendable {
     /// `["setup", "--install-linear", "--events", "json", ...]`: the app's re-run of just the Linear
     /// step (P17.6 slice (b)) — used both for the first install and for the app's own Retry/Cancel on a
     /// `portsBusy`/`cancelled`/`notCompleted` event, which re-runs this exact invocation.
-    public static func installLinearArguments(linearCredential: String? = nil, remote: Bool = false) -> [String] {
+    public static func installLinearArguments(installation: String? = nil, remote: Bool = false) -> [String] {
         var arguments = ["setup", "--install-linear", "--events", "json"] // glossary:ignore GL001
-        appendOption(&arguments, "--linear-credential", linearCredential)
+        appendOption(&arguments, "--installation", installation)
         if remote { arguments.append("--remote") }
         return arguments
     }

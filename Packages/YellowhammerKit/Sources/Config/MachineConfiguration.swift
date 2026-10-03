@@ -30,6 +30,17 @@ public struct LinearInstallation: Equatable, Sendable {
         self.appUser = appUser
         self.operatorIdentity = operatorIdentity
     }
+
+    /// Whether `name` is a valid local name: `^[a-z0-9][a-z0-9_-]*$`. Setup proposes only names that pass;
+    /// the TOML decoder does not enforce it, so a quoted name that fails still loads.
+    public static func isValidLocalName(_ name: String) -> Bool {
+        guard let first = name.unicodeScalars.first, isLocalNameAlphanumeric(first) else { return false }
+        return name.unicodeScalars.allSatisfy { isLocalNameAlphanumeric($0) || $0 == "_" || $0 == "-" }
+    }
+
+    private static func isLocalNameAlphanumeric(_ scalar: Unicode.Scalar) -> Bool {
+        ("a"..."z").contains(scalar) || ("0"..."9").contains(scalar)
+    }
 }
 
 /// The machine-wide configuration file: the registry of Linear App Installations (ADR-005), the machine

@@ -39,4 +39,32 @@ struct SetupChoicesTests {
         #expect(decoded.linearProjects.isEmpty)
         #expect(decoded.configuredOperator == nil)
     }
+
+    @Test("installations encode with the operator key, in a pinned shape")
+    func installationsJSONShape() throws {
+        let choices = SetupChoices(
+            operatorCandidates: [], configuredOperator: nil, teams: [], cliAdapters: [],
+            installations: [
+                SetupChoices.Installation(name: "acme", workspace: "ws-1", operatorIdentity: "user-op"),
+                SetupChoices.Installation(name: "beta", workspace: "ws-2", operatorIdentity: nil)
+            ]
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+
+        let json = try #require(String(data: encoder.encode(choices), encoding: .utf8))
+
+        #expect(json == """
+            {"cliAdapters":[],"installations":[{"name":"acme","operator":"user-op","workspace":"ws-1"},\
+            {"name":"beta","workspace":"ws-2"}],"linearProjects":[],"operatorCandidates":[],"teams":[]}
+            """)
+        #expect(try JSONDecoder().decode(SetupChoices.self, from: Data(json.utf8)) == choices)
+    }
+
+    @Test("JSON without installations decodes with an empty registry")
+    func missingInstallationsDecodesEmpty() throws {
+        let json = #"{"operatorCandidates":[],"teams":[],"cliAdapters":["claude"]}"#
+        let decoded = try JSONDecoder().decode(SetupChoices.self, from: Data(json.utf8))
+        #expect(decoded.installations.isEmpty)
+    }
 }

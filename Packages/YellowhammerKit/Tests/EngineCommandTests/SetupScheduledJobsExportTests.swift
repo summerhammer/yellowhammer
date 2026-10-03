@@ -13,7 +13,9 @@ struct SetupScheduledJobsExportTests {
         try directory.writeValidProjectFile(id: "alpha")
         let board = await makeBoard()
         let exportDirectory = freshExportDirectory()
-        let arguments = makeArguments(operatorID: "user-op", exportJobs: exportDirectory.path(percentEncoded: false))
+        let arguments = makeArguments(
+            operatorID: "user-op", exportJobs: exportDirectory.path(percentEncoded: false), installation: "acme"
+        )
         let launchAgents = RecordingLaunchAgentControl()
         let setup = try makeSetup(
             arguments: arguments, directory: directory, board: board, launchAgents: launchAgents
@@ -40,7 +42,8 @@ struct SetupScheduledJobsExportTests {
         let board = await makeBoard()
         let exportDirectory = freshExportDirectory()
         let arguments = makeArguments(
-            operatorID: "user-op", exportJobs: exportDirectory.path(percentEncoded: false), cron: true
+            operatorID: "user-op", exportJobs: exportDirectory.path(percentEncoded: false), cron: true,
+            installation: "acme"
         )
         let setup = try makeSetup(arguments: arguments, directory: directory, board: board)
 
@@ -58,7 +61,7 @@ struct SetupScheduledJobsExportTests {
         try directory.writeMachineFile()
         try directory.writeValidProjectFile(id: "alpha")
         let board = await makeBoard()
-        let arguments = makeArguments(operatorID: "user-op")
+        let arguments = makeArguments(operatorID: "user-op", installation: "acme")
         let output = RecordingOutput()
         let homeDirectory = freshHomeDirectory()
         let setup = try makeSetup(
@@ -81,7 +84,7 @@ struct SetupScheduledJobsExportTests {
         try directory.writeMachineFile()
         try directory.writeValidProjectFile(id: "alpha")
         let board = await makeBoard()
-        let arguments = makeArguments(initialize: false, operatorID: "user-op")
+        let arguments = makeArguments(initialize: false, operatorID: "user-op", installation: "acme")
         let console = ScriptedConsole(answers: ["n", "n"])
         let homeDirectory = freshHomeDirectory()
         let setup = try makeSetup(
@@ -101,7 +104,7 @@ struct SetupScheduledJobsExportTests {
         try directory.writeMachineFile()
         try directory.writeValidProjectFile(id: "alpha")
         let board = await makeBoard()
-        let arguments = makeArguments(initialize: false, operatorID: "user-op")
+        let arguments = makeArguments(initialize: false, operatorID: "user-op", installation: "acme")
         let console = ScriptedConsole(answers: ["n", ""])
         let homeDirectory = freshHomeDirectory()
         let launchAgents = RecordingLaunchAgentControl()
@@ -120,6 +123,7 @@ struct SetupScheduledJobsExportTests {
     }
 
     @Test("A missing declared adapter under the composed PATH warns, and setup still succeeds")
+
     func missingToolWarnsButSucceeds() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
@@ -135,7 +139,7 @@ struct SetupScheduledJobsExportTests {
             """)
         try directory.writeValidProjectFile(id: "alpha")
         let board = await makeBoard()
-        let arguments = makeArguments(operatorID: "user-op", installJobs: true)
+        let arguments = makeArguments(operatorID: "user-op", installJobs: true, installation: "acme")
         let output = RecordingOutput()
         let homeDirectory = freshHomeDirectory()
         let setup = try makeSetup(

@@ -97,10 +97,21 @@ struct AddProjectDraftInvocationTests {
         #expect(draft.setupInvocation.jobs == .export(directory: "/out", cron: false))
     }
 
+    @Test("The context's Linear App Installation is passed as --installation")
+    func contextInstallationIsCarried() throws {
+        var draft = completeAddProjectDraft()
+        draft.context.linearInstallationName = "acme"
+        let invocation = draft.setupInvocation
+        #expect(invocation.installation == "acme")
+        let arguments = try invocation.arguments()
+        let index = try #require(arguments.firstIndex(of: "--installation"))
+        #expect(arguments[index + 1] == "acme")
+    }
+
     @Test("Nothing machine-wide is carried")
     func nothingMachineWide() {
         let invocation = completeAddProjectDraft().setupInvocation
-        #expect(invocation.linearCredential == nil)
+        #expect(invocation.installation == nil)
         #expect(invocation.githubCredential == nil)
         #expect(invocation.cliAdapters.isEmpty)
         #expect(invocation.route == nil)

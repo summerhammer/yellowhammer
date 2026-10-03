@@ -115,7 +115,7 @@ public enum LinearAppInstallation {
     public static func confirm(
         tokens: LinearTokenPair, transport: any HTTPTransport
     ) async throws(BoardError) -> LinearInstallationIdentity {
-        let query = "query YellowhammerInstallationConfirm { viewer { id name } organization { id name } }"
+        let query = "query YellowhammerInstallationConfirm { viewer { id name } organization { id name urlKey } }"
         let request: URLRequest
         do {
             request = try LinearGraphQL.request(query: query, variables: [:], token: tokens.accessToken)
@@ -147,7 +147,8 @@ public enum LinearAppInstallation {
         return LinearInstallationIdentity(
             appUserID: BoardObjectID(rawValue: payload.viewer.id),
             workspaceID: BoardObjectID(rawValue: payload.organization.id),
-            workspaceName: payload.organization.name
+            workspaceName: payload.organization.name,
+            workspaceURLKey: payload.organization.urlKey
         )
     }
 
@@ -208,6 +209,7 @@ struct LinearInstallationViewer: Decodable {
 struct LinearInstallationOrganization: Decodable {
     let id: String
     let name: String
+    let urlKey: String
 }
 
 /// The installed app user's identity and the workspace it belongs to — opaque strings only; no Linear
@@ -216,11 +218,16 @@ public struct LinearInstallationIdentity: Sendable, Equatable {
     public let appUserID: BoardObjectID
     public let workspaceID: BoardObjectID
     public let workspaceName: String
+    /// The workspace's URL key (`linear.app/<urlKey>`), the default local name of its registry entry.
+    public let workspaceURLKey: String
 
-    public init(appUserID: BoardObjectID, workspaceID: BoardObjectID, workspaceName: String) {
+    public init(
+        appUserID: BoardObjectID, workspaceID: BoardObjectID, workspaceName: String, workspaceURLKey: String
+    ) {
         self.appUserID = appUserID
         self.workspaceID = workspaceID
         self.workspaceName = workspaceName
+        self.workspaceURLKey = workspaceURLKey
     }
 }
 
