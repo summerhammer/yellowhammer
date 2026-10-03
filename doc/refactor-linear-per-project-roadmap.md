@@ -188,7 +188,7 @@ does not renumber it; that file gets one line linking here.
 
 ## Phase L2 — `yh`
 
-### [ ] L2.1 `yh setup` against the registry
+### [x] L2.1 `yh setup` against the registry
 
 - **Work** — Order inverts: exchange → read workspace (ID, name, URL key) → look the workspace up
   in the registry → **re-connect** (replace tokens in place, keep name and Operator) or **new
@@ -211,6 +211,27 @@ does not renumber it; that file gets one line linking here.
 - **Done when** — Stub-transport tests: new workspace adds an entry; same workspace replaces tokens
   only; re-connect to another workspace leaves the entry and Keychain untouched; `--init` writes the
   selection; `--print-choices --installation` is scoped. Setup installs into the scratch workspace.
+- **Status** — Done on 2026-10-03 (`d7c0047`). `storeInstalled` decides before any write: a targeted
+  re-connect approved elsewhere throws `.differentWorkspace` naming the approved workspace (nothing
+  stored); a registered workspace re-connects (config.toml rewritten only if `app_user` changed); any
+  other becomes a new entry. The proposed name is the URL key coerced to
+  `LinearInstallation.isValidLocalName` (`^[a-z0-9][a-z0-9_-]*$`, now public in `Config`, not enforced
+  by the decoder), suffixed `-2`, `-3`… if taken; interactive runs may edit it, asked before the
+  credential is derived, so a cancel leaves no Keychain item. `--print-choices` always carries
+  `installations` (name, workspace ID, `operator`; decoded `?? []`); without `--installation` it makes
+  no Linear call and succeeds with zero entries. Non-interactive `--init`/`--config` with entries but
+  no `--installation` runs no Linear step, and refuses `--project` or `--operator` without it.
+  Interactive `yh setup` lists every entry (one included) plus *Connect another Linear workspace…*.
+  `--linear-credential` is removed (`feat(setup)!`). ACs met: *The install* (Operator choice
+  required after connect; team recommendation scoped to the installation's Projects); *Choosing an
+  installation* (listing, `--installation`, connect another, none → connect, a registered workspace
+  from connect-another re-connects and keeps the Operator); *What setup keeps* (URL-key name,
+  editable); *Re-connecting a workspace* (both); *Team access* (membership-first per Project's
+  installation, unchanged). **Not met here**: the listing shows the workspace ID, not its name —
+  there is no live workspace-name read yet; L2.3 adds it for doctor and setup can reuse it. The app
+  still selects through `soleLinearInstallation` (L3.1/L3.2). **Owed** (user decision 2026-10-03):
+  the live install into the scratch workspace is proved by L4.1's re-connect, not run here. `Spec:`
+  cites `d04d9c2` (OQ116 `--installation`, OQ117 workspace name exist only there).
 
 ### [ ] L2.2 `yh config operator` and `yh config remove-installation`
 
