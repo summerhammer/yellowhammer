@@ -30,7 +30,7 @@ struct WayOutNotice: View {
             "Opening \(id) in Linear is not built yet."
         case let .pullRequest(repo, number):
             "Opening pull request #\(number) of \(repo) on GitHub is not built yet."
-        case .inspector, .settings:
+        case .inspector, .settings, .linearWorkspaces:
             "Opening \(destination) is not built yet."
         }
     }

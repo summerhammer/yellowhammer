@@ -170,6 +170,10 @@ struct OverviewWindow: View {
                 // Settings opens on this window's Project, even when it is already open.
                 settingsRequest.request(scopedProject)
                 openWindow(id: SettingsWindow.windowID)
+            case .linearWorkspaces:
+                // The Linear workspaces list is in Settings → General.
+                settingsRequest.request(scopedProject, section: .general)
+                openWindow(id: SettingsWindow.windowID)
             case .nightCard, .pullRequest, .linearIssue:
                 // Placeholder until the Night Card, Linear and GitHub ways out are wired.
                 wayOut.wrappedValue = destination
