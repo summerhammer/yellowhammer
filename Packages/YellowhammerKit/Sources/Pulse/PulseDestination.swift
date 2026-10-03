@@ -15,6 +15,9 @@ public enum PulseDestination: Hashable, Sendable {
     case inspector(PulseSelection)
     case nightCard
     case settings
+    /// The Settings window's Linear workspaces list (Settings → General), where an App Installation or
+    /// Operator identity flag is fixed.
+    case linearWorkspaces
     case pullRequest(repo: String, number: Int)
     case linearIssue(String)
 }

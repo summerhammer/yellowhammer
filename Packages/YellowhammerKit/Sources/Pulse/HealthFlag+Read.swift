@@ -2,24 +2,38 @@ import Domain
 import Foundation
 
 extension HealthFlag {
-    /// The Health group's flags, read from the output of `yh doctor --json`: stale Operator identity,
-    /// App Installation revoked, and probe failures, in `HealthFlagKind` order. Each flag's detail is the
-    /// finding's own message, so the app invents no wording.
+    /// One Project's Health flags, read from the output of `yh doctor --json`. Nil when the output has no
+    /// findings array; see `flags(in:for:)` for which findings count.
     ///
     /// `yh doctor --json` prints its findings as one JSON array on its last line. Nil when that line is
     /// missing or is not the array, so the group says `yh doctor` was not read rather than "no flags".
-    /// A finding that is none of the three flags (git, `launchd`, a Linear that cannot be reached) is not
-    /// a Health flag, and is left to `yh doctor` itself.
-    public static func read(doctorOutput lines: [String]) -> [HealthFlag]? {
-        guard let findings = DoctorFindingRow.decodeLastLine(lines) else {
-            return nil
-        }
-        let flags = findings.compactMap(flag(for:))
+    public static func read(doctorOutput lines: [String], project: ProjectID) -> [HealthFlag]? {
+        DoctorFindingRow.decodeLastLine(lines).map { flags(in: $0, for: project) }
+    }
+
+    /// The flags `project`'s Health group shows: stale Operator identity, App Installation revoked, and
+    /// probe failures, in `HealthFlagKind` order. Each flag's detail is the finding's own message, so the
+    /// app invents no wording.
+    ///
+    /// - Probe failures have no installation scope (Agent CLIs are machine-wide), so they appear on every
+    ///   Project.
+    /// - The two installation flags appear only when the row's `projects` contains `project`: they are the
+    ///   flags of the installation this Project selected, never of one only other Projects use.
+    /// - A row whose `projects` is empty (an installation no Project uses) is on no Project.
+    /// - An installation row whose `projects` is nil is dropped, never broadcast to every Project.
+    /// - A finding that is none of the three flags (git, `launchd`, a Project naming a missing
+    ///   installation, a Linear that cannot be reached) is not a Health flag, and is left to `yh doctor`.
+    public static func flags(in rows: [DoctorFindingRow], for project: ProjectID) -> [HealthFlag] {
+        let flags = rows.compactMap { flag(for: $0, project: project) }
         return HealthFlagKind.allCases.flatMap { kind in flags.filter { $0.kind == kind } }
     }
 
-    private static func flag(for row: DoctorFindingRow) -> HealthFlag? {
-        kind(of: row).map { HealthFlag(kind: $0, detail: row.message) }
+    private static func flag(for row: DoctorFindingRow, project: ProjectID) -> HealthFlag? {
+        guard let kind = kind(of: row) else { return nil }
+        if kind != .probeFailure, row.projects?.contains(project.rawValue) != true {
+            return nil
+        }
+        return HealthFlag(kind: kind, detail: row.message)
     }
 
     private static func kind(of row: DoctorFindingRow) -> HealthFlagKind? {

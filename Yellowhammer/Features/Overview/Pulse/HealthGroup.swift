@@ -24,9 +24,10 @@ struct HealthGroup: View {
                     .accessibilityIdentifier("health-absence")
             case let flags?:
                 ForEach(flags) { flag in
-                    Button { openDestination(.settings) } label: { HealthFlagRow(flag: flag) }
+                    Button { openDestination(flag.destination) } label: { HealthFlagRow(flag: flag) }
                         .buttonStyle(.plain)
-                        .help("Open the Project's Settings")
+                        .help(flag.destination == .linearWorkspaces
+                            ? "Open Settings → Linear workspaces" : "Open the Project's Settings")
                         // On the Button, which is the accessibility element the row's label becomes.
                         .accessibilityIdentifier("health-flag")
                 }

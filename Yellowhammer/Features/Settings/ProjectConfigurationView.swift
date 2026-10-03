@@ -5,8 +5,9 @@ import SwiftUI
 
 /// A Project's configuration, editable end to end: name, Repos, Bounds and its own Routing Table
 /// overrides, plus the read-only Spec Source and a way into the machine-wide base Routing Table
-/// (P14.3). It is the Configuration tab of a Project's entry in the Settings window, a single screen
-/// and not a wizard: the Setup wizard runs only when a Project is added.
+/// (P14.3), and the read-only Linear workspace and installation the Project selected. It is the
+/// Configuration tab of a Project's entry in the Settings window, a single screen and not a wizard: the
+/// Setup wizard runs only when a Project is added.
 ///
 /// The app writes configuration only through ``Config/Configuration/save(_:to:in:replacing:)`` — the
 /// loader is the only validator, so a refusal here is always shown in the loader's own words.
@@ -15,10 +16,17 @@ struct ProjectConfigurationView: View {
     /// Called after a save wrote the file, so the window can read its configuration again: the Project's
     /// name is shown in the window's sidebar and title.
     private let onSaved: () -> Void
+    /// The label for an installation's local name: its Linear workspace name once `yh doctor` read it, else
+    /// the local name. The workspace name is not stored (OQ117).
+    private let workspaceLabel: (String) -> String
 
-    init(project: ProjectID, onSaved: @escaping () -> Void = {}) {
+    init(
+        project: ProjectID, onSaved: @escaping () -> Void = {},
+        workspaceLabel: @escaping (String) -> String = { $0 }
+    ) {
         _model = State(initialValue: ProjectConfigurationModel(project: project))
         self.onSaved = onSaved
+        self.workspaceLabel = workspaceLabel
     }
 
     var body: some View {
@@ -30,7 +38,7 @@ struct ProjectConfigurationView: View {
 
     @ViewBuilder private var content: some View {
         if model.draft != nil {
-            ProjectConfigurationFormView(model: model, onSaved: onSaved)
+            ProjectConfigurationFormView(model: model, onSaved: onSaved, workspaceLabel: workspaceLabel)
         } else {
             unavailable
         }
@@ -53,6 +61,7 @@ struct ProjectConfigurationView: View {
 private struct ProjectConfigurationFormView: View {
     @Bindable var model: ProjectConfigurationModel
     let onSaved: () -> Void
+    let workspaceLabel: (String) -> String
     @Environment(\.showSettingsSection) private var showSettingsSection
 
     var body: some View {
@@ -61,6 +70,7 @@ private struct ProjectConfigurationFormView: View {
             VStack(spacing: 0) {
                 Form {
                     projectSection(draft)
+                    linearSection(draft)
                     if let specSource = draft.wrappedValue.specSource {
                         specSourceSection(specSource)
                     }
@@ -85,6 +95,29 @@ private struct ProjectConfigurationFormView: View {
             }
             TextField("Name", text: draft.name)
                 .accessibilityIdentifier("project-name") // glossary:ignore GL001
+        }
+    }
+
+    private func linearSection(_ draft: Binding<ProjectFileDraft>) -> some View {
+        let installation = draft.wrappedValue.linearInstallationName
+        return Section("Linear") {
+            LabeledContent("Workspace") {
+                Text(workspaceLabel(installation))
+                    .textSelection(.enabled)
+                    .accessibilityIdentifier("project-linear-workspace") // glossary:ignore GL001
+            }
+            LabeledContent("Installation") {
+                Text(installation)
+                    .textSelection(.enabled)
+                    .accessibilityIdentifier("project-linear-installation") // glossary:ignore GL001
+            }
+            Text(
+                "fixed for this Project\u{2019}s life \u{2014} to move it to another workspace, "
+                    + "remove the Project and add it again"
+            )
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .accessibilityIdentifier("project-linear-workspace-caption") // glossary:ignore GL001
             TextField("Linear project", text: draft.linearProject) // glossary:ignore GL001
                 .accessibilityIdentifier("project-linear-project") // glossary:ignore GL001
         }

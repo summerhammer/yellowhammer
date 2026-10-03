@@ -280,7 +280,7 @@ final class OverviewWindowUITests: XCTestCase {
     }
 
     /// The fixture configuration: three Projects, one refused Project file, and no Journals. Shared
-    /// with `HealthGroupUITests`.
+    /// with `SettingsWindowUITests`.
     static func writeConfiguration(in directory: URL) throws {
         let projects = directory.appending(component: "projects", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: projects, withIntermediateDirectories: true)

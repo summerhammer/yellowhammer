@@ -17,12 +17,14 @@ import Pulse
 @MainActor
 @Observable
 final class OverviewModel {
-    /// Nil until the first read finishes, and while the configuration cannot be read. Every Project's
-    /// Pulse carries the same Health flags: `yh doctor`'s flags are all machine-scoped.
+    /// Nil until the first read finishes, and while the configuration cannot be read. Each Project's
+    /// Pulse carries its own Health flags: the installation flags are those of the App Installation that
+    /// Project selected, and only probe failures (machine-wide) are on every Project.
     var snapshot: LandingSnapshot? {
         guard var read = journalSnapshot else { return nil }
         for index in read.projects.indices {
-            read.projects[index].pulse.health = health
+            let id = read.projects[index].id
+            read.projects[index].pulse.health = findings.map { HealthFlag.flags(in: $0, for: id) }
         }
         return read
     }
@@ -33,8 +35,9 @@ final class OverviewModel {
     private(set) var configurationFailure: String?
 
     private var journalSnapshot: LandingSnapshot?
-    /// Nil until `yh doctor` has been read, and whenever it cannot be.
-    private var health: [HealthFlag]?
+    /// The rows of `yh doctor --json`, decoded once and filtered per Project in `snapshot`. Nil until
+    /// `yh doctor` has been read, and whenever it cannot be.
+    private var findings: [DoctorFindingRow]?
 
     /// Counts reads, so that a slow read which finishes after a newer one is dropped, not shown.
     private var generation = 0
@@ -71,7 +74,7 @@ final class OverviewModel {
     private func readSnapshotAndHealth() async {
         generation += 1
         let current = generation
-        async let health = Self.readHealth()
+        async let findings = Self.readFindings()
         let result = await Self.read(directory: ConfigurationDirectory.current, asOf: Date())
         guard current == generation else { return }
         switch result {
@@ -84,9 +87,9 @@ final class OverviewModel {
             refused = []
             configurationFailure = error.description
         }
-        let flags = await health
+        let rows = await findings
         guard current == generation else { return }
-        self.health = flags
+        self.findings = rows
     }
 
     /// The refused Project file that `id` names, if any. The file is found by its id, or by its file
@@ -102,13 +105,13 @@ final class OverviewModel {
     /// LaunchAgents and the Ledger. `yh` always reads the real configuration, so while the app is
     /// pointed at another one (a UI test's fixture) the flags would describe the wrong configuration,
     /// and `yh doctor` is not run unless a stub stands in for `yh`.
-    private static func readHealth() async -> [HealthFlag]? {
+    private static func readFindings() async -> [DoctorFindingRow]? {
         guard !ConfigurationDirectory.isOverridden || SetupEngine.isStubbed else { return nil }
         var lines: [String] = []
         let status = try? await SetupEngine().run(arguments: ["doctor", "--json"]) { lines.append($0) }
         // A failure finding makes `yh doctor` exit non-zero; its findings are still printed.
         guard status != nil else { return nil }
-        return HealthFlag.read(doctorOutput: lines)
+        return DoctorFindingRow.decodeLastLine(lines)
     }
 
     private nonisolated struct Read: Sendable {

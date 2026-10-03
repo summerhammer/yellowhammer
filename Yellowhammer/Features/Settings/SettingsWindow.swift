@@ -14,9 +14,9 @@ import SwiftUI
 ///   main window's Project. After it is applied, this window's selection and the main window's are
 ///   independent.
 /// - **The General pane's model** (the Linear workspaces list and the install, Operator identity and removal
-///   models under it) is this window's `@State`, so another sidebar row and back neither recreates it nor
-///   kills a running install. Closing the window terminates it: setup is not an Act, so no child of it
-///   survives the window.
+///   models under it), which also supplies a Project entry's Linear workspace name, is this window's
+///   `@State`, so another sidebar row and back neither recreates it nor kills a running install.
+///   Closing the window terminates it: setup is not an Act, so no child of it survives the window.
 /// - **The configuration** is read when the window appears and each time the app becomes active, the
 ///   same way the main window reads its snapshot. It reads no Journal.
 struct SettingsWindow: View {
@@ -94,7 +94,18 @@ struct SettingsWindow: View {
         case let .project(id):
             if let configured {
                 if configured.entry(for: id) != nil {
-                    ProjectSettingsPane(project: id, onSaved: readConfiguration)
+                    // The label reads the model's statuses when the form's body calls it, so the form
+                    // updates when `yh doctor` has been read.
+                    let workspaces = linearWorkspaces
+                    ProjectSettingsPane(
+                        project: id, onSaved: readConfiguration,
+                        workspaceLabel: { name in
+                            LinearInstallationStatus.label(
+                                workspaceName: workspaces.statuses[name]?.workspaceName, localName: name
+                            )
+                        }
+                    )
+                    .onAppear { workspaces.refreshStatusOnFirstAppearance() }
                 } else {
                     // Its file may have been refused or removed since it was visited.
                     Text("\u{201C}\(id.rawValue)\u{201D} is not configured.")

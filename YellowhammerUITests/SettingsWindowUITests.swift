@@ -97,4 +97,19 @@ final class SettingsWindowUITests: XCTestCase {
         element("settings-forward").click()
         XCTAssertTrue(element("settings-general-pane").waitForExistence(timeout: 5))
     }
+
+    /// The Configuration tab names the Project's Linear workspace and installation, read-only. `yh doctor`
+    /// does not run against this fixture, so the workspace falls back to the local name (OQ117).
+    func testConfigurationShowsTheProjectsLinearWorkspaceReadOnly() {
+        showSettings()
+        XCTAssertTrue(element("settings-project-pane-archive").waitForExistence(timeout: 5))
+        for id in ["project-linear-workspace", "project-linear-installation"] {
+            let text = element(id)
+            XCTAssertTrue(text.waitForExistence(timeout: 5), "\(id) is missing")
+            XCTAssertEqual(text.value as? String ?? text.label, "acme", id)
+            XCTAssertNotEqual(text.elementType, .textField, "\(id) must be read-only")
+        }
+        XCTAssertTrue(element("project-linear-workspace-caption").exists)
+        XCTAssertEqual(element("project-linear-project").elementType, .textField)
+    }
 }

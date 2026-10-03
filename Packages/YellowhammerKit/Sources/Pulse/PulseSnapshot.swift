@@ -276,6 +276,15 @@ public struct HealthFlag: Identifiable, Equatable, Sendable {
         self.kind = kind
         self.detail = detail
     }
+
+    /// Where the flag's fix lives: the Linear workspaces list for the two installation flags, the
+    /// Project's Settings entry for a probe failure.
+    public var destination: PulseDestination {
+        switch kind {
+        case .staleOperatorIdentity, .appInstallationRevoked: .linearWorkspaces
+        case .probeFailure: .settings
+        }
+    }
 }
 
 public enum HealthFlagKind: String, CaseIterable, Sendable {
