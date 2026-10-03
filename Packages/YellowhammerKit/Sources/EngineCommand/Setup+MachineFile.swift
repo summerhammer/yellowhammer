@@ -14,8 +14,6 @@ extension Setup {
                 let machine = try MachineConfiguration.load(contentsOf: machineFileURL)
                 output("kept \(path)")
                 return machine
-            } catch where error.reason == .legacyLinearClientID {
-                return try removeLegacyLinearClientIDAndReload(path: path)
             } catch {
                 throw SetupError("\(path) is invalid: \(error)")
             }
@@ -33,35 +31,8 @@ extension Setup {
         return machine
     }
 
-    /// `[linear].client_id` is the withdrawn client-credentials setup's leftover (P17.4/P17.6): setup is
-    /// the fix, so a machine file naming only that stale key is repaired in place, once, rather than
-    /// refusing forever. Any other decode failure after the strip still throws normally.
-    private func removeLegacyLinearClientIDAndReload(path: String) throws -> MachineConfiguration {
-        let text: String
-        do {
-            text = try String(contentsOf: machineFileURL, encoding: .utf8)
-        } catch {
-            throw SetupError("\(path) is invalid: \(error)")
-        }
-        let repaired = MachineConfiguration.removingLegacyLinearClientID(inFileText: text)
-        do {
-            try repaired.write(to: machineFileURL, atomically: true, encoding: .utf8)
-        } catch {
-            throw SetupError("could not write \(path): \(error)")
-        }
-        output("removed the withdrawn [linear].client_id from \(path)")
-        do {
-            let machine = try MachineConfiguration.load(contentsOf: machineFileURL)
-            output("kept \(path)")
-            return machine
-        } catch {
-            throw SetupError("\(path) is invalid: \(error)")
-        }
-    }
-
     private func buildMachineConfigurationFromOptions(path: String) throws -> MachineConfiguration {
         MachineConfiguration(
-            linearCredential: options.linearCredential ?? Self.defaultLinearCredential,
             gitHubCredential: options.githubCredential ?? Self.defaultGitHubCredential,
             cliAdapters: options.cliAdapters,
             routingTable: options.route.map { [$0] } ?? []
@@ -69,10 +40,6 @@ extension Setup {
     }
 
     private func buildMachineConfigurationInteractively() throws -> MachineConfiguration {
-        let linearCredential = try options.linearCredential ?? askCredential(
-            "Linear credential reference [\(SetupOptions.defaultLinearCredential)]: ",
-            default: SetupOptions.defaultLinearCredential
-        )
         let githubCredential = try options.githubCredential ?? askCredential(
             "GitHub credential reference [\(SetupOptions.defaultGitHubCredential)]: ",
             default: SetupOptions.defaultGitHubCredential
@@ -80,14 +47,8 @@ extension Setup {
         let cliAdapters = try options.cliAdapters.isEmpty ? askCLIAdapters() : options.cliAdapters
         let route = try options.route ?? askRoute(declaredNames: Set(cliAdapters.map(\.name)))
         return MachineConfiguration(
-            linearCredential: linearCredential, gitHubCredential: githubCredential,
-            cliAdapters: cliAdapters, routingTable: route.map { [$0] } ?? []
+            gitHubCredential: githubCredential, cliAdapters: cliAdapters, routingTable: route.map { [$0] } ?? []
         )
-    }
-
-    private static var defaultLinearCredential: CredentialReference {
-        // Non-empty literal: never fails.
-        CredentialReference(SetupOptions.defaultLinearCredential)!
     }
 
     private static var defaultGitHubCredential: CredentialReference {

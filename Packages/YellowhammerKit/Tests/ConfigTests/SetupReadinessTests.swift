@@ -9,7 +9,15 @@ struct SetupReadinessTests {
         fallbacks: [String] = []
     ) throws -> MachineConfiguration {
         MachineConfiguration(
-            linearCredential: try editingCredential("keychain:linear"),
+            linearInstallations: [
+                LinearInstallation(
+                    name: "acme",
+                    credential: try editingCredential("keychain:linear"),
+                    workspace: BoardObjectID(rawValue: "workspace-1"),
+                    appUser: BoardObjectID(rawValue: "app-user-1"),
+                    operatorIdentity: operatorIdentity.flatMap { BoardObjectID(rawValue: $0) }
+                )
+            ],
             gitHubCredential: try editingCredential("keychain:github"),
             cliAdapters: adapters.map { CLIAdapterDeclaration(name: $0) },
             routingTable: [
@@ -17,8 +25,7 @@ struct SetupReadinessTests {
                     route: try editingRoute(route, "sonnet"),
                     fallbacks: try fallbacks.map { try editingRoute($0, "sonnet") }
                 )
-            ],
-            operatorIdentity: operatorIdentity.flatMap { BoardObjectID(rawValue: $0) }
+            ]
         )
     }
 

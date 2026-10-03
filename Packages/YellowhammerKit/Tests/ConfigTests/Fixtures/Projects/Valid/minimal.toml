@@ -1,7 +1,10 @@
 id = "minimal"
 name = "Minimal Project"
-linear_project = "MIN"
 spec_source = "~/dev/minimal-spec"
+
+[board.linear]
+installation = "acme"
+project = "MIN"
 
 [[repos]]
 name = "only-repo"

@@ -1,6 +1,6 @@
 id = "missing-repo-name"
 name = "Repo No Name"
-linear_project = "RNN"
+board = { linear = { installation = "acme", project = "RNN" } }
 
 [[repos]]
 path = "~/path"

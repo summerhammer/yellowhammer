@@ -1,6 +1,6 @@
 id = "invalid-time-format"
 name = "Bad Time Format"
-linear_project = "BTF"
+board = { linear = { installation = "acme", project = "BTF" } }
 
 [[repos]]
 name = "repo"

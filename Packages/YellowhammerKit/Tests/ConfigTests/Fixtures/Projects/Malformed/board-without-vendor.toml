@@ -1,0 +1,9 @@
+id = "board-without-vendor"
+name = "board-without-vendor"
+[board]
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"

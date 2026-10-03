@@ -26,11 +26,11 @@ func defaultFileURL() {
     #expect(url.path(percentEncoded: false) == "/Users/operator/.config/yellowhammer/config.toml")
 }
 
-@Test("A minimal file declares no CLI Adapters and an empty Routing Table")
+@Test("A minimal file declares no App Installations, no CLI Adapters and an empty Routing Table")
 func minimalFileLoads() throws {
     let configuration = try MachineConfiguration.load(contentsOf: fixture("minimal", in: "Valid"))
     #expect(configuration == MachineConfiguration(
-        linearCredential: try credential("keychain:linear"),
+        linearInstallations: [],
         gitHubCredential: try credential("keychain:github"),
         cliAdapters: [],
         routingTable: []
@@ -41,7 +41,21 @@ func minimalFileLoads() throws {
 func fullFileLoads() throws {
     let configuration = try MachineConfiguration.load(contentsOf: fixture("full", in: "Valid"))
     let expected = MachineConfiguration(
-        linearCredential: try credential("keychain:linear"),
+        linearInstallations: [
+            LinearInstallation(
+                name: "acme",
+                credential: try credential("keychain:linear-acme"),
+                workspace: BoardObjectID(rawValue: "workspace-1"),
+                appUser: BoardObjectID(rawValue: "app-user-1"),
+                operatorIdentity: BoardObjectID(rawValue: "linear-user-1")
+            ),
+            LinearInstallation(
+                name: "acme corp",
+                credential: try credential("keychain:linear-acme-corp"),
+                workspace: BoardObjectID(rawValue: "workspace-2"),
+                appUser: BoardObjectID(rawValue: "app-user-2")
+            )
+        ],
         gitHubCredential: try credential("keychain:github"),
         cliAdapters: [
             CLIAdapterDeclaration(name: "claude", executable: "/opt/homebrew/bin/claude"),
@@ -72,8 +86,7 @@ func fullFileLoads() throws {
                 repoRole: .role(RepoRole(rawValue: "data-pipeline")),
                 route: try route("claude", "sonnet", "xhigh")
             )
-        ],
-        operatorIdentity: BoardObjectID(rawValue: "linear-user-1")
+        ]
     )
     #expect(configuration == expected)
 }
@@ -81,50 +94,136 @@ func fullFileLoads() throws {
 @Test("Tables may be written as dotted keys or inline tables")
 func alternativeTableSpellings() throws {
     let text = """
-    linear.credential = "keychain:linear"
+    board.linear.installations.acme = { credential = "keychain:linear", workspace = "w1", app_user = "u1" }
     github = { credential = "keychain:github" }
     cli.claude = {}
     routing = [{ route = "claude/opus/high" }]
     """
     let configuration = try MachineConfiguration.parse(text, file: "config.toml")
-    #expect(configuration.operatorIdentity == nil)
-    #expect(configuration.linearCredential == (try credential("keychain:linear")))
+    #expect(configuration.linearInstallations.map(\.name) == ["acme"])
+    #expect(configuration.linearInstallations.first?.operatorIdentity == nil)
+    #expect(configuration.linearInstallations.first?.credential == (try credential("keychain:linear")))
     #expect(configuration.gitHubCredential == (try credential("keychain:github")))
     #expect(configuration.routingTable == [RoutingEntry(route: try route("claude", "opus", "high"))])
 }
 
-@Test("[linear].workspace and .app_user decode, and are nil when absent (nil until Installed, P17.6)")
-func linearInstallationFieldsDecode() throws {
-    let installed = """
-        [linear]
-        credential = "keychain:linear"
-        workspace = "workspace-1"
-        app_user = "app-user-1"
+private let githubSection = """
 
-        [github]
-        credential = "keychain:github"
-        """
-    let configured = try MachineConfiguration.parse(installed, file: "config.toml")
-    #expect(configured.linearWorkspace == BoardObjectID(rawValue: "workspace-1"))
-    #expect(configured.linearAppUser == BoardObjectID(rawValue: "app-user-1"))
+    [github]
+    credential = "keychain:github"
+    """
 
-    let notInstalled = """
-        [linear]
-        credential = "keychain:linear"
-
-        [github]
-        credential = "keychain:github"
-        """
-    let unconfigured = try MachineConfiguration.parse(notInstalled, file: "config.toml")
-    #expect(unconfigured.linearWorkspace == nil)
-    #expect(unconfigured.linearAppUser == nil)
+@Test("A machine file with no [board] declares zero App Installations")
+func noBoardMeansNoInstallations() throws {
+    let configuration = try MachineConfiguration.parse(githubSection, file: "config.toml")
+    #expect(configuration.linearInstallations == [])
 }
 
-@Test("[linear].operator must be a string when present")
-func linearOperatorTypeMismatch() {
+@Test("An empty [board.linear.installations], an empty [board.linear] and an empty [board] declare none")
+func emptyRegistryMeansNoInstallations() throws {
+    for header in ["[board.linear.installations]", "[board.linear]", "[board]"] {
+        let configuration = try MachineConfiguration.parse(header + "\n" + githubSection, file: "config.toml")
+        #expect(configuration.linearInstallations == [], "\(header)")
+    }
+}
+
+@Test("Two installations decode in file order with every field; operator is optional or empty")
+func installationsDecodeInFileOrder() throws {
     let text = """
-    [linear]
+        [board.linear.installations.acme]
+        credential = "keychain:linear-acme"
+        workspace = "workspace-1"
+        app_user = "app-user-1"
+        operator = "user-123"
+
+        [board.linear.installations."acme corp"]
+        credential = "keychain:linear-corp"
+        workspace = "workspace-2"
+        app_user = "app-user-2"
+        operator = ""
+        """ + githubSection
+    let configuration = try MachineConfiguration.parse(text, file: "config.toml")
+    #expect(configuration.linearInstallations == [
+        LinearInstallation(
+            name: "acme",
+            credential: try credential("keychain:linear-acme"),
+            workspace: BoardObjectID(rawValue: "workspace-1"),
+            appUser: BoardObjectID(rawValue: "app-user-1"),
+            operatorIdentity: BoardObjectID(rawValue: "user-123")
+        ),
+        LinearInstallation(
+            name: "acme corp",
+            credential: try credential("keychain:linear-corp"),
+            workspace: BoardObjectID(rawValue: "workspace-2"),
+            appUser: BoardObjectID(rawValue: "app-user-2"),
+            operatorIdentity: nil
+        )
+    ])
+    #expect(configuration.linearInstallation(named: "acme corp")?.workspace == BoardObjectID(rawValue: "workspace-2"))
+    #expect(configuration.linearInstallation(named: "nope") == nil)
+}
+
+@Test("A missing operator key decodes to nil")
+func absentOperatorIsNil() throws {
+    let text = """
+        [board.linear.installations.acme]
+        credential = "keychain:linear-acme"
+        workspace = "workspace-1"
+        app_user = "app-user-1"
+        """ + githubSection
+    let configuration = try MachineConfiguration.parse(text, file: "config.toml")
+    #expect(configuration.linearInstallations.first?.operatorIdentity == nil)
+}
+
+@Test("soleLinearInstallation is nil for zero or two entries and the entry for exactly one")
+func soleInstallation() throws {
+    func installation(_ name: String) throws -> LinearInstallation {
+        LinearInstallation(
+            name: name, credential: try credential("keychain:\(name)"),
+            workspace: BoardObjectID(rawValue: "ws-\(name)"), appUser: BoardObjectID(rawValue: "au-\(name)")
+        )
+    }
+    func machine(_ installations: [LinearInstallation]) throws -> MachineConfiguration {
+        MachineConfiguration(
+            linearInstallations: installations, gitHubCredential: try credential("keychain:github"),
+            cliAdapters: [], routingTable: []
+        )
+    }
+    #expect(try machine([]).soleLinearInstallation == nil)
+    #expect(try machine([installation("a")]).soleLinearInstallation == (try installation("a")))
+    #expect(try machine([installation("a"), installation("b")]).soleLinearInstallation == nil)
+}
+
+@Test("linearInstallation(for:) returns the Project's own entry among several")
+func installationForProject() throws {
+    func installation(_ name: String) throws -> LinearInstallation {
+        LinearInstallation(
+            name: name, credential: try credential("keychain:\(name)"),
+            workspace: BoardObjectID(rawValue: "ws-\(name)"), appUser: BoardObjectID(rawValue: "au-\(name)")
+        )
+    }
+    let machine = MachineConfiguration(
+        linearInstallations: [try installation("a"), try installation("b")],
+        gitHubCredential: try credential("keychain:github"), cliAdapters: [], routingTable: []
+    )
+    func project(_ installationName: String) throws -> ProjectConfiguration {
+        ProjectConfiguration(
+            id: try #require(ProjectID(rawValue: "p")), name: "P", linearInstallationName: installationName,
+            linearProject: "P", specSource: "/spec", repos: []
+        )
+    }
+    #expect(machine.linearInstallation(for: try project("b"))?.name == "b")
+    #expect(machine.linearInstallation(for: try project("a"))?.name == "a")
+    #expect(machine.linearInstallation(for: try project("c")) == nil)
+}
+
+@Test("An installation's operator must be a string when present")
+func installationOperatorTypeMismatch() {
+    let text = """
+    [board.linear.installations.acme]
     credential = "keychain:linear"
+    workspace = "w1"
+    app_user = "u1"
     operator = 42
     [github]
     credential = "keychain:github"
@@ -133,8 +232,24 @@ func linearOperatorTypeMismatch() {
         _ = try MachineConfiguration.parse(text, file: "config.toml")
         Issue.record("expected a non-string operator to fail")
     } catch {
-        #expect(error.key == "linear.operator")
+        #expect(error.key == "board.linear.installations.acme.operator")
         #expect(error.reason == .typeMismatch(expected: "string", found: "integer"))
+    }
+}
+
+@Test("A quoted installation name renders quoted in the key of its errors")
+func quotedInstallationNameInKey() {
+    let text = """
+    [board.linear.installations."acme corp"]
+    credential = "keychain:linear"
+    app_user = "u1"
+    """ + githubSection
+    do {
+        _ = try MachineConfiguration.parse(text, file: "config.toml")
+        Issue.record("expected the parse to fail")
+    } catch {
+        #expect(error.key == "board.linear.installations.\"acme corp\".workspace", "\(error)")
+        #expect(error.reason == .missingKey)
     }
 }
 
@@ -167,77 +282,18 @@ func errorDescription() {
     #expect(keyless.description == "config.toml:2: expected a key")
 }
 
-@Test("A legacy [linear].client_id names the withdrawn client-credentials setup and its fix")
-func legacyLinearClientIDMessage() {
+@Test("[github] still refuses a client_id key")
+func gitHubRefusesClientID() {
     let text = """
-    [linear]
-    credential = "keychain:linear"
-    client_id = "yellowhammer-client-id"
-
     [github]
     credential = "keychain:github"
+    client_id = "yellowhammer-client-id"
     """
     do {
         _ = try MachineConfiguration.parse(text, file: "config.toml")
         Issue.record("expected the parse to fail")
     } catch {
         #expect(error.line == 3, "\(error)")
-        #expect(error.key == "linear.client_id", "\(error)")
-        #expect(error.reason == .legacyLinearClientID, "\(error)")
-        #expect(error.description.contains("re-run the Linear step of yh setup"))
-    }
-}
-
-@Test("[linear].operator is the Operator identity's Linear user id, present, absent or empty")
-func linearOperatorIdentity() throws {
-    let present = """
-        [linear]
-        credential = "keychain:linear"
-        operator = "user-123"
-
-        [github]
-        credential = "keychain:github"
-        """
-    let configured = try MachineConfiguration.parse(present, file: "config.toml")
-    #expect(configured.operatorIdentity == BoardObjectID(rawValue: "user-123"))
-
-    let absent = """
-        [linear]
-        credential = "keychain:linear"
-
-        [github]
-        credential = "keychain:github"
-        """
-    let unconfigured = try MachineConfiguration.parse(absent, file: "config.toml")
-    #expect(unconfigured.operatorIdentity == nil)
-
-    let empty = """
-        [linear]
-        credential = "keychain:linear"
-        operator = ""
-
-        [github]
-        credential = "keychain:github"
-        """
-    let emptyConfigured = try MachineConfiguration.parse(empty, file: "config.toml")
-    #expect(emptyConfigured.operatorIdentity == nil)
-}
-
-@Test("[github] still refuses a client_id key")
-func gitHubRefusesClientID() {
-    let text = """
-    [linear]
-    credential = "keychain:linear"
-
-    [github]
-    credential = "keychain:github"
-    client_id = "yellowhammer-client-id"
-    """
-    do {
-        _ = try MachineConfiguration.parse(text, file: "config.toml")
-        Issue.record("expected the parse to fail")
-    } catch {
-        #expect(error.line == 6, "\(error)")
         #expect(error.key == "github.client_id", "\(error)")
         #expect(error.reason == .unknownKey, "\(error)")
     }

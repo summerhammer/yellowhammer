@@ -22,7 +22,7 @@ public struct SetupReadiness: Equatable, Sendable {
     /// `linearInstalled` is what `yh doctor --check linear` reported. A nil `machine` is a Mac with no
     /// loadable `config.toml`: it has neither an Operator identity nor a route.
     public init(linearInstalled: Bool, machine: MachineConfiguration?) {
-        let hasOperator = machine?.operatorIdentity != nil
+        let hasOperator = machine?.soleLinearInstallation?.operatorIdentity != nil
         let hasRoute = machine?.hasRouteToDeclaredCLI ?? false
         let present: [Prerequisite: Bool] = [
             .linearInstallation: linearInstalled,

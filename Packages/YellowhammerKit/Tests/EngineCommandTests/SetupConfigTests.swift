@@ -44,8 +44,10 @@ struct SetupConfigTests {
         // The Operator is already configured and a candidate, so adopting it never rewrites the file —
         // otherwise the destination's config.toml would no longer match the source on the second run.
         try prepared.writeMachineFile("""
-            [linear]
+            [board.linear.installations.acme]
             credential = "keychain:linear"
+            workspace = "workspace-1"
+            app_user = "app-user-1"
             operator = "user-op"
 
             [github]
@@ -95,8 +97,10 @@ struct SetupConfigTests {
         try prepared.writeMachineFile()
         let destination = ConfigurationDirectory()
         try destination.writeMachineFile("""
-            [linear]
+            [board.linear.installations.acme]
             credential = "keychain:linear-other"
+            workspace = "workspace-1"
+            app_user = "app-user-1"
 
             [github]
             credential = "keychain:github"

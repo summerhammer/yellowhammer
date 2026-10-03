@@ -31,6 +31,11 @@ enum ConfigurationRendering {
         return result
     }
 
+    /// `[board.linear.installations.<name>]`, the name bare when it can be and quoted otherwise.
+    static func installationHeader(_ name: String) -> String {
+        "[board.linear.installations.\(TOMLKey.isBare(name) ? name : quotedKey(name))]"
+    }
+
     /// A quoted TOML key, used for table headers whose name may not be a bare key (such as a CLI
     /// Adapter name with a space).
     static func quotedKey(_ string: String) -> String {
@@ -134,101 +139,135 @@ enum ConfigurationRendering {
 }
 
 extension MachineConfiguration {
-    /// Renders `[linear]`, `[github]`, one `[cli.<name>]` table per declared adapter and the base
+    /// Renders one `[board.linear.installations.<name>]` table per App Installation, `[github]`, one `[cli.<name>]` table per declared adapter and the base
     /// Routing Table, in the shape ``MachineConfigurationDecoder`` reads back.
     public var renderedTOML: String {
         renderedTOML(routingTable: routingTable.map(RoutingEntryDraft.init))
     }
 
     /// A textual edit of an existing, hand-maintained `config.toml`: preserves every other line,
-    /// including comments. Replaces an existing `[linear].operator` line, or inserts one right after the
-    /// `[linear]` header when absent. Applying it twice equals applying it once.
-    public static func settingOperator(_ operatorIdentity: BoardObjectID, inFileText text: String) -> String {
+    /// including comments. Replaces the `operator` line inside `[board.linear.installations.<name>]`, or
+    /// inserts one after that table's last key when absent. Returns `text` unchanged when no such table
+    /// header exists. Applying it twice equals applying it once.
+    public static func settingOperator(
+        _ operatorIdentity: BoardObjectID, installation name: String, inFileText text: String
+    ) -> String {
         var lines = text.components(separatedBy: "\n")
-        let newLine = "operator = \(ConfigurationRendering.quoted(operatorIdentity.rawValue))"
-
-        guard let linearHeaderIndex = lines.firstIndex(where: { isTableHeader($0, named: "linear") }) else {
-            return text
-        }
-
-        var searchIndex = linearHeaderIndex + 1
-        while searchIndex < lines.count, !isAnyTableHeader(lines[searchIndex]) {
-            if isKeyAssignment(lines[searchIndex], key: "operator") {
-                lines[searchIndex] = newLine
-                return lines.joined(separator: "\n")
-            }
-            searchIndex += 1
-        }
-
-        lines.insert(newLine, at: linearHeaderIndex + 1)
+        guard let header = installationHeaderIndex(named: name, in: lines) else { return text }
+        setKey("operator", to: operatorIdentity.rawValue, tableAt: header, in: &lines)
         return lines.joined(separator: "\n")
     }
 
     /// A textual edit of an existing, hand-maintained `config.toml`: preserves every other line,
-    /// including comments. Replaces existing `[linear].workspace`/`.app_user` lines, or inserts them
-    /// right after the `[linear]` header when absent (P17.6 writes these once the Installation
-    /// succeeds). Applying it twice equals applying it once.
+    /// including comments. Adds or replaces the entry called `installation.name`. When its table exists,
+    /// `credential`, `workspace` and `app_user` are set in place (inserted when missing) and `operator`
+    /// is written only when the installation has one, so a re-connect keeps the Operator identity. When it
+    /// does not, a new table is appended at the end of the file. Applying it twice equals applying it once.
     public static func settingLinearInstallation(
-        workspace: BoardObjectID, appUser: BoardObjectID, inFileText text: String
+        _ installation: LinearInstallation, inFileText text: String
     ) -> String {
         var lines = text.components(separatedBy: "\n")
-        guard let linearHeaderIndex = lines.firstIndex(where: { isTableHeader($0, named: "linear") }) else {
-            return text
-        }
-
-        var searchIndex = linearHeaderIndex + 1
-        var workspaceLineIndex: Int?
-        var appUserLineIndex: Int?
-        while searchIndex < lines.count, !isAnyTableHeader(lines[searchIndex]) {
-            if isKeyAssignment(lines[searchIndex], key: "workspace") {
-                workspaceLineIndex = searchIndex
-            } else if isKeyAssignment(lines[searchIndex], key: "app_user") {
-                appUserLineIndex = searchIndex
+        guard let header = installationHeaderIndex(named: installation.name, in: lines) else {
+            var result = text
+            if !result.isEmpty {
+                if !result.hasSuffix("\n") { result += "\n" }
+                result += "\n"
             }
-            searchIndex += 1
+            var table = [
+                ConfigurationRendering.installationHeader(installation.name),
+                "credential = \(ConfigurationRendering.quoted(installation.credential.rawValue))",
+                "workspace = \(ConfigurationRendering.quoted(installation.workspace.rawValue))",
+                "app_user = \(ConfigurationRendering.quoted(installation.appUser.rawValue))"
+            ]
+            if let operatorIdentity = installation.operatorIdentity {
+                table.append("operator = \(ConfigurationRendering.quoted(operatorIdentity.rawValue))")
+            }
+            return result + table.joined(separator: "\n") + "\n"
         }
-
-        let workspaceLine = "workspace = \(ConfigurationRendering.quoted(workspace.rawValue))"
-        let appUserLine = "app_user = \(ConfigurationRendering.quoted(appUser.rawValue))"
-
-        if let workspaceLineIndex {
-            lines[workspaceLineIndex] = workspaceLine
-        } else {
-            lines.insert(workspaceLine, at: linearHeaderIndex + 1)
-            appUserLineIndex = appUserLineIndex.map { $0 + 1 }
-        }
-        if let appUserLineIndex {
-            lines[appUserLineIndex] = appUserLine
-        } else {
-            // Right after `workspace` if it was just inserted or already present, else right after the header.
-            let insertAt = lines.firstIndex(where: { isKeyAssignment($0, key: "workspace") }).map { $0 + 1 }
-                ?? linearHeaderIndex + 1
-            lines.insert(appUserLine, at: insertAt)
+        setKey("credential", to: installation.credential.rawValue, tableAt: header, in: &lines)
+        setKey("workspace", to: installation.workspace.rawValue, tableAt: header, in: &lines)
+        setKey("app_user", to: installation.appUser.rawValue, tableAt: header, in: &lines)
+        if let operatorIdentity = installation.operatorIdentity {
+            setKey("operator", to: operatorIdentity.rawValue, tableAt: header, in: &lines)
         }
         return lines.joined(separator: "\n")
     }
 
-    /// Removes `[linear].client_id` — the withdrawn client-credentials setup's leftover key
-    /// (`ConfigurationError.Reason.legacyLinearClientID`, P17.6) — so a hand-edited or old `config.toml`
-    /// can be loaded once, rather than refusing forever. A no-op when the line is already gone.
-    public static func removingLegacyLinearClientID(inFileText text: String) -> String {
-        var lines = text.components(separatedBy: "\n")
-        guard let linearHeaderIndex = lines.firstIndex(where: { isTableHeader($0, named: "linear") }) else {
-            return text
-        }
-        var searchIndex = linearHeaderIndex + 1
-        while searchIndex < lines.count, !isAnyTableHeader(lines[searchIndex]) {
-            if isKeyAssignment(lines[searchIndex], key: "client_id") {
-                lines.remove(at: searchIndex)
-                return lines.joined(separator: "\n")
+    /// Sets `key = "value"` in the table whose header is at `header`: replaces the key's line, or inserts
+    /// it after the table's last key line (right after the header when it has none).
+    private static func setKey(_ key: String, to value: String, tableAt header: Int, in lines: inout [String]) {
+        let newLine = "\(key) = \(ConfigurationRendering.quoted(value))"
+        var end = header + 1
+        var lastKey = header
+        while end < lines.count, !isAnyTableHeader(lines[end]) {
+            if isKeyAssignment(lines[end], key: key) {
+                lines[end] = newLine
+                return
             }
-            searchIndex += 1
+            let trimmed = lines[end].trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty, !trimmed.hasPrefix("#"), trimmed.contains("=") { lastKey = end }
+            end += 1
         }
-        return text
+        lines.insert(newLine, at: lastKey + 1)
     }
 
-    private static func isTableHeader(_ line: String, named name: String) -> Bool {
-        line.trimmingCharacters(in: .whitespaces) == "[\(name)]"
+    private static func installationHeaderIndex(named name: String, in lines: [String]) -> Int? {
+        lines.firstIndex { installationName(ofHeaderLine: $0) == name }
+    }
+
+    /// The `<name>` of a `[board.linear.installations.<name>]` header line, nil for any other line. The
+    /// name may be bare or basic-quoted; whitespace around the dots and brackets and a trailing `#`
+    /// comment are allowed.
+    private static func installationName(ofHeaderLine line: String) -> String? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("["), !trimmed.hasPrefix("[[") else { return nil }
+        let characters = Array(trimmed.dropFirst())
+        var index = 0
+        var segments: [String] = []
+        while true {
+            skipSpaces(characters, &index)
+            guard let segment = keySegment(characters, &index) else { return nil }
+            segments.append(segment)
+            skipSpaces(characters, &index)
+            guard index < characters.count else { return nil }
+            index += 1
+            if characters[index - 1] == "]" { break }
+            guard characters[index - 1] == "." else { return nil }
+        }
+        skipSpaces(characters, &index)
+        guard index == characters.count || characters[index] == "#" else { return nil }
+        guard segments.count == 4, segments.prefix(3) == ["board", "linear", "installations"] else { return nil }
+        return segments[3]
+    }
+
+    private static func skipSpaces(_ characters: [Character], _ index: inout Int) {
+        while index < characters.count, characters[index] == " " || characters[index] == "\t" { index += 1 }
+    }
+
+    /// One bare or basic-quoted (`\"` and `\\` escapes) key segment at `index`.
+    private static func keySegment(_ characters: [Character], _ index: inout Int) -> String? {
+        var segment = ""
+        guard index < characters.count else { return nil }
+        if characters[index] == "\"" {
+            index += 1
+            while index < characters.count {
+                let character = characters[index]
+                index += 1
+                if character == "\"" { return segment }
+                if character == "\\", index < characters.count {
+                    segment.append(characters[index])
+                    index += 1
+                } else {
+                    segment.append(character)
+                }
+            }
+            return nil
+        }
+        while index < characters.count, characters[index].unicodeScalars.allSatisfy(TOMLKey.isBareScalar) {
+            segment.append(characters[index])
+            index += 1
+        }
+        return segment.isEmpty ? nil : segment
     }
 
     private static func isAnyTableHeader(_ line: String) -> Bool {

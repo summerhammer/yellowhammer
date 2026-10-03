@@ -1,0 +1,9 @@
+id = "board-missing"
+name = "board-missing"
+
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"

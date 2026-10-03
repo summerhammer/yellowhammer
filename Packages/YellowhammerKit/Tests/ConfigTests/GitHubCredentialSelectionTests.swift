@@ -8,7 +8,6 @@ private func credential(_ string: String) throws -> CredentialReference {
 
 private func machineConfiguration(gitHubCredential: CredentialReference) throws -> MachineConfiguration {
     MachineConfiguration(
-        linearCredential: try credential("keychain:linear"),
         gitHubCredential: gitHubCredential,
         cliAdapters: [],
         routingTable: []
@@ -19,6 +18,7 @@ private func projectConfiguration(gitHubCredential: CredentialReference?) throws
     ProjectConfiguration(
         id: try #require(ProjectID(rawValue: "sample")),
         name: "Sample Project",
+        linearInstallationName: "acme",
         linearProject: "SAMPLE",
         specSource: "~/dev/sample-spec",
         repos: [RepoDeclaration(name: "app", path: "~/dev/sample/app", role: .backend, check: .none)],

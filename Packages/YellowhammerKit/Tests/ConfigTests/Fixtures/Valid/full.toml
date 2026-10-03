@@ -1,8 +1,16 @@
 # Machine-wide configuration.
 
-[linear]
-credential = "keychain:linear"
+[board.linear.installations.acme]
+credential = "keychain:linear-acme"
+workspace = "workspace-1"
+app_user = "app-user-1"
 operator = "linear-user-1"
+
+[board.linear.installations."acme corp"]
+credential = "keychain:linear-acme-corp"
+workspace = "workspace-2"
+app_user = "app-user-2"
+operator = ""
 
 [github]
 credential = "keychain:github"

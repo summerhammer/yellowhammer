@@ -12,10 +12,15 @@ struct ProjectConfigurationDecoder {
     /// in ``ProjectConfiguration/unvalidatedTemplates`` and the default stands in (`yh project remove`).
     private let lenientTemplates: Bool
 
+    /// When set, the Project's `[board.linear] installation` must be one of these; nil skips the check.
+    private let declaredLinearInstallations: Set<String>?
+
     init(
-        file: String, fileStem: String?, declaredCLIAdapters: Set<String>? = nil, lenientTemplates: Bool = false
+        file: String, fileStem: String?, declaredCLIAdapters: Set<String>? = nil,
+        declaredLinearInstallations: Set<String>? = nil, lenientTemplates: Bool = false
     ) {
         decoding = ConfigurationDecoding(file: file, declaredCLIAdapters: declaredCLIAdapters)
+        self.declaredLinearInstallations = declaredLinearInstallations
         self.fileStem = fileStem
         self.lenientTemplates = lenientTemplates
     }
@@ -26,15 +31,19 @@ struct ProjectConfigurationDecoder {
             in: root,
             path: nil,
             allowed: [
-                "id", "name", "linear_project", "spec_source", "change_type", "repos", "limits", "schedule",
+                "id", "name", "board", "spec_source", "change_type", "repos", "limits", "schedule",
                 "github", "git", "routing"
             ]
         )
         var unvalidated = UnvalidatedTemplateValues()
+        let id = try projectID(in: root)
+        let name = try decoding.requiredString("name", in: root, path: nil)
+        let board = try linearBoard(in: root)
         var configuration = ProjectConfiguration(
-            id: try projectID(in: root),
-            name: try decoding.requiredString("name", in: root, path: nil),
-            linearProject: try decoding.requiredString("linear_project", in: root, path: nil),
+            id: id,
+            name: name,
+            linearInstallationName: board.installation,
+            linearProject: board.project,
             specSource: try decoding.optionalString("spec_source", in: root, path: nil),
             repos: try repos(in: root),
             bounds: try bounds(in: root),
@@ -49,44 +58,8 @@ struct ProjectConfigurationDecoder {
         }
         configuration.repoPathLines = repoPathLines(in: root)
         try requireExactlyOneSpecificationSource(in: root)
+        try requireDeclaredInstallation(board)
         return configuration
-    }
-
-    // MARK: - Specification source
-
-    /// Exactly one across both kinds — a `spec_source` path or one Repo of Repo Role `spec` — never
-    /// two of either, never one of each, and never none (glossary → Spec Source; feature-authoring
-    /// business rules). Sources are counted in file order and the second one found is refused.
-    private func requireExactlyOneSpecificationSource(in root: TOMLTable) throws(ConfigurationError) {
-        var sources: [(key: String, line: Int)] = []
-        if let specSource = root["spec_source"] {
-            sources.append((key: "spec_source", line: specSource.line))
-        }
-        if case .array(let elements)? = root["repos"]?.content {
-            for (index, element) in elements.enumerated() {
-                guard case .table(let table) = element.content,
-                      case .string("spec")? = table["role"]?.content
-                else { continue }
-                sources.append((key: "repos[\(index)].role", line: table["role"]?.line ?? table.line))
-            }
-        }
-        sources.sort { $0.line < $1.line }
-        guard let first = sources.first else {
-            throw decoding.error(line: 1, key: nil, .noSpecificationSource)
-        }
-        if sources.count > 1 {
-            let second = sources[1]
-            throw decoding.error(line: second.line, key: second.key, .secondSpecificationSource(firstLine: first.line))
-        }
-    }
-
-    /// Run after ``repos(in:)`` succeeded, so every element is a table with a `path`.
-    private func repoPathLines(in root: TOMLTable) -> [Int] {
-        guard case .array(let elements)? = root["repos"]?.content else { return [] }
-        return elements.map { element in
-            guard case .table(let table) = element.content else { return element.line }
-            return table["path"]?.line ?? table.line
-        }
     }
 
     // MARK: - Identity
@@ -292,5 +265,86 @@ struct ProjectConfigurationDecoder {
             unvalidated.refusals.append(error)
             return .feat
         }
+    }
+}
+
+extension ProjectConfigurationDecoder {
+    // MARK: - Specification source
+
+    /// Exactly one across both kinds — a `spec_source` path or one Repo of Repo Role `spec` — never
+    /// two of either, never one of each, and never none (glossary → Spec Source; feature-authoring
+    /// business rules). Sources are counted in file order and the second one found is refused.
+    private func requireExactlyOneSpecificationSource(in root: TOMLTable) throws(ConfigurationError) {
+        var sources: [(key: String, line: Int)] = []
+        if let specSource = root["spec_source"] {
+            sources.append((key: "spec_source", line: specSource.line))
+        }
+        if case .array(let elements)? = root["repos"]?.content {
+            for (index, element) in elements.enumerated() {
+                guard case .table(let table) = element.content,
+                      case .string("spec")? = table["role"]?.content
+                else { continue }
+                sources.append((key: "repos[\(index)].role", line: table["role"]?.line ?? table.line))
+            }
+        }
+        sources.sort { $0.line < $1.line }
+        guard let first = sources.first else {
+            throw decoding.error(line: 1, key: nil, .noSpecificationSource)
+        }
+        if sources.count > 1 {
+            let second = sources[1]
+            throw decoding.error(line: second.line, key: second.key, .secondSpecificationSource(firstLine: first.line))
+        }
+    }
+
+    /// Run after ``repos(in:)`` succeeded, so every element is a table with a `path`.
+    private func repoPathLines(in root: TOMLTable) -> [Int] {
+        guard case .array(let elements)? = root["repos"]?.content else { return [] }
+        return elements.map { element in
+            guard case .table(let table) = element.content else { return element.line }
+            return table["path"]?.line ?? table.line
+        }
+    }
+
+    // MARK: - Board
+
+    fileprivate struct LinearBoard {
+        let installation: String
+        let project: String
+        let installationLine: Int
+    }
+
+    /// `[board.linear]`: the App Installation this Project selects by name and the Linear project it
+    /// projects onto. Exactly one vendor table is accepted, so a second `[board.<vendor>]`, or a vendor
+    /// other than `linear`, is an unknown key.
+    private func linearBoard(in root: TOMLTable) throws(ConfigurationError) -> LinearBoard {
+        guard let boardValue = root["board"] else {
+            throw decoding.error(line: 1, key: "board", .missingTable)
+        }
+        let board = try decoding.table(boardValue, key: "board")
+        try decoding.rejectUnknownKeys(in: board, path: "board", allowed: ["linear"])
+        guard let linearValue = board["linear"] else {
+            throw decoding.error(line: board.line, key: "board.linear", .missingTable)
+        }
+        let linear = try decoding.table(linearValue, key: "board.linear")
+        try decoding.rejectUnknownKeys(in: linear, path: "board.linear", allowed: ["installation", "project"])
+        return LinearBoard(
+            installation: try decoding.requiredString("installation", in: linear, path: "board.linear"),
+            project: try decoding.requiredString("project", in: linear, path: "board.linear"),
+            installationLine: linear["installation"]?.line ?? linear.line
+        )
+    }
+
+    /// Refuses an `installation` the machine file's registry does not declare, when
+    /// ``declaredLinearInstallations`` is set. Runs after the shape decoded, so a shape error is
+    /// always reported first.
+    private func requireDeclaredInstallation(_ board: LinearBoard) throws(ConfigurationError) {
+        guard let declaredLinearInstallations, !declaredLinearInstallations.contains(board.installation) else {
+            return
+        }
+        throw decoding.error(
+            line: board.installationLine, key: "board.linear.installation",
+            .undeclaredLinearInstallation(board.installation)
+        )
     }
 }

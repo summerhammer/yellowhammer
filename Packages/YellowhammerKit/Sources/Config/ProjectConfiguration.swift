@@ -10,7 +10,10 @@ import Foundation
 public struct ProjectConfiguration: Sendable {
     public var id: ProjectID
     public var name: String
-    /// Linear's project this Project projects onto, as an opaque reference.
+    /// The local name of the machine file's App Installation this Project selects
+    /// (`[board.linear] installation`); see ``MachineConfiguration/linearInstallation(for:)``.
+    public var linearInstallationName: String
+    /// Linear's project this Project projects onto (`[board.linear] project`), as an opaque reference.
     public var linearProject: String
     /// The path of the Spec Source, as written. Absent when the specification source is a Repo of Repo Role `spec`.
     public var specSource: String?
@@ -41,6 +44,7 @@ public struct ProjectConfiguration: Sendable {
     public init(
         id: ProjectID,
         name: String,
+        linearInstallationName: String,
         linearProject: String,
         specSource: String? = nil,
         repos: [RepoDeclaration],
@@ -55,6 +59,7 @@ public struct ProjectConfiguration: Sendable {
     ) {
         self.id = id
         self.name = name
+        self.linearInstallationName = linearInstallationName
         self.linearProject = linearProject
         self.specSource = specSource
         self.repos = repos
@@ -88,6 +93,7 @@ extension ProjectConfiguration: Equatable {
     public static func == (lhs: ProjectConfiguration, rhs: ProjectConfiguration) -> Bool {
         lhs.id == rhs.id
             && lhs.name == rhs.name
+            && lhs.linearInstallationName == rhs.linearInstallationName
             && lhs.linearProject == rhs.linearProject
             && lhs.specSource == rhs.specSource
             && lhs.repos == rhs.repos
@@ -114,15 +120,21 @@ extension ProjectConfiguration {
     /// Also refuses a file whose name, less its extension, is not its `id`.
     ///
     /// When `declaredCLIAdapters` is given, every route in the Routing Table overrides must name one
-    /// of them; nil skips that check, which needs the machine-wide file.
+    /// of them; when `declaredLinearInstallations` is given, the Project's installation must be one of
+    /// them. nil skips either check, which needs the machine-wide file.
     public static func load(
-        contentsOf url: URL, declaredCLIAdapters: Set<String>? = nil
+        contentsOf url: URL, declaredCLIAdapters: Set<String>? = nil,
+        declaredLinearInstallations: Set<String>? = nil
     ) throws(ConfigurationError) -> ProjectConfiguration {
-        try load(contentsOf: url, declaredCLIAdapters: declaredCLIAdapters, lenientTemplates: false)
+        try load(
+            contentsOf: url, declaredCLIAdapters: declaredCLIAdapters,
+            declaredLinearInstallations: declaredLinearInstallations, lenientTemplates: false
+        )
     }
 
     static func load(
-        contentsOf url: URL, declaredCLIAdapters: Set<String>?, lenientTemplates: Bool
+        contentsOf url: URL, declaredCLIAdapters: Set<String>?, declaredLinearInstallations: Set<String>?,
+        lenientTemplates: Bool
     ) throws(ConfigurationError) -> ProjectConfiguration {
         let file = url.path(percentEncoded: false)
         let text: String
@@ -136,29 +148,36 @@ extension ProjectConfiguration {
             file: file,
             fileStem: url.deletingPathExtension().lastPathComponent,
             declaredCLIAdapters: declaredCLIAdapters,
+            declaredLinearInstallations: declaredLinearInstallations,
             lenientTemplates: lenientTemplates
         )
     }
 
     public static func parse(
-        _ text: String, file: String, declaredCLIAdapters: Set<String>? = nil
+        _ text: String, file: String, declaredCLIAdapters: Set<String>? = nil,
+        declaredLinearInstallations: Set<String>? = nil
     ) throws(ConfigurationError) -> ProjectConfiguration {
-        try parse(text, file: file, fileStem: nil, declaredCLIAdapters: declaredCLIAdapters, lenientTemplates: false)
+        try parse(
+            text, file: file, fileStem: nil, declaredCLIAdapters: declaredCLIAdapters,
+            declaredLinearInstallations: declaredLinearInstallations, lenientTemplates: false
+        )
     }
 
+    // swiftlint:disable function_parameter_count
     /// Also used by ``Configuration/load(directory:reading:as:)`` to parse a Project file's substituted
     /// text against its filename's stem, without re-reading it from disk.
     static func parse(
         _ text: String, file: String, fileStem: String?, declaredCLIAdapters: Set<String>?,
-        lenientTemplates: Bool
+        declaredLinearInstallations: Set<String>?, lenientTemplates: Bool
     ) throws(ConfigurationError) -> ProjectConfiguration {
         let root = try TOMLParser.parse(text, file: file)
         let decoder = ProjectConfigurationDecoder(
             file: file, fileStem: fileStem, declaredCLIAdapters: declaredCLIAdapters,
-            lenientTemplates: lenientTemplates
+            declaredLinearInstallations: declaredLinearInstallations, lenientTemplates: lenientTemplates
         )
         return try decoder.decode(root)
     }
+    // swiftlint:enable function_parameter_count
 }
 
 /// What a lenient load found under the template keys: the raw strings as written, and each refusal a

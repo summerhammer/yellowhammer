@@ -1,6 +1,6 @@
 id = "routing-duplicate"
 name = "Routing Duplicate"
-linear_project = "RD"
+board = { linear = { installation = "acme", project = "RD" } }
 
 [[repos]]
 name = "repo"

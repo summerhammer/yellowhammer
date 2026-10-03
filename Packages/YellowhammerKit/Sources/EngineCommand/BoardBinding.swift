@@ -6,21 +6,24 @@ import LinearAdapter
 
 /// Builds the Board Port for one resolved Project. The only place a board adapter is wired (MB2).
 ///
-/// The Linear identity is the Installation (ADR-005), machine-wide (ADR-001, Invariant 4): its tokens
-/// live in the Keychain behind the machine-wide file's credential reference, refreshed under a
-/// machine-wide `MachineLock`; only the Linear project comes from the Project's own file. Construction
-/// never touches the Keychain (no eager read): a missing or revoked Installation surfaces as
-/// `.notAuthenticated` from the first Linear call the adapter makes, inside the Act — never from
-/// binding itself.
+/// The Linear identity is the Project's own App Installation (ADR-005), resolved from the machine
+/// file's registry by the name its `[board.linear] installation` key gives: its tokens live in the
+/// Keychain behind that installation's credential reference, refreshed under a machine-wide
+/// `MachineLock` (the lock stays machine-wide until roadmap L1.2); only the Linear project comes from the
+/// Project's own file. Construction never touches the Keychain (no eager read): a missing or revoked
+/// Installation surfaces as `.notAuthenticated` from the first Linear call the adapter makes, inside the
+/// Act — never from binding itself. A Project naming an installation the registry lacks cannot be bound:
+/// that is ``BoardBindingError/installationMissing(project:installation:)``.
 enum BoardBinding {
     static func board(
         machine: MachineConfiguration,
         project: ProjectConfiguration,
         credentials store: KeychainCredentialStore = KeychainCredentialStore(),
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
-    ) -> any Board {
+    ) throws -> any Board {
         makeLinearAdapter(
-            machine: machine, linearProjectID: project.linearProject, credentials: store, homeDirectory: homeDirectory
+            installation: try installation(machine: machine, project: project),
+            linearProjectID: project.linearProject, credentials: store, homeDirectory: homeDirectory
         )
     }
 
@@ -29,9 +32,10 @@ enum BoardBinding {
         project: ProjectConfiguration,
         credentials store: KeychainCredentialStore = KeychainCredentialStore(),
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
-    ) -> any BoardProvisioning {
+    ) throws -> any BoardProvisioning {
         makeLinearAdapter(
-            machine: machine, linearProjectID: project.linearProject, credentials: store, homeDirectory: homeDirectory
+            installation: try installation(machine: machine, project: project),
+            linearProjectID: project.linearProject, credentials: store, homeDirectory: homeDirectory
         )
     }
 
@@ -41,44 +45,79 @@ enum BoardBinding {
         project: ProjectConfiguration,
         credentials store: KeychainCredentialStore = KeychainCredentialStore(),
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
-    ) -> ActBoard {
+    ) throws -> ActBoard {
         let refreshes = AppInstallationTokenRefreshLog()
         let adapter = makeLinearAdapter(
-            machine: machine, linearProjectID: project.linearProject, credentials: store, homeDirectory: homeDirectory,
+            installation: try installation(machine: machine, project: project),
+            linearProjectID: project.linearProject, credentials: store, homeDirectory: homeDirectory,
             refreshLog: refreshes
         )
         return ActBoard(reading: adapter, writing: adapter, provisioning: adapter, tokenRefreshes: refreshes)
     }
 
-    /// Binds directly from an already-resolved Linear project id, for `yh setup`/`yh doctor`, which
-    /// have no `ProjectConfiguration` yet. `linearProjectID` may be `""` for the workspace-level calls
-    /// (`workspaceMembers()`, `teams()`, project creation): those are not scoped to a Linear project, so
-    /// the binding's own linearProjectID is irrelevant to them.
+    /// Binds directly from an already-resolved App Installation and Linear project id, for
+    /// `yh setup`/`yh doctor`, which have no `ProjectConfiguration` yet. `linearProjectID` may be `""` for
+    /// the workspace-level calls (`workspaceMembers()`, `teams()`, project creation): those are not scoped
+    /// to a Linear project, so the binding's own linearProjectID is irrelevant to them.
     static func provisioning(
-        machine: MachineConfiguration,
+        installation: LinearInstallation,
         linearProjectID: String,
         credentials store: KeychainCredentialStore = KeychainCredentialStore(),
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
     ) -> any BoardProvisioning {
         makeLinearAdapter(
-            machine: machine, linearProjectID: linearProjectID, credentials: store, homeDirectory: homeDirectory
+            installation: installation, linearProjectID: linearProjectID, credentials: store,
+            homeDirectory: homeDirectory
         )
     }
 
+    /// The store holding `installation`'s tokens: its credential reference, the Keychain and the
+    /// machine-wide refresh lock.
+    static func installationStore(
+        for installation: LinearInstallation,
+        credentials store: KeychainCredentialStore,
+        homeDirectory: URL
+    ) -> LinearInstallationStore {
+        LinearInstallationStore(
+            reference: installation.credential,
+            keychain: store,
+            machineLock: MachineLock(fileURL: MachineLock.defaultFileURL(homeDirectory: homeDirectory))
+        )
+    }
+
+    private static func installation(
+        machine: MachineConfiguration, project: ProjectConfiguration
+    ) throws(BoardBindingError) -> LinearInstallation {
+        guard let installation = machine.linearInstallation(for: project) else {
+            throw .installationMissing(project: project.id, installation: project.linearInstallationName)
+        }
+        return installation
+    }
+
     private static func makeLinearAdapter(
-        machine: MachineConfiguration,
+        installation: LinearInstallation,
         linearProjectID: String,
         credentials store: KeychainCredentialStore,
         homeDirectory: URL,
         refreshLog: AppInstallationTokenRefreshLog? = nil
     ) -> LinearAdapter {
-        let installationStore = LinearInstallationStore(
-            reference: machine.linearCredential,
-            keychain: store,
-            machineLock: MachineLock(fileURL: MachineLock.defaultFileURL(homeDirectory: homeDirectory))
-        )
+        let installationStore = installationStore(for: installation, credentials: store, homeDirectory: homeDirectory)
         return LinearAdapter(
             linearProjectID: linearProjectID, tokenStore: installationStore.tokenStore, refreshLog: refreshLog
         )
+    }
+}
+
+/// Why a Project's board could not be bound.
+enum BoardBindingError: Error, Equatable, CustomStringConvertible {
+    /// The Project's `[board.linear] installation` names no entry in the machine file's registry.
+    case installationMissing(project: ProjectID, installation: String)
+
+    var description: String {
+        switch self {
+        case .installationMissing(let project, let installation):
+            "Project \(project.rawValue) names Linear App Installation \"\(installation)\", "
+                + "which config.toml does not declare"
+        }
     }
 }

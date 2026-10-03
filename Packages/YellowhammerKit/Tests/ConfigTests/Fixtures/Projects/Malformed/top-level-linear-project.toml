@@ -1,0 +1,9 @@
+id = "top-level-linear-project"
+name = "top-level-linear-project"
+linear_project = "X"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"

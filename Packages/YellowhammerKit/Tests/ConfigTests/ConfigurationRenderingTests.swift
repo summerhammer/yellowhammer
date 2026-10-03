@@ -25,6 +25,7 @@ func projectDefaultsRoundTrip() throws {
     let project = ProjectConfiguration(
         id: try projectID("roundtrip"),
         name: "Round Trip",
+        linearInstallationName: "acme",
         linearProject: "RT",
         specSource: "~/dev/roundtrip-spec",
         repos: [
@@ -40,6 +41,7 @@ func projectFullRoundTrip() throws {
     let project = ProjectConfiguration(
         id: try projectID("full-roundtrip"),
         name: "Full Round Trip",
+        linearInstallationName: "acme",
         linearProject: "FRT",
         repos: [
             RepoDeclaration(
@@ -85,6 +87,7 @@ func projectRendersExplicitDefaultBounds() throws {
     let project = ProjectConfiguration(
         id: try projectID("bounds-default"),
         name: "Bounds Default",
+        linearInstallationName: "acme",
         linearProject: "BD",
         repos: [RepoDeclaration(name: "only-repo", path: "~/dev/bd", role: .backend, check: .none)]
     )
@@ -93,10 +96,9 @@ func projectRendersExplicitDefaultBounds() throws {
 
 // MARK: - Machine file round-trip
 
-@Test("A minimal machine file (no operator, no CLI adapters, no routing) round-trips")
+@Test("A minimal machine file (no App Installations, no CLI adapters, no routing) round-trips")
 func machineMinimalRoundTrip() throws {
     let machine = MachineConfiguration(
-        linearCredential: try credential("keychain:linear"),
         gitHubCredential: try credential("keychain:github"),
         cliAdapters: [],
         routingTable: []
@@ -105,10 +107,24 @@ func machineMinimalRoundTrip() throws {
     #expect(parsed == machine)
 }
 
-@Test("A full machine file with an operator, CLI tables with/without executable, and routing fallbacks")
+@Test("A full machine file with two App Installations, CLI tables with/without executable, and routing fallbacks")
 func machineFullRoundTrip() throws {
     let machine = MachineConfiguration(
-        linearCredential: try credential("keychain:linear"),
+        linearInstallations: [
+            LinearInstallation(
+                name: "acme",
+                credential: try credential("keychain:linear-acme"),
+                workspace: BoardObjectID(rawValue: "workspace-1"),
+                appUser: BoardObjectID(rawValue: "app-user-1"),
+                operatorIdentity: BoardObjectID(rawValue: "linear-user-1")
+            ),
+            LinearInstallation(
+                name: "acme corp",
+                credential: try credential("keychain:linear-corp"),
+                workspace: BoardObjectID(rawValue: "workspace-2"),
+                appUser: BoardObjectID(rawValue: "app-user-2")
+            )
+        ],
         gitHubCredential: try credential("keychain:github"),
         cliAdapters: [
             CLIAdapterDeclaration(name: "claude", executable: "/opt/homebrew/bin/claude"),
@@ -123,8 +139,7 @@ func machineFullRoundTrip() throws {
                 route: try route("claude", "sonnet", "low"),
                 fallbacks: [try route("codex", "gpt-5.4", "high"), try route("claude", "opus", "high")]
             )
-        ],
-        operatorIdentity: BoardObjectID(rawValue: "linear-user-1")
+        ]
     )
     let parsed = try MachineConfiguration.parse(machine.renderedTOML, file: "config.toml")
     #expect(parsed == machine)
@@ -132,147 +147,238 @@ func machineFullRoundTrip() throws {
 
 // MARK: - settingOperator
 
-@Test("settingOperator inserts operator right after [linear] when absent")
-func settingOperatorInsertsWhenAbsent() throws {
-    let text = """
-        [linear]
-        credential = "keychain:linear"
+private let registryText = """
+    # Machine file.
+    [board.linear.installations.acme]
+    credential = "keychain:linear-acme"
+    workspace = "workspace-1"
+    app_user = "app-user-1"
+    operator = "old-user"
 
-        [github]
-        credential = "keychain:github"
-        """
-    let result = MachineConfiguration.settingOperator(BoardObjectID(rawValue: "user-1"), inFileText: text)
-    let parsed = try MachineConfiguration.parse(result, file: "config.toml")
-    #expect(parsed.operatorIdentity == BoardObjectID(rawValue: "user-1"))
-    #expect(result.contains(#"operator = "user-1""#))
+    [board.linear.installations."acme corp"]
+    credential = "keychain:linear-corp"
+    workspace = "workspace-2"
+    app_user = "app-user-2"
+    operator = "corp-user"
+
+    [github]
+    credential = "keychain:github"
+    """
+
+private func operatorOf(_ text: String, _ name: String) throws -> BoardObjectID? {
+    try MachineConfiguration.parse(text, file: "config.toml").linearInstallation(named: name)?.operatorIdentity
 }
 
-@Test("settingOperator replaces an existing operator line, preserving comments and unrelated keys")
-func settingOperatorReplacesWhenPresent() throws {
+@Test("settingOperator replaces the operator in the named entry only, leaving its sibling alone")
+func settingOperatorReplacesInNamedEntry() throws {
+    let result = MachineConfiguration.settingOperator(
+        BoardObjectID(rawValue: "new-user"), installation: "acme", inFileText: registryText
+    )
+    #expect(try operatorOf(result, "acme") == BoardObjectID(rawValue: "new-user"))
+    #expect(try operatorOf(result, "acme corp") == BoardObjectID(rawValue: "corp-user"))
+    #expect(result.contains("# Machine file."))
+}
+
+@Test("settingOperator works with a quoted name and leaves the other entry alone")
+func settingOperatorQuotedName() throws {
+    let result = MachineConfiguration.settingOperator(
+        BoardObjectID(rawValue: "new-corp"), installation: "acme corp", inFileText: registryText
+    )
+    #expect(try operatorOf(result, "acme corp") == BoardObjectID(rawValue: "new-corp"))
+    #expect(try operatorOf(result, "acme") == BoardObjectID(rawValue: "old-user"))
+}
+
+@Test("settingOperator inserts operator after the table's last key when absent")
+func settingOperatorInserts() throws {
     let text = """
-        # machine-wide configuration
-        [linear]
-        credential = "keychain:linear" # do not touch
-        operator = "old-user"
+        [board.linear.installations.acme]
+        credential = "keychain:linear-acme"
+        workspace = "workspace-1"
+        app_user = "app-user-1"
 
         [github]
         credential = "keychain:github"
         """
-    let result = MachineConfiguration.settingOperator(BoardObjectID(rawValue: "new-user"), inFileText: text)
-    #expect(result.contains("# machine-wide configuration"))
-    #expect(result.contains(#"credential = "keychain:linear" # do not touch"#))
-    #expect(result.contains(#"operator = "new-user""#))
-    #expect(!result.contains("old-user"))
-    let parsed = try MachineConfiguration.parse(result, file: "config.toml")
-    #expect(parsed.operatorIdentity == BoardObjectID(rawValue: "new-user"))
+    let result = MachineConfiguration.settingOperator(
+        BoardObjectID(rawValue: "user-1"), installation: "acme", inFileText: text
+    )
+    #expect(try operatorOf(result, "acme") == BoardObjectID(rawValue: "user-1"))
+    #expect(result.contains("app_user = \"app-user-1\"\noperator = \"user-1\"\n\n[github]"))
+}
+
+@Test("settingOperator matches a quoted-but-bare-safe header and a header with a trailing comment")
+func settingOperatorHeaderSpellings() throws {
+    for header in [
+        "[board.linear.installations.\"acme\"]",
+        "[ board . linear . installations . acme ]  # the main one",
+        "[board.linear.installations.acme] # note"
+    ] {
+        let text = header + "\ncredential = \"c\"\nworkspace = \"w\"\napp_user = \"a\"\n"
+            + "\n[github]\ncredential = \"g\"\n"
+        let result = MachineConfiguration.settingOperator(
+            BoardObjectID(rawValue: "u"), installation: "acme", inFileText: text
+        )
+        #expect(try operatorOf(result, "acme") == BoardObjectID(rawValue: "u"), "\(header)")
+    }
+}
+
+@Test("settingOperator leaves the text unchanged when the entry is absent, and is idempotent")
+func settingOperatorAbsentAndIdempotent() {
+    let user = BoardObjectID(rawValue: "user-1")
+    #expect(MachineConfiguration.settingOperator(user, installation: "nope", inFileText: registryText) == registryText)
+    let once = MachineConfiguration.settingOperator(user, installation: "acme", inFileText: registryText)
+    #expect(MachineConfiguration.settingOperator(user, installation: "acme", inFileText: once) == once)
 }
 
 // MARK: - settingLinearInstallation
 
-@Test("settingLinearInstallation inserts workspace and app_user right after [linear] when absent")
-func settingLinearInstallationInsertsWhenAbsent() throws {
-    let text = """
-        [linear]
-        credential = "keychain:linear"
+private func installation(
+    _ name: String, workspace: String = "ws", operatorIdentity: String? = nil
+) throws -> LinearInstallation {
+    LinearInstallation(
+        name: name, credential: try credential("keychain:linear-\(name)"),
+        workspace: BoardObjectID(rawValue: workspace), appUser: BoardObjectID(rawValue: "au-\(name)"),
+        operatorIdentity: operatorIdentity.map { BoardObjectID(rawValue: $0) }
+    )
+}
 
+@Test("settingLinearInstallation appends a new entry after [[routing]] and the result parses")
+func settingInstallationAppends() throws {
+    let text = """
         [github]
         credential = "keychain:github"
+
+        [cli.claude]
+
+        [[routing]]
+        route = "claude/sonnet"
         """
-    let result = MachineConfiguration.settingLinearInstallation(
-        workspace: BoardObjectID(rawValue: "workspace-1"), appUser: BoardObjectID(rawValue: "app-user-1"),
-        inFileText: text
-    )
+    let entry = try installation("acme", operatorIdentity: "u1")
+    let result = MachineConfiguration.settingLinearInstallation(entry, inFileText: text)
+    #expect(result.hasSuffix("operator = \"u1\"\n"))
     let parsed = try MachineConfiguration.parse(result, file: "config.toml")
-    #expect(parsed.linearWorkspace == BoardObjectID(rawValue: "workspace-1"))
-    #expect(parsed.linearAppUser == BoardObjectID(rawValue: "app-user-1"))
+    #expect(parsed.linearInstallations == [entry])
+    #expect(parsed.routingTable == [RoutingEntry(route: try route("claude", "sonnet"))])
+    #expect(parsed.cliAdapters.map(\.name) == ["claude"])
+    #expect(MachineConfiguration.settingLinearInstallation(entry, inFileText: result) == result)
 }
 
-@Test("settingLinearInstallation replaces existing workspace/app_user lines, preserving comments")
-func settingLinearInstallationReplacesWhenPresent() throws {
+@Test("settingLinearInstallation replaces an existing entry's fields, keeping its operator and comments")
+func settingInstallationReplaces() throws {
     let text = """
-        # machine-wide configuration
-        [linear]
-        credential = "keychain:linear" # do not touch
-        workspace = "old-workspace"
-        app_user = "old-app-user"
+        [board.linear.installations.acme]
+        # keep me
+        credential = "keychain:old"
+        workspace = "old-ws"
+        operator = "kept-user"
 
         [github]
         credential = "keychain:github"
         """
-    let result = MachineConfiguration.settingLinearInstallation(
-        workspace: BoardObjectID(rawValue: "new-workspace"), appUser: BoardObjectID(rawValue: "new-app-user"),
-        inFileText: text
+    let entry = try installation("acme", workspace: "new-ws")
+    let result = MachineConfiguration.settingLinearInstallation(entry, inFileText: text)
+    #expect(result.contains("# keep me"))
+    let parsed = try #require(
+        MachineConfiguration.parse(result, file: "config.toml").linearInstallation(named: "acme")
     )
-    #expect(result.contains("# machine-wide configuration"))
-    #expect(result.contains(#"credential = "keychain:linear" # do not touch"#))
-    #expect(!result.contains("old-workspace"))
-    #expect(!result.contains("old-app-user"))
+    #expect(parsed.credential == entry.credential)
+    #expect(parsed.workspace == BoardObjectID(rawValue: "new-ws"))
+    #expect(parsed.appUser == entry.appUser)
+    #expect(parsed.operatorIdentity == BoardObjectID(rawValue: "kept-user"))
+    #expect(MachineConfiguration.settingLinearInstallation(entry, inFileText: result) == result)
+}
+
+@Test("settingLinearInstallation writes a non-nil operator over an existing one")
+func settingInstallationReplacesOperator() throws {
+    let entry = try installation("acme", operatorIdentity: "fresh")
+    let result = MachineConfiguration.settingLinearInstallation(entry, inFileText: registryText)
+    #expect(try operatorOf(result, "acme") == BoardObjectID(rawValue: "fresh"))
+    #expect(try operatorOf(result, "acme corp") == BoardObjectID(rawValue: "corp-user"))
+}
+
+@Test("settingLinearInstallation adds a second entry beside an existing one, and quotes a name that needs it")
+func settingInstallationSecondAndQuoted() throws {
+    let first = try installation("acme", workspace: "ws-1")
+    let withFirst = MachineConfiguration.settingLinearInstallation(
+        first, inFileText: "[github]\ncredential = \"keychain:github\"\n"
+    )
+    let second = try installation("acme corp", workspace: "ws-2")
+    let result = MachineConfiguration.settingLinearInstallation(second, inFileText: withFirst)
+    #expect(result.contains("[board.linear.installations.\"acme corp\"]"))
     let parsed = try MachineConfiguration.parse(result, file: "config.toml")
-    #expect(parsed.linearWorkspace == BoardObjectID(rawValue: "new-workspace"))
-    #expect(parsed.linearAppUser == BoardObjectID(rawValue: "new-app-user"))
+    #expect(parsed.linearInstallations == [first, second])
+    #expect(MachineConfiguration.settingLinearInstallation(second, inFileText: result) == result)
 }
 
-@Test("settingLinearInstallation is idempotent")
-func settingLinearInstallationIsIdempotent() {
-    let text = """
-        [linear]
-        credential = "keychain:linear"
+// MARK: - Whole-file renderers keep the registry
 
-        [github]
-        credential = "keychain:github"
-        """
-    let once = MachineConfiguration.settingLinearInstallation(
-        workspace: BoardObjectID(rawValue: "workspace-1"), appUser: BoardObjectID(rawValue: "app-user-1"),
-        inFileText: text
-    )
-    let twice = MachineConfiguration.settingLinearInstallation(
-        workspace: BoardObjectID(rawValue: "workspace-1"), appUser: BoardObjectID(rawValue: "app-user-1"),
-        inFileText: once
-    )
-    #expect(once == twice)
+private func registryMachine() throws -> MachineConfiguration {
+    try MachineConfiguration.parse(registryText, file: "config.toml")
 }
 
-@Test("settingOperator is idempotent")
-func settingOperatorIsIdempotent() {
-    let text = """
-        [linear]
-        credential = "keychain:linear"
-
-        [github]
-        credential = "keychain:github"
-        """
-    let once = MachineConfiguration.settingOperator(BoardObjectID(rawValue: "user-1"), inFileText: text)
-    let twice = MachineConfiguration.settingOperator(BoardObjectID(rawValue: "user-1"), inFileText: once)
-    #expect(once == twice)
+@Test("a routing save keeps the registry")
+func routingSaveKeepsRegistry() throws {
+    let original = try registryMachine().declaring(cliAdapter: "claude", executable: "/bin/claude")
+    let rendered = original.renderedTOML(routingTable: [
+        RoutingEntryDraft(route: RouteDraft(cli: "claude", model: "opus", effort: "high"))
+    ])
+    let reparsed = try MachineConfiguration.parse(rendered, file: "config.toml")
+    #expect(reparsed.linearInstallations == original.linearInstallations)
+    #expect(reparsed.linearInstallations.first?.operatorIdentity == BoardObjectID(rawValue: "old-user"))
+    let order = ["[board.linear.installations.acme]", "[board.linear.installations.\"acme corp\"]", "[github]"]
+    let positions = order.compactMap { rendered.range(of: $0)?.lowerBound }
+    #expect(positions.count == order.count)
+    #expect(positions == positions.sorted())
 }
 
-// MARK: - removingLegacyLinearClientID
-
-@Test("removingLegacyLinearClientID removes the line and preserves everything else")
-func removingLegacyLinearClientIDRemovesLine() throws {
-    let text = """
-        # machine-wide configuration
-        [linear]
-        client_id = "old-client-id"
-        credential = "keychain:linear" # do not touch
-
-        [github]
-        credential = "keychain:github"
-        """
-    let result = MachineConfiguration.removingLegacyLinearClientID(inFileText: text)
-    #expect(!result.contains("client_id"))
-    #expect(result.contains("# machine-wide configuration"))
-    #expect(result.contains(#"credential = "keychain:linear" # do not touch"#))
-    let parsed = try MachineConfiguration.parse(result, file: "config.toml")
-    #expect(parsed.linearCredential == CredentialReference("keychain:linear"))
+@Test("a CLI save keeps the registry")
+func cliSaveKeepsRegistry() throws {
+    let original = try registryMachine()
+    let edited = original.declaring(cliAdapter: "claude", executable: "/opt/homebrew/bin/claude")
+    let reparsed = try MachineConfiguration.parse(edited.renderedTOML, file: "config.toml")
+    #expect(reparsed.linearInstallations == original.linearInstallations)
+    #expect(reparsed.cliAdapters.map(\.name) == ["claude"])
 }
 
-@Test("removingLegacyLinearClientID is a no-op when the line is already gone")
-func removingLegacyLinearClientIDIsNoOpWhenAbsent() {
-    let text = """
-        [linear]
-        credential = "keychain:linear"
-        """
-    let result = MachineConfiguration.removingLegacyLinearClientID(inFileText: text)
-    #expect(result == text)
+@Test("a Configuration save keeps [board.linear]")
+func configurationSaveKeepsBoardLinear() throws {
+    let project = try testEditingProject(id: "keepboard")
+    var draft = ProjectFileDraft(project)
+    #expect(draft.linearInstallationName == "acme")
+    let reparsed = try ProjectConfiguration.parse(draft.renderedTOML, file: "keepboard.toml")
+    #expect(reparsed.linearInstallationName == "acme")
+    #expect(reparsed.linearProject == project.linearProject)
+
+    let directory = try makeEditingDirectory(machine: try testEditingMachine(), projects: [project])
+    defer { cleanupEditingDirectory(directory) }
+    let file = editingProjectFileURL(directory, "keepboard")
+    let originalText = try String(contentsOf: file, encoding: .utf8)
+    draft.name = "Renamed"
+    try Configuration.save(draft.renderedTOML, to: file, in: directory, replacing: originalText)
+    let loaded = try #require(Configuration.load(directory: directory).projects.first)
+    #expect(loaded.name == "Renamed")
+    #expect(loaded.linearInstallationName == "acme")
+    #expect(loaded.linearProject == project.linearProject)
+}
+
+@Test("a Configuration save of a Project naming an unregistered installation is refused")
+func configurationSaveRefusesUnregisteredInstallation() throws {
+    let project = try testEditingProject(id: "stray")
+    let directory = try makeEditingDirectory(machine: try testEditingMachine(), projects: [project])
+    defer { cleanupEditingDirectory(directory) }
+    let file = editingProjectFileURL(directory, "stray")
+    let originalText = try String(contentsOf: file, encoding: .utf8)
+    var draft = ProjectFileDraft(project)
+    draft.linearInstallationName = "missing"
+    do {
+        try Configuration.save(draft.renderedTOML, to: file, in: directory, replacing: originalText)
+        Issue.record("expected the save to be refused")
+    } catch {
+        guard case .refused(let errors) = error else {
+            Issue.record("expected .refused, got \(error)")
+            return
+        }
+        #expect(errors.map(\.reason) == [.undeclaredLinearInstallation("missing")])
+        #expect(errors.first?.key == "board.linear.installation")
+    }
 }

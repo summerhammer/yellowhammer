@@ -151,8 +151,10 @@ struct CLIAdapterDispatchTests {
 struct CardRunBindingTests {
     private func configuration(projectID: ProjectID) throws -> (Configuration, ProjectConfiguration) {
         let machine = try MachineConfiguration.parse("""
-            [linear]
+            [board.linear.installations.acme]
             credential = "keychain:linear"
+            workspace = "workspace-1"
+            app_user = "app-user-1"
 
             [github]
             credential = "keychain:github"
@@ -161,7 +163,7 @@ struct CardRunBindingTests {
             executable = "/opt/claude"
             """, file: "config.toml")
         let project = ProjectConfiguration(
-            id: projectID, name: "P", linearProject: "P",
+            id: projectID, name: "P", linearInstallationName: "acme", linearProject: "P",
             repos: [
                 RepoDeclaration(name: "backend", path: "/repos/backend", role: .backend, check: .none),
                 RepoDeclaration(name: "mobile", path: "/repos/mobile", role: .mobile, check: .command("make test"))

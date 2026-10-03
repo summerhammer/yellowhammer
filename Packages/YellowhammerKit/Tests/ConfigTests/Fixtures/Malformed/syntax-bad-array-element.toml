@@ -1,4 +1,4 @@
-[linear]
+[board.linear.installations.acme]
 credential = "keychain:linear"
 [github]
 credential = "keychain:github"

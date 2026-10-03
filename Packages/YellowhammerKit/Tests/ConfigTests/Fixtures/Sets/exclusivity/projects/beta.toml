@@ -1,6 +1,6 @@
 id = "beta"
 name = "Beta"
-linear_project = "BET"
+board = { linear = { installation = "acme", project = "BET" } }
 spec_source = "~/dev/spec"
 
 [[repos]]

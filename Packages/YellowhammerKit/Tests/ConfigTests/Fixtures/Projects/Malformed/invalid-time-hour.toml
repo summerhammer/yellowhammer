@@ -1,6 +1,6 @@
 id = "invalid-time-hour"
 name = "Bad Time Hour"
-linear_project = "BTH"
+board = { linear = { installation = "acme", project = "BTH" } }
 
 [[repos]]
 name = "repo"

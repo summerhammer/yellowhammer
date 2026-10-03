@@ -54,7 +54,14 @@ func editingProjectFileURL(_ directory: URL, _ id: String) -> URL {
 
 func testEditingMachine(cliAdapters: [String] = ["claude", "codex"]) throws -> MachineConfiguration {
     MachineConfiguration(
-        linearCredential: try editingCredential("keychain:linear"),
+        linearInstallations: [
+            LinearInstallation(
+                name: "acme",
+                credential: try editingCredential("keychain:linear"),
+                workspace: BoardObjectID(rawValue: "workspace-1"),
+                appUser: BoardObjectID(rawValue: "app-user-1")
+            )
+        ],
         gitHubCredential: try editingCredential("keychain:github"),
         cliAdapters: cliAdapters.map { CLIAdapterDeclaration(name: $0) },
         routingTable: [RoutingEntry(route: try editingRoute("claude", "sonnet", "medium"))]
@@ -68,6 +75,7 @@ func testEditingProject(
     ProjectConfiguration(
         id: try editingProjectID(id),
         name: name,
+        linearInstallationName: "acme",
         linearProject: linearProject,
         specSource: "~/dev/\(id)-spec",
         repos: repos ?? [

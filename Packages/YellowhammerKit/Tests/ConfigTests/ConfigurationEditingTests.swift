@@ -81,7 +81,7 @@ struct ConfigurationEditingTests {
         let expected = ProjectConfiguration(
             id: try editingProjectID("editme"),
             name: "Edited Name",
-            linearProject: "EDITED",
+            linearInstallationName: "acme", linearProject: "EDITED",
             specSource: "~/dev/editme-spec",
             repos: [
                 RepoDeclaration(name: "backend", path: "~/dev/editme-backend", role: .backend, check: .none),

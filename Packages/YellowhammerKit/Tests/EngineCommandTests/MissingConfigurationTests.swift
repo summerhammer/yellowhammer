@@ -71,7 +71,8 @@ func missingMachineFile(_ act: Act) async throws {
 func malformedMachineFile(_ act: Act) async throws {
     let directory = ConfigurationDirectory()
     try directory.writeMachineFile(
-        "[linear]\ncredential = \"keychain:linear\"\n"
+        "[board.linear.installations.acme]\ncredential = \"keychain:linear\"\n"
+            + "workspace = \"workspace-1\"\napp_user = \"app-user-1\"\n"
     )
     try directory.writeValidProjectFile(id: "yellowhammer")
 
@@ -140,7 +141,7 @@ func invalidatedProject(_ act: Act) async throws {
     try directory.writeProjectFile(id: "yellowhammer", """
         id = "yellowhammer"
         name = "Yellowhammer"
-        linear_project = "yellowhammer"
+        board = { linear = { installation = "acme", project = "yellowhammer" } }
 
         [[repos]]
         name = "backend"

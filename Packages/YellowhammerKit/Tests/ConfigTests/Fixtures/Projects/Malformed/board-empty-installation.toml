@@ -1,0 +1,11 @@
+id = "board-empty-installation"
+name = "board-empty-installation"
+[board.linear]
+installation = ""
+project = "X"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"

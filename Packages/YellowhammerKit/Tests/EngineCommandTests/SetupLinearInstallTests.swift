@@ -35,44 +35,7 @@ final class InstallListener: CallbackListening, Sendable {
     func close() {}
 }
 
-/// The happy-path seams: binds the first port, echoes the flow's own `state` back, and exchanges
-/// through a `StubHTTPTransport` scripted with a token grant and a confirm reply.
-private func happyPathSeams(
-    workspaceID: String = "workspace-1", workspaceName: String = "Acme", appUserID: String = "app-user-1",
-    opened: URLRecorder = URLRecorder()
-) -> LinearInstallSeams {
-    let state = Mutex("")
-    let transport = StubHTTPTransport([
-        InstallFlowFixture.installationGrant(accessToken: "at-1", refreshToken: "rt-1"),
-        InstallFlowFixture.json(
-            #"{"data":{"viewer":{"id":"\#(appUserID)","name":"Yellowhammer"},"#
-                + #""organization":{"id":"\#(workspaceID)","name":"\#(workspaceName)"}}}"#
-        )
-    ])
-    return LinearInstallSeams(
-        portBinder: { port in
-            InstallListener(port: port) {
-                .init(code: "code", state: state.withLock { $0 }, error: nil, errorDescription: nil)
-            }
-        },
-        holderLookup: NeverCalledPortHolderLookup(),
-        opener: { url in
-            let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
-            state.withLock { $0 = items.first(where: { $0.name == "state" })?.value ?? "" }
-            opened.record(url)
-        },
-        transport: transport.send
-    )
-}
-
-private func portsBusySeams() -> LinearInstallSeams {
-    LinearInstallSeams(
-        portBinder: { port in throw LoopbackCallbackServer.BindError.busy(port: port) },
-        holderLookup: NeverCalledPortHolderLookup(),
-        opener: { _ in Issue.record("the browser must never open when every port is busy") },
-        transport: { _ in throw URLError(.cannotConnectToHost) }
-    )
-}
+private func portsBusySeams() -> LinearInstallSeams { busyLinearInstallSeams() }
 
 private func failingCallbackSeams(
     error: String, errorDescription: String?
@@ -95,7 +58,7 @@ private func failingCallbackSeams(
 
 @Suite("Setup: the Linear install step (P17.6)")
 struct SetupLinearInstallTests {
-    @Test("Not installed: install runs, the pair is stored, workspace/app_user written, then the operator step")
+    @Test("Not installed: install runs, the pair is stored, its registry entry written, then the operator step")
     func notInstalledInstallsStoresAndProceedsToOperator() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
@@ -122,8 +85,10 @@ struct SetupLinearInstallTests {
         #expect(opened.urls.count == 1)
         #expect(try store.tokenStore.read() != nil)
         let machine = try MachineConfiguration.load(contentsOf: directory.url.appending(component: "config.toml"))
-        #expect(machine.linearWorkspace == BoardObjectID(rawValue: "workspace-1"))
-        #expect(machine.linearAppUser == BoardObjectID(rawValue: "app-user-1"))
+        let installation = try #require(machine.soleLinearInstallation)
+        #expect(installation.workspace == BoardObjectID(rawValue: "workspace-1"))
+        #expect(installation.appUser == BoardObjectID(rawValue: "app-user-1"))
+        #expect(installation.operatorIdentity == BoardObjectID(rawValue: "user-op"))
         #expect(output.lines.contains { $0.contains("installed in the Linear workspace Acme") })
         #expect(output.lines.contains { $0.contains("Operator: user-op") })
     }
@@ -132,8 +97,10 @@ struct SetupLinearInstallTests {
     func installLinearKeepsExistingOperatorAndSkipsProjects() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
-            [linear]
+            [board.linear.installations.acme]
             credential = "keychain:linear"
+            workspace = "workspace-1"
+            app_user = "app-user-1"
             operator = "user-op"
 
             [github]
@@ -159,7 +126,7 @@ struct SetupLinearInstallTests {
         try await setup.run()
 
         let machine = try MachineConfiguration.load(contentsOf: directory.url.appending(component: "config.toml"))
-        #expect(machine.operatorIdentity == BoardObjectID(rawValue: "user-op"))
+        #expect(machine.soleLinearInstallation?.operatorIdentity == BoardObjectID(rawValue: "user-op"))
         // Untouched: the Project file's content, byte for byte.
         let projectPath = directory.url.appending(components: "projects", "demo.toml")
         #expect(FileManager.default.fileExists(atPath: projectPath.path(percentEncoded: false)))
@@ -169,7 +136,7 @@ struct SetupLinearInstallTests {
     func differentWorkspaceRefused() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
-            [linear]
+            [board.linear.installations.acme]
             credential = "keychain:linear"
             workspace = "workspace-old"
             app_user = "app-user-old"
@@ -177,6 +144,7 @@ struct SetupLinearInstallTests {
             [github]
             credential = "keychain:github"
             """)
+        let original = try String(contentsOf: directory.url.appending(component: "config.toml"), encoding: .utf8)
         let board = await makeBoard(members: [operatorMember])
         let seams = happyPathSeams(workspaceID: "workspace-new", workspaceName: "Other")
         let credentials = RecordingCredentialStore()
@@ -197,7 +165,7 @@ struct SetupLinearInstallTests {
 
         #expect(try store.tokenStore.read() == nil)
         let text = try String(contentsOf: directory.url.appending(component: "config.toml"), encoding: .utf8)
-        #expect(text.contains("workspace-old"))
+        #expect(text == original)
     }
 
     @Test("portsBusy, non-interactive: fails, the browser opener is never called")

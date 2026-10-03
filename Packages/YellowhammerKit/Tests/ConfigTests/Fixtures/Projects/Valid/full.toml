@@ -1,7 +1,10 @@
 # A Project whose specification source is a Repo of Repo Role "spec".
 id = "full"
 name = "Full Project"
-linear_project = "FULL"
+
+[board.linear]
+installation = "acme"
+project = "FULL"
 
 [[repos]]
 name = "backend"

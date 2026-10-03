@@ -31,8 +31,10 @@ struct BoardProvisionerScratchTests {
         }
 
         let machine = try MachineConfiguration.parse("""
-            [linear]
+            [board.linear.installations.acme]
             credential = "keychain:linear"
+            workspace = "workspace-1"
+            app_user = "app-user-1"
 
             [github]
             credential = "keychain:github"
@@ -41,7 +43,7 @@ struct BoardProvisionerScratchTests {
         let project = try ProjectConfiguration.parse("""
             id = "yellowhammer"
             name = "Yellowhammer"
-            linear_project = "\(linearProjectID)"
+            board = { linear = { installation = "acme", project = "\(linearProjectID)" } }
             spec_source = "~/Developer/yellowhammer-spec"
 
             [[repos]]
@@ -51,7 +53,7 @@ struct BoardProvisionerScratchTests {
             check = "swift test"
             """, file: "yellowhammer.toml")
 
-        let provisioning = BoardBinding.provisioning(machine: machine, project: project)
+        let provisioning = try BoardBinding.provisioning(machine: machine, project: project)
 
         // First run
         let report1 = try await BoardProvisioner.provision(

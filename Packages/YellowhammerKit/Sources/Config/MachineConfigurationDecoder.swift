@@ -13,65 +13,80 @@ struct MachineConfigurationDecoder {
     /// The base Routing Table is checked against this file's own `[cli]` declarations: every route
     /// must name a declared CLI Adapter.
     func decode(_ root: TOMLTable) throws(ConfigurationError) -> MachineConfiguration {
-        try decoding.rejectUnknownKeys(in: root, path: nil, allowed: ["linear", "github", "cli", "routing"])
-        let linear = try linear(in: root)
+        try decoding.rejectUnknownKeys(in: root, path: nil, allowed: ["board", "github", "cli", "routing"])
+        let linearInstallations = try linearInstallations(in: root)
         let gitHubCredential = try decoding.credential(in: root, table: "github")
         let cliAdapters = try cliAdapters(in: root)
         var routingDecoding = decoding
         routingDecoding.declaredCLIAdapters = Set(cliAdapters.map(\.name))
         return MachineConfiguration(
-            linearCredential: linear.credential,
-            linearWorkspace: linear.workspace,
-            linearAppUser: linear.appUser,
+            linearInstallations: linearInstallations,
             gitHubCredential: gitHubCredential,
             cliAdapters: cliAdapters,
-            routingTable: try routingDecoding.routingTable(in: root),
-            operatorIdentity: linear.operatorIdentity
+            routingTable: try routingDecoding.routingTable(in: root)
         )
     }
 
     // MARK: - Sections
 
-    /// `[linear]`'s decoded fields: the credential, the Installation's workspace and app user ids (nil
-    /// until installed), and the optional Operator identity (`operator`).
-    private struct LinearSection {
-        let credential: CredentialReference
-        let workspace: BoardObjectID?
-        let appUser: BoardObjectID?
-        let operatorIdentity: BoardObjectID?
+    /// `[board.linear.installations.<name>]`, zero or more: the registry of App Installations. Each
+    /// carries a required `credential`, `workspace` and `app_user` and an optional Operator identity
+    /// (`operator`). An absent or empty `operator` decodes to nil — never a load-time validation failure
+    /// (Operator Identity Ruling — 2026-09-23). Two entries may not share a `workspace`.
+    ///
+    /// `[board]`, `[board.linear]` and `[board.linear.installations]` may each be absent or empty.
+    private func linearInstallations(in root: TOMLTable) throws(ConfigurationError) -> [LinearInstallation] {
+        guard let boardValue = root["board"] else { return [] }
+        let board = try decoding.table(boardValue, key: "board")
+        try decoding.rejectUnknownKeys(in: board, path: "board", allowed: ["linear"])
+        guard let linearValue = board["linear"] else { return [] }
+        let linear = try decoding.table(linearValue, key: "board.linear")
+        try decoding.rejectUnknownKeys(in: linear, path: "board.linear", allowed: ["installations"])
+        guard let registryValue = linear["installations"] else { return [] }
+        let registry = try decoding.table(registryValue, key: "board.linear.installations")
+
+        var installations: [LinearInstallation] = []
+        var firstWorkspaces: [String: (installation: String, line: Int)] = [:]
+        for entry in registry.entries {
+            let path = TOMLKey.path("board.linear.installations", entry.key)
+            let table = try decoding.table(entry.value, key: path)
+            guard !entry.key.isEmpty else {
+                throw decoding.error(line: entry.value.line, key: path, .emptyString)
+            }
+            let installation = try linearInstallation(named: entry.key, in: table, path: path)
+            let workspaceLine = table["workspace"]?.line ?? table.line
+            if let first = firstWorkspaces[installation.workspace.rawValue] {
+                throw decoding.error(
+                    line: workspaceLine, key: TOMLKey.path(path, "workspace"),
+                    .duplicateLinearWorkspace(firstInstallation: first.installation, firstLine: first.line)
+                )
+            }
+            firstWorkspaces[installation.workspace.rawValue] = (entry.key, workspaceLine)
+            installations.append(installation)
+        }
+        return installations
     }
 
-    /// `[linear]`: the credential, the Installation's `workspace`/`app_user` (both nil until P17.6
-    /// installs one), and the optional Operator identity (`operator`). An absent or empty `operator`
-    /// decodes to nil — never a load-time validation failure (Operator Identity Ruling — 2026-09-23).
-    /// A `client_id` key — the withdrawn client-credentials setup — is a named load failure (P17.4).
-    ///
-    /// Decoded here rather than through ``ConfigurationDecoding/credential(in:table:)``, which must keep
-    /// refusing every key but `credential` in `[github]`.
-    private func linear(in root: TOMLTable) throws(ConfigurationError) -> LinearSection {
-        guard let value = root["linear"] else {
-            throw decoding.error(line: 1, key: "linear", .missingTable)
-        }
-        let table = try decoding.table(value, key: "linear")
-        if let legacy = table["client_id"] {
-            throw decoding.error(line: legacy.line, key: "linear.client_id", .legacyLinearClientID)
-        }
+    private func linearInstallation(
+        named name: String, in table: TOMLTable, path: String
+    ) throws(ConfigurationError) -> LinearInstallation {
         try decoding.rejectUnknownKeys(
-            in: table, path: "linear", allowed: ["credential", "workspace", "app_user", "operator"]
+            in: table, path: path, allowed: ["credential", "workspace", "app_user", "operator"]
         )
-        let credentialString = try decoding.requiredString("credential", in: table, path: "linear")
+        let credentialString = try decoding.requiredString("credential", in: table, path: path)
         guard let credential = CredentialReference(credentialString) else {
             let line = table["credential"]?.line ?? table.line
-            throw decoding.error(line: line, key: "linear.credential", .emptyString)
+            throw decoding.error(line: line, key: TOMLKey.path(path, "credential"), .emptyString)
         }
-        let workspaceString = try decoding.optionalString("workspace", in: table, path: "linear", allowEmpty: true)
-        let workspace = workspaceString.flatMap { $0.isEmpty ? nil : BoardObjectID(rawValue: $0) }
-        let appUserString = try decoding.optionalString("app_user", in: table, path: "linear", allowEmpty: true)
-        let appUser = appUserString.flatMap { $0.isEmpty ? nil : BoardObjectID(rawValue: $0) }
-        let operatorString = try decoding.optionalString("operator", in: table, path: "linear", allowEmpty: true)
-        let operatorIdentity = operatorString.flatMap { $0.isEmpty ? nil : BoardObjectID(rawValue: $0) }
-        return LinearSection(
-            credential: credential, workspace: workspace, appUser: appUser, operatorIdentity: operatorIdentity
+        let workspace = try decoding.requiredString("workspace", in: table, path: path)
+        let appUser = try decoding.requiredString("app_user", in: table, path: path)
+        let operatorString = try decoding.optionalString("operator", in: table, path: path, allowEmpty: true)
+        return LinearInstallation(
+            name: name,
+            credential: credential,
+            workspace: BoardObjectID(rawValue: workspace),
+            appUser: BoardObjectID(rawValue: appUser),
+            operatorIdentity: operatorString.flatMap { $0.isEmpty ? nil : BoardObjectID(rawValue: $0) }
         )
     }
 

@@ -64,8 +64,10 @@ struct NightCardScratchTests {
         }
 
         let machine = try MachineConfiguration.parse("""
-            [linear]
+            [board.linear.installations.acme]
             credential = "keychain:linear"
+            workspace = "workspace-1"
+            app_user = "app-user-1"
 
             [github]
             credential = "keychain:github"
@@ -74,7 +76,7 @@ struct NightCardScratchTests {
         let project = try ProjectConfiguration.parse("""
             id = "yellowhammer"
             name = "Yellowhammer"
-            linear_project = "\(linearProjectID)"
+            board = { linear = { installation = "acme", project = "\(linearProjectID)" } }
             spec_source = "~/Developer/yellowhammer-spec"
 
             [[repos]]
@@ -84,7 +86,7 @@ struct NightCardScratchTests {
             check = "swift test"
             """, file: "yellowhammer.toml")
 
-        return (BoardBinding.actBoard(machine: machine, project: project), project.id)
+        return (try BoardBinding.actBoard(machine: machine, project: project), project.id)
     }
 
     /// Today's calendar date, UTC, as a Night's identity.

@@ -15,8 +15,8 @@ struct Setup {
     /// "is it installed at all" gate. Never reads or stores a secret.
     let credentials: any SetupCredentialStore
     /// `linearProjectID` may be `""` for the workspace-level calls (`workspaceMembers()`, `teams()`,
-    /// creation) — see ``BoardBinding/provisioning(machine:linearProjectID:)``.
-    let bindProvisioning: (MachineConfiguration, String) -> any BoardProvisioning
+    /// creation) — see ``BoardBinding/provisioning(installation:linearProjectID:credentials:homeDirectory:)``.
+    let bindProvisioning: (LinearInstallation, String) -> any BoardProvisioning
     let registerNotifications: () async -> NotificationRegistration
     /// Where `--install-jobs` writes LaunchAgents (`<homeDirectory>/Library/LaunchAgents`) and every
     /// job's log path is expanded against. Tests inject a temp directory, never the real home.
@@ -73,8 +73,9 @@ struct Setup {
 
         var machine = try loadOrCreateMachineFile()
         let members: [BoardMember]
+        let installation: LinearInstallation
         do {
-            members = try await authorizeOrInstallLinear(machine: &machine)
+            (members, installation) = try await authorizeOrInstallLinear(machine: &machine)
         } catch {
             guard case .installLinear = options.mode else {
                 // No Linear installation: the steps that need none still run (configuration validation,
@@ -94,15 +95,15 @@ struct Setup {
         if case .installLinear = options.mode {
             // "Re-running the Linear step of setup": only this step and the Operator identity choice
             // (when none is configured) run; every Project's configuration is untouched.
-            if machine.operatorIdentity == nil {
-                try setOperatorIdentity(machine: &machine, members: members)
+            if installation.operatorIdentity == nil {
+                try setOperatorIdentity(machine: &machine, installation: installation, members: members)
             }
             return
         }
-        try setOperatorIdentity(machine: &machine, members: members)
+        try setOperatorIdentity(machine: &machine, installation: installation, members: members)
 
-        let board = bindProvisioning(machine, "")
-        try await writeProjectsIfNeeded(machine: machine, board: board)
+        let board = bindProvisioning(installation, "")
+        try await writeProjectsIfNeeded(machine: machine, installationName: installation.name, board: board)
 
         let configuration = try validateConfiguration()
         let (provisioningFailedIDs, unfinishedProvisioning) = await provisionProjects(

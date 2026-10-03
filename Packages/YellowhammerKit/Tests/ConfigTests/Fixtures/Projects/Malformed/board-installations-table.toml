@@ -1,0 +1,10 @@
+id = "board-installations-table"
+name = "board-installations-table"
+[board.linear.installations.x]
+credential = "keychain:x"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"

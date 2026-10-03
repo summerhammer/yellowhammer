@@ -225,15 +225,16 @@ struct SetupLinearRemoteInstallTests {
 
         #expect(try store.tokenStore.read() != nil)
         let machine = try MachineConfiguration.load(contentsOf: directory.url.appending(component: "config.toml"))
-        #expect(machine.linearWorkspace == BoardObjectID(rawValue: "workspace-1"))
-        #expect(machine.linearAppUser == BoardObjectID(rawValue: "app-user-1"))
+        let installation = try #require(machine.soleLinearInstallation)
+        #expect(installation.workspace == BoardObjectID(rawValue: "workspace-1"))
+        #expect(installation.appUser == BoardObjectID(rawValue: "app-user-1"))
     }
 
     @Test("Remote into a different workspace: failed(differentWorkspace), nothing stored")
     func remoteIntoDifferentWorkspaceRefused() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
-            [linear]
+            [board.linear.installations.acme]
             credential = "keychain:linear"
             workspace = "workspace-old"
             app_user = "app-user-old"
@@ -241,6 +242,7 @@ struct SetupLinearRemoteInstallTests {
             [github]
             credential = "keychain:github"
             """)
+        let original = try String(contentsOf: directory.url.appending(component: "config.toml"), encoding: .utf8)
         let board = await makeBoard(members: [operatorMember])
         let transport = RelayRoutingTransport([
             .relaySession: [relaySessionReply()],
@@ -270,7 +272,7 @@ struct SetupLinearRemoteInstallTests {
         }
         #expect(reason == .differentWorkspace)
         let text = try String(contentsOf: directory.url.appending(component: "config.toml"), encoding: .utf8)
-        #expect(text.contains("workspace-old"))
+        #expect(text == original)
     }
 
     @Test("Events-json rejected/expired/relayUnreachable/relayRateLimited each fail with the matching reason")

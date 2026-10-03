@@ -19,26 +19,47 @@ struct MalformedFixture: Sendable, CustomTestStringConvertible {
     var testDescription: String { name }
 }
 
+private let acmeCredential = "board.linear.installations.acme.credential"
+
 private let syntaxFixtures: [MalformedFixture] = [
-    MalformedFixture("syntax-unterminated-string", line: 2, key: "linear.credential"),
-    MalformedFixture("syntax-bad-value", line: 2, key: "linear.credential"),
-    MalformedFixture("syntax-missing-equals", line: 2, key: "linear.credential"),
-    MalformedFixture("syntax-invalid-escape", line: 4, key: "linear.credential"),
+    MalformedFixture("syntax-unterminated-string", line: 2, key: acmeCredential),
+    MalformedFixture("syntax-bad-value", line: 2, key: acmeCredential),
+    MalformedFixture("syntax-missing-equals", line: 2, key: acmeCredential),
+    MalformedFixture("syntax-invalid-escape", line: 4, key: acmeCredential),
     MalformedFixture("syntax-stray-character", line: 2, key: nil),
     MalformedFixture("syntax-bad-array-element", line: 10, key: "routing[0].fallbacks[1]"),
     MalformedFixture("syntax-inline-table-trailing-comma", line: 7, key: "routing[0].route"),
-    MalformedFixture("duplicate-key", line: 3, key: "linear.credential", .duplicateKey(firstLine: 2)),
-    MalformedFixture("table-redefined", line: 6, key: "linear", .tableRedefined(firstLine: 1))
+    MalformedFixture("duplicate-key", line: 3, key: acmeCredential, .duplicateKey(firstLine: 2)),
+    MalformedFixture("table-redefined", line: 6, key: "board.linear.installations.acme", .tableRedefined(firstLine: 1))
 ]
 
 private let shapeFixtures: [MalformedFixture] = [
-    MalformedFixture("missing-linear", line: 1, key: "linear", .missingTable),
-    MalformedFixture("missing-linear-credential", line: 2, key: "linear.credential", .missingKey),
+    // The old single `[linear]` shape is refused as an unknown key, with no migration and no named error.
+    MalformedFixture("top-level-linear", line: 1, key: "linear", .unknownKey),
+    MalformedFixture("board-linear-flat-credential", line: 2, key: "board.linear.credential", .unknownKey),
+    MalformedFixture("board-linear-installation-key", line: 2, key: "board.linear.installation", .unknownKey),
+    MalformedFixture("board-unknown-vendor", line: 1, key: "board.jira", .unknownKey),
+    MalformedFixture(
+        "duplicate-linear-workspace", line: 8, key: "board.linear.installations.beta.workspace",
+        .duplicateLinearWorkspace(firstInstallation: "acme", firstLine: 3)
+    ),
+    MalformedFixture(
+        "installation-missing-credential", line: 2, key: "board.linear.installations.acme.credential", .missingKey
+    ),
+    MalformedFixture(
+        "installation-missing-workspace", line: 2, key: "board.linear.installations.acme.workspace", .missingKey
+    ),
+    MalformedFixture(
+        "installation-missing-app-user", line: 2, key: "board.linear.installations.acme.app_user", .missingKey
+    ),
+    MalformedFixture(
+        "installation-unknown-key", line: 4, key: "board.linear.installations.acme.client_id", .unknownKey
+    ),
+    MalformedFixture("installation-empty-name", line: 1, key: "board.linear.installations.\"\"", .emptyString),
     MalformedFixture("missing-github-credential", line: 3, key: "github.credential", .missingKey),
-    MalformedFixture("legacy-client-id", line: 3, key: "linear.client_id", .legacyLinearClientID),
     MalformedFixture("empty-credential", line: 4, key: "github.credential", .emptyString),
     MalformedFixture(
-        "credential-not-string", line: 2, key: "linear.credential",
+        "credential-not-string", line: 2, key: acmeCredential,
         .typeMismatch(expected: "string", found: "integer")
     ),
     MalformedFixture(
@@ -54,7 +75,6 @@ private let shapeFixtures: [MalformedFixture] = [
         .typeMismatch(expected: "table", found: "string")
     ),
     MalformedFixture("unknown-top-level-key", line: 2, key: "schedule", .unknownKey),
-    MalformedFixture("unknown-linear-key", line: 3, key: "linear.foo", .unknownKey),
     MalformedFixture("unknown-cli-key", line: 7, key: "cli.claude.executible", .unknownKey),
     MalformedFixture("unknown-routing-entry-key", line: 7, key: "routing[0].repo-role", .unknownKey),
     MalformedFixture("unknown-route-table-key", line: 7, key: "routing[0].route.efort", .unknownKey)

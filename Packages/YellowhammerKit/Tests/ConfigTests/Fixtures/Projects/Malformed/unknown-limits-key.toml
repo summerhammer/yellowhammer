@@ -1,6 +1,6 @@
 id = "unknown-limits-key"
 name = "Unknown Limits"
-linear_project = "UL"
+board = { linear = { installation = "acme", project = "UL" } }
 
 [[repos]]
 name = "repo"

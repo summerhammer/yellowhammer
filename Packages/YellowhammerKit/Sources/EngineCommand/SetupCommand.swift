@@ -33,7 +33,7 @@ public struct SetupCommand: AsyncParsableCommand {
 
     @Option(
         name: .customLong("linear-credential"),
-        help: "Reference to the Linear Installation's stored tokens (default keychain:linear)."
+        help: "Credential reference of the entry a Linear install creates (default keychain:linear-<name>)."
     )
     public var linearCredential: String?
 
@@ -138,8 +138,8 @@ public struct SetupCommand: AsyncParsableCommand {
             output: { print($0) },
             console: RealSetupConsole(),
             credentials: KeychainSetupCredentialStore(),
-            bindProvisioning: { machine, linearProjectID in
-                BoardBinding.provisioning(machine: machine, linearProjectID: linearProjectID)
+            bindProvisioning: { installation, linearProjectID in
+                BoardBinding.provisioning(installation: installation, linearProjectID: linearProjectID)
             },
             registerNotifications: Self.registerNotifications,
             homeDirectory: homeDirectory,

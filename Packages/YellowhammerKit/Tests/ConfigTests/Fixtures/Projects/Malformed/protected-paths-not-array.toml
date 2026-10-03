@@ -1,6 +1,6 @@
 id = "protected-paths-not-array"
 name = "Bad Paths"
-linear_project = "BP"
+board = { linear = { installation = "acme", project = "BP" } }
 
 [[repos]]
 name = "repo"

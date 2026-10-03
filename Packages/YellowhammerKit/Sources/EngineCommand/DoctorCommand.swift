@@ -120,8 +120,8 @@ public struct DoctorCommand: AsyncParsableCommand {
             output: quiet ? { _ in } : { print($0) },
             console: RealSetupConsole(),
             credentials: KeychainSetupCredentialStore(),
-            bindProvisioning: { machine, linearProjectID in
-                BoardBinding.provisioning(machine: machine, linearProjectID: linearProjectID)
+            bindProvisioning: { installation, linearProjectID in
+                BoardBinding.provisioning(installation: installation, linearProjectID: linearProjectID)
             },
             launchAgents: LaunchctlLaunchAgentControl(),
             git: GitRunner(),

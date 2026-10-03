@@ -1,0 +1,14 @@
+id = "board-two-vendors"
+name = "board-two-vendors"
+[board.linear]
+installation = "acme"
+project = "X"
+
+[board.jira]
+project = "X"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"

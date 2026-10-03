@@ -127,6 +127,7 @@ public struct BoundsDraft: Equatable, Sendable {
 public struct ProjectFileDraft: Equatable, Sendable {
     public let id: ProjectID
     public var name: String
+    public var linearInstallationName: String
     public var linearProject: String
     /// The Spec Source path, as written. Read-only: nil when the specification source is a Repo of
     /// Repo Role `spec` instead.
@@ -144,6 +145,7 @@ public struct ProjectFileDraft: Equatable, Sendable {
     public init(_ project: ProjectConfiguration) {
         id = project.id
         name = project.name
+        linearInstallationName = project.linearInstallationName
         linearProject = project.linearProject
         specSource = project.specSource
         repos = project.repos.map(RepoDraft.init)
@@ -168,7 +170,6 @@ extension ProjectFileDraft {
 
         var top = ["id = \(ConfigurationRendering.quoted(id.rawValue))"]
         top.append("name = \(ConfigurationRendering.quoted(name))")
-        top.append("linear_project = \(ConfigurationRendering.quoted(linearProject))") // glossary:ignore GL001
         if let specSource {
             top.append("spec_source = \(ConfigurationRendering.quoted(specSource))")
         }
@@ -176,6 +177,12 @@ extension ProjectFileDraft {
             top.append("change_type = \(ConfigurationRendering.quoted(changeType.rawValue))")
         }
         sections.append(top.joined(separator: "\n"))
+
+        sections.append([
+            "[board.linear]",
+            "installation = \(ConfigurationRendering.quoted(linearInstallationName))",
+            "project = \(ConfigurationRendering.quoted(linearProject))" // glossary:ignore GL001
+        ].joined(separator: "\n"))
 
         var github: [String] = []
         if let gitHubCredential {
@@ -206,23 +213,24 @@ extension ProjectFileDraft {
 }
 
 extension MachineConfiguration {
-    /// Renders `[linear]`, `[github]`, one `[cli.<name>]` table per declared adapter and the given base
+    /// Renders one `[board.linear.installations.<name>]` table per App Installation, `[github]`, one `[cli.<name>]` table per declared adapter and the given base
     /// Routing Table, in the shape ``MachineConfigurationDecoder`` reads back. Everything but the
     /// Routing Table is carried from `self`.
     public func renderedTOML(routingTable: [RoutingEntryDraft]) -> String {
         var sections: [String] = []
 
-        var linear = ["[linear]", "credential = \(ConfigurationRendering.quoted(linearCredential.rawValue))"]
-        if let linearWorkspace {
-            linear.append("workspace = \(ConfigurationRendering.quoted(linearWorkspace.rawValue))")
+        for installation in linearInstallations {
+            var lines = [
+                ConfigurationRendering.installationHeader(installation.name),
+                "credential = \(ConfigurationRendering.quoted(installation.credential.rawValue))",
+                "workspace = \(ConfigurationRendering.quoted(installation.workspace.rawValue))",
+                "app_user = \(ConfigurationRendering.quoted(installation.appUser.rawValue))"
+            ]
+            if let operatorIdentity = installation.operatorIdentity {
+                lines.append("operator = \(ConfigurationRendering.quoted(operatorIdentity.rawValue))")
+            }
+            sections.append(lines.joined(separator: "\n"))
         }
-        if let linearAppUser {
-            linear.append("app_user = \(ConfigurationRendering.quoted(linearAppUser.rawValue))")
-        }
-        if let operatorIdentity {
-            linear.append("operator = \(ConfigurationRendering.quoted(operatorIdentity.rawValue))")
-        }
-        sections.append(linear.joined(separator: "\n"))
 
         sections.append("[github]\ncredential = \(ConfigurationRendering.quoted(gitHubCredential.rawValue))")
 

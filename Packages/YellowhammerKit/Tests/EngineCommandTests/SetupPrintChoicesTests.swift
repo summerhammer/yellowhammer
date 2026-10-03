@@ -7,9 +7,12 @@ import Testing
 
 @Suite("yh setup --print-choices")
 struct SetupPrintChoicesTests {
-    @Test("Prints one decodable JSON line, filters candidates, and writes no config.toml") // glossary:ignore GL001
+    @Test("Prints one decodable JSON line, filters candidates, and writes nothing") // glossary:ignore GL001
     func printsChoicesWithoutWritingConfig() async throws {
         let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+        let machineFile = directory.url.appending(component: "config.toml")
+        let machineBefore = try Data(contentsOf: machineFile)
         let board = await makeBoard(
             members: [operatorMember, secondCandidateMember, deactivatedMember, appMember, selfMember],
             teams: [engineeringTeam]
@@ -26,14 +29,16 @@ struct SetupPrintChoicesTests {
         #expect(choices.configuredOperator == nil)
         #expect(choices.teams == [SetupChoices.Team(id: "team-1", key: "ENG", name: "Engineering")])
         #expect(choices.cliAdapters == ["claude", "codex"])
+        #expect(try Data(contentsOf: machineFile) == machineBefore)
         #expect(!FileManager.default.fileExists(
-            atPath: directory.url.appending(component: "config.toml").path(percentEncoded: false)
+            atPath: directory.url.appending(component: "projects").path(percentEncoded: false)
         ))
     }
 
     @Test("Completed and cancelled Linear projects are dropped, the board's order kept") // glossary:ignore GL001
     func linearProjectsFilteredInBoardOrder() async throws {
         let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
         let board = await makeBoard()
         let team = BoardTeam(id: BoardObjectID(rawValue: "team-1"), key: "ENG", name: "Engineering")
         func project(_ id: String, completed: Bool = false, canceled: Bool = false) -> BoardLinearProject {
@@ -61,6 +66,7 @@ struct SetupPrintChoicesTests {
     @Test("A failing Linear projects read warns and still prints the teams and candidates") // glossary:ignore GL001
     func failedProjectsReadKeepsTeams() async throws {
         let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
         let board = await makeBoard(teams: [engineeringTeam])
         await board.failLinearProjects(with: .unreadableResponse("boom"))
         let output = RecordingOutput()
@@ -81,8 +87,10 @@ struct SetupPrintChoicesTests {
     func configuredOperatorReportedOnlyWhileCandidate() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
-            [linear]
+            [board.linear.installations.acme]
             credential = "keychain:linear"
+            workspace = "workspace-1"
+            app_user = "app-user-1"
             operator = "user-op"
 
             [github]
@@ -105,8 +113,10 @@ struct SetupPrintChoicesTests {
     func configuredOperatorNoLongerCandidateIsNotReported() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
-            [linear]
+            [board.linear.installations.acme]
             credential = "keychain:linear"
+            workspace = "workspace-1"
+            app_user = "app-user-1"
             operator = "user-dead"
 
             [github]
@@ -128,6 +138,7 @@ struct SetupPrintChoicesTests {
     @Test("No Installation token pair yet: --print-choices throws, naming the fix") // glossary:ignore GL001
     func missingInstallationThrows() async throws {
         let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
         let board = await makeBoard()
         let credentials = RecordingCredentialStore()
         let setup = try makeSetup(
@@ -135,6 +146,51 @@ struct SetupPrintChoicesTests {
         )
 
         await #expect(throws: SetupError.self) { try await setup.run() }
+    }
+
+    @Test("No App Installation at all: --print-choices says Yellowhammer is not installed yet") // glossary:ignore GL001
+    func noInstallationThrowsNotInstalled() async throws {
+        for machineFile in [nil, "[github]\ncredential = \"keychain:github\"\n"] as [String?] {
+            let directory = ConfigurationDirectory()
+            if let machineFile { try directory.writeMachineFile(machineFile) }
+            let setup = try makeSetup(
+                arguments: ["--print-choices"], directory: directory, board: await makeBoard()
+            )
+            do {
+                try await setup.run()
+                Issue.record("expected a SetupError")
+            } catch let error as SetupError {
+                #expect(error.description.contains("not installed in a Linear workspace yet"))
+                #expect(error.description.contains("yh setup --install-linear"))
+            }
+        }
+    }
+
+    @Test("Two App Installations: --print-choices reads exactly one and names the count") // glossary:ignore GL001
+    func twoInstallationsThrowCount() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile("""
+            [board.linear.installations.acme]
+            credential = "keychain:linear"
+            workspace = "workspace-1"
+            app_user = "app-user-1"
+
+            [board.linear.installations.beta]
+            credential = "keychain:linear-beta"
+            workspace = "workspace-2"
+            app_user = "app-user-2"
+
+            [github]
+            credential = "keychain:github"
+            """)
+        let setup = try makeSetup(arguments: ["--print-choices"], directory: directory, board: await makeBoard())
+        do {
+            try await setup.run()
+            Issue.record("expected a SetupError")
+        } catch let error as SetupError {
+            #expect(error.description.contains("config.toml declares 2 Linear App Installations"))
+            #expect(error.description.contains("reads one"))
+        }
     }
 
     @Test("--print-choices is mutually exclusive with --init") // glossary:ignore GL001

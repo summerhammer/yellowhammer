@@ -79,12 +79,10 @@ extension ActCommand {
 
         let board = try bindBoard?(configuration, project)
         let workspace = bindWorkspace?()
-        // Built once, here, and carried on every `ActContext` this invocation hands its work (roadmap
-        // #114): no consumer threads it through its own initializer any more.
-        let operatorIdentity = OperatorIdentity(configured: configuration.machine.operatorIdentity)
+        // Built once, here, and carried on every `ActContext` this invocation hands its work (roadmap #114).
+        let operatorIdentity = Self.operatorIdentity(configuration: configuration, project: project)
 
-        // Every Act wires its own work here, the one place an adapter is constructed for any of them
-        // (ADR-001): Engine itself never imports one.
+        // Every Act wires its own work here, the one place an adapter is built (ADR-001).
         let work = try Self.work(
             mode: mode, configuration: configuration, project: project,
             configurationDirectory: configurationDirectory, resultFixtures: resultFixtures
@@ -203,7 +201,7 @@ extension ActCommand {
             configurationDirectory: configurationDirectory,
             now: Date(),
             bindBoard: { configuration, project in
-                BoardBinding.actBoard(machine: configuration.machine, project: project)
+                try BoardBinding.actBoard(machine: configuration.machine, project: project)
             },
             bindWorkspace: { WorkspaceBinding.workspace() },
             notifier: .headlessApp()

@@ -1,0 +1,10 @@
+id = "missing-installation"
+name = "missing-installation"
+[board.linear]
+project = "X"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"

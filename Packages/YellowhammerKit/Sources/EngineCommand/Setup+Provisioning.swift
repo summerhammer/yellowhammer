@@ -14,8 +14,13 @@ extension Setup {
         var failed: Set<ProjectID> = []
         var unfinished: [(ProjectID, ProvisioningReport)] = []
         for project in configuration.projects {
+            guard let installation = machine.linearInstallation(for: project) else {
+                output("Project \(project.id): names an unknown Linear App Installation") // glossary:ignore GL001
+                failed.insert(project.id)
+                continue
+            }
             do {
-                let board = bindProvisioning(machine, project.linearProject)
+                let board = bindProvisioning(installation, project.linearProject)
                 let report = try await BoardProvisioner.provision(
                     using: board, projectName: project.name, createIn: nil,
                     routingTable: configuration.routingTable(for: project.id) ?? RoutingTable(entries: [])

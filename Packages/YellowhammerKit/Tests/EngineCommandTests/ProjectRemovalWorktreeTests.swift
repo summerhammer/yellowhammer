@@ -66,7 +66,7 @@ func refusedTemplateWritesDefaultWIPCommit() async throws {
     try directory.writeProjectFile(id: "alpha", """
         id = "alpha"
         name = "alpha"
-        linear_project = "alpha"
+        board = { linear = { installation = "acme", project = "alpha" } }
         spec_source = "~/Developer/alpha-spec"
         change_type = 7
 
@@ -258,4 +258,62 @@ func rerunAfterPartialFailureReplaysTheSameComment() async throws {
     #expect(secondAttempt)
     let commentsAfterSecond = await board.comments
     #expect(commentsAfterSecond.count == 1)
+}
+
+@Test("An installation missing from the registry fails only the release comment, with the binding error")
+func removalWithUndeclaredInstallationRecordsCommentFailure() async throws {
+    let directory = ConfigurationDirectory()
+    try directory.writeMachineFile()
+    let repo = TestGitRepo(name: "orphan")
+    await repo.initRepo()
+    let headCommit = try await repo.commit()
+    _ = await repo.run(["checkout", "-b", removalBranch.name])
+    try directory.writeProjectFile(id: "alpha", """
+        id = "alpha"
+        name = "alpha"
+        spec_source = "~/Developer/alpha-spec"
+
+        [board.linear]
+        installation = "gone"
+        project = "alpha"
+
+        [[repos]]
+        name = "backend"
+        path = "\(repo.path)"
+        role = "backend"
+        check = "swift test"
+        """)
+    let home = try RemovalHomeFixture(projectID: "alpha", plists: false, logs: false)
+    let journal = try JournalStore.openSeeded(
+        configurationDirectory: directory.url, projectID: try #require(ProjectID(rawValue: "alpha"))
+    )
+    _ = try await seedRemovableProject(journal, mode: .rehearsal, repo: repo, pushedCommit: headCommit)
+
+    let output = RecordingOutput()
+    let workspace = RemovalFakeWorkspace()
+    let removal = ProjectRemoval(
+        configurationDirectory: directory.url,
+        homeDirectory: home.url,
+        output: { output.record($0) },
+        console: ScriptedConsole(answers: ["y"]),
+        launchAgents: RecordingLaunchAgentControl(),
+        bindBoard: { configuration, project in
+            try BoardBinding.actBoard(machine: configuration.machine, project: project).writing
+        },
+        workspace: workspace,
+        git: GitRunner(),
+        bindPush: { _, _ in { _, _, _ in .notPushedInRehearsal } },
+        now: removalEpoch
+    )
+
+    let succeeded = await removal.run(id: "alpha", yes: true)
+
+    // Today's behaviour for a binding failure (roadmap L1.2 turns this into a skip): the comment step
+    // fails, the other steps still ran, and the removal is not recorded.
+    #expect(!succeeded)
+    #expect(output.lines.contains {
+        $0.contains("could not comment on") && $0.contains("Project alpha names Linear App Installation \"gone\"")
+            && $0.contains("which config.toml does not declare")
+    })
+    #expect(workspace.removeCalls == [WorktreeID(rawValue: "wt-1")])
 }
