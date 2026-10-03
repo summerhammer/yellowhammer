@@ -78,7 +78,7 @@ authenticated agent CLIs, so it cannot probe, and no run of it has passed (#199)
 Required. A failed scenario blocks the release.
 
 This step stays **manual** until a self-hosted Apple Silicon runner with Orca ADE and the scratch
-Linear credentials exists (`.github/workflows/rehearsal-suite-live.yml` is written for that runner
+Linear installation exists (`.github/workflows/rehearsal-suite-live.yml` is written for that runner
 and will take over this step once it is registered).
 
 1. Build the app (on the release PR checkout from [1](#1-before-merging-the-release-pr)):
@@ -231,7 +231,6 @@ Required. Run on a clean Apple Silicon Mac with the published release artifact, 
 ```sh
 python3 scripts/release/verify_installed.py record \
     --app /Applications/Yellowhammer.app --project <verification Project id> \
-    --production-linear-client-id <production client id> \
     --evidence-directory ~/yh-evidence-<version>
 python3 scripts/release/verify_installed.py check \
     --evidence-directory ~/yh-evidence-<version> --version <version>

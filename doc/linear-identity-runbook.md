@@ -1,133 +1,142 @@
-# Linear board identity: registration, storage, rotation, revocation
+# Linear board identity: App Installations, storage, re-connecting, removal
 
-P5.1. Yellowhammer authenticates to Linear as its own registered OAuth 2.0 application, never
-as an Operator's personal API key. A personal key silences Linear's self-action notification
-suppression, so Yellowhammer's own comments and assignments would never reach the Operator's
-Inbox — see spec `system-overview.md` → *Why the board identity is its own subsystem concern*
-and the Linear feasibility probe (*Identity & notifications*).
+Yellowhammer authenticates to Linear as its own app user, through an **App Installation** of its
+Linear OAuth application in a Linear workspace — never as an Operator's personal API key. A personal
+key silences Linear's self-action notification suppression, so Yellowhammer's own comments and
+assignments would never reach the Operator's Inbox — see spec `system-overview.md` → *Why the board
+identity is its own subsystem concern* and the Linear feasibility probe (*Identity & notifications*).
 
-There are two registrations, one per Linear workspace: **scratch** (development) and
-**production**. Per the Machine Scope Ruling, a given machine talks to exactly one workspace at a
-time — a developer machine points at scratch, a production/CI machine points at production —
-so both use the same config reference name, `keychain:linear`; only the Keychain item's contents
-differ by machine.
+The machine holds a registry of App Installations, zero or more, one per Linear workspace. Each
+Project selects one by name. A developer Mac can hold a scratch installation and a production
+installation at once; nothing is shared between them (see *Storage*). The earlier rule that a machine
+talks to exactly one workspace, through a single `keychain:linear` reference, is gone, and so is the
+`client_credentials` / `client_id` identity it went with.
 
-## Registering the app
+## Connecting a workspace
 
-In the target Linear workspace's OAuth application settings:
+```sh
+yh setup --install-linear
+```
 
-1. Create a new application (name: `Yellowhammer`, developer: `Summer Hammer LLC`).
-2. Availability: **Private to this workspace** — never a public/listed app.
-3. Redirect URI: `http://localhost:8080/callback`. Yellowhammer authenticates with the
-   `client_credentials` grant (app-only, no user redirect), so this value is never visited; it
-   only satisfies Linear's registration form, which requires one.
-4. Copy the **Client ID** and **Client secret**. The secret is shown once (or is only ever
-   revealed again on request via "reveal"/"reset"); store it in the Keychain immediately (below).
+This opens the browser for a Linear workspace admin to approve the app. There is no client id and no
+client secret to copy. The approval creates the app user in that workspace; Yellowhammer then
+stores the token pair and registers the installation (below).
 
-Repeat once per workspace (scratch, then production) — two separate applications, each scoped to
-its own workspace.
+- Re-connecting a workspace that is already registered replaces its tokens and keeps its local name
+  and its Operator identity. `yh setup --install-linear --installation <name>` re-connects that one
+  installation.
+- The local `<name>` defaults to the workspace URL key and is fixed once written.
+- Two entries with one workspace are refused.
+- Choose which Linear teams the app user joins on the install screen. The app user must be a
+  **member** of the team a Project provisions inside; "All public teams" does not make it one (see
+  `../scripts/scratch-linear/README.md`).
 
-## Storing credentials
+## Storage
 
-The client secret never enters the repo or a config file. The machine-wide config file
-(`~/.config/yellowhammer/config.toml`) holds the application's client id and only a reference to
-the secret:
+The machine-wide config file (`~/.config/yellowhammer/config.toml`) holds zero or more installations:
 
 ```toml
-[linear]
-credential = "keychain:linear"
-client_id = "<client-id>"
+[board.linear.installations.<name>]
+credential = "keychain:linear-<name>"
+workspace = "<Linear workspace id>"
+app_user = "<app user id>"
+operator = "<user id>"
 ```
 
-`client_id` is required: the `client_credentials` grant needs it alongside the secret. It is not a
-secret — it identifies the registered application, and a scratch machine and a production machine
-carry their own workspace's client id. Both keys are machine-wide; a Project file never overrides the
-Linear identity.
+`operator` is the Operator identity; it is optional until chosen. A top-level `[linear]` table is
+refused. Zero installations is valid. Nothing in this table is a secret.
 
-`Config.KeychainCredentialStore` resolves that reference to the login keychain item
-`service = "dev.yellowhammer"`, `account = "linear"`. To provision a machine by hand (until
-`yh setup` automates this in P5.3):
+`credential` references the login keychain item `service = "dev.yellowhammer"`,
+`account = "linear-<name>"`, resolved by `Config.KeychainCredentialStore`. The item holds the token
+pair (access token, refresh token and expiry) as written by `yh setup --install-linear` and refreshed by
+the engine. It is not a client secret. Never put it in the repo or a config file.
+
+Each installation has its own Keychain item, its own refresh lock (`linear-token-<name>.lock`), its own
+rate budget and its own authorization halt.
+
+A Project file selects an installation in `projects/<id>.toml`:
+
+```toml
+[board.linear]
+installation = "<name>"
+project = "<Linear project id>"
+```
+
+`installation` is required and fixed for the Project's life. `project` is the Project's Linear project
+(it replaces the old top-level `linear_project`). A Project file never carries credentials.
+
+**Where installations live.**
+
+- **Developer machines and CI** (GitHub Actions macOS runners, for adapter tests against the scratch
+  workspace) use the **scratch** workspace's installation. CI has no persistent Keychain across runs,
+  and no workflow step provisions one yet: the adapter tests are hermetic, and the live tests (below) are
+  opt-in, so CI does not need an installation until a live test runs there.
+- **The Operator's real daily-use machine** — wherever Yellowhammer manages real Projects — uses the
+  **production** workspace's installation. A machine may also hold the scratch one; what matters is
+  which installation each Project names.
+
+## Choosing and changing the Operator identity
 
 ```sh
-security add-generic-password -U -s dev.yellowhammer -a linear -w '<client-secret>'
+yh setup --print-choices [--installation <name>]
+yh config operator --installation <name> <user-id>
 ```
 
-`-U` updates the item if one already exists for that service/account, which is what rotation
-(below) uses. Do this once per machine:
+`--print-choices` lists the Operator candidates and the teams the app can see, and writes nothing.
+`yh config operator` changes one installation's `operator` key.
 
-- **Developer machines and CI** (GitHub Actions macOS runners, for adapter tests against the
-  scratch workspace — from P5.2 onward) get the **scratch** app's secret. CI has no persistent
-  Keychain across runs, so a workflow step provisions it at job start from a `LINEAR_SCRATCH_CLIENT_SECRET`
-  repository secret, using the command above against the runner's already-unlocked default
-  keychain. No such workflow step exists yet: P5.2's adapter tests are hermetic, and the one live
-  test (below) is opt-in, so CI does not need the secret until a live test runs there.
-- **The Operator's real daily-use machine** — wherever Yellowhammer actually manages real
-  Projects, as opposed to a throwaway dev/test run — gets the **production** app's secret. This
-  is not a hosted service; "production" here means "the machine actually doing the work," which
-  may be the same physical Mac as a developer machine at different times, never both credentials
-  in the Keychain simultaneously (a machine has exactly one workspace at a time, per `keychain:linear`).
-
-## Verifying a token can be obtained
-
-Confirm the `client_credentials` grant works against each workspace before considering this done:
+## Verifying
 
 ```sh
-curl -s https://api.linear.app/oauth/token \
-  -d client_id=<client-id> \
-  -d client_secret=<client-secret> \
-  -d grant_type=client_credentials \
-  -d scope=read,write
+yh doctor --check linear [--json]
 ```
 
-`scope` is required for the `client_credentials` grant — omitting it fails with `invalid_scope`. A
-`client_credentials` token is inherently an app-actor token (no separate `actor=app` parameter on
-this endpoint; that parameter belongs to the authorization-code install flow, not this grant). The
-resulting token has access to all public teams in the workspace and is valid for 30 days.
+Check 4 reports one group per installation. An installation no Project names is reported `[info]`.
 
-A successful response returns an access token. Post one comment on a test issue with it and
-confirm the comment triggers an Inbox notification (`issueNewComment`) for the Operator — the
-concrete acceptance check for this story.
+To confirm the Inbox behaviour, post one comment on a test issue as the app and confirm it triggers an
+Inbox notification (`issueNewComment`) for the Operator — the concrete acceptance check for the
+identity.
 
 ## Running the live adapter test
 
 The Linear adapter's tests run offline against a stub transport. One test, `LinearScratchTests`,
-talks to the real **scratch** workspace: it obtains a token, checks that `viewer` resolves to the
-registered application rather than an Operator, and reads one page of the scratch Linear project's
-issues. It is opt-in and skips cleanly when its inputs are absent:
+talks to the real **scratch** workspace: it reads the installation's token pair, checks that `viewer`
+resolves to the registered application rather than an Operator, and reads one page of the scratch
+Linear project's issues. It is opt-in and skips cleanly when its inputs are absent:
 
 ```sh
 YH_LINEAR_SCRATCH_TESTS=1 \
-YH_LINEAR_CLIENT_ID=<scratch-client-id> \
+YH_LINEAR_INSTALLATION=<scratch installation's local name> \
 YH_LINEAR_PROJECT_ID=<scratch-linear-project-id> \
 swift test --package-path Packages/YellowhammerKit --filter LinearScratchTests
 ```
 
-The client secret is read from the `keychain:linear` item provisioned above, never from the
-environment. Run it on a developer machine holding the scratch secret, never on one holding production's.
+`YH_LINEAR_INSTALLATION` names the scratch App Installation; the test reads its token pair from the
+Keychain item `linear-<name>` and writes refreshed pairs back. There is no client id or secret in the
+environment. Run it on a developer machine holding the scratch installation, never against production's.
 
-## Rotation
+## Re-connecting (token rotation)
 
-1. In the Linear workspace's OAuth application settings, reset the client secret. The client ID
-   does not change, so `client_id` in `config.toml` stays as it is.
-2. Update every machine's Keychain item for that workspace with the new secret:
-   `security add-generic-password -U -s dev.yellowhammer -a linear -w '<new-client-secret>'`.
-3. Re-run the verification `curl` above against the workspace to confirm the new secret works
-   before removing any old copy of it.
-4. Rotate scratch and production independently; rotating one never requires touching the other.
+The engine refreshes the token pair itself under the installation's refresh lock. Re-connect when that
+no longer works (the doctor reports the installation's authorization as failing), on a compromise
+suspicion, or on developer-machine offboarding:
 
-Rotate on a credential-compromise suspicion, on developer-machine offboarding, and otherwise on
-whatever cadence the Operator sets — the spec does not mandate a schedule.
+1. `yh setup --install-linear --installation <name>`, and approve in Linear again. The tokens in that
+   installation's Keychain item are replaced; its name and Operator identity are kept.
+2. `yh doctor --check linear` to confirm the installation is healthy.
+3. Installations are independent: re-connecting one never touches another.
 
-## Revocation
+The spec does not mandate a schedule.
 
-1. In the Linear workspace's OAuth application settings, delete the application (or reset its
-   secret and discard the new one without distributing it, if the app must keep functioning for a
-   grace period at first).
-2. Remove the Keychain item from every machine that held it:
-   `security delete-generic-password -s dev.yellowhammer -a linear`. If the application was deleted,
-   its `client_id` in `config.toml` is dead too; replace it when a new application is registered.
-3. Deleting the application immediately invalidates every token issued under it — no separate
-   token-revocation step is needed for the `client_credentials` grant.
+## Removal and revocation
+
+```sh
+yh config remove-installation <name>
+```
+
+This is refused while any Project names the installation. Otherwise it deletes the entry from
+`config.toml` and its Keychain item. The app stays installed in Linear; revoking it there is a
+workspace admin's action in Linear's settings.
 
 ## Provisioning (P5.3)
 
@@ -137,7 +146,7 @@ never renames, moves, re-parents, archives or deletes anything already on the bo
 
 For the Project's Linear project it verifies the Linear project exists. When it does not, it is
 created only if setup names a team to create it in; otherwise it is reported `missing` and nothing
-else is touched. The new Linear project's id must then be written to `linear_project`.
+else is touched. The new Linear project's id must then be written to `[board.linear] project`.
 
 Then, **once per team** the Linear project belongs to (Projects sharing a team share the result):
 
@@ -167,7 +176,7 @@ changes nothing and reports the same collisions:
 
 ```sh
 YH_LINEAR_SCRATCH_TESTS=1 \
-YH_LINEAR_CLIENT_ID=<scratch-client-id> \
+YH_LINEAR_INSTALLATION=<scratch installation's local name> \
 YH_LINEAR_PROJECT_ID=<scratch-linear-project-id> \
 swift test --package-path Packages/YellowhammerKit --filter BoardProvisionerScratchTests
 ```
