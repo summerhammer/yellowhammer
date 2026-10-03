@@ -233,7 +233,7 @@ does not renumber it; that file gets one line linking here.
   the live install into the scratch workspace is proved by L4.1's re-connect, not run here. `Spec:`
   cites `d04d9c2` (OQ116 `--installation`, OQ117 workspace name exist only there).
 
-### [ ] L2.2 `yh config operator` and `yh config remove-installation`
+### [x] L2.2 `yh config operator` and `yh config remove-installation`
 
 - **Work** — New `config` command group. `operator --installation <name> <user-id>` (required when
   more than one installation; validated against that workspace's candidates; forward-only).
@@ -245,6 +245,24 @@ does not renumber it; that file gets one line linking here.
 - **Lead** — Opus 5.5 Medium. **Sidekick** — Sonnet.
 - **Done when** — Each refusal and the success path are tested; the doctor message that named the
   missing `yh config operator` is now true.
+- **Status** — Done on 2026-10-03 (`7f53624`). `yh config operator` reads only `config.toml`, so an
+  invalid Project file does not block it; it validates against that workspace's members read as the
+  installation's app user (a revoked installation names the re-connect), rewrites only that table, and
+  says the change applies from the next Act with no reassignment. Setup and it share
+  `OperatorIdentityEditing` (exclusion message, validated write). `remove-installation` loads with
+  `Configuration.loadLeniently` (a Project naming some *other* missing installation does not block
+  it) and has no confirmation prompt. **Local choice:** every entry in `invalidProjects` refuses as
+  "failed to decode", including a Project refused only for a working-Repo conflict, whose
+  `installation` is then not read. It deletes the Keychain item under the installation's refresh lock
+  *before* rewriting `config.toml`, so a failure between the two leaves an entry without tokens
+  (doctor reports it), never an orphaned secret. The `linear-token-<name>.lock` file is left behind
+  (not a Keychain item; it holds no state). Doctor's missing-Operator warning now names
+  `yh config operator --installation <name>`. ACs met: *Removing an installation* (both refusals,
+  naming Projects / the file; deletes the entry and Keychain item; says the app stays installed in
+  Linear; the OQ116 command); `diagnose-the-installation` *Missing Operator identity* (the command it
+  names exists); OQ66 item 4 as amended (per installation, same list and validation, forward-only);
+  OQ109 items 7, 8, 14. **Not met here**: Settings' *Remove* running the command is L3's. `Spec:`
+  cites `d04d9c2` (OQ116 exists only there).
 
 ### [ ] L2.3 `yh doctor` Check 4 per installation
 
