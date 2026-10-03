@@ -78,8 +78,10 @@ final class SetupWizardModel {
             draft.context = AddProjectContext(
                 configuration: configuration, projectFileIDs: projectFileIDs,
                 journalProjectIDs: journalProjectIDs, teams: teams,
-                // One installation until the wizard offers a choice (roadmap L3.1).
-                linearInstallationName: configuration.machine.soleLinearInstallation?.name
+                // The entry the wizard's own Linear step installed into, else the only one, until the
+                // wizard offers a choice (roadmap L3.2).
+                linearInstallationName: linearInstallation.installedInstallationName
+                    ?? configuration.machine.soleLinearInstallation?.name
             )
         } else {
             machineConfiguration = nil

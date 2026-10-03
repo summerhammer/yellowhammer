@@ -53,7 +53,7 @@ extension SetupWizardModel {
         teamsFailure = []
         defer { isFetchingTeams = false }
         let arguments = SetupInvocation.choicesArguments(
-            // One installation until the wizard offers a choice (roadmap L3.1).
+            // The installation loadContext() resolved, until the wizard offers a choice (roadmap L3.2).
             installation: draft.context.linearInstallationName, githubCredential: nil
         )
         var lines: [String] = []
