@@ -162,7 +162,7 @@ struct ProjectRemoval {
     private func openJournalIfPresent(projectID: ProjectID) -> JournalStore? {
         let fileURL = JournalStore.defaultFileURL(configurationDirectory: configurationDirectory, id: projectID)
         guard FileManager.default.fileExists(atPath: fileURL.path(percentEncoded: false)) else { return nil }
-        return try? JournalStore.open(configurationDirectory: configurationDirectory, projectID: projectID)
+        return try? JournalStore.openExisting(configurationDirectory: configurationDirectory, projectID: projectID)
     }
 
     private func refusalIfActLeaseHeld(journal: JournalStore) -> String? {

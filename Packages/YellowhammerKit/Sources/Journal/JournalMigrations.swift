@@ -1,3 +1,4 @@
+import Domain
 import GRDB
 
 /// The Journal's schema migration (Decision Gates Ruling, G-4).
@@ -10,7 +11,7 @@ import GRDB
 /// migration this build does not.
 enum JournalMigrations {
     /// The identifier of the single schema migration. Bump it whenever the schema changes.
-    static let schemaIdentifier = "journal-schema-1"
+    static let schemaIdentifier = "journal-schema-2"
 
     /// Every identifier this build knows, in registration order. Derived from the migrator so that
     /// the list and the registrations cannot drift apart.
@@ -18,7 +19,15 @@ enum JournalMigrations {
         migrator.migrations
     }
 
+    /// The migrator for paths that only read identifiers or refuse a store: it has no workspace, so
+    /// running its migration throws ``JournalError/linearWorkspaceRequired``.
     static var migrator: DatabaseMigrator {
+        migrator(linearWorkspace: nil)
+    }
+
+    /// The migrator for a creating open: the Journal records `linearWorkspace` (the Linear workspace of
+    /// the Project's App Installation) in the same insert that creates `project_state`.
+    static func migrator(linearWorkspace: BoardObjectID?) -> DatabaseMigrator {
         var migrator = DatabaseMigrator()
         migrator.registerMigration(schemaIdentifier) { db in
             try createNightTable(db)
@@ -37,7 +46,7 @@ enum JournalMigrations {
             try createOutboxTable(db)
             try createBankedReplyTable(db)
             try createBankedReplyMainlineTable(db)
-            try createProjectStateTable(db)
+            try createProjectStateTable(db, linearWorkspace: linearWorkspace)
             try createEventTable(db)
             try createActLeaseTable(db)
             try createBoardSyncTable(db)

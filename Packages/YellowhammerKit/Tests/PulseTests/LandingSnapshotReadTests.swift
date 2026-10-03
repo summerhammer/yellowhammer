@@ -322,3 +322,23 @@ func projectContainsSelection() throws {
     #expect(!alpha.contains(.attempt("attempt-9")))
     #expect(!alpha.contains(.repo("mobile")))
 }
+
+@Test("A schema-1 Journal is that Project's failure: the app refuses a Journal older than this build")
+func landingSchemaOneJournal() throws {
+    let fixture = try ConfigurationFixture()
+    try fixture.addProject(id: "alpha", name: "Alpha", repos: ["backend"])
+    let configuration = try fixture.load()
+    // Scoped, so the writer is gone before the app's read-only open.
+    do {
+        let journal = try fixture.openJournal("alpha")
+        try journal.write { db in
+            try db.execute(sql: "DELETE FROM grdb_migrations")
+            try db.execute(sql: "INSERT INTO grdb_migrations (identifier) VALUES ('journal-schema-1')")
+        }
+    }
+
+    let landing = fixture.read(configuration, asOf: epoch)
+
+    let alpha = try #require(landing.projects.first)
+    #expect(alpha.journalFailure?.contains("created by an earlier build") == true)
+}

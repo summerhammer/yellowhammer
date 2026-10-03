@@ -106,6 +106,9 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     /// Explicit Project removal (roadmap P13.5; spec risks OQ52(1)) was refused: an Act of this Project
     /// holds an active Act Lease, so removal wrote nothing.
     case projectRemovalRefused(holder: ActLease)
+    /// The Journal would be created with no Linear workspace to record. Only a creating open supplies
+    /// one; a non-creating open of a Journal that does not exist yet stops here rather than inventing it.
+    case linearWorkspaceRequired
 
     public var description: String {
         return switch self {
@@ -221,6 +224,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
         case .projectRemovalRefused(let holder):
             "Project removal refused: run \(holder.runID) holds the Act Lease for the \(holder.act.rawValue) Act " +
                 "until \(JournalStore.timestamp(holder.expiresAt))"
+        case .linearWorkspaceRequired:
+            "The Journal cannot be created without the Linear workspace of the Project's App Installation"
         }
     }
 }

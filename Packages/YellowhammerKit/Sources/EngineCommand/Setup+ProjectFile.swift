@@ -8,18 +8,16 @@ extension Setup {
     /// ``ProjectDeclaration`` from the options under `--init`, or loops interactive prompts, and writes
     /// each through the one shared path.
     func writeProjectsIfNeeded(
-        machine: MachineConfiguration, installationName: String, board: any BoardProvisioning
+        machine: MachineConfiguration, installation: LinearInstallation, board: any BoardProvisioning
     ) async throws {
         switch options.mode {
         case .config, .printChoices, .installLinear:
             return
         case .initialize:
             guard let declaration = try optionProjectDeclaration() else { return }
-            try await writeProject(
-                declaration, machine: machine, installationName: installationName, board: board
-            )
+            try await writeProject(declaration, machine: machine, installation: installation, board: board)
         case .interactive:
-            try await interactiveProjectLoop(machine: machine, installationName: installationName, board: board)
+            try await interactiveProjectLoop(machine: machine, installation: installation, board: board)
         }
     }
 
@@ -39,13 +37,15 @@ extension Setup {
         )
     }
 
-    /// Keeps an existing Project file untouched; otherwise validates its shape first (a bad declaration
+    /// Keeps an existing Project file untouched; otherwise refuses a reused Project id whose kept Journal
+    /// names another Linear workspace, validates its shape first (a bad declaration
     /// must not leave an orphan Linear project), resolves the Linear project — creating it in a team
     /// when asked — and writes the file.
     func writeProject(
-        _ declaration: ProjectDeclaration, machine: MachineConfiguration, installationName: String,
+        _ declaration: ProjectDeclaration, machine: MachineConfiguration, installation: LinearInstallation,
         board: any BoardProvisioning
     ) async throws {
+        let installationName = installation.name
         let projectFileURL = configurationDirectory.appending(
             components: "projects", "\(declaration.id.rawValue).toml", directoryHint: .notDirectory
         )
@@ -54,6 +54,9 @@ extension Setup {
             output("kept \(path); Project options were ignored")
             return
         }
+
+        // Before any Linear write: a refusal must not leave an orphan Linear project behind.
+        try refuseReusedProjectID(declaration.id, installation: installation)
 
         let declaredCLIAdapters = Set(machine.cliAdapters.map(\.name))
         try validateProjectShape(

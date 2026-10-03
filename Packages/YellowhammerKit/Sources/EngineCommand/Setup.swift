@@ -103,7 +103,7 @@ struct Setup {
         try setOperatorIdentity(machine: &machine, installation: installation, members: members)
 
         let board = bindProvisioning(installation, "")
-        try await writeProjectsIfNeeded(machine: machine, installationName: installation.name, board: board)
+        try await writeProjectsIfNeeded(machine: machine, installation: installation, board: board)
 
         let configuration = try validateConfiguration()
         let (provisioningFailedIDs, unfinishedProvisioning) = await provisionProjects(

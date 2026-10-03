@@ -251,4 +251,45 @@ struct JournalReadOnlyTests {
             return
         }
     }
+
+    // MARK: - Test: a schema-1 Journal (no linear_workspace) is refused
+
+    /// A SQLite file whose only applied migration is `journal-schema-1`, as an earlier build left it.
+    func schemaOneJournal(named name: String, home: URL) throws -> (URL, ProjectID) {
+        let projectID = try #require(ProjectID(rawValue: name))
+        let fileURL = JournalStore.defaultFileURL(homeDirectory: home, id: projectID)
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true
+        )
+        let raw = try DatabaseQueue(path: fileURL.path)
+        try raw.write { db in
+            try db.execute(sql: "CREATE TABLE grdb_migrations (identifier TEXT NOT NULL PRIMARY KEY)")
+            try db.execute(sql: "INSERT INTO grdb_migrations (identifier) VALUES ('journal-schema-1')")
+        }
+        return (fileURL, projectID)
+    }
+
+    @Test
+    func schemaOneJournalIsRefusedByBothOpens() throws {
+        let home = createTempHome()
+        defer { try? cleanupTempHome(home) }
+        let (fileURL, projectID) = try schemaOneJournal(named: "schema-one-test", home: home)
+
+        guard case .schemaOlderThanKnown(_, let unknown) = readOnlyError(fileURL, projectID) else {
+            Issue.record("Expected .schemaOlderThanKnown from openReadOnly")
+            return
+        }
+        #expect(unknown == ["journal-schema-1"])
+
+        var engineError: JournalError?
+        do {
+            _ = try JournalStore.open(at: fileURL, projectID: projectID, linearWorkspace: .fixtureWorkspace)
+        } catch let journalError as JournalError {
+            engineError = journalError
+        }
+        guard case .schemaOlderThanKnown = engineError else {
+            Issue.record("Expected .schemaOlderThanKnown from open")
+            return
+        }
+    }
 }

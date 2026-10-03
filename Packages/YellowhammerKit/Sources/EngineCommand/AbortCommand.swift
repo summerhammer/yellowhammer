@@ -40,7 +40,9 @@ public struct AbortCommand: AsyncParsableCommand {
             abort.reportNothingToAbort()
             return
         }
-        let journal = try JournalStore.open(configurationDirectory: configurationDirectory, projectID: resolved.id)
+        let journal = try JournalStore.openExisting(
+            configurationDirectory: configurationDirectory, projectID: resolved.id
+        )
         try await abort.run(journal: journal)
     }
 }
