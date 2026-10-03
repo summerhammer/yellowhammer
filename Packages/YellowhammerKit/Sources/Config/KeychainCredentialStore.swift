@@ -51,6 +51,16 @@ public struct KeychainCredentialStore: Sendable {
         }
     }
 
+    /// Deletes the item for `reference`. An item that is already absent counts as deleted
+    /// (`errSecItemNotFound`), so a repeated removal is idempotent.
+    public func delete(_ reference: CredentialReference) throws(KeychainError) {
+        let account = try account(for: reference)
+        let status = SecItemDelete(Self.query(account: account) as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw KeychainError(account: account, operation: .delete, status: status)
+        }
+    }
+
     private func account(for reference: CredentialReference) throws(KeychainError) -> String {
         let prefix = "keychain:"
         guard reference.rawValue.hasPrefix(prefix) else {
@@ -74,6 +84,7 @@ public struct KeychainError: Error, Equatable, Sendable {
     public enum Operation: Equatable, Sendable {
         case read
         case store
+        case delete
     }
 
     public let account: String
@@ -98,6 +109,8 @@ extension KeychainError: CustomStringConvertible {
             return "could not read Keychain item \"\(account)\": \(message)"
         case .store:
             return "could not store Keychain item \"\(account)\": \(message)"
+        case .delete:
+            return "could not delete Keychain item \"\(account)\": \(message)"
         }
     }
 }

@@ -159,6 +159,35 @@ extension MachineConfiguration {
     }
 
     /// A textual edit of an existing, hand-maintained `config.toml`: preserves every other line,
+    /// including comments. Removes the `[board.linear.installations.<name>]` header and every line after
+    /// it up to, not including, the next table header (or the end of the file), except that a comment block
+    /// directly above the next header stays with that table. No gap is doubled. Returns `text`
+    /// unchanged when no such table header exists. Applying it twice equals applying it once.
+    public static func removingLinearInstallation(named name: String, inFileText text: String) -> String {
+        var lines = text.components(separatedBy: "\n")
+        guard let header = installationHeaderIndex(named: name, in: lines) else { return text }
+        var end = header + 1
+        while end < lines.count, !isAnyTableHeader(lines[end]) { end += 1 }
+        // A comment block right above the next header belongs to that next table: keep it.
+        var removeEnd = end
+        if end < lines.count {
+            while removeEnd > header + 1 {
+                let trimmed = lines[removeEnd - 1].trimmingCharacters(in: .whitespaces)
+                guard trimmed.isEmpty || trimmed.hasPrefix("#") else { break }
+                removeEnd -= 1
+            }
+        }
+        lines.removeSubrange(header..<removeEnd)
+        // Do not leave a doubled gap where the removed table sat.
+        while header > 0, header < lines.count,
+              lines[header - 1].trimmingCharacters(in: .whitespaces).isEmpty,
+              lines[header].trimmingCharacters(in: .whitespaces).isEmpty {
+            lines.remove(at: header)
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// A textual edit of an existing, hand-maintained `config.toml`: preserves every other line,
     /// including comments. Adds or replaces the entry called `installation.name`. When its table exists,
     /// `credential`, `workspace` and `app_user` are set in place (inserted when missing) and `operator`
     /// is written only when the installation has one, so a re-connect keeps the Operator identity. When it

@@ -55,7 +55,7 @@ extension Doctor {
             return finding(
                 .linear, subject: "operator", .warning,
                 "no Operator identity configured; Waiting on You issues will be left " // glossary:ignore GL001
-                    + "unassigned; run `yh config operator`"
+                    + "unassigned; run `yh config operator --installation \(installation.name)`"
             )
         }
         let candidates = OperatorIdentity.candidates(from: members)

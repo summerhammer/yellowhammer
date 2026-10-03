@@ -16,7 +16,7 @@ extension Setup {
         )
 
         if chosen != installation.operatorIdentity {
-            try writeOperatorIdentity(chosen, installation: installation.name)
+            try OperatorIdentityEditing.write(chosen, installation: installation.name, machineFileURL: machineFileURL)
         }
         if let index = machine.linearInstallations.firstIndex(where: { $0.name == installation.name }) {
             machine.linearInstallations[index].operatorIdentity = chosen
@@ -31,7 +31,7 @@ extension Setup {
             if let candidate = candidates.first(where: { $0.id == requested }) {
                 return candidate.id
             }
-            throw SetupError(operatorExclusionMessage(id: requested, members: members))
+            throw SetupError(OperatorIdentityEditing.exclusionMessage(id: requested, members: members))
         }
         if let configured, candidates.contains(where: { $0.id == configured }) {
             return configured
@@ -63,16 +63,6 @@ extension Setup {
         }
     }
 
-    private func operatorExclusionMessage(id: BoardObjectID, members: [BoardMember]) -> String {
-        guard let member = members.first(where: { $0.id == id }) else {
-            return "\(id.rawValue) is not a workspace member"
-        }
-        let reason = !member.isActive ? "deactivated"
-            : member.isApp ? "an app"
-            : member.isSelf ? "Yellowhammer's own identity" : "not a candidate"
-        return "\(id.rawValue) is not an Operator candidate: \(reason)"
-    }
-
     private func noOperatorMessage(candidates: [BoardMember]) -> String {
         guard !candidates.isEmpty else {
             return "Setup does not finish without the Operator identity; the workspace has no "
@@ -82,29 +72,5 @@ extension Setup {
             .joined(separator: "\n")
         return "Setup does not finish without the Operator identity. Candidates:\n\(listing)\n"
             + "Pass --operator <id>."
-    }
-
-    private func writeOperatorIdentity(_ id: BoardObjectID, installation name: String) throws {
-        let path = machineFileURL.path(percentEncoded: false)
-        let text: String
-        do {
-            text = try String(contentsOf: machineFileURL, encoding: .utf8)
-        } catch {
-            throw SetupError("could not read \(path): \(error)")
-        }
-        let updated = MachineConfiguration.settingOperator(id, installation: name, inFileText: text)
-        guard updated != text else {
-            throw SetupError("\(path) has no [board.linear.installations.\(name)] to hold the Operator identity")
-        }
-        do {
-            _ = try MachineConfiguration.parse(updated, file: path)
-        } catch {
-            throw SetupError("could not set the Operator identity: \(error)")
-        }
-        do {
-            try updated.write(to: machineFileURL, atomically: true, encoding: .utf8)
-        } catch {
-            throw SetupError("could not write \(path): \(error)")
-        }
     }
 }

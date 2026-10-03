@@ -35,3 +35,19 @@ enum NotificationRegistration: Sendable {
     case allowed
     case off(reason: String)
 }
+
+/// Deletes an Installation's token pair from the Keychain, so `yh config remove-installation` never
+/// touches the Keychain directly. An item that is already absent counts as deleted. The real conformance
+/// wraps ``KeychainCredentialStore``.
+protocol InstallationCredentialDeleter: Sendable {
+    func delete(_ reference: CredentialReference) throws
+}
+
+/// Wraps ``KeychainCredentialStore`` as an ``InstallationCredentialDeleter``.
+struct KeychainInstallationCredentialDeleter: InstallationCredentialDeleter {
+    private let store = KeychainCredentialStore()
+
+    func delete(_ reference: CredentialReference) throws {
+        try store.delete(reference)
+    }
+}

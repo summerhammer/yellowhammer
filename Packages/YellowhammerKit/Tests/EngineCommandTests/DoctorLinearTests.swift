@@ -136,6 +136,9 @@ struct DoctorLinearTests {
         let findings = await doctor.run()
 
         #expect(findings.contains { $0.check == .linear && $0.subject == "operator" && $0.severity == .warning })
+        #expect(findings.contains {
+            $0.subject == "operator" && $0.message.contains("yh config operator --installation acme")
+        })
     }
 
     @Test("No App Installation configured: one installation failure naming the setup fix")
