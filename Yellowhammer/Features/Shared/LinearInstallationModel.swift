@@ -51,6 +51,9 @@ final class LinearInstallationModel {
     /// The registry entry passed as `--installation` (a re-connect target), read when an attempt starts;
     /// nil connects untargeted. Nothing sets it until the app offers a choice (roadmap L3.1).
     var installation: @MainActor () -> String? = { nil }
+    /// The local name of the registry entry the most recent attempt installed into, from its `installed`
+    /// event: a new entry, or the existing one a re-connect replaced. nil until an attempt installs.
+    private(set) var installedInstallationName: String?
 
     private let engine = SetupEngine()
     private var installTask: Task<Void, Never>?
@@ -164,7 +167,8 @@ final class LinearInstallationModel {
             phase = .portsBusy(text: text, ports: ports)
         case .failed(let reason, let text):
             handleFailed(reason: reason, text: text)
-        case .installed(let workspaceName, _):
+        case .installed(let workspaceName, let installation):
+            installedInstallationName = installation
             phase = .installed(workspaceName: workspaceName)
         }
     }
