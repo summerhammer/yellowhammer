@@ -2593,6 +2593,12 @@ P19.7.
     it on the Managed Block and the Night Summary line), the sentence's words and shape unchanged, and the
     hash-skip with the note present. Not met: the complete-landing body (above).
 
+## Phase 20 — Linear per Project
+
+One Mac holds a registry of App Installations and each Project selects one (risks.md → OQ109,
+OQ110). Planned and tracked in [the Linear per-Project roadmap](refactor-linear-per-project-roadmap.md)
+(L1.1–L4.1).
+
 ---
 
 ## Traceability: story → steps
