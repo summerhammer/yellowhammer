@@ -30,6 +30,22 @@ extension MachineConfiguration {
         return copy
     }
 
+    /// A copy with every declaration of `name` removed. No other validation: the loader is the single
+    /// validator, run when the result is saved, so a route still naming `name` — in the base Routing Table
+    /// or a Project's — refuses the save.
+    public func removing(cliAdapter name: String) -> MachineConfiguration {
+        var copy = self
+        copy.cliAdapters.removeAll { $0.name == name }
+        return copy
+    }
+
+    /// Whether some base Routing Table entry's route, or one of its fallbacks, names `cli`.
+    public func baseRoutingTableNames(cliAdapter cli: String) -> Bool {
+        routingTable.contains { entry in
+            entry.route.cli == cli || entry.fallbacks.contains { $0.cli == cli }
+        }
+    }
+
     /// Whether some base Routing Table entry's route, or one of its fallbacks, names a declared CLI.
     public var hasRouteToDeclaredCLI: Bool {
         let declared = Set(cliAdapters.map(\.name))

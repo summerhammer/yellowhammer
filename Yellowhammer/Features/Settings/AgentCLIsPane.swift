@@ -3,10 +3,10 @@ import Domain
 import Ledger
 import SwiftUI
 
-/// The Agent CLIs pane of the Settings window's General section (P14.4, P18.15). Not Project-scoped: the
+/// The Agent CLIs pane of the Settings window (P14.4, P18.15). Not Project-scoped: the
 /// declared CLI Adapters and the Ledger are both machine-wide, so one Probe run serves every Project.
 /// Lists each declared CLI with its latest Probe Result and lets the Operator run a Probe on demand, and
-/// declares a registered CLI Adapter not yet declared (#281). The route it needs is given in the base
+/// declares a registered CLI Adapter not yet declared (#281) or removes a declared one. The route it needs is given in the base
 /// Routing Table pane, which this pane points to while no route names a declared CLI. On a fresh Mac, with no
 /// `config.toml` yet, declaring the first CLI creates it: nothing here waits on the Add Project sheet.
 struct AgentCLIsPane: View {
@@ -183,10 +183,11 @@ private struct AgentCLIListView: View {
     }
 }
 
-/// One declared CLI's card: its Ledger-derived state, plus a Probe button.
+/// One declared CLI's card: its Ledger-derived state, plus Probe and Remove buttons.
 private struct AgentCLIRowView: View {
     @Bindable var model: AgentCLIModel
     let row: AgentCLIModel.CLIRow
+    @State private var confirmsRemoval = false
 
     var body: some View {
         SettingsCard {
@@ -200,6 +201,17 @@ private struct AgentCLIRowView: View {
                 Button("Probe") { Task { await model.probe(cli: row.name) } }
                     .disabled(model.isProbing)
                     .accessibilityIdentifier("agent-cli-probe-\(row.name)")
+                Button("Remove\u{2026}", role: .destructive) { confirmsRemoval = true }
+                    .disabled(model.isProbing || model.isRouted(row.name))
+                    .help(
+                        model.isRouted(row.name)
+                            ? "A base route names \(row.name); change it in the Base Routing Table first."
+                            : "Remove \(row.name) from config.toml"
+                    )
+                    .accessibilityIdentifier("agent-cli-remove-\(row.name)")
+            }
+            if let failure = model.removeFailures[row.name] {
+                SettingsFailureText(text: failure, identifier: "agent-cli-remove-failure-\(row.name)")
             }
             if let ledgerFailure = row.ledgerFailure {
                 SettingsFailureText(text: ledgerFailure)
@@ -228,6 +240,17 @@ private struct AgentCLIRowView: View {
                 }
                 eligibility
             }
+        }
+        .confirmationDialog(
+            "Remove \(row.name)?", isPresented: $confirmsRemoval, titleVisibility: .visible
+        ) {
+            Button("Remove", role: .destructive) { model.remove(name: row.name) }
+                .accessibilityIdentifier("agent-cli-remove-confirm-\(row.name)")
+        } message: {
+            Text(
+                "Yellowhammer stops dispatching to \(row.name). Its declaration leaves config.toml; "
+                    + "its Probe history stays. A Project whose routes name it refuses the removal."
+            )
         }
     }
 

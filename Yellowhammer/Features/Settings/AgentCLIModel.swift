@@ -10,7 +10,8 @@ import Observation
 /// Operator run `yh probe <cli>` on demand. It also declares a registered CLI Adapter not yet in
 /// `config.toml` (#281), written through the loader as the base Routing Table pane writes — creating
 /// `config.toml` when it does not exist yet, so a fresh Mac can declare its first CLI before any Linear
-/// App Installation, which the Add Project sheet makes only once a route exists. The app itself
+/// App Installation, which the Add Project sheet makes only once a route exists. It removes a declared CLI
+/// the same way; the loader refuses the removal while any route, base or a Project's, still names it. The app itself
 /// never probes and never writes the Ledger — `yh` does; this model only shells out to it and re-reads.
 @MainActor
 @Observable
@@ -45,6 +46,9 @@ final class AgentCLIModel {
     /// Why the last ``declare(name:executable:)`` did not write, in the loader's own words; cleared by a
     /// successful load or declaration.
     private(set) var declareFailure: String?
+    /// Why the last ``remove(name:)`` of each CLI did not write, in the loader's own words, keyed by the
+    /// CLI's name; cleared by a successful load.
+    private(set) var removeFailures: [String: String] = [:]
 
     private(set) var probeLog: [String] = []
     private(set) var probeExitStatus: Int32?
@@ -87,6 +91,7 @@ final class AgentCLIModel {
             machine = configuration.machine
             loadFailure = nil
             declareFailure = nil
+            removeFailures = [:]
             rows = configuration.machine.cliAdapters.map { loadRow(name: $0.name) }
         } catch {
             clear()
@@ -115,12 +120,33 @@ final class AgentCLIModel {
         }
     }
 
+    /// Whether a base route names `name`: removing it then needs that route changed first.
+    func isRouted(_ name: String) -> Bool {
+        machine?.baseRoutingTableNames(cliAdapter: name) ?? false
+    }
+
+    /// Removes `name`'s declaration and writes `config.toml` through the loader, then reloads. Its Probe
+    /// Results stay in the Ledger, which only `yh` writes.
+    func remove(name: String) {
+        guard let machine else { return }
+        do {
+            try Configuration.save(
+                machine.removing(cliAdapter: name).renderedTOML,
+                to: file, in: directory, replacing: originalText
+            )
+            load()
+        } catch {
+            removeFailures[name] = error.description
+        }
+    }
+
     private func clear() {
         originalText = nil
         machine = nil
         rows = nil
         loadFailure = nil
         declareFailure = nil
+        removeFailures = [:]
     }
 
     /// Reloads unless a Probe is running: a running Probe still has nothing to lose (a declaration being
