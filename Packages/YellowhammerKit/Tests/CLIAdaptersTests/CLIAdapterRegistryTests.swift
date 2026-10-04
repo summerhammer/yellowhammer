@@ -37,6 +37,15 @@ struct CLIAdapterRegistryTests {
         }
     }
 
+    @Test("Every registered name's efforts, as the app reads them, are its adapter's own")
+    func everyRegisteredNameListsItsAdaptersEfforts() {
+        for name in RegisteredCLIAdapters.names {
+            let adapter = CLIAdapterRegistry.adapter(named: name)
+            #expect(RegisteredCLIAdapters.supportedEfforts[name] == adapter?.supportedEfforts)
+        }
+        #expect(Set(RegisteredCLIAdapters.supportedEfforts.keys) == Set(RegisteredCLIAdapters.names))
+    }
+
     @Test("An unknown name resolves to nil")
     func unknownNameResolvesToNil() {
         #expect(CLIAdapterRegistry.adapter(named: "gemini") == nil)
