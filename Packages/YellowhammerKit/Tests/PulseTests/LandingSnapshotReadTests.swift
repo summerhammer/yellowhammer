@@ -299,6 +299,32 @@ func landingStatusPerProject() throws {
     #expect(beta.status == .idle)
 }
 
+@Test("An unreadable Journal keeps its Project's status: an alive job reads working beside the failure")
+func landingUnreadableJournalKeepsStatus() throws {
+    let fixture = try ConfigurationFixture()
+    try fixture.addProject(id: "alpha", name: "Alpha", repos: ["backend"])
+    try fixture.addProject(id: "beta", name: "Beta", repos: ["web"])
+    let configuration = try fixture.load()
+    for id in ["alpha", "beta"] {
+        try FileManager.default.createDirectory(
+            at: try fixture.journalURL(id).deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data().write(to: try fixture.journalURL(id))
+    }
+
+    let landing = fixture.read(configuration, actJobs: alive("alpha", .build), asOf: epoch)
+
+    let alpha = try #require(landing.project(ProjectID(rawValue: "alpha")))
+    let beta = try #require(landing.project(ProjectID(rawValue: "beta")))
+    #expect(alpha.journalFailure != nil)
+    #expect(alpha.status == .working)
+    #expect(alpha.pulse.needsYou.cards.isEmpty)
+    #expect(alpha.pulse.now.attempts.isEmpty)
+    #expect(beta.journalFailure != nil)
+    #expect(beta.status == .idle)
+}
+
 @Test("A refused Project is absent from the landing snapshot, and its Journal is never read")
 func landingOmitsRefusedProjects() throws {
     let fixture = try ConfigurationFixture()

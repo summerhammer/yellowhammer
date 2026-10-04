@@ -7,9 +7,9 @@ import SwiftUI
 /// running in it while one runs. Projects are in configured order, and nothing is re-sorted.
 ///
 /// A Project row shows the Project's icon and name, and its derived `idle`/`working` status as a dot on
-/// the icon, and nothing else: no count, roll-up word or health indicator (R20). When the Project's
-/// Journal could not be read, the icon carries no dot, because no status can be derived; the Pulse states
-/// why. A Repo row shows a lane dot only while that Repo is in lane, so the dot, not the row's position,
+/// the icon, and nothing else: no count, roll-up word or health indicator (R20). The status comes from
+/// the Project's `launchd` Act jobs, not its Journal, so the dot shows even when the Journal could not be
+/// read; the Pulse states why. A Repo row shows a lane dot only while that Repo is in lane, so the dot, not the row's position,
 /// marks an active Repo. An Attempt row shows how long the Attempt has run, measured to `asOf`.
 ///
 /// Each row's values come from its own Project's snapshot alone. A Project whose configuration was
@@ -43,7 +43,7 @@ struct OverviewSidebar: View {
                         ProjectRow(
                             id: row.snapshot.id,
                             name: row.snapshot.name,
-                            status: row.snapshot.displayedStatus
+                            status: row.snapshot.status
                         )
                     case let .repo(repo):
                         RepoRow(projectID: row.snapshot.id, repo: repo, lane: row.snapshot.laneState(for: repo))
@@ -111,12 +111,11 @@ struct OverviewSidebar: View {
 }
 
 /// A Project row: the Project's icon and name, with its derived `idle`/`working` status as a dot on the
-/// icon, and nothing else. `status` is nil when the Project's Journal could not be read, because none can
-/// be derived, and the icon then carries no dot.
+/// icon, and nothing else.
 private struct ProjectRow: View {
     let id: ProjectID
     let name: String
-    let status: ProjectStatus?
+    let status: ProjectStatus
 
     var body: some View {
         Label {
@@ -126,25 +125,21 @@ private struct ProjectRow: View {
         } icon: {
             Image(systemName: "folder.fill")
                 .overlay(alignment: .bottomTrailing) {
-                    if let status {
-                        ActivityDot(style: status.style, diameter: 7)
-                            .padding(1.5)
-                            .background(.background, in: .circle)
-                            .offset(x: 3, y: 3)
-                            .help(status.rawValue)
-                    }
+                    ActivityDot(style: status.style, diameter: 7)
+                        .padding(1.5)
+                        .background(.background, in: .circle)
+                        .offset(x: 3, y: 3)
+                        .help(status.rawValue)
                 }
         }
         // A Label keeps its icon out of the accessibility tree, and the dot drawn on the icon with it,
         // so the status is its own element here, over the icon.
         .overlay(alignment: .leading) {
-            if let status {
-                Color.clear
-                    .frame(width: 16, height: 16)
-                    .accessibilityElement()
-                    .accessibilityLabel(status.rawValue)
-                    .accessibilityIdentifier("sidebar-\(id.rawValue)-status")
-            }
+            Color.clear
+                .frame(width: 16, height: 16)
+                .accessibilityElement()
+                .accessibilityLabel(status.rawValue)
+                .accessibilityIdentifier("sidebar-\(id.rawValue)-status")
         }
     }
 }
@@ -247,13 +242,6 @@ private struct SidebarRow: Identifiable {
 }
 
 // MARK: For display
-
-private extension ProjectSnapshot {
-    /// The status the Project's row shows. Nil when the Journal could not be read, because none can be derived.
-    var displayedStatus: ProjectStatus? {
-        journalFailure == nil ? status : nil
-    }
-}
 
 private extension RunningAttempt {
     /// The Attempt's Card and route. No output of the agent CLI, ever.

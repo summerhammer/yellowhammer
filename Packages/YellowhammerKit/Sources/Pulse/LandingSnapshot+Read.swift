@@ -16,7 +16,8 @@ extension LandingSnapshot {
     /// that cannot be read makes its own Project's `journalFailure` and leaves its siblings unchanged.
     ///
     /// A Project's status comes from `actJobs`, not from its Journal: `working` exactly when one of its
-    /// own Act jobs is alive. Each Project is asked about its own jobs only.
+    /// own Act jobs is alive, whether its Journal was read, is missing, or cannot be read. Each Project is
+    /// asked about its own jobs only.
     public static func read(
         configuration: Configuration, configurationDirectory: URL, actJobs: ActJobs, asOf: Date
     ) -> LandingSnapshot {
@@ -53,7 +54,9 @@ extension ProjectSnapshot {
             // still reflects the job. Nothing needs the Operator, and there is no Feature and no Night.
             snapshot.pulse.now.status = status
         } catch {
+            // The status is still true: it comes from the Project's jobs, not from the Journal (#233).
             snapshot.journalFailure = "\(error)"
+            snapshot.pulse.now.status = status
         }
         return snapshot
     }
