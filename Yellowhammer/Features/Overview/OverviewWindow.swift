@@ -171,8 +171,8 @@ struct OverviewWindow: View {
                 settingsRequest.request(scopedProject)
                 openWindow(id: SettingsWindow.windowID)
             case .linearWorkspaces:
-                // The Linear workspaces list is in Settings → General.
-                settingsRequest.request(scopedProject, section: .general)
+                // The Linear workspaces list is in Settings → Boards.
+                settingsRequest.request(scopedProject, section: .boards)
                 openWindow(id: SettingsWindow.windowID)
             case .nightCard, .pullRequest, .linearIssue:
                 // Placeholder until the Night Card, Linear and GitHub ways out are wired.

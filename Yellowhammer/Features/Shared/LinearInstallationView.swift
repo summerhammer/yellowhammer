@@ -3,7 +3,7 @@ import Domain
 import SwiftUI
 
 /// The Linear App Installation's install UI (roadmap P17.6/P17.9): one view per phase of
-/// ``LinearInstallationModel``, shared by the Setup wizard's Linear step and the Settings window's General
+/// ``LinearInstallationModel``, shared by the Setup wizard's Linear step and the Settings window's Boards
 /// pane. It lays out its rows into whatever container embeds it, so it belongs inside a `Form` section.
 /// `offersReinstall` adds, to the installed state, the two buttons that re-run the install — replacing the
 /// token pair, which is what Settings is for after a revocation or a wrong team choice.

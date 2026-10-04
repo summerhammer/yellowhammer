@@ -1,7 +1,7 @@
 import Foundation
 import XCTest
 
-/// The Settings window's General pane driven against the shared stub `yh` (`EngineStub`): the Linear
+/// The Settings window's Boards pane driven against the shared stub `yh` (`EngineStub`): the Linear
 /// workspaces list (roadmap L3.1) — connecting another workspace (P17.7/P17.9), re-connecting, removing
 /// and changing one workspace's Operator identity. The stub's run
 /// environment and `/tmp` markers follow `AddProjectUITests`; it also appends each `--install-linear`
@@ -63,8 +63,8 @@ final class LinearSettingsUITests: XCTestCase {
         (element.value as? String) ?? element.label
     }
 
-    /// Launches, waits for the main window, opens Settings with Cmd+, and shows the General section.
-    private func showGeneralSettings(
+    /// Launches, waits for the main window, opens Settings with Cmd+, and shows the Boards section.
+    private func showBoardsSettings(
         portsBusyFirst: Bool = false,
         relayUnreachable: Bool = false,
         waitingFor readyID: String? = "overview-onboarding"
@@ -82,10 +82,10 @@ final class LinearSettingsUITests: XCTestCase {
         // the app settled, and the menu item is the same command.
         app.menuBars.menuBarItems["Yellowhammer"].click()
         app.menuBars.menuItems["Settings\u{2026}"].click()
-        let general = element("settings-general")
-        XCTAssertTrue(general.waitForExistence(timeout: 5))
-        general.click()
-        XCTAssertTrue(element("settings-general-pane").waitForExistence(timeout: 5))
+        let boards = element("settings-boards")
+        XCTAssertTrue(boards.waitForExistence(timeout: 5))
+        boards.click()
+        XCTAssertTrue(element("settings-boards-pane").waitForExistence(timeout: 5))
     }
 
     /// The argument vectors the stub recorded for `--install-linear` and `config`, one per run.
@@ -101,7 +101,7 @@ final class LinearSettingsUITests: XCTestCase {
     }
 
     func testLocalInstallShowsTheWorkspaceNameAndRunsTheLocalArguments() {
-        showGeneralSettings()
+        showBoardsSettings()
         installLocally()
         let installed = element("setup-linear-installed")
         XCTAssertTrue(installed.waitForExistence(timeout: 10))
@@ -116,7 +116,7 @@ final class LinearSettingsUITests: XCTestCase {
     }
 
     func testInstalledOffersToInstallAgainOrRequestApproval() {
-        showGeneralSettings()
+        showBoardsSettings()
         installLocally()
         XCTAssertTrue(element("setup-linear-installed").waitForExistence(timeout: 10))
         XCTAssertTrue(element("setup-linear-install").waitForExistence(timeout: 5))
@@ -124,7 +124,7 @@ final class LinearSettingsUITests: XCTestCase {
     }
 
     func testPortsBusyThenRetryInstalls() {
-        showGeneralSettings(portsBusyFirst: true)
+        showBoardsSettings(portsBusyFirst: true)
         installLocally()
         XCTAssertTrue(element("setup-linear-ports-busy").waitForExistence(timeout: 10))
         let retry = element("setup-linear-retry")
@@ -134,7 +134,7 @@ final class LinearSettingsUITests: XCTestCase {
     }
 
     func testRemoteApprovalShowsTheLinkThenInstalls() {
-        showGeneralSettings()
+        showBoardsSettings()
         let request = element("setup-linear-request-remote")
         XCTAssertTrue(request.waitForExistence(timeout: 10))
         request.click()
@@ -151,7 +151,7 @@ final class LinearSettingsUITests: XCTestCase {
     }
 
     func testRelayUnreachableOffersRetryAndLocalInstall() {
-        showGeneralSettings(relayUnreachable: true)
+        showBoardsSettings(relayUnreachable: true)
         let request = element("setup-linear-request-remote")
         XCTAssertTrue(request.waitForExistence(timeout: 10))
         request.click()
@@ -229,7 +229,7 @@ extension LinearSettingsUITests {
 
     func testTwoWorkspacesAreListedWithTheirNamesOperatorsAndProjects() throws {
         try writeTwoInstallations()
-        showGeneralSettings(waitingFor: nil)
+        showBoardsSettings(waitingFor: nil)
 
         let acme = element("settings-linear-workspace-acme")
         XCTAssertTrue(acme.waitForExistence(timeout: 10))
@@ -255,7 +255,7 @@ extension LinearSettingsUITests {
 
     func testReconnectRunsTheInstallForThatWorkspaceOnly() throws {
         try writeTwoInstallations()
-        showGeneralSettings(waitingFor: nil)
+        showBoardsSettings(waitingFor: nil)
 
         let reconnect = element("settings-linear-reconnect-scratch")
         XCTAssertTrue(reconnect.waitForExistence(timeout: 10))
@@ -274,7 +274,7 @@ extension LinearSettingsUITests {
     func testRemoveIsRefusedWhileAProjectUsesTheWorkspace() throws {
         try writeTwoInstallations()
         app.launchEnvironment["YH_STUB_INSTALLATION_USERS"] = "acme=alpha"
-        showGeneralSettings(waitingFor: nil)
+        showBoardsSettings(waitingFor: nil)
 
         let remove = element("settings-linear-remove-acme")
         XCTAssertTrue(remove.waitForExistence(timeout: 10))
@@ -297,7 +297,7 @@ extension LinearSettingsUITests {
 
     func testRemoveOfAnUnusedWorkspaceSaysItStaysInstalledInLinear() throws {
         try writeTwoInstallations()
-        showGeneralSettings(waitingFor: nil)
+        showBoardsSettings(waitingFor: nil)
 
         let remove = element("settings-linear-remove-scratch")
         XCTAssertTrue(remove.waitForExistence(timeout: 10))
@@ -315,7 +315,7 @@ extension LinearSettingsUITests {
     /// "Change Operator…" reads that workspace's candidates and saves through `yh config operator`.
     func testChangeOperatorRecordsConfigOperatorForThatInstallation() throws {
         try writeTwoInstallations()
-        showGeneralSettings(waitingFor: nil)
+        showBoardsSettings(waitingFor: nil)
 
         let choose = element("settings-linear-operator-choose-scratch")
         XCTAssertTrue(choose.waitForExistence(timeout: 10))
