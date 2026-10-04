@@ -32,9 +32,8 @@ struct OverviewWindow: View {
     @State private var abort = AttemptAbortModel()
     /// The Attempt the Operator asked to abort, while its confirmation is shown.
     @State private var abortRequest: PendingAttemptAbort?
-    /// The last way out whose destination is not wired yet, stated in a notice.
-    @State private var wayOut: PulseDestination?
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openURL) private var openURL
     @Environment(SettingsRequest.self) private var settingsRequest
     @Environment(ProjectAdditions.self) private var projectAdditions
     @Environment(DeepLinkedProjects.self) private var deepLinkedProjects
@@ -80,11 +79,6 @@ struct OverviewWindow: View {
             // throws, whenever the window must grow to fit (a saved frame smaller than the minimum).
             detail
                 .frame(minWidth: 380, minHeight: 320)
-                .safeAreaInset(edge: .bottom) {
-                    if let wayOut {
-                        WayOutNotice(destination: wayOut) { self.wayOut = nil }
-                    }
-                }
         }
         .inspector(isPresented: $inspectorShown) {
             inspector
@@ -152,14 +146,15 @@ struct OverviewWindow: View {
     // MARK: Ways out
 
     /// Where each way out goes. Every Pulse, Sidebar and Inspector element calls this through
-    /// `openPulseDestination`. The closure captures only the bindings and actions it needs, plus the
-    /// scoped Project, which is the action's `scope`: the environment hands it to every view below this
-    /// one, and compares it by `scope` alone (`OpenPulseDestinationAction`).
+    /// `openPulseDestination`. The Night Card, a Linear issue and a pull request open the URL the Journal
+    /// recorded, as it is, through `openURL`. The closure captures only the bindings and actions it needs,
+    /// plus the scoped Project, which is the action's `scope`: the environment hands it to every view
+    /// below this one, and compares it by `scope` alone (`OpenPulseDestinationAction`).
     private var route: OpenPulseDestinationAction {
         let inspected = $inspected
         let inspectorShown = $inspectorShown
-        let wayOut = $wayOut
         let openWindow = openWindow
+        let openURL = openURL
         let settingsRequest = settingsRequest
         let scopedProject = scopedProject
         return OpenPulseDestinationAction(scope: scopedProject) { destination in
@@ -175,9 +170,8 @@ struct OverviewWindow: View {
                 // The Linear workspaces list is in Settings → Boards.
                 settingsRequest.request(scopedProject, section: .boards)
                 openWindow(id: SettingsWindow.windowID)
-            case .nightCard, .pullRequest, .linearIssue:
-                // Placeholder until the Night Card, Linear and GitHub ways out are wired.
-                wayOut.wrappedValue = destination
+            case let .nightCard(url), let .linearIssue(url), let .pullRequest(url):
+                openURL(url)
             }
         }
     }
@@ -214,21 +208,19 @@ struct OverviewWindow: View {
 
     // MARK: Scoping
 
-    /// Shows `id` in this window. A selection or notice from the previous Project must not stay beside
-    /// the new Project's Pulse, so both are cleared when the Project changes.
+    /// Shows `id` in this window. A selection from the previous Project must not stay beside the new
+    /// Project's Pulse, so it is cleared when the Project changes.
     private func rescope(_ id: ProjectID) {
         if id != scopedProject {
             inspected = nil
-            wayOut = nil
         }
         project = id
     }
 
     /// Returns the window to unscoped, so it shows the first configured Project, or the onboarding view
-    /// when there is none. Clears the selection and notice, as `rescope` does.
+    /// when there is none. Clears the selection, as `rescope` does.
     private func unscope() {
         inspected = nil
-        wayOut = nil
         project = nil
     }
 

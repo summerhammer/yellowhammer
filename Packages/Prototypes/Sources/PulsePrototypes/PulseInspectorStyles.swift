@@ -119,7 +119,7 @@ struct PulseInspectorView: View {
                 ("Repo Lane", lane?.rawValue ?? "not in lane")
             ],
             related: related,
-            primary: ("Open \(card.id) in Linear", .linearIssue(card.id)),
+            primary: card.link.map { ("Open \($0.identifier) in Linear", .linearIssue($0.url)) },
             note: card.state == .blocked
                 ? "Re-ready happens in Linear, not here."
                 : "Answer it in Linear, not here."
@@ -165,7 +165,7 @@ struct PulseInspectorView: View {
                 ("Pull requests", pullRequests.isEmpty ? "none yet" : "\(pullRequests.count)")
             ],
             related: related,
-            primary: ("Open \(feature.id) in Linear", .linearIssue(feature.id)),
+            primary: feature.link.map { ("Open \($0.identifier) in Linear", .linearIssue($0.url)) },
             note: "Settle and merge happen in Linear and GitHub, not here."
         )
     }
@@ -192,16 +192,19 @@ struct PulseInspectorView: View {
             badges: [("running", palette.working), ("Round \(attempt.round)", .secondary)],
             facts: facts,
             related: [
-                .init(title: "Card", items: [
-                    .init(
-                        id: attempt.cardID, title: attempt.cardID, subtitle: attempt.cardTitle,
-                        systemImage: "arrow.up.forward.square", tint: .secondary,
-                        action: .open(.linearIssue(attempt.cardID))
-                    )
-                ]),
+                // Without a recorded link the Card has no way out to list.
+                attempt.cardLink.map { link in
+                    .init(title: "Card", items: [
+                        .init(
+                            id: attempt.cardID, title: link.identifier, subtitle: attempt.cardTitle,
+                            systemImage: "arrow.up.forward.square", tint: .secondary,
+                            action: .open(.linearIssue(link.url))
+                        )
+                    ])
+                },
                 .init(title: "Repo", items: [repoItem(attempt.repo)])
-            ],
-            primary: ("Open \(attempt.cardID) in Linear", .linearIssue(attempt.cardID)),
+            ].compactMap { $0 },
+            primary: attempt.cardLink.map { ("Open \($0.identifier) in Linear", .linearIssue($0.url)) },
             note: "One line of status, never agent output. "
                 + "A review asking for changes starts a new Round, not a new Attempt."
         )
@@ -245,7 +248,7 @@ struct PulseInspectorView: View {
             ],
             related: related,
             primary: lane?.pullRequest.map { chip in
-                ("Open #\(chip.number) on GitHub", .pullRequest(repo: repo, number: chip.number))
+                ("Open #\(chip.number) on GitHub", .pullRequest(chip.url))
             }
         )
     }
@@ -272,7 +275,7 @@ struct PulseInspectorView: View {
             id: "\(repo)#\(chip.number)", title: "\(repo) #\(chip.number)",
             subtitle: chip.state?.rawValue ?? "state unknown",
             systemImage: "arrow.triangle.pull", tint: palette.color(for: chip.state),
-            action: .open(.pullRequest(repo: repo, number: chip.number))
+            action: .open(.pullRequest(chip.url))
         )
     }
 }

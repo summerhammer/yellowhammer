@@ -53,7 +53,9 @@ extension CardRecord {
             unansweredNights: unansweredNights,
             unansweredLastCountedNightID: unansweredLastCountedNightID,
             failedAdoptions: failedAdoptions,
-            divergenceStandingNightID: divergenceStandingNightID
+            divergenceStandingNightID: divergenceStandingNightID,
+            issueKey: issueKey,
+            issueURL: issueURL
         )
     }
 }

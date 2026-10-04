@@ -21,9 +21,9 @@ struct AttemptDetailView: View {
             systemImage: "gearshape.2.fill",
             style: .active,
             title: attempt.cardTitle,
-            subtitle: attempt.cardID,
+            subtitle: attempt.cardLink?.identifier ?? attempt.cardID,
             titleIdentifier: "attempt-detail-title",
-            wayOut: ("Open \(attempt.cardID) in Linear", .linearIssue(attempt.cardID)),
+            wayOut: attempt.cardLink.map { ("Open \($0.identifier) in Linear", .linearIssue($0.url)) },
             note: nil,
             identifier: "attempt-detail"
         ) {

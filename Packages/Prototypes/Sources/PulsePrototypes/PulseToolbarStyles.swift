@@ -67,26 +67,34 @@ private struct PulseNightCardButton: View {
     let model: PulseToolbarModel
 
     var body: some View {
-        Button { model.actions.open(.nightCard) } label: {
+        let link = model.project?.pulse.night?.nightCard
+        Button {
+            if let link { model.actions.open(.nightCard(link.url)) }
+        } label: {
             Label("Night Card", systemImage: "moon.stars")
         }
-        .help("Open the Night Card in Linear")
-        .disabled(model.project?.pulse.night == nil)
+        .help(link.map { "Open \($0.identifier) in Linear" } ?? "No Night Card link recorded")
+        .disabled(link == nil)
     }
 }
 
 private struct PulseFeatureButton: View {
     let model: PulseToolbarModel
 
+    private static func absence(of feature: FeatureInFlight?) -> String {
+        feature == nil ? "No Feature in flight" : "No Feature link recorded"
+    }
+
     var body: some View {
         let feature = model.project?.pulse.feature
+        let link = feature?.link
         Button {
-            if let feature { model.actions.open(.linearIssue(feature.id)) }
+            if let link { model.actions.open(.linearIssue(link.url)) }
         } label: {
             Label("Feature in Linear", systemImage: "flag")
         }
-        .help(feature.map { "Open \($0.id) in Linear" } ?? "No Feature in flight")
-        .disabled(feature == nil)
+        .help(link.map { "Open \($0.identifier) in Linear" } ?? Self.absence(of: feature))
+        .disabled(link == nil)
     }
 }
 

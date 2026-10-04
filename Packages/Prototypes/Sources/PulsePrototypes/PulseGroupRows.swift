@@ -110,16 +110,20 @@ struct PulseGroupRows: View {
     @ViewBuilder
     private var night: some View {
         if let night = context.pulse.night {
-            Button { actions.open(.nightCard) } label: {
-                HStack {
-                    Text(night.verdictLine ?? "Night Card").multilineTextAlignment(.leading)
-                    Spacer(minLength: 8)
-                    Image(systemName: "arrow.up.forward.square").foregroundStyle(.secondary)
+            if let link = night.nightCard {
+                Button { actions.open(.nightCard(link.url)) } label: {
+                    HStack {
+                        Text(night.verdictLine ?? "Night Card").multilineTextAlignment(.leading)
+                        Spacer(minLength: 8)
+                        Image(systemName: "arrow.up.forward.square").foregroundStyle(.secondary)
+                    }
+                    .contentShape(.rect)
                 }
-                .contentShape(.rect)
+                .buttonStyle(.plain)
+                .help("Open \(link.identifier) in Linear")
+            } else {
+                Text(night.verdictLine ?? "Night Card").multilineTextAlignment(.leading)
             }
-            .buttonStyle(.plain)
-            .help("Open the Night Card in Linear")
             HStack(spacing: 8) {
                 PulseBadge(text: night.state.rawValue, color: palette.color(for: night.state))
                 Text("started \(PulseFormat.time(night.startedAt))").font(.caption).foregroundStyle(.secondary)

@@ -22,7 +22,7 @@ struct RepoDetailView: View {
             title: repo,
             titleIdentifier: "repo-detail-name",
             wayOut: lane?.pullRequest.map {
-                ("Open #\($0.number) on GitHub", .pullRequest(repo: repo, number: $0.number))
+                ("Open #\($0.number) on GitHub", .pullRequest($0.url))
             },
             note: nil,
             identifier: "repo-detail"

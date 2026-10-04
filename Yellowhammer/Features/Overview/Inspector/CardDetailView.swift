@@ -28,9 +28,9 @@ struct CardDetailView: View {
             systemImage: card.state == .blocked ? "exclamationmark.octagon.fill" : "questionmark.bubble.fill",
             style: card.state.style,
             title: card.title,
-            subtitle: card.id,
+            subtitle: card.link?.identifier ?? card.id,
             titleIdentifier: "card-detail-title",
-            wayOut: ("Open \(card.id) in Linear", .linearIssue(card.id)),
+            wayOut: card.link.map { ("Open \($0.identifier) in Linear", .linearIssue($0.url)) },
             note: "Re-ready and answer happen on the Linear issue, never here.",
             identifier: "card-detail",
             wayOutIdentifier: "card-detail-open-linear"

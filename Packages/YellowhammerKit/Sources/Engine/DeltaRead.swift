@@ -134,6 +134,13 @@ public struct DeltaRead: Sendable {
         let pendingWrites = Set(try journal.pendingOutboxEntries().compactMap(\.issueID))
         let preservedProseHashes = try lastPreservedProseHashes()
         for object in objects {
+            // Every object, known or not: the Feature and the Night Card are not Cards but the Pulse
+            // opens them too (issue #230). Silent: no event, and the report is unchanged.
+            if !object.key.isEmpty, !object.url.isEmpty {
+                try journal.recordIssueLink(
+                    issueID: object.id.rawValue, key: object.key, url: object.url, runID: runID, now: clock()
+                )
+            }
             guard let card = try journal.card(issueID: object.id.rawValue) else {
                 try reportUnbackedWaitingOnYou(object: object, into: &report)
                 report.unknownObjects.append(object)
