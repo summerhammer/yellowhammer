@@ -58,7 +58,10 @@ final class ConfigurationEditingUITests: XCTestCase {
         let entry = app.descendants(matching: .any)["settings-project-demo"].firstMatch
         XCTAssertTrue(entry.waitForExistence(timeout: 5), "The Settings window did not open")
         entry.click()
-        XCTAssertTrue(app.tabs["Configuration"].waitForExistence(timeout: 10), "The Configuration tab is missing")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["Configuration"].firstMatch.waitForExistence(timeout: 10),
+            "The Configuration tab is missing"
+        )
     }
 
     func testConfigurationShowsNameAndReadOnlySpecSource() throws {

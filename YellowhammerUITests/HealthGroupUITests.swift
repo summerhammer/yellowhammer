@@ -86,8 +86,8 @@ final class HealthGroupUITests: XCTestCase {
         XCTAssertTrue(revoked.waitForExistence(timeout: 15), "the Health group never read yh doctor")
         app.activate()
         revoked.click()
-        let general = app.descendants(matching: .any)["settings-general-pane"].firstMatch
-        XCTAssertTrue(general.waitForExistence(timeout: 5), "the flag did not open Settings → General")
+        let boards = app.descendants(matching: .any)["settings-boards-pane"].firstMatch
+        XCTAssertTrue(boards.waitForExistence(timeout: 5), "the flag did not open Settings → Boards")
         XCTAssertTrue(app.descendants(matching: .any)["settings-linear-row-acme"].waitForExistence(timeout: 5))
     }
 

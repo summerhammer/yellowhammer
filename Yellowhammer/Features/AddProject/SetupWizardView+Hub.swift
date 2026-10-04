@@ -162,13 +162,7 @@ struct StepHeading: View {
     let step: AddProjectDraft.Step
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(step.title).font(.title2.weight(.semibold))
-            Text(step.explanation)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        PaneHeading(title: step.title, explanation: step.explanation)
     }
 }
 

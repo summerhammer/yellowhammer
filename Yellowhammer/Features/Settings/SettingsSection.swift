@@ -3,8 +3,10 @@ import Domain
 /// A place the Settings window can show. The sidebar's rows are these, and `SettingsHistory` is a list
 /// of them.
 enum SettingsSection: Hashable {
-    /// The machine-wide settings: the Linear installation, the Operator identity and Orca ADE.
+    /// The machine-wide settings: Orca ADE.
     case general
+    /// The board integrations: the Linear workspaces, their App Installations and Operator identities.
+    case boards
     /// The declared Agent CLIs, their latest Probe Results, and a Probe on demand.
     case agentCLIs
     /// The machine-wide base Routing Table.
@@ -19,6 +21,7 @@ enum SettingsSection: Hashable {
     func title(in configured: ConfiguredProjects?) -> String {
         switch self {
         case .general: "General"
+        case .boards: "Boards"
         case .agentCLIs: "Agent CLIs"
         case .baseRoutingTable: "Base Routing Table"
         case .refusedFiles: "Refused Files"

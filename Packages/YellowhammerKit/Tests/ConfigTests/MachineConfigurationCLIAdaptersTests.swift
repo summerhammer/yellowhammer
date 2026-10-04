@@ -43,6 +43,48 @@ struct MachineConfigurationCLIAdaptersTests {
         #expect(declared.cliAdapters.map(\.name) == ["claude", "codex"])
     }
 
+    @Test("removing drops only the named declaration and keeps the rest in order")
+    func removingDropsTheName() throws {
+        let removed = try machine(adapters: ["claude", "codex"]).removing(cliAdapter: "claude")
+        #expect(removed.cliAdapters.map(\.name) == ["codex"])
+        #expect(try machine(adapters: ["codex"]).removing(cliAdapter: "claude").cliAdapters.map(\.name) == ["codex"])
+    }
+
+    @Test("baseRoutingTableNames: route match, fallback-only match, no match")
+    func baseRoutingTableNames() throws {
+        let configured = try machine(adapters: ["claude", "codex"], routes: [("claude", ["codex"])])
+        #expect(configured.baseRoutingTableNames(cliAdapter: "claude"))
+        #expect(configured.baseRoutingTableNames(cliAdapter: "codex"))
+        #expect(try !machine(adapters: ["claude", "codex"], routes: [("claude", [])])
+            .baseRoutingTableNames(cliAdapter: "codex"))
+    }
+
+    @Test("Removing a CLI a base route names is refused on save, and the file is kept")
+    func removingARoutedCLIIsRefused() throws {
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("yellowhammer-declare-cli-tests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(
+            at: directory.appendingPathComponent("projects"), withIntermediateDirectories: true
+        )
+        defer { cleanupEditingDirectory(directory) }
+        let file = editingMachineFileURL(directory)
+        let text = try machine(adapters: ["claude", "codex"], routes: [("claude", [])]).renderedTOML
+        try text.write(to: file, atomically: true, encoding: .utf8)
+        let loaded = try Configuration.load(directory: directory, reading: file, as: text).machine
+
+        #expect(throws: ConfigurationEditError.self) {
+            try Configuration.save(
+                loaded.removing(cliAdapter: "claude").renderedTOML, to: file, in: directory, replacing: text
+            )
+        }
+        #expect(try String(contentsOf: file, encoding: .utf8) == text)
+
+        try Configuration.save(
+            loaded.removing(cliAdapter: "codex").renderedTOML, to: file, in: directory, replacing: text
+        )
+        #expect(try MachineConfiguration.load(contentsOf: file).cliAdapters.map(\.name) == ["claude"])
+    }
+
     @Test("hasRouteToDeclaredCLI: none, route match, fallback-only match")
     func hasRoute() throws {
         #expect(try !machine(adapters: ["claude"]).hasRouteToDeclaredCLI)

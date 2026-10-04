@@ -1,7 +1,7 @@
 import Domain
 import SwiftUI
 
-/// One row of the Linear workspaces list: an App Installation's label, the Projects that use it, the
+/// One card of the Linear workspaces list: an App Installation's label, the Projects that use it, the
 /// doctor's reading, its Operator identity, and the three things Settings does to it — re-connect, change
 /// the Operator identity, remove. Every identifier is suffixed with the installation's local name.
 struct LinearWorkspaceRow: View {
@@ -12,39 +12,50 @@ struct LinearWorkspaceRow: View {
     private var name: String { workspace.name }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            header
+        SettingsCard {
+            HStack(alignment: .firstTextBaseline) {
+                header
+                Spacer()
+                removal
+            }
             projects
             if let message = model.statuses[name]?.check.message {
                 Text(message)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
                     .accessibilityIdentifier("settings-linear-status-\(name)")
             }
+            if let lines = model.removalFailures[name] {
+                SettingsFailureText(
+                    text: lines.joined(separator: "\n"), identifier: "settings-linear-remove-failure-\(name)",
+                    monospaced: true
+                )
+            }
             if let operatorModel = model.operatorModel(for: name) {
+                Divider()
                 OperatorIdentityRow(
                     model: operatorModel, name: name, identifierPrefix: "settings-linear-operator"
                 )
             }
             if let reconnect = model.reconnectModel(for: name) {
+                Divider()
                 reconnectContent(reconnect)
             }
-            removal
         }
-        .padding(.vertical, 4)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("settings-linear-row-\(name)")
     }
 
     @ViewBuilder private var header: some View {
         let label = model.label(for: workspace)
-        VStack(alignment: .leading) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(label)
                 .font(.headline)
                 .accessibilityIdentifier("settings-linear-workspace-\(name)")
             if label != name {
                 Text(name)
-                    .font(.system(.footnote, design: .monospaced))
+                    .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
             }
         }
@@ -58,6 +69,7 @@ struct LinearWorkspaceRow: View {
                 Text("Used by \(workspace.projects.joined(separator: ", ")).")
             }
         }
+        .font(.callout)
         .foregroundStyle(.secondary)
         .accessibilityIdentifier("settings-linear-projects-\(name)")
     }
@@ -73,7 +85,7 @@ struct LinearWorkspaceRow: View {
                 .accessibilityIdentifier("settings-linear-reconnect-remote-\(name)")
             }
         } else {
-            VStack(alignment: .leading) {
+            VStack(alignment: .leading, spacing: 10) {
                 LinearInstallationView(model: reconnect, offersReinstall: true)
             }
             .accessibilityElement(children: .contain)
@@ -81,8 +93,9 @@ struct LinearWorkspaceRow: View {
         }
     }
 
-    @ViewBuilder private var removal: some View {
+    private var removal: some View {
         Button("Remove\u{2026}", role: .destructive) { isConfirmingRemoval = true }
+            .buttonStyle(.borderless)
             .disabled(model.removing != nil)
             .accessibilityIdentifier("settings-linear-remove-\(name)")
             .confirmationDialog(
@@ -96,12 +109,5 @@ struct LinearWorkspaceRow: View {
                         + "settings."
                 )
             }
-        if let lines = model.removalFailures[name] {
-            Text(lines.joined(separator: "\n"))
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(.red)
-                .textSelection(.enabled)
-                .accessibilityIdentifier("settings-linear-remove-failure-\(name)")
-        }
     }
 }

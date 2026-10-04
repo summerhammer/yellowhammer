@@ -3,7 +3,7 @@ import Foundation
 import Observation
 
 /// The Linear App Installation's browser-install state (P17.7; spec: board-projection/install-the-linear-app),
-/// shared by the Setup wizard's Linear step and the Settings window's General pane. Every piece of copy the
+/// shared by the Setup wizard's Linear step and the Settings window's Boards pane. Every piece of copy the
 /// Operator sees for a running attempt comes from `yh setup --install-linear --events json`'s NDJSON stream,
 /// decoded with `Domain.LinearInstallEvent` — the app invents no wording of its own for what an attempt is
 /// doing or why it stopped. The model owns its own `SetupEngine` and install `Task`.

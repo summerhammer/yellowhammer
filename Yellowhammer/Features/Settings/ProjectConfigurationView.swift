@@ -12,7 +12,7 @@ import SwiftUI
 /// The app writes configuration only through ``Config/Configuration/save(_:to:in:replacing:)`` — the
 /// loader is the only validator, so a refusal here is always shown in the loader's own words.
 struct ProjectConfigurationView: View {
-    @State private var model: ProjectConfigurationModel
+    let model: ProjectConfigurationModel
     /// Called after a save wrote the file, so the window can read its configuration again: the Project's
     /// name is shown in the window's sidebar and title.
     private let onSaved: () -> Void
@@ -20,11 +20,12 @@ struct ProjectConfigurationView: View {
     /// the local name. The workspace name is not stored (OQ117).
     private let workspaceLabel: (String) -> String
 
+    /// `model` is owned by the Project's pane, so moving to Recalibrate and back keeps unsaved edits.
     init(
-        project: ProjectID, onSaved: @escaping () -> Void = {},
+        model: ProjectConfigurationModel, onSaved: @escaping () -> Void = {},
         workspaceLabel: @escaping (String) -> String = { $0 }
     ) {
-        _model = State(initialValue: ProjectConfigurationModel(project: project))
+        self.model = model
         self.onSaved = onSaved
         self.workspaceLabel = workspaceLabel
     }
@@ -45,13 +46,7 @@ struct ProjectConfigurationView: View {
     }
 
     private var unavailable: some View {
-        VStack(spacing: 8) {
-            Text(model.loadFailure ?? "This Project could not be loaded.")
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
-        }
-        .multilineTextAlignment(.center)
-        .padding()
+        SettingsUnavailable(message: model.loadFailure ?? "This Project could not be loaded.")
     }
 }
 
@@ -67,103 +62,162 @@ private struct ProjectConfigurationFormView: View {
     var body: some View {
         if let current = model.draft {
             let draft = Binding(get: { model.draft ?? current }, set: { model.draft = $0 })
-            VStack(spacing: 0) {
-                Form {
-                    projectSection(draft)
-                    linearSection(draft)
-                    if let specSource = draft.wrappedValue.specSource {
-                        specSourceSection(specSource)
-                    }
-                    reposSection(draft)
-                    boundsSection(draft)
-                    routingSection(draft)
+            SettingsPane {
+                projectBlock(draft)
+                linearBlock(draft)
+                if let specSource = draft.wrappedValue.specSource {
+                    specSourceBlock(specSource)
                 }
-                .formStyle(.grouped)
-                Divider()
-                footer
+                reposBlock(draft)
+                boundsBlock(draft)
+                routingBlock(draft)
+            } footer: {
+                SettingsSaveFooter(
+                    note: "Saving rewrites \(model.file.path(percentEncoded: false)); comments and layout in it "
+                        + "are not kept. Editing the file directly stays supported.",
+                    failure: model.failure,
+                    isDirty: model.isDirty,
+                    identifierPrefix: "configuration",
+                    onRevert: { model.revert() },
+                    onSave: { if model.save() { onSaved() } }
+                )
             }
         } else {
-            Text("This Project could not be loaded.")
+            SettingsUnavailable(message: "This Project could not be loaded.")
         }
     }
 
-    private func projectSection(_ draft: Binding<ProjectFileDraft>) -> some View {
-        Section("Project") {
-            LabeledContent("Id") {
-                Text(draft.wrappedValue.id.rawValue)
-                    .textSelection(.enabled)
+    private func projectBlock(_ draft: Binding<ProjectFileDraft>) -> some View {
+        WizardBlock(title: "Project") {
+            WizardBlockRow(label: "Name") {
+                TextField("Name", text: draft.name)
+                    .labelsHidden()
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 260)
+                    .accessibilityIdentifier("project-name") // glossary:ignore GL001
             }
-            TextField("Name", text: draft.name)
-                .accessibilityIdentifier("project-name") // glossary:ignore GL001
+            Divider().padding(.leading, 12)
+            WizardBlockRow(label: "Project id", detail: "Names the Project file, its Journal and its LaunchAgents.") {
+                HStack(spacing: 8) {
+                    IdToken(id: draft.wrappedValue.id.rawValue)
+                        .textSelection(.enabled)
+                    PermanentBadge()
+                }
+            }
         }
     }
 
-    private func linearSection(_ draft: Binding<ProjectFileDraft>) -> some View {
+    private func linearBlock(_ draft: Binding<ProjectFileDraft>) -> some View {
         let installation = draft.wrappedValue.linearInstallationName
-        return Section("Linear") {
-            LabeledContent("Workspace") {
-                Text(workspaceLabel(installation))
-                    .textSelection(.enabled)
-                    .accessibilityIdentifier("project-linear-workspace") // glossary:ignore GL001
+        return WizardBlock(
+            title: "Linear",
+            footer: "The workspace is fixed for this Project\u{2019}s life \u{2014} to move it to another workspace, "
+                + "remove the Project and add it again.",
+            footerIdentifier: "project-linear-workspace-caption" // glossary:ignore GL001
+        ) {
+            WizardBlockRow(label: "Linear workspace") {
+                HStack(spacing: 5) {
+                    Image(systemName: "lock.fill").font(.caption).foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                    SettingsValueText(value: workspaceLabel(installation))
+                        .accessibilityIdentifier("project-linear-workspace") // glossary:ignore GL001
+                }
             }
-            LabeledContent("Installation") {
-                Text(installation)
-                    .textSelection(.enabled)
+            Divider().padding(.leading, 12)
+            WizardBlockRow(label: "Installation") {
+                SettingsValueText(value: installation, monospaced: true)
                     .accessibilityIdentifier("project-linear-installation") // glossary:ignore GL001
             }
-            Text(
-                "fixed for this Project\u{2019}s life \u{2014} to move it to another workspace, "
-                    + "remove the Project and add it again"
-            )
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            .accessibilityIdentifier("project-linear-workspace-caption") // glossary:ignore GL001
-            TextField("Linear project", text: draft.linearProject) // glossary:ignore GL001
-                .accessibilityIdentifier("project-linear-project") // glossary:ignore GL001
-        }
-    }
-
-    private func specSourceSection(_ specSource: String) -> some View {
-        Section("Spec Source") {
-            Text(specSource)
-                .textSelection(.enabled)
-                .accessibilityIdentifier("project-spec-source") // glossary:ignore GL001
-            Text("read \u{2014} this Project never writes it")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .accessibilityIdentifier("project-spec-source-caption") // glossary:ignore GL001
-        }
-    }
-
-    private func reposSection(_ draft: Binding<ProjectFileDraft>) -> some View {
-        Section("Repos") {
-            ForEach(draft.wrappedValue.repos.indices, id: \.self) { index in
-                repoRow(draft, index: index)
-            }
-            Button("Add Repo") {
-                draft.wrappedValue.repos.append(RepoDraft(name: "", path: "", role: "", check: ""))
+            Divider().padding(.leading, 12)
+            WizardBlockRow(label: "Linear project") { // glossary:ignore GL001
+                TextField("Linear project", text: draft.linearProject, prompt: Text("Paste the id from Linear"))
+                    .labelsHidden()
+                    .font(.body.monospaced())
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 260)
+                    .accessibilityIdentifier("project-linear-project") // glossary:ignore GL001
             }
         }
     }
 
-    @ViewBuilder
-    private func repoRow(_ draft: Binding<ProjectFileDraft>, index: Int) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            TextField("Name", text: draft.repos[index].name)
-                .accessibilityIdentifier("repo-name")
-            TextField("Path", text: draft.repos[index].path)
-                .accessibilityIdentifier("repo-path")
-            TextField("Role", text: draft.repos[index].role)
-                .accessibilityIdentifier("repo-role")
-            TextField("Check (\u{201c}none\u{201d} declares no Check)", text: draft.repos[index].check)
-                .accessibilityIdentifier("repo-check")
-            TextField("Protected paths (comma-separated)", text: protectedPathsBinding(draft, index: index))
-                .accessibilityIdentifier("repo-protected-paths")
-            Button("Remove Repo", role: .destructive) {
-                draft.wrappedValue.repos.remove(at: index)
+    private func specSourceBlock(_ specSource: String) -> some View {
+        WizardBlock(
+            title: "Spec Source",
+            footer: "read \u{2014} this Project never writes it",
+            footerIdentifier: "project-spec-source-caption" // glossary:ignore GL001
+        ) {
+            WizardBlockRow(label: "Folder") {
+                SettingsValueText(value: specSource, monospaced: true)
+                    .accessibilityIdentifier("project-spec-source") // glossary:ignore GL001
             }
         }
-        .padding(.vertical, 4)
+    }
+
+    private func reposBlock(_ draft: Binding<ProjectFileDraft>) -> some View {
+        WizardBlock(title: "Repos", boxed: false) {
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(draft.wrappedValue.repos.indices, id: \.self) { index in
+                    repoCard(draft, index: index)
+                }
+                Button("Add Repo", systemImage: "plus") {
+                    draft.wrappedValue.repos.append(RepoDraft(name: "", path: "", role: "", check: ""))
+                }
+            }
+        }
+    }
+
+    private func repoCard(_ draft: Binding<ProjectFileDraft>, index: Int) -> some View {
+        SettingsCard {
+            HStack {
+                Image(systemName: DomainSymbol.repo).foregroundStyle(.accent)
+                    .accessibilityHidden(true)
+                TextField("Name", text: draft.repos[index].name, prompt: Text("Repo name"))
+                    .font(.headline)
+                    .textFieldStyle(.plain)
+                    .accessibilityIdentifier("repo-name")
+                Spacer()
+                Button("Remove Repo", systemImage: "trash", role: .destructive) {
+                    draft.wrappedValue.repos.remove(at: index)
+                }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+                .help("Remove Repo")
+            }
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                GridRow {
+                    fieldLabel("Path")
+                    TextField("Path", text: draft.repos[index].path)
+                        .font(.body.monospaced())
+                        .accessibilityIdentifier("repo-path")
+                }
+                GridRow {
+                    fieldLabel("Repo Role")
+                    TextField("Repo Role", text: draft.repos[index].role)
+                        .accessibilityIdentifier("repo-role")
+                }
+                GridRow {
+                    fieldLabel("Check")
+                    TextField("Check", text: draft.repos[index].check, prompt: Text("make test, or none"))
+                        .font(.body.monospaced())
+                        .accessibilityIdentifier("repo-check")
+                }
+                GridRow {
+                    fieldLabel("Protected paths")
+                    TextField(
+                        "Protected paths", text: protectedPathsBinding(draft, index: index),
+                        prompt: Text("Comma-separated")
+                    )
+                    .font(.body.monospaced())
+                    .accessibilityIdentifier("repo-protected-paths")
+                }
+            }
+            .labelsHidden()
+            .textFieldStyle(.roundedBorder)
+        }
+    }
+
+    private func fieldLabel(_ text: String) -> some View {
+        Text(text).foregroundStyle(.secondary)
     }
 
     /// Joins ``RepoDraft/protectedPaths`` for display and, on edit, splits on `,`, trims each piece and
@@ -180,59 +234,30 @@ private struct ProjectConfigurationFormView: View {
         )
     }
 
-    private func boundsSection(_ draft: Binding<ProjectFileDraft>) -> some View {
-        Section("Bounds") {
-            boundField("review_rounds_max", draft.bounds.reviewRoundsMax)
-            boundField("attempts_per_card", draft.bounds.attemptsPerCard)
-            boundField("unanswered_nights_max", draft.bounds.unansweredNightsMax)
-            boundField("reselections_max", draft.bounds.reselectionsMax)
-            boundField("consecutive_refusals_max", draft.bounds.consecutiveRefusalsMax)
-            boundField("failed_adoptions_max", draft.bounds.failedAdoptionsMax)
+    @ViewBuilder
+    private func boundsBlock(_ draft: Binding<ProjectFileDraft>) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Bounds").font(.headline)
+            BoundsDraftBlocks(bounds: draft.bounds)
         }
     }
 
-    private func boundField(_ key: String, _ value: Binding<String>) -> some View {
-        TextField(key, text: value)
-            .accessibilityIdentifier("bound-\(key)")
-    }
-
-    private func routingSection(_ draft: Binding<ProjectFileDraft>) -> some View {
-        Section("Routing overrides") {
-            RoutingEntriesEditor(entries: draft.routingOverrides)
-            Button("Base Routing Table\u{2026}") {
-                showSettingsSection(.baseRoutingTable)
-            }
-            .accessibilityIdentifier("open-base-routing-table")
-        }
-    }
-
-    private var footer: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let failure = model.failure {
-                Text(failure)
-                    .foregroundStyle(.red)
-                    .textSelection(.enabled)
-                    .accessibilityIdentifier("configuration-save-failure")
-            }
-            Text(
-                "Saving rewrites \(model.file.path(percentEncoded: false)); comments and layout in it "
-                    + "are not kept. Editing the file directly stays supported."
-            )
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            HStack {
-                Spacer()
-                Button("Revert") { model.revert() }
-                    .disabled(!model.isDirty)
-                    .accessibilityIdentifier("configuration-revert")
-                Button("Save") {
-                    if model.save() { onSaved() }
+    private func routingBlock(_ draft: Binding<ProjectFileDraft>) -> some View {
+        WizardBlock(
+            title: "Routing overrides",
+            footer: "An entry here replaces the base Routing Table\u{2019}s entry for the same Kind and Repo Role.",
+            boxed: false
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                RoutingEntriesEditor(
+                    entries: draft.routingOverrides,
+                    emptyText: "No override: this Project uses the base Routing Table."
+                )
+                Button("Base Routing Table\u{2026}") {
+                    showSettingsSection(.baseRoutingTable)
                 }
-                    .keyboardShortcut("s")
-                    .disabled(!model.isDirty)
-                    .accessibilityIdentifier("configuration-save")
+                .accessibilityIdentifier("open-base-routing-table")
             }
         }
-        .padding()
     }
 }

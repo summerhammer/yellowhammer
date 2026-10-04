@@ -3,10 +3,10 @@ import Domain
 import Ledger
 import SwiftUI
 
-/// The Agent CLIs pane of the Settings window's General section (P14.4, P18.15). Not Project-scoped: the
+/// The Agent CLIs pane of the Settings window (P14.4, P18.15). Not Project-scoped: the
 /// declared CLI Adapters and the Ledger are both machine-wide, so one Probe run serves every Project.
 /// Lists each declared CLI with its latest Probe Result and lets the Operator run a Probe on demand, and
-/// declares a registered CLI Adapter not yet declared (#281). The route it needs is given in the base
+/// declares a registered CLI Adapter not yet declared (#281) or removes a declared one. The route it needs is given in the base
 /// Routing Table pane, which this pane points to while no route names a declared CLI. On a fresh Mac, with no
 /// `config.toml` yet, declaring the first CLI creates it: nothing here waits on the Add Project sheet.
 struct AgentCLIsPane: View {
@@ -31,11 +31,7 @@ struct AgentCLIsPane: View {
     }
 
     private func unavailable(message: String) -> some View {
-        Text(message)
-            .foregroundStyle(.secondary)
-            .textSelection(.enabled)
-            .multilineTextAlignment(.center)
-            .padding()
+        SettingsUnavailable(message: message)
     }
 }
 
@@ -57,76 +53,90 @@ private struct AgentCLIListView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if rows.isEmpty {
-                Text("No agent CLI is declared yet.")
-                    .foregroundStyle(.secondary)
-                    .padding()
-            } else {
-                List(rows) { row in
-                    AgentCLIRowView(model: model, row: row)
-                        .accessibilityElement(children: .contain)
-                        .accessibilityIdentifier("agent-cli-row-\(row.name)")
+        SettingsPane(
+            title: "Agent CLIs",
+            explanation: "The agent CLIs this Mac can dispatch to. A Probe checks that one works as its CLI "
+                + "Adapter expects; one Probe run serves every Project."
+        ) {
+            WizardBlock(title: "Declared agent CLIs", boxed: false) {
+                VStack(alignment: .leading, spacing: 12) {
+                    if rows.isEmpty {
+                        Text("No agent CLI is declared yet.")
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(rows) { row in
+                        AgentCLIRowView(model: model, row: row)
+                            .accessibilityElement(children: .contain)
+                            .accessibilityIdentifier("agent-cli-row-\(row.name)")
+                    }
                 }
             }
             if !rows.isEmpty && !model.hasRoute {
                 noRouteNotice
             }
-            if !model.declarableNames.isEmpty {
-                Divider()
-                declareSection
-            }
             if !model.probeLog.isEmpty || model.probeExitStatus != nil {
-                Divider()
-                probeLogView
+                probeLogBlock
+            }
+            if !model.declarableNames.isEmpty {
+                declareBlock
             }
         }
     }
 
     private var noRouteNotice: some View {
-        HStack {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.warning)
+                .accessibilityHidden(true)
             Text("No base route names a declared agent CLI yet.")
-                .foregroundStyle(.secondary)
                 .accessibilityIdentifier("agent-cli-no-route")
+            Spacer()
             Button("Open Base Routing Table") { showSettingsSection(.baseRoutingTable) }
                 .accessibilityIdentifier("agent-cli-open-routing-table")
         }
-        .padding()
+        .padding(12)
+        .background(.warning.opacity(0.08), in: .rect(cornerRadius: 10))
     }
 
-    private var declareSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Declare an Agent CLI")
-                .font(.headline)
-            Picker("Agent CLI", selection: $selectedName) {
-                ForEach(model.declarableNames, id: \.self) { Text($0).tag($0) }
-            }
-            .accessibilityIdentifier("agent-cli-declare-name")
-            TextField("Executable (optional)", text: $executable)
-                .accessibilityIdentifier("agent-cli-declare-executable")
-            Text(
-                "Scheduled runs get a minimal PATH, so an absolute path is how yh finds the CLI "
+    private var declareBlock: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            WizardBlock(
+                title: "Declare an agent CLI",
+                footer: "Scheduled runs get a minimal PATH, so an absolute path is how yh finds the CLI "
                     + "unattended; blank means yh looks it up on PATH."
-            )
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            if let failure = model.declareFailure {
-                Text(failure)
-                    .foregroundStyle(.red)
-                    .textSelection(.enabled)
-                    .accessibilityIdentifier("agent-cli-declare-failure")
+            ) {
+                WizardBlockRow(label: "Agent CLI") {
+                    Picker("Agent CLI", selection: $selectedName) {
+                        ForEach(model.declarableNames, id: \.self) { Text($0).tag($0) }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                    .accessibilityIdentifier("agent-cli-declare-name")
+                }
+                Divider().padding(.leading, 12)
+                WizardBlockRow(label: "Executable", detail: "Optional") {
+                    TextField("Executable (optional)", text: $executable, prompt: Text("Looked up on PATH"))
+                        .labelsHidden()
+                        .font(.body.monospaced())
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: 300)
+                        .accessibilityIdentifier("agent-cli-declare-executable")
+                }
             }
-            Text(savingNote)
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            HStack {
-                Spacer()
+            if let failure = model.declareFailure {
+                SettingsFailureText(text: failure, identifier: "agent-cli-declare-failure")
+            }
+            HStack(spacing: 12) {
+                Text(savingNote)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 12)
                 Button("Declare") { model.declare(name: selectedName, executable: executable) }
                     .disabled(selectedName.isEmpty)
                     .accessibilityIdentifier("agent-cli-declare")
             }
         }
-        .padding()
         .onAppear { resetSelection() }
         .onChange(of: model.declarableNames) { _, _ in
             executable = ""
@@ -151,71 +161,122 @@ private struct AgentCLIListView: View {
         }
     }
 
-    private var probeLogView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ScrollView {
-                Text(model.probeLog.joined(separator: "\n"))
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityIdentifier("agent-cli-probe-log")
-            }
-            .frame(maxHeight: 160)
-            if let status = model.probeExitStatus, status != 0 {
-                Text("yh probe exited \(status).")
-                    .foregroundStyle(.red)
-                    .accessibilityIdentifier("agent-cli-probe-exit-status")
+    /// The last Probe's output as `yh probe` printed it, like the Add Project sheet's run log.
+    private var probeLogBlock: some View {
+        WizardBlock(title: "Probe log", boxed: false) {
+            VStack(alignment: .leading, spacing: 8) {
+                ScrollView {
+                    Text(model.probeLog.joined(separator: "\n"))
+                        .font(.callout.monospaced())
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .accessibilityIdentifier("agent-cli-probe-log")
+                }
+                .frame(maxHeight: 200)
+                .background(.surface, in: .rect(cornerRadius: 8))
+                if let status = model.probeExitStatus, status != 0 {
+                    SettingsFailureText(text: "yh probe exited \(status).", identifier: "agent-cli-probe-exit-status")
+                }
             }
         }
-        .padding()
     }
 }
 
-/// One declared CLI's row: its Ledger-derived state, plus a Probe button.
+/// One declared CLI's card: its Ledger-derived state, plus Probe and Remove buttons.
 private struct AgentCLIRowView: View {
     @Bindable var model: AgentCLIModel
     let row: AgentCLIModel.CLIRow
+    @State private var confirmsRemoval = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
+        SettingsCard {
+            HStack(spacing: 8) {
                 Text(row.name)
-                    .font(.headline)
+                    .font(.headline.monospaced())
                 Spacer()
+                if model.runningCLI == row.name {
+                    ProgressView().controlSize(.small)
+                }
                 Button("Probe") { Task { await model.probe(cli: row.name) } }
                     .disabled(model.isProbing)
                     .accessibilityIdentifier("agent-cli-probe-\(row.name)")
+                Button("Remove\u{2026}", role: .destructive) { confirmsRemoval = true }
+                    .disabled(model.isProbing || model.isRouted(row.name))
+                    .help(
+                        model.isRouted(row.name)
+                            ? "A base route names \(row.name); change it in the Base Routing Table first."
+                            : "Remove \(row.name) from config.toml"
+                    )
+                    .accessibilityIdentifier("agent-cli-remove-\(row.name)")
+            }
+            if let failure = model.removeFailures[row.name] {
+                SettingsFailureText(text: failure, identifier: "agent-cli-remove-failure-\(row.name)")
             }
             if let ledgerFailure = row.ledgerFailure {
-                Text(ledgerFailure)
-                    .foregroundStyle(.red)
-                    .textSelection(.enabled)
+                SettingsFailureText(text: ledgerFailure)
             } else {
-                LabeledContent("Probed") {
-                    Text(probedAtText)
-                        .accessibilityIdentifier("agent-cli-probed-at-\(row.name)")
-                }
-                if let latest = row.latest {
-                    LabeledContent("CLI version", value: latest.cliVersion)
-                    LabeledContent("Adapter version", value: latest.adapterVersion)
-                    findings(for: latest)
-                    LabeledContent("Verdict", value: latest.verdict.rawValue)
-                    if let reason = latest.reason {
-                        LabeledContent("Reason", value: reason)
+                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
+                    GridRow {
+                        fieldLabel("Probed")
+                        Text(probedAtText)
+                            .accessibilityIdentifier("agent-cli-probed-at-\(row.name)")
                     }
-                    if let drift = row.drift {
-                        Text(driftText(drift))
-                            .foregroundStyle(.orange)
-                            .textSelection(.enabled)
+                    if let latest = row.latest {
+                        value("CLI version", latest.cliVersion)
+                        value("Adapter version", latest.adapterVersion)
+                        findings(for: latest)
+                        value("Verdict", latest.verdict.rawValue)
+                        if let reason = latest.reason {
+                            value("Reason", reason)
+                        }
                     }
                 }
-                Text(eligibilityText)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .accessibilityIdentifier("agent-cli-eligibility-\(row.name)")
+                if let drift = row.drift {
+                    Label(driftText(drift), systemImage: "exclamationmark.triangle.fill")
+                        .font(.callout)
+                        .foregroundStyle(.warning)
+                        .textSelection(.enabled)
+                }
+                eligibility
             }
         }
-        .padding(.vertical, 4)
+        .confirmationDialog(
+            "Remove \(row.name)?", isPresented: $confirmsRemoval, titleVisibility: .visible
+        ) {
+            Button("Remove", role: .destructive) { model.remove(name: row.name) }
+                .accessibilityIdentifier("agent-cli-remove-confirm-\(row.name)")
+        } message: {
+            Text(
+                "Yellowhammer stops dispatching to \(row.name). Its declaration leaves config.toml; "
+                    + "its Probe history stays. A Project whose routes name it refuses the removal."
+            )
+        }
+    }
+
+    @ViewBuilder private var eligibility: some View {
+        let isOffered = if case .offered = row.eligibility { true } else { false }
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: isOffered ? "checkmark.circle.fill" : "minus.circle")
+                .foregroundStyle(isOffered ? AnyShapeStyle(.success) : AnyShapeStyle(.secondary))
+                .accessibilityHidden(true)
+            Text(eligibilityText)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .accessibilityIdentifier("agent-cli-eligibility-\(row.name)")
+        }
+        .font(.callout)
+    }
+
+    private func fieldLabel(_ text: String) -> some View {
+        Text(text).foregroundStyle(.secondary)
+    }
+
+    private func value(_ label: String, _ value: String) -> some View {
+        GridRow {
+            fieldLabel(label)
+            Text(value).textSelection(.enabled)
+        }
     }
 
     private var probedAtText: String {
@@ -236,10 +297,10 @@ private struct AgentCLIRowView: View {
 
     @ViewBuilder
     private func findings(for latest: ProbeResult) -> some View {
-        LabeledContent("Unattended dispatch", value: latest.findingUnattendedDispatch.rawValue)
-        LabeledContent("Result file on clean exit", value: latest.findingResultFileOnCleanExit.rawValue)
-        LabeledContent("Process containment", value: latest.findingProcessContainment.rawValue)
-        LabeledContent("Session resumption", value: latest.findingSessionResumption.rawValue)
+        value("Unattended dispatch", latest.findingUnattendedDispatch.rawValue)
+        value("Result file on clean exit", latest.findingResultFileOnCleanExit.rawValue)
+        value("Process containment", latest.findingProcessContainment.rawValue)
+        value("Session resumption", latest.findingSessionResumption.rawValue)
     }
 
     private func driftText(_ drift: ProbeDrift) -> String {

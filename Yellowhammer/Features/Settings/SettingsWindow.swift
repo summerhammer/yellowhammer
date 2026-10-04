@@ -3,9 +3,10 @@ import Domain
 import SwiftUI
 
 /// The Settings window (Cmd+,): a sidebar with the machine-wide General section and the configured
-/// Projects, and a toolbar with back, forward and the current section's name. It is a separate window
+/// Projects, and a toolbar with back and forward; the current section's name is its pane's heading, and
+/// every pane is drawn with the Add Project sheet's blocks (`SettingsPane`). It is a separate window
 /// from the main window. A Project's Configuration, Recalibrate and the machine-wide settings
-/// (General: Linear workspaces, Orca ADE; Agent CLIs; the base Routing Table) are here.
+/// (General: Orca ADE; Boards: Linear workspaces; Agent CLIs; the base Routing Table) are here.
 ///
 /// Where each piece of state lives:
 /// - **The current section** is `history.current`. The sidebar's selection is derived from it, and a
@@ -13,7 +14,7 @@ import SwiftUI
 /// - **The preselection** arrives in `SettingsRequest` when a gesture opens the window, from the key
 ///   main window's Project. After it is applied, this window's selection and the main window's are
 ///   independent.
-/// - **The General pane's model** (the Linear workspaces list and the install, Operator identity and removal
+/// - **The Boards pane's model** (the Linear workspaces list and the install, Operator identity and removal
 ///   models under it), which also supplies a Project entry's Linear workspace name, is this window's
 ///   `@State`, so another sidebar row and back neither recreates it nor kills a running install.
 ///   Closing the window terminates it: setup is not an Act, so no child of it survives the window.
@@ -44,6 +45,7 @@ struct SettingsWindow: View {
         NavigationSplitView {
             SettingsSidebar(
                 projects: configured?.entries ?? [],
+                configured: configured,
                 selection: selection,
                 onProjectAdded: { id in
                     readConfiguration()
@@ -54,9 +56,12 @@ struct SettingsWindow: View {
         } detail: {
             // Minimums sit on the columns, not on the split view (see `OverviewWindow`).
             detail
-                .frame(minWidth: 380, minHeight: 320)
+                .frame(minWidth: 520, minHeight: 420)
         }
+        // The window keeps its title (the Window menu and the window list name it by the section), but the
+        // toolbar does not show it: each pane opens on its own heading, as an Add Project step does.
         .navigationTitle(history.current.title(in: configured))
+        .toolbar(removing: .title)
         .toolbar {
             ToolbarItemGroup(placement: .navigation) {
                 Button { history.back() } label: { Image(systemName: "chevron.backward") }
@@ -84,7 +89,9 @@ struct SettingsWindow: View {
     @ViewBuilder private var detail: some View {
         switch history.current {
         case .general:
-            GeneralSettingsPane(model: linearWorkspaces)
+            GeneralSettingsPane()
+        case .boards:
+            BoardsSettingsPane(model: linearWorkspaces)
         case .agentCLIs:
             AgentCLIsPane()
         case .baseRoutingTable:
@@ -93,28 +100,29 @@ struct SettingsWindow: View {
             RefusedFilesPane(configured: configured)
         case let .project(id):
             if let configured {
-                if configured.entry(for: id) != nil {
+                if let entry = configured.entry(for: id) {
                     // The label reads the model's statuses when the form's body calls it, so the form
                     // updates when `yh doctor` has been read.
                     let workspaces = linearWorkspaces
                     ProjectSettingsPane(
-                        project: id, onSaved: readConfiguration,
+                        project: id, name: entry.name, onSaved: readConfiguration,
                         workspaceLabel: { name in
                             LinearInstallationStatus.label(
                                 workspaceName: workspaces.statuses[name]?.workspaceName, localName: name
                             )
                         }
                     )
+                    // The pane owns both tabs' models, so a different Project is a different pane.
+                    .id(id)
                     .onAppear { workspaces.refreshStatusOnFirstAppearance() }
                 } else {
                     // Its file may have been refused or removed since it was visited.
-                    Text("\u{201C}\(id.rawValue)\u{201D} is not configured.")
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    SettingsUnavailable(message: "\u{201C}\(id.rawValue)\u{201D} is not configured.")
                         .accessibilityIdentifier("settings-project-not-configured")
                 }
             } else {
                 ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
