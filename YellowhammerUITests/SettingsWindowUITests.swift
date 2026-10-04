@@ -83,6 +83,24 @@ final class SettingsWindowUITests: XCTestCase {
         XCTAssertTrue(element("Recalibrate").exists)
     }
 
+    /// A Pulse way out routes with the window's current Project, not the one it showed when the Pulse first
+    /// read the route (`OpenPulseDestinationAction`'s scope).
+    func testHealthOpensSettingsOnTheNewlySelectedProject() {
+        let reader = element("sidebar-reader")
+        XCTAssertTrue(reader.waitForExistence(timeout: 10))
+        app.activate()
+        reader.click()
+        let heading = app.staticTexts["pulse-heading"]
+        let scoped = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == 'Reader' OR label == 'Reader'"), object: heading
+        )
+        XCTAssertEqual(XCTWaiter().wait(for: [scoped], timeout: 5), .completed, "The Pulse did not scope to Reader")
+        element("pulse-health-settings").click()
+        XCTAssertTrue(
+            element("settings-project-pane-reader").waitForExistence(timeout: 5), "Settings did not open on Reader"
+        )
+    }
+
     func testBackAndForwardMoveThroughVisitedSections() {
         showSettings()
         // Checked by the pane shown, not the window's title: the main window's title is the Project's name.

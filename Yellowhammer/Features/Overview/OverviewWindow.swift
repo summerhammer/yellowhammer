@@ -152,16 +152,17 @@ struct OverviewWindow: View {
     // MARK: Ways out
 
     /// Where each way out goes. Every Pulse, Sidebar and Inspector element calls this through
-    /// `openPulseDestination`. The closure captures only the bindings and actions it needs, because the
-    /// environment hands it to every view below this one.
-    private var route: @MainActor (PulseDestination) -> Void {
+    /// `openPulseDestination`. The closure captures only the bindings and actions it needs, plus the
+    /// scoped Project, which is the action's `scope`: the environment hands it to every view below this
+    /// one, and compares it by `scope` alone (`OpenPulseDestinationAction`).
+    private var route: OpenPulseDestinationAction {
         let inspected = $inspected
         let inspectorShown = $inspectorShown
         let wayOut = $wayOut
         let openWindow = openWindow
         let settingsRequest = settingsRequest
         let scopedProject = scopedProject
-        return { destination in
+        return OpenPulseDestinationAction(scope: scopedProject) { destination in
             switch destination {
             case let .inspector(selection):
                 inspected.wrappedValue = selection
