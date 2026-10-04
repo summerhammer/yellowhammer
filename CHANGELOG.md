@@ -1,5 +1,58 @@
 # Changelog
 
+## [0.5.0](https://github.com/summerhammer/yellowhammer/compare/v0.4.0...v0.5.0) (2026-10-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* **setup:** `yh setup --linear-credential` is removed; `--installation <name>` names the Linear App Installation a run acts on. The credential is always
+* **config:** config.toml's [linear] table is replaced by [board.linear.installations.<name>] tables, and a Project file's top-level linear_project by [board.linear] installation and project. A file in the old shape is refused at load; there is no migration.
+
+### Features
+
+* **app:** each Project's Health shows only its own installation's flags ([c5031af](https://github.com/summerhammer/yellowhammer/commit/c5031af4535df7df007cef181c48ea892c7e008f))
+* **app:** move Hub4's step bodies and a readiness panel into the app ([abd0dd4](https://github.com/summerhammer/yellowhammer/commit/abd0dd45ba3dbe0b63f0b99cee34790435dcf10e))
+* **app:** move the Add Project draft and its rules into Config ([b1d039a](https://github.com/summerhammer/yellowhammer/commit/b1d039aeb68eca009185c58e2fecd551dd314ece))
+* **app:** restyle the Overview window's Pulse, Inspector and Sidebar ([#274](https://github.com/summerhammer/yellowhammer/issues/274)) ([8007b4c](https://github.com/summerhammer/yellowhammer/commit/8007b4c57bfb9ebc2e0174f17cdf68ead6f52f29))
+* **app:** swap the Add Project sheet to Hub4 ([bc8bdff](https://github.com/summerhammer/yellowhammer/commit/bc8bdff23a0600679ea7b215381ccf9ca7d48bb2))
+* **cli-adapters:** add Antigravity (agy) as an agent CLI ([4412dd2](https://github.com/summerhammer/yellowhammer/commit/4412dd232340f5250ae692051a1f69305c2b463d))
+* **config:** ask a draft Routing Table which entry routes a Card ([3772938](https://github.com/summerhammer/yellowhammer/commit/37729383b255f14fce4fccba9581e1328d53e2e9))
+* **config:** select each Project's Linear App Installation from a registry ([89e1a48](https://github.com/summerhammer/yellowhammer/commit/89e1a48d6ad155aef5ede0eb30ab1c153cba650a))
+* **config:** yh config operator and yh config remove-installation ([ee6a03d](https://github.com/summerhammer/yellowhammer/commit/ee6a03dd11ce4d029a813118b68810080ab89fe2))
+* **doctor:** yh doctor Check 4 runs per Linear App Installation ([6e69a50](https://github.com/summerhammer/yellowhammer/commit/6e69a50208a38be4e20add9309409b5a15908615))
+* **engine:** one refresh lock, budget record and halt per Linear App Installation ([4607126](https://github.com/summerhammer/yellowhammer/commit/4607126278422f43dcf58eecc2d534b8b66d6d05))
+* **engine:** record each App Installation token refresh in the Act's Journal ([e853c3d](https://github.com/summerhammer/yellowhammer/commit/e853c3d6bf2fb6e87b80f75374eb8aeb2a2dc998))
+* **engine:** timestamp the error line an Act writes to its diagnostic log ([9c0f7b1](https://github.com/summerhammer/yellowhammer/commit/9c0f7b173211d96f782c88eb044ca191be44d4ce))
+* **journal:** record the Linear workspace a Journal is built against ([de7d9ca](https://github.com/summerhammer/yellowhammer/commit/de7d9ca00a7b7112efb19e1ccd3fb5d5fd10d3a0))
+* **pulse:** open the Night Card, Linear issues and pull requests from the Pulse ([64bd54e](https://github.com/summerhammer/yellowhammer/commit/64bd54ed2c55cca25d719d6770369cc9945691bb)), closes [#230](https://github.com/summerhammer/yellowhammer/issues/230)
+* **settings:** lay the Agent CLIs pane out in two columns ([bb3aff6](https://github.com/summerhammer/yellowhammer/commit/bb3aff66af7659f59e264933738dc3cbcb2cd4db))
+* **settings:** rebuild the Base Routing Table pane as Cards, Author and Verification ([927a9f2](https://github.com/summerhammer/yellowhammer/commit/927a9f20ba56728de51b8ad7b421918db6055e27))
+* **settings:** restyle Settings, add a Boards section, remove agent CLIs ([#301](https://github.com/summerhammer/yellowhammer/issues/301)) ([28c109d](https://github.com/summerhammer/yellowhammer/commit/28c109d69258b885ac7537cd832922077336ca84))
+* **settings:** Settings → General lists the Linear workspaces ([ef31917](https://github.com/summerhammer/yellowhammer/commit/ef31917d86ae6e7ee1d7bb595cbb940861cd7502))
+* **setup:** Add Project's Linear step chooses the Linear workspace ([558d0c7](https://github.com/summerhammer/yellowhammer/commit/558d0c754057222956806799baf0051272aa2e5d))
+* **setup:** let yh setup --init and the Add Project sheet set the Night window ([bdb3ba7](https://github.com/summerhammer/yellowhammer/commit/bdb3ba7787120afcfbda551133548a97d1f6e69e))
+* **setup:** list active Linear projects in yh setup --print-choices and the sheet ([6bf2465](https://github.com/summerhammer/yellowhammer/commit/6bf246570b4decf0a595497c9e9ad770e1b89ba9))
+* **setup:** make Add Project work on a first run and guide it step by step ([#300](https://github.com/summerhammer/yellowhammer/issues/300)) ([1f7922a](https://github.com/summerhammer/yellowhammer/commit/1f7922abc6fc7f11331b9b16cfa1eab41311a188))
+* **setup:** name a new Linear installation and remove a refused one anyway ([#304](https://github.com/summerhammer/yellowhammer/issues/304)) ([6901a10](https://github.com/summerhammer/yellowhammer/commit/6901a10c743001367a0d7bc429c033bedb12b7af))
+* **setup:** yh setup connects, re-connects and selects from the App Installation registry ([a628aef](https://github.com/summerhammer/yellowhammer/commit/a628aefa287f2decbc3977275c61543a547450cd))
+
+
+### Bug Fixes
+
+* **app:** keep each Pulse row's own accessibility identifier ([3b78774](https://github.com/summerhammer/yellowhammer/commit/3b7877433be6b520348e14e0c3aeca5cb02ac8c2))
+* **app:** let Settings declare an agent CLI ([687329a](https://github.com/summerhammer/yellowhammer/commit/687329ab0933e71e1979432b8c8bee07b4d4ffea)), closes [#281](https://github.com/summerhammer/yellowhammer/issues/281)
+* **app:** start the agent CLI picker on an offered name ([422513a](https://github.com/summerhammer/yellowhammer/commit/422513a06cfb72461ee48502d6f5c9780b512941))
+* **app:** the Setup wizard acts on the App Installation its Linear step installed into ([78a5b8f](https://github.com/summerhammer/yellowhammer/commit/78a5b8f66187a98d4b552dd719c8395fba001dfb))
+* **linear:** page the Linear projects list by 50 so Linear accepts it ([82d2c49](https://github.com/summerhammer/yellowhammer/commit/82d2c49851f9497d5238dd55be09fbf3b5250f1f))
+* **overview:** keep a Project's status when its Journal cannot be read ([#313](https://github.com/summerhammer/yellowhammer/issues/313)) ([8838567](https://github.com/summerhammer/yellowhammer/commit/88385679840e5c9f0bb3b84883af4167011c2176))
+* **pulse:** read a Project's working status from its launchd Act jobs ([#309](https://github.com/summerhammer/yellowhammer/issues/309)) ([7813783](https://github.com/summerhammer/yellowhammer/commit/78137830efd085fc2d3764bdc594e580c04be030))
+* **setup:** warn when --print-choices cannot list the Linear projects ([6758dc4](https://github.com/summerhammer/yellowhammer/commit/6758dc4e45e7b6180fc6b95c0c51a59c55c6f66c))
+
+
+### Performance
+
+* **overview:** make openPulseDestination an Equatable action ([2f653f3](https://github.com/summerhammer/yellowhammer/commit/2f653f3f821daa65d952d156d0a6d5ce455c6c37)), closes [#227](https://github.com/summerhammer/yellowhammer/issues/227)
+
 ## [0.4.0](https://github.com/summerhammer/yellowhammer/compare/v0.3.0...v0.4.0) (2026-10-02)
 
 
