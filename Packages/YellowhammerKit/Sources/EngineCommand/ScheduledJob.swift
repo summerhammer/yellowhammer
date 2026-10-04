@@ -17,7 +17,7 @@ struct ScheduledJob: Equatable {
 
     /// `dev.yellowhammer.<project>.<act>`.
     var label: String {
-        "dev.yellowhammer.\(projectID.rawValue).\(act.rawValue)"
+        act.launchdLabel(projectID: projectID)
     }
 
     /// `<label>.plist`.

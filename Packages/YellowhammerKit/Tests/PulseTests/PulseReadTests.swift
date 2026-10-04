@@ -31,7 +31,7 @@ func emptyJournal() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
 
-    let pulse = try PulseSnapshot.read(from: journal, asOf: epoch)
+    let pulse = try PulseSnapshot.read(from: journal, status: .idle)
 
     #expect(pulse.needsYou.cards.isEmpty)
     #expect(pulse.now.status == .idle)
@@ -64,7 +64,7 @@ func needsYou() throws {
     try insertCard(journal, cycleID: feature.cycleID, issueID: "C-6", state: .done, order: 6)
     try insertCard(journal, cycleID: feature.cycleID, issueID: "C-7", state: .cancelled, order: 7)
 
-    let needsYou = try PulseSnapshot.read(from: journal, asOf: epoch).needsYou
+    let needsYou = try PulseSnapshot.read(from: journal, status: .idle).needsYou
 
     #expect(needsYou.cards.map(\.id) == ["C-1", "C-2", "C-3", "C-4"])
     #expect(needsYou.waitingOnYouCount == 1)
@@ -73,17 +73,19 @@ func needsYou() throws {
     #expect(needsYou.cards.first { $0.id == "C-4" }?.blockReason == nil)
 }
 
-@Test("Working iff the Act Lease is held at asOf")
-func workingVersusIdle() throws {
+@Test("The status is the one handed in, whether or not an Act Lease is held")
+func statusIsHandedIn() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
+
+    // An alive job that holds no lease (stood down, or before it claims one) is working.
+    let noLease = try PulseSnapshot.read(from: journal, status: .working)
+    #expect(noLease.now.status == .working)
+
+    // An Act that crashed holding the lease has no alive job: idle.
     _ = try journal.claimActLease(act: .build, runID: RunID(), mode: .real, now: epoch)
-
-    let held = try PulseSnapshot.read(from: journal, asOf: epoch.addingTimeInterval(60))
-    let expired = try PulseSnapshot.read(from: journal, asOf: epoch.addingTimeInterval(3_600))
-
-    #expect(held.now.status == .working)
-    #expect(expired.now.status == .idle)
+    let crashed = try PulseSnapshot.read(from: journal, status: .idle)
+    #expect(crashed.now.status == .idle)
 }
 
 @Test("An open Attempt is a running Attempt; an ended one is not")
@@ -113,7 +115,7 @@ func runningAttempts() throws {
         )
     }
 
-    let attempts = try PulseSnapshot.read(from: journal, asOf: epoch).now.attempts
+    let attempts = try PulseSnapshot.read(from: journal, status: .idle).now.attempts
 
     #expect(attempts.count == 1)
     let running = try #require(attempts.first)
@@ -134,7 +136,7 @@ func blockedWithoutReason() throws {
         journal, cycleID: feature.cycleID, issueID: "C-2", state: .blocked, blockReason: .undecided, order: 2
     )
 
-    let needsYou = try PulseSnapshot.read(from: journal, asOf: epoch).needsYou
+    let needsYou = try PulseSnapshot.read(from: journal, status: .idle).needsYou
 
     #expect(needsYou.cards.map(\.id) == ["C-1", "C-2"])
     #expect(needsYou.cards.first?.blockReason == nil)
@@ -149,7 +151,7 @@ func runningAttemptsAcrossRepos() throws {
     let run = RunID()
     _ = try journal.claimActLease(act: .build, runID: run, mode: .real, now: epoch)
 
-    let idleWithLease = try PulseSnapshot.read(from: journal, asOf: epoch).now
+    let idleWithLease = try PulseSnapshot.read(from: journal, status: .working).now
     #expect(idleWithLease.status == .working)
     #expect(idleWithLease.attempts.isEmpty)
 
@@ -163,7 +165,7 @@ func runningAttemptsAcrossRepos() throws {
     _ = try journal.recordAttempt(cardID: first, route: route(), runID: run, now: epoch)
     _ = try journal.recordAttempt(cardID: second, route: route(), runID: run, now: epoch)
 
-    let attempts = try PulseSnapshot.read(from: journal, asOf: epoch).now.attempts
+    let attempts = try PulseSnapshot.read(from: journal, status: .idle).now.attempts
 
     #expect(Set(attempts.map(\.cardID)) == ["C-1", "C-2"])
     #expect(attempts.first { $0.cardID == "C-1" }?.repo == "app")
@@ -205,7 +207,7 @@ func featureLanes() throws {
         nightID: opening.night.id, runID: run, now: epoch
     )
 
-    let snapshot = try #require(try PulseSnapshot.read(from: journal, asOf: epoch).feature)
+    let snapshot = try #require(try PulseSnapshot.read(from: journal, status: .idle).feature)
     let lanes = Dictionary(uniqueKeysWithValues: snapshot.lanes.map { ($0.repo, $0) })
 
     #expect(snapshot.id == "F-1")
@@ -235,7 +237,7 @@ func nightState() throws {
     _ = try journal.claimActLease(act: .author, runID: run, mode: .real, now: epoch)
     let opening = try journal.openNight(nightStart: nightStart, mode: .real, act: .author, runID: run, now: epoch)
 
-    let running = try #require(try PulseSnapshot.read(from: journal, asOf: epoch).night)
+    let running = try #require(try PulseSnapshot.read(from: journal, status: .idle).night)
     #expect(running.state == .running)
     #expect(running.startedAt == epoch)
     #expect(running.verdictLine == nil)
@@ -243,7 +245,7 @@ func nightState() throws {
     _ = try journal.closeNight(
         id: opening.night.id, reason: .nightEnd, act: .author, runID: run, now: epoch.addingTimeInterval(10)
     )
-    let done = try #require(try PulseSnapshot.read(from: journal, asOf: epoch).night)
+    let done = try #require(try PulseSnapshot.read(from: journal, status: .idle).night)
     #expect(done.state == .done)
 }
 
@@ -267,7 +269,7 @@ func nightDispositions() throws {
         )
     }
 
-    let night = try #require(try PulseSnapshot.read(from: journal, asOf: epoch).night)
+    let night = try #require(try PulseSnapshot.read(from: journal, status: .idle).night)
 
     #expect(night.cardsByDisposition == [
         DispositionCount(disposition: .done, count: 1),
@@ -292,8 +294,8 @@ func twoJournalsStaySeparate() throws {
     _ = try beta.claimActLease(act: .author, runID: run, mode: .real, now: epoch)
     _ = try beta.openNight(nightStart: nightStart, mode: .real, act: .author, runID: run, now: epoch)
 
-    let alphaPulse = try PulseSnapshot.read(from: alpha, asOf: epoch)
-    let betaPulse = try PulseSnapshot.read(from: beta, asOf: epoch)
+    let alphaPulse = try PulseSnapshot.read(from: alpha, status: .idle)
+    let betaPulse = try PulseSnapshot.read(from: beta, status: .working)
 
     #expect(alphaPulse.needsYou.cards.map(\.id) == ["ALPHA-1"])
     #expect(alphaPulse.feature?.id == "ALPHA-F")
@@ -319,7 +321,7 @@ func noPushedBranchRepositoryStaysAListedLane() throws {
     try journal.append(.noPushedBranchOutcome(cycleID: feature.cycleID, featureIssueID: "F-1", repository: "web"))
     _ = try journal.recordLanding(featureID: feature.featureID, repository: "a", mainlineCommit: "abc", now: epoch)
 
-    let snapshot = try #require(try PulseSnapshot.read(from: journal, asOf: epoch).feature)
+    let snapshot = try #require(try PulseSnapshot.read(from: journal, status: .idle).feature)
     let lanes = Dictionary(uniqueKeysWithValues: snapshot.lanes.map { ($0.repo, $0) })
 
     #expect(Set(lanes.keys) == ["a", "web"])

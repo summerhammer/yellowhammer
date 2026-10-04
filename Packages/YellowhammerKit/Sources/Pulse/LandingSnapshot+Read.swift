@@ -14,10 +14,17 @@ extension LandingSnapshot {
     /// Project's id, opened read-only, read, and closed before the next Project's is opened. The read
     /// never creates or migrates a Journal, and no value in the result comes from two Projects. A Journal
     /// that cannot be read makes its own Project's `journalFailure` and leaves its siblings unchanged.
-    public static func read(configuration: Configuration, configurationDirectory: URL, asOf: Date) -> LandingSnapshot {
+    ///
+    /// A Project's status comes from `actJobs`, not from its Journal: `working` exactly when one of its
+    /// own Act jobs is alive. Each Project is asked about its own jobs only.
+    public static func read(
+        configuration: Configuration, configurationDirectory: URL, actJobs: ActJobs, asOf: Date
+    ) -> LandingSnapshot {
         LandingSnapshot(
             projects: configuration.projects.map {
-                ProjectSnapshot.read($0, configurationDirectory: configurationDirectory, asOf: asOf)
+                ProjectSnapshot.read(
+                    $0, configurationDirectory: configurationDirectory, actJobs: actJobs, asOf: asOf
+                )
             },
             asOf: asOf
         )
@@ -26,20 +33,25 @@ extension LandingSnapshot {
 
 extension ProjectSnapshot {
     /// One Project's snapshot: its name and Repos from its configuration, its Pulse from its Journal.
-    static func read(_ project: ProjectConfiguration, configurationDirectory: URL, asOf: Date) -> ProjectSnapshot {
+    static func read(
+        _ project: ProjectConfiguration, configurationDirectory: URL, actJobs: ActJobs, asOf: Date
+    ) -> ProjectSnapshot {
         var snapshot = ProjectSnapshot(
             id: project.id,
             name: project.name,
             repos: project.repos.map(\.name),
             pulse: .empty
         )
+        let status: ProjectStatus = actJobs.isAlive(projectID: project.id) ? .working : .idle
         let fileURL = JournalStore.defaultFileURL(configurationDirectory: configurationDirectory, id: project.id)
         do {
             let journal = try JournalStore.openReadOnly(at: fileURL, projectID: project.id)
-            snapshot.pulse = try PulseSnapshot.read(from: journal, asOf: asOf)
+            snapshot.pulse = try PulseSnapshot.read(from: journal, status: status)
         } catch JournalError.missing {
-            // No Act of this Project has run yet. The empty Pulse is true: the Project is idle, nothing
-            // needs the Operator, and it has had no Feature and no Night.
+            // No Act of this Project has finished opening a Journal yet. The empty Pulse is true, but
+            // for the status: a first-ever Act may be running before its Journal exists, so the status
+            // still reflects the job. Nothing needs the Operator, and there is no Feature and no Night.
+            snapshot.pulse.now.status = status
         } catch {
             snapshot.journalFailure = "\(error)"
         }
