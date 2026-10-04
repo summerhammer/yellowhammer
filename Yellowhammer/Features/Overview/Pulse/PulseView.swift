@@ -51,7 +51,8 @@ struct PulseView: View {
 }
 
 /// The Project's name heading the main area, so the Pulse always says whose it is, over its status and
-/// Repo count. No status is shown when the Journal could not be read, because none can be derived.
+/// Repo count. The status comes from the Project's `launchd` Act jobs, so it shows even when the Journal
+/// could not be read.
 private struct PulseHeader: View {
     let project: ProjectSnapshot
 
@@ -62,11 +63,9 @@ private struct PulseHeader: View {
                 .lineLimit(2)
                 .accessibilityIdentifier("pulse-heading")
             HStack(spacing: 6) {
-                if project.journalFailure == nil {
-                    Circle().fill(project.status.style).frame(width: 8, height: 8).accessibilityHidden(true)
-                    Text(project.status.rawValue)
-                    Text("\u{00B7}")
-                }
+                Circle().fill(project.status.style).frame(width: 8, height: 8).accessibilityHidden(true)
+                Text(project.status.rawValue)
+                Text("\u{00B7}")
                 Text(project.repos.count == 1 ? "1 Repo" : "\(project.repos.count) Repos")
             }
             .foregroundStyle(.secondary)

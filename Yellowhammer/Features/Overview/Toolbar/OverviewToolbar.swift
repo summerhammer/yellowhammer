@@ -19,7 +19,7 @@ struct OverviewToolbar: ToolbarContent {
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .principal) {
-            if let project, project.journalFailure == nil {
+            if let project {
                 NowToolbarStatus(now: project.pulse.now)
             }
         }

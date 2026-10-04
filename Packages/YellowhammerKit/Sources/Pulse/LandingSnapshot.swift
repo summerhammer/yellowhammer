@@ -42,8 +42,9 @@ public struct ProjectSnapshot: Identifiable, Equatable, Sendable {
     /// read from the Journal, and also when the Project has no Journal yet: no Act of it has run, so the
     /// empty, idle Pulse is true.
     ///
-    /// When this is set, `pulse` is empty and says nothing about the Project. A view states this failure
-    /// in place of the Pulse, and in place of the `idle`/`working` status.
+    /// When this is set, `pulse` is empty and says nothing about the Project, except its `idle`/`working`
+    /// status, which comes from the Project's `launchd` Act jobs and not from the Journal. A view states
+    /// this failure in place of the rest of the Pulse, and still shows the status.
     public var journalFailure: String?
 
     public init(id: ProjectID, name: String, repos: [String], pulse: PulseSnapshot, journalFailure: String? = nil) {
@@ -56,8 +57,8 @@ public struct ProjectSnapshot: Identifiable, Equatable, Sendable {
 
     /// The Sidebar's `idle`/`working`: the same value the Pulse's Now group shows.
     ///
-    /// Check `journalFailure` first. When the Journal could not be read, this is the empty Pulse's
-    /// `idle`, which is not derived from anything.
+    /// Read from the Project's `launchd` Act jobs, never from its Journal, so it holds whether or not
+    /// `journalFailure` is set.
     public var status: ProjectStatus { pulse.now.status }
 
     /// Whether `selection` names something in this Project's own Pulse or Repos. The Inspector shows
