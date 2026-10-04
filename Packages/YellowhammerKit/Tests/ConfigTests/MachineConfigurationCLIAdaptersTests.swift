@@ -78,4 +78,42 @@ struct MachineConfigurationCLIAdaptersTests {
         let reloaded = try MachineConfiguration.load(contentsOf: file)
         #expect(reloaded.cliAdapters == [CLIAdapterDeclaration(name: "claude", executable: "/opt/homebrew/bin/claude")])
     }
+
+    @Test("With no config.toml at all, declaring a CLI on the unconfigured machine creates the file and its directory")
+    func declaringCreatesAMissingMachineFile() throws {
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("yellowhammer-declare-cli-tests-\(UUID().uuidString)")
+        defer { cleanupEditingDirectory(directory) }
+        let file = editingMachineFileURL(directory)
+
+        let edited = MachineConfiguration.unconfigured
+            .declaring(cliAdapter: "claude", executable: "").renderedTOML
+        try Configuration.save(edited, to: file, in: directory, replacing: nil)
+
+        let reloaded = try MachineConfiguration.load(contentsOf: file)
+        #expect(reloaded.cliAdapters == [CLIAdapterDeclaration(name: "claude")])
+        #expect(reloaded.gitHubCredential.rawValue == MachineConfiguration.defaultGitHubCredential)
+        #expect(reloaded.linearInstallations.isEmpty)
+    }
+
+    @Test("A save that expected no config.toml refuses, and keeps the file, when one appeared in the meantime")
+    func creatingRefusesWhenTheFileAppeared() throws {
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("yellowhammer-declare-cli-tests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { cleanupEditingDirectory(directory) }
+        let file = editingMachineFileURL(directory)
+        let handWritten = """
+            [github]
+            credential = "keychain:github"
+            """
+        try handWritten.write(to: file, atomically: true, encoding: .utf8)
+
+        let edited = MachineConfiguration.unconfigured
+            .declaring(cliAdapter: "claude", executable: "").renderedTOML
+        #expect(throws: ConfigurationEditError.changedOnDisk(file: file.path(percentEncoded: false))) {
+            try Configuration.save(edited, to: file, in: directory, replacing: nil)
+        }
+        #expect(try String(contentsOf: file, encoding: .utf8) == handWritten)
+    }
 }
