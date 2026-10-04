@@ -48,6 +48,16 @@ final class LinearInstallationModel {
     /// The local name of the registry entry the most recent attempt installed into, from its `installed`
     /// event: a new entry, or the existing one a re-connect replaced. nil until an attempt installs.
     private(set) var installedInstallationName: String?
+    /// The Operator's local name for a new installation (connect-another only, `installationName` nil),
+    /// passed as `--installation-name`; empty means "use the proposal", the workspace's URL key, which is
+    /// known only once Linear approves. `yh` checks it before the browser opens; the app holds nothing.
+    var newInstallationName = ""
+    /// `yh`'s own line when Linear approved a workspace that was already connected, so the given name was
+    /// discarded and the existing installation re-connected; nil otherwise.
+    private(set) var nameDiscardedNotice: String?
+
+    /// Whether this model connects a new installation, so the view offers the local name field.
+    var namesNewInstallation: Bool { installationName == nil }
 
     private let engine = SetupEngine()
     private var installTask: Task<Void, Never>?
@@ -93,6 +103,7 @@ final class LinearInstallationModel {
     /// argument) repeats the mode this attempt used, rather than always falling back to local.
     func startLinearInstall(remote: Bool = false) {
         lastLinearInstallWasRemote = remote
+        nameDiscardedNotice = nil
         phase = .installing(adminStatement: "")
         installTask = Task { [weak self] in
             await self?.runLinearInstall(remote: remote)
@@ -115,7 +126,11 @@ final class LinearInstallationModel {
     }
 
     private func runLinearInstall(remote: Bool) async {
-        let arguments = SetupInvocation.installLinearArguments(installation: installationName, remote: remote)
+        let arguments = SetupInvocation.installLinearArguments(
+            installation: installationName,
+            installationName: namesNewInstallation ? newInstallationName : nil,
+            remote: remote
+        )
         do {
             let status = try await engine.run(arguments: arguments) { [weak self] line in
                 self?.handleLinearInstallLine(line)
@@ -124,7 +139,11 @@ final class LinearInstallationModel {
                 phase = .failed(text: "yh exited \(status).", reason: nil, wasRemote: remote)
             }
             // After the process ended, so the configuration it wrote is complete when the owner reloads.
-            if status == 0, phase.isInstalled { onInstalled?() }
+            if status == 0, phase.isInstalled {
+                // The name is now taken (or was discarded): the next connect starts from the proposal.
+                newInstallationName = ""
+                onInstalled?()
+            }
         } catch {
             phase = .failed(text: "\(error)", reason: nil, wasRemote: remote)
         }
@@ -158,6 +177,8 @@ final class LinearInstallationModel {
             phase = .portsBusy(text: text, ports: ports)
         case .failed(let reason, let text):
             handleFailed(reason: reason, text: text)
+        case .installationNameDiscarded(_, _, let text):
+            nameDiscardedNotice = text
         case .installed(let workspaceName, let installation):
             installedInstallationName = installation
             phase = .installed(workspaceName: workspaceName)

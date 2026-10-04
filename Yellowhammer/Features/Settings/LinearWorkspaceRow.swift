@@ -8,6 +8,7 @@ struct LinearWorkspaceRow: View {
     let model: LinearWorkspacesModel
     let workspace: LinearWorkspacesModel.Workspace
     @State private var isConfirmingRemoval = false
+    @State private var isConfirmingOrphanRemoval = false
 
     private var name: String { workspace.name }
 
@@ -19,6 +20,13 @@ struct LinearWorkspaceRow: View {
                 removal
             }
             projects
+            if let block = model.removalBlock(for: workspace) {
+                Text(block)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .accessibilityIdentifier("settings-linear-remove-blocked-\(name)")
+            }
             if let message = model.statuses[name]?.check.message {
                 Text(message)
                     .font(.callout)
@@ -93,10 +101,22 @@ struct LinearWorkspaceRow: View {
         }
     }
 
+    /// *Remove…*, disabled while Projects use the installation or a Project file failed to decode (the
+    /// reason is shown under the header); beside it, *Remove anyway…* when the live check found the
+    /// authorization refused (OQ121 item 11).
     private var removal: some View {
+        HStack(spacing: 12) {
+            if model.offersOrphanRemoval(for: workspace) {
+                orphanRemoval
+            }
+            plainRemoval
+        }
+    }
+
+    private var plainRemoval: some View {
         Button("Remove\u{2026}", role: .destructive) { isConfirmingRemoval = true }
             .buttonStyle(.borderless)
-            .disabled(model.removing != nil)
+            .disabled(model.removing != nil || model.removalBlock(for: workspace) != nil)
             .accessibilityIdentifier("settings-linear-remove-\(name)")
             .confirmationDialog(
                 "Remove the Linear workspace \(model.label(for: workspace))?", isPresented: $isConfirmingRemoval
@@ -109,5 +129,40 @@ struct LinearWorkspaceRow: View {
                         + "settings."
                 )
             }
+    }
+
+    private var orphanRemoval: some View {
+        Button("Remove Anyway\u{2026}", role: .destructive) { isConfirmingOrphanRemoval = true }
+            .buttonStyle(.borderless)
+            .disabled(model.removing != nil)
+            .accessibilityIdentifier("settings-linear-remove-anyway-\(name)")
+            .confirmationDialog(
+                "Remove \(name) anyway?", isPresented: $isConfirmingOrphanRemoval
+            ) {
+                Button("Remove Anyway", role: .destructive) {
+                    Task { await model.remove(name, orphanProjects: true) }
+                }
+            } message: {
+                Text(orphanRemovalMessage)
+            }
+    }
+
+    /// What OQ121 items 12 and 14 list: the installation by local name (the workspace name cannot be read
+    /// while Linear refuses it), the Projects left refused, the next step for each, that the app stays
+    /// installed in Linear, and the undo under this exact local name. `yh`'s report repeats it afterwards.
+    private var orphanRemovalMessage: String {
+        let projects = workspace.projects
+        let commands = projects.map { "yh project remove \($0)" } // glossary:ignore GL001
+        return [
+            "Linear refuses the installation \(name), so this deletes this Mac\u{2019}s entry and Keychain "
+                + "items for it while Projects still use it.",
+            "These Projects will be refused at load until they are removed or the workspace is re-connected: "
+                + projects.joined(separator: ", ") + ".",
+            "Next, remove each of them: " + commands.joined(separator: "; ") + ".",
+            "Yellowhammer stays installed in that Linear workspace until a workspace admin removes it in "
+                + "Linear\u{2019}s settings.",
+            "To undo, re-connect the same workspace under this exact local name: "
+                + "yh setup --installation-name \(name)."
+        ].joined(separator: "\n\n")
     }
 }
