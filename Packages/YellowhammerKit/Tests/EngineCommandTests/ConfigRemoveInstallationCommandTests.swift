@@ -209,8 +209,8 @@ struct ConfigRemoveInstallationCommandTests {
         #expect(try MachineConfiguration.parse(text, file: "config.toml").linearInstallations.map(\.name) == ["beta"])
         // A strict load now refuses the Projects as naming a missing installation.
         let strict = try Configuration.load(directory: directory.url)
-        #expect(Set(strict.invalidProjects.map { $0.file.split(separator: "/").last.map(String.init) ?? "" })
-            == ["abc.toml", "zeta.toml"])
+        let refusedFiles: Set<String> = Set(strict.invalidProjects.map { URL(filePath: $0.file).lastPathComponent })
+        #expect(refusedFiles == ["abc.toml", "zeta.toml"])
         #expect(strict.projects.isEmpty)
         let report = result.lines.joined(separator: "\n")
         #expect(report.contains("Installation acme removed"))
