@@ -1,0 +1,64 @@
+name: Probe drift check (live)
+
+# Dormant until a self-hosted Apple Silicon runner with the agent CLIs installed and authenticated
+# is registered (#199). `workflow_dispatch` only — a `schedule` trigger with no matching runner
+# would just queue forever. A hosted runner cannot run this: it has no authenticated CLIs, and no
+# Ledger with earlier Probe Results to compute drift against.
+#
+# The runner must run as a user whose `$HOME` persists between runs: `yh probe` records each Probe
+# Result in that user's machine-wide Ledger, and drift is computed against the previous result
+# there (`ProbeResult.drift(since:)`). A fresh `$HOME` can never show drift.
+#
+# Once such a runner exists, add:
+#
+#   on:
+#     schedule:
+#       - cron: "0 2 * * *"   # pick a time; this repo has no other opinion on cadence
+#     workflow_dispatch:
+#
+# and drop the manual step 1.2 in doc/release-checklist.md in favour of this workflow, which
+# fails the job on drift, on a failed probe, and on a probe that did not run.
+#
+# SECURITY WARNING: This workflow runs on a self-hosted runner (`runs-on: [self-hosted, ...]`).
+# Because this repository is public, NEVER add a `pull_request` or `pull_request_target` trigger
+# to this file. Running arbitrary code from untrusted forks on a self-hosted runner allows remote
+# code execution on the host machine. Triggers must remain restricted to `workflow_dispatch` or
+# controlled `schedule` runs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      clis:
+        description: "Comma-separated list of agent CLIs to probe"
+        required: false
+        default: "claude,codex"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  probe-drift-live:
+    name: Probe drift check (live)
+    runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build the app
+        run: |
+          xcodebuild -project Yellowhammer.xcodeproj -scheme Yellowhammer \
+            -derivedDataPath .build/app build
+
+      - name: Run probe drift check
+        env:
+          CLIS: ${{ github.event.inputs.clis || 'claude,codex' }}
+        run: |
+          python3 scripts/ci/check_probe_drift.py \
+            --clis "$CLIS" \
+            --engine-bin .build/app/Build/Products/Debug/Yellowhammer.app/Contents/MacOS/yh \
+            --summary-file "$GITHUB_STEP_SUMMARY"

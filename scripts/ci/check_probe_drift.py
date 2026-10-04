@@ -9,7 +9,13 @@ regressions (drift) in:
   - session handling (session resumption)
   - process containment
 
-Fails loudly (exit code 1) on any detected drift or probe failure before a release ships.
+Fails loudly (exit code 1) on any detected drift or probe failure before a release ships, and
+always when a probe did not run at all (no `yh`, an uninstalled CLI, a timeout): a probe that
+never ran is not a green.
+
+`yh` is the `Engine` target of `Yellowhammer.xcodeproj`, not a Swift package product, so the
+script runs the one embedded in a built app (`DEFAULT_ENGINE_BIN`) unless `--engine-bin` names
+another.
 """
 
 import argparse
@@ -19,6 +25,14 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Tuple
+
+# Where `xcodebuild -project Yellowhammer.xcodeproj -scheme Yellowhammer -derivedDataPath .build/app
+# build` puts `yh`, relative to the repository root.
+DEFAULT_ENGINE_BIN = ".build/app/Build/Products/Debug/Yellowhammer.app/Contents/MacOS/yh"
+
+# One `yh probe <cli>` makes several real dispatches, each allowed 300 s by `CLIProbe`, so the
+# per-CLI cap is far above that.
+DEFAULT_TIMEOUT_SECONDS = 1800
 
 
 class ProbeResultInfo(NamedTuple):
@@ -36,6 +50,9 @@ class ProbeResultInfo(NamedTuple):
     eligibility: Optional[str]
     exit_code: int
     raw_output: str
+    # `yh probe` prints a `verdict:` line only after a probe has run. Without one, the probe never
+    # ran (no `yh`, an uninstalled CLI, a timeout) and nothing was checked.
+    completed: bool
 
 
 def parse_probe_output(output: str, exit_code: int = 0) -> ProbeResultInfo:
@@ -52,6 +69,7 @@ def parse_probe_output(output: str, exit_code: int = 0) -> ProbeResultInfo:
     drift_message = None
     regressions: List[str] = []
     eligibility = None
+    completed = False
 
     for line in output.splitlines():
         trimmed = line.strip()
@@ -71,6 +89,7 @@ def parse_probe_output(output: str, exit_code: int = 0) -> ProbeResultInfo:
             session_resumption = trimmed.split(":", 1)[1].strip()
         elif trimmed.startswith("verdict:"):
             verdict = trimmed.split(":", 1)[1].strip()
+            completed = True
         elif trimmed.startswith("reason:"):
             reason = trimmed.split(":", 1)[1].strip()
         elif "drift since the previous probe" in trimmed:
@@ -101,35 +120,31 @@ def parse_probe_output(output: str, exit_code: int = 0) -> ProbeResultInfo:
         eligibility=eligibility,
         exit_code=exit_code,
         raw_output=output,
+        completed=completed,
     )
 
 
 def run_probe_command(
     cli_name: str,
     engine_bin: Optional[str] = None,
-    config_dir: Optional[str] = None,
     repo_root: Optional[Path] = None,
     extra_env: Optional[Dict[str, str]] = None,
+    timeout: int = DEFAULT_TIMEOUT_SECONDS,
 ) -> Tuple[int, str]:
     """Execute `yh probe <cli>` and return (exit_code, combined_output)."""
     env = os.environ.copy()
     if extra_env:
         env.update(extra_env)
 
-    if engine_bin:
-        cmd = [engine_bin, "probe", cli_name]
-    else:
-        # Default to swift run in repo
-        cwd = str(repo_root) if repo_root else os.getcwd()
-        cmd = [
-            "swift",
-            "run",
-            "--package-path",
-            os.path.join(cwd, "Packages", "YellowhammerKit"),
-            "yh",
-            "probe",
-            cli_name,
-        ]
+    if not engine_bin:
+        engine_bin = str((repo_root or Path.cwd()) / DEFAULT_ENGINE_BIN)
+        if not os.path.isfile(engine_bin):
+            return 1, (
+                f"Error: no `yh` at {engine_bin}. Build the app first, from the repository root:\n"
+                "  xcodebuild -scheme Yellowhammer -derivedDataPath .build/app build\n"
+                "or pass --engine-bin."
+            )
+    cmd = [engine_bin, "probe", cli_name]
 
     try:
         proc = subprocess.run(
@@ -138,12 +153,12 @@ def run_probe_command(
             stderr=subprocess.STDOUT,
             text=True,
             env=env,
-            timeout=120,
+            timeout=timeout,
         )
         return proc.returncode, proc.stdout
     except subprocess.TimeoutExpired as e:
         output = e.stdout if isinstance(e.stdout, str) else (e.stdout.decode() if e.stdout else "")
-        return 1, f"Error: probe timed out after 120s\n{output}"
+        return 1, f"Error: probe timed out after {timeout}s\n{output}"
     except Exception as e:
         return 1, f"Error executing probe: {e}"
 
@@ -169,6 +184,11 @@ def generate_markdown_summary(results: List[ProbeResultInfo]) -> str:
     ]
 
     for r in results:
+        if not r.completed:
+            lines.append(
+                f"| `{r.cli or 'unknown'}` | | | | | | | **DID NOT RUN** | — |"
+            )
+            continue
         drift_str = "None"
         if r.drift_message:
             drift_str = f"**DRIFT:** {', '.join(r.regressions)}"
@@ -185,7 +205,17 @@ def generate_markdown_summary(results: List[ProbeResultInfo]) -> str:
 
     lines.append("")
     has_drift = any(r.drift_message is not None for r in results)
-    has_failure = any(r.verdict == "failed" for r in results)
+    has_failure = any(r.completed and r.verdict == "failed" for r in results)
+    not_run = [r.cli for r in results if not r.completed]
+
+    if not_run:
+        lines.append("> [!CAUTION]")
+        lines.append(
+            "> **Probe Did Not Run:** "
+            + ", ".join(f"`{cli}`" for cli in not_run)
+            + ". Nothing was checked for these CLIs; see the job log."
+        )
+        lines.append("")
 
     if has_drift:
         lines.append("> [!WARNING]")
@@ -193,7 +223,7 @@ def generate_markdown_summary(results: List[ProbeResultInfo]) -> str:
     elif has_failure:
         lines.append("> [!NOTE]")
         lines.append("> **Probe Finding Failure:** One or more agent CLIs failed probe criteria, but no regression (drift) was detected.")
-    else:
+    elif not not_run:
         lines.append("> [!TIP]")
         lines.append("> **All Probes Healthy:** No probe regressions or failures detected.")
 
@@ -218,13 +248,13 @@ def main() -> int:
         "--engine-bin",
         type=str,
         default=None,
-        help="Path to `yh` engine executable",
+        help=f"Path to the `yh` engine executable (default: <repo-root>/{DEFAULT_ENGINE_BIN})",
     )
     parser.add_argument(
-        "--config-dir",
-        type=str,
-        default=None,
-        help="Custom configuration directory containing config.toml/ledger.db",
+        "--timeout",
+        type=int,
+        default=DEFAULT_TIMEOUT_SECONDS,
+        help=f"Seconds one `yh probe <cli>` may run before it counts as not run (default: {DEFAULT_TIMEOUT_SECONDS})",
     )
     parser.add_argument(
         "--summary-file",
@@ -234,33 +264,37 @@ def main() -> int:
     )
     parser.add_argument(
         "--fail-on-drift",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
         default=True,
-        help="Exit with non-zero code on detected drift (default: True)",
+        help="Exit with non-zero code on detected drift (default: on)",
     )
     parser.add_argument(
         "--fail-on-error",
-        action="store_true",
-        default=False,
-        help="Exit with non-zero code on probe verdict failure even without drift (default: False)",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Exit with non-zero code on a failed probe verdict even without drift (default: on)",
     )
 
     args = parser.parse_args()
     repo_root = Path(args.repo_root)
     cli_list = [c.strip() for c in args.clis.split(",") if c.strip()]
+    if not cli_list:
+        print("::error::No CLIs to probe: --clis is empty.", file=sys.stderr)
+        return 1
 
     print(f"Checking probe drift for CLIs: {', '.join(cli_list)}")
     results: List[ProbeResultInfo] = []
     any_drift = False
     any_error = False
+    any_not_run = False
 
     for cli in cli_list:
         print(f"\n--- Running probe for `{cli}` ---")
         exit_code, output = run_probe_command(
             cli_name=cli,
             engine_bin=args.engine_bin,
-            config_dir=args.config_dir,
             repo_root=repo_root,
+            timeout=args.timeout,
         )
         print(output)
 
@@ -269,7 +303,14 @@ def main() -> int:
             info = info._replace(cli=cli)
         results.append(info)
 
-        if info.drift_message:
+        if not info.completed:
+            any_not_run = True
+            print(
+                f"::error title=Probe Did Not Run [{cli}]::`yh probe {cli}` exited {exit_code} "
+                "without a verdict; nothing was checked.",
+                file=sys.stderr,
+            )
+        elif info.drift_message:
             any_drift = True
             regressions_text = ", ".join(info.regressions)
             print(
@@ -287,6 +328,10 @@ def main() -> int:
                 f.write(summary_md + "\n")
         except Exception as e:
             print(f"Warning: could not write summary file {args.summary_file}: {e}", file=sys.stderr)
+
+    if any_not_run:
+        print("\n::error::Probe drift check failed: one or more probes did not run.", file=sys.stderr)
+        return 1
 
     if any_drift and args.fail_on_drift:
         print("\n::error::Probe drift check failed: one or more CLIs regressed.", file=sys.stderr)
