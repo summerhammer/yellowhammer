@@ -91,11 +91,34 @@ private struct RepoCard: View {
                         CheckField(check: $repo.check)
                     }
                 }
+                if let missing = missingFieldsText {
+                    Label {
+                        Text(missing).foregroundStyle(.secondary)
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.warning)
+                    }
+                    .font(.callout)
+                    .accessibilityIdentifier("setup-repo-missing")
+                }
             }
         }
         .padding(14)
         .background(cardTint.opacity(0.07), in: .rect(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(cardTint.opacity(0.22)))
+    }
+
+    /// What this card still needs, named as its own fields are labelled. The step's problem count is otherwise
+    /// the only sign, and an empty Check shows only its prompt, which reads as a value.
+    private var missingFieldsText: String? {
+        let missing = draft.missingFields(of: repo).map { field in
+            switch field {
+            case "role": "a Repo Role"
+            case "Check": "a Check (\u{201c}none\u{201d} declares no Check)"
+            default: "a \(field)"
+            }
+        }
+        guard !missing.isEmpty else { return nil }
+        return "Still needs " + missing.formatted(.list(type: .and)) + "."
     }
 
     private var cardTint: AnyShapeStyle {

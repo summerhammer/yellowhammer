@@ -308,6 +308,15 @@ struct LinearBlock: View {
     WizardStepBody.preview(.repos, $draft).frame(width: 620, height: 560)
 }
 
+#Preview("Repos, one incomplete") {
+    @Previewable @State var draft = {
+        var draft = AddProjectDraft.preview
+        draft.addRepo(path: "~/dev/acme/acme-tools")
+        return draft
+    }()
+    WizardStepBody.preview(.repos, $draft).frame(width: 620, height: 640)
+}
+
 #Preview("Spec Source") {
     @Previewable @State var draft = AddProjectDraft.preview
     WizardStepBody.preview(.specSource, $draft).frame(width: 620, height: 560)
