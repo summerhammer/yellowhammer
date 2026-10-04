@@ -33,7 +33,6 @@ struct FeatureGroup: View {
                     ForEach(feature.lanes) { lane in
                         FeatureLaneRow(lane: lane, openDestination: openDestination)
                             .pulseRowHighlight(inspected == .repo(lane.repo))
-                            .accessibilityIdentifier("feature-lane-\(lane.repo)")
                     }
                 }
             } else {
@@ -88,6 +87,9 @@ private struct FeatureLaneRow: View {
                 Label(lane.repo, systemImage: DomainSymbol.repo).lineLimit(1).truncationMode(.middle)
             }
             .buttonStyle(.plain)
+            // On the Repo's own button, not the row: a row's identifier replaces every child's, the pull
+            // request chip's included.
+            .accessibilityIdentifier("feature-lane-\(lane.repo)")
             Spacer(minLength: 8)
             ProgressView(value: Double(lane.cardsDone), total: Double(max(lane.cardsTotal, 1)))
                 .frame(width: 64)
