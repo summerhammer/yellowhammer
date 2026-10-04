@@ -66,25 +66,21 @@ extension Doctor {
             )
         }
 
-        guard credentials.secret(for: installation.credential) != nil else {
-            return [linearFinding(
-                scope(nil), "installation", .failure,
-                "no Linear Installation token pair found; re-connect this workspace: "
-                    + Self.reconnectFix(installation)
-            )]
-        }
         let board = bindProvisioning(installation, "")
-        let workspaceName = try? await board.workspace().name
-        let members: [BoardMember]
-        switch await authorize(board, installation: installation, scope: scope(workspaceName)) {
-        case .failure(let failure):
-            return [failure.finding]
-        case .success(let read):
-            members = read
+        let probe = await InstallationAuthorizationProbe(
+            credentials: credentials, bindProvisioning: { _, _ in board }
+        ).check(installation)
+        let workspaceName = probe.askedLinear ? try? await board.workspace().name : nil
+        let members = probe.members
+        if let failure = authorizationFailure(probe.authorization, installation, scope(workspaceName)) {
+            return [failure]
         }
 
         var findings = [
-            linearFinding(scope(workspaceName), "authorization", .pass, "Linear authorization succeeded"),
+            linearFinding(
+                scope(workspaceName), "authorization", .pass, "Linear authorization succeeded",
+                authorization: .authorized
+            ),
             operatorIdentityFinding(
                 installation: installation, members: members, scope: scope(workspaceName)
             )
@@ -104,33 +100,56 @@ extension Doctor {
         return findings
     }
 
-    /// The workspace's members, or the one authorization failure finding.
-    private func authorize(
-        _ board: any BoardProvisioning, installation: LinearInstallation, scope: DoctorInstallationScope
-    ) async -> Result<[BoardMember], DoctorFindingFailure> {
-        func failure(_ message: String) -> Result<[BoardMember], DoctorFindingFailure> {
-            .failure(DoctorFindingFailure(
-                finding: linearFinding(scope, "authorization", .failure, message)
-            ))
-        }
-        do {
-            return .success(try await board.workspaceMembers())
-        } catch .notAuthenticated {
-            return failure(
-                "the Linear installation was revoked or its sign-in expired; a workspace admin must approve "
-                    + "the app again: " + Self.reconnectFix(installation)
+    /// The one failure finding for a probe result that is not `.authorized`; nil when it is.
+    private func authorizationFailure(
+        _ authorization: InstallationAuthorization, _ installation: LinearInstallation,
+        _ scope: DoctorInstallationScope
+    ) -> DoctorFinding? {
+        switch authorization {
+        case .authorized:
+            return nil
+        case .refused(.keychainAbsent):
+            return linearFinding(
+                scope, "installation", .failure,
+                "no Linear Installation token pair found; re-connect this workspace: "
+                    + Self.reconnectFix(installation),
+                authorization: .refused
             )
-        } catch .unreachable {
-            return failure("Linear could not be reached")
-        } catch {
-            return failure("Linear authorization failed: \(error)")
+        case .refused(.linearRefused):
+            return linearFinding(
+                scope, "authorization", .failure,
+                "the Linear installation was revoked or its sign-in expired; a workspace admin must approve "
+                    + "the app again: " + Self.reconnectFix(installation),
+                authorization: .refused
+            )
+        case .unreachable(.keychainUnreadable(let detail)):
+            return linearFinding(
+                scope, "authorization", .failure,
+                "the Keychain item of this installation could not be read (\(detail)); "
+                    + "unlock the login Keychain and run `yh doctor` again",
+                authorization: .unreachable
+            )
+        case .unreachable(.linearUnreachable):
+            return linearFinding(
+                scope, "authorization", .failure, "Linear could not be reached", authorization: .unreachable
+            )
+        case .unreachable(.unconfirmed(let detail)):
+            return linearFinding(
+                scope, "authorization", .failure, "Linear authorization failed: \(detail)",
+                authorization: .unreachable
+            )
         }
     }
 
     private func linearFinding(
-        _ scope: DoctorInstallationScope, _ subject: String, _ severity: DoctorSeverity, _ message: String
+        _ scope: DoctorInstallationScope, _ subject: String, _ severity: DoctorSeverity, _ message: String,
+        authorization: InstallationAuthorizationState? = nil
     ) -> DoctorFinding {
-        finding(.linear, subject: subject, severity, Self.installationPrefix(scope) + message, installation: scope)
+        var finding = finding(
+            .linear, subject: subject, severity, Self.installationPrefix(scope) + message, installation: scope
+        )
+        finding.authorization = authorization
+        return finding
     }
 
     /// `installation acme (workspace "Acme Inc"; Projects alpha, beta): ` — the workspace name only when it
@@ -172,9 +191,4 @@ extension Doctor {
         }
         return linearFinding(scope, "operator", .pass, "Operator identity \(configured.rawValue) is a candidate")
     }
-}
-
-/// An authorization failure, carried as a `Result`'s error.
-struct DoctorFindingFailure: Error {
-    let finding: DoctorFinding
 }

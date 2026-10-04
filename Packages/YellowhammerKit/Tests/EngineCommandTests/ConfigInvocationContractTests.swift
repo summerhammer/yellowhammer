@@ -27,4 +27,16 @@ struct ConfigInvocationContractTests {
         let command = try #require(parsed as? ConfigRemoveInstallationCommand)
         #expect(command.name == "acme")
     }
+
+    @Test("removeInstallationArguments with orphanProjects parses back with both flags")
+    func removeInstallationOrphanParsesBack() throws {
+        let arguments = ConfigInvocation.removeInstallationArguments(name: "acme", orphanProjects: true)
+
+        let parsed = try ConfigCommand.parseAsRoot(Array(arguments.dropFirst()))
+
+        let command = try #require(parsed as? ConfigRemoveInstallationCommand)
+        #expect(command.name == "acme")
+        #expect(command.orphanProjects)
+        #expect(command.yes)
+    }
 }
