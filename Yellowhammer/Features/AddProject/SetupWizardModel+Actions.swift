@@ -108,7 +108,6 @@ extension SetupWizardModel {
             if let id = declaredProjectID, let bounds = draft.boundsToWrite(afterExitStatus: status) {
                 writeBounds(bounds, for: id)
             }
-            loadContext()
             await checkNotificationStatus()
             // Last, so Done appears only once everything the run does after `yh` is finished.
             runExitStatus = status
