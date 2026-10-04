@@ -1,5 +1,6 @@
 import Config
 import Domain
+import Security
 
 /// A `yh setup` failure, printed as-is and turned into a non-zero exit.
 struct SetupError: Error, CustomStringConvertible, Sendable {
@@ -18,6 +19,23 @@ struct SetupError: Error, CustomStringConvertible, Sendable {
 /// value itself (opaque JSON, `LinearInstallationStore`'s own concern) is read back but never used here.
 protocol SetupCredentialStore: Sendable {
     func secret(for reference: CredentialReference) -> String?
+    /// Whether the item is there, distinguishing "absent" from "present but could not be read" (a locked
+    /// Keychain). The default derives from ``secret(for:)``, which cannot tell the two apart.
+    func presence(of reference: CredentialReference) -> CredentialPresence
+}
+
+/// The answer of ``SetupCredentialStore/presence(of:)``. Never carries the secret.
+enum CredentialPresence: Equatable, Sendable {
+    case present
+    case absent
+    /// The item may exist but the read failed (locked Keychain, interaction not allowed, …).
+    case unreadable(String)
+}
+
+extension SetupCredentialStore {
+    func presence(of reference: CredentialReference) -> CredentialPresence {
+        secret(for: reference) != nil ? .present : .absent
+    }
 }
 
 /// Wraps ``KeychainCredentialStore`` as a ``SetupCredentialStore``.
@@ -26,6 +44,16 @@ struct KeychainSetupCredentialStore: SetupCredentialStore {
 
     func secret(for reference: CredentialReference) -> String? {
         try? store.read(reference)
+    }
+
+    func presence(of reference: CredentialReference) -> CredentialPresence {
+        do {
+            _ = try store.read(reference)
+            return .present
+        } catch {
+            if error.status == errSecItemNotFound { return .absent }
+            return .unreadable("\(error)")
+        }
     }
 }
 

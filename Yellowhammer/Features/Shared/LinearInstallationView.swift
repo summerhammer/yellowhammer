@@ -27,6 +27,7 @@ struct LinearInstallationView: View {
             ProgressView("Checking for an existing installation…")
                 .accessibilityIdentifier("setup-linear-checking")
         case .notInstalled:
+            nameField
             if arrangesInstallButtonsInRow {
                 HStack {
                     installButtons
@@ -66,13 +67,37 @@ struct LinearInstallationView: View {
             }
         case .failed(let text, let reason, let wasRemote):
             Text(text).accessibilityIdentifier("setup-linear-failed")
+            nameField
             failedButtons(reason: reason, wasRemote: wasRemote)
         case .installed(let workspaceName):
             Text(workspaceName.map { "Installed in the Linear workspace \($0)." } ?? "Installed.")
                 .accessibilityIdentifier("setup-linear-installed")
+            if let notice = model.nameDiscardedNotice {
+                Text(notice)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("setup-linear-name-discarded")
+            }
             if offersReinstall {
+                nameField
                 reinstallButtons
             }
+        }
+    }
+
+    /// The new installation's local name (OQ120), shown before the browser opens and only when this model
+    /// connects a new workspace. Left empty, `yh` uses the workspace's URL key, which only Linear's approval
+    /// reveals, so the field cannot be prefilled with it.
+    @ViewBuilder private var nameField: some View {
+        if model.namesNewInstallation {
+            TextField("Local name", text: $model.newInstallationName, prompt: Text("the workspace\u{2019}s URL key"))
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 280)
+                .accessibilityIdentifier("setup-linear-installation-name")
+            Text("The name this Mac uses for the workspace; it cannot be changed later. Leave it empty to use the "
+                + "workspace\u{2019}s URL key.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

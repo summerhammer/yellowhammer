@@ -52,6 +52,10 @@ struct SetupOptions {
     /// `--installation`: the local name of the Linear App Installation this run acts on (a re-connect
     /// target under `--install-linear`).
     let installation: String?
+    /// `--installation-name`: the local name for a NEW Linear App Installation. It never selects or
+    /// renames an existing one, so it cannot be combined with `--installation`; when Linear approves a
+    /// workspace already in the registry the name is discarded (and the run says so).
+    let installationName: String?
     let githubCredential: CredentialReference?
     /// In `--cli` order.
     let cliAdapters: [CLIAdapterDeclaration]
@@ -75,6 +79,7 @@ struct SetupOptions {
         eventsJSON = try Self.parseEventsJSON(command)
         remoteApproval = try Self.parseRemoteApproval(command)
         installation = try Self.parseInstallation(command.installation)
+        installationName = try Self.parseInstallationName(command)
         githubCredential = try Self.parseCredential(command.githubCredential, option: "--github-credential")
         operatorID = command.operatorID.map { BoardObjectID(rawValue: $0) }
 
@@ -135,38 +140,6 @@ struct SetupOptions {
             )
         }
         return .config(URL(filePath: configPath, directoryHint: .isDirectory))
-    }
-
-    /// `--print-choices` is exclusive with everything that generates or adopts configuration; it only
-    /// takes the options that reach the Linear client, exactly as `--init` would.
-    private static func validatePrintChoicesScope(_ command: SetupCommand) throws {
-        let forbidden: [(Bool, String)] = [
-            (command.initialize, "--init"),
-            (command.config != nil, "--config"),
-            (command.project != nil, "--project"), // glossary:ignore GL001
-            (command.projectName != nil, "--project-name"), // glossary:ignore GL001
-            (command.linearProject != nil, "--linear-project"), // glossary:ignore GL001
-            (command.linearTeam != nil, "--linear-team"),
-            (command.specSource != nil, "--spec-source"),
-            (command.nightStart != nil, "--night-start"),
-            (command.nightEnd != nil, "--night-end"),
-            (command.buildEveryMinutes != nil, "--build-every-minutes"),
-            (!command.repo.isEmpty, "--repo"),
-            (!command.cli.isEmpty, "--cli"),
-            (command.route != nil, "--route"),
-            (!command.fallback.isEmpty, "--fallback"),
-            (command.operatorID != nil, "--operator"),
-            (command.installJobs, "--install-jobs"),
-            (command.exportJobs != nil, "--export-jobs"),
-            (command.cron, "--cron"),
-            (command.installLinear, "--install-linear")
-        ]
-        let present = forbidden.filter(\.0).map(\.1)
-        guard present.isEmpty else {
-            throw ValidationError(
-                "--print-choices cannot be combined with " + present.joined(separator: ", ") // glossary:ignore GL001
-            )
-        }
     }
 
     /// `--install-jobs` and `--export-jobs` are mutually exclusive; `--cron` requires `--export-jobs`.
@@ -333,5 +306,54 @@ struct SetupOptions {
         return RepoDeclaration(
             name: name, path: path, role: RepoRole(rawValue: role), check: check == "none" ? .none : .command(check)
         )
+    }
+}
+
+extension SetupOptions {
+    /// `--print-choices` is exclusive with everything that generates or adopts configuration; it only
+    /// takes the options that reach the Linear client, exactly as `--init` would.
+    private static func validatePrintChoicesScope(_ command: SetupCommand) throws {
+        let forbidden: [(Bool, String)] = [
+            (command.initialize, "--init"),
+            (command.config != nil, "--config"),
+            (command.project != nil, "--project"), // glossary:ignore GL001
+            (command.projectName != nil, "--project-name"), // glossary:ignore GL001
+            (command.linearProject != nil, "--linear-project"), // glossary:ignore GL001
+            (command.linearTeam != nil, "--linear-team"),
+            (command.specSource != nil, "--spec-source"),
+            (command.nightStart != nil, "--night-start"),
+            (command.nightEnd != nil, "--night-end"),
+            (command.buildEveryMinutes != nil, "--build-every-minutes"),
+            (!command.repo.isEmpty, "--repo"),
+            (!command.cli.isEmpty, "--cli"),
+            (command.route != nil, "--route"),
+            (!command.fallback.isEmpty, "--fallback"),
+            (command.operatorID != nil, "--operator"),
+            (command.installJobs, "--install-jobs"),
+            (command.exportJobs != nil, "--export-jobs"),
+            (command.cron, "--cron"),
+            (command.installLinear, "--install-linear"),
+            (command.installationName != nil, "--installation-name")
+        ]
+        let present = forbidden.filter(\.0).map(\.1)
+        guard present.isEmpty else {
+            throw ValidationError(
+                "--print-choices cannot be combined with " + present.joined(separator: ", ") // glossary:ignore GL001
+            )
+        }
+    }
+
+    private static func parseInstallationName(_ command: SetupCommand) throws -> String? {
+        guard let raw = command.installationName else { return nil }
+        guard !raw.trimmingCharacters(in: .whitespaces).isEmpty else {
+            throw ValidationError("--installation-name must not be empty")
+        }
+        guard command.installation == nil else {
+            throw ValidationError(
+                "--installation-name names a new Linear App Installation and cannot be combined with "
+                    + "--installation, which selects an existing one"
+            )
+        }
+        return raw
     }
 }

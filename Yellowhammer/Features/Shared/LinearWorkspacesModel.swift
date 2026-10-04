@@ -33,6 +33,8 @@ final class LinearWorkspacesModel {
     struct Status: Equatable {
         let workspaceName: String?
         let check: LinearInstallationStatus
+        /// The live check's verdict on its authorization; only `.refused` offers *Remove anyway…* (OQ121).
+        var authorization: InstallationAuthorizationState?
     }
 
     let directory: URL
@@ -41,6 +43,9 @@ final class LinearWorkspacesModel {
     private(set) var configMissing = false
     /// Why `config.toml` could not be loaded, in the loader's own words.
     private(set) var loadFailure: String?
+    /// The Project files that failed to decode. Any one blocks every *Remove*: it may name the
+    /// installation, and `yh` refuses the removal while it cannot know (OQ109 item 14).
+    private(set) var invalidProjectFiles: [String] = []
     /// The doctor's reading per installation name; an installation the doctor said nothing about is absent.
     private(set) var statuses: [String: Status] = [:]
     /// `yh`'s lines after a removal it refused, per installation, shown verbatim in that row.
@@ -87,17 +92,23 @@ final class LinearWorkspacesModel {
 
     // MARK: Reading
 
-    /// Reads `config.toml` and the Project files in `directory`. Never writes.
+    /// Reads `config.toml` and the Project files in `directory`. Never writes. The removal-shaped load,
+    /// as `yh config remove-installation` reads them: a Project naming a missing installation still loads,
+    /// so it never blocks another installation's *Remove*.
     func load() {
         do {
-            guard let configuration = try Configuration.loadIfSetUp(directory: directory) else {
+            let machineFile = directory.appending(component: "config.toml", directoryHint: .notDirectory)
+            guard FileManager.default.fileExists(atPath: machineFile.path(percentEncoded: false)) else {
                 configMissing = true
                 loadFailure = nil
+                invalidProjectFiles = []
                 apply([])
                 return
             }
+            let configuration = try Configuration.loadLeniently(directory: directory)
             configMissing = false
             loadFailure = nil
+            invalidProjectFiles = configuration.invalidProjects.map(\.file).sorted()
             apply(configuration.machine.linearInstallations.map { installation in
                 Workspace(
                     name: installation.name,
@@ -111,6 +122,7 @@ final class LinearWorkspacesModel {
         } catch {
             configMissing = false
             loadFailure = error.description
+            invalidProjectFiles = []
             apply([])
         }
     }
@@ -159,8 +171,11 @@ final class LinearWorkspacesModel {
             for workspace in workspaces {
                 let check = LinearInstallationStatus.interpret(rows, installation: workspace.name)
                 let name = LinearInstallationStatus.workspaceName(in: rows, installation: workspace.name)
-                if check != .unknown || name != nil {
-                    updated[workspace.name] = Status(workspaceName: name, check: check)
+                let authorization = DoctorFindingRow.authorizationState(in: rows, installation: workspace.name)
+                if check != .unknown || name != nil || authorization != nil {
+                    updated[workspace.name] = Status(
+                        workspaceName: name, check: check, authorization: authorization
+                    )
                 }
             }
             statuses = updated
@@ -169,9 +184,38 @@ final class LinearWorkspacesModel {
 
     // MARK: Removing
 
-    /// Runs `yh config remove-installation <name>`. Exit 0: reloads, refreshes and keeps `yh`'s lines as
-    /// the list's success message. Otherwise `yh`'s lines are that row's refusal, verbatim.
-    func remove(_ name: String) async {
+    /// Why *Remove* is disabled for `workspace`, or nil when it is offered: Projects name it, or a Project
+    /// file failed to decode. The spec's form of `yh`'s own refusal, shown instead of offering and refusing.
+    func removalBlock(for workspace: Workspace) -> String? {
+        var reasons: [String] = []
+        if !workspace.projects.isEmpty {
+            let plural = workspace.projects.count != 1
+            reasons.append(
+                "Used by \(workspace.projects.joined(separator: ", ")); remove "
+                    + (plural ? "those Projects" : "that Project") + " first."
+            )
+        }
+        if !invalidProjectFiles.isEmpty {
+            reasons.append(
+                "These Project files failed to decode, so whether they use this workspace cannot be known: "
+                    + invalidProjectFiles.joined(separator: ", ") + "."
+            )
+        }
+        return reasons.isEmpty ? nil : reasons.joined(separator: " ")
+    }
+
+    /// Whether *Remove anyway…* is offered (OQ121 item 11): Projects name the installation, no Project file
+    /// is undecodable, and the doctor's live check found its authorization refused — never for an unreachable
+    /// Linear. `yh` runs the same gate again when it is confirmed.
+    func offersOrphanRemoval(for workspace: Workspace) -> Bool {
+        !workspace.projects.isEmpty && invalidProjectFiles.isEmpty
+            && statuses[workspace.name]?.authorization == .refused
+    }
+
+    /// Runs `yh config remove-installation <name>`, with `--orphan-projects --yes` for *Remove anyway…*
+    /// (whose dialog was the confirmation). Exit 0: reloads, refreshes and keeps `yh`'s lines as the list's
+    /// success message. Otherwise `yh`'s lines are that row's refusal, verbatim.
+    func remove(_ name: String, orphanProjects: Bool = false) async {
         guard removing == nil else { return }
         removing = name
         removalFailures[name] = nil
@@ -180,7 +224,7 @@ final class LinearWorkspacesModel {
         var lines: [String] = []
         do {
             let status = try await removalEngine.run(
-                arguments: ConfigInvocation.removeInstallationArguments(name: name)
+                arguments: ConfigInvocation.removeInstallationArguments(name: name, orphanProjects: orphanProjects)
             ) { lines.append($0) }
             guard status == 0 else {
                 removalFailures[name] = lines.isEmpty ? ["yh exited \(status)."] : lines

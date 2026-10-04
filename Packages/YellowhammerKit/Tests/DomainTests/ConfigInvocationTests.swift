@@ -17,4 +17,16 @@ struct ConfigInvocationTests {
                 == ["config", "remove-installation", "acme"]
         )
     }
+
+    @Test("removeInstallationArguments with orphanProjects passes --orphan-projects --yes")
+    func removeInstallationOrphanVector() {
+        #expect(
+            ConfigInvocation.removeInstallationArguments(name: "acme", orphanProjects: true)
+                == ["config", "remove-installation", "acme", "--orphan-projects", "--yes"]
+        )
+        #expect(
+            ConfigInvocation.removeInstallationArguments(name: "acme", orphanProjects: false)
+                == ["config", "remove-installation", "acme"]
+        )
+    }
 }

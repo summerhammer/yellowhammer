@@ -107,4 +107,41 @@ struct DoctorLinearTests {
         #expect(!findings.contains { $0.message.contains("could not read") })
         #expect(findings.linear("globex", subject: "authorization").first?.message.contains("Globex Corp") == true)
     }
+
+    @Test("The authorization field: authorized, refused (revoked, keychain absent), unreachable")
+    func authorizationField() async throws {
+        let fixture = try await DoctorLinearFixture()
+        await fixture.acme.refuseWorkspaceMembersNext(.notAuthenticated("revoked"))
+        await fixture.globex.refuseWorkspaceMembersNext(.unreachable("timed out"))
+        let findings = await fixture.doctor().run()
+        #expect(findings.linear("acme", subject: "authorization").first?.authorization == .refused)
+        #expect(findings.linear("globex", subject: "authorization").first?.authorization == .unreachable)
+
+        let healthy = await fixture.doctor().run()
+        #expect(healthy.linear("acme", subject: "authorization").first?.authorization == .authorized)
+        #expect(healthy.linear("acme", subject: "operator").first?.authorization == nil)
+
+        let credentials = RecordingCredentialStore(seed: ["keychain:linear-globex": "secret"])
+        let absent = await fixture.doctor(credentials: credentials).run()
+        #expect(absent.linear("acme", subject: "installation").first?.authorization == .refused)
+    }
+
+    @Test("An unreadable Keychain item is an authorization failure, unreachable, with no live call")
+    func unreadableKeychain() async throws {
+        let fixture = try await DoctorLinearFixture()
+        let credentials = RecordingCredentialStore(
+            seed: ["keychain:linear-globex": "secret"], unreadable: ["keychain:linear-acme"]
+        )
+        let findings = await fixture.doctor(credentials: credentials).run()
+
+        let acme = findings.linear("acme")
+        #expect(acme.count == 1)
+        #expect(acme[0].subject == "authorization")
+        #expect(acme[0].severity == .failure)
+        #expect(acme[0].authorization == .unreachable)
+        #expect(acme[0].message.contains("Keychain item"))
+        #expect(acme[0].message.contains("could not be read"))
+        #expect(!acme[0].message.contains("token pair"))
+        #expect(DoctorCommand.encodeFindingsJSON(acme).contains(#""authorization":"unreachable""#))
+    }
 }

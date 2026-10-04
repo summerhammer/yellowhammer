@@ -45,4 +45,34 @@ struct DoctorFindingRowTests {
         #expect(DoctorFindingRow.decodeLastLine([]) == nil)
         #expect(DoctorFindingRow.decodeLastLine([DoctorFindingRow.encodeLine([base]), "[FAIL] git: nope"]) == nil)
     }
+
+    @Test("authorization encodes only when set and round-trips")
+    func authorizationField() {
+        var row = base
+        row.authorization = "refused"
+        #expect(DoctorFindingRow.encodeLine([row]) == """
+            [{"authorization":"refused","check":"linear","message":"m",\
+            "severity":"pass","subject":"authorization"}]
+            """)
+        #expect(DoctorFindingRow.decodeLastLine([DoctorFindingRow.encodeLine([row])]) == [row])
+    }
+
+    @Test("authorizationState prefers the authorization row, falls back to the installation row")
+    func authorizationStateAccessor() {
+        func row(_ subject: String, _ installation: String, _ state: String?) -> DoctorFindingRow {
+            DoctorFindingRow(
+                check: "linear", subject: subject, severity: "failure", message: "m",
+                installation: installation, authorization: state
+            )
+        }
+        let rows = [
+            row("operator", "acme", nil), row("installation", "acme", "refused"),
+            row("authorization", "globex", "unreachable"), row("authorization", "initech", "authorized")
+        ]
+        #expect(DoctorFindingRow.authorizationState(in: rows, installation: "acme") == .refused)
+        #expect(DoctorFindingRow.authorizationState(in: rows, installation: "globex") == .unreachable)
+        #expect(DoctorFindingRow.authorizationState(in: rows, installation: "initech") == .authorized)
+        #expect(DoctorFindingRow.authorizationState(in: rows, installation: "nobody") == nil)
+        #expect(DoctorFindingRow.authorizationState(in: [row("authorization", "x", "bogus")], installation: "x") == nil)
+    }
 }

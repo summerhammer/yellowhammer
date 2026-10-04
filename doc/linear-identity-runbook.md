@@ -25,7 +25,11 @@ stores the token pair and registers the installation (below).
 - Re-connecting a workspace that is already registered replaces its tokens and keeps its local name
   and its Operator identity. `yh setup --install-linear --installation <name>` re-connects that one
   installation.
-- The local `<name>` defaults to the workspace URL key and is fixed once written.
+- The local `<name>` defaults to the workspace URL key and is fixed once written. Name it yourself
+  with `yh setup --install-linear --installation-name <name>` (the app's name field passes the same
+  flag). An invalid name, or one another installation uses, is refused before the browser opens. If
+  Linear approves a workspace that is already connected, that installation is re-connected and the
+  given name is discarded.
 - Two entries with one workspace are refused.
 - Choose which Linear teams the app user joins on the install screen. The app user must be a
   **member** of the team a Project provisions inside; "All public teams" does not make it one (see
@@ -137,6 +141,22 @@ yh config remove-installation <name>
 This is refused while any Project names the installation. Otherwise it deletes the entry from
 `config.toml` and its Keychain item. The app stays installed in Linear; revoking it there is a
 workspace admin's action in Linear's settings.
+
+When the installation's authorization can never be restored (the workspace was deleted, or no admin
+will approve again) and a Project still names it, `yh project remove` cannot finish while a Feature
+is in flight. The exit is:
+
+```sh
+yh config remove-installation <name> --orphan-projects   # asks to confirm; --yes skips the prompt
+```
+
+It removes the entry and its Keychain item even while Projects name it, but only when a live check
+finds the authorization refused. An absent Keychain item counts as refused. An unreadable Keychain
+item or an unreachable Linear refuses it and exits 1. It is still refused while a Project file fails
+to decode. Then run `yh project remove <id>` for each Project it lists: the release comment is
+skipped and reported. To undo, re-connect the same workspace with
+`yh setup --installation-name <name>` under the exact same local name. Do not delete a Project file
+by hand: that skips the WIP Commit and push. Settings offers the same as **Remove Anyway…**.
 
 ## Provisioning (P5.3)
 

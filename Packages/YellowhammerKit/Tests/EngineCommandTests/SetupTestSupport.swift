@@ -31,9 +31,17 @@ let selfMember = BoardMember(
 /// (P17.4): it never stores.
 final class RecordingCredentialStore: SetupCredentialStore {
     private let storage: Mutex<[String: String]>
+    private let unreadable: Set<String>
 
-    init(seed: [String: String] = [:]) {
+    /// `unreadable` names references whose item "exists but cannot be read" (a locked Keychain).
+    init(seed: [String: String] = [:], unreadable: Set<String> = []) {
         storage = Mutex(seed)
+        self.unreadable = unreadable
+    }
+
+    func presence(of reference: CredentialReference) -> CredentialPresence {
+        if unreadable.contains(reference.rawValue) { return .unreadable("keychain is locked") }
+        return secret(for: reference) != nil ? .present : .absent
     }
 
     func secret(for reference: CredentialReference) -> String? {
@@ -95,7 +103,8 @@ func makeArguments(
     installLinear: Bool = false,
     events: String? = nil,
     remote: Bool = false,
-    installation: String? = nil
+    installation: String? = nil,
+    installationName: String? = nil
 ) -> [String] {
     var arguments: [String] = []
     if initialize { arguments.append("--init") }
@@ -104,6 +113,7 @@ func makeArguments(
     if installLinear { arguments.append("--install-linear") }
     if remote { arguments.append("--remote") }
     appendOption(&arguments, "--installation", installation)
+    appendOption(&arguments, "--installation-name", installationName)
     appendOption(&arguments, "--events", events)
     appendOption(&arguments, "--config", config)
     appendOption(&arguments, "--route", route)

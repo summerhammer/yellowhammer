@@ -271,28 +271,86 @@ extension LinearSettingsUITests {
         XCTAssertFalse(line.contains("--remote"), line)
     }
 
-    func testRemoveIsRefusedWhileAProjectUsesTheWorkspace() throws {
+    /// `acme`'s doctor rows with its authorization refused, or unreachable, by Linear (OQ121's live check).
+    private static func acmeAuthorizationRows(_ state: String, message: String) -> String {
+        """
+        [{"check":"linear","installation":"acme","message":"\(message)","projects":["alpha"],\
+        "severity":"failure","subject":"authorization","workspace":"workspace-1","authorization":"\(state)"},\
+        {"check":"linear","installation":"scratch","message":"ok","projects":[],\
+        "severity":"pass","subject":"authorization","workspace":"workspace-2","authorization":"authorized"}]
+        """
+    }
+
+    func testRemoveIsDisabledWhileAProjectUsesTheWorkspace() throws {
         try writeTwoInstallations()
-        app.launchEnvironment["YH_STUB_INSTALLATION_USERS"] = "acme=alpha"
         showBoardsSettings(waitingFor: nil)
 
         let remove = element("settings-linear-remove-acme")
         XCTAssertTrue(remove.waitForExistence(timeout: 10))
-        remove.click()
-        // The confirmation says the app stays installed in Linear before anything runs.
-        let staysInstalled = app.staticTexts.matching(
-            NSPredicate(format: "value CONTAINS 'stays installed' OR label CONTAINS 'stays installed'")
+        XCTAssertFalse(remove.isEnabled)
+        // The disabled reason is the refusal, naming the Project.
+        let blocked = element("settings-linear-remove-blocked-acme")
+        XCTAssertTrue(blocked.waitForExistence(timeout: 5))
+        XCTAssertTrue(text(of: blocked).contains("alpha"), text(of: blocked))
+        // acme still authorizes, so nothing overrides the refusal.
+        XCTAssertTrue(element("settings-linear-status-acme").waitForExistence(timeout: 10))
+        XCTAssertFalse(element("settings-linear-remove-anyway-acme").exists)
+        // An unused workspace is still removable.
+        XCTAssertTrue(element("settings-linear-remove-scratch").isEnabled)
+    }
+
+    func testRemoveAnywayRunsTheOrphanRemovalWhenLinearRefusesTheWorkspace() throws {
+        try writeTwoInstallations()
+        app.launchEnvironment["YH_STUB_DOCTOR_ROWS"] = Self.acmeAuthorizationRows(
+            "refused", message: "installation acme: revoked"
         )
-        XCTAssertTrue(staysInstalled.firstMatch.waitForExistence(timeout: 5))
-        let confirm = app.sheets.buttons["Remove"].firstMatch
+        showBoardsSettings(waitingFor: nil)
+
+        let anyway = element("settings-linear-remove-anyway-acme")
+        XCTAssertTrue(anyway.waitForExistence(timeout: 10))
+        XCTAssertFalse(element("settings-linear-remove-acme").isEnabled)
+        anyway.click()
+        // The confirmation states the undo under this exact local name before anything runs.
+        let undoText = "yh setup --installation-name acme"
+        let predicate = NSPredicate(format: "value CONTAINS %@ OR label CONTAINS %@", undoText, undoText)
+        let undo = app.staticTexts.matching(predicate)
+        XCTAssertTrue(undo.firstMatch.waitForExistence(timeout: 5))
+        let confirm = app.sheets.buttons["Remove Anyway"].firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 5))
         confirm.click()
 
-        let failure = element("settings-linear-remove-failure-acme")
-        XCTAssertTrue(failure.waitForExistence(timeout: 10))
-        XCTAssertTrue(text(of: failure).contains("alpha"), text(of: failure))
-        XCTAssertTrue(element("settings-linear-workspace-acme").exists)
-        XCTAssertTrue(recordedArguments().contains("config remove-installation acme"), "\(recordedArguments())")
+        XCTAssertTrue(element("settings-linear-removed").waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            recordedArguments().contains("config remove-installation acme --orphan-projects --yes"),
+            "\(recordedArguments())"
+        )
+    }
+
+    func testRemoveAnywayIsNotOfferedWhenLinearIsUnreachable() throws {
+        try writeTwoInstallations()
+        app.launchEnvironment["YH_STUB_DOCTOR_ROWS"] = Self.acmeAuthorizationRows(
+            "unreachable", message: "installation acme: Linear could not be reached"
+        )
+        showBoardsSettings(waitingFor: nil)
+
+        let status = element("settings-linear-status-acme")
+        XCTAssertTrue(status.waitForExistence(timeout: 10))
+        XCTAssertTrue(text(of: status).contains("could not be reached"), text(of: status))
+        XCTAssertFalse(element("settings-linear-remove-anyway-acme").exists)
+        XCTAssertFalse(element("settings-linear-remove-acme").isEnabled)
+    }
+
+    func testConnectAnotherPassesTheLocalName() {
+        showBoardsSettings()
+        let field = element("setup-linear-installation-name")
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        field.click()
+        field.typeText("acme-two")
+        installLocally()
+        XCTAssertTrue(element("setup-linear-installed").waitForExistence(timeout: 10))
+
+        let line = recordedArguments().first ?? ""
+        XCTAssertTrue(line.contains("setup --install-linear --events json --installation-name acme-two"), line)
     }
 
     func testRemoveOfAnUnusedWorkspaceSaysItStaysInstalledInLinear() throws {

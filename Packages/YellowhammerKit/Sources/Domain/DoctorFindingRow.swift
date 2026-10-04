@@ -19,11 +19,14 @@ public struct DoctorFindingRow: Codable, Equatable, Sendable {
     public var workspaceName: String?
     /// The ids of the Projects the installation serves.
     public var projects: [String]?
+    /// `"authorized"`, `"refused"` or `"unreachable"` (``InstallationAuthorizationState``), only on the
+    /// installation rows that judge authorization.
+    public var authorization: String?
 
     public init(
         check: String, subject: String, severity: String, message: String,
         installation: String? = nil, workspace: String? = nil, workspaceName: String? = nil,
-        projects: [String]? = nil
+        projects: [String]? = nil, authorization: String? = nil
     ) {
         self.check = check
         self.subject = subject
@@ -33,6 +36,7 @@ public struct DoctorFindingRow: Codable, Equatable, Sendable {
         self.workspace = workspace
         self.workspaceName = workspaceName
         self.projects = projects
+        self.authorization = authorization
     }
 
     /// The rows in the last non-blank line of `yh doctor --json`'s output, decoded as a JSON array. Nil

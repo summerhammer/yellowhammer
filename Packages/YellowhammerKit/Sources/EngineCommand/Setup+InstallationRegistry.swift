@@ -37,7 +37,7 @@ extension Setup {
 
     /// Interactive only: asks for the new entry's local name, offering `proposed` on an empty answer. An
     /// invalid or already-used name re-asks; EOF cancels, before anything is written.
-    private func askLocalName(proposed: String, machine: MachineConfiguration) throws -> String {
+    func askLocalName(proposed: String, machine: MachineConfiguration) throws -> String {
         let taken = Set(machine.linearInstallations.map(\.name))
         while true {
             guard let line = console.ask("Local name for this Linear workspace [\(proposed)]: ") else {
@@ -61,9 +61,11 @@ extension Setup {
     /// tokens (nothing stored, config.toml untouched); an approved workspace already in the registry
     /// re-connects that entry (tokens under its credential, its name and Operator identity kept,
     /// `app_user` refreshed only if it changed); any other workspace becomes a new entry named from its
-    /// URL key (asked for when interactive; the name is fixed once written, since the credential
-    /// `keychain:linear-<name>` derives from it). Tokens are stored under that installation's lock (so a concurrent Act never reads a
-    /// half-written pair).
+    /// URL key (asked for when interactive) unless `--installation-name` gave it (checked before the
+    /// browser opened; the name is fixed once written, since the credential `keychain:linear-<name>`
+    /// derives from it). With a given name, an approved workspace already in the registry re-connects
+    /// its own entry and the given name is discarded, said aloud. Tokens are stored under that
+    /// installation's lock (so a concurrent Act never reads a half-written pair).
     func storeInstalled(
         tokens: LinearInstallFlow.InstalledTokens, identity: LinearInstallFlow.InstalledIdentity,
         target: LinearInstallation?, machine: inout MachineConfiguration
@@ -86,9 +88,10 @@ extension Setup {
             installation = existing
             changesFile = existing.appUser != appUser
             installation.appUser = appUser
+            reportInstallationNameDiscarded(existing: existing)
         } else {
             let proposed = Self.proposedInstallationName(urlKey: identity.workspaceURLKey, machine: machine)
-            let name = isInteractive ? try askLocalName(proposed: proposed, machine: machine) : proposed
+            let name = try newInstallationName(proposed: proposed, machine: machine)
             guard let credential = CredentialReference("keychain:linear-\(name)") else {
                 throw SetupError("a credential reference must not be empty")
             }

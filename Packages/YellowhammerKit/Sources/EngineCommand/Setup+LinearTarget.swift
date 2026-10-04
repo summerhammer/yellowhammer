@@ -14,17 +14,13 @@ extension Setup {
         case use(LinearInstallation)
     }
 
-    /// Resolves `--installation` and the registry into a ``LinearRequest``, or refuses. Refusals write
-    /// nothing and call nothing.
+    /// Resolves `--installation`, `--installation-name` and the registry into a ``LinearRequest``, or
+    /// refuses. Refusals write nothing and call nothing. `--installation-name` means "connect a new
+    /// workspace" in every mode: no installations list, and `--init`/`--config` connect rather than refuse.
     func resolveLinearRequest(machine: MachineConfiguration) throws -> LinearRequest {
+        if options.installationName != nil { return .connect(nil) }
         let names = machine.linearInstallations.map(\.name)
-        if let name = options.installation {
-            guard let entry = machine.linearInstallation(named: name) else {
-                throw SetupError(Self.unknownInstallationMessage(name, connected: names))
-            }
-            if case .installLinear = options.mode { return .connect(entry) }
-            return .use(entry)
-        }
+        if let name = options.installation { return try resolveNamedInstallation(name, machine: machine) }
         if case .installLinear = options.mode { return .connect(nil) }
         if names.isEmpty { return .connect(nil) }
         switch options.mode {
@@ -44,6 +40,15 @@ extension Setup {
         case .installLinear, .printChoices:
             return .skip
         }
+    }
+
+    /// `--installation <name>`: a re-connect of that entry under `--install-linear`, else acting on it.
+    private func resolveNamedInstallation(_ name: String, machine: MachineConfiguration) throws -> LinearRequest {
+        guard let entry = machine.linearInstallation(named: name) else {
+            throw SetupError(Self.unknownInstallationMessage(name, connected: machine.linearInstallations.map(\.name)))
+        }
+        if case .installLinear = options.mode { return .connect(entry) }
+        return .use(entry)
     }
 
     /// Lists the registry plus "Connect another Linear workspace…" and asks which one this run acts on.

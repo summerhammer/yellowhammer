@@ -27,6 +27,8 @@ struct LinearInstallEventTests {
             .awaitingRemoteApproval,
             .installed(workspaceName: "Acme", installation: "acme"),
             .installed(workspaceName: "Acme", installation: nil),
+            .installationNameDiscarded(given: "work", installation: "acme", text: "work was not used"),
+            .failed(reason: .invalidInstallationName, text: "Bad Name is not a valid local name"),
             .failed(reason: .cancelled, text: "the Operator cancelled"),
             .failed(reason: .expired, text: "the link expired"),
             .failed(reason: .rejected, text: "the admin declined"),
@@ -73,6 +75,19 @@ struct LinearInstallEventTests {
         #expect(encoded.contains(#""installation":"acme""#))
     }
 
+    @Test("installationNameDiscarded encodes to its exact keys")
+    func installationNameDiscardedEncodesExactly() throws {
+        let event = LinearInstallEvent.installationNameDiscarded(given: "work", installation: "acme", text: "t")
+        let decoded = try JSONDecoder().decode(
+            [String: AnyDecodableForTest].self, from: try JSONEncoder().encode(event)
+        )
+        #expect(decoded["event"]?.stringValue == "installationNameDiscarded")
+        #expect(decoded["given"]?.stringValue == "work")
+        #expect(decoded["installation"]?.stringValue == "acme")
+        #expect(decoded["text"]?.stringValue == "t")
+        #expect(decoded.count == 4)
+    }
+
     @Test("An unknown event name fails to decode")
     func unknownEventFailsToDecode() {
         let json = #"{"event":"somethingElse"}"#
@@ -86,6 +101,7 @@ struct LinearInstallEventTests {
         let expected: [LinearInstallEvent.FailureReason: String] = [
             .cancelled: "\"cancelled\"", .notCompleted: "\"notCompleted\"",
             .differentWorkspace: "\"differentWorkspace\"", .portsBusy: "\"portsBusy\"", .other: "\"other\"",
+            .invalidInstallationName: "\"invalidInstallationName\"",
             .expired: "\"expired\"", .rejected: "\"rejected\"",
             .relayUnreachable: "\"relayUnreachable\"", .relayRateLimited: "\"relayRateLimited\""
         ]

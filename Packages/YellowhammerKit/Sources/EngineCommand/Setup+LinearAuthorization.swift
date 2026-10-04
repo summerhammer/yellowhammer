@@ -20,6 +20,7 @@ extension Setup {
     func runLinearInstall(
         machine: inout MachineConfiguration, target: LinearInstallation?
     ) async throws -> LinearInstallation {
+        try await checkInstallationName(machine: machine)
         if options.remoteApproval {
             return try await runLinearRemoteInstall(machine: &machine, target: target)
         }

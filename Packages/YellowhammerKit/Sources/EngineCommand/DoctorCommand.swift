@@ -93,7 +93,8 @@ public struct DoctorCommand: AsyncParsableCommand {
                 severity: severityString(finding.severity), message: finding.message,
                 installation: finding.installation?.name, workspace: finding.installation?.workspace,
                 workspaceName: finding.installation?.workspaceName,
-                projects: finding.installation?.projects.map(\.rawValue)
+                projects: finding.installation?.projects.map(\.rawValue),
+                authorization: finding.authorization?.rawValue
             )
         })
     }

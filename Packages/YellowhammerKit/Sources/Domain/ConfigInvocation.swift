@@ -11,8 +11,12 @@ public enum ConfigInvocation {
     }
 
     /// `["config", "remove-installation", <name>]`: removes one App Installation from `config.toml` and
-    /// deletes its Keychain items.
-    public static func removeInstallationArguments(name: String) -> [String] {
-        ["config", "remove-installation", name]
+    /// deletes its Keychain items. With `orphanProjects`, `--orphan-projects --yes`: removes it even while
+    /// Project files name it, once its authorization is permanently refused (OQ121); the app has already
+    /// confirmed, so `--yes` skips the prompt.
+    public static func removeInstallationArguments(name: String, orphanProjects: Bool = false) -> [String] {
+        var arguments = ["config", "remove-installation", name]
+        if orphanProjects { arguments += ["--orphan-projects", "--yes"] }
+        return arguments
     }
 }
