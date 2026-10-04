@@ -132,11 +132,19 @@ private struct ProjectRow: View {
                             .background(.background, in: .circle)
                             .offset(x: 3, y: 3)
                             .help(status.rawValue)
-                            .accessibilityElement()
-                            .accessibilityLabel(status.rawValue)
-                            .accessibilityIdentifier("sidebar-\(id.rawValue)-status")
                     }
                 }
+        }
+        // A Label keeps its icon out of the accessibility tree, and the dot drawn on the icon with it,
+        // so the status is its own element here, over the icon.
+        .overlay(alignment: .leading) {
+            if let status {
+                Color.clear
+                    .frame(width: 16, height: 16)
+                    .accessibilityElement()
+                    .accessibilityLabel(status.rawValue)
+                    .accessibilityIdentifier("sidebar-\(id.rawValue)-status")
+            }
         }
     }
 }

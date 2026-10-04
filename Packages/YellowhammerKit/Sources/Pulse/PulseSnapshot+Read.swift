@@ -3,18 +3,21 @@ import Foundation
 import Journal
 
 extension PulseSnapshot {
-    /// Fills one Project's Pulse from its Journal, as of `asOf`.
+    /// Fills one Project's Pulse from its Journal.
     ///
     /// The read is HANDED a store and never opens one, so it structurally cannot reach a sibling
     /// Project's Journal (ADR-002): every value below comes from this one store. It only reads.
     ///
     /// What the Journal cannot say stays nil: `now.nextAct`, the Feature's title/state/rollup state, a
     /// pull request's state, an Attempt's status line, the Night's verdict line and `health`.
-    public static func read(from journal: JournalStore, asOf: Date) throws -> PulseSnapshot {
+    ///
+    /// `status` is handed in: it comes from `launchd` (is the Project's Act job alive?), which the
+    /// Journal cannot say, so the caller reads it and the Journal's Act Lease plays no part.
+    public static func read(from journal: JournalStore, status: ProjectStatus) throws -> PulseSnapshot {
         let inFlight = try journal.inFlightFeature()
         return PulseSnapshot(
             needsYou: try needsYou(journal),
-            now: try now(journal, inFlight: inFlight, asOf: asOf),
+            now: try now(journal, inFlight: inFlight, status: status),
             feature: try feature(journal, inFlight: inFlight),
             night: try night(journal),
             health: nil
@@ -42,10 +45,8 @@ extension PulseSnapshot {
     private static func now(
         _ journal: JournalStore,
         inFlight: (feature: FeatureRecord, cycleID: Int64)?,
-        asOf: Date
+        status: ProjectStatus
     ) throws -> Now {
-        // The Act Lease is the Journal's proxy for "the launchd Act job is alive".
-        let working = try journal.currentActLease()?.isHeld(at: asOf) == true
         var attempts: [RunningAttempt] = []
         if let inFlight {
             for card in try journal.cards(cycleID: inFlight.cycleID) {
@@ -64,7 +65,7 @@ extension PulseSnapshot {
                     ))
             }
         }
-        return Now(status: working ? .working : .idle, nextAct: nil, attempts: attempts)
+        return Now(status: status, nextAct: nil, attempts: attempts)
     }
 
     /// 1-based. Every recorded Round that asked for changes started a further Round of the same

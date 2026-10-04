@@ -27,7 +27,7 @@ extension CardDetail {
 
     /// Fills one Card's detail from `journal`. Nil when the Journal records no Card with `issueID`.
     ///
-    /// Like ``PulseSnapshot/read(from:asOf:)``, the read is HANDED a store and never opens one, so every
+    /// Like ``PulseSnapshot/read(from:status:)``, the read is HANDED a store and never opens one, so every
     /// value comes from this one store. It only reads.
     public static func read(from journal: JournalStore, issueID: String) throws -> CardDetail? {
         try journal.cardAccount(issueID: issueID).map(CardDetail.init(account:))

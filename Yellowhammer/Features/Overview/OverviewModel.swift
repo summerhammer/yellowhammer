@@ -14,6 +14,9 @@ import Pulse
 ///
 /// Each read also runs `yh doctor --json` for the Health group's flags, beside the Journal read so a
 /// slow Linear check never holds the Pulse back. The app never diagnoses anything itself.
+///
+/// Each read also runs `launchctl list` once, for each Project's status: `working` means the Project's
+/// `launchd` Act job is alive. It is read, never watched.
 @MainActor
 @Observable
 final class OverviewModel {
@@ -75,7 +78,10 @@ final class OverviewModel {
         generation += 1
         let current = generation
         async let findings = Self.readFindings()
-        let result = await Self.read(directory: ConfigurationDirectory.current, asOf: Date())
+        async let actJobs = Self.readActJobs()
+        let result = await Self.read(
+            directory: ConfigurationDirectory.current, actJobs: await actJobs, asOf: Date()
+        )
         guard current == generation else { return }
         switch result {
         case let .success(read):
@@ -114,13 +120,47 @@ final class OverviewModel {
         return DoctorFindingRow.decodeLastLine(lines)
     }
 
+    /// Runs `launchctl list` once and keeps the jobs that are alive. A Project's status is `idle` or
+    /// `working` and nothing else, so a `launchctl` that cannot run or exits non-zero reads as no job
+    /// alive. While the app is pointed at another configuration (a UI test's fixture) its Projects are
+    /// not this Mac's real jobs, so `launchctl` is not asked.
+    private static func readActJobs() async -> ActJobs {
+        guard !ConfigurationDirectory.isOverridden else { return .none }
+        return await runLaunchctlList()
+    }
+
+    /// Off the main actor: it blocks on a child process.
+    @concurrent
+    private nonisolated static func runLaunchctlList() async -> ActJobs {
+        let process = Process()
+        process.executableURL = URL(filePath: "/bin/launchctl")
+        process.arguments = ["list"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+        } catch {
+            return .none
+        }
+        // Drained before waiting: the output is tens of KB, and a full pipe would block `launchctl`
+        // while this waits for it to exit.
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return .none }
+        guard let output = String(bytes: data, encoding: .utf8) else { return .none }
+        return ActJobs.parse(launchctlList: output)
+    }
+
     private nonisolated struct Read: Sendable {
         let snapshot: LandingSnapshot
         let refused: [InvalidProject]
     }
 
     @concurrent
-    private nonisolated static func read(directory: URL, asOf: Date) async -> Result<Read, ConfigurationError> {
+    private nonisolated static func read(
+        directory: URL, actJobs: ActJobs, asOf: Date
+    ) async -> Result<Read, ConfigurationError> {
         do {
             // A Mac where Setup has never run has no Projects to show, which is not a failure: the
             // window shows its onboarding view (scope-windows-to-a-project, AC 3).
@@ -128,7 +168,7 @@ final class OverviewModel {
                 return .success(Read(snapshot: LandingSnapshot(projects: [], asOf: asOf), refused: []))
             }
             let snapshot = LandingSnapshot.read(
-                configuration: configuration, configurationDirectory: directory, asOf: asOf
+                configuration: configuration, configurationDirectory: directory, actJobs: actJobs, asOf: asOf
             )
             return .success(Read(snapshot: snapshot, refused: configuration.invalidProjects))
         } catch {

@@ -188,7 +188,8 @@ final class OverviewWindowUITests: XCTestCase {
             XCTAssertTrue(repo.waitForExistence(timeout: 10), "\(id) repo row is missing")
             let status = element("sidebar-\(id)-status")
             XCTAssertTrue(status.waitForExistence(timeout: 5), "\(id) status is missing")
-            XCTAssertEqual((status.value as? String) ?? status.label, "idle")
+            // The status is a dot, not text: its word is the accessibility label.
+            XCTAssertEqual(status.label, "idle")
             XCTAssertFalse(element("sidebar-\(id)-repo-\(id)-lane").exists)
         }
         let owner = element("sidebar-owner").frame.minY

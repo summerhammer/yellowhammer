@@ -79,8 +79,10 @@ private struct ConfigurationFixture: ~Copyable {
         )
     }
 
-    func read(_ configuration: Configuration, asOf: Date) -> LandingSnapshot {
-        LandingSnapshot.read(configuration: configuration, configurationDirectory: directory, asOf: asOf)
+    func read(_ configuration: Configuration, actJobs: ActJobs = .none, asOf: Date) -> LandingSnapshot {
+        LandingSnapshot.read(
+            configuration: configuration, configurationDirectory: directory, actJobs: actJobs, asOf: asOf
+        )
     }
 
     func journalURL(_ id: String) throws -> URL {
@@ -90,6 +92,10 @@ private struct ConfigurationFixture: ~Copyable {
     func openJournal(_ id: String) throws -> JournalStore {
         try JournalStore.open(configurationDirectory: directory, projectID: try #require(ProjectID(rawValue: id)))
     }
+}
+
+private func alive(_ project: String, _ act: Act) -> ActJobs {
+    ActJobs(aliveLabels: [act.launchdLabel(projectID: ProjectID(rawValue: project)!)])
 }
 
 @Test("The landing read lists the configured Projects in loader order with names and declared Repo order")
@@ -161,10 +167,10 @@ func landingSeededJournal() throws {
             repository: "backend", state: .blocked, blockReason: .hardFailure
         )
         _ = try journal.claimActLease(act: .build, runID: RunID(), mode: .real, now: epoch)
-        expected = try PulseSnapshot.read(from: journal, asOf: asOf)
+        expected = try PulseSnapshot.read(from: journal, status: .working)
     }
 
-    let landing = fixture.read(configuration, asOf: asOf)
+    let landing = fixture.read(configuration, actJobs: alive("alpha", .build), asOf: asOf)
 
     let alpha = try #require(landing.project(ProjectID(rawValue: "alpha")))
     #expect(expected.now.status == .working)
@@ -215,15 +221,15 @@ func landingBlendsNothing() throws {
     do {
         let journal = try fixture.openJournal("alpha")
         try seedBlendingAlpha(journal)
-        expectedAlpha = try PulseSnapshot.read(from: journal, asOf: epoch)
+        expectedAlpha = try PulseSnapshot.read(from: journal, status: .idle)
     }
     do {
         let journal = try fixture.openJournal("beta")
         try seedBlendingBeta(journal)
-        expectedBeta = try PulseSnapshot.read(from: journal, asOf: epoch)
+        expectedBeta = try PulseSnapshot.read(from: journal, status: .working)
     }
 
-    let landing = fixture.read(configuration, asOf: epoch)
+    let landing = fixture.read(configuration, actJobs: alive("beta", .author), asOf: epoch)
 
     let alpha = try #require(landing.project(ProjectID(rawValue: "alpha")))
     let beta = try #require(landing.project(ProjectID(rawValue: "beta")))
@@ -256,6 +262,41 @@ func landingBlendsNothing() throws {
         #expect(feature.id.hasPrefix(prefix))
         #expect(feature.lanes.allSatisfy { snapshot.repos.contains($0.repo) })
     }
+}
+
+@Test("A held Act Lease with no alive job reads idle; an alive job with no Act Lease reads working")
+func landingStatusIsTheJobNotTheLease() throws {
+    let fixture = try ConfigurationFixture()
+    try fixture.addProject(id: "alpha", name: "Alpha", repos: ["backend"])
+    try fixture.addProject(id: "beta", name: "Beta", repos: ["web"])
+    let configuration = try fixture.load()
+    // Alpha's Act crashed holding the lease: its job is gone.
+    _ = try fixture.openJournal("alpha").claimActLease(act: .build, runID: RunID(), mode: .real, now: epoch)
+    // Beta's job is alive, but it holds no lease.
+    _ = try fixture.openJournal("beta")
+
+    let landing = fixture.read(configuration, actJobs: alive("beta", .land), asOf: epoch)
+
+    #expect(landing.project(try #require(ProjectID(rawValue: "alpha")))?.status == .idle)
+    #expect(landing.project(try #require(ProjectID(rawValue: "beta")))?.status == .working)
+}
+
+@Test("A Project's job alive reads working for that Project only, with or without a Journal")
+func landingStatusPerProject() throws {
+    let fixture = try ConfigurationFixture()
+    try fixture.addProject(id: "alpha", name: "Alpha", repos: ["backend"])
+    try fixture.addProject(id: "beta", name: "Beta", repos: ["web"])
+    let configuration = try fixture.load()
+    _ = try fixture.openJournal("beta")
+    // Alpha has no Journal yet: its first-ever Act may be running.
+
+    let landing = fixture.read(configuration, actJobs: alive("alpha", .author), asOf: epoch)
+
+    let alpha = try #require(landing.project(ProjectID(rawValue: "alpha")))
+    let beta = try #require(landing.project(ProjectID(rawValue: "beta")))
+    #expect(alpha.journalFailure == nil)
+    #expect(alpha.status == .working)
+    #expect(beta.status == .idle)
 }
 
 @Test("A refused Project is absent from the landing snapshot, and its Journal is never read")
