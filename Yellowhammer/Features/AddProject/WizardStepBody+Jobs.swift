@@ -62,11 +62,5 @@ struct JobsSections: View {
                 .pickerStyle(.segmented)
             }
         }
-        let problems = draft.problems(in: .jobs)
-        if !problems.isEmpty {
-            Section {
-                WizardProblemList(problems: problems)
-            }
-        }
     }
 }

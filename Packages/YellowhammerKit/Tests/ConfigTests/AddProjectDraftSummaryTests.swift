@@ -21,15 +21,15 @@ struct AddProjectDraftSummaryTests {
     func linear() {
         var draft = AddProjectDraft()
         draft.linearInstallationName = "acme"
-        #expect(draft.summary(of: .linearProject) == "No Linear project \u{b7} acme")
+        #expect(draft.summary(of: .board) == "No Linear project \u{b7} acme")
         draft.linearProjectID = " ACME "
-        #expect(draft.summary(of: .linearProject) == "\u{201c}ACME\u{201d} \u{b7} acme")
+        #expect(draft.summary(of: .board) == "\u{201c}ACME\u{201d} \u{b7} acme")
         draft.linearChoice = .createInTeam
-        #expect(draft.summary(of: .linearProject) == "No team \u{b7} acme")
+        #expect(draft.summary(of: .board) == "No team \u{b7} acme")
         draft.teamKey = "ENG"
-        #expect(draft.summary(of: .linearProject) == "New in ENG \u{b7} acme")
+        #expect(draft.summary(of: .board) == "New in ENG \u{b7} acme")
         draft.context.teams = [SetupChoices.Team(id: "t1", key: "ENG", name: "Engineering")]
-        #expect(draft.summary(of: .linearProject) == "New in Engineering \u{b7} acme")
+        #expect(draft.summary(of: .board) == "New in Engineering \u{b7} acme")
     }
 
     @Test("Repos summary")
@@ -96,7 +96,7 @@ struct AddProjectDraftSummaryTests {
         // The summary opens with the Linear project, then names the workspace.
         draft.linearInstallationName = "acme"
         draft.linearProjectID = "X"
-        #expect(draft.summary(of: .linearProject) == "\u{201c}X\u{201d} \u{b7} acme")
+        #expect(draft.summary(of: .board) == "\u{201c}X\u{201d} \u{b7} acme")
     }
 
     @Test("Linear project summary names a listed project; an unlisted id shows as typed") // glossary:ignore GL001
@@ -105,9 +105,9 @@ struct AddProjectDraftSummaryTests {
         draft.linearInstallationName = "acme"
         draft.context.linearProjects = [SetupChoices.LinearProject(id: "p1", name: "Acme Web", teamNames: ["Eng"])]
         draft.linearProjectID = "p1"
-        #expect(draft.summary(of: .linearProject) == "\u{201c}Acme Web\u{201d} \u{b7} acme")
+        #expect(draft.summary(of: .board) == "\u{201c}Acme Web\u{201d} \u{b7} acme")
         draft.linearProjectID = "other"
-        #expect(draft.summary(of: .linearProject) == "\u{201c}other\u{201d} \u{b7} acme")
+        #expect(draft.summary(of: .board) == "\u{201c}other\u{201d} \u{b7} acme")
     }
 
     @Test("Bounds fields cover the six Bounds with their defaults")

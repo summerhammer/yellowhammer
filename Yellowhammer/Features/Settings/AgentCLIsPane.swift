@@ -7,10 +7,10 @@ import SwiftUI
 /// declared CLI Adapters and the Ledger are both machine-wide, so one Probe run serves every Project.
 /// Lists each declared CLI with its latest Probe Result and lets the Operator run a Probe on demand, and
 /// declares a registered CLI Adapter not yet declared (#281). The route it needs is given in the base
-/// Routing Table pane, which this pane points to while no route names a declared CLI.
+/// Routing Table pane, which this pane points to while no route names a declared CLI. On a fresh Mac, with no
+/// `config.toml` yet, declaring the first CLI creates it: nothing here waits on the Add Project sheet.
 struct AgentCLIsPane: View {
     @State private var model = AgentCLIModel()
-    @Environment(\.addProject) private var addProject
 
     var body: some View {
         content
@@ -20,34 +20,22 @@ struct AgentCLIsPane: View {
     }
 
     @ViewBuilder private var content: some View {
-        if model.configMissing {
-            unavailable(
-                message: "`config.toml` does not exist yet. Installing Linear writes it: choose Add a Project\u{2026} "
-                    + "and install Linear there, after which an agent CLI can be declared here.",
-                offerSetup: true
-            )
-        } else if let failure = model.loadFailure {
-            unavailable(message: failure, offerSetup: false)
+        if let failure = model.loadFailure {
+            unavailable(message: failure)
                 .accessibilityIdentifier("agent-cli-load-failure")
         } else if let rows = model.rows {
             AgentCLIListView(model: model, rows: rows)
         } else {
-            unavailable(message: "Agent CLIs could not be loaded.", offerSetup: false)
+            unavailable(message: "Agent CLIs could not be loaded.")
         }
     }
 
-    private func unavailable(message: String, offerSetup: Bool) -> some View {
-        VStack(spacing: 8) {
-            Text(message)
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
-            if offerSetup {
-                Button("Add a Project\u{2026}") { addProject() }
-                    .accessibilityIdentifier("open-setup")
-            }
-        }
-        .multilineTextAlignment(.center)
-        .padding()
+    private func unavailable(message: String) -> some View {
+        Text(message)
+            .foregroundStyle(.secondary)
+            .textSelection(.enabled)
+            .multilineTextAlignment(.center)
+            .padding()
     }
 }
 
@@ -128,10 +116,7 @@ private struct AgentCLIListView: View {
                     .textSelection(.enabled)
                     .accessibilityIdentifier("agent-cli-declare-failure")
             }
-            Text(
-                "Saving rewrites \(model.file.path(percentEncoded: false)); comments and layout in it "
-                    + "are not kept. Editing the file directly stays supported."
-            )
+            Text(savingNote)
             .font(.footnote)
             .foregroundStyle(.secondary)
             HStack {
@@ -147,6 +132,16 @@ private struct AgentCLIListView: View {
             executable = ""
             resetSelection()
         }
+    }
+
+    private var savingNote: String {
+        let path = model.file.path(percentEncoded: false)
+        if model.configMissing {
+            return "Declaring creates \(path), the configuration this Mac's Projects share. "
+                + "Editing the file directly stays supported."
+        }
+        return "Saving rewrites \(path); comments and layout in it are not kept. "
+            + "Editing the file directly stays supported."
     }
 
     /// Keeps the selection on an offered name: the first remaining one when the current is gone.

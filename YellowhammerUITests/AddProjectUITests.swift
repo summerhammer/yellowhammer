@@ -199,7 +199,8 @@ final class AddProjectUITests: XCTestCase {
     // MARK: - Readiness
 
     /// A Mac with nothing set up blocks Add Project on the agent CLI route alone: the Linear workspace and
-    /// the Operator identity are chosen in the Linear step, so the panel has no row for them.
+    /// the Operator identity are chosen in the Linear step, so the panel has no row for them. The hub still
+    /// shows its steps, locked, under a Prerequisites section.
     func testReadinessBlocksAddProjectUntilTheAgentCLIRouteIsPresent() throws {
         try launchApp()
         let sheet = openAddProjectSheet()
@@ -208,7 +209,10 @@ final class AddProjectUITests: XCTestCase {
         XCTAssertFalse(element("setup-readiness-operatorIdentity").exists)
         XCTAssertFalse(sheet.buttons["setup-open-settings-operatorIdentity"].exists)
         XCTAssertFalse(sheet.buttons["setup-linear-install"].exists)
-        XCTAssertFalse(element("setup-step-project").exists)
+        XCTAssertTrue(element("setup-prerequisite-agentCLIRoute").exists)
+        XCTAssertTrue(element("setup-step-project").exists)
+        XCTAssertFalse(app.textFields["setup-project-name"].exists)
+        XCTAssertFalse(sheet.buttons["setup-readiness-check-again"].exists)
         XCTAssertFalse(sheet.buttons["setup-add-project"].isEnabled)
     }
 
@@ -242,7 +246,7 @@ final class AddProjectUITests: XCTestCase {
         try launchApp(machine: Self.readyMachineTOML)
         let sheet = openAddProjectSheet()
         driveHubToCompletion(in: sheet, linearProject: "proj-listed") { // glossary:ignore GL001
-            element("setup-step-linearProject").click()
+            element("setup-step-board").click()
             let listed = element("setup-linear-project-proj-listed")
             XCTAssertTrue(listed.waitForExistence(timeout: 5))
             listed.click()

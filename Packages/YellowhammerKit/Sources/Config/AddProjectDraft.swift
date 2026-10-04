@@ -7,7 +7,7 @@ public struct AddProjectDraft: Equatable, Sendable {
     /// The wizard's six steps, in the order the hub lists them.
     public enum Step: Int, CaseIterable, Identifiable, Comparable, Sendable {
         case project
-        case linearProject // glossary:ignore GL001
+        case board
         case repos
         case specSource
         case bounds
@@ -22,7 +22,7 @@ public struct AddProjectDraft: Equatable, Sendable {
         public var title: String {
             switch self {
             case .project: "Project"
-            case .linearProject: "Linear project" // glossary:ignore GL001
+            case .board: "Board"
             case .repos: "Repos"
             case .specSource: "Spec Source"
             case .bounds: "Bounds"
@@ -33,7 +33,7 @@ public struct AddProjectDraft: Equatable, Sendable {
         public var shortTitle: String {
             switch self {
             case .project: "Project"
-            case .linearProject: "Linear project" // glossary:ignore GL001
+            case .board: "Board"
             case .repos: "Repos"
             case .specSource: "Spec Source"
             case .bounds: "Bounds"
@@ -46,9 +46,9 @@ public struct AddProjectDraft: Equatable, Sendable {
             switch self {
             case .project:
                 "Name the Project. Its id names the Project file, its Journal and its LaunchAgents."
-            case .linearProject: // glossary:ignore GL001
-                "Choose the Linear workspace, then link the Linear project " // glossary:ignore GL001
-                    + "its Features come from, or create one in a team." // glossary:ignore GL001
+            case .board:
+                "Where this Project\u{2019}s Features are planned: the Linear workspace, then the "
+                    + "Linear project they come from, or a team to create one in." // glossary:ignore GL001
             case .repos:
                 "The working Repos this Project builds in. A working Repo belongs to exactly one Project."
             case .specSource:
@@ -60,10 +60,17 @@ public struct AddProjectDraft: Equatable, Sendable {
             }
         }
 
+        /// Bounds and the Schedule: their defaults work, but the Operator still passes through them once, so a
+        /// Project is never added on limits and a Night window nobody looked at.
+        public var hasWorkingDefaults: Bool { self == .bounds || self == .jobs }
+
+        /// The step after this one in the hub's order, or nil for the last.
+        public var next: Self? { Self(rawValue: rawValue + 1) }
+
         public var systemImage: String {
             switch self {
             case .project: "square.stack.3d.up"
-            case .linearProject: "link" // glossary:ignore GL001
+            case .board: "link"
             case .repos: "folder"
             case .specSource: "doc.text"
             case .bounds: "gauge.with.dots.needle.33percent"
@@ -125,6 +132,9 @@ public struct AddProjectDraft: Equatable, Sendable {
     public var step: Step = .project
     /// The steps the Operator has opened, so a hub shows a step's problems only once it was visited.
     public var visited: Set<Step> = [.project]
+    /// The steps the Operator has moved on from. A step's problems show only once it was left, so nothing is
+    /// reported as wrong on the first opening of a page.
+    public var left: Set<Step> = []
 
     // Project
     public var projectID = ""
@@ -171,7 +181,7 @@ extension AddProjectDraft {
     public func problems(in step: Step) -> [String] {
         switch step {
         case .project: projectProblems
-        case .linearProject: linearProblems
+        case .board: linearProblems
         case .repos: repoProblems
         case .specSource: specSourceProblems
         case .bounds: boundsProblems
@@ -179,7 +189,13 @@ extension AddProjectDraft {
         }
     }
 
-    public func isComplete(_ step: Step) -> Bool { problems(in: step).isEmpty }
+    /// A step with working defaults is complete only once the Operator opened it.
+    public func isComplete(_ step: Step) -> Bool {
+        problems(in: step).isEmpty && (!step.hasWorkingDefaults || visited.contains(step))
+    }
+
+    /// Whether the hub reports the step's problems: only once the Operator left it.
+    public func revealsProblems(in step: Step) -> Bool { left.contains(step) }
 
     public var isComplete: Bool { Step.allCases.allSatisfy(isComplete) }
 
@@ -188,7 +204,7 @@ extension AddProjectDraft {
     /// How many steps are complete.
     public var readyCount: Int { Step.allCases.count { isComplete($0) } }
 
-    /// "Still needed: Linear project and Spec Source", or nil when every step is complete.
+    /// "Still needed: Board and Spec Source", or nil when every step is complete.
     public var stillNeeded: String? {
         guard !incompleteSteps.isEmpty else { return nil }
         return "Still needed: " + incompleteSteps.map(\.shortTitle).formatted(Self.listStyle)

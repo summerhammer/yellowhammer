@@ -16,7 +16,9 @@ extension AddProjectUITests {
     ) {
         XCTAssertTrue(element("setup-step-project").waitForExistence(timeout: 10))
         let addProject = sheet.buttons["setup-add-project"]
-        XCTAssertFalse(addProject.isEnabled)
+        // A fresh sheet continues to the next step rather than adding.
+        XCTAssertFalse(addProject.exists)
+        XCTAssertTrue(sheet.buttons["setup-continue"].exists)
 
         // Project: the id follows the name.
         element("setup-step-project").click()
@@ -33,7 +35,7 @@ extension AddProjectUITests {
         XCTAssertTrue(sheet.textFields["setup-repo-check"].firstMatch.waitForExistence(timeout: 5))
 
         // Linear workspace, then the Linear project: an existing one, by id.
-        element("setup-step-linearProject").click()
+        element("setup-step-board").click()
         fillLinearStep(in: sheet, installation: choosesInstallation ? installation : nil)
 
         // Spec Source: the picked Repo becomes the spec, which declares its Check "none".
@@ -45,7 +47,13 @@ extension AddProjectUITests {
         XCTAssertTrue(specRepo.waitForExistence(timeout: 5))
         specRepo.click()
 
-        // Bounds and Scheduled jobs are complete at their defaults.
+        // Bounds and the Schedule are complete at their defaults, but only once opened: until then the
+        // footer offers to continue, not to add.
+        XCTAssertFalse(addProject.exists && addProject.isEnabled)
+        element("setup-step-bounds").click()
+        let continueButton = sheet.buttons["setup-continue"]
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 5))
+        continueButton.click()
         beforeAdding()
         XCTAssertTrue(addProject.waitForEnabled(timeout: 5))
         addProject.click()

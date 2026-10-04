@@ -12,10 +12,37 @@ struct AddProjectDraftStatusTests {
         let draft = AddProjectDraft()
         #expect(draft.status(of: .project) == .current)
         for step in Step.allCases where step != .project {
-            // Bounds is complete at its defaults, so it is done even though it was never opened.
-            let expected: AddProjectDraft.StepStatus = step == .bounds || step == .jobs ? .done : .upcoming
-            #expect(draft.status(of: step) == expected, "\(step)")
+            // Bounds and the Schedule have working defaults, but are not done until opened.
+            #expect(draft.status(of: step) == .upcoming, "\(step)")
         }
+    }
+
+    @Test("Bounds and the Schedule are complete at their defaults once opened, and not before")
+    func workingDefaultsNeedOpening() {
+        var draft = AddProjectDraft()
+        #expect(draft.problems(in: .bounds).isEmpty)
+        #expect(!draft.isComplete(.bounds))
+        #expect(!draft.isComplete(.jobs))
+        draft.go(to: .bounds)
+        #expect(draft.isComplete(.bounds))
+        #expect(!draft.isComplete(.jobs))
+        draft.go(to: .jobs)
+        #expect(draft.isComplete(.jobs))
+        #expect(draft.status(of: .bounds) == .done)
+    }
+
+    @Test("A step reveals its problems only once left, never on its first opening")
+    func problemsRevealedOnceLeft() {
+        var draft = AddProjectDraft()
+        #expect(!draft.revealsProblems(in: .project))
+        draft.go(to: .project)
+        #expect(!draft.revealsProblems(in: .project))
+        draft.go(to: .repos)
+        #expect(draft.revealsProblems(in: .project))
+        #expect(!draft.revealsProblems(in: .repos))
+        draft.go(to: .project)
+        #expect(draft.revealsProblems(in: .repos))
+        #expect(draft.status(of: .project) == .problem)
     }
 
     @Test("A visited incomplete step is a problem, a complete one is done even when current")
@@ -72,15 +99,15 @@ struct AddProjectDraftStatusTests {
         var draft = AddProjectDraft()
         draft.context.linearInstallations = [addProjectInstallation()]
         draft.selectLinearInstallation("acme")
-        #expect(draft.problems(in: .linearProject) == ["Choose the Linear project, or create one in a team."])
+        #expect(draft.problems(in: .board) == ["Choose the Linear project, or create one in a team."])
         draft.linearProjectID = "   "
-        #expect(!draft.isComplete(.linearProject))
+        #expect(!draft.isComplete(.board))
         draft.linearProjectID = "ACME"
-        #expect(draft.isComplete(.linearProject))
+        #expect(draft.isComplete(.board))
         draft.linearChoice = .createInTeam
-        #expect(draft.problems(in: .linearProject) == ["Choose a team to create the Linear project in."])
+        #expect(draft.problems(in: .board) == ["Choose a team to create the Linear project in."])
         draft.teamKey = "ENG"
-        #expect(draft.isComplete(.linearProject))
+        #expect(draft.isComplete(.board))
     }
 
     @Test("Repos problems: none, missing fields, conflicts")

@@ -74,8 +74,11 @@ final class SetupWizardModel {
     /// into `draft.context` and `machineConfiguration`, and reloads ``linearWorkspaces`` to match (unless an
     /// Operator choice is mid-edit). The Journal of an id that has no Project file is opened read-only to learn
     /// its Linear workspace; nothing is ever written (the app may read Journals). A selected installation that
-    /// is gone from the registry stays selected: validation reports it.
+    /// is gone from the registry stays selected: validation reports it. Once the run started the draft is
+    /// frozen: reading again would find the Project the run just wrote, and report the draft's own id and
+    /// Repos as taken by it.
     func loadContext() {
+        guard !hasStartedRun else { return }
         let fileManager = FileManager.default
         func baseNames(in folder: String, extension fileExtension: String) -> Set<String> {
             let directory = configurationDirectory.appending(path: folder, directoryHint: .isDirectory)

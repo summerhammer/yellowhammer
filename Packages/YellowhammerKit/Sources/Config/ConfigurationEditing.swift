@@ -27,6 +27,8 @@ extension Configuration {
     /// In order:
     /// 1. `file` must still hold `originalText` (direct TOML editing stays supported; the app must
     ///    never clobber a hand edit it did not see) — otherwise ``ConfigurationEditError/changedOnDisk(file:)``.
+    ///    A nil `originalText` means the edit started from no file at all: `file` must still not exist, and
+    ///    is created, along with `directory`, only then.
     /// 2. `text` is loaded in place of `file`; a refusal is reported as
     ///    ``ConfigurationEditError/refused(_:)``.
     /// 3. Every Project newly invalid under `text` — the edited Project itself, or a sibling a
@@ -34,7 +36,7 @@ extension Configuration {
     ///    naming that Project's own file.
     /// Nothing is written unless every check passes.
     public static func save(
-        _ text: String, to file: URL, in directory: URL, replacing originalText: String
+        _ text: String, to file: URL, in directory: URL, replacing originalText: String?
     ) throws(ConfigurationEditError) {
         let editedFile = file.path(percentEncoded: false)
 
@@ -47,7 +49,7 @@ extension Configuration {
         // Projects count as refused below. When the file's own original text does not even load
         // (e.g. it is a freshly broken machine file), treat the set of already-invalid Projects as
         // empty: everything after the edit is then judged against a clean slate.
-        let before = try? Configuration.load(directory: directory, reading: file, as: originalText)
+        let before = originalText.flatMap { try? Configuration.load(directory: directory, reading: file, as: $0) }
         let alreadyInvalidFiles = Set((before?.invalidProjects ?? []).map(\.file))
 
         let after: Configuration
@@ -65,6 +67,11 @@ extension Configuration {
         }
 
         do {
+            if originalText == nil {
+                try FileManager.default.createDirectory(
+                    at: file.deletingLastPathComponent(), withIntermediateDirectories: true
+                )
+            }
             try Data(text.utf8).write(to: file, options: .atomic)
         } catch {
             throw ConfigurationEditError.unwritable(file: editedFile, message: error.localizedDescription)

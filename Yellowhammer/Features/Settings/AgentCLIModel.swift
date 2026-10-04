@@ -8,7 +8,9 @@ import Observation
 /// and the Ledger are both machine-wide, so one Probe run serves every Project. Lists `config.toml`'s
 /// `[cli.<name>]` entries and, for each, its latest Probe Result read from the Ledger, and lets the
 /// Operator run `yh probe <cli>` on demand. It also declares a registered CLI Adapter not yet in
-/// `config.toml` (#281), written through the loader as the base Routing Table pane writes. The app itself
+/// `config.toml` (#281), written through the loader as the base Routing Table pane writes — creating
+/// `config.toml` when it does not exist yet, so a fresh Mac can declare its first CLI before any Linear
+/// App Installation, which the Add Project sheet makes only once a route exists. The app itself
 /// never probes and never writes the Ledger — `yh` does; this model only shells out to it and re-reads.
 @MainActor
 @Observable
@@ -32,13 +34,13 @@ final class AgentCLIModel {
     }
 
     private(set) var rows: [CLIRow]?
-    /// `config.toml`'s text as last loaded, what a declaration is saved against.
+    /// `config.toml`'s text as last loaded, what a declaration is saved against; nil while it does not exist.
     private(set) var originalText: String?
     /// The loaded machine file, carried through so a declaration re-renders it whole.
     private(set) var machine: MachineConfiguration?
     /// Set when `config.toml` exists but could not be loaded, in the loader's own words.
     private(set) var loadFailure: String?
-    /// Set when `config.toml` does not exist at all: no agent CLI is declared.
+    /// Set when `config.toml` does not exist at all: no agent CLI is declared, and declaring one creates it.
     private(set) var configMissing = false
     /// Why the last ``declare(name:executable:)`` did not write, in the loader's own words; cleared by a
     /// successful load or declaration.
@@ -66,6 +68,8 @@ final class AgentCLIModel {
         guard FileManager.default.fileExists(atPath: file.path(percentEncoded: false)) else {
             clear()
             configMissing = true
+            machine = .unconfigured
+            rows = []
             return
         }
         configMissing = false
@@ -99,7 +103,7 @@ final class AgentCLIModel {
     /// Declares `name` (with an optional `executable`) and writes `config.toml` through the loader, then
     /// reloads. Declaring does not probe.
     func declare(name: String, executable: String) {
-        guard let machine, let originalText else { return }
+        guard let machine else { return }
         do {
             try Configuration.save(
                 machine.declaring(cliAdapter: name, executable: executable).renderedTOML,

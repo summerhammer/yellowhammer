@@ -67,6 +67,39 @@ enum LinearProjectChoice: Hashable { // glossary:ignore GL001
     case createInTeam
 }
 
+/// The board a Project's Features come from. Only Linear is supported; the others are drawn so the
+/// sheet is ready for them.
+enum BoardVendor: String, CaseIterable, Identifiable {
+    case linear = "Linear"
+    case jira = "Jira"
+
+    var id: Self { self }
+
+    var isSupported: Bool { self == .linear }
+}
+
+/// "Connect another Linear workspace…": the install, and the approval it waits for.
+enum WorkspaceConnection: Equatable {
+    case idle
+    /// Offering the two ways to install.
+    case choosing
+    /// Waiting in the browser, for this admin or another (`remote`).
+    case awaitingApproval(remote: Bool)
+}
+
+/// What a check of the Linear project id against the selected workspace found.
+enum ProjectVerification: Equatable {
+    case unchecked
+    case checking
+    case verified
+    /// No Linear project with that id in the selected workspace.
+    case notFound
+    /// The id names a Linear project in another connected workspace.
+    case otherWorkspace(String)
+    /// It exists, but Yellowhammer is not a member of its team, so it cannot read it.
+    case noTeamAccess(String)
+}
+
 enum SpecSourceChoice: Hashable {
     /// A read-only path, shareable across Projects; no Repo Role, Check or Protected Paths.
     case path
@@ -120,6 +153,15 @@ struct AddProjectDraft: Equatable {
     var name = ""
     /// Whether the Operator typed the id; until then it follows the name.
     var idEdited = false
+    var boardVendor: BoardVendor = .linear
+    /// The selected App Installation's local name; the Linear workspace the Project is projected onto.
+    var linearWorkspace: String?
+    /// The connected installations; connecting one during the wizard adds to it.
+    var workspaces = AddProjectFixtures.linearWorkspaces
+    var connection: WorkspaceConnection = .idle
+    /// The Linear project id field: a listed project fills it, or the Operator pastes one.
+    var pastedProjectID = ""
+    var verification: ProjectVerification = .unchecked
     var linearChoice: LinearProjectChoice = .existing
     var linearProjectID: String?
     var teamKey: String?

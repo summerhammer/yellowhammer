@@ -9,6 +9,7 @@ import SwiftUI
 struct IdentityBlock: View {
     @Binding var draft: AddProjectDraft
     @State private var isEditingID = false
+    @Environment(\.wizardBlocksShowProblems) private var showsProblems
 
     private var nameBinding: Binding<String> {
         Binding { draft.name } set: { draft.setName($0) }
@@ -69,7 +70,7 @@ struct IdentityBlock: View {
 
     @ViewBuilder private var identityMessages: some View {
         let problems = draft.problems(in: .project).filter { $0.contains("id") || $0.contains("exists") }
-        if !problems.isEmpty, !draft.name.isEmpty || draft.idEdited {
+        if showsProblems, !problems.isEmpty, !draft.name.isEmpty || draft.idEdited {
             WizardProblemList(problems: problems)
         } else if draft.reusesJournal {
             WizardNote(

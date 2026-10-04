@@ -17,7 +17,7 @@ struct RepoDetailView: View {
     var body: some View {
         InspectorPane(
             kind: "Repo",
-            systemImage: "shippingbox.fill",
+            systemImage: DomainSymbol.repoFill,
             style: lane.map { AnyShapeStyle($0.state.style) } ?? AnyShapeStyle(.neutral),
             title: repo,
             titleIdentifier: "repo-detail-name",

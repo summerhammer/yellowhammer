@@ -23,14 +23,18 @@ struct RepoStepView: View {
     }
 }
 
-private struct RepoCard: View {
+struct RepoCard: View {
     @Binding var draft: AddProjectDraft
     @Binding var repo: RepoDraft
+    /// The card's SF Symbol, or nil for none. Hub4's folder is the Overview's symbol for a Project.
+    var symbol: String? = "folder.fill"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Image(systemName: "folder.fill").foregroundStyle(WizardTheme.accent)
+                if let symbol {
+                    Image(systemName: symbol).foregroundStyle(WizardTheme.accent)
+                }
                 TextField("Name", text: $repo.name).font(.headline).textFieldStyle(.plain)
                 Spacer()
                 Button("Remove", systemImage: "trash") { draft.repos.removeAll { $0.id == repo.id } }

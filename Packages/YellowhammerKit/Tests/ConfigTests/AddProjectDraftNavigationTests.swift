@@ -10,9 +10,9 @@ struct AddProjectDraftNavigationTests {
         draft.go(to: .specSource)
         #expect(draft.step == .specSource)
         #expect(draft.visited == [.project, .specSource])
-        draft.go(to: .linearProject)
-        #expect(draft.step == .linearProject)
-        #expect(draft.visited == [.project, .specSource, .linearProject])
+        draft.go(to: .board)
+        #expect(draft.step == .board)
+        #expect(draft.visited == [.project, .specSource, .board])
         #expect(draft.status(of: .specSource) == .problem)
         draft.go(to: .project)
         #expect(draft.step == .project)
@@ -25,22 +25,22 @@ struct AddProjectDraftNavigationTests {
         draft.go(to: .bounds)
         #expect(draft.visited.contains(.repos))
         #expect(draft.status(of: .repos) == .problem)
-        #expect(draft.status(of: .linearProject) == .upcoming)
+        #expect(draft.status(of: .board) == .upcoming)
     }
 
     @Test("stillNeeded lists short titles and readyCount counts complete steps")
     func stillNeededAndReady() {
         var draft = AddProjectDraft()
-        #expect(draft.readyCount == 2)
-        #expect(draft.stillNeeded == "Still needed: Project, Linear project, Repos, and Spec Source")
+        #expect(draft.readyCount == 0)
+        #expect(draft.stillNeeded == "Still needed: Project, Board, Repos, Spec Source, Bounds, and Schedule")
         draft = completeAddProjectDraft()
         #expect(draft.readyCount == 6)
         #expect(draft.stillNeeded == nil)
         #expect(draft.isComplete)
         draft.linearProjectID = ""
         draft.specSourcePath = ""
-        #expect(draft.stillNeeded == "Still needed: Linear project and Spec Source")
-        #expect(draft.incompleteSteps == [.linearProject, .specSource])
+        #expect(draft.stillNeeded == "Still needed: Board and Spec Source")
+        #expect(draft.incompleteSteps == [.board, .specSource])
     }
 
     @Test("The id follows the name until the id is edited")

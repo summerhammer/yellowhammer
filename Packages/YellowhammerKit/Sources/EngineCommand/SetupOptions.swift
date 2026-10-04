@@ -40,7 +40,7 @@ enum JobsRequest: Equatable {
 /// to their default — so interactive mode can tell "given" from "default" and skip the prompt only for
 /// the former.
 struct SetupOptions {
-    static let defaultGitHubCredential = "keychain:github"
+    static let defaultGitHubCredential = MachineConfiguration.defaultGitHubCredential
 
     let mode: SetupMode
     /// `--events json`: emits `LinearInstallEvent` NDJSON on stdout instead of prompting or printing

@@ -35,9 +35,10 @@ final class AgentCLIUITests: XCTestCase {
         try? FileManager.default.removeItem(at: configurationDirectory.deletingLastPathComponent())
     }
 
-    /// Writes `machineTOML` as `config.toml`, then launches the app against it and the stub `yh`.
-    private func launch(machineTOML: String) throws {
-        try machineTOML.write(to: machineFile, atomically: true, encoding: .utf8)
+    /// Writes `machineTOML` as `config.toml` — none at all when nil — then launches the app against it and
+    /// the stub `yh`.
+    private func launch(machineTOML: String?) throws {
+        try machineTOML?.write(to: machineFile, atomically: true, encoding: .utf8)
         app = XCUIApplication()
         app.launchArguments = [
             "-YellowhammerConfigurationDirectory", configurationDirectory.path(percentEncoded: false),
@@ -75,6 +76,30 @@ final class AgentCLIUITests: XCTestCase {
         XCTAssertTrue(exitStatus.waitForExistence(timeout: 5))
         let statusText = (exitStatus.value as? String) ?? ""
         XCTAssertTrue(statusText.contains("1"), statusText)
+    }
+
+    /// A fresh Mac with no `config.toml` at all: the pane still offers to declare a CLI, and declaring one
+    /// creates the file — the Add Project sheet waits on a route, so nothing here may wait on that sheet.
+    /// The pane offers no way into a second Add Project sheet.
+    func testDeclaringACLIOnAFreshMacCreatesTheMachineFile() throws {
+        try launch(machineTOML: nil)
+        openAgentCLIsPane()
+        let window = app.windows["Agent CLIs"]
+        XCTAssertTrue(window.waitForExistence(timeout: 10), "The toolbar does not name the section")
+        XCTAssertFalse(window.buttons["open-setup"].exists)
+
+        let picker = window.popUpButtons["agent-cli-declare-name"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        XCTAssertEqual(picker.value as? String, "claude")
+        window.buttons["agent-cli-declare"].click()
+
+        let probedAt = window.staticTexts["agent-cli-probed-at-claude"]
+        XCTAssertTrue(probedAt.waitForExistence(timeout: 10), "The declared CLI is not listed")
+        XCTAssertFalse(window.staticTexts["agent-cli-declare-failure"].exists)
+        XCTAssertTrue(window.buttons["agent-cli-open-routing-table"].waitForExistence(timeout: 5))
+
+        let written = try String(contentsOf: machineFile, encoding: .utf8)
+        XCTAssertTrue(written.contains("[cli.\"claude\"]") || written.contains("[cli.claude]"), written)
     }
 
     /// A fresh Mac after `yh setup --install-linear`: `config.toml` exists with no CLI and no route. The

@@ -2,6 +2,18 @@ import Domain
 import Foundation
 
 extension MachineConfiguration {
+    /// The GitHub credential reference a new machine file starts with, unless `yh setup` is given another.
+    public static let defaultGitHubCredential = "keychain:github"
+
+    /// A machine file that does not exist yet: the default GitHub credential and nothing declared. What the
+    /// app declares the first agent CLI against on a fresh Mac, before any Linear App Installation exists.
+    public static var unconfigured: MachineConfiguration {
+        // Non-empty literal: never fails.
+        MachineConfiguration(
+            gitHubCredential: CredentialReference(defaultGitHubCredential)!, cliAdapters: [], routingTable: []
+        )
+    }
+
     /// The registered CLI Adapter names (``RegisteredCLIAdapters``) not yet declared in ``cliAdapters``,
     /// in registry order.
     public var declarableCLIAdapters: [String] {
