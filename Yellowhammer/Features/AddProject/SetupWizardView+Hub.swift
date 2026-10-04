@@ -5,9 +5,13 @@ import SwiftUI
 extension SetupWizardModel {
     /// Whether Add Project was confirmed: from then on the hub shows the run, and its steps are read-only.
     var hasStartedRun: Bool { isRunning || runExitStatus != nil }
+
+    /// Whether a missing machine-wide prerequisite locks the steps. A started run never is: it shows the run.
+    var isAwaitingPrerequisites: Bool { readiness.blocksAddProject && !hasStartedRun }
 }
 
-/// The hub: the step list on the left, and on the right the open step, or the run once it started.
+/// The hub: the step list on the left, and on the right the open step, or the run once it started. While a
+/// prerequisite is missing, the list starts with it, the steps are locked, and the right pane shows it.
 struct SetupWizardHub: View {
     @Bindable var model: SetupWizardModel
 
@@ -23,6 +27,8 @@ struct SetupWizardHub: View {
             VStack(alignment: .leading, spacing: 0) {
                 if model.hasStartedRun {
                     WizardRunView(model: model)
+                } else if model.isAwaitingPrerequisites {
+                    SetupReadinessPanel(readiness: model.readiness)
                 } else {
                     StepHeading(step: model.draft.step).padding([.horizontal, .top], 20)
                     if model.draft.step == .linearProject, !model.teamsFailure.isEmpty {
@@ -40,15 +46,30 @@ struct SetupWizardHub: View {
 
     private var sidebar: some View {
         List(selection: selection) {
-            ForEach(AddProjectDraft.Step.allCases) { step in
-                WizardSidebarRow(
-                    title: step.shortTitle,
-                    summary: model.draft.summary(of: step),
-                    status: model.draft.status(of: step),
-                    problemCount: model.draft.problems(in: step).count
-                )
-                .tag(step)
-                .accessibilityIdentifier("setup-step-\(step)")
+            if model.isAwaitingPrerequisites {
+                Section("Prerequisites") {
+                    ForEach(model.readiness.missing, id: \.self) { prerequisite in
+                        Label(prerequisite.title, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.primary, .warning)
+                            .padding(.vertical, 3)
+                            .accessibilityIdentifier("setup-prerequisite-\(prerequisite.identifier)")
+                    }
+                }
+            }
+            Section {
+                ForEach(AddProjectDraft.Step.allCases) { step in
+                    WizardSidebarRow(
+                        title: step.shortTitle,
+                        summary: model.draft.summary(of: step),
+                        status: model.draft.status(of: step),
+                        problemCount: model.draft.problems(in: step).count
+                    )
+                    .tag(step)
+                    .accessibilityIdentifier("setup-step-\(step)")
+                }
+                .disabled(model.isAwaitingPrerequisites)
+            } header: {
+                if model.isAwaitingPrerequisites { Text("Steps") }
             }
         }
         .listStyle(.sidebar)
@@ -154,8 +175,6 @@ struct StepHeading: View {
 /// The hub's footer: Cancel; what is still needed; Add Project — or, after the run, only Done or Close.
 struct SetupWizardFooter: View {
     let model: SetupWizardModel
-    /// Whether the hub is showing, so what is still needed is worth saying; the readiness panel has no steps.
-    let showsReadiness: Bool
     let onAdded: @MainActor (ProjectID) -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -187,7 +206,7 @@ struct SetupWizardFooter: View {
                         .buttonStyle(.borderedProminent)
                         .disabled(true)
                 } else {
-                    if showsReadiness { readiness }
+                    if !model.isAwaitingPrerequisites { readiness }
                     Button("Add Project") { model.requestAdd() }
                         .buttonStyle(.borderedProminent)
                         .keyboardShortcut(.defaultAction)
