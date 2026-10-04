@@ -1,9 +1,9 @@
 import Config
 import SwiftUI
 
-/// A `[[routing]]` table, editable: shared by ``ProjectConfigurationView`` (a Project's own overrides) and
-/// ``BaseRoutingTablePane`` (the machine-wide base Routing Table) — one Routing Entry's shape does not
-/// depend on which file it lives in. Each Routing Entry is a card, as the Add Project sheet draws a Repo,
+/// A `[[routing]]` table, editable as typed fields: ``ProjectConfigurationView``'s editor for a Project's own
+/// overrides. (The machine-wide base Routing Table has its own pane, ``BaseRoutingTablePane``, where a
+/// Route is picked rather than typed.) Each Routing Entry is a card, as the Add Project sheet draws a Repo,
 /// followed by a button that adds another.
 ///
 /// A blank Kind or Repo Role renders as "any" (``RoutingEntryDraft``'s own default): the Operator

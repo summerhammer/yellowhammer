@@ -73,9 +73,11 @@ struct SettingsSaveFooter: View {
 }
 
 /// A card for one item a pane edits — a Repo, a Routing Entry, a Linear workspace — like the Add Project
-/// sheet's Repo cards. A card with a problem is tinted `error`.
+/// sheet's Repo cards. A card with a problem is tinted `error`; a highlighted one — the Routing Entry that
+/// answers "Test a Card" — is drawn in `accent`.
 struct SettingsCard<Content: View>: View {
     var hasProblem = false
+    var isHighlighted = false
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -83,11 +85,15 @@ struct SettingsCard<Content: View>: View {
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(tint.opacity(0.07), in: .rect(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(tint.opacity(0.22)))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(tint.opacity(isHighlighted ? 0.6 : 0.22), lineWidth: isHighlighted ? 1.5 : 1)
+            )
     }
 
     private var tint: AnyShapeStyle {
-        hasProblem ? AnyShapeStyle(.error) : AnyShapeStyle(.neutral)
+        if hasProblem { return AnyShapeStyle(.error) }
+        return isHighlighted ? AnyShapeStyle(.accent) : AnyShapeStyle(.neutral)
     }
 }
 
