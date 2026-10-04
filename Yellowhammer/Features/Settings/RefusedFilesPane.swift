@@ -10,55 +10,50 @@ struct RefusedFilesPane: View {
     let configured: ConfiguredProjects?
 
     var body: some View {
-        if let configured {
-            if let failure = configured.loadFailure {
-                // The whole configuration is unreadable, so an empty list would claim nothing is refused.
-                VStack(spacing: 8) {
-                    Text("Yellowhammer can\u{2019}t read its configuration.")
-                    Text(failure)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
+        SettingsPane(
+            title: "Refused Files",
+            explanation: "Project configuration files Yellowhammer could not load, with every error the loader "
+                + "found. A refused file is not a Project anywhere in the app until you fix it."
+        ) {
+            if let configured {
+                if let failure = configured.loadFailure {
+                    // The whole configuration is unreadable, so an empty list would claim nothing is refused.
+                    WizardBlock(title: "Yellowhammer can\u{2019}t read its configuration.", boxed: false) {
+                        SettingsFailureText(text: failure)
+                    }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("settings-configuration-unreadable")
+                } else if configured.refused.isEmpty {
+                    Label("No Project configuration file is refused.", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.success)
+                        .accessibilityIdentifier("settings-refused-none")
+                } else {
+                    list(configured.refused)
                 }
-                .multilineTextAlignment(.center)
-                .padding()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .accessibilityIdentifier("settings-configuration-unreadable")
-            } else if configured.refused.isEmpty {
-                Text("No Project configuration file is refused.")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .accessibilityIdentifier("settings-refused-none")
             } else {
-                list(configured.refused)
+                ProgressView()
+                    .frame(maxWidth: .infinity)
             }
-        } else {
-            ProgressView()
         }
     }
 
     private func list(_ refused: [InvalidProject]) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Refused Project configuration files")
-                    .font(.headline)
-                ForEach(Array(refused.enumerated()), id: \.offset) { offset, file in
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(Array(refused.enumerated()), id: \.offset) { offset, file in
+                SettingsCard(hasProblem: true) {
+                    Text(file.file)
+                        .font(.callout.monospaced())
+                        .textSelection(.enabled)
+                        .accessibilityIdentifier("settings-refused-file-\(offset)")
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(file.file)
-                            .textSelection(.enabled)
-                            .accessibilityIdentifier("settings-refused-file-\(offset)")
                         ForEach(Array(file.errors.enumerated()), id: \.offset) { index, error in
-                            Text(error.description)
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
-                                .accessibilityIdentifier("settings-refused-file-\(offset)-error-\(index)")
+                            SettingsFailureText(
+                                text: error.description, identifier: "settings-refused-file-\(offset)-error-\(index)"
+                            )
                         }
                     }
                 }
             }
-            .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

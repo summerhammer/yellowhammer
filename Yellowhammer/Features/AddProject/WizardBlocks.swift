@@ -3,12 +3,31 @@ import SwiftUI
 
 // Round two's building blocks. A step is a column of blocks rather than a grouped Form, so option
 // cards and radio lists can sit outside a boxed group, and every variant draws a step the same way.
+// The Settings window draws its panes with the same blocks, so the two screens look alike.
+
+/// A page's heading: its title and the sentence that says what it is for.
+struct PaneHeading: View {
+    let title: String
+    let explanation: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.title2.weight(.semibold))
+            Text(explanation)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
 
 /// A titled group: an optional header, its rows in a softly filled box, and an optional footer.
 struct WizardBlock<Content: View>: View {
     var title: String?
     var footer: String?
     var boxed = true
+    /// The footer's accessibility identifier, so a UI test can read it; empty for none.
+    var footerIdentifier = ""
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -25,6 +44,7 @@ struct WizardBlock<Content: View>: View {
             }
             if let footer {
                 Text(footer).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier(footerIdentifier)
             }
         }
     }

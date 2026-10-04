@@ -81,7 +81,7 @@ struct YellowhammerApp: App {
                 .environment(settingsRequest)
                 .environment(projectAdditions)
         }
-        .defaultSize(width: 760, height: 520)
+        .defaultSize(width: 860, height: 620)
         .handlesExternalEvents(matching: [])
     }
 }

@@ -24,13 +24,7 @@ struct BaseRoutingTablePane: View {
     }
 
     private var unavailable: some View {
-        VStack(spacing: 8) {
-            Text(model.loadFailure ?? "The base Routing Table could not be loaded.")
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
-        }
-        .multilineTextAlignment(.center)
-        .padding()
+        SettingsUnavailable(message: model.loadFailure ?? "The base Routing Table could not be loaded.")
     }
 }
 
@@ -41,53 +35,45 @@ private struct BaseRoutingTableFormView: View {
 
     var body: some View {
         if let table = Binding($model.routingTable) {
-            VStack(spacing: 0) {
-                Form {
-                    Section("Routing Table") {
-                        RoutingEntriesEditor(entries: table)
-                    }
-                    if let adapters = model.machine?.cliAdapters, !adapters.isEmpty {
-                        Section("Declared CLI Adapters") {
-                            ForEach(adapters, id: \.name) { adapter in
-                                Text(adapter.name)
+            SettingsPane(
+                title: "Base Routing Table",
+                explanation: "The Route \u{2014} agent CLI, model and effort \u{2014} for each Kind and Repo Role, "
+                    + "with its fallbacks in order. Every Project on this Mac reads this table; a Project\u{2019}s "
+                    + "own entry for the same Kind and Repo Role replaces the one here."
+            ) {
+                WizardBlock(
+                    title: "Routing Table",
+                    footer: "A blank Kind or Repo Role matches any. Fallbacks are tried in order.",
+                    boxed: false
+                ) {
+                    RoutingEntriesEditor(entries: table, emptyText: "No route yet. Add one to dispatch Cards.")
+                }
+                if let adapters = model.machine?.cliAdapters, !adapters.isEmpty {
+                    WizardBlock(title: "Declared CLI Adapters", footer: "Declared in the Agent CLIs pane.") {
+                        ForEach(adapters, id: \.name) { adapter in
+                            Text(adapter.name)
+                                .font(.body.monospaced())
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                            if adapter.name != adapters.last?.name {
+                                Divider().padding(.leading, 12)
                             }
                         }
                     }
                 }
-                .formStyle(.grouped)
-                Divider()
-                footer
+            } footer: {
+                SettingsSaveFooter(
+                    note: "Saving rewrites \(model.file.path(percentEncoded: false)); comments and layout in it "
+                        + "are not kept. Editing the file directly stays supported.",
+                    failure: model.failure,
+                    isDirty: model.isDirty,
+                    identifierPrefix: "routing-table",
+                    onRevert: { model.revert() },
+                    onSave: { model.save() }
+                )
             }
         } else {
-            Text("The base Routing Table could not be loaded.")
+            SettingsUnavailable(message: "The base Routing Table could not be loaded.")
         }
-    }
-
-    private var footer: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let failure = model.failure {
-                Text(failure)
-                    .foregroundStyle(.red)
-                    .textSelection(.enabled)
-                    .accessibilityIdentifier("routing-table-save-failure")
-            }
-            Text(
-                "Saving rewrites \(model.file.path(percentEncoded: false)); comments and layout in it "
-                    + "are not kept. Editing the file directly stays supported."
-            )
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            HStack {
-                Spacer()
-                Button("Revert") { model.revert() }
-                    .disabled(!model.isDirty)
-                    .accessibilityIdentifier("routing-table-revert")
-                Button("Save") { model.save() }
-                    .keyboardShortcut("s")
-                    .disabled(!model.isDirty)
-                    .accessibilityIdentifier("routing-table-save")
-            }
-        }
-        .padding()
     }
 }
