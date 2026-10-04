@@ -35,45 +35,381 @@ private struct BaseRoutingTableFormView: View {
 
     var body: some View {
         if let table = Binding($model.routingTable) {
-            SettingsPane(
-                title: "Base Routing Table",
-                explanation: "The Route \u{2014} agent CLI, model and effort \u{2014} for each Kind and Repo Role, "
-                    + "with its fallbacks in order. Every Project on this Mac reads this table; a Project\u{2019}s "
-                    + "own entry for the same Kind and Repo Role replaces the one here."
-            ) {
-                WizardBlock(
-                    title: "Routing Table",
-                    footer: "A blank Kind or Repo Role matches any. Fallbacks are tried in order.",
-                    boxed: false
+            ScrollViewReader { proxy in
+                SettingsPane(
+                    title: "Base Routing Table",
+                    explanation: "Who works on each Card: the agent CLI, model and effort for each Kind and Repo "
+                        + "Role, with fallbacks in order. Every Project on this Mac reads this table; a "
+                        + "Project\u{2019}s own entry for the same Kind and Repo Role replaces the one here."
                 ) {
-                    RoutingEntriesEditor(entries: table, emptyText: "No route yet. Add one to dispatch Cards.")
+                    RoutingSections(table: table, proxy: proxy)
+                } footer: {
+                    SettingsSaveFooter(
+                        note: "Saving rewrites \(model.file.path(percentEncoded: false)); comments and layout in "
+                            + "it are not kept. Editing the file directly stays supported.",
+                        failure: model.failure,
+                        isDirty: model.isDirty,
+                        identifierPrefix: "routing-table",
+                        onRevert: { model.revert() },
+                        onSave: { model.save() }
+                    )
                 }
-                if let adapters = model.machine?.cliAdapters, !adapters.isEmpty {
-                    WizardBlock(title: "Declared CLI Adapters", footer: "Declared in the Agent CLIs pane.") {
-                        ForEach(adapters, id: \.name) { adapter in
-                            Text(adapter.name)
-                                .font(.body.monospaced())
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                            if adapter.name != adapters.last?.name {
-                                Divider().padding(.leading, 12)
-                            }
-                        }
-                    }
-                }
-            } footer: {
-                SettingsSaveFooter(
-                    note: "Saving rewrites \(model.file.path(percentEncoded: false)); comments and layout in it "
-                        + "are not kept. Editing the file directly stays supported.",
-                    failure: model.failure,
-                    isDirty: model.isDirty,
-                    identifierPrefix: "routing-table",
-                    onRevert: { model.revert() },
-                    onSave: { model.save() }
-                )
             }
+            .environment(\.routingCatalog, model.catalog)
         } else {
             SettingsUnavailable(message: "The base Routing Table could not be loaded.")
         }
     }
+}
+
+/// The table split by the three jobs it routes, each section always open:
+///
+/// - **Cards** — a sentence per Card entry, its Kind from a pop-up, and "Test a Card…" beside the heading.
+/// - **Author** — the Route the author Act runs on.
+/// - **Verification** — the agents that may check a finished Cycle, in order, and who would check the
+///   code each worker Route writes.
+///
+/// The author Act and Verification share one entry, the reserved authoring Kind's: its Route is the
+/// author Act's, and its fallbacks are the verifiers (and the author Act's fallbacks too). Author edits
+/// the first, Verification the rest, so neither section repeats the other. With no entry at all the pane
+/// is the first-run empty state.
+private struct RoutingSections: View {
+    @Binding var table: [RoutingEntryDraft]
+    let proxy: ScrollViewProxy
+    @State private var test = CardTest()
+    @Environment(\.routingCatalog) private var catalog
+
+    var body: some View {
+        Group {
+            if table.isEmpty {
+                RoutingEmptyState { table.appendEntry(catalog: catalog) }
+            } else {
+                VStack(alignment: .leading, spacing: 22) {
+                    cards
+                    Divider()
+                    author
+                    Divider()
+                    verification
+                }
+            }
+        }
+        .onChange(of: table) { test.shownIndex = nil }
+    }
+
+    private var cardIndices: [Int] { table.indices.filter { !table[$0].isAuthoringEntry } }
+    private var authoringIndex: Int? { table.firstIndex(where: \.isAuthoringEntry) }
+    private var catchAll: RoutingEntryDraft? { table.first(where: \.isCatchAll) }
+
+    /// Gives the author Act and Verification an entry of their own, starting from the catch-all's Routes.
+    private func addAuthoringEntry() {
+        let chain = catchAll?.chain ?? [catalog.route(avoiding: [])]
+        table.append(RoutingEntryDraft(kind: "authoring", route: chain[0], fallbacks: Array(chain.dropFirst())))
+    }
+
+    // MARK: Cards
+
+    private var cards: some View {
+        RoutingPaneSection(
+            title: "Cards",
+            summary: "Who writes each Card\u{2019}s code, chosen by the Card\u{2019}s Kind and its Repo\u{2019}s Role.",
+            accessoryID: CardTest.anchorID
+        ) {
+            TestCardButton(test: $test, table: table) { index in
+                test.shownIndex = index
+                withAnimation { proxy.scrollTo(Self.scrollID(index), anchor: .center) }
+            }
+        } content: {
+            ForEach(cardIndices, id: \.self) { index in
+                RoutingEntrySentence(
+                    entry: $table.entry(at: index),
+                    table: table,
+                    standing: test.standing(of: index, in: table),
+                    test: { openTest(on: index) },
+                    duplicate: { table.append(table[index]) },
+                    remove: { table.remove(at: index) }
+                )
+                .id(Self.scrollID(index))
+            }
+            HStack {
+                Button("Add Routing Entry", systemImage: "plus") { table.appendEntry(catalog: catalog) }
+                    .accessibilityIdentifier("routing-table-add-entry")
+                Spacer()
+                Text("Order here doesn\u{2019}t matter: the entry with the most specific Kind wins.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func openTest(on index: Int) {
+        // The popover hangs off the button, so bring the button into view first.
+        proxy.scrollTo(CardTest.anchorID, anchor: .top)
+        test.prime(kinds: catalog.kinds(in: table), repoRoles: catalog.repoRoles)
+        test.open(for: table[index])
+    }
+
+    private static func scrollID(_ index: Int) -> String { "routing-entry-\(index)" }
+
+    // MARK: Author
+
+    private var author: some View {
+        RoutingPaneSection(
+            title: "Author",
+            summary: "The author Act picks the next Feature on the board and breaks it into Cards."
+        ) {
+            SettingsCard {
+                if let index = authoringIndex {
+                    let entry = table[index]
+                    HStack(spacing: 8) {
+                        Text("The author Act goes to").foregroundStyle(.secondary)
+                        RouteButton(route: $table.entry(at: index).route, table: table)
+                    }
+                    Text(
+                        entry.fallbacks.isEmpty
+                            ? "If it fails, the author Act has nowhere else to go: add a verifier below."
+                            : "If it fails, the author Act tries the verifiers below, in order."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    ReplacedNote(entry: entry)
+                    Button("Use the Catch-All Instead", role: .destructive) { table.remove(at: index) }
+                        .buttonStyle(.link)
+                        .font(.caption)
+                } else {
+                    usesCatchAll(subject: "the author Act")
+                }
+            }
+        }
+    }
+
+    // MARK: Verification
+
+    private var verification: some View {
+        RoutingPaneSection(
+            title: "Verification",
+            summary: "A finished Cycle is checked by an agent that wrote none of its code: the first Route below "
+                + "that didn\u{2019}t work on the Cycle."
+        ) {
+            SettingsCard {
+                if let index = authoringIndex {
+                    verifiers($table.entry(at: index).chain)
+                } else {
+                    usesCatchAll(subject: "Verification")
+                }
+            }
+            outcomes
+        }
+    }
+
+    /// The authoring entry's chain as an ordered list of verifiers: the author Act's Route first, read
+    /// only here, then the fallbacks, each editable and removable.
+    private func verifiers(_ chain: Binding<[RouteDraft]>) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Checked by the first of these that wrote none of the Cycle\u{2019}s code:")
+                .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                ordinal(1)
+                RouteLabel(route: chain.wrappedValue[0])
+                Text("the author Act\u{2019}s Route \u{2014} change it under Author")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(chain.wrappedValue.indices.dropFirst(), id: \.self) { index in
+                HStack(spacing: 8) {
+                    ordinal(index + 1)
+                    RouteButton(route: chain.route(at: index), table: table)
+                    RemoveRouteButton { chain.wrappedValue.remove(at: index) }
+                        .accessibilityLabel("Remove verifier \(index)")
+                }
+            }
+            Button("Add a Verifier", systemImage: "plus", action: addVerifier)
+                .buttonStyle(.borderless)
+        }
+    }
+
+    private func addVerifier() {
+        guard let index = authoringIndex else { return }
+        let taken = table.workerRoutes + table[index].chain
+        table[index].fallbacks.append(catalog.route(avoiding: taken))
+    }
+
+    private func ordinal(_ place: Int) -> some View {
+        Text("\(place).").monospacedDigit().foregroundStyle(.secondary).frame(width: 18, alignment: .trailing)
+    }
+
+    /// For each worker Route in the table, who would check the code it writes — and a fix for any that
+    /// nobody can check.
+    @ViewBuilder private var outcomes: some View {
+        let writers = table.workerRoutes
+        if !writers.isEmpty {
+            WizardBlock(
+                title: "Who checks whose code",
+                footer: "When several Routes worked on one Cycle, every one of them is skipped."
+            ) {
+                ForEach(writers.indices, id: \.self) { index in
+                    if index > 0 { Divider().padding(.leading, 12) }
+                    outcome(writtenBy: writers[index])
+                }
+            }
+        }
+    }
+
+    private func outcome(writtenBy writer: RouteDraft) -> some View {
+        HStack(spacing: 8) {
+            Text("Code by").foregroundStyle(.secondary)
+            RouteLabel(route: writer, compact: true)
+            Text("is checked by").foregroundStyle(.secondary)
+            if let verifier = table.verifier(excluding: [writer]) {
+                RouteLabel(route: verifier, compact: true)
+            } else {
+                Label("nobody", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.error)
+                Spacer(minLength: 8)
+                if authoringIndex != nil {
+                    Button("Add a Verifier", action: addVerifier)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+    }
+
+    /// What the author Act or Verification runs on while there is no authoring entry.
+    @ViewBuilder private func usesCatchAll(subject: String) -> some View {
+        Text("The author Act and Verification have no Routes of their own, so both use the catch-all\u{2019}s:")
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        if let catchAll {
+            ChainLine(lead: "goes to", chain: catchAll.chain)
+        } else {
+            Text("There is no catch-all either: \(subject) cannot run.").foregroundStyle(.error)
+        }
+        Button("Give the Author and Verification Their Own Routes", action: addAuthoringEntry)
+    }
+}
+
+/// One of the pane's sections: a heading, what it covers, then its content. Always open — not an accordion.
+private struct RoutingPaneSection<Accessory: View, Content: View>: View {
+    let title: String
+    let summary: String
+    /// The scroll id of the heading, when something scrolls to it.
+    var accessoryID: String?
+    /// A control beside the heading, such as "Test a Card…".
+    @ViewBuilder let accessory: Accessory
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.title3.weight(.semibold))
+                    Text(summary).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 12)
+                accessory
+            }
+            .id(accessoryID)
+            content
+        }
+    }
+}
+
+extension RoutingPaneSection where Accessory == EmptyView {
+    init(title: String, summary: String, @ViewBuilder content: () -> Content) {
+        self.init(title: title, summary: summary, accessory: { EmptyView() }, content: content)
+    }
+}
+
+/// What the pane shows while the table has no entry: what that means, and the one way forward.
+private struct RoutingEmptyState: View {
+    let add: () -> Void
+
+    var body: some View {
+        ContentUnavailableView {
+            Label("No Routing Entries", systemImage: "arrow.triangle.branch")
+        } description: {
+            Text("No Card can be dispatched until an entry routes it. Start with one for Any Kind and Any Repo Role.")
+        } actions: {
+            Button("Add a Catch-All Entry", action: add)
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("routing-table-add-catch-all")
+        }
+        .frame(maxWidth: .infinity, minHeight: 260)
+    }
+}
+
+private extension [RoutingEntryDraft] {
+    /// A new entry for any Kind and any Repo Role, with the catch-all's Route when there is one.
+    mutating func appendEntry(catalog: RoutingCatalog) {
+        append(RoutingEntryDraft(route: first(where: \.isCatchAll)?.route ?? catalog.route(avoiding: [])))
+    }
+}
+
+private extension Binding where Value == [RoutingEntryDraft] {
+    /// The entry at `index`, read and written only while it exists, so a control still on screen for a
+    /// removed entry never writes past the end of the table.
+    func entry(at index: Int) -> Binding<RoutingEntryDraft> {
+        Binding<RoutingEntryDraft> {
+            wrappedValue.indices.contains(index)
+                ? wrappedValue[index] : RoutingEntryDraft(route: RouteDraft(cli: "", model: "", effort: ""))
+        } set: { newValue in
+            if wrappedValue.indices.contains(index) { wrappedValue[index] = newValue }
+        }
+    }
+}
+
+// MARK: - Previews
+
+private extension RoutingCatalog {
+    /// Two declared agent CLIs and the Repo Roles, Kinds and models a Mac with two Projects would name.
+    static let preview = RoutingCatalog(
+        clis: [
+            DeclaredCLI(name: "claude", efforts: ["low", "medium", "high", "xhigh", "max"]),
+            DeclaredCLI(name: "codex", efforts: ["minimal", "low", "medium", "high", "xhigh"])
+        ],
+        repoRoles: ["backend", "mobile", "spec", "web"],
+        kinds: ["arch", "impl", "impl.boilerplate"],
+        models: ["claude": ["sonnet", "opus", "haiku"], "codex": ["gpt-5-codex", "gpt-5-mini"]],
+        replacedIn: RoutingEntryDraft(kind: "impl", repoRole: "backend", route: previewRoute("", "", ""))
+            .key.map { [$0: ["Yellowhammer"]] } ?? [:]
+    )
+}
+
+private func previewRoute(_ cli: String, _ model: String, _ effort: String) -> RouteDraft {
+    RouteDraft(cli: cli, model: model, effort: effort)
+}
+
+private struct RoutingSectionsPreview: View {
+    @State var table: [RoutingEntryDraft]
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            WizardColumn { RoutingSections(table: $table, proxy: proxy) }
+        }
+        .environment(\.routingCatalog, .preview)
+        .frame(width: 770, height: 900)
+    }
+}
+
+#Preview("Base Routing Table") {
+    RoutingSectionsPreview(table: [
+        RoutingEntryDraft(
+            route: previewRoute("claude", "sonnet", "medium"),
+            fallbacks: [previewRoute("codex", "gpt-5-codex", "medium")]
+        ),
+        RoutingEntryDraft(
+            kind: "authoring", route: previewRoute("claude", "opus", "high"),
+            fallbacks: [previewRoute("codex", "gpt-5-codex", "high")]
+        ),
+        RoutingEntryDraft(
+            kind: "impl", repoRole: "backend", route: previewRoute("claude", "opus", "high"),
+            fallbacks: [previewRoute("codex", "gpt-5-codex", "high")]
+        ),
+        RoutingEntryDraft(kind: "impl.boilerplate", route: previewRoute("claude", "haiku", "low"))
+    ])
+}
+
+#Preview("First run") {
+    RoutingSectionsPreview(table: [])
 }

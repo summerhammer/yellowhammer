@@ -18,6 +18,8 @@ final class BaseRoutingTableModel {
     var routingTable: [RoutingEntryDraft]?
     /// The rest of the machine file, carried through unedited so ``save()`` can re-render it whole.
     private(set) var machine: MachineConfiguration?
+    /// What the pane's controls offer, from the machine file and the Projects last loaded beside it.
+    private(set) var catalog = RoutingCatalog.empty
 
     /// Why the base Routing Table could not be loaded, in the loader's own words.
     private(set) var loadFailure: String?
@@ -46,6 +48,7 @@ final class BaseRoutingTableModel {
             let configuration = try Configuration.load(directory: directory, reading: file, as: text)
             originalText = text
             machine = configuration.machine
+            catalog = RoutingCatalog(machine: configuration.machine, projects: configuration.projects)
             let entries = configuration.machine.routingTable.map(RoutingEntryDraft.init)
             saved = entries
             routingTable = entries
@@ -87,6 +90,7 @@ final class BaseRoutingTableModel {
         saved = nil
         routingTable = nil
         machine = nil
+        catalog = .empty
         self.loadFailure = loadFailure
         failure = nil
     }
