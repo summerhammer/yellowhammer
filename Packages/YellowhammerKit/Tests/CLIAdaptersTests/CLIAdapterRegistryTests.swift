@@ -18,9 +18,16 @@ struct CLIAdapterRegistryTests {
         #expect(adapter is CodexAdapter)
     }
 
+    @Test("agy resolves to the AntigravityAdapter")
+    func agyResolves() {
+        let adapter = CLIAdapterRegistry.adapter(named: "agy")
+        #expect(adapter?.cli == "agy")
+        #expect(adapter is AntigravityAdapter)
+    }
+
     @Test("allNames lists all registered adapter names")
     func allNamesListsRegisteredAdapters() {
-        #expect(CLIAdapterRegistry.allNames == ["claude", "codex"])
+        #expect(CLIAdapterRegistry.allNames == ["claude", "codex", "agy"])
     }
 
     @Test("Every registered name resolves to an adapter of that name")

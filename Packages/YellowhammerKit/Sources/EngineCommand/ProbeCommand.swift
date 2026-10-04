@@ -15,7 +15,10 @@ public struct ProbeCommand: AsyncParsableCommand {
     )
 
     @Argument(
-        help: "The agent CLI to probe (e.g. `claude`, `codex`). When omitted with `--all`, probes every registered CLI."
+        help: """
+            The agent CLI to probe (e.g. `claude`, `codex`, `agy`). \
+            When omitted with `--all`, probes every registered CLI.
+            """
     )
     public var cli: String?
 
@@ -45,7 +48,7 @@ public struct ProbeCommand: AsyncParsableCommand {
         } else if let cli {
             targets = [cli]
         } else {
-            throw ValidationError("specify a CLI to probe (e.g. `claude`, `codex`) or pass `--all`")
+            throw ValidationError("specify a CLI to probe (e.g. `claude`, `codex`, `agy`) or pass `--all`")
         }
 
         var anyFailedOrDrifted = false
@@ -180,6 +183,7 @@ public struct ProbeCommand: AsyncParsableCommand {
         switch cli {
         case "claude": ("haiku", "low")
         case "codex": ("gpt-5.5", "low")
+        case "agy": ("gemini-3.8-flash-low", "low")
         default: nil
         }
     }

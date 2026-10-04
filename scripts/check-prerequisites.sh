@@ -255,8 +255,27 @@ check_agent_clis() {
 		fi
 	fi
 
+	# Check agy (no auth-status subcommand; `agy models` fetches the model list live, so it
+	# succeeds only when signed in)
+	if has_command agy; then
+		if with_timeout 15 agy models >/dev/null 2>&1; then
+			found_authenticated=1
+			if [ -z "$details" ]; then
+				details="agy (authenticated)"
+			else
+				details="$details, agy (authenticated)"
+			fi
+		else
+			if [ -z "$details" ]; then
+				details="agy (installed; auth not verifiable)"
+			else
+				details="$details, agy (installed; auth not verifiable)"
+			fi
+		fi
+	fi
+
 	if [ -z "$details" ]; then
-		report FAIL "Agent CLI (≥1 installed + authenticated)" "No CLIs found; at least one (claude or codex) is required"
+		report FAIL "Agent CLI (≥1 installed + authenticated)" "No CLIs found; at least one (claude, codex or agy) is required"
 		return
 	fi
 

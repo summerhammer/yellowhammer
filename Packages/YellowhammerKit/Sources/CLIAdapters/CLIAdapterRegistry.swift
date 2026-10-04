@@ -9,6 +9,7 @@ public enum CLIAdapterRegistry {
         switch name {
         case "claude": ClaudeCodeAdapter()
         case "codex": CodexAdapter()
+        case "agy": AntigravityAdapter()
         default: nil
         }
     }

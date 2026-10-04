@@ -64,6 +64,39 @@ struct CLIOutputSchemaTests {
         #expect(values == [pass.schemaIdentifier])
     }
 
+    // MARK: - Gemini dialect (`agy`)
+
+    @Test("Every pass's Gemini schema keeps only enums of non-empty strings", arguments: RunPass.allCases)
+    func geminiEnumsAreStringsOnly(pass: RunPass) throws {
+        let object = try Self.parse(Data(CLIOutputSchema.gemini(for: pass).utf8))
+        for values in Self.enums(in: object) {
+            #expect(values.allSatisfy { ($0 as? String)?.isEmpty == false }, "non-string enum in \(pass): \(values)")
+        }
+    }
+
+    @Test("The Gemini schema drops the integer `version` enum but keeps its type", arguments: RunPass.allCases)
+    func geminiDropsVersionEnum(pass: RunPass) throws {
+        let object = try Self.parse(Data(CLIOutputSchema.gemini(for: pass).utf8))
+        let properties = try #require(object["properties"] as? [String: Any])
+        let version = try #require(properties["version"] as? [String: Any])
+        #expect(version["enum"] == nil)
+        #expect(version["type"] as? String == "integer")
+    }
+
+    @Test("The Gemini schema otherwise matches the strict schema: string enums, required and nullable types kept",
+          arguments: RunPass.allCases)
+    func geminiKeepsStrictShape(pass: RunPass) throws {
+        let gemini = try Self.parse(Data(CLIOutputSchema.gemini(for: pass).utf8))
+        let strict = try Self.parse(Data(CLIOutputSchema.strict(for: pass).utf8))
+        #expect(gemini["required"] as? [String] == strict["required"] as? [String])
+        #expect(gemini["additionalProperties"] as? Bool == false)
+        let properties = try #require(gemini["properties"] as? [String: Any])
+        let schemaProperty = try #require(properties["schema"] as? [String: Any])
+        #expect(schemaProperty["enum"] as? [String] == [pass.schemaIdentifier])
+        let optional = try #require(properties[Self.optionalProperty(for: pass)] as? [String: Any])
+        #expect((optional["type"] as? [String])?.last == "null")
+    }
+
     // MARK: - Round trip: a strict-mode CLI output, nulls stripped, still decodes
 
     @Test("A strict-mode worker output, with its nullable fields null, decodes after removingNullMembers")
@@ -111,6 +144,19 @@ struct CLIOutputSchemaTests {
     }
 
     // MARK: - Helpers
+
+    /// Every `enum` array anywhere in `node`.
+    private static func enums(in node: Any) -> [[Any]] {
+        switch node {
+        case let object as [String: Any]:
+            let own = (object["enum"] as? [Any]).map { [$0] } ?? []
+            return own + object.values.flatMap(enums)
+        case let array as [Any]:
+            return array.flatMap(enums)
+        default:
+            return []
+        }
+    }
 
     private static func parse(_ data: Data) throws -> [String: Any] {
         let object = try JSONSerialization.jsonObject(with: data)

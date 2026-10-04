@@ -8,7 +8,7 @@
 | Xcode toolchain | Everyone | `xcodebuild -version`: pass on the CI pin (see README), warn on another 26.x, fail if missing or older |
 | SwiftLint | Everyone | `swiftlint --version`: pass on the CI pin, warn on another version, fail if missing |
 | Orca ADE ≥ 1.4.195 (the version the feasibility probes ran against) | Everyone | `orca --version`, else `/Applications/Orca.app` `CFBundleShortVersionString` |
-| At least one agent CLI, installed and authenticated | Everyone | `claude auth status` / `codex login status` — no model is ever called |
+| At least one agent CLI, installed and authenticated | Everyone | `claude auth status` / `codex login status` / `agy models` — no model is ever called |
 | `git` on the path a bare environment gets | Everyone | `env -i /bin/sh -c 'command -v git'` |
 | Developer ID Application signing identity | Release engineering (P16.1) | `--with-signing`: `security find-identity -v -p codesigning` |
 | Access to the scratch Linear team | Rehearsal work (P15.1) | `--with-linear`: reported as SKIP until the board identity lands (P5.1) |

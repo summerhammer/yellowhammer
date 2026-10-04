@@ -20,10 +20,10 @@ struct MachineConfigurationCLIAdaptersTests {
 
     @Test("declarableCLIAdapters is the registry minus the declared names, in registry order")
     func declarable() throws {
-        #expect(try machine(adapters: []).declarableCLIAdapters == ["claude", "codex"])
-        #expect(try machine(adapters: ["claude"]).declarableCLIAdapters == ["codex"])
-        #expect(try machine(adapters: ["codex"]).declarableCLIAdapters == ["claude"])
-        #expect(try machine(adapters: ["claude", "codex"]).declarableCLIAdapters.isEmpty)
+        #expect(try machine(adapters: []).declarableCLIAdapters == ["claude", "codex", "agy"])
+        #expect(try machine(adapters: ["claude"]).declarableCLIAdapters == ["codex", "agy"])
+        #expect(try machine(adapters: ["codex"]).declarableCLIAdapters == ["claude", "agy"])
+        #expect(try machine(adapters: ["claude", "codex", "agy"]).declarableCLIAdapters.isEmpty)
     }
 
     @Test("declaring trims the executable and maps blank to nil")

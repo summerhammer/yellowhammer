@@ -33,6 +33,20 @@ enum CLIOutputSchema {
         return serialized(strictSchema)
     }
 
+    /// ``strict(for:)`` loosened for a CLI that hands the schema to Gemini as a function declaration
+    /// (`agy`): Gemini refuses any `enum` value that is not a non-empty string, so an `enum` holding
+    /// anything else — the `version` constant, or the `null` a nullable optional field gains — is
+    /// dropped, at any depth, leaving its `type`.
+    static func gemini(for pass: RunPass) -> String {
+        guard let strictSchema = (try? JSONSerialization.jsonObject(with: Data(strict(for: pass).utf8))) else {
+            preconditionFailure("strict result schema is not JSON")
+        }
+        guard let schema = droppingNonStringEnums(from: strictSchema) as? [String: Any] else {
+            preconditionFailure("strict result schema is not a JSON object")
+        }
+        return serialized(schema)
+    }
+
     /// Removes top-level `null` members a CLI writes for properties it had to declare
     /// nullable, so the result file reads as the Domain schema expects: an absent optional field.
     static func removingNullMembers(from data: Data) -> Data? {
@@ -61,6 +75,20 @@ enum CLIOutputSchema {
             }
         }
         return strict
+    }
+
+    private static func droppingNonStringEnums(from node: Any) -> Any {
+        switch node {
+        case var object as [String: Any]:
+            if let values = object["enum"] as? [Any], !values.allSatisfy({ ($0 as? String)?.isEmpty == false }) {
+                object.removeValue(forKey: "enum")
+            }
+            return object.mapValues(droppingNonStringEnums)
+        case let array as [Any]:
+            return array.map(droppingNonStringEnums)
+        default:
+            return node
+        }
     }
 
     private static func jsonType(of value: Any?) -> String {

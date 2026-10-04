@@ -2,5 +2,5 @@
 /// of them to its adapter; the app reads this list because it cannot link `CLIAdapters`. Adding a new
 /// kind of agent CLI is a code change — an adapter and an entry here — never configuration.
 public enum RegisteredCLIAdapters {
-    public static let names = ["claude", "codex"]
+    public static let names = ["claude", "codex", "agy"]
 }

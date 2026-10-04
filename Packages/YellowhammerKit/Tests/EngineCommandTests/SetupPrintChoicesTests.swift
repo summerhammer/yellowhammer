@@ -32,7 +32,7 @@ struct SetupPrintChoicesTests {
         #expect(Set(choices.operatorCandidates.map(\.id)) == ["user-op", "user-second"])
         #expect(choices.configuredOperator == nil)
         #expect(choices.teams == [SetupChoices.Team(id: "team-1", key: "ENG", name: "Engineering")])
-        #expect(choices.cliAdapters == ["claude", "codex"])
+        #expect(choices.cliAdapters == ["claude", "codex", "agy"])
         #expect(try Data(contentsOf: machineFile) == machineBefore)
         #expect(!FileManager.default.fileExists(
             atPath: directory.url.appending(component: "projects").path(percentEncoded: false)
