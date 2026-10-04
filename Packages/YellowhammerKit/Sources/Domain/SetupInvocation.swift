@@ -64,6 +64,9 @@ public struct SetupInvocation: Equatable, Sendable {
 
     /// The local name of the Linear App Installation the run acts on (`--installation`).
     public var installation: String?
+    /// The local name for a NEW Linear App Installation (`--installation-name`); never combined with
+    /// `installation`. Omitted when nil or trimmed empty (the proposal is used).
+    public var installationName: String?
     public var githubCredential: String?
     /// `"name"` or `"name=executable"`, in `--cli` order.
     public var cliAdapters: [String]
@@ -76,6 +79,7 @@ public struct SetupInvocation: Equatable, Sendable {
 
     public init(
         installation: String? = nil,
+        installationName: String? = nil,
         githubCredential: String? = nil,
         cliAdapters: [String] = [],
         route: String? = nil,
@@ -85,6 +89,7 @@ public struct SetupInvocation: Equatable, Sendable {
         jobs: Jobs = .notNow
     ) {
         self.installation = installation
+        self.installationName = installationName
         self.githubCredential = githubCredential
         self.cliAdapters = cliAdapters
         self.route = route
@@ -98,6 +103,7 @@ public struct SetupInvocation: Equatable, Sendable {
     public func arguments() throws(SetupInvocationError) -> [String] {
         var arguments = ["setup", "--init"]
         Self.appendOption(&arguments, "--installation", installation)
+        Self.appendOption(&arguments, "--installation-name", installationName)
         Self.appendOption(&arguments, "--github-credential", githubCredential)
         Self.appendRepeated(&arguments, "--cli", cliAdapters)
         Self.appendOption(&arguments, "--route", route)
@@ -146,10 +152,15 @@ public struct SetupInvocation: Equatable, Sendable {
 
     /// `["setup", "--install-linear", "--events", "json", ...]`: the app's re-run of just the Linear
     /// step (P17.6 slice (b)) — used both for the first install and for the app's own Retry/Cancel on a
-    /// `portsBusy`/`cancelled`/`notCompleted` event, which re-runs this exact invocation.
-    public static func installLinearArguments(installation: String? = nil, remote: Bool = false) -> [String] {
+    /// `portsBusy`/`cancelled`/`notCompleted` event, which re-runs this exact invocation. `installation`
+    /// selects an existing installation to re-connect; `installationName` names a new one (an empty
+    /// value means "use the proposal"); the two are never passed together.
+    public static func installLinearArguments(
+        installation: String? = nil, installationName: String? = nil, remote: Bool = false
+    ) -> [String] {
         var arguments = ["setup", "--install-linear", "--events", "json"] // glossary:ignore GL001
         appendOption(&arguments, "--installation", installation)
+        appendOption(&arguments, "--installation-name", installationName)
         if remote { arguments.append("--remote") }
         return arguments
     }

@@ -168,6 +168,22 @@ struct SetupInvocationTests {
         #expect(arguments == ["setup", "--install-linear", "--events", "json"])
     }
 
+    @Test("installLinearArguments appends --installation-name, omitting an empty one")
+    func installLinearArgumentsAppendsInstallationName() {
+        #expect(SetupInvocation.installLinearArguments(installationName: "work") == [
+            "setup", "--install-linear", "--events", "json", "--installation-name", "work" // glossary:ignore GL001
+        ])
+        #expect(SetupInvocation.installLinearArguments(installationName: "  ") == [
+            "setup", "--install-linear", "--events", "json" // glossary:ignore GL001
+        ])
+    }
+
+    @Test("An --init invocation passes --installation-name after --installation")
+    func initPassesInstallationName() throws {
+        let invocation = SetupInvocation(installationName: "work")
+        #expect(try invocation.arguments() == ["setup", "--init", "--installation-name", "work"])
+    }
+
     @Test("installLinearArguments appends --remote when true") // glossary:ignore GL001
     func installLinearArgumentsAppendsRemote() {
         let arguments = SetupInvocation.installLinearArguments(installation: "main", remote: true)

@@ -38,6 +38,12 @@ public struct SetupCommand: AsyncParsableCommand {
     public var installation: String?
 
     @Option(
+        name: .customLong("installation-name"),
+        help: "The local name for a NEW Linear App Installation; cannot be combined with --installation."
+    )
+    public var installationName: String?
+
+    @Option(
         name: .customLong("github-credential"), help: "Reference to the GitHub credential (default keychain:github)."
     )
     public var githubCredential: String?

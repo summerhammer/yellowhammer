@@ -67,6 +67,30 @@ struct SetupInvocationContractTests {
         #expect(options.linearProjectID == nil)
     }
 
+    @Test("installLinearArguments with a name parses back with --installation-name") // glossary:ignore GL001
+    func installLinearWithNameParsesBack() throws {
+        let built = SetupInvocation.installLinearArguments(installationName: "work", remote: true)
+        let arguments = Array(built.dropFirst())
+
+        let options = try SetupOptions(command: try SetupCommand.parse(arguments))
+
+        #expect(options.mode == .installLinear)
+        #expect(options.installationName == "work")
+        #expect(options.installation == nil)
+        #expect(options.eventsJSON)
+        #expect(options.remoteApproval)
+    }
+
+    @Test("An --init invocation's installationName parses back")
+    func initInstallationNameParsesBack() throws {
+        let arguments = Array(try SetupInvocation(installationName: "work").arguments().dropFirst())
+
+        let options = try SetupOptions(command: try SetupCommand.parse(arguments))
+
+        #expect(options.mode == .initialize)
+        #expect(options.installationName == "work")
+    }
+
     @Test("choicesArguments parses back as --print-choices, no Project or generating options") // glossary:ignore GL001
     func choicesArgumentsParsesBack() throws {
         let arguments = Array(SetupInvocation.choicesArguments(

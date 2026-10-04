@@ -95,7 +95,8 @@ func makeArguments(
     installLinear: Bool = false,
     events: String? = nil,
     remote: Bool = false,
-    installation: String? = nil
+    installation: String? = nil,
+    installationName: String? = nil
 ) -> [String] {
     var arguments: [String] = []
     if initialize { arguments.append("--init") }
@@ -104,6 +105,7 @@ func makeArguments(
     if installLinear { arguments.append("--install-linear") }
     if remote { arguments.append("--remote") }
     appendOption(&arguments, "--installation", installation)
+    appendOption(&arguments, "--installation-name", installationName)
     appendOption(&arguments, "--events", events)
     appendOption(&arguments, "--config", config)
     appendOption(&arguments, "--route", route)

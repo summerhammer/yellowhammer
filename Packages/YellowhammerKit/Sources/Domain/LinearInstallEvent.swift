@@ -17,6 +17,10 @@ public enum LinearInstallEvent: Equatable, Sendable {
     case awaitingRemoteApproval
     /// The pair was stored; `installation` is the registry entry's local name (absent in older output).
     case installed(workspaceName: String, installation: String?)
+    /// `--installation-name` named a new installation, but Linear approved a workspace already in the
+    /// registry: that entry was re-connected under its own local name `installation`, and `given` was
+    /// discarded. Emitted before `installed`.
+    case installationNameDiscarded(given: String, installation: String, text: String)
     /// The attempt did not end in an installation, for `reason`, with Linear's or setup's own text.
     case failed(reason: FailureReason, text: String)
 
@@ -41,6 +45,9 @@ public enum LinearInstallEvent: Equatable, Sendable {
         case differentWorkspace
         case portsBusy
         case other
+        /// `--installation-name` was refused before the install began: not a valid local name, or
+        /// already used by another registry entry.
+        case invalidInstallationName
         /// The remote-approval session (or its link) timed out before the admin acted.
         case expired
         /// The admin declined the request (Linear's `error=access_denied` on the relay callback).
@@ -54,7 +61,7 @@ public enum LinearInstallEvent: Equatable, Sendable {
 
 extension LinearInstallEvent: Codable {
     private enum CodingKeys: String, CodingKey {
-        case event, text, ports, url, workspaceName, installation, reason, expiresIn
+        case event, text, ports, url, workspaceName, installation, reason, expiresIn, given
     }
 
     public init(from decoder: any Decoder) throws {
@@ -84,6 +91,12 @@ extension LinearInstallEvent: Codable {
             self = .installed(
                 workspaceName: try container.decode(String.self, forKey: .workspaceName),
                 installation: try container.decodeIfPresent(String.self, forKey: .installation)
+            )
+        case "installationNameDiscarded":
+            self = .installationNameDiscarded(
+                given: try container.decode(String.self, forKey: .given),
+                installation: try container.decode(String.self, forKey: .installation),
+                text: try container.decode(String.self, forKey: .text)
             )
         case "failed":
             self = .failed(
@@ -123,6 +136,11 @@ extension LinearInstallEvent: Codable {
             try container.encode("installed", forKey: .event)
             try container.encode(workspaceName, forKey: .workspaceName)
             try container.encodeIfPresent(installation, forKey: .installation)
+        case .installationNameDiscarded(let given, let installation, let text):
+            try container.encode("installationNameDiscarded", forKey: .event)
+            try container.encode(given, forKey: .given)
+            try container.encode(installation, forKey: .installation)
+            try container.encode(text, forKey: .text)
         case .failed(let reason, let text):
             try container.encode("failed", forKey: .event)
             try container.encode(reason, forKey: .reason)
