@@ -10,9 +10,9 @@ struct AddProjectDraftLinearStepTests {
     @Test("An empty registry asks to connect a workspace, before anything else")
     func emptyRegistry() {
         var draft = AddProjectDraft()
-        #expect(draft.problems(in: .linearProject) == ["Connect a Linear workspace."])
+        #expect(draft.problems(in: .board) == ["Connect a Linear workspace."])
         draft.linearInstallationName = "acme"
-        #expect(draft.problems(in: .linearProject) == ["Connect a Linear workspace."])
+        #expect(draft.problems(in: .board) == ["Connect a Linear workspace."])
     }
 
     @Test("No selection, or a name missing from the registry, asks to choose the workspace")
@@ -20,10 +20,10 @@ struct AddProjectDraftLinearStepTests {
         var draft = AddProjectDraft()
         draft.context.linearInstallations = [addProjectInstallation()]
         let expected = ["Choose the Linear workspace, or connect another."]
-        #expect(draft.problems(in: .linearProject) == expected)
+        #expect(draft.problems(in: .board) == expected)
         draft.linearInstallationName = "gone"
         #expect(draft.selectedLinearInstallation == nil)
-        #expect(draft.problems(in: .linearProject) == expected)
+        #expect(draft.problems(in: .board) == expected)
     }
 
     @Test("A selected entry without an Operator identity asks for one, before the Linear project")
@@ -31,7 +31,7 @@ struct AddProjectDraftLinearStepTests {
         var draft = AddProjectDraft()
         draft.context.linearInstallations = [addProjectInstallation(operatorIdentity: nil)]
         draft.selectLinearInstallation("acme")
-        #expect(draft.problems(in: .linearProject) == ["Choose your Operator identity in \u{201c}acme\u{201d}."])
+        #expect(draft.problems(in: .board) == ["Choose your Operator identity in \u{201c}acme\u{201d}."])
     }
 
     @Test("With a workspace and an Operator identity, the Linear project problems follow")
@@ -39,9 +39,9 @@ struct AddProjectDraftLinearStepTests {
         var draft = AddProjectDraft()
         draft.context.linearInstallations = [addProjectInstallation()]
         draft.selectLinearInstallation("acme")
-        #expect(draft.problems(in: .linearProject) == ["Choose the Linear project, or create one in a team."])
+        #expect(draft.problems(in: .board) == ["Choose the Linear project, or create one in a team."])
         draft.linearProjectID = "ACME"
-        #expect(draft.problems(in: .linearProject).isEmpty)
+        #expect(draft.problems(in: .board).isEmpty)
         #expect(draft.selectedLinearInstallation?.name == "acme")
     }
 
@@ -70,10 +70,10 @@ struct AddProjectDraftLinearStepTests {
     @Test("The summary names the workspace, or says none is chosen")
     func summary() {
         var draft = AddProjectDraft()
-        #expect(draft.summary(of: .linearProject) == "No Linear workspace")
+        #expect(draft.summary(of: .board) == "No Linear workspace")
         draft = completeAddProjectDraft()
         draft.context.linearProjects = [SetupChoices.LinearProject(id: "ACME", name: "Acme Mobile", teamNames: [])]
-        #expect(draft.summary(of: .linearProject) == "\u{201c}Acme Mobile\u{201d} \u{b7} acme")
+        #expect(draft.summary(of: .board) == "\u{201c}Acme Mobile\u{201d} \u{b7} acme")
     }
 
     // MARK: Kept Journals

@@ -3,17 +3,19 @@ import Foundation
 // MARK: - Navigation
 
 extension AddProjectDraft {
-    /// Where a step stands in the hub, where any step can be opened: done when complete, current when
-    /// open, a problem once visited and still incomplete, untouched otherwise.
+    /// Where a step stands in the hub, where any step can be opened: done when complete, a problem once
+    /// left and still incomplete, current when open, untouched otherwise.
     public func status(of step: Step) -> StepStatus {
         if isComplete(step) { return .done }
-        if step == self.step { return .current }
-        return visited.contains(step) ? .problem : .upcoming
+        if left.contains(step) { return .problem }
+        return step == self.step ? .current : .upcoming
     }
 
-    /// Opens any step. The one being left and the target both count as visited.
+    /// Opens any step. The one being left and the target both count as visited, and the one being left
+    /// starts showing its problems.
     public mutating func go(to target: Step) {
         visited.insert(step)
+        if target != step { left.insert(step) }
         step = target
         visited.insert(target)
     }

@@ -246,7 +246,7 @@ final class AddProjectUITests: XCTestCase {
         try launchApp(machine: Self.readyMachineTOML)
         let sheet = openAddProjectSheet()
         driveHubToCompletion(in: sheet, linearProject: "proj-listed") { // glossary:ignore GL001
-            element("setup-step-linearProject").click()
+            element("setup-step-board").click()
             let listed = element("setup-linear-project-proj-listed")
             XCTAssertTrue(listed.waitForExistence(timeout: 5))
             listed.click()

@@ -3,31 +3,58 @@ import SwiftUI
 
 // MARK: - Repos
 
-/// The repos in a card layout: a card per Repo with every field laid out, plus an "Add Repo…" button.
-struct RepoStepView: View {
+/// The repos in a card layout: a card per Repo with every field laid out, plus an "Add Repo…" button, or a
+/// placeholder that adds the first. `trailing` ends the step: its problems, once revealed.
+struct RepoStepView<Trailing: View>: View {
     @Binding var draft: AddProjectDraft
+    @ViewBuilder let trailing: Trailing
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 12) {
-                ForEach(draft.repos) { repo in
-                    RepoCard(draft: $draft, repo: $draft.repo(repo.id))
+            VStack(alignment: .leading, spacing: 12) {
+                if draft.repos.isEmpty {
+                    EmptyRepoList(addRepo: addRepo)
+                } else {
+                    ForEach(draft.repos) { repo in
+                        RepoCard(draft: $draft, repo: $draft.repo(repo.id))
+                    }
+                    Button("Add Repo\u{2026}", systemImage: "plus", action: addRepo)
+                        .accessibilityIdentifier("setup-add-repo")
                 }
-                HStack {
-                    addButton
-                    Spacer()
-                }
+                trailing.padding(.top, 8)
             }
             .padding(20)
         }
     }
 
-    private var addButton: some View {
-        Button("Add Repo…", systemImage: "plus") {
-            guard let url = SetupWizardModel.chooseFolder() else { return }
-            draft.addRepo(path: SetupWizardModel.abbreviatingPath(url))
+    private func addRepo() {
+        guard let url = SetupWizardModel.chooseFolder() else { return }
+        draft.addRepo(path: SetupWizardModel.abbreviatingPath(url))
+    }
+}
+
+/// The Repo step before any Repo is added: a placeholder that is also the way to add one, so the step is
+/// never blank.
+private struct EmptyRepoList: View {
+    let addRepo: () -> Void
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text("No Repos yet").font(.headline)
+            Text("Add the working Repos this Project builds in.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Button("Add Repo\u{2026}", systemImage: "plus", action: addRepo)
+                .padding(.top, 4)
+                .accessibilityIdentifier("setup-add-repo")
         }
-        .accessibilityIdentifier("setup-add-repo")
+        .frame(maxWidth: .infinity)
+        .padding(24)
+        .background(.neutral.opacity(0.05), in: .rect(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(.neutral.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [5]))
+        )
     }
 }
 
@@ -38,7 +65,7 @@ private struct RepoCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Image(systemName: "folder.fill").foregroundStyle(.accent)
+                Image(systemName: DomainSymbol.repo).foregroundStyle(.accent)
                 TextField("Name", text: $repo.name).font(.headline).textFieldStyle(.plain)
                     .accessibilityIdentifier("setup-repo-name")
                 Spacer()

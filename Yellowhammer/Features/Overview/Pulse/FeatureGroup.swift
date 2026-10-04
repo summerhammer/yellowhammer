@@ -85,7 +85,7 @@ private struct FeatureLaneRow: View {
     var body: some View {
         HStack(spacing: 8) {
             Button { openDestination(.inspector(.repo(lane.repo))) } label: {
-                Label(lane.repo, systemImage: "shippingbox").lineLimit(1).truncationMode(.middle)
+                Label(lane.repo, systemImage: DomainSymbol.repo).lineLimit(1).truncationMode(.middle)
             }
             .buttonStyle(.plain)
             Spacer(minLength: 8)

@@ -149,7 +149,7 @@ private struct RepoRow: View {
 
     var body: some View {
         HStack {
-            Label(repo, systemImage: "shippingbox")
+            Label(repo, systemImage: DomainSymbol.repo)
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .accessibilityIdentifier("sidebar-\(projectID.rawValue)-repo-\(repo)")

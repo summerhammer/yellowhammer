@@ -7,7 +7,7 @@ import SwiftUI
 struct WizardStepBody: View {
     let step: AddProjectDraft.Step
     @Binding var draft: AddProjectDraft
-    /// The Linear step's workspaces list, and what selecting one does.
+    /// The Board step's workspaces list, and what selecting one does.
     let linearWorkspaces: LinearWorkspacesModel
     let onSelectInstallation: (String) -> Void
 
@@ -16,26 +16,45 @@ struct WizardStepBody: View {
         case .project:
             WizardColumn {
                 IdentityBlock(draft: $draft)
+                problemBox
             }
-        case .linearProject:
+        case .board:
             WizardColumn {
-                LinearBlock(draft: $draft, workspaces: linearWorkspaces, onSelect: onSelectInstallation)
+                BoardBlock(draft: $draft, workspaces: linearWorkspaces, onSelect: onSelectInstallation)
+                problemBox
             }
         case .repos:
-            RepoStepView(draft: $draft)
+            RepoStepView(draft: $draft) { problemBox }
         case .specSource:
             WizardColumn {
                 SpecBlock(draft: $draft)
+                problemBox
             }
         case .bounds:
             WizardColumn {
                 BoundsBlock(draft: $draft)
+                problemBox
             }
         case .jobs:
             Form {
                 JobsSections(draft: $draft)
+                if !revealedProblems.isEmpty {
+                    Section { problemBox }
+                }
             }
             .formStyle(.grouped)
+        }
+    }
+
+    /// The step's problems, once the Operator has left it; none on its first opening.
+    private var revealedProblems: [String] {
+        draft.revealsProblems(in: step) ? draft.problems(in: step) : []
+    }
+
+    /// Every step ends with the same box, drawn by the same rule.
+    @ViewBuilder private var problemBox: some View {
+        if !revealedProblems.isEmpty {
+            WizardProblemBox(problems: revealedProblems)
         }
     }
 }
@@ -120,10 +139,7 @@ struct IdentityBlock: View {
 
     @ViewBuilder
     private var identityMessages: some View {
-        let problems = draft.problems(in: .project)
-        if !problems.isEmpty, !draft.name.isEmpty || draft.idEdited {
-            WizardProblemList(problems: problems)
-        } else if draft.reusesJournal {
+        if draft.isComplete(.project), draft.reusesJournal {
             WizardNote(
                 text: "A removed Project left a Journal under \u{201c}\(draft.projectID)\u{201d}. "
                     + "This Project reopens it and continues its history."
@@ -132,11 +148,12 @@ struct IdentityBlock: View {
     }
 }
 
-// MARK: - Linear project
+// MARK: - Board
 
-/// The Linear step: which Linear workspace (an App Installation in the registry) the Project uses, then the
-/// choice between an existing Linear project or creating a new one in a team.
-struct LinearBlock: View {
+/// The Board step: a section per board. Linear's picks the Linear workspace (an App Installation in the
+/// registry), then an existing Linear project or a team to create one in. Jira's is drawn, disabled and
+/// marked Coming later: the step is shaped for more than one board without pretending to support one.
+struct BoardBlock: View {
     @Binding var draft: AddProjectDraft
     let workspaces: LinearWorkspacesModel
     let onSelect: (String) -> Void
@@ -144,6 +161,7 @@ struct LinearBlock: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
+            Text("Linear").font(.headline)
             workspaceBlock
             if draft.selectedLinearInstallation == nil {
                 Text("Choose the Linear workspace first.")
@@ -152,13 +170,21 @@ struct LinearBlock: View {
             } else {
                 projectChoice
             }
-            if draft.visited.contains(.linearProject) {
-                let problems = draft.problems(in: .linearProject)
-                if !problems.isEmpty {
-                    WizardProblemList(problems: problems)
-                }
-            }
+            Divider()
+            jiraBlock
         }
+    }
+
+    /// Jira, not yet supported: its two choices, disabled.
+    private var jiraBlock: some View {
+        WizardBlock(title: "Jira", footer: "Coming later. Yellowhammer supports Linear only today.") {
+            RadioRow(title: "Use an existing Jira project", isSelected: false) {} // glossary:ignore GL001
+            Divider().padding(.leading, 12)
+            RadioRow(title: "Create a new Jira project", isSelected: false) {} // glossary:ignore GL001
+        }
+        .disabled(true)
+        .opacity(0.5)
+        .accessibilityIdentifier("setup-board-jira")
     }
 
     // MARK: Linear workspace
@@ -168,8 +194,8 @@ struct LinearBlock: View {
             WizardBlock(title: "Linear workspace", boxed: false) {
                 Text("Yellowhammer connects to Linear through its own app, approved once by a workspace admin.")
                     .foregroundStyle(.secondary)
-                connectView
             }
+            connectView(offersCancel: false)
         } else {
             WizardBlock(title: "Linear workspace") {
                 ForEach(workspaces.workspaces) { workspace in
@@ -189,47 +215,69 @@ struct LinearBlock: View {
                let workspace = workspaces.workspaces.first(where: { $0.name == name }),
                workspace.operatorIdentity == nil,
                let operatorModel = workspaces.operatorModel(for: name) {
-                OperatorIdentityRow(model: operatorModel, name: name, identifierPrefix: "setup-linear-operator")
+                WizardOperatorIdentityBlock(model: operatorModel, workspaceLabel: workspaceLabel)
             }
             if isConnecting {
-                connectView
+                connectView(offersCancel: true)
             } else {
-                Button("Connect another Linear workspace\u{2026}") { isConnecting = true }
+                Button("Connect Another Linear Workspace\u{2026}") { isConnecting = true }
                     .accessibilityIdentifier("setup-linear-connect-another")
             }
         }
     }
 
-    private var connectView: some View {
-        VStack(alignment: .leading) {
-            LinearInstallationView(
-                model: workspaces.connectAnother, offersReinstall: workspaces.connectAnother.phase.isInstalled
-            )
+    /// The install, boxed under its own heading. `offersCancel` closes it again before an install starts;
+    /// once one runs, its own Cancel stops it.
+    private func connectView(offersCancel: Bool) -> some View {
+        WizardBlock(
+            title: "Connect a Linear workspace",
+            footer: "A workspace connected here stays connected if you cancel adding the Project."
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
+                LinearInstallationView(
+                    model: workspaces.connectAnother,
+                    offersReinstall: workspaces.connectAnother.phase.isInstalled,
+                    arrangesInstallButtonsInRow: true,
+                    onDismiss: offersCancel ? { isConnecting = false } : nil
+                )
+            }
+            .padding(12)
         }
     }
 
     // MARK: Linear project
 
+    /// The selected workspace's label, as its row in the workspace list names it.
+    private var workspaceLabel: String {
+        guard let name = draft.linearInstallationName else { return "" }
+        return workspaces.workspaces.first { $0.name == name }.map(workspaces.label(for:)) ?? name
+    }
+
     @ViewBuilder private var projectChoice: some View {
         VStack(alignment: .leading, spacing: 20) {
-            OptionCards {
-                OptionCard(
-                    title: "Use an existing one",
-                    detail: "Pick a Linear project you already plan in.", // glossary:ignore GL001
-                    isSelected: draft.linearChoice == .existing,
-                    identifier: "setup-linear-choice-existing"
-                ) {
-                    draft.linearChoice = .existing
-                }
-                OptionCard(
-                    title: "Create a new one",
-                    detail: draft.displayName.isEmpty
-                        ? "Yellowhammer creates one in a team you choose, named after the Project."
-                        : "Yellowhammer creates \u{201c}\(draft.displayName)\u{201d} in a team you choose.",
-                    isSelected: draft.linearChoice == .createInTeam,
-                    identifier: "setup-linear-choice-create"
-                ) {
-                    draft.linearChoice = .createInTeam
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Linear project in \(workspaceLabel)") // glossary:ignore GL001
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                OptionCards {
+                    OptionCard(
+                        title: "Existing Linear project", // glossary:ignore GL001
+                        detail: "Pick a Linear project you already plan in.", // glossary:ignore GL001
+                        isSelected: draft.linearChoice == .existing,
+                        identifier: "setup-linear-choice-existing"
+                    ) {
+                        draft.linearChoice = .existing
+                    }
+                    OptionCard(
+                        title: "New Linear project", // glossary:ignore GL001
+                        detail: draft.displayName.isEmpty
+                            ? "Yellowhammer creates one in a team you choose, named after the Project."
+                            : "Yellowhammer creates \u{201c}\(draft.displayName)\u{201d} in a team you choose.",
+                        isSelected: draft.linearChoice == .createInTeam,
+                        identifier: "setup-linear-choice-create"
+                    ) {
+                        draft.linearChoice = .createInTeam
+                    }
                 }
             }
             switch draft.linearChoice {
@@ -298,9 +346,9 @@ struct LinearBlock: View {
     WizardStepBody.preview(.project, $draft).frame(width: 620, height: 560)
 }
 
-#Preview("Linear project") {
+#Preview("Board") {
     @Previewable @State var draft = AddProjectDraft.preview
-    WizardStepBody.preview(.linearProject, $draft).frame(width: 620, height: 560)
+    WizardStepBody.preview(.board, $draft).frame(width: 620, height: 560)
 }
 
 #Preview("Repos") {

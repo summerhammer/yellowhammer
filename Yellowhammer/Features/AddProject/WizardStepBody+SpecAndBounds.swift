@@ -38,13 +38,6 @@ struct SpecBlock: View {
                 }
             }
             .background(.surface, in: .rect(cornerRadius: 10))
-
-            if draft.visited.contains(.specSource) {
-                let problems = draft.problems(in: .specSource)
-                if !problems.isEmpty {
-                    WizardProblemList(problems: problems)
-                }
-            }
         }
     }
 

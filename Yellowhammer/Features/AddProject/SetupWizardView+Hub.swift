@@ -31,7 +31,7 @@ struct SetupWizardHub: View {
                     SetupReadinessPanel(readiness: model.readiness)
                 } else {
                     StepHeading(step: model.draft.step).padding([.horizontal, .top], 20)
-                    if model.draft.step == .linearProject, !model.teamsFailure.isEmpty {
+                    if model.draft.step == .board, !model.teamsFailure.isEmpty {
                         teamsFailure
                     }
                     WizardStepBody(
@@ -207,15 +207,29 @@ struct SetupWizardFooter: View {
                         .disabled(true)
                 } else {
                     if !model.isAwaitingPrerequisites { readiness }
-                    Button("Add Project") { model.requestAdd() }
-                        .buttonStyle(.borderedProminent)
-                        .keyboardShortcut(.defaultAction)
-                        .disabled(!model.canAddProject)
-                        .accessibilityIdentifier("setup-add-project")
+                    primaryButton
                 }
             }
         }
         .padding(16)
+    }
+
+    /// "Continue to <next step>" until every step is complete, enabled once the open one is; then Add
+    /// Project. The last step has no next, so it always offers Add Project.
+    @ViewBuilder private var primaryButton: some View {
+        if !model.isAwaitingPrerequisites, !model.draft.isComplete, let next = model.draft.step.next {
+            Button("Continue to \(next.shortTitle)") { model.draft.go(to: next) }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(!model.draft.isComplete(model.draft.step))
+                .accessibilityIdentifier("setup-continue")
+        } else {
+            Button("Add Project") { model.requestAdd() }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(!model.canAddProject)
+                .accessibilityIdentifier("setup-add-project")
+        }
     }
 
     /// Progress as words: which steps are still needed, or that nothing is.

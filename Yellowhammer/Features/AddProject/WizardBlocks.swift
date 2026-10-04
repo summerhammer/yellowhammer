@@ -287,6 +287,25 @@ struct WizardNote: View {
 
 // MARK: - Problem list
 
+/// What a step still needs, as a titled block after its content. Every step reports its problems this way,
+/// and only once the Operator has left the step (``AddProjectDraft/revealsProblems(in:)``), so a page never
+/// opens on an error.
+struct WizardProblemBox: View {
+    let problems: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("To finish this step").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            WizardProblemList(problems: problems)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.surface, in: .rect(cornerRadius: 10))
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("setup-step-problems")
+    }
+}
+
 /// A step's problems in `error`, at most `limit` of them.
 struct WizardProblemList: View {
     let problems: [String]

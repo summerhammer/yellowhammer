@@ -7,9 +7,13 @@ import SwiftUI
 /// pane. It lays out its rows into whatever container embeds it, so it belongs inside a `Form` section.
 /// `offersReinstall` adds, to the installed state, the two buttons that re-run the install — replacing the
 /// token pair, which is what Settings is for after a revocation or a wrong team choice.
+/// `arrangesInstallButtonsInRow` lays the two install buttons out side by side, for a container that is not a
+/// `Form` (the Add Project sheet); `onDismiss`, when given, ends that row with a Cancel that closes the view.
 struct LinearInstallationView: View {
     @Bindable var model: LinearInstallationModel
     let offersReinstall: Bool
+    var arrangesInstallButtonsInRow = false
+    var onDismiss: (() -> Void)?
     @State private var didCopyApprovalLink = false
 
     var body: some View {
@@ -23,12 +27,18 @@ struct LinearInstallationView: View {
             ProgressView("Checking for an existing installation…")
                 .accessibilityIdentifier("setup-linear-checking")
         case .notInstalled:
-            Button("Install here as a workspace admin…") { model.startLinearInstall() } // glossary:ignore GL001
-                .accessibilityIdentifier("setup-linear-install")
-            Button("Request approval from an admin…") { // glossary:ignore GL001
-                model.startLinearInstall(remote: true)
+            if arrangesInstallButtonsInRow {
+                HStack {
+                    installButtons
+                    Spacer()
+                    if let onDismiss {
+                        Button("Cancel", action: onDismiss)
+                            .accessibilityIdentifier("setup-linear-connect-cancel")
+                    }
+                }
+            } else {
+                installButtons
             }
-            .accessibilityIdentifier("setup-linear-request-remote")
         case .installing(let adminStatement):
             if !adminStatement.isEmpty {
                 Text(adminStatement).font(.callout)
@@ -64,6 +74,15 @@ struct LinearInstallationView: View {
                 reinstallButtons
             }
         }
+    }
+
+    @ViewBuilder private var installButtons: some View {
+        Button("Install Here as a Workspace Admin…") { model.startLinearInstall() } // glossary:ignore GL001
+            .accessibilityIdentifier("setup-linear-install")
+        Button("Request Approval from an Admin…") { // glossary:ignore GL001
+            model.startLinearInstall(remote: true)
+        }
+        .accessibilityIdentifier("setup-linear-request-remote")
     }
 
     private var reinstallButtons: some View {

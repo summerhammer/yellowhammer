@@ -13,7 +13,7 @@ extension AddProjectDraft {
     public func summary(of step: Step) -> String {
         switch step {
         case .project: identitySummary
-        case .linearProject: linearSummary
+        case .board: linearSummary
         case .repos: repos.isEmpty ? "No Repos yet" : repos.map(\.name).formatted(Self.listStyle)
         case .specSource: specSourceSummary
         case .bounds: boundsSummary

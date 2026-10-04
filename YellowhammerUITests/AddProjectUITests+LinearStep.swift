@@ -77,7 +77,7 @@ extension AddProjectUITests {
     @discardableResult
     func openLinearStep() -> XCUIElement {
         let sheet = openAddProjectSheet()
-        let step = element("setup-step-linearProject")
+        let step = element("setup-step-board")
         XCTAssertTrue(step.waitForExistence(timeout: 10))
         step.click()
         return sheet
@@ -103,8 +103,8 @@ extension AddProjectUITests {
         openGate("install")
     }
 
-    /// Picks the stub's only Operator candidate for a freshly connected workspace and saves it. The candidate
-    /// fetch starts by itself after a connect, so the picker appears without a click. The identity is written
+    /// Picks the stub's only Operator candidate for a freshly connected workspace, which saves it. The
+    /// candidate fetch starts by itself after a connect, so the picker appears without a click. The identity is written
     /// at the end of `config.toml`, which is the connected entry's table, as `yh config operator` would.
     func chooseOperator(for name: String) throws {
         let picker = app.popUpButtons["setup-linear-operator-picker-\(name)"]
@@ -113,9 +113,6 @@ extension AddProjectUITests {
         let candidate = app.menuItems["Operator Person (operator)"]
         XCTAssertTrue(candidate.waitForExistence(timeout: 5))
         candidate.click()
-        let save = element("setup-linear-operator-save-\(name)")
-        XCTAssertTrue(save.waitForExistence(timeout: 5))
-        save.click()
         let expected = "config operator --installation \(name) user-op"
         XCTAssertTrue(waitForRecorded { $0 == expected }, "\(recordedArguments())")
         try appendToMachine(#"operator = "user-op""#)

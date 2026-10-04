@@ -28,5 +28,7 @@ func completeAddProjectDraft() -> AddProjectDraft {
     draft.addRepo(path: "/work/acme-backend")
     draft.repos[0].check = "make test"
     draft.useSpecSource("/work/acme-spec")
+    // Bounds and the Schedule are complete at their defaults once opened.
+    draft.visited.formUnion([.bounds, .jobs])
     return draft
 }
