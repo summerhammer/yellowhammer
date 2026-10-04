@@ -80,7 +80,7 @@ private struct FeatureHeader: View {
 /// request chip while one exists.
 private struct FeatureLaneRow: View {
     let lane: RepoLaneSnapshot
-    let openDestination: @MainActor (PulseDestination) -> Void
+    let openDestination: OpenPulseDestinationAction
 
     var body: some View {
         HStack(spacing: 8) {
