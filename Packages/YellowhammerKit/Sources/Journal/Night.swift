@@ -2,43 +2,6 @@ import Domain
 import Foundation
 import GRDB
 
-/// One Night of this Project as the Journal records it: one run of the Shift for one Project, from
-/// its first Act firing to its close. `projectID` is first-class on the row (OQ52), even though a
-/// Journal holds one Project's Nights only, so the row names its Project without deriving it.
-public struct NightRecord: Equatable, Sendable {
-    public let id: Int64
-    public let projectID: ProjectID
-    public let nightStart: NightStart
-    public let mode: NightMode
-    public let state: NightState
-    public let nightCardIssueID: String?
-    public let openedAt: Date
-    /// When the Night was closed in the Journal; `closeReason` says how. Nil while it is open.
-    public let completedAt: Date?
-    public let closeReason: NightCloseReason?
-    /// The Night Summary's constant-time verdict line (OQ13); nil until something writes one.
-    /// `idle` is the only value this phase writes — the author Act finding nothing selectable.
-    public let verdict: NightVerdict?
-    /// When this Night's morning was triaged (roadmap P10.8/P10.9; spec: morning-report/triage-the-
-    /// morning): written at the Operator's settle (P10.9) or on observing a Partial
-    /// Landing's merge closure (P10.8). The one field a closed Night may still change.
-    public let triagedAt: Date?
-
-    public var isOpen: Bool { state == .opened }
-}
-
-/// What an Act learns when it opens its Night.
-public struct NightOpening: Equatable, Sendable {
-    /// The Night this Act belongs to: recorded by this call, or found already recorded.
-    public let night: NightRecord
-    /// True when this call recorded the Night, i.e. this run is the first Act of the Night.
-    public let isFirstAct: Bool
-    /// Nights this Project left open with no completion, closed by this call as opened-and-died.
-    public let openedAndDied: [NightRecord]
-    /// The Nights the audit found missing, ascending; empty on a repeat open.
-    public let absentNights: [NightStart]
-}
-
 extension JournalStore {
     /// Records the Night at its first Act, or hands a later Act the Night already recorded.
     ///
@@ -88,7 +51,7 @@ extension JournalStore {
             let night = NightRecord(
                 id: db.lastInsertedRowID, projectID: projectID, nightStart: nightStart, mode: mode,
                 state: .opened, nightCardIssueID: nil, openedAt: now, completedAt: nil, closeReason: nil,
-                verdict: nil, triagedAt: nil
+                verdict: nil, triagedAt: nil, nightCardIssueKey: nil, nightCardIssueURL: nil
             )
             let stamp = EventStamp(act: act, runID: runID, nightID: night.id, now: now)
             _ = try Self.insertEvent(db, .nightOpened, stamp: stamp)
@@ -191,7 +154,9 @@ extension JournalStore {
                 completedAt: night.completedAt,
                 closeReason: night.closeReason,
                 verdict: night.verdict,
-                triagedAt: night.triagedAt
+                triagedAt: night.triagedAt,
+                nightCardIssueKey: night.nightCardIssueKey,
+                nightCardIssueURL: night.nightCardIssueURL
             )
             let stamp = EventStamp(act: act, runID: runID, nightID: id, now: now)
             _ = try Self.insertEvent(db, .nightCardOpened(issueID: issueID), stamp: stamp)
@@ -234,7 +199,9 @@ extension JournalStore {
                 completedAt: night.completedAt,
                 closeReason: night.closeReason,
                 verdict: .idle,
-                triagedAt: night.triagedAt
+                triagedAt: night.triagedAt,
+                nightCardIssueKey: night.nightCardIssueKey,
+                nightCardIssueURL: night.nightCardIssueURL
             )
             let stamp = EventStamp(act: act, runID: runID, nightID: nightID, now: now)
             _ = try Self.insertEvent(db, .authoringNoWorkAvailable, stamp: stamp)
@@ -306,7 +273,9 @@ extension JournalStore {
             completedAt: now,
             closeReason: reason,
             verdict: night.verdict,
-            triagedAt: night.triagedAt
+            triagedAt: night.triagedAt,
+            nightCardIssueKey: night.nightCardIssueKey,
+            nightCardIssueURL: night.nightCardIssueURL
         )
     }
 
@@ -394,7 +363,9 @@ extension JournalStore {
             completedAt: completedAt,
             closeReason: closeReason,
             verdict: verdict,
-            triagedAt: triagedAt
+            triagedAt: triagedAt,
+            nightCardIssueKey: row["night_card_issue_key"],
+            nightCardIssueURL: row["night_card_issue_url"]
         )
     }
 }

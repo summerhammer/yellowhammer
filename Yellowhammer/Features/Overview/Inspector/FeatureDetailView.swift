@@ -18,9 +18,9 @@ struct FeatureDetailView: View {
             systemImage: "flag.fill",
             style: feature.rollupState.map { AnyShapeStyle($0.style) } ?? AnyShapeStyle(.neutral),
             title: feature.title ?? feature.id,
-            subtitle: feature.id,
+            subtitle: feature.link?.identifier ?? feature.id,
             titleIdentifier: "feature-detail-title",
-            wayOut: ("Open \(feature.id) in Linear", .linearIssue(feature.id)),
+            wayOut: feature.link.map { ("Open \($0.identifier) in Linear", .linearIssue($0.url)) },
             note: "Settle and merge happen in Linear and GitHub, never here.",
             identifier: "feature-detail"
         ) {
@@ -62,7 +62,7 @@ struct FeatureDetailView: View {
                     if let pullRequest = lane.pullRequest {
                         LabeledContent("Pull request") {
                             Button(pullRequest.label) {
-                                openDestination(.pullRequest(repo: lane.repo, number: pullRequest.number))
+                                openDestination(.pullRequest(pullRequest.url))
                             }
                             .buttonStyle(.link)
                         }

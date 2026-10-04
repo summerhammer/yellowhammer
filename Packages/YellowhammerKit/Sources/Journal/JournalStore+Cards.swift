@@ -46,6 +46,11 @@ public struct CardRecord: Equatable, Sendable {
     /// visibility only, never a state, counter or budget change — nil until promoted, cleared by every
     /// reset of `failed_adoptions` so a fresh count starts unpromoted.
     public let divergenceStandingNightID: Int64?
+    /// The Card issue's Linear `identifier` (e.g. `YH-142`), recorded by the Delta Read; nil until then
+    /// (issue #230). Declared last, with a default, so a memberwise init need not name it.
+    public internal(set) var issueKey: String?
+    /// The Card issue's board URL as Linear gave it, recorded with ``issueKey``; nil until then.
+    public internal(set) var issueURL: String?
 
     /// The Card's title, or its issue id when no title is recorded yet (not yet reconciled against
     /// the board). What the Roll-up and the partial-landing PR body name a
@@ -202,7 +207,9 @@ extension JournalStore {
             unansweredNights: row["unanswered_nights"],
             unansweredLastCountedNightID: row["unanswered_last_counted_night_id"],
             failedAdoptions: row["failed_adoptions"],
-            divergenceStandingNightID: row["divergence_standing_night_id"]
+            divergenceStandingNightID: row["divergence_standing_night_id"],
+            issueKey: row["issue_key"],
+            issueURL: row["issue_url"]
         )
     }
 
@@ -376,7 +383,9 @@ extension CardRecord {
             unansweredNights: unansweredNights,
             unansweredLastCountedNightID: unansweredLastCountedNightID,
             failedAdoptions: failedAdoptions,
-            divergenceStandingNightID: divergenceStandingNightID
+            divergenceStandingNightID: divergenceStandingNightID,
+            issueKey: issueKey,
+            issueURL: issueURL
         )
     }
 }

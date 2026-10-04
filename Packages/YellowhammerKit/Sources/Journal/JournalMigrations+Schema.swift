@@ -12,6 +12,10 @@ extension JournalMigrations {
                 .check(sql: "mode IN ('real','rehearsal')")
             table.column("state", .text).notNull()
             table.column("night_card_issue_id", .text)
+            // The Night Card's Linear `identifier` and board `url`, recorded by the Delta Read so the
+            // Pulse can open it (issue #230). Nullable: none until the Delta Read next sees the issue.
+            table.column("night_card_issue_key", .text)
+            table.column("night_card_issue_url", .text)
             table.column("opened_at", .text).notNull()
             table.column("completed_at", .text)
             // A Night closes with a reason, and the set is closed so the schema itself refuses one the
@@ -39,6 +43,10 @@ extension JournalMigrations {
         try db.create(table: "feature") { table in
             table.autoIncrementedPrimaryKey("id")
             table.column("issue_id", .text).notNull().unique()
+            // The Feature issue's Linear `identifier` and board `url`, recorded by the Delta Read so the
+            // Pulse can open it (issue #230). Nullable: none until the Delta Read next sees the issue.
+            table.column("issue_key", .text)
+            table.column("issue_url", .text)
             table.column("selected_night_id", .integer).references("night", column: "id")
             table.column("state", .text).notNull()
             table.column("reselection_count", .integer).notNull().defaults(to: 0)
@@ -75,6 +83,10 @@ extension JournalMigrations {
             table.column("cycle_id", .integer).notNull()
                 .references("cycle", column: "id", onDelete: .cascade)
             table.column("issue_id", .text).notNull().unique()
+            // The Card issue's Linear `identifier` and board `url`, recorded by the Delta Read so the
+            // Pulse can open it (issue #230). Nullable: none until the Delta Read next sees the issue.
+            table.column("issue_key", .text)
+            table.column("issue_url", .text)
             table.column("repository", .text).notNull()
             table.column("kind", .text).notNull()
             table.column("authored_order", .integer).notNull()

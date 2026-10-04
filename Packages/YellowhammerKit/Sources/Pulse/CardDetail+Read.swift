@@ -48,7 +48,8 @@ extension CardDetail {
             excludedRoutes: account.history.excludedRoutes.map(\.description),
             attempts: account.history.attempts.map { attempt in
                 Attempt(record: attempt, checkRuns: account.checkRuns(attemptID: attempt.id))
-            }
+            },
+            link: LinearIssueLink.link(key: card.issueKey, url: card.issueURL)
         )
     }
 }

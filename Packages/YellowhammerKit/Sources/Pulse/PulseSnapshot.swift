@@ -30,6 +30,35 @@ public struct PulseSnapshot: Equatable, Sendable {
     }
 }
 
+/// A Linear issue's way out: the identifier a person reads and the board URL the Journal recorded for
+/// it. The app opens `url` as it is, and composes none.
+public struct LinearIssueLink: Equatable, Sendable {
+    /// Linear's issue identifier, e.g. `YH-142`.
+    public var identifier: String
+    public var url: URL
+
+    public init(identifier: String, url: URL) {
+        self.identifier = identifier
+        self.url = url
+    }
+
+    /// The link a Journal's recorded `key` and `url` make: nil unless both are present and the URL
+    /// parses with an `https` or `http` scheme, so nothing but a web page is ever opened.
+    static func link(key: String?, url: String?) -> LinearIssueLink? {
+        guard let key, !key.isEmpty, let url = webURL(url) else { return nil }
+        return LinearIssueLink(identifier: key, url: url)
+    }
+
+    /// `text` as a URL when it parses and its scheme is `https` or `http`; otherwise nil.
+    static func webURL(_ text: String?) -> URL? {
+        guard
+            let text, !text.isEmpty, let url = URL(string: text),
+            let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http"
+        else { return nil }
+        return url
+    }
+}
+
 /// Needs you: the Project's decision Cards, Blocked and Waiting on You alike.
 public struct NeedsYou: Equatable, Sendable {
     public var cards: [DecisionCard]
@@ -56,7 +85,8 @@ public struct NeedsYou: Equatable, Sendable {
 
 /// A Card that needs a decision, opened in one hop into the Inspector.
 public struct DecisionCard: Identifiable, Equatable, Sendable {
-    /// The Linear issue identifier, e.g. `YH-142`.
+    /// The Linear issue id, as the Journal records it. The identifier a person reads (`YH-142`) is in
+    /// ``link``.
     public let id: String
     public var title: String
     /// `.blocked` or `.waitingOnYou`.
@@ -64,13 +94,23 @@ public struct DecisionCard: Identifiable, Equatable, Sendable {
     /// Set only when `state` is `.blocked`.
     public var blockReason: BlockReason?
     public var repo: String
+    /// The Card's Linear issue; nil until the Delta Read has recorded its identifier and URL.
+    public var link: LinearIssueLink?
 
-    public init(id: String, title: String, state: CardState, blockReason: BlockReason?, repo: String) {
+    public init(
+        id: String,
+        title: String,
+        state: CardState,
+        blockReason: BlockReason?,
+        repo: String,
+        link: LinearIssueLink? = nil
+    ) {
         self.id = id
         self.title = title
         self.state = state
         self.blockReason = blockReason
         self.repo = repo
+        self.link = link
     }
 }
 
@@ -102,6 +142,7 @@ public struct ScheduledAct: Equatable, Sendable {
 /// A running Attempt. `status` is one line of status, never output from the agent CLI.
 public struct RunningAttempt: Identifiable, Equatable, Sendable {
     public let id: String
+    /// The running Card's Linear issue id, as the Journal records it.
     public var cardID: String
     public var cardTitle: String
     public var repo: String
@@ -112,6 +153,8 @@ public struct RunningAttempt: Identifiable, Equatable, Sendable {
     public var round: Int
     /// Nil from a Journal read: no Journal column holds a one-line status.
     public var status: String?
+    /// The running Card's Linear issue; nil until the Delta Read has recorded its identifier and URL.
+    public var cardLink: LinearIssueLink?
 
     public init(
         id: String,
@@ -121,7 +164,8 @@ public struct RunningAttempt: Identifiable, Equatable, Sendable {
         route: String,
         startedAt: Date,
         round: Int,
-        status: String?
+        status: String?,
+        cardLink: LinearIssueLink? = nil
     ) {
         self.id = id
         self.cardID = cardID
@@ -131,12 +175,14 @@ public struct RunningAttempt: Identifiable, Equatable, Sendable {
         self.startedAt = startedAt
         self.round = round
         self.status = status
+        self.cardLink = cardLink
     }
 }
 
 /// Feature: the in-flight Feature, its `rollup_state`, and its Repo Lanes.
 public struct FeatureInFlight: Equatable, Sendable {
-    /// The Feature Issue's Linear identifier.
+    /// The Feature Issue's Linear issue id, as the Journal records it. The identifier a person reads is
+    /// in ``link``.
     public let id: String
     /// Nil from a Journal read: the Feature Issue's title lives in Linear.
     public var title: String?
@@ -145,19 +191,23 @@ public struct FeatureInFlight: Equatable, Sendable {
     /// Nil from a Journal read: only Engine's `FeatureRollUp` computes it, and the app may not link Engine.
     public var rollupState: RollUpState?
     public var lanes: [RepoLaneSnapshot]
+    /// The Feature Issue's Linear issue; nil until the Delta Read has recorded its identifier and URL.
+    public var link: LinearIssueLink?
 
     public init(
         id: String,
         title: String?,
         state: String?,
         rollupState: RollUpState?,
-        lanes: [RepoLaneSnapshot]
+        lanes: [RepoLaneSnapshot],
+        link: LinearIssueLink? = nil
     ) {
         self.id = id
         self.title = title
         self.state = state
         self.rollupState = rollupState
         self.lanes = lanes
+        self.link = link
     }
 }
 
@@ -193,25 +243,31 @@ public struct RepoLaneSnapshot: Identifiable, Equatable, Sendable {
 
 /// One member Card of a Repo Lane: enough to list it in the Inspector.
 public struct LaneCard: Identifiable, Equatable, Sendable {
-    /// The Linear issue identifier, e.g. `YH-142`.
+    /// The Linear issue id, as the Journal records it. The identifier a person reads is in ``link``.
     public let id: String
     public var title: String
     public var state: CardState
+    /// The Card's Linear issue; nil until the Delta Read has recorded its identifier and URL.
+    public var link: LinearIssueLink?
 
-    public init(id: String, title: String, state: CardState) {
+    public init(id: String, title: String, state: CardState, link: LinearIssueLink? = nil) {
         self.id = id
         self.title = title
         self.state = state
+        self.link = link
     }
 }
 
 public struct PullRequestChip: Equatable, Sendable {
     public var number: Int
+    /// The pull request's web URL, as GitHub gave it. A chip is only built from a URL.
+    public var url: URL
     /// Nil from a Journal read: a pull request's state lives in GitHub.
     public var state: PullRequestState?
 
-    public init(number: Int, state: PullRequestState?) {
+    public init(number: Int, url: URL, state: PullRequestState?) {
         self.number = number
+        self.url = url
         self.state = state
     }
 }
@@ -231,17 +287,21 @@ public struct NightPulse: Equatable, Sendable {
     public var verdictLine: String?
     /// Cards counted by disposition, in display order; zero counts are omitted.
     public var cardsByDisposition: [DispositionCount]
+    /// The Night Card's Linear issue; nil until the Delta Read has recorded its identifier and URL.
+    public var nightCard: LinearIssueLink?
 
     public init(
         state: NightPulseState,
         startedAt: Date,
         verdictLine: String?,
-        cardsByDisposition: [DispositionCount]
+        cardsByDisposition: [DispositionCount],
+        nightCard: LinearIssueLink? = nil
     ) {
         self.state = state
         self.startedAt = startedAt
         self.verdictLine = verdictLine
         self.cardsByDisposition = cardsByDisposition
+        self.nightCard = nightCard
     }
 }
 

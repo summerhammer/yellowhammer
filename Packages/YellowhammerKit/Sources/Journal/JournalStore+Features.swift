@@ -24,6 +24,11 @@ public struct FeatureRecord: Equatable, Sendable {
     public let releasedAt: Date?
     /// Which route closed this Feature, nil until its Cycle is archived (roadmap P10.7).
     public let closedBy: FeatureClosure?
+    /// The Feature issue's Linear `identifier` (e.g. `YH-142`), recorded by the Delta Read; nil until
+    /// then (issue #230).
+    public internal(set) var issueKey: String?
+    /// The Feature issue's board URL as Linear gave it, recorded with ``issueKey``; nil until then.
+    public internal(set) var issueURL: String?
 }
 
 extension JournalStore {
@@ -113,7 +118,9 @@ extension JournalStore {
             branch: rawBranch.map { FeatureBranch(rawValue: $0) },
             createdAt: createdAt,
             releasedAt: try rawReleasedAt.map { try Self.date($0) { JournalError.featureUnknown(featureID: id) } },
-            closedBy: rawClosedBy.flatMap { FeatureClosure(rawValue: $0) }
+            closedBy: rawClosedBy.flatMap { FeatureClosure(rawValue: $0) },
+            issueKey: row["issue_key"],
+            issueURL: row["issue_url"]
         )
     }
 }

@@ -160,7 +160,7 @@ struct PulseBaselineVariant: View {
                         let title = ["#\(pullRequest.number)", pullRequest.state?.rawValue]
                             .compactMap { $0 }.joined(separator: " ")
                         Button(title) {
-                            openDestination(.pullRequest(repo: lane.repo, number: pullRequest.number))
+                            openDestination(.pullRequest(pullRequest.url))
                         }
                         .controlSize(.small)
                     }
@@ -174,8 +174,12 @@ struct PulseBaselineVariant: View {
     @ViewBuilder
     private func night(_ night: NightPulse?) -> some View {
         if let night {
-            Button(night.verdictLine ?? "Night Card") { openDestination(.nightCard) }
-                .buttonStyle(.link)
+            if let link = night.nightCard {
+                Button(night.verdictLine ?? "Night Card") { openDestination(.nightCard(link.url)) }
+                    .buttonStyle(.link)
+            } else {
+                Text(night.verdictLine ?? "Night Card")
+            }
             Text(night.state.rawValue).foregroundStyle(.secondary)
             Text(night.cardsByDisposition.map { "\($0.count) \($0.disposition.rawValue)" }.joined(separator: " · "))
                 .foregroundStyle(.secondary)

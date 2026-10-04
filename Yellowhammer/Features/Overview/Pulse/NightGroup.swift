@@ -15,17 +15,27 @@ struct NightGroup: View {
     var body: some View {
         PulseCard(group: .night, summary: PulseGroup.summary(of: night)) {
             if let night {
-                Button { openDestination(.nightCard) } label: {
+                if let link = night.nightCard {
+                    Button { openDestination(.nightCard(link.url)) } label: {
+                        HStack {
+                            Text(night.displayVerdict).multilineTextAlignment(.leading)
+                            Spacer(minLength: 8)
+                            Image(systemName: "arrow.up.forward.square").foregroundStyle(.secondary)
+                        }
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open \(link.identifier) in Linear")
+                    .accessibilityIdentifier("night-card-link")
+                } else {
+                    // No recorded link yet: the verdict is plain content, never a way out that goes nowhere.
                     HStack {
                         Text(night.displayVerdict).multilineTextAlignment(.leading)
                         Spacer(minLength: 8)
-                        Image(systemName: "arrow.up.forward.square").foregroundStyle(.secondary)
                     }
-                    .contentShape(.rect)
+                    .help("The Night Card's link is recorded when the engine next reads the board")
+                    .accessibilityIdentifier("night-card-verdict")
                 }
-                .buttonStyle(.plain)
-                .help("Open the Night Card in Linear")
-                .accessibilityIdentifier("night-card-link")
                 HStack(spacing: 8) {
                     PulseCountBadge(text: night.state.rawValue, style: night.state.style)
                     Text("started \(night.startedAt.formatted(date: .omitted, time: .shortened))")
