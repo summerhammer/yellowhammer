@@ -62,6 +62,9 @@ struct InspectorPane<Style: ShapeStyle, Badges: View, Content: View>: View {
             content
         }
         .formStyle(.grouped)
+        // On the Form, not the whole pane: an identifier set outside `safeAreaBar` replaces the way-out
+        // button's own.
+        .accessibilityIdentifier(identifier)
         .safeAreaBar(edge: .bottom) {
             if let wayOut {
                 VStack(spacing: 6) {
@@ -82,7 +85,6 @@ struct InspectorPane<Style: ShapeStyle, Badges: View, Content: View>: View {
                 .padding()
             }
         }
-        .accessibilityIdentifier(identifier)
     }
 
     private var header: some View {

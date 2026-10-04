@@ -106,8 +106,7 @@ final class OverviewWindowUITests: XCTestCase {
     }
 
     /// The app is read-only on every Journal: showing a Project that has no Journal yet never creates
-    /// one. A Card's detail needs a populated Journal, which this bundle cannot build, so `PulseTests`
-    /// covers reading one read-only (`CardDetailReadTests`).
+    /// one. `PulseJournalUITests` checks that rendering a populated Journal leaves it unchanged.
     func testShowingProjectsCreatesNoJournal() {
         for id in ["archive", "owner", "reader"] {
             let row = element("sidebar-\(id)")
@@ -281,7 +280,7 @@ final class OverviewWindowUITests: XCTestCase {
     }
 
     /// The fixture configuration: three Projects, one refused Project file, and no Journals. Shared
-    /// with `SettingsWindowUITests`.
+    /// with `SettingsWindowUITests`, and with `PulseJournalUITests`, which adds `archive`'s Journal.
     static func writeConfiguration(in directory: URL) throws {
         let projects = directory.appending(component: "projects", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: projects, withIntermediateDirectories: true)
