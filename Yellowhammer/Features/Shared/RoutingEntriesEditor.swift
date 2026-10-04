@@ -11,9 +11,10 @@ struct RoutingEntriesEditor: View {
     @Binding var entries: [RoutingEntryDraft]
 
     var body: some View {
+        // One Form row per view: a VStack around an entry would make the grouped Form lay its fields out
+        // borderless and unprompted, so an empty field could not be seen at all.
         ForEach(entries.indices, id: \.self) { index in
-            entryView(index: index)
-            Divider()
+            entryRows(index: index)
         }
         Button("Add Routing Entry") {
             entries.append(RoutingEntryDraft(route: RouteDraft(cli: "", model: "", effort: "")))
@@ -21,20 +22,27 @@ struct RoutingEntriesEditor: View {
     }
 
     @ViewBuilder
-    private func entryView(index: Int) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            TextField("Kind (blank = any)", text: $entries[index].kind)
-            TextField("Repo Role (blank = any)", text: $entries[index].repoRole)
+    private func entryRows(index: Int) -> some View {
+        HStack {
+            Text("Routing Entry \(index + 1)").font(.headline)
+            Spacer()
+            Button("Remove", role: .destructive) {
+                entries.remove(at: index)
+            }
+        }
+        TextField("Kind", text: $entries[index].kind, prompt: Text("any"))
+        TextField("Repo Role", text: $entries[index].repoRole, prompt: Text("any"))
+        LabeledContent("Route") {
             routeFields(
-                label: "Route",
                 cli: $entries[index].route.cli,
                 model: $entries[index].route.model,
                 effort: $entries[index].route.effort
             )
-            ForEach(entries[index].fallbacks.indices, id: \.self) { fallbackIndex in
+        }
+        ForEach(entries[index].fallbacks.indices, id: \.self) { fallbackIndex in
+            LabeledContent("Fallback \(fallbackIndex + 1)") {
                 HStack {
                     routeFields(
-                        label: "Fallback",
                         cli: $entries[index].fallbacks[fallbackIndex].cli,
                         model: $entries[index].fallbacks[fallbackIndex].model,
                         effort: $entries[index].fallbacks[fallbackIndex].effort
@@ -44,25 +52,42 @@ struct RoutingEntriesEditor: View {
                     } label: {
                         Image(systemName: "minus.circle")
                     }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Remove Fallback \(fallbackIndex + 1)")
                 }
             }
-            Button("Add Fallback") {
-                entries[index].fallbacks.append(RouteDraft(cli: "", model: "", effort: ""))
-            }
-            Button("Remove Routing Entry", role: .destructive) {
-                entries.remove(at: index)
-            }
         }
-        .padding(.vertical, 4)
+        Button("Add Fallback") {
+            entries[index].fallbacks.append(RouteDraft(cli: "", model: "", effort: ""))
+        }
     }
 
-    private func routeFields(
-        label: String, cli: Binding<String>, model: Binding<String>, effort: Binding<String>
-    ) -> some View {
+    /// A route's three parts as bordered fields, each named by its prompt and accessibility label.
+    private func routeFields(cli: Binding<String>, model: Binding<String>, effort: Binding<String>) -> some View {
         HStack {
-            TextField("\(label) CLI", text: cli)
-            TextField("Model", text: model)
-            TextField("Effort", text: effort)
+            TextField("CLI", text: cli, prompt: Text("cli"))
+            TextField("Model", text: model, prompt: Text("model"))
+            TextField("Effort", text: effort, prompt: Text("effort"))
+        }
+        .labelsHidden()
+        .textFieldStyle(.roundedBorder)
+        .multilineTextAlignment(.leading)
+    }
+}
+
+#Preview {
+    @Previewable @State var entries = [
+        RoutingEntryDraft(route: RouteDraft(cli: "", model: "", effort: "")),
+        RoutingEntryDraft(
+            route: RouteDraft(cli: "claude", model: "opus", effort: "high"),
+            fallbacks: [RouteDraft(cli: "codex", model: "", effort: "")]
+        )
+    ]
+    Form {
+        Section("Routing Table") {
+            RoutingEntriesEditor(entries: $entries)
         }
     }
+    .formStyle(.grouped)
+    .frame(width: 560, height: 520)
 }
