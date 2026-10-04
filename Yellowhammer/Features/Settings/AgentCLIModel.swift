@@ -23,6 +23,8 @@ final class AgentCLIModel {
     struct CLIRow: Identifiable {
         let name: String
         var id: String { name }
+        /// The declared `executable`, nil when `yh` looks the CLI up on PATH.
+        var executable: String?
         /// The most recent Probe Result, nil when the CLI has never been probed.
         var latest: ProbeResult?
         /// Drift from the Probe Result immediately before `latest`, nil when there is no earlier
@@ -92,7 +94,7 @@ final class AgentCLIModel {
             loadFailure = nil
             declareFailure = nil
             removeFailures = [:]
-            rows = configuration.machine.cliAdapters.map { loadRow(name: $0.name) }
+            rows = configuration.machine.cliAdapters.map(loadRow(declaration:))
         } catch {
             clear()
             loadFailure = error.description
@@ -178,7 +180,9 @@ final class AgentCLIModel {
         load()
     }
 
-    private func loadRow(name: String) -> CLIRow {
+    private func loadRow(declaration: CLIAdapterDeclaration) -> CLIRow {
+        let name = declaration.name
+        let executable = declaration.executable
         let fileURL = LedgerStore.defaultFileURL(configurationDirectory: directory)
         do {
             let store = try LedgerStore.openReadOnly(at: fileURL)
@@ -187,19 +191,28 @@ final class AgentCLIModel {
             let previous = history.dropFirst().first
             let drift = latest.flatMap { current in previous.flatMap(current.drift(since:)) }
             let eligibility = try store.routeTargetEligibility(cli: name)
-            return CLIRow(name: name, latest: latest, drift: drift, eligibility: eligibility, ledgerFailure: nil)
+            return CLIRow(
+                name: name, executable: executable, latest: latest, drift: drift, eligibility: eligibility,
+                ledgerFailure: nil
+            )
         } catch LedgerError.missing {
             // Nothing has ever been probed on this machine: every declared CLI is "never probed", not
             // an error.
             return CLIRow(
-                name: name, latest: nil, drift: nil,
+                name: name, executable: executable, latest: nil, drift: nil,
                 eligibility: .excluded(reason: "`\(name)` has never been probed; run `yh probe \(name)`"),
                 ledgerFailure: nil
             )
         } catch let error as LedgerError {
-            return CLIRow(name: name, latest: nil, drift: nil, eligibility: nil, ledgerFailure: error.description)
+            return CLIRow(
+                name: name, executable: executable, latest: nil, drift: nil, eligibility: nil,
+                ledgerFailure: error.description
+            )
         } catch {
-            return CLIRow(name: name, latest: nil, drift: nil, eligibility: nil, ledgerFailure: "\(error)")
+            return CLIRow(
+                name: name, executable: executable, latest: nil, drift: nil, eligibility: nil,
+                ledgerFailure: "\(error)"
+            )
         }
     }
 }

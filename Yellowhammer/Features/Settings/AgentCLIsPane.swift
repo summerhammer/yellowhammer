@@ -1,6 +1,4 @@
 import AppKit
-import Domain
-import Ledger
 import SwiftUI
 
 /// The Agent CLIs pane of the Settings window (P14.4, P18.15). Not Project-scoped: the
@@ -58,18 +56,13 @@ private struct AgentCLIListView: View {
             explanation: "The agent CLIs this Mac can dispatch to. A Probe checks that one works as its CLI "
                 + "Adapter expects; one Probe run serves every Project."
         ) {
-            WizardBlock(title: "Declared agent CLIs", boxed: false) {
-                VStack(alignment: .leading, spacing: 12) {
-                    if rows.isEmpty {
-                        Text("No agent CLI is declared yet.")
-                            .foregroundStyle(.secondary)
-                    }
-                    ForEach(rows) { row in
-                        AgentCLIRowView(model: model, row: row)
-                            .accessibilityElement(children: .contain)
-                            .accessibilityIdentifier("agent-cli-row-\(row.name)")
-                    }
-                }
+            if rows.isEmpty {
+                noCLIsState
+            }
+            ForEach(rows) { row in
+                AgentCLICard(model: model, row: row)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("agent-cli-row-\(row.name)")
             }
             if !rows.isEmpty && !model.hasRoute {
                 noRouteNotice
@@ -98,45 +91,57 @@ private struct AgentCLIListView: View {
         .background(.warning.opacity(0.08), in: .rect(cornerRadius: 10))
     }
 
+    /// What the pane shows with nothing declared: what that means, and the way forward below it.
+    private var noCLIsState: some View {
+        ContentUnavailableView {
+            Label("No Agent CLIs", systemImage: "terminal")
+        } description: {
+            Text("No Card can be dispatched until an agent CLI is declared and passes its Probe.")
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Declaring a registered CLI not yet declared, as a dashed card like the Repo list's placeholder, so it
+    /// reads as the next item rather than a form.
     private var declareBlock: some View {
         VStack(alignment: .leading, spacing: 10) {
-            WizardBlock(
-                title: "Declare an agent CLI",
-                footer: "Scheduled runs get a minimal PATH, so an absolute path is how yh finds the CLI "
-                    + "unattended; blank means yh looks it up on PATH."
-            ) {
-                WizardBlockRow(label: "Agent CLI") {
-                    Picker("Agent CLI", selection: $selectedName) {
-                        ForEach(model.declarableNames, id: \.self) { Text($0).tag($0) }
-                    }
+            HStack(spacing: 8) {
+                Text("Declare").fontWeight(.medium)
+                Picker("Agent CLI", selection: $selectedName) {
+                    ForEach(model.declarableNames, id: \.self) { Text($0).tag($0) }
+                }
+                .labelsHidden()
+                .fixedSize()
+                .accessibilityIdentifier("agent-cli-declare-name")
+                TextField("Executable (optional)", text: $executable, prompt: Text("Looked up on PATH"))
                     .labelsHidden()
-                    .fixedSize()
-                    .accessibilityIdentifier("agent-cli-declare-name")
+                    .font(.body.monospaced())
+                    .frame(maxWidth: 260)
+                    .accessibilityIdentifier("agent-cli-declare-executable")
+                Spacer(minLength: 8)
+                Button("Declare", systemImage: "plus") {
+                    model.declare(name: selectedName, executable: executable)
                 }
-                Divider().padding(.leading, 12)
-                WizardBlockRow(label: "Executable", detail: "Optional") {
-                    TextField("Executable (optional)", text: $executable, prompt: Text("Looked up on PATH"))
-                        .labelsHidden()
-                        .font(.body.monospaced())
-                        .multilineTextAlignment(.trailing)
-                        .frame(maxWidth: 300)
-                        .accessibilityIdentifier("agent-cli-declare-executable")
-                }
+                .disabled(selectedName.isEmpty)
+                .accessibilityIdentifier("agent-cli-declare")
             }
+            Text(
+                "Scheduled runs get a minimal PATH, so an absolute path is how yh finds the CLI unattended. "
+                    + "Declaring does not probe. " + savingNote
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
             if let failure = model.declareFailure {
                 SettingsFailureText(text: failure, identifier: "agent-cli-declare-failure")
             }
-            HStack(spacing: 12) {
-                Text(savingNote)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 12)
-                Button("Declare") { model.declare(name: selectedName, executable: executable) }
-                    .disabled(selectedName.isEmpty)
-                    .accessibilityIdentifier("agent-cli-declare")
-            }
         }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(.neutral.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [5]))
+        )
         .onAppear { resetSelection() }
         .onChange(of: model.declarableNames) { _, _ in
             executable = ""
@@ -180,133 +185,5 @@ private struct AgentCLIListView: View {
                 }
             }
         }
-    }
-}
-
-/// One declared CLI's card: its Ledger-derived state, plus Probe and Remove buttons.
-private struct AgentCLIRowView: View {
-    @Bindable var model: AgentCLIModel
-    let row: AgentCLIModel.CLIRow
-    @State private var confirmsRemoval = false
-
-    var body: some View {
-        SettingsCard {
-            HStack(spacing: 8) {
-                Text(row.name)
-                    .font(.headline.monospaced())
-                Spacer()
-                if model.runningCLI == row.name {
-                    ProgressView().controlSize(.small)
-                }
-                Button("Probe") { Task { await model.probe(cli: row.name) } }
-                    .disabled(model.isProbing)
-                    .accessibilityIdentifier("agent-cli-probe-\(row.name)")
-                Button("Remove\u{2026}", role: .destructive) { confirmsRemoval = true }
-                    .disabled(model.isProbing || model.isRouted(row.name))
-                    .help(
-                        model.isRouted(row.name)
-                            ? "A base route names \(row.name); change it in the Base Routing Table first."
-                            : "Remove \(row.name) from config.toml"
-                    )
-                    .accessibilityIdentifier("agent-cli-remove-\(row.name)")
-            }
-            if let failure = model.removeFailures[row.name] {
-                SettingsFailureText(text: failure, identifier: "agent-cli-remove-failure-\(row.name)")
-            }
-            if let ledgerFailure = row.ledgerFailure {
-                SettingsFailureText(text: ledgerFailure)
-            } else {
-                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
-                    GridRow {
-                        fieldLabel("Probed")
-                        Text(probedAtText)
-                            .accessibilityIdentifier("agent-cli-probed-at-\(row.name)")
-                    }
-                    if let latest = row.latest {
-                        value("CLI version", latest.cliVersion)
-                        value("Adapter version", latest.adapterVersion)
-                        findings(for: latest)
-                        value("Verdict", latest.verdict.rawValue)
-                        if let reason = latest.reason {
-                            value("Reason", reason)
-                        }
-                    }
-                }
-                if let drift = row.drift {
-                    Label(driftText(drift), systemImage: "exclamationmark.triangle.fill")
-                        .font(.callout)
-                        .foregroundStyle(.warning)
-                        .textSelection(.enabled)
-                }
-                eligibility
-            }
-        }
-        .confirmationDialog(
-            "Remove \(row.name)?", isPresented: $confirmsRemoval, titleVisibility: .visible
-        ) {
-            Button("Remove", role: .destructive) { model.remove(name: row.name) }
-                .accessibilityIdentifier("agent-cli-remove-confirm-\(row.name)")
-        } message: {
-            Text(
-                "Yellowhammer stops dispatching to \(row.name). Its declaration leaves config.toml; "
-                    + "its Probe history stays. A Project whose routes name it refuses the removal."
-            )
-        }
-    }
-
-    @ViewBuilder private var eligibility: some View {
-        let isOffered = if case .offered = row.eligibility { true } else { false }
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Image(systemName: isOffered ? "checkmark.circle.fill" : "minus.circle")
-                .foregroundStyle(isOffered ? AnyShapeStyle(.success) : AnyShapeStyle(.secondary))
-                .accessibilityHidden(true)
-            Text(eligibilityText)
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
-                .accessibilityIdentifier("agent-cli-eligibility-\(row.name)")
-        }
-        .font(.callout)
-    }
-
-    private func fieldLabel(_ text: String) -> some View {
-        Text(text).foregroundStyle(.secondary)
-    }
-
-    private func value(_ label: String, _ value: String) -> some View {
-        GridRow {
-            fieldLabel(label)
-            Text(value).textSelection(.enabled)
-        }
-    }
-
-    private var probedAtText: String {
-        guard let latest = row.latest else { return "Never probed" }
-        return latest.probedAt.formatted(date: .abbreviated, time: .shortened)
-    }
-
-    private var eligibilityText: String {
-        switch row.eligibility {
-        case .offered:
-            "offered as a route target"
-        case .excluded(let reason):
-            "not offered as a route target: \(reason)"
-        case nil:
-            "route target eligibility unknown"
-        }
-    }
-
-    @ViewBuilder
-    private func findings(for latest: ProbeResult) -> some View {
-        value("Unattended dispatch", latest.findingUnattendedDispatch.rawValue)
-        value("Result file on clean exit", latest.findingResultFileOnCleanExit.rawValue)
-        value("Process containment", latest.findingProcessContainment.rawValue)
-        value("Session resumption", latest.findingSessionResumption.rawValue)
-    }
-
-    private func driftText(_ drift: ProbeDrift) -> String {
-        let targets = drift.regressions.map(\.description).joined(separator: ", ")
-        return "Drift since the previous probe "
-            + "(\(drift.previousCLIVersion)/\(drift.previousAdapterVersion) \u{2192} "
-            + "\(drift.currentCLIVersion)/\(drift.currentAdapterVersion)): \(targets)"
     }
 }
