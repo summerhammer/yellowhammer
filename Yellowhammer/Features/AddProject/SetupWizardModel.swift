@@ -8,7 +8,7 @@ import Observation
 /// checks, and the `yh setup --init` run. Kept as a plain `@Observable` model, not a View, so the mapping and
 /// validation stay testable without driving SwiftUI (P14.2). The app never does the Board work itself
 /// (ADR-001): the teams offered here come from running the bundled `yh --print-choices`, and every write
-/// comes from running `yh`. The agent CLI route lives in Settings → General, and ``readiness`` blocks Add
+/// comes from running `yh`. The agent CLI route lives in Settings → Agent CLIs, and ``readiness`` blocks Add
 /// Project until it is there. The Linear workspace and its Operator identity are chosen in the Linear step
 /// through ``linearWorkspaces``; a workspace connected there is machine configuration, not the Project's, so
 /// it stays in `config.toml` when the sheet is cancelled and nothing undoes it.

@@ -27,7 +27,7 @@ struct HealthGroup: View {
                     Button { openDestination(flag.destination) } label: { HealthFlagRow(flag: flag) }
                         .buttonStyle(.plain)
                         .help(flag.destination == .linearWorkspaces
-                            ? "Open Settings → Linear workspaces" : "Open the Project's Settings")
+                            ? "Open Settings → Boards" : "Open the Project's Settings")
                         // On the Button, which is the accessibility element the row's label becomes.
                         .accessibilityIdentifier("health-flag")
                 }

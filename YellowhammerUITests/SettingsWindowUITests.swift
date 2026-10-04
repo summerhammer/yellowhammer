@@ -47,10 +47,25 @@ final class SettingsWindowUITests: XCTestCase {
 
     func testCommandCommaOpensTheSettingsWindow() {
         showSettings()
-        for id in ["settings-general", "settings-refused-files", "settings-project-archive",
-                   "settings-project-owner", "settings-project-reader"] {
+        for id in ["settings-general", "settings-boards", "settings-agent-clis", "settings-base-routing-table",
+                   "settings-refused-files", "settings-project-archive", "settings-project-owner",
+                   "settings-project-reader"] {
             XCTAssertTrue(element(id).waitForExistence(timeout: 5), "\(id) is missing")
         }
+    }
+
+    /// The Linear workspaces are in the Boards section's Linear section, not in General.
+    func testBoardsHoldsTheLinearWorkspacesAndGeneralDoesNot() {
+        showSettings()
+        app.activate()
+        element("settings-general").click()
+        XCTAssertTrue(element("settings-general-pane").waitForExistence(timeout: 5))
+        XCTAssertFalse(element("settings-linear-section").exists)
+        XCTAssertFalse(element("settings-linear-row-acme").exists)
+        element("settings-boards").click()
+        XCTAssertTrue(element("settings-boards-pane").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("settings-linear-section").exists)
+        XCTAssertTrue(element("settings-linear-row-acme").waitForExistence(timeout: 5))
     }
 
     func testRefusedProjectAppearsInSettingsWithItsDiagnosticAndNotInEitherSidebar() {

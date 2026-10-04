@@ -3,7 +3,7 @@ import Domain
 import Foundation
 import Observation
 
-/// The Linear workspaces list, in Settings → Linear workspaces (L3.1) and in the Add Project wizard's
+/// The Linear workspaces list, in Settings → Boards (L3.1) and in the Add Project wizard's
 /// Linear step (L3.2): one row per App Installation in `config.toml`'s
 /// `[board.linear.installations.<name>]` registry, with per row a re-connect, a removal and the Operator
 /// identity, and one connect-another install. The app decides nothing (ADR-001): every change is a `yh`
@@ -22,6 +22,8 @@ final class LinearWorkspacesModel {
         let name: String
         /// The Linear workspace ID: an opaque vendor ID, never shown as a label.
         let workspaceID: String
+        /// The Linear user the installation's app acts as, an opaque vendor ID.
+        let appUser: BoardObjectID
         let operatorIdentity: BoardObjectID?
         /// Ids of the Projects whose `[board.linear] installation` names this one, from the local files.
         let projects: [String]
@@ -113,6 +115,7 @@ final class LinearWorkspacesModel {
                 Workspace(
                     name: installation.name,
                     workspaceID: installation.workspace.rawValue,
+                    appUser: installation.appUser,
                     operatorIdentity: installation.operatorIdentity,
                     projects: configuration.projects
                         .filter { $0.linearInstallationName == installation.name }

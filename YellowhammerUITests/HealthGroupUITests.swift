@@ -5,7 +5,7 @@ import XCTest
 /// (spec story app/land-on-the-sidebar-and-pulse). Covers that the group shows the stale Operator
 /// identity, App Installation revoked and probe failure flags with `yh doctor`'s own messages, and no
 /// other finding; that the two installation flags appear only on the Projects their installation
-/// serves; and that such a flag opens Settings → Linear workspaces. The stub prints nothing unless it
+/// serves; and that such a flag opens Settings → Boards. The stub prints nothing unless it
 /// is run as exactly `yh doctor --json`, so a run with `--fix`, `--yes` or `--probe` leaves the group
 /// unread and fails the test.
 ///
@@ -77,7 +77,7 @@ final class HealthGroupUITests: XCTestCase {
         }
     }
 
-    func testAnInstallationFlagOpensTheLinearWorkspaces() {
+    func testAnInstallationFlagOpensTheBoardsPane() {
         let revoked = app.descendants(matching: .any)
             .matching(NSPredicate(
                 format: "identifier == 'health-flag' AND label BEGINSWITH 'App Installation revoked'"

@@ -1,10 +1,12 @@
 import Domain
 import SwiftUI
 
-/// One card of the Linear workspaces list: an App Installation's label, the Projects that use it, the
-/// doctor's reading, its Operator identity, and the three things Settings does to it — re-connect, change
-/// the Operator identity, remove. Every identifier is suffixed with the installation's local name.
-struct LinearWorkspaceRow: View {
+/// One card of a Linear section's workspaces: an icon and the workspace's label as its headline, the details
+/// of the App Installation laid out under it — local name, workspace, app user, the Projects that use it —
+/// then the doctor's reading, its Operator identity, and the things Settings does to it: re-connect, change
+/// the Operator identity, remove. Like the Add Project sheet's Repo cards. Every identifier is suffixed with
+/// the installation's local name.
+struct LinearWorkspaceCard: View {
     let model: LinearWorkspacesModel
     let workspace: LinearWorkspacesModel.Workspace
     @State private var isConfirmingRemoval = false
@@ -14,12 +16,15 @@ struct LinearWorkspaceRow: View {
 
     var body: some View {
         SettingsCard {
-            HStack(alignment: .firstTextBaseline) {
-                header
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: DomainSymbol.appInstallation).foregroundStyle(.accent)
+                    .accessibilityHidden(true)
+                Text(model.label(for: workspace))
+                    .font(.headline)
+                    .accessibilityIdentifier("settings-linear-workspace-\(name)")
                 Spacer()
                 removal
             }
-            projects
             if let block = model.removalBlock(for: workspace) {
                 Text(block)
                     .font(.callout)
@@ -40,6 +45,7 @@ struct LinearWorkspaceRow: View {
                     monospaced: true
                 )
             }
+            details
             if let operatorModel = model.operatorModel(for: name) {
                 Divider()
                 OperatorIdentityRow(
@@ -53,20 +59,42 @@ struct LinearWorkspaceRow: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("settings-linear-row-\(name)")
+        .confirmationDialog(
+            "Remove the Linear workspace \(model.label(for: workspace))?", isPresented: $isConfirmingRemoval,
+            titleVisibility: .visible
+        ) {
+            Button("Remove", role: .destructive) { Task { await model.remove(name) } }
+        } message: {
+            Text(
+                "This deletes this Mac\u{2019}s entry and Keychain items for the workspace. Yellowhammer stays "
+                    + "installed in that Linear workspace until a workspace admin removes it in Linear\u{2019}s "
+                    + "settings."
+            )
+        }
     }
 
-    @ViewBuilder private var header: some View {
-        let label = model.label(for: workspace)
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(label)
-                .font(.headline)
-                .accessibilityIdentifier("settings-linear-workspace-\(name)")
-            if label != name {
-                Text(name)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
+    /// The installation's own facts, labelled the way the Repo cards label theirs. The IDs are opaque vendor
+    /// values, so they are selectable text and never a label.
+    private var details: some View {
+        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
+            GridRow {
+                Text("Local name").foregroundStyle(.secondary)
+                Text(name).font(.callout.monospaced()).textSelection(.enabled)
+            }
+            GridRow {
+                Text("Workspace").foregroundStyle(.secondary)
+                Text(workspace.workspaceID).font(.callout.monospaced()).textSelection(.enabled)
+            }
+            GridRow {
+                Text("App user").foregroundStyle(.secondary)
+                Text(workspace.appUser.rawValue).font(.callout.monospaced()).textSelection(.enabled)
+            }
+            GridRow {
+                Text("Projects").foregroundStyle(.secondary)
+                projects
             }
         }
+        .font(.callout)
     }
 
     @ViewBuilder private var projects: some View {
@@ -74,11 +102,10 @@ struct LinearWorkspaceRow: View {
             if workspace.projects.isEmpty {
                 Text("No Project uses this workspace.")
             } else {
-                Text("Used by \(workspace.projects.joined(separator: ", ")).")
+                Text(workspace.projects.joined(separator: ", "))
             }
         }
-        .font(.callout)
-        .foregroundStyle(.secondary)
+        .textSelection(.enabled)
         .accessibilityIdentifier("settings-linear-projects-\(name)")
     }
 
@@ -114,21 +141,12 @@ struct LinearWorkspaceRow: View {
     }
 
     private var plainRemoval: some View {
-        Button("Remove\u{2026}", role: .destructive) { isConfirmingRemoval = true }
+        Button("Remove\u{2026}", systemImage: "trash", role: .destructive) { isConfirmingRemoval = true }
+            .labelStyle(.iconOnly)
             .buttonStyle(.borderless)
             .disabled(model.removing != nil || model.removalBlock(for: workspace) != nil)
+            .help("Remove \(model.label(for: workspace)) from this Mac")
             .accessibilityIdentifier("settings-linear-remove-\(name)")
-            .confirmationDialog(
-                "Remove the Linear workspace \(model.label(for: workspace))?", isPresented: $isConfirmingRemoval
-            ) {
-                Button("Remove", role: .destructive) { Task { await model.remove(name) } }
-            } message: {
-                Text(
-                    "This deletes this Mac\u{2019}s entry and Keychain items for the workspace. Yellowhammer stays "
-                        + "installed in that Linear workspace until a workspace admin removes it in Linear\u{2019}s "
-                        + "settings."
-                )
-            }
     }
 
     private var orphanRemoval: some View {
