@@ -250,7 +250,7 @@ struct PulseLaneRow: View {
             PulseBadge(text: lane.state.rawValue, color: palette.color(for: lane.state))
             if let chip = lane.pullRequest {
                 PulsePullRequestButton(chip: chip) {
-                    context.actions.open(.pullRequest(repo: lane.repo, number: chip.number))
+                    context.actions.open(.pullRequest(chip.url))
                 }
             }
         }

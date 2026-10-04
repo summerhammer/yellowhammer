@@ -89,6 +89,22 @@ enum PulseFixtures {
         return id
     }
 
+    /// A fixture's literal URL. An invalid literal is a typo in this file, so it traps.
+    private static func url(_ text: String) -> URL {
+        guard let url = URL(string: text) else { preconditionFailure("Invalid fixture URL \(text)") }
+        return url
+    }
+
+    /// A Linear issue's link, as the Journal records one: its identifier and the URL Linear gave.
+    static func issueLink(_ identifier: String) -> LinearIssueLink {
+        LinearIssueLink(identifier: identifier, url: url("https://linear.app/acme/issue/\(identifier)"))
+    }
+
+    /// A pull request chip whose URL is the one GitHub would give.
+    static func pullRequest(repo: String, number: Int, state: PullRequestState?) -> PullRequestChip {
+        PullRequestChip(number: number, url: url("https://github.com/acme/\(repo)/pull/\(number)"), state: state)
+    }
+
     /// 07:30 local on 2026-09-29: the morning after a Night.
     static let asOf: Date = {
         let components = DateComponents(year: 2026, month: 9, day: 29, hour: 7, minute: 30)
@@ -172,7 +188,7 @@ enum PulseFixtures {
                 state: index == 0 ? laneState : .running,
                 cardsDone: index + 1,
                 cardsTotal: index + 4,
-                pullRequest: rollup == .verified ? PullRequestChip(number: 210 + index, state: .merged) : nil
+                pullRequest: rollup == .verified ? pullRequest(repo: repo, number: 210 + index, state: .merged) : nil
             )
         }
         return FeatureInFlight(
@@ -180,7 +196,8 @@ enum PulseFixtures {
             title: "Recalibrate the Routing Table from the last seven Nights",
             state: rollup == .authoring ? "Todo" : "In Progress",
             rollupState: rollup,
-            lanes: rollup == .authoring ? [] : lanes
+            lanes: rollup == .authoring ? [] : lanes,
+            link: issueLink("YH-120")
         )
     }
 
@@ -192,13 +209,14 @@ enum PulseFixtures {
         lanes: [
             RepoLaneSnapshot(
                 repo: "yellowhammer", state: .landed, cardsDone: 5, cardsTotal: 5,
-                pullRequest: PullRequestChip(number: 214, state: .open)
+                pullRequest: pullRequest(repo: "yellowhammer", number: 214, state: .open)
             ),
             RepoLaneSnapshot(
                 repo: "yellowhammer-site", state: .blocked, cardsDone: 1, cardsTotal: 3,
-                pullRequest: PullRequestChip(number: 88, state: .draft)
+                pullRequest: pullRequest(repo: "yellowhammer-site", number: 88, state: .draft)
             )
-        ]
+        ],
+        link: issueLink("YH-120")
     )
 
     // MARK: Night
@@ -227,7 +245,8 @@ enum PulseFixtures {
             state: state,
             startedAt: time(1, 30),
             verdictLine: verdict ?? defaultVerdict,
-            cardsByDisposition: dispositions ?? defaultDispositions
+            cardsByDisposition: dispositions ?? defaultDispositions,
+            nightCard: issueLink("YH-100")
         )
     }
 
@@ -271,7 +290,8 @@ extension PulseSnapshot {
                 title: PulseFixtures.cardTitles[index % PulseFixtures.cardTitles.count],
                 state: .waitingOnYou,
                 blockReason: nil,
-                repo: PulseFixtures.defaultRepos[index % PulseFixtures.defaultRepos.count]
+                repo: PulseFixtures.defaultRepos[index % PulseFixtures.defaultRepos.count],
+                link: PulseFixtures.issueLink("YH-\(140 + index)")
             )
         }
         needsYou.cards = waiting + blocked
@@ -285,7 +305,9 @@ extension PulseSnapshot {
                 title: PulseFixtures.cardTitles.reversed()[index % PulseFixtures.cardTitles.count],
                 state: .blocked,
                 blockReason: PulseFixtures.blockReasonCycle[index % PulseFixtures.blockReasonCycle.count],
-                repo: PulseFixtures.defaultRepos[(index + 1) % PulseFixtures.defaultRepos.count]
+                repo: PulseFixtures.defaultRepos[(index + 1) % PulseFixtures.defaultRepos.count],
+                // The third has no recorded link yet, to show a way out that is absent.
+                link: index == 2 ? nil : PulseFixtures.issueLink("YH-\(160 + index)")
             )
         }
         needsYou.cards = waiting + blocked
@@ -303,7 +325,8 @@ extension PulseSnapshot {
                 route: PulseFixtures.routes[index % PulseFixtures.routes.count],
                 startedAt: PulseFixtures.minutesBeforeAsOf(12 + index * 17),
                 round: index % 2 + 1,
-                status: PulseFixtures.attemptStatuses[index % PulseFixtures.attemptStatuses.count]
+                status: PulseFixtures.attemptStatuses[index % PulseFixtures.attemptStatuses.count],
+                cardLink: PulseFixtures.issueLink("YH-\(130 + index)")
             )
         }
         if count > 0 { now.status = .working }

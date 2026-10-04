@@ -34,7 +34,8 @@ extension PulseSnapshot {
                 title: card.displayTitle,
                 state: card.state,
                 blockReason: card.state == .blocked ? card.blockReason.flatMap { BlockReason(rawValue: $0) } : nil,
-                repo: card.repository
+                repo: card.repository,
+                link: LinearIssueLink.link(key: card.issueKey, url: card.issueURL)
             )
         }
         return NeedsYou(cards: cards)
@@ -61,7 +62,8 @@ extension PulseSnapshot {
                         route: open.route.description,
                         startedAt: open.startedAt,
                         round: round(of: open),
-                        status: nil
+                        status: nil,
+                        cardLink: LinearIssueLink.link(key: card.issueKey, url: card.issueURL)
                     ))
             }
         }
@@ -110,17 +112,34 @@ extension PulseSnapshot {
                 cardsDone: laneCards.count { $0.state == .done },
                 cardsTotal: laneCards.count,
                 pullRequest: pullRequests[repo].flatMap(chip),
-                cards: laneCards.map { LaneCard(id: $0.issueID, title: $0.displayTitle, state: $0.state) }
+                cards: laneCards.map { card in
+                    LaneCard(
+                        id: card.issueID,
+                        title: card.displayTitle,
+                        state: card.state,
+                        link: LinearIssueLink.link(key: card.issueKey, url: card.issueURL)
+                    )
+                }
             )
         }
-        return FeatureInFlight(id: inFlight.feature.issueID, title: nil, state: nil, rollupState: nil, lanes: lanes)
+        return FeatureInFlight(
+            id: inFlight.feature.issueID,
+            title: nil,
+            state: nil,
+            rollupState: nil,
+            lanes: lanes,
+            link: LinearIssueLink.link(key: inFlight.feature.issueKey, url: inFlight.feature.issueURL)
+        )
     }
 
-    /// The pull request's number is the last path component of its URL; nil when there is no URL or it
-    /// does not end in a number.
+    /// The pull request's number is the last path component of its URL; nil when there is no URL, it is
+    /// not an `https` or `http` URL, or it does not end in a number.
     private static func chip(_ record: PullRequestRecord) -> PullRequestChip? {
-        guard let url = record.url, let number = Int(url.split(separator: "/").last ?? "") else { return nil }
-        return PullRequestChip(number: number, state: nil)
+        guard
+            let text = record.url, let url = LinearIssueLink.webURL(text),
+            let number = Int(text.split(separator: "/").last ?? "")
+        else { return nil }
+        return PullRequestChip(number: number, url: url, state: nil)
     }
 
     // MARK: Night
@@ -132,7 +151,8 @@ extension PulseSnapshot {
             state: night.state == .opened ? .running : .done,
             startedAt: night.openedAt,
             verdictLine: nil,
-            cardsByDisposition: try dispositions(night: night, journal: journal)
+            cardsByDisposition: try dispositions(night: night, journal: journal),
+            nightCard: LinearIssueLink.link(key: night.nightCardIssueKey, url: night.nightCardIssueURL)
         )
     }
 

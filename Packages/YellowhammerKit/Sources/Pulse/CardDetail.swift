@@ -15,7 +15,8 @@ import Foundation
 /// figure are not: the first two live on the Linear issue, and the Journal read has no column or
 /// reference Night for the others.
 public struct CardDetail: Identifiable, Equatable, Sendable {
-    /// The Linear issue identifier, e.g. `YH-142`.
+    /// The Linear issue id, as the Journal records it. The identifier a person reads (`YH-142`) is in
+    /// ``link``.
     public let id: String
     /// The board's title as the Journal last reconciled it, else the issue id.
     public var title: String
@@ -35,6 +36,8 @@ public struct CardDetail: Identifiable, Equatable, Sendable {
     public var excludedRoutes: [String]
     /// Every Attempt, oldest first.
     public var attempts: [Attempt]
+    /// The Card's Linear issue; nil until the Delta Read has recorded its identifier and URL.
+    public var link: LinearIssueLink?
 
     public init(
         id: String,
@@ -47,7 +50,8 @@ public struct CardDetail: Identifiable, Equatable, Sendable {
         budgetEpoch: Int,
         routesTried: [String],
         excludedRoutes: [String],
-        attempts: [Attempt]
+        attempts: [Attempt],
+        link: LinearIssueLink? = nil
     ) {
         self.id = id
         self.title = title
@@ -60,6 +64,7 @@ public struct CardDetail: Identifiable, Equatable, Sendable {
         self.routesTried = routesTried
         self.excludedRoutes = excludedRoutes
         self.attempts = attempts
+        self.link = link
     }
 
     public var attemptCount: Int { attempts.count }

@@ -100,7 +100,7 @@ private struct FeatureLaneRow: View {
             PulseCountBadge(text: lane.state.rawValue, style: lane.state.style)
             if let pullRequest = lane.pullRequest {
                 Button {
-                    openDestination(.pullRequest(repo: lane.repo, number: pullRequest.number))
+                    openDestination(.pullRequest(pullRequest.url))
                 } label: {
                     HStack(spacing: 4) {
                         if let state = pullRequest.state {
