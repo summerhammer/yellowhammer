@@ -4,7 +4,7 @@ import Domain
 /// them. Every field is a raw `String` (or an array of them): the loader is the single validator, and
 /// every refusal the app shows the Operator carries the loader's own message
 /// (``ConfigurationEditError/refused(_:)``), never a second, app-side opinion of what is valid.
-public struct RouteDraft: Equatable, Sendable {
+public struct RouteDraft: Hashable, Sendable {
     public var cli: String
     public var model: String
     public var effort: String
