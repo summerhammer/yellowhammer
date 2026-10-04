@@ -12,17 +12,30 @@ previously recorded probe results and fresh probe runs, failing loudly before a 
 
 ---
 
-## 1. Automated Scheduled CI Job
+## 1. CI Workflows
 
-The automated drift check runs via GitHub Actions in [`.github/workflows/probe-drift.yml`](../.github/workflows/probe-drift.yml):
+The drift check is split across two workflows, the same way the rehearsal suite is:
 
-- **Cadence**: Scheduled daily at 02:00 UTC (`cron: "0 2 * * *"`), and on manual `workflow_dispatch`.
-- **Environment**: Runs on an Apple Silicon runner with agent CLIs (`claude`, `codex`) installed and authenticated.
-- **Workflow Steps**:
-  1. Executes Python unit tests for the drift runner: `python3 -m unittest discover -s scripts/ci/tests -p 'test_check_probe_drift.py' -v`.
-  2. Runs `python3 scripts/ci/check_probe_drift.py --clis claude,codex --summary-file "$GITHUB_STEP_SUMMARY"`.
-  3. Formats results into the GitHub Actions Step Summary.
-  4. Fails the build with exit code 1 and GitHub Actions `::error` annotations if any CLI regresses on a previously passing probe target.
+- [`.github/workflows/probe-drift.yml`](../.github/workflows/probe-drift.yml) runs the unit tests
+  for the drift runner on a hosted runner, on pull requests and pushes to `main` that touch it:
+  `python3 -m unittest discover -s scripts/ci/tests -p 'test_check_probe_drift.py' -v`. It never
+  probes.
+- [`.github/workflows/probe-drift-live.yml`](../.github/workflows/probe-drift-live.yml) builds the
+  app and runs the probes. It is **dormant**: `workflow_dispatch` only, on a self-hosted Apple
+  Silicon runner (`[self-hosted, macOS, ARM64]`) that is not registered yet. That runner needs
+  `claude` and `codex` installed and authenticated, and a persistent `$HOME` whose Ledger holds the
+  earlier Probe Results. A hosted runner has neither, so it cannot probe (#199). The file says
+  what to add once the runner exists.
+
+Until then the probe drift check is manual: step 1.2 of
+[the release checklist](release-checklist.md#12-probe-drift-check-green).
+
+`scripts/ci/check_probe_drift.py` exits 1 when:
+
+- any probe reports drift (`--no-fail-on-drift` turns this off);
+- any probe's verdict is `failed` (`--no-fail-on-error` turns this off);
+- any probe did not run at all — no `yh`, a CLI that is not installed, a timeout. Nothing turns
+  this off: a probe that never ran is not a green.
 
 ---
 
@@ -39,7 +52,9 @@ Run the probe drift check across all declared CLI adapters:
 # Via the Yellowhammer engine CLI:
 yh probe --all
 
-# Or via the CI orchestration script:
+# Or via the CI orchestration script, which runs the `yh` embedded in the app built with
+# `xcodebuild -project Yellowhammer.xcodeproj -scheme Yellowhammer -derivedDataPath .build/app build`
+# (pass --engine-bin to use another):
 python3 scripts/ci/check_probe_drift.py --clis claude,codex
 ```
 

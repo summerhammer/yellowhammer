@@ -79,6 +79,11 @@ reason: sigkill: process group survivors (leader 51717, group 51717, pids 51720)
 excluded from routing: sigkill: process group survivors (leader 51717, group 51717, pids 51720)
 """
 
+# What the hosted runner printed for every run before #199 was fixed, and still reported green.
+SAMPLE_NO_YH_OUTPUT = "error: no executable product named 'yh'\n"
+
+SAMPLE_CLI_NOT_INSTALLED_OUTPUT = "Error: `claude` is not installed: no executable on PATH\n"
+
 
 class TestParseProbeOutput(unittest.TestCase):
     """Tests for parsing yh probe output."""
@@ -97,6 +102,13 @@ class TestParseProbeOutput(unittest.TestCase):
         self.assertIsNone(info.drift_message)
         self.assertEqual(info.regressions, [])
         self.assertEqual(info.eligibility, "offered")
+        self.assertTrue(info.completed)
+
+    def test_output_without_a_verdict_is_not_completed(self):
+        for output, exit_code in [(SAMPLE_NO_YH_OUTPUT, 1), (SAMPLE_CLI_NOT_INSTALLED_OUTPUT, 64), ("", 0)]:
+            with self.subTest(output=output, exit_code=exit_code):
+                info = check_module.parse_probe_output(output, exit_code=exit_code)
+                self.assertFalse(info.completed)
 
     def test_parse_output_format_drift(self):
         info = check_module.parse_probe_output(SAMPLE_OUTPUT_FORMAT_DRIFT_OUTPUT, exit_code=1)
@@ -151,6 +163,14 @@ class TestSummaryGeneration(unittest.TestCase):
         summary = check_module.generate_markdown_summary([clean1])
         self.assertIn("All Probes Healthy", summary)
 
+    def test_summary_marks_a_probe_that_did_not_run(self):
+        clean = check_module.parse_probe_output(SAMPLE_CLEAN_OUTPUT, exit_code=0)
+        not_run = check_module.parse_probe_output(SAMPLE_NO_YH_OUTPUT, exit_code=1)._replace(cli="codex")
+        summary = check_module.generate_markdown_summary([clean, not_run])
+        self.assertIn("| `codex` | | | | | | | **DID NOT RUN** | — |", summary)
+        self.assertIn("Probe Did Not Run:** `codex`", summary)
+        self.assertNotIn("All Probes Healthy", summary)
+
 
 class TestMainExecution(unittest.TestCase):
     """Tests for main() CLI entrypoint."""
@@ -166,6 +186,42 @@ class TestMainExecution(unittest.TestCase):
             with patch.object(sys, "argv", ["check_probe_drift.py", "--clis", "claude"]):
                 code = check_module.main()
                 self.assertEqual(code, 1)
+
+    def test_main_fails_when_yh_is_missing(self):
+        # The regression in #199: `swift run ... yh` failed, no probe ran, and the check exited 0.
+        with patch.object(check_module, "run_probe_command", return_value=(1, SAMPLE_NO_YH_OUTPUT)):
+            with patch.object(sys, "argv", ["check_probe_drift.py", "--clis", "claude,codex"]):
+                self.assertEqual(check_module.main(), 1)
+
+    def test_main_fails_when_a_probe_did_not_run_even_without_fail_on_error(self):
+        with patch.object(check_module, "run_probe_command", return_value=(64, SAMPLE_CLI_NOT_INSTALLED_OUTPUT)):
+            with patch.object(sys, "argv", ["check_probe_drift.py", "--clis", "claude", "--no-fail-on-error"]):
+                self.assertEqual(check_module.main(), 1)
+
+    def test_main_fails_when_output_has_no_verdict_despite_exit_zero(self):
+        with patch.object(check_module, "run_probe_command", return_value=(0, "")):
+            with patch.object(sys, "argv", ["check_probe_drift.py", "--clis", "claude"]):
+                self.assertEqual(check_module.main(), 1)
+
+    def test_main_fails_on_failed_verdict_without_drift_by_default(self):
+        with patch.object(check_module, "run_probe_command", return_value=(1, SAMPLE_CONTAINMENT_FAILURE_NO_DRIFT)):
+            with patch.object(sys, "argv", ["check_probe_drift.py", "--clis", "claude"]):
+                self.assertEqual(check_module.main(), 1)
+
+    def test_main_passes_failed_verdict_without_drift_when_opted_out(self):
+        with patch.object(check_module, "run_probe_command", return_value=(1, SAMPLE_CONTAINMENT_FAILURE_NO_DRIFT)):
+            with patch.object(sys, "argv", ["check_probe_drift.py", "--clis", "claude", "--no-fail-on-error"]):
+                self.assertEqual(check_module.main(), 0)
+
+    def test_main_passes_drift_when_opted_out(self):
+        with patch.object(check_module, "run_probe_command", return_value=(1, SAMPLE_OUTPUT_FORMAT_DRIFT_OUTPUT)):
+            argv = ["check_probe_drift.py", "--clis", "claude", "--no-fail-on-drift", "--no-fail-on-error"]
+            with patch.object(sys, "argv", argv):
+                self.assertEqual(check_module.main(), 0)
+
+    def test_main_fails_on_empty_cli_list(self):
+        with patch.object(sys, "argv", ["check_probe_drift.py", "--clis", " , "]):
+            self.assertEqual(check_module.main(), 1)
 
     def test_main_summary_file_written(self):
         with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tf:
@@ -183,6 +239,39 @@ class TestMainExecution(unittest.TestCase):
         finally:
             if os.path.exists(summary_path):
                 os.remove(summary_path)
+
+
+class TestRunProbeCommand(unittest.TestCase):
+    """Tests for resolving and running `yh`."""
+
+    def test_missing_default_engine_bin_reports_the_build_command(self):
+        with tempfile.TemporaryDirectory() as repo_root:
+            exit_code, output = check_module.run_probe_command("claude", repo_root=Path(repo_root))
+        self.assertEqual(exit_code, 1)
+        self.assertIn(check_module.DEFAULT_ENGINE_BIN, output)
+        self.assertIn("xcodebuild", output)
+        self.assertFalse(check_module.parse_probe_output(output, exit_code).completed)
+
+    def test_runs_the_given_engine_bin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            stub = Path(directory) / "yh"
+            stub.write_text("#!/bin/sh\necho \"cli: $2\"\necho 'verdict: passed'\n")
+            stub.chmod(0o755)
+            exit_code, output = check_module.run_probe_command("claude", engine_bin=str(stub))
+        self.assertEqual(exit_code, 0)
+        info = check_module.parse_probe_output(output, exit_code)
+        self.assertEqual(info.cli, "claude")
+        self.assertTrue(info.completed)
+
+    def test_timeout_is_reported_as_not_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            stub = Path(directory) / "yh"
+            stub.write_text("#!/bin/sh\nsleep 5\n")
+            stub.chmod(0o755)
+            exit_code, output = check_module.run_probe_command("claude", engine_bin=str(stub), timeout=1)
+        self.assertEqual(exit_code, 1)
+        self.assertIn("timed out after 1s", output)
+        self.assertFalse(check_module.parse_probe_output(output, exit_code).completed)
 
 
 if __name__ == "__main__":

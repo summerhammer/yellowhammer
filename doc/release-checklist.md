@@ -70,8 +70,11 @@ A nonzero exit, or any `drift since the previous probe` line that names a target
 release. [doc/probe-drift-check.md](probe-drift-check.md) (section 2) tells how to check the
 latest upstream CLI versions and what to do about drift.
 
-The scheduled `.github/workflows/probe-drift.yml` is not this gate. A hosted runner has no
-authenticated agent CLIs, so it cannot probe, and no run of it has passed (#199).
+This step stays **manual** until a self-hosted Apple Silicon runner with authenticated agent CLIs
+and a persistent Ledger exists (`.github/workflows/probe-drift-live.yml` is written for that
+runner and will take over this step once it is registered). `.github/workflows/probe-drift.yml`
+is not this gate: it runs only the drift runner's unit tests, because a hosted runner has no
+authenticated agent CLIs and cannot probe (#199).
 
 ### 1.3 Rehearsal suite green on the release PR
 
