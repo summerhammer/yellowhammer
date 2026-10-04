@@ -13,7 +13,8 @@ let package = Package(
     products: [
         // A product per target only so Xcode offers a scheme to render its previews.
         .library(name: "PulsePrototypes", targets: ["PulsePrototypes"]),
-        .library(name: "AddProjectPrototypes", targets: ["AddProjectPrototypes"])
+        .library(name: "AddProjectPrototypes", targets: ["AddProjectPrototypes"]),
+        .library(name: "SettingsPrototypes", targets: ["SettingsPrototypes"])
     ],
     dependencies: [
         .package(path: "../YellowhammerKit")
@@ -32,6 +33,12 @@ let package = Package(
         // Plain fixtures only: it reads no Journal and runs no `yh`.
         .target(
             name: "AddProjectPrototypes",
+            swiftSettings: [.defaultIsolation(MainActor.self)]
+        ),
+        // The Settings window's panes, starting with the Base Routing Table's editor. Plain fixtures only: it
+        // reads no `config.toml` and runs no `yh`.
+        .target(
+            name: "SettingsPrototypes",
             swiftSettings: [.defaultIsolation(MainActor.self)]
         )
     ]
