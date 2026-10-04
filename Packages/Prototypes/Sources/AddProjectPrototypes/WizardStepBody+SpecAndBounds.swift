@@ -6,12 +6,13 @@ import SwiftUI
 /// Two option cards — a shared folder or one of this Project's Repos — then the candidates.
 struct SpecBlock: View {
     @Binding var draft: AddProjectDraft
+    @Environment(\.wizardBlocksShowProblems) private var showsProblems
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             optionCards
             let problems = draft.problems(in: .specSource)
-            if !problems.isEmpty, draft.visited.contains(.specSource) {
+            if showsProblems, !problems.isEmpty, draft.visited.contains(.specSource) {
                 WizardProblemList(problems: problems)
             }
         }

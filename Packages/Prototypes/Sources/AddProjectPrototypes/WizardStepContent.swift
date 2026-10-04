@@ -7,12 +7,16 @@ import SwiftUI
 extension EnvironmentValues {
     /// Every way out of the sheet (Cancel, Done, Close). The Playground records each call.
     @Entry var addProjectAction: @MainActor (String) -> Void = { _ in }
+    /// Whether a step's block draws its own problems. The round-three variants draw every page's
+    /// problems in one place instead, so they turn this off.
+    @Entry var wizardBlocksShowProblems = true
 }
 
 // MARK: - Scheduled jobs
 
 struct JobsSections: View {
     @Binding var draft: AddProjectDraft
+    @Environment(\.wizardBlocksShowProblems) private var showsProblems
 
     private static let times = (0..<24).map { String(format: "%02d:00", $0) }
 
@@ -56,7 +60,7 @@ struct JobsSections: View {
             Text("launchd runs author, build and land for this Project. The Night runs with the app quit.")
                 .foregroundStyle(.secondary)
         }
-        if !draft.problems(in: .jobs).isEmpty {
+        if showsProblems, !draft.problems(in: .jobs).isEmpty {
             Section { WizardProblemList(problems: draft.problems(in: .jobs)) }
         }
     }

@@ -5,12 +5,30 @@ struct LinearProjectFixture: Identifiable, Hashable { // glossary:ignore GL001
     let id: String
     let name: String
     let teamName: String
+    /// The local name of the App Installation whose Linear workspace holds it.
+    var workspace = "acme"
+    /// Whether Yellowhammer is a member of its team, so it can read it.
+    var readable = true
 }
 
 struct TeamFixture: Identifiable, Hashable {
     let key: String
     let name: String
+    var workspace = "acme"
     var id: String { key }
+}
+
+/// A connected App Installation: a Linear workspace Yellowhammer is installed in.
+struct LinearWorkspaceFixture: Identifiable, Hashable {
+    /// The installation's local name, which the Project file records.
+    let localName: String
+    /// The workspace's name in Linear, read live.
+    let name: String
+    let workspaceID: String
+    /// The Operator's Linear user in this workspace, chosen once per installation.
+    var operatorIdentity: String?
+
+    var id: String { localName }
 }
 
 /// What `yh --print-choices` and the sibling Projects' configuration would offer, as fixtures.
@@ -28,6 +46,52 @@ enum AddProjectFixtures {
         TeamFixture(key: "PAY", name: "Payments"),
         TeamFixture(key: "OPS", name: "Operations")
     ]
+
+    // The round-three board page: Linear projects in several workspaces, so a pasted id can be verified.
+
+    static let linearWorkspaces: [LinearWorkspaceFixture] = [
+        LinearWorkspaceFixture(
+            localName: "acme", name: "Acme Corp", workspaceID: "9a0d41c2-77b3-4e1f-8c55-1d2e3f405162",
+            operatorIdentity: "operator@acme.dev"
+        ),
+        LinearWorkspaceFixture(
+            localName: "summerhammer", name: "summerhammer", workspaceID: "31e56c46-3bce-4075-a5b4-9ffba0dc5273"
+        )
+    ]
+
+    /// The workspace "Connect another Linear workspace…" connects, once approved.
+    static let connectableWorkspace = LinearWorkspaceFixture(
+        localName: "payments-inc", name: "Payments Inc", workspaceID: "c0ffee00-1234-4abc-9def-00aa11bb22cc"
+    )
+
+    /// Linear users the Operator identity can be chosen from: active human members only, never
+    /// Yellowhammer's own app user, bots or deactivated users.
+    static let workspaceMembers = ["operator@acme.dev", "max@summerhammer.dev", "dana@summerhammer.dev"]
+
+    /// Linear projects beyond `linearProjects`: in other workspaces, or in a team Yellowhammer is not in.
+    static let otherLinearProjects: [LinearProjectFixture] = [ // glossary:ignore GL001
+        LinearProjectFixture(id: "6a888bef", name: "Rehearsal A", teamName: "Yellowhammer", workspace: "summerhammer"),
+        LinearProjectFixture(id: "1d2c3b4a", name: "yh-verify", teamName: "Yellowhammer", workspace: "summerhammer"),
+        LinearProjectFixture(id: "5ec2e700", name: "Security Audit", teamName: "Security", readable: false),
+        LinearProjectFixture(id: "77aa0f19", name: "Payroll", teamName: "Finance", workspace: "payments-inc")
+    ]
+
+    static let otherTeams: [TeamFixture] = [
+        TeamFixture(key: "YH", name: "Yellowhammer", workspace: "summerhammer"),
+        TeamFixture(key: "FIN", name: "Finance", workspace: "payments-inc")
+    ]
+
+    /// Every Linear project a pasted id may name, listed or not.
+    static var allLinearProjects: [LinearProjectFixture] { linearProjects + otherLinearProjects }
+
+    /// The Linear projects setup lists for a workspace: only the ones Yellowhammer can read.
+    static func listedProjects(in workspace: String?) -> [LinearProjectFixture] { // glossary:ignore GL001
+        allLinearProjects.filter { $0.workspace == workspace && $0.readable }
+    }
+
+    static func teams(in workspace: String?) -> [TeamFixture] {
+        (teams + otherTeams).filter { $0.workspace == workspace }
+    }
 
     /// Ids the sibling Projects already use.
     static let existingProjectIDs: Set<String> = ["beta-service", "docs-site"]
@@ -128,6 +192,9 @@ enum AddProjectScenario: String, CaseIterable, Identifiable {
         var draft = AddProjectDraft()
         draft.setName("Acme")
         draft.linearProjectID = AddProjectFixtures.linearProjects[0].id
+        draft.linearWorkspace = "acme"
+        draft.pastedProjectID = AddProjectFixtures.linearProjects[0].id
+        draft.verification = .verified
         return draft
     }
 

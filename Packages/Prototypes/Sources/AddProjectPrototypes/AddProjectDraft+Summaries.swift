@@ -5,10 +5,10 @@ import Foundation
 
 extension AddProjectDraft {
     var linearProject: LinearProjectFixture? { // glossary:ignore GL001
-        AddProjectFixtures.linearProjects.first { $0.id == linearProjectID }
+        AddProjectFixtures.allLinearProjects.first { $0.id == linearProjectID }
     }
 
-    var team: TeamFixture? { AddProjectFixtures.teams.first { $0.key == teamKey } }
+    var team: TeamFixture? { (AddProjectFixtures.teams + AddProjectFixtures.otherTeams).first { $0.key == teamKey } }
 
     var displayName: String {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
