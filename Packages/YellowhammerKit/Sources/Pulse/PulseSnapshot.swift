@@ -277,7 +277,7 @@ public struct HealthFlag: Identifiable, Equatable, Sendable {
         self.detail = detail
     }
 
-    /// Where the flag's fix lives: the Linear workspaces list for the two installation flags, the
+    /// Where the flag's fix lives: the Boards pane for the two installation flags, the
     /// Project's Settings entry for a probe failure.
     public var destination: PulseDestination {
         switch kind {

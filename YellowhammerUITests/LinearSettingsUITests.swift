@@ -249,8 +249,9 @@ extension LinearSettingsUITests {
         let status = element("settings-linear-status-scratch")
         XCTAssertTrue(status.waitForExistence(timeout: 5))
         XCTAssertTrue(text(of: status).contains("revoked"), text(of: status))
-        // Connecting another workspace stays on offer beside the list.
-        XCTAssertTrue(element("setup-linear-install").exists)
+        XCTAssertFalse(element("setup-linear-install").exists)
+        element("settings-linear-connect").click() // connecting another stays on offer, behind its button
+        XCTAssertTrue(element("setup-linear-install").waitForExistence(timeout: 5))
     }
 
     func testReconnectRunsTheInstallForThatWorkspaceOnly() throws {
