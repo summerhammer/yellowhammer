@@ -38,6 +38,8 @@ credentials.json
 *.sqlite3
 *.sqlite-wal
 *.sqlite-shm
+# Except the UI test bundle's seeded Journal, written by PulseTests (PulseUITestJournalTests.swift)
+!/YellowhammerUITests/Fixtures/*.db
 
 # Local Yellowhammer TOML configuration
 /config.toml
