@@ -1966,8 +1966,9 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
     link to the refused Project opens, and a Repo row opening in the Inspector. Attempt rows and lane
     badges need a populated Journal, which the UI test bundle cannot build, so the Kit tests cover
     them.
-  - Not met yet: refused files shown in the Settings window (P18.12). `working` is read from the Act
-    Lease, which stands in for "the `launchd` Act job is alive", as the Pulse read already did.
+  - Not met yet: refused files shown in the Settings window (P18.12). `working` was first read from
+    the Act Lease, standing in for "the `launchd` Act job is alive". Since #229 the app reads
+    `launchctl list` once per read and hands each Project its own jobs' liveness (`ActJobs`).
 
 ### [x] P18.3 Pulse — Needs you
 - **Work** — The Needs-you group, in the group order the ruling sets. Add its read to the `Pulse`
