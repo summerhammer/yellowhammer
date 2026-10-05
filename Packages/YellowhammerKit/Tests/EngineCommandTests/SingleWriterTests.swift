@@ -47,7 +47,8 @@ func actOpensOnlyItsOwnJournal(_ act: Act) async throws {
     // nothing (the author Act's selection finds no Route it can run and ends as an authoring fault).
     try await runAct(act, project: "alpha", in: directory, force: act != .author)
 
-    #expect(try journalFiles(in: directory) == ["alpha.db"])
+    // `alpha.db.lock` serialises creating and migrating alpha's Journal; nothing of beta's appears.
+    #expect(try journalFiles(in: directory) == ["alpha.db", "alpha.db.lock"])
 }
 
 @Test("A refused Act creates no Journal", arguments: Act.allCases)
