@@ -127,10 +127,12 @@ def scenario_2(env, checks):
     feature_name = selected_events[0]["payload"].get("name")
     checks.require(bool(feature_name), "FeatureSelected names the Feature")
     expected_branch = suite_env.feature_branch(project_id, feature_name)
-    checks.expect(
-        feature.get("branch") == expected_branch,
-        f"Feature branch is {expected_branch!r} (got {feature.get('branch')!r})",
-    )
+    recorded = {r["repository"]: r["branch"] for r in snap.feature_repositories() if r["feature_id"] == feature["id"]}
+    for repo in manifest["repos"]:
+        checks.expect(
+            suite_env.is_reported_feature_branch(recorded.get(repo["name"]), expected_branch),
+            f"{repo['name']}: recorded Feature Branch {recorded.get(repo['name'])!r} is {expected_branch!r} or a prefixed form",
+        )
 
     cards = snap.cards()
     checks.require(len(cards) > 0, "at least one Card recorded")
@@ -162,9 +164,10 @@ def scenario_2(env, checks):
             ["git", "-C", path, "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True
         )
         branch = result.stdout.strip()
+        target = recorded.get(worktree["repository"])
         checks.expect(
-            result.returncode == 0 and branch == expected_branch,
-            f"{path}: checked out branch is {expected_branch!r} (got {branch!r})",
+            result.returncode == 0 and branch == target,
+            f"{path}: checked out branch is {target!r} (got {branch!r})",
         )
 
     checks.expect(
@@ -188,13 +191,14 @@ def scenario_2(env, checks):
 
     for repo in manifest["repos"]:
         remote = repo["remote"]
+        target = recorded.get(repo["name"]) or expected_branch
         result = subprocess.run(
-            ["git", "-C", remote, "rev-parse", "--verify", f"refs/heads/{expected_branch}"],
+            ["git", "-C", remote, "rev-parse", "--verify", f"refs/heads/{target}"],
             capture_output=True, text=True,
         )
         checks.expect(
             result.returncode != 0,
-            f"no bare remote ({remote}) carries {expected_branch!r}",
+            f"no bare remote ({remote}) carries {target!r}",
         )
 
     checks.expect(len(snap.events(type="CycleLanded")) >= 1, "CycleLanded recorded")

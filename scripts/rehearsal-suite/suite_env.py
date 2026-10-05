@@ -84,6 +84,13 @@ def feature_branch(project_id, feature_name):
     return rehearsal_fixtures.feature_branch(project_id, feature_name)
 
 
+def is_reported_feature_branch(reported, requested):
+    """Whether a reported Feature Branch (from Orca ADE) matches the requested one. Orca ADE may
+    prefix the branch (e.g. `team/rozd/yh-feature-1` when requested as `yh-feature-1`), so both
+    an exact match and a match where reported ends with `/ + requested` are valid."""
+    return bool(reported) and (reported == requested or reported.endswith("/" + requested))
+
+
 # MARK: - Nights
 
 
@@ -500,6 +507,9 @@ class JournalSnapshot:
 
     def features(self):
         return self.rows("SELECT * FROM feature ORDER BY id")
+
+    def feature_repositories(self):
+        return self.rows("SELECT * FROM feature_repository ORDER BY feature_id, repository")
 
     def nights(self):
         return self.rows("SELECT * FROM night ORDER BY id")

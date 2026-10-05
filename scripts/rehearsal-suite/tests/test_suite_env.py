@@ -129,6 +129,29 @@ class FeatureBranchTests(unittest.TestCase):
         self.assertEqual(branch, "yh-proj-unnamed")
 
 
+class IsReportedFeatureBranchTests(unittest.TestCase):
+    def test_exact_match_is_valid(self):
+        self.assertTrue(suite_env.is_reported_feature_branch("yh-feature-1", "yh-feature-1"))
+
+    def test_prefix_rozd_is_valid(self):
+        self.assertTrue(suite_env.is_reported_feature_branch("rozd/yh-feature-1", "yh-feature-1"))
+
+    def test_prefix_team_rozd_is_valid(self):
+        self.assertTrue(suite_env.is_reported_feature_branch("team/rozd/yh-feature-1", "yh-feature-1"))
+
+    def test_none_reported_is_invalid(self):
+        self.assertFalse(suite_env.is_reported_feature_branch(None, "yh-feature-1"))
+
+    def test_empty_reported_is_invalid(self):
+        self.assertFalse(suite_env.is_reported_feature_branch("", "yh-feature-1"))
+
+    def test_wrong_suffix_is_invalid(self):
+        self.assertFalse(suite_env.is_reported_feature_branch("xfeature-1", "yh-feature-1"))
+
+    def test_wrong_suffix_with_hyphen_is_invalid(self):
+        self.assertFalse(suite_env.is_reported_feature_branch("yh-feature-1-2", "yh-feature-1"))
+
+
 # MARK: - yh argument building
 
 
@@ -208,7 +231,11 @@ class JournalSnapshotTests(unittest.TestCase):
                 night_card_issue_id TEXT
             );
             CREATE TABLE card (id INTEGER PRIMARY KEY, cycle_id INTEGER, issue_id TEXT, state TEXT);
-            CREATE TABLE feature (id INTEGER PRIMARY KEY, issue_id TEXT, branch TEXT, state TEXT);
+            CREATE TABLE feature (id INTEGER PRIMARY KEY, issue_id TEXT, worktree_name TEXT, state TEXT);
+            CREATE TABLE feature_repository (
+                feature_id INTEGER, repository TEXT, branch TEXT,
+                PRIMARY KEY (feature_id, repository)
+            );
             CREATE TABLE worktree (
                 id INTEGER PRIMARY KEY, feature_id INTEGER, repository TEXT, path TEXT, released_at TEXT
             );
@@ -219,6 +246,7 @@ class JournalSnapshotTests(unittest.TestCase):
             INSERT INTO night VALUES (1, 'rehearsal-suite-a', '2026-08-25', 'closed', 'idle', 'ISSUE-1');
             INSERT INTO card VALUES (1, 1, 'ISSUE-10', 'Done');
             INSERT INTO feature VALUES (1, 'ISSUE-9', 'yh-rehearsal-suite-a-feature-1', 'landed');
+            INSERT INTO feature_repository VALUES (1, 'fixture-backend', 'rozd/yh-rehearsal-suite-a-feature-1');
             INSERT INTO worktree VALUES (1, 1, 'fixture-backend', '/tmp/wt', NULL);
             INSERT INTO event VALUES (1, 1, 'build', 'run-1', 'ActIdle', '2026-08-25T00:00:00Z',
                                        '{"reason": "no_feature_in_flight"}');
@@ -256,7 +284,14 @@ class JournalSnapshotTests(unittest.TestCase):
 
     def test_features(self):
         features = self.snapshot.features()
-        self.assertEqual(features[0]["branch"], "yh-rehearsal-suite-a-feature-1")
+        self.assertEqual(features[0]["worktree_name"], "yh-rehearsal-suite-a-feature-1")
+
+    def test_feature_repositories(self):
+        feature_repos = self.snapshot.feature_repositories()
+        self.assertEqual(len(feature_repos), 1)
+        self.assertEqual(feature_repos[0]["feature_id"], 1)
+        self.assertEqual(feature_repos[0]["repository"], "fixture-backend")
+        self.assertEqual(feature_repos[0]["branch"], "rozd/yh-rehearsal-suite-a-feature-1")
 
     def test_nights(self):
         nights = self.snapshot.nights()
