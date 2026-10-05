@@ -190,7 +190,10 @@ struct PulseSidebarList: View {
     private func attemptRow(_ attempt: RunningAttempt) -> some View {
         HStack {
             Label {
-                Text(rows == .twoLine ? "\(attempt.cardID) · Round \(attempt.round)" : attempt.route).lineLimit(1)
+                let text = rows == .twoLine
+                    ? "\(attempt.cardIDForDisplay ?? attempt.cardID) · Round \(attempt.round)"
+                    : attempt.route
+                Text(text).lineLimit(1)
             } icon: {
                 Image(systemName: "gearshape.2").foregroundStyle(palette.working)
             }

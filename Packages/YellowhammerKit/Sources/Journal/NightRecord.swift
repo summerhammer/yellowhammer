@@ -11,6 +11,8 @@ public struct NightRecord: Equatable, Sendable {
     public let mode: NightMode
     public let state: NightState
     public let nightCardIssueID: String?
+    /// The Night Card's human-readable identifier (e.g. `ARC-20`), recorded for display.
+    public internal(set) var nightCardIssueIDForDisplay: String?
     public let openedAt: Date
     /// When the Night was closed in the Journal; `closeReason` says how. Nil while it is open.
     public let completedAt: Date?
@@ -27,6 +29,71 @@ public struct NightRecord: Equatable, Sendable {
     public internal(set) var nightCardIssueKey: String?
     /// The Night Card's board URL as Linear gave it, recorded with ``nightCardIssueKey``; nil until then.
     public internal(set) var nightCardIssueURL: String?
+
+    public init(
+        id: Int64,
+        projectID: ProjectID,
+        nightStart: NightStart,
+        mode: NightMode,
+        state: NightState,
+        nightCardIssueID: String?,
+        nightCardIssueIDForDisplay: String? = nil,
+        openedAt: Date,
+        completedAt: Date?,
+        closeReason: NightCloseReason?,
+        verdict: NightVerdict?,
+        triagedAt: Date?,
+        nightCardIssueKey: String? = nil,
+        nightCardIssueURL: String? = nil
+    ) {
+        self.id = id
+        self.projectID = projectID
+        self.nightStart = nightStart
+        self.mode = mode
+        self.state = state
+        self.nightCardIssueID = nightCardIssueID
+        self.nightCardIssueIDForDisplay = nightCardIssueIDForDisplay
+        self.openedAt = openedAt
+        self.completedAt = completedAt
+        self.closeReason = closeReason
+        self.verdict = verdict
+        self.triagedAt = triagedAt
+        self.nightCardIssueKey = nightCardIssueKey
+        self.nightCardIssueURL = nightCardIssueURL
+    }
+
+    public init(
+        id: Int64,
+        projectID: ProjectID,
+        nightStart: NightStart,
+        mode: NightMode,
+        state: NightState,
+        nightCardIssueID: String?,
+        openedAt: Date,
+        completedAt: Date?,
+        closeReason: NightCloseReason?,
+        verdict: NightVerdict?,
+        triagedAt: Date?,
+        nightCardIssueKey: String? = nil,
+        nightCardIssueURL: String? = nil
+    ) {
+        self.init(
+            id: id,
+            projectID: projectID,
+            nightStart: nightStart,
+            mode: mode,
+            state: state,
+            nightCardIssueID: nightCardIssueID,
+            nightCardIssueIDForDisplay: nil,
+            openedAt: openedAt,
+            completedAt: completedAt,
+            closeReason: closeReason,
+            verdict: verdict,
+            triagedAt: triagedAt,
+            nightCardIssueKey: nightCardIssueKey,
+            nightCardIssueURL: nightCardIssueURL
+        )
+    }
 
     public var isOpen: Bool { state == .opened }
 }

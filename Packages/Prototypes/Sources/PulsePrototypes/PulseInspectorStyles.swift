@@ -109,7 +109,7 @@ struct PulseInspectorView: View {
             kind: "Card",
             systemImage: card.state == .blocked ? "exclamationmark.octagon.fill" : "questionmark.bubble.fill",
             tint: color,
-            identifier: card.id,
+            identifier: card.issueIDForDisplay ?? card.id,
             title: card.title,
             badges: badges,
             facts: [
@@ -150,8 +150,8 @@ struct PulseInspectorView: View {
             kind: "Feature",
             systemImage: "flag.fill",
             tint: palette.color(for: feature.rollupState),
-            identifier: feature.id,
-            title: feature.title ?? feature.id,
+            identifier: feature.issueIDForDisplay ?? feature.id,
+            title: feature.title ?? (feature.issueIDForDisplay ?? feature.id),
             badges: [
                 feature.state.map { ($0, Color.secondary) },
                 feature.rollupState.map { ($0.rawValue, palette.color(for: $0)) }
@@ -187,7 +187,7 @@ struct PulseInspectorView: View {
             kind: "Attempt",
             systemImage: "gearshape.2.fill",
             tint: palette.working,
-            identifier: attempt.cardID,
+            identifier: attempt.cardIDForDisplay ?? attempt.cardID,
             title: attempt.cardTitle,
             badges: [("running", palette.working), ("Round \(attempt.round)", .secondary)],
             facts: facts,
@@ -218,8 +218,12 @@ struct PulseInspectorView: View {
         if let attempt {
             related.append(.init(title: "Running Attempt", items: [
                 .init(
-                    id: attempt.id, title: "\(attempt.cardID) · Round \(attempt.round)", subtitle: attempt.status,
-                    systemImage: "gearshape.2", tint: palette.working, action: .inspect(.attempt(attempt.id))
+                    id: attempt.id,
+                    title: "\(attempt.cardIDForDisplay ?? attempt.cardID) · Round \(attempt.round)",
+                    subtitle: attempt.status,
+                    systemImage: "gearshape.2",
+                    tint: palette.working,
+                    action: .inspect(.attempt(attempt.id))
                 )
             ]))
         }
@@ -263,7 +267,7 @@ struct PulseInspectorView: View {
 
     private func cardItem(_ card: DecisionCard) -> PulseInspectorModel.Item {
         .init(
-            id: card.id, title: "\(card.id)  \(card.title)",
+            id: card.id, title: "\(card.issueIDForDisplay ?? card.id)  \(card.title)",
             subtitle: card.blockReason?.rawValue ?? card.state.rawValue,
             systemImage: card.state == .blocked ? "exclamationmark.octagon" : "questionmark.bubble",
             tint: palette.color(for: card.state), action: .inspect(.card(card.id))

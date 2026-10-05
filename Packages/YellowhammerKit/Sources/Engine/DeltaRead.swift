@@ -135,7 +135,13 @@ public struct DeltaRead: Sendable {
         let preservedProseHashes = try lastPreservedProseHashes()
         for object in objects {
             // Every object, known or not: the Feature and the Night Card are not Cards but the Pulse
-            // opens them too (issue #230). Silent: no event, and the report is unchanged.
+            // opens them too (issue #230) and displays readable identifiers (issue #326).
+            // Silent: no event, and the report is unchanged.
+            if !object.key.isEmpty {
+                try journal.recordIssueIDForDisplay(
+                    issueID: object.id.rawValue, displayID: object.key, runID: runID, now: clock()
+                )
+            }
             if !object.key.isEmpty, !object.url.isEmpty {
                 try journal.recordIssueLink(
                     issueID: object.id.rawValue, key: object.key, url: object.url, runID: runID, now: clock()

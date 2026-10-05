@@ -37,6 +37,7 @@ extension CardDetail {
         let card = account.card
         self.init(
             id: card.issueID,
+            issueIDForDisplay: card.issueIDForDisplay ?? card.issueKey,
             title: card.displayTitle,
             repo: card.repository,
             kind: card.kind,
@@ -49,7 +50,7 @@ extension CardDetail {
             attempts: account.history.attempts.map { attempt in
                 Attempt(record: attempt, checkRuns: account.checkRuns(attemptID: attempt.id))
             },
-            link: LinearIssueLink.link(key: card.issueKey, url: card.issueURL)
+            link: LinearIssueLink.link(key: card.issueIDForDisplay ?? card.issueKey, url: card.issueURL)
         )
     }
 }

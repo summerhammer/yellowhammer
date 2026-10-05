@@ -14,6 +14,8 @@ public enum FeatureClosure: String, Equatable, Sendable {
 public struct FeatureRecord: Equatable, Sendable {
     public let id: Int64
     public let issueID: String
+    /// The Feature issue's human-readable identifier (e.g. `ARC-10`), recorded for display.
+    public internal(set) var issueIDForDisplay: String?
     public let state: String
     /// The Worktree name (`yh-<project>-<feature>`) requested from Orca ADE, recorded by the author Act.
     /// Nil until then. The Feature Branch itself is per repository (``JournalStore/featureBranch(featureID:repository:)``).
@@ -30,6 +32,55 @@ public struct FeatureRecord: Equatable, Sendable {
     public internal(set) var issueKey: String?
     /// The Feature issue's board URL as Linear gave it, recorded with ``issueKey``; nil until then.
     public internal(set) var issueURL: String?
+
+    public init(
+        id: Int64,
+        issueID: String,
+        issueIDForDisplay: String? = nil,
+        state: String,
+        worktreeName: WorktreeName?,
+        createdAt: Date,
+        releasedAt: Date?,
+        closedBy: FeatureClosure?,
+        issueKey: String? = nil,
+        issueURL: String? = nil
+    ) {
+        self.id = id
+        self.issueID = issueID
+        self.issueIDForDisplay = issueIDForDisplay
+        self.state = state
+        self.worktreeName = worktreeName
+        self.createdAt = createdAt
+        self.releasedAt = releasedAt
+        self.closedBy = closedBy
+        self.issueKey = issueKey
+        self.issueURL = issueURL
+    }
+
+    public init(
+        id: Int64,
+        issueID: String,
+        state: String,
+        worktreeName: WorktreeName?,
+        createdAt: Date,
+        releasedAt: Date?,
+        closedBy: FeatureClosure?,
+        issueKey: String? = nil,
+        issueURL: String? = nil
+    ) {
+        self.init(
+            id: id,
+            issueID: issueID,
+            issueIDForDisplay: nil,
+            state: state,
+            worktreeName: worktreeName,
+            createdAt: createdAt,
+            releasedAt: releasedAt,
+            closedBy: closedBy,
+            issueKey: issueKey,
+            issueURL: issueURL
+        )
+    }
 }
 
 extension JournalStore {
@@ -115,6 +166,7 @@ extension JournalStore {
         return FeatureRecord(
             id: id,
             issueID: row["issue_id"],
+            issueIDForDisplay: row["issue_id_for_display"] ?? row["issue_key"],
             state: row["state"],
             worktreeName: rawWorktreeName.map { WorktreeName(rawValue: $0) },
             createdAt: createdAt,

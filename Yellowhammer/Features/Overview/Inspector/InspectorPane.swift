@@ -139,10 +139,12 @@ struct LaneCardList: View {
         ForEach(cards) { card in
             HStack(spacing: 6) {
                 if decisionCardIDs.contains(card.id) {
-                    Button("\(card.id)  \(card.title)") { openDestination(.inspector(.card(card.id))) }
-                        .buttonStyle(.link)
+                    Button("\(card.issueIDForDisplay ?? card.id)  \(card.title)") {
+                        openDestination(.inspector(.card(card.id)))
+                    }
+                    .buttonStyle(.link)
                 } else {
-                    Text("\(card.id)  \(card.title)")
+                    Text("\(card.issueIDForDisplay ?? card.id)  \(card.title)")
                 }
                 Spacer(minLength: 4)
                 PulseCountBadge(text: card.state.rawValue, style: card.state.style)

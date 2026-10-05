@@ -40,7 +40,7 @@ enum PulseGroup: String, CaseIterable, Identifiable {
             return attempts > 0 ? "\(pulse.now.status.rawValue) · \(attempts) running" : PulseFormat.nowLine(pulse.now)
         case .feature:
             return pulse.feature.map {
-                [$0.id, $0.rollupState?.rawValue].compactMap { $0 }.joined(separator: " · ")
+                [$0.issueIDForDisplay ?? $0.id, $0.rollupState?.rawValue].compactMap { $0 }.joined(separator: " · ")
             } ?? "No Feature in flight"
         case .night:
             return pulse.night?.state.rawValue ?? "No Night yet"
@@ -201,7 +201,7 @@ struct PulseCardRow: View {
                 .foregroundStyle(palette.color(for: card.state))
             VStack(alignment: .leading, spacing: 1) {
                 Text(card.title).lineLimit(1)
-                Text("\(card.id) · \(card.repo)").font(.caption).foregroundStyle(.secondary)
+                Text("\(card.issueIDForDisplay ?? card.id) · \(card.repo)").font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
             PulseBadge(text: card.blockReason?.rawValue ?? card.state.rawValue, color: palette.color(for: card.state))
@@ -218,7 +218,7 @@ struct PulseAttemptRow: View {
         HStack(spacing: 8) {
             Image(systemName: "gearshape.2.fill").foregroundStyle(palette.working)
             VStack(alignment: .leading, spacing: 1) {
-                Text("\(attempt.cardID)  \(attempt.cardTitle)").lineLimit(1)
+                Text("\(attempt.cardIDForDisplay ?? attempt.cardID)  \(attempt.cardTitle)").lineLimit(1)
                 Text([attempt.repo, attempt.status].compactMap { $0 }.joined(separator: " · "))
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }

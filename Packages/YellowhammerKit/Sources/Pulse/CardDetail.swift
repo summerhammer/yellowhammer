@@ -15,9 +15,10 @@ import Foundation
 /// figure are not: the first two live on the Linear issue, and the Journal read has no column or
 /// reference Night for the others.
 public struct CardDetail: Identifiable, Equatable, Sendable {
-    /// The Linear issue id, as the Journal records it. The identifier a person reads (`YH-142`) is in
-    /// ``link``.
+    /// The Linear issue id, as the Journal records it.
     public let id: String
+    /// The readable issue identifier (e.g. `ENG-123`), recorded for display.
+    public var issueIDForDisplay: String?
     /// The board's title as the Journal last reconciled it, else the issue id.
     public var title: String
     public var repo: String
@@ -41,6 +42,7 @@ public struct CardDetail: Identifiable, Equatable, Sendable {
 
     public init(
         id: String,
+        issueIDForDisplay: String? = nil,
         title: String,
         repo: String,
         kind: String,
@@ -54,6 +56,7 @@ public struct CardDetail: Identifiable, Equatable, Sendable {
         link: LinearIssueLink? = nil
     ) {
         self.id = id
+        self.issueIDForDisplay = issueIDForDisplay
         self.title = title
         self.repo = repo
         self.kind = kind
@@ -65,6 +68,37 @@ public struct CardDetail: Identifiable, Equatable, Sendable {
         self.excludedRoutes = excludedRoutes
         self.attempts = attempts
         self.link = link
+    }
+
+    public init(
+        id: String,
+        title: String,
+        repo: String,
+        kind: String,
+        state: CardState,
+        waitingReason: String?,
+        blockReason: BlockReason?,
+        budgetEpoch: Int,
+        routesTried: [String],
+        excludedRoutes: [String],
+        attempts: [Attempt],
+        link: LinearIssueLink? = nil
+    ) {
+        self.init(
+            id: id,
+            issueIDForDisplay: nil,
+            title: title,
+            repo: repo,
+            kind: kind,
+            state: state,
+            waitingReason: waitingReason,
+            blockReason: blockReason,
+            budgetEpoch: budgetEpoch,
+            routesTried: routesTried,
+            excludedRoutes: excludedRoutes,
+            attempts: attempts,
+            link: link
+        )
     }
 
     public var attemptCount: Int { attempts.count }

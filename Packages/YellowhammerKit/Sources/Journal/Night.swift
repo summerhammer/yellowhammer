@@ -123,6 +123,7 @@ extension JournalStore {
     public func recordNightCard(
         id: Int64,
         issueID: String,
+        issueIDForDisplay: String? = nil,
         act: Act,
         runID: RunID,
         now: Date = Date()
@@ -137,11 +138,20 @@ extension JournalStore {
                 guard existing == issueID else {
                     throw JournalError.nightCardAlreadyRecorded(id: id, issueID: existing)
                 }
+                if let issueIDForDisplay, night.nightCardIssueIDForDisplay != issueIDForDisplay {
+                    try db.execute(
+                        sql: "UPDATE night SET night_card_issue_id_for_display = ? WHERE id = ?",
+                        arguments: [issueIDForDisplay, id]
+                    )
+                    var updated = night
+                    updated.nightCardIssueIDForDisplay = issueIDForDisplay
+                    return updated
+                }
                 return night
             }
             try db.execute(
-                sql: "UPDATE night SET night_card_issue_id = ? WHERE id = ?",
-                arguments: [issueID, id]
+                sql: "UPDATE night SET night_card_issue_id = ?, night_card_issue_id_for_display = ? WHERE id = ?",
+                arguments: [issueID, issueIDForDisplay, id]
             )
             let updated = NightRecord(
                 id: night.id,
@@ -150,6 +160,7 @@ extension JournalStore {
                 mode: night.mode,
                 state: night.state,
                 nightCardIssueID: issueID,
+                nightCardIssueIDForDisplay: issueIDForDisplay,
                 openedAt: night.openedAt,
                 completedAt: night.completedAt,
                 closeReason: night.closeReason,
@@ -359,6 +370,7 @@ extension JournalStore {
             mode: mode,
             state: state,
             nightCardIssueID: row["night_card_issue_id"],
+            nightCardIssueIDForDisplay: row["night_card_issue_id_for_display"] ?? row["night_card_issue_key"],
             openedAt: openedAt,
             completedAt: completedAt,
             closeReason: closeReason,

@@ -82,15 +82,21 @@ struct IssueLinkTests {
 
         let card = try journal.card(id: cardID)
         #expect(card.issueKey == "YH-1")
+        #expect(card.issueIDForDisplay == "YH-1")
         #expect(card.issueURL == "https://l/1")
         let feature = try #require(try journal.inFlightFeature()?.feature)
         #expect(feature.issueKey == "YH-2")
+        #expect(feature.issueIDForDisplay == "YH-2")
         #expect(feature.issueURL == "https://l/2")
         let night = try #require(try journal.night(id: opening.night.id))
         #expect(night.nightCardIssueKey == "YH-3")
+        #expect(night.nightCardIssueIDForDisplay == "YH-3")
         #expect(night.nightCardIssueURL == "https://l/3")
         // No event: a link is not loop state.
         #expect(try journal.events().map(\.type) == [.nightOpened, .nightCardOpened])
+
+        #expect(try journal.recordIssueIDForDisplay(issueID: "card-1", displayID: "DISPLAY-1", runID: run, now: epoch))
+        #expect(try journal.card(id: cardID).issueIDForDisplay == "DISPLAY-1")
     }
 
     @Test("A repeat with the same values, and an unknown issue id, change nothing")
