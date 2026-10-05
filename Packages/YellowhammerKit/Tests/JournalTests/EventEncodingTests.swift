@@ -59,7 +59,7 @@ func eventTypeRawValues() {
         "SettleValueNotHonoured", "CardUnansweredBoundFired",
         "AdoptionRefused", "CardAdopted", "AdoptionUntestable",
         "FeatureReselected", "ReselectionBoundReached", "RefusalPromotedToStandingItem", "AppInstallationTokenRefresh",
-        "CardPromotedToStandingItem", "ProjectRemoved"
+        "CardPromotedToStandingItem", "ProjectRemoved", "WorktreeNameCollision"
     ]
     let actual = JournalEventType.allCases.map { $0.rawValue }.sorted()
     #expect(actual == expected.sorted())
@@ -269,6 +269,31 @@ func notificationDeliveryFailedRoundTrips() throws {
     }
     #expect(notif == "build_complete")
     #expect(reason == "User disabled")
+}
+
+@Test("worktreeNameCollision event round-trips")
+func worktreeNameCollisionRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+
+    try journal.append(
+        .worktreeNameCollision(repository: "backend", requested: "rozd/yh-x", reported: "yh-x"),
+        act: .build,
+        runID: run,
+        now: epoch
+    )
+    let records = try journal.events()
+
+    #expect(records.count == 1)
+    guard case .worktreeNameCollision(let repository, let requested, let reported) = records[0].event else {
+        Issue.record("Event is not worktreeNameCollision")
+        return
+    }
+    #expect(repository == "backend")
+    #expect(requested == "rozd/yh-x")
+    #expect(reported == "yh-x")
+    #expect(records[0].type == .worktreeNameCollision)
 }
 
 @Test("rateBudgetExhausted event contains installation-wide budget and round-trips")

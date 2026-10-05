@@ -57,6 +57,12 @@ extension JournalEvent {
                 notification: try reader.require("notification"),
                 reason: try reader.require("reason")
             )
+        case .worktreeNameCollision:
+            .worktreeNameCollision(
+                repository: try reader.require("repository"),
+                requested: try reader.require("requested"),
+                reported: try reader.require("reported")
+            )
         case .rateBudgetExhausted:
             try Self.decodeRateBudgetExhausted(reader)
         case .leaseReclaimed:

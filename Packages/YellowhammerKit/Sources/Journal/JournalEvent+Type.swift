@@ -43,6 +43,8 @@ extension JournalEvent {
             .managedBlockDelimiterBroken
         case .notificationDeliveryFailed:
             .notificationDeliveryFailed
+        case .worktreeNameCollision:
+            .worktreeNameCollision
         case .rateBudgetExhausted:
             .rateBudgetExhausted
         case .leaseReclaimed:

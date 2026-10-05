@@ -198,6 +198,28 @@ struct NightSummaryExceptionsTests {
         #expect(lines.contains { $0.contains("Night `2026-09-15` opened and died") })
     }
 
+    @Test("Exceptions render a Worktree branch-name collision that halted the build Act")
+    func exceptionsRenderWorktreeNameCollision() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let night = try await openNightForExceptionsTest(journal: journal, board: board) { context in
+            try journal.append(
+                .worktreeNameCollision(
+                    repository: "backend", requested: "rozd/yh-x", reported: "yh-x"
+                ),
+                act: context.act, runID: context.runID, nightID: context.night.id
+            )
+        }
+
+        let lines = try NightSummary.exceptionLines(night: night, journal: journal)
+        #expect(lines.contains {
+            $0 == "A Worktree branch-name collision in `backend` halted the build Act: Orca ADE made `yh-x`, "
+                + "not `rozd/yh-x`. Later Acts retry."
+        })
+    }
+
     @Test("""
         Exceptions render boardWriteFailed, rateBudgetExhausted, mainlineFetchFailed, absentNightDetected, \
         notificationDeliveryFailed

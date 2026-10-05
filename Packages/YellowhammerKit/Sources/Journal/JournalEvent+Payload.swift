@@ -57,6 +57,8 @@ extension JournalEvent {
             ["issue_id": issueID]
         case .notificationDeliveryFailed(let notification, let reason):
             ["notification": notification, "reason": reason]
+        case .worktreeNameCollision(let repository, let requested, let reported):
+            ["repository": repository, "requested": requested, "reported": reported]
         case .rateBudgetExhausted(let degradation, let installation):
             Self.rateBudgetPayload(degradation: degradation, installation: installation)
         case .leaseReclaimed(let previousRunID, let previousAct, let expiredAt):
