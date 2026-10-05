@@ -47,6 +47,37 @@ extension JournalStore {
         }
     }
 
+    /// Lifecycle event rows for one run, filtered in SQL so status reads decode no unrelated event rows.
+    public func events(runID: RunID, ofTypes types: Set<JournalEventType>) throws -> [JournalEventRecord] {
+        guard !types.isEmpty else { return [] }
+        return try read { db in
+            let orderedTypes = types.sorted { $0.rawValue < $1.rawValue }
+            let placeholders = Array(repeating: "?", count: orderedTypes.count).joined(separator: ", ")
+            let rows = try Row.fetchAll(
+                db,
+                sql: "SELECT * FROM event WHERE run_id = ? AND type IN (\(placeholders)) ORDER BY id ASC",
+                arguments: StatementArguments([runID.rawValue] + orderedTypes.map(\.rawValue))
+            )
+            return try Self.decodeEvents(rows)
+        }
+    }
+
+    /// The most recent Act lifecycle row, ordered by append id and limited in SQL.
+    public func latestActLifecycleEvent() throws -> JournalEventRecord? {
+        try read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: "SELECT * FROM event WHERE type IN (?, ?, ?) ORDER BY id DESC LIMIT 1",
+                arguments: [
+                    JournalEventType.actStarted.rawValue,
+                    JournalEventType.actEnded.rawValue,
+                    JournalEventType.actIncomplete.rawValue
+                ]
+            )
+            return try Self.decodeEvents(rows).first
+        }
+    }
+
     /// Internal: same read as ``events(ofType:)``, over a `Database` a caller already holds open — so a
     /// multi-table read (e.g. ``cardAccount(issueID:)``) can share one transaction with it.
     static func events(_ db: Database, ofType type: JournalEventType? = nil) throws -> [JournalEventRecord] {
@@ -57,7 +88,11 @@ extension JournalStore {
         } else {
             rows = try Row.fetchAll(db, sql: "SELECT * FROM event ORDER BY id ASC")
         }
-        return try rows.map { row in
+        return try decodeEvents(rows)
+    }
+
+    private static func decodeEvents(_ rows: [Row]) throws -> [JournalEventRecord] {
+        try rows.map { row in
             let id: Int64 = row["id"]
             let typeRaw: String = row["type"]
             guard let eventType = JournalEventType(rawValue: typeRaw) else {

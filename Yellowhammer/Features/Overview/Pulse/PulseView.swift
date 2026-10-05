@@ -51,7 +51,7 @@ struct PulseView: View {
 }
 
 /// The Project's name heading the main area, so the Pulse always says whose it is, over its status and
-/// Repo count. The status comes from the Project's `launchd` Act jobs, so it shows even when the Journal
+/// Repo count. Status falls back to the Project's `launchd` Act jobs when the Journal
 /// could not be read.
 private struct PulseHeader: View {
     let project: ProjectSnapshot

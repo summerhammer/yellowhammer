@@ -53,8 +53,8 @@ final class PulseJournalUITests: XCTestCase {
         let lane = element("sidebar-archive-repo-archive-lane")
         XCTAssertTrue(lane.waitForExistence(timeout: 5))
         XCTAssertEqual(text(of: lane), "blocked")
-        // `working` comes from the Project's `launchd` Act jobs, never the Journal, and the app reads none
-        // alive under a fixture configuration: a running Attempt in the Journal does not make it `working`.
+        // The fixture has no held Act Lease and no Act job alive, so the Journal's open Attempt does not
+        // make the Project `working`.
         XCTAssertEqual(text(of: "sidebar-archive-status"), "idle")
         // The Projects with no Journal stay empty: nothing of archive's appears under them.
         XCTAssertFalse(element("sidebar-owner-repo-owner-lane").exists)

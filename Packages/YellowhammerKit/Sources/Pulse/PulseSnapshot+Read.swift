@@ -11,13 +11,24 @@ extension PulseSnapshot {
     /// What the Journal cannot say stays nil: `now.nextAct`, the Feature's title/state/rollup state, a
     /// pull request's state, an Attempt's status line, the Night's verdict line and `health`.
     ///
-    /// `status` is handed in: it comes from `launchd` (is the Project's Act job alive?), which the
-    /// Journal cannot say, so the caller reads it and the Journal's Act Lease plays no part.
-    public static func read(from journal: JournalStore, status: ProjectStatus) throws -> PulseSnapshot {
+    /// `status` is handed in as the launchd fallback. An unexpired Journal lease is the authoritative
+    /// running Act when readable; launchd remains useful when the Journal is absent or unreadable.
+    public static func read(
+        from journal: JournalStore, status: ProjectStatus, asOf: Date = Date()
+    ) throws -> PulseSnapshot {
         let inFlight = try journal.inFlightFeature()
+        let leaseState = try runningAct(journal, asOf: asOf)
+        let runningAct = leaseState.runningAct
+        let resolvedStatus: ProjectStatus = if runningAct != nil {
+            .working
+        } else if leaseState.suppressFallback {
+            .idle
+        } else {
+            status
+        }
         return PulseSnapshot(
             needsYou: try needsYou(journal),
-            now: try now(journal, inFlight: inFlight, status: status),
+            now: try now(journal, inFlight: inFlight, status: resolvedStatus, runningAct: runningAct),
             feature: try feature(journal, inFlight: inFlight),
             night: try night(journal),
             health: nil
@@ -46,7 +57,8 @@ extension PulseSnapshot {
     private static func now(
         _ journal: JournalStore,
         inFlight: (feature: FeatureRecord, cycleID: Int64)?,
-        status: ProjectStatus
+        status: ProjectStatus,
+        runningAct: RunningAct?
     ) throws -> Now {
         var attempts: [RunningAttempt] = []
         if let inFlight {
@@ -67,7 +79,26 @@ extension PulseSnapshot {
                     ))
             }
         }
-        return Now(status: status, nextAct: nil, attempts: attempts)
+        return Now(status: status, nextAct: nil, attempts: attempts, runningAct: runningAct)
+    }
+
+    private static func runningAct(
+        _ journal: JournalStore, asOf: Date
+    ) throws -> (runningAct: RunningAct?, suppressFallback: Bool) {
+        guard let lease = try journal.currentActLease() else {
+            let latest = try journal.latestActLifecycleEvent()
+            let finished = latest?.type == .actEnded || latest?.type == .actIncomplete
+            return (nil, finished)
+        }
+        guard lease.isHeld(at: asOf) else { return (nil, true) }
+        let lifecycle = try journal.events(
+            runID: lease.runID, ofTypes: [.actStarted, .actEnded, .actIncomplete]
+        )
+        guard !lifecycle.contains(where: { $0.type == .actEnded || $0.type == .actIncomplete }) else {
+            return (nil, true)
+        }
+        let startedAt = lifecycle.first(where: { $0.type == .actStarted })?.occurredAt ?? lease.claimedAt
+        return (RunningAct(act: lease.act, startedAt: startedAt), true)
     }
 
     /// 1-based. Every recorded Round that asked for changes started a further Round of the same
