@@ -46,7 +46,7 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
                 "no repository named \"\(repository)\" is configured", laneContext: context
             )
         }
-        let resolved = try? context.act.journal.resolvedFeatureBranch(feature: context.feature, repository: repository)
+        let resolved = try context.act.journal.resolvedFeatureBranch(feature: context.feature, repository: repository)
         guard let branch = resolved else {
             return await fail("the Feature has no recorded Feature Branch for \"\(repository)\"", laneContext: context)
         }

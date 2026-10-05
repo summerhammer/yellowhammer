@@ -278,7 +278,7 @@ public struct BuildAct: Sendable {
         guard !runnable.isEmpty, let workspace = actContext.workspace else { return nil }
 
         guard let worktreeName = context.feature.worktreeName else {
-            return BuildActError.featureBranchUnrecorded(featureID: context.feature.id).description
+            return BuildActError.worktreeNameUnrecorded(featureID: context.feature.id).description
         }
 
         // A Worktree already held for (Feature, repository) is reused with no Orca ADE call
@@ -335,6 +335,8 @@ public struct BuildAct: Sendable {
 public enum BuildActError: Error, Equatable, Sendable, CustomStringConvertible {
     /// Held Worktrees exist for this Feature but the Journal has no Feature Branch recorded for it.
     case featureBranchUnrecorded(featureID: Int64)
+    /// The Feature has no Worktree name recorded, so no Worktree can be requested for it.
+    case worktreeNameUnrecorded(featureID: Int64)
     /// Held Worktrees exist for this Feature but this invocation was given no Workspace Port.
     case workspaceRequired(featureID: Int64)
     /// At least one Repo Lane's runner threw; every lane ran to completion or failure before this was
@@ -345,6 +347,8 @@ public enum BuildActError: Error, Equatable, Sendable, CustomStringConvertible {
         switch self {
         case .featureBranchUnrecorded(let featureID):
             return "Feature \(featureID) holds a Worktree but the Journal has no Feature Branch recorded for it"
+        case .worktreeNameUnrecorded(let featureID):
+            return "Feature \(featureID) has no Worktree name recorded, so no Worktree can be allocated for it"
         case .workspaceRequired(let featureID):
             return "Feature \(featureID) holds a Worktree but this invocation was given no Workspace Port"
         case .lanesFailed(let failures):

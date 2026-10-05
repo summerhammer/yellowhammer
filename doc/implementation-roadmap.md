@@ -653,7 +653,8 @@ comment on the Delta Read).
 ### [x] P6.7 Workspace adapter: Orca ADE worktrees
 - **Work**
   - Request one Worktree per (Feature, repo) from Orca ADE, with the worktree name equal to the
-    Feature Branch name `yh-<project>-<feature>` (no slashes).
+    Feature Branch name `yh-<project>-<feature>` (no slashes); the Feature Branch Orca ADE reports
+    may carry a `<prefix>/`, and that reported name is the one recorded.
   - Record ids and paths in the Journal as a per-Feature set keyed by repository. A Card resolves
     its Worktree by its repository label.
   - Release a Worktree only after its Feature Branch has been pushed and the ref recorded.
