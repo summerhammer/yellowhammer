@@ -73,12 +73,16 @@ public struct ProjectConfiguration: Sendable {
         self.wipCommitMessage = wipCommitMessage
     }
 
-    /// The Project's repositories expressed in Domain vocabulary.
+    /// The Project's repositories expressed in Domain vocabulary, with home-directory tildes expanded
+    /// for filesystem and process use. ``repos`` and ``specSource`` retain the paths as written.
     public var projectRepositories: ProjectRepositories {
         let workingRepos = repos.map {
-            Repo(name: $0.name, path: $0.path, role: $0.role, protectedPaths: $0.protectedPaths)
+            Repo(
+                name: $0.name, path: ($0.path as NSString).expandingTildeInPath,
+                role: $0.role, protectedPaths: $0.protectedPaths
+            )
         }
-        let spec = specSource.map { SpecSource(path: $0) }
+        let spec = specSource.map { SpecSource(path: ($0 as NSString).expandingTildeInPath) }
         return ProjectRepositories(workingRepos: workingRepos, specSource: spec)
     }
 
