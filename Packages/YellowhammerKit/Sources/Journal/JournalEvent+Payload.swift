@@ -167,11 +167,17 @@ extension JournalEvent {
                 }
                 return dict
             }()
-        case .worktreeLost(let featureID, let repository, let worktreeID, let path):
-            [
-                "feature_id": String(featureID), "path": path,
-                "repository": repository, "worktree_id": worktreeID
-            ]
+        case .worktreeLost(let featureID, let repository, let worktreeID, let path, let pinnedCommit):
+            {
+                var dict: [String: String] = [
+                    "feature_id": String(featureID), "path": path,
+                    "repository": repository, "worktree_id": worktreeID
+                ]
+                if let pinnedCommit {
+                    dict["pinned_commit"] = pinnedCommit
+                }
+                return dict
+            }()
         case .worktreeFenced(let featureID, let repository, let path, let killed):
             [
                 "feature_id": String(featureID), "killed": String(killed),

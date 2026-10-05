@@ -3,6 +3,7 @@ import Domain
 @testable import EngineCommand
 import Foundation
 import Journal
+import Repositories
 import Synchronization
 import Testing
 
@@ -59,10 +60,12 @@ final class BuildActFakeWorkspace: Workspace, Sendable {
             return state.nextID
         }
         let directory = baseDirectory.appendingPathComponent(name)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let branch = state.withLock { $0.reportedBranches[repositoryPath] } ?? name
+        // A stand-alone repository with one commit, HEAD on the reported branch: a second build Act
+        // reconciles this held Worktree, and reconciliation refuses one whose HEAD is on another branch.
+        _ = try? await initReconcilerGitRepo(at: directory, git: GitRunner(), branch: branch)
         return WorkspaceWorktree(
-            id: WorktreeID(rawValue: "fake-\(id)"), path: directory.path,
-            branch: state.withLock { $0.reportedBranches[repositoryPath] } ?? name, displayName: name
+            id: WorktreeID(rawValue: "fake-\(id)"), path: directory.path, branch: branch, displayName: name
         )
     }
 
@@ -107,8 +110,12 @@ extension BuildActTests {
             .appending(component: "yh-buildact-workspace-\(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: workspaceDirectory) }
         let workspace = BuildActFakeWorkspace(baseDirectory: workspaceDirectory)
+        // Purging the ghost pins the Feature Branch in the MAIN repository first (OQ123), so that
+        // repository must be real. It has no Feature Branch, so there is nothing to pin.
+        let backendRepository = workspaceDirectory.appending(component: "backend-repo", directoryHint: .isDirectory)
+        try await initReconcilerGitRepo(at: backendRepository, git: GitRunner())
         let repositories = ProjectRepositories(workingRepos: [
-            Repo(name: "backend", path: "/tmp/yh-buildact-fixture/backend", role: .backend)
+            Repo(name: "backend", path: backendRepository.path, role: .backend)
         ])
 
         let invocation = EngineInvocation(

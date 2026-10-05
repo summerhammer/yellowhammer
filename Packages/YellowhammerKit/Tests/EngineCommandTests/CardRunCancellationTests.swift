@@ -51,7 +51,9 @@ struct CardRunCancellationTests {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let worktrees = fixture.directory.appending(component: "worktrees", directoryHint: .isDirectory)
-        try await initReconcilerGitRepo(at: worktrees.appending(component: "backend"), git: GitRunner())
+        try await initReconcilerGitRepo(
+            at: worktrees.appending(component: "backend"), git: GitRunner(), branch: buildActBranch.name
+        )
         let world = try await makeCardRunWorld(
             journal: journal, worktreePath: { worktrees.appending(component: $0).path(percentEncoded: false) }
         )
