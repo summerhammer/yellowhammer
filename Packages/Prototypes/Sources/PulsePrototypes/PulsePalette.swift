@@ -82,6 +82,7 @@ extension PulsePalette {
         case .blocked: blocked
         case .waitingOnYou: needsYou
         case .landed: landed
+        case .idle: .secondary
         }
     }
 
@@ -123,6 +124,7 @@ extension PulsePalette {
         case .running: working
         case .done: night
         case .starved: needsYou
+        case .halted: blocked
         }
     }
 

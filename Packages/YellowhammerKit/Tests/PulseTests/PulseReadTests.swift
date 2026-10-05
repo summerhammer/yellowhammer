@@ -177,7 +177,7 @@ func runningAttemptsAcrossRepos() throws {
     #expect(attempts.allSatisfy { $0.round == 1 })
 }
 
-@Test("Feature lanes count done/total and rank landed > blocked > waiting on you > running")
+@Test("Feature lanes count done/total, prioritise landed and decisions, and otherwise require activity")
 func featureLanes() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
@@ -221,7 +221,7 @@ func featureLanes() throws {
     #expect(lanes["a"]?.state == .landed)
     #expect(lanes["b"]?.state == .blocked)
     #expect(lanes["c"]?.state == .waitingOnYou)
-    #expect(lanes["d"]?.state == .running)
+    #expect(lanes["d"]?.state == .idle)
     #expect(lanes["a"]?.cardsDone == 1)
     #expect(lanes["a"]?.cardsTotal == 2)
     #expect(lanes["d"]?.cardsDone == 1)

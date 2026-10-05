@@ -97,6 +97,7 @@ public enum ProjectStatus: String, CaseIterable, Sendable {
 /// A Repo Lane's state as a Sidebar badge and a Feature-group lane shows it. The spec lists these as
 /// examples ("e.g. running / blocked / waiting on you / landed"), so the set is draft, not closed.
 public enum LaneState: String, CaseIterable, Sendable {
+    case idle
     case running
     case blocked
     case waitingOnYou = "waiting on you"

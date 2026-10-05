@@ -233,12 +233,13 @@ enum PulseFixtures {
         case .done:
             [.init(disposition: .done, count: 6), .init(disposition: .blocked, count: 1),
              .init(disposition: .waitingOnYou, count: 1)]
-        case .starved:
+        case .halted, .starved:
             [.init(disposition: .todo, count: 5)]
         }
         let defaultVerdict = switch state {
         case .running: "running — 2 of 7 Cards done"
         case .done: "advanced — 6 Cards done, 2 need you"
+        case .halted: "halted — Acts failed; see Health"
         case .starved: "starved — no Card was dispatched"
         }
         return NightPulse(
@@ -347,6 +348,7 @@ extension PulseSnapshot {
             case .staleOperatorIdentity: "The Operator identity was last confirmed 41 days ago."
             case .appInstallationRevoked: "The Linear workspace revoked the App Installation."
             case .probeFailure: "codex failed its Probe: exit status 127."
+            case .actFailure: "build · main: Worktree allocation failed."
             }
             return HealthFlag(kind: kind, detail: detail)
         }

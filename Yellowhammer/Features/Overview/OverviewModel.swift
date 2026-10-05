@@ -27,7 +27,7 @@ final class OverviewModel {
         guard var read = journalSnapshot else { return nil }
         for index in read.projects.indices {
             let id = read.projects[index].id
-            read.projects[index].pulse.health = findings.map { HealthFlag.flags(in: $0, for: id) }
+            read.projects[index].pulse.mergeDoctorHealth(findings.map { HealthFlag.flags(in: $0, for: id) })
         }
         return read
     }
