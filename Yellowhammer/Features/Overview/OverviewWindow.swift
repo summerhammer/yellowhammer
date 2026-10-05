@@ -1,4 +1,5 @@
 import AppKit
+import Config
 import Domain
 import Pulse
 import SwiftUI
@@ -29,6 +30,8 @@ struct OverviewWindow: View {
     @State private var inspectorShown = true
     @State private var stop = EngineStopModel()
     @State private var confirmingStop = false
+    /// Only a synchronous launch failure is retained; the app never owns an Author run's state.
+    @State private var authorFailure: String?
     @State private var abort = AttemptAbortModel()
     /// The Attempt the Operator asked to abort, while its confirmation is shown.
     @State private var abortRequest: PendingAttemptAbort?
@@ -45,6 +48,10 @@ struct OverviewWindow: View {
 
     private var selectedSnapshot: ProjectSnapshot? {
         model.snapshot?.project(scopedProject)
+    }
+
+    private var canStartAuthor: Bool {
+        selectedSnapshot != nil && (!ConfigurationDirectory.isOverridden || SetupEngine.isStubbed)
     }
 
     /// The window's own value, when it names no configured Project, no refused one, and no Project a link
@@ -88,8 +95,16 @@ struct OverviewWindow: View {
         .toolbar {
             OverviewToolbar(
                 inspectorShown: $inspectorShown, stop: stop, project: selectedSnapshot, confirming: $confirmingStop,
-                reread: model.readOnRequest
+                reread: model.readOnRequest, startAuthor: startAuthor, canStartAuthor: canStartAuthor
             )
+        }
+        .alert(
+            "Author could not be launched",
+            isPresented: Binding(get: { authorFailure != nil }, set: { if !$0 { authorFailure = nil } })
+        ) {
+            Button("OK") { authorFailure = nil }
+        } message: {
+            Text(authorFailure ?? "")
         }
         .stopTheEngineDialogs(
             confirming: $confirmingStop, stop: stop, project: selectedSnapshot, afterStop: { await model.load() }
@@ -112,6 +127,20 @@ struct OverviewWindow: View {
     }
 
     // MARK: Columns
+
+    /// Fire and forget: no completion wait, process handle, Journal write, or running state.
+    private func startAuthor() {
+        guard canStartAuthor, let project = selectedSnapshot else { return }
+        authorFailure = nil
+        do {
+            try SetupEngine().launchDetached(
+                arguments: ["author", "--project", project.id.rawValue],
+                logURL: SetupEngine.logURL(projectID: project.id.rawValue, command: "author")
+            )
+        } catch {
+            authorFailure = "\(error)"
+        }
+    }
 
     @ViewBuilder private var detail: some View {
         if let failure = model.configurationFailure {
