@@ -1,3 +1,4 @@
+import Config
 import Domain
 @testable import Engine
 import Foundation
@@ -79,6 +80,42 @@ private final class Rig {
 
 @Suite("Authoring route: fallback order and faults (P9.11)")
 struct AuthoringRouteDispatchTests {
+    @Test("Authoring receives existing absolute directories from home paths in Project configuration",
+          arguments: [false, true])
+    func configuredHomePathsReachDispatch(specRepo: Bool) async throws {
+        let name = ".yellowhammer-path-test-\(UUID().uuidString)"
+        let directory = FileManager.default.homeDirectoryForCurrentUser.appending(path: name)
+        let backend = directory.appending(path: "backend")
+        let spec = directory.appending(path: "spec")
+        try FileManager.default.createDirectory(at: backend, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: spec, withIntermediateDirectories: true)
+        let configuration = ProjectConfiguration(
+            id: try #require(ProjectID(rawValue: "home-paths")), name: "Home paths",
+            linearInstallationName: "acme", linearProject: "HOME",
+            specSource: specRepo ? nil : "~/\(name)/spec",
+            repos: [RepoDeclaration(name: "backend", path: "~/\(name)/backend", role: .backend, check: .none)]
+                + (specRepo ? [RepoDeclaration(name: "spec", path: "~/\(name)/spec", role: .spec, check: .none)] : [])
+        )
+        let fixture = try OutboxJournalFixture()
+        let context = try makeSelectionContext(fixture.open(), repositories: configuration.repositories).context
+        let dispatch = ScriptedRouteDispatch([primary: .answer(nothingSelectable)])
+        let selection = FeatureSelection(
+            selector: RoutedFeatureSelector(route: authoringRoute(dispatch)),
+            transaction: ScriptedSelectedFeatureAuthoring()
+        )
+
+        _ = try await selection.selectAndAuthor(context)
+
+        let request = try #require(dispatch.requests.first)
+        #expect(request.worktreePath == spec.path(percentEncoded: false))
+        #expect(request.additionalReadableDirectories == configuration.repos.map {
+            directory.appending(path: $0.name).path(percentEncoded: false)
+        })
+        #expect(FileManager.default.fileExists(atPath: request.worktreePath))
+        #expect(request.additionalReadableDirectories.allSatisfy { FileManager.default.fileExists(atPath: $0) })
+    }
+
     @Test(
         "A capability failure of the primary Route dispatches the first fallback next",
         arguments: [
