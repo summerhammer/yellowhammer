@@ -11,7 +11,7 @@ enum EngineStub {
     static func write(in directory: URL) throws -> URL {
         let script = "#!/bin/sh\nall_args=\"$*\"\n" + waitForGate + "shift\ncase \"$1\" in\n"
             + printChoicesCase + initCase + checkCase + installLinearCase + operatorCase
-            + removeInstallationCase
+            + removeInstallationCase + projectRemoveCase
             + "  *)\n    exit 1\n    ;;\nesac\n"
         let stubURL = directory.appending(component: "yh.sh", directoryHint: .notDirectory)
         try script.write(to: stubURL, atomically: true, encoding: .utf8)
@@ -256,6 +256,27 @@ enum EngineStub {
             echo "Installation $2 removed: its entry in config.toml and its Keychain items."
             echo "Yellowhammer stays installed in that Linear workspace until a workspace admin removes it" \\
               "in Linear's settings."
+            exit 0
+            ;;
+
+        """
+
+    /// `yh project remove <id> --yes` (the leading `shift` has already dropped `project`, so the case is
+    /// `remove` and the id is `$2`): appends the full argument vector to `YH_STUB_ARGV_LOG` when set. When
+    /// `YH_STUB_PROJECT_REMOVE_REFUSE` is set, prints the real refusal for a held Act Lease and exits 1.
+    /// Otherwise prints a progress line, waits on the `project-removed` gate (``waitForGate``) so the test
+    /// can first delete `projects/<id>.toml`, as the real `yh` does, then prints the real summary line and
+    /// exits 0.
+    static let projectRemoveCase = """
+          remove)
+            if [ -n "$YH_STUB_ARGV_LOG" ]; then echo "$all_args" >> "$YH_STUB_ARGV_LOG"; fi
+            if [ -n "$YH_STUB_PROJECT_REMOVE_REFUSE" ]; then
+              echo "refused: build run run-1 holds $2's Act lease until 2026-10-05 12:00:00 +0000"
+              exit 1
+            fi
+            echo "unloading the LaunchAgents of Project $2"
+            wait_for_gate project-removed
+            echo "Project $2 removed. Its Journal was kept."
             exit 0
             ;;
 
