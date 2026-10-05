@@ -311,7 +311,24 @@ Read the ruling and the story before each step.
   - `grep -rn "feature.branch\|\.feature\.branch" Packages/YellowhammerKit/Sources` is empty.
   - Each group compiles and its existing tests pass.
 
-### [ ] B1.3 Tests
+### [x] B1.3 Tests
+
+**Status** — done 2026-10-05 (`f031bdc`).
+- **Landed:**
+  - The mechanical updates (the ~30 calls, the raw `INSERT`, the assertions) were already in B1.1.
+  - `WorktreeAllocatorBranchPrefixTests`: a git-backed fake Orca ADE checks out the branch it reports.
+    `rozd/yh-x` and `team/rozd/yh-x` are recorded as reported, and no unprefixed ref appears.
+    `yh-x-2` and `rozd-yh-x` are collisions: removed with force, nothing recorded. A re-allocation
+    reporting `team/` against a recorded `rozd/` is a collision, and the recorded branch is unchanged.
+  - `FeatureBranchPrefixTesterTests`: ancestry and merge over two repos with different prefixes. A
+    swapped map finds neither branch.
+  - `LandActPushTests+Prefix`, `FeatureBranchPullRequestPrefixTests`: the remote gets only the prefixed
+    ref; the pull request head and the `{branch}` title token are the prefixed name.
+- **ACs:** lines 50–57 and 65–66 (acceptance, fixed once recorded, a different name on re-allocation)
+  are met and tested. The existing collision test still passes.
+- **Verification:** full suite green (1463 + 82 + 240 + 103 tests). WorktreeReconcilerContinued and
+  CardRunCommitMessage also passed in isolation. The app builds, lint `--strict` reports 0, and module
+  boundaries pass.
 
 - **Work**
   - Mechanical update of about 30 test calls: `recordWorktreeName` for the requested name, plus
