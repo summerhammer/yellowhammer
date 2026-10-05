@@ -147,7 +147,7 @@ func seedRemovableProject(
         )
         return featureID
     }
-    try journal.recordFeatureBranch(featureID: featureID, branch: removalBranch)
+    try journal.recordWorktreeName(featureID: featureID, worktreeName: WorktreeName(rawValue: removalBranch.rawValue))
 
     var worktree: WorktreeRecord?
     if let repo {

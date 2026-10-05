@@ -76,7 +76,7 @@ func makeReplyWorld(journal: JournalStore, waitingReason: WaitingReason) async t
     else { throw JournalError.actLeaseLost(runID: runID, holder: nil) }
 
     let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
-    try journal.recordFeatureBranch(featureID: featureID, branch: buildActBranch)
+    try journal.recordWorktreeName(featureID: featureID, worktreeName: WorktreeName(rawValue: buildActBranch.rawValue))
     let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
     let cardID = try insertReconcilerCard(
         journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .todo

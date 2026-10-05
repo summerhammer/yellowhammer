@@ -78,7 +78,9 @@ extension BuildActTests {
             return
         }
         let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
-        try journal.recordFeatureBranch(featureID: featureID, branch: buildActBranch)
+        try journal.recordWorktreeName(
+            featureID: featureID, worktreeName: WorktreeName(rawValue: buildActBranch.rawValue)
+        )
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         _ = try insertReconcilerCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .todo)
         try journal.recordWorktree(
@@ -166,7 +168,9 @@ extension BuildActTests {
             return
         }
         let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
-        try journal.recordFeatureBranch(featureID: featureID, branch: buildActBranch)
+        try journal.recordWorktreeName(
+            featureID: featureID, worktreeName: WorktreeName(rawValue: buildActBranch.rawValue)
+        )
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         _ = try insertReconcilerCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .todo)
         _ = try insertReconcilerCard(journal, cycleID: cycleID, issueID: "MOB-1", repository: "mobile", state: .todo)
@@ -204,7 +208,9 @@ extension BuildActTests {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
-        try journal.recordFeatureBranch(featureID: featureID, branch: buildActBranch)
+        try journal.recordWorktreeName(
+            featureID: featureID, worktreeName: WorktreeName(rawValue: buildActBranch.rawValue)
+        )
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         _ = try insertReconcilerCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .todo)
 
@@ -266,7 +272,9 @@ extension BuildActTests {
             return
         }
         let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
-        try journal.recordFeatureBranch(featureID: featureID, branch: buildActBranch)
+        try journal.recordWorktreeName(
+            featureID: featureID, worktreeName: WorktreeName(rawValue: buildActBranch.rawValue)
+        )
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         _ = try insertReconcilerCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .done)
         _ = try insertReconcilerCard(
@@ -303,7 +311,9 @@ extension BuildActTests {
             return
         }
         let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
-        try journal.recordFeatureBranch(featureID: featureID, branch: buildActBranch)
+        try journal.recordWorktreeName(
+            featureID: featureID, worktreeName: WorktreeName(rawValue: buildActBranch.rawValue)
+        )
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         _ = try insertReconcilerCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .todo)
         _ = try insertReconcilerCard(journal, cycleID: cycleID, issueID: "MOB-1", repository: "mobile", state: .todo)
@@ -351,7 +361,9 @@ extension BuildActTests {
             return
         }
         let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
-        try journal.recordFeatureBranch(featureID: featureID, branch: buildActBranch)
+        try journal.recordWorktreeName(
+            featureID: featureID, worktreeName: WorktreeName(rawValue: buildActBranch.rawValue)
+        )
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         _ = try insertReconcilerCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .todo)
 

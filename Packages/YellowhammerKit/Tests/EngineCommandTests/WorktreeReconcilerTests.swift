@@ -39,7 +39,9 @@ struct ReconcilerJournalFixture: ~Copyable {
 let reconcilerEpoch = Date(timeIntervalSince1970: 1_800_000_000)
 let reconcilerProjectID = ProjectID(rawValue: "proj")!
 let reconcilerFeatureName = FeatureName(rawValue: "feat")!
-let reconcilerBranch = FeatureBranch(projectID: reconcilerProjectID, feature: reconcilerFeatureName)
+let reconcilerBranch = FeatureBranch(
+    name: WorktreeName(projectID: reconcilerProjectID, feature: reconcilerFeatureName).rawValue
+)
 
 /// Records every `removeWorktree` call and counts `worktrees(repositoryPath:)` calls, so a test can
 /// assert reconciliation never consults the Workspace Port's list — only the Journal's own records.

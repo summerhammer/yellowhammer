@@ -36,6 +36,9 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     case routeExclusionUnreadable(cardID: Int64)
     /// The Journal has no Feature with this id.
     case featureUnknown(featureID: Int64)
+    /// Orca ADE reported a Feature Branch for this (Feature, repository) that differs from the one already
+    /// recorded. The recorded name is fixed; nothing was written.
+    case featureBranchConflict(featureID: Int64, repository: String, recorded: String, reported: String)
     /// The Journal has no Cycle with this id.
     case cycleUnknown(cycleID: Int64)
     /// The Journal has no Worktree with this id.
@@ -163,6 +166,9 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
             "A route_exclusion row for Card \(cardID) cannot be read"
         case .featureUnknown(let featureID):
             "The Journal has no Feature with id \(featureID)"
+        case .featureBranchConflict(let featureID, let repository, let recorded, let reported):
+            "Feature \(featureID) already has Feature Branch '\(recorded)' recorded for \(repository); " +
+                "Orca ADE reported '\(reported)'"
         case .cycleUnknown(let cycleID):
             "The Journal has no Cycle with id \(cycleID)"
         case .worktreeUnknown(let id):

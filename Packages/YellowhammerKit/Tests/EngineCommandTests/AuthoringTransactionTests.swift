@@ -59,8 +59,8 @@ struct AuthoringTransactionTests {
 
         #expect(outcome == .authored)
         let (recorded, _) = try #require(try rig.journal.inFlightFeature())
-        let expected = FeatureBranch(project: rig.fixture.projectID.rawValue, feature: "FEAT-1")
-        #expect(recorded.branch == expected)
+        let expected = WorktreeName(project: rig.fixture.projectID.rawValue, feature: "FEAT-1")
+        #expect(recorded.worktreeName == expected)
     }
 
     @Test("The plan is recorded with the group's keys, and the group carries no Linear milestone or cycle write")

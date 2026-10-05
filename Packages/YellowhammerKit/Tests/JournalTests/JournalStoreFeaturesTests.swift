@@ -57,7 +57,7 @@ func inFlightFeatureNilWithNoOpenCycle() throws {
     #expect(try journal.inFlightFeature() == nil)
 }
 
-@Test("inFlightFeature() returns the Feature with its branch after recordFeatureBranch")
+@Test("inFlightFeature() returns the Feature with its Worktree name after recordWorktreeName")
 func inFlightFeatureReturnsFeatureWithBranch() throws {
     let fixture = try FeaturesJournalFixture()
     let journal = try fixture.open()
@@ -66,22 +66,22 @@ func inFlightFeatureReturnsFeatureWithBranch() throws {
 
     let before = try #require(try journal.inFlightFeature())
     #expect(before.feature.id == featureID)
-    #expect(before.feature.branch == nil)
+    #expect(before.feature.worktreeName == nil)
     #expect(before.cycleID == cycleID)
 
-    let branch = FeatureBranch(rawValue: "yh-proj-feat")
-    try journal.recordFeatureBranch(featureID: featureID, branch: branch)
+    let worktreeName = WorktreeName(rawValue: "yh-proj-feat")
+    try journal.recordWorktreeName(featureID: featureID, worktreeName: worktreeName)
 
     let after = try #require(try journal.inFlightFeature())
-    #expect(after.feature.branch == branch)
+    #expect(after.feature.worktreeName == worktreeName)
 }
 
-@Test("recordFeatureBranch on an unknown Feature throws featureUnknown")
-func recordFeatureBranchUnknownFeatureThrows() throws {
+@Test("recordWorktreeName on an unknown Feature throws featureUnknown")
+func recordWorktreeNameUnknownFeatureThrows() throws {
     let fixture = try FeaturesJournalFixture()
     let journal = try fixture.open()
     #expect(throws: JournalError.featureUnknown(featureID: 99)) {
-        try journal.recordFeatureBranch(featureID: 99, branch: FeatureBranch(rawValue: "yh-x-y"))
+        try journal.recordWorktreeName(featureID: 99, worktreeName: WorktreeName(rawValue: "yh-x-y"))
     }
 }
 

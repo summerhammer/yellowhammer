@@ -88,6 +88,13 @@ struct JournalReadOnlyTests {
         return "\(prefix)\(current + 1)"
     }
 
+    /// An identifier one schema version below the current one.
+    func previousIdentifier() throws -> String {
+        let prefix = "journal-schema-"
+        let current = try #require(Int(JournalMigrations.schemaIdentifier.dropFirst(prefix.count)))
+        return "\(prefix)\(current - 1)"
+    }
+
     /// Creates a Journal, records the given identifiers through a raw connection, and returns its URL.
     func journal(named name: String, home: URL, injecting identifiers: [String]) throws -> (URL, ProjectID) {
         let projectID = try #require(ProjectID(rawValue: name))
@@ -151,6 +158,21 @@ struct JournalReadOnlyTests {
 
         let (fileURL, projectID) = try journal(
             named: "older-number-test", home: home, injecting: ["journal-schema-0"]
+        )
+
+        guard case .schemaOlderThanKnown = readOnlyError(fileURL, projectID) else {
+            Issue.record("Expected .schemaOlderThanKnown error")
+            return
+        }
+    }
+
+    @Test
+    func openReadOnlyPreviousSchemaIsOlder() throws {
+        let home = createTempHome()
+        defer { try? cleanupTempHome(home) }
+
+        let (fileURL, projectID) = try journal(
+            named: "previous-schema-test", home: home, injecting: [try previousIdentifier()]
         )
 
         guard case .schemaOlderThanKnown = readOnlyError(fileURL, projectID) else {

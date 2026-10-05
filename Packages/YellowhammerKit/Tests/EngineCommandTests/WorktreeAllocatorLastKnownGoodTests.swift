@@ -89,7 +89,7 @@ private func claimLease(_ journal: JournalStore, runID: RunID, now: Date = epoch
 struct WorktreeAllocatorLastKnownGoodTests {
     private static let projectID = ProjectID(rawValue: "proj")!
     private static let featureName = FeatureName(rawValue: "feat")!
-    private static let branch = FeatureBranch(projectID: projectID, feature: featureName)
+    private static let branch = WorktreeName(projectID: projectID, feature: featureName)
 
     @Test("Allocation resolves the Worktree's HEAD and records it as the last known-good commit")
     func allocationRecordsLastKnownGoodCommit() async throws {
@@ -123,7 +123,7 @@ struct WorktreeAllocatorLastKnownGoodTests {
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID, git: git)
 
         let repo = Repo(name: "backend", path: repoDirectory.path, role: .backend)
-        let result = try await allocator.allocate(featureID: featureID, branch: Self.branch, repos: [repo])
+        let result = try await allocator.allocate(featureID: featureID, worktreeName: Self.branch, repos: [repo])
 
         let record = try #require(result["backend"])
         #expect(record.lastKnownGoodCommit == baseCommit)

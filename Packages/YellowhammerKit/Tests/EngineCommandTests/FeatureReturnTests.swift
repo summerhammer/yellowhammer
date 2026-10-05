@@ -66,7 +66,7 @@ private func makeReturnWorld(operatorIdentity: OperatorIdentity = .none) async t
     let runID = RunID()
     try claimLandLease(journal, runID: runID)
     let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
-    try journal.recordFeatureBranch(featureID: featureID, branch: returnBranch)
+    try journal.recordWorktreeName(featureID: featureID, worktreeName: WorktreeName(rawValue: returnBranch.rawValue))
     let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
     _ = try insertReconcilerCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .done)
 

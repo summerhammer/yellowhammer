@@ -132,7 +132,7 @@ final class LandPushTestEnvironment {
         branch: FeatureBranch = landBranch, secondRepository: String? = nil, firstCardTitle: String? = nil
     ) throws -> (feature: FeatureRecord, cycleID: Int64) {
         let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
-        try journal.recordFeatureBranch(featureID: featureID, branch: branch)
+        try journal.recordWorktreeName(featureID: featureID, worktreeName: WorktreeName(rawValue: branch.rawValue))
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         try insertReconcilerCard(
             journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .done, title: firstCardTitle

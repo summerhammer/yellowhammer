@@ -142,7 +142,7 @@ private func initGitRepo(at directory: URL, git: GitRunner) async throws -> Stri
 struct WorktreeAllocatorTests {
     private static let projectID = ProjectID(rawValue: "proj")!
     private static let featureName = FeatureName(rawValue: "feat")!
-    private static let branch = FeatureBranch(projectID: projectID, feature: featureName)
+    private static let branch = WorktreeName(projectID: projectID, feature: featureName)
 
     private static func fixtureRepos() -> [Repo] {
         [
@@ -167,12 +167,12 @@ struct WorktreeAllocatorTests {
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID)
 
         let repos = Self.fixtureRepos()
-        let result = try await allocator.allocate(featureID: featureID, branch: Self.branch, repos: repos)
+        let result = try await allocator.allocate(featureID: featureID, worktreeName: Self.branch, repos: repos)
 
         #expect(result.count == 3)
         #expect(result.repositories == ["backend", "mobile", "spec"])
         #expect(workspace.createCalls.count == 3)
-        #expect(workspace.createCalls.allSatisfy { $0.name == Self.branch.name })
+        #expect(workspace.createCalls.allSatisfy { $0.name == Self.branch.rawValue })
 
         for repo in repos {
             let record = try #require(result[repo.name])
@@ -199,10 +199,10 @@ struct WorktreeAllocatorTests {
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID)
 
         let repos = Self.fixtureRepos()
-        let first = try await allocator.allocate(featureID: featureID, branch: Self.branch, repos: repos)
+        let first = try await allocator.allocate(featureID: featureID, worktreeName: Self.branch, repos: repos)
         #expect(workspace.createCalls.count == 3)
 
-        let second = try await allocator.allocate(featureID: featureID, branch: Self.branch, repos: repos)
+        let second = try await allocator.allocate(featureID: featureID, worktreeName: Self.branch, repos: repos)
 
         #expect(workspace.createCalls.count == 3, "the second allocation must not call create again")
         for repo in repos {
@@ -224,7 +224,9 @@ struct WorktreeAllocatorTests {
         let workspace = FakeWorkspace(baseDirectory: workspaceDirectory)
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID)
 
-        let result = try await allocator.allocate(featureID: featureID, branch: Self.branch, repos: Self.fixtureRepos())
+        let result = try await allocator.allocate(
+            featureID: featureID, worktreeName: Self.branch, repos: Self.fixtureRepos()
+        )
 
         #expect(result["backend"]?.repository == "backend")
         #expect(result["nonexistent"] == nil)
@@ -260,7 +262,7 @@ struct WorktreeAllocatorTests {
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID, git: git)
 
         let repo = Repo(name: "backend", path: repoDirectory.path, role: .backend)
-        _ = try await allocator.allocate(featureID: featureID, branch: Self.branch, repos: [repo])
+        _ = try await allocator.allocate(featureID: featureID, worktreeName: Self.branch, repos: [repo])
 
         let afterPrune = await git.run(["worktree", "list", "--porcelain"], workingDirectory: repoDirectory.path)
         #expect(!afterPrune.stdout.contains(stray.path))
@@ -278,16 +280,16 @@ struct WorktreeAllocatorTests {
             .appending(component: "yh-workspace-\(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: workspaceDirectory) }
         let workspace = FakeWorkspace(baseDirectory: workspaceDirectory)
-        let collided = "\(Self.branch.name)-2"
-        workspace.scriptCollision(forName: Self.branch.name, returning: collided)
+        let collided = "\(Self.branch.rawValue)-2"
+        workspace.scriptCollision(forName: Self.branch.rawValue, returning: collided)
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID)
 
         let repo = Repo(name: "backend", path: "/tmp/yh-allocator-fixture/backend", role: .backend)
 
         await #expect(throws: WorktreeAllocationError.nameCollision(
-            repository: "backend", requested: Self.branch.name, created: collided
+            repository: "backend", requested: Self.branch.rawValue, reported: collided, recorded: nil
         )) {
-            _ = try await allocator.allocate(featureID: featureID, branch: Self.branch, repos: [repo])
+            _ = try await allocator.allocate(featureID: featureID, worktreeName: Self.branch, repos: [repo])
         }
 
         #expect(workspace.removeCalls.count == 1)
@@ -309,7 +311,7 @@ struct WorktreeAllocatorTests {
         let workspace = FakeWorkspace(baseDirectory: workspaceDirectory)
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID)
         let repo = Repo(name: "backend", path: "/tmp/yh-allocator-fixture/backend", role: .backend)
-        _ = try await allocator.allocate(featureID: featureID, branch: Self.branch, repos: [repo])
+        _ = try await allocator.allocate(featureID: featureID, worktreeName: Self.branch, repos: [repo])
 
         await #expect(throws: WorktreeAllocationError.notPushed(repository: "backend")) {
             try await allocator.release(featureID: featureID, repository: "backend")
@@ -331,7 +333,7 @@ struct WorktreeAllocatorTests {
         let workspace = FakeWorkspace(baseDirectory: workspaceDirectory)
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID)
         let repo = Repo(name: "backend", path: "/tmp/yh-allocator-fixture/backend", role: .backend)
-        _ = try await allocator.allocate(featureID: featureID, branch: Self.branch, repos: [repo])
+        _ = try await allocator.allocate(featureID: featureID, worktreeName: Self.branch, repos: [repo])
 
         let record = try await allocator.release(
             featureID: featureID, repository: "backend", discardingUnpushedWork: true
@@ -356,7 +358,7 @@ struct WorktreeAllocatorTests {
         let workspace = FakeWorkspace(baseDirectory: workspaceDirectory)
         let allocator = WorktreeAllocator(workspace: workspace, journal: journal, runID: runID)
         let repo = Repo(name: "backend", path: "/tmp/yh-allocator-fixture/backend", role: .backend)
-        let allocated = try await allocator.allocate(featureID: featureID, branch: Self.branch, repos: [repo])
+        let allocated = try await allocator.allocate(featureID: featureID, worktreeName: Self.branch, repos: [repo])
         let record = try #require(allocated["backend"])
 
         _ = try journal.recordWorktreePush(id: record.id, commit: "deadbeef", runID: runID)
@@ -390,10 +392,36 @@ struct WorktreeAllocatorTests {
         await #expect(throws: WorktreeAllocationError.workspace(
             repository: "backend", .repositoryNotRegistered(path: repoPath)
         )) {
-            _ = try await allocator.allocate(featureID: featureID, branch: Self.branch, repos: [repo])
+            _ = try await allocator.allocate(featureID: featureID, worktreeName: Self.branch, repos: [repo])
         }
     }
 }
 
 // The last-known-good-commit test lives in WorktreeAllocatorLastKnownGoodTests.swift, split out to
 // keep this file under the length limit.
+
+@Suite("WorktreeAllocator acceptance rule")
+struct WorktreeAllocatorAcceptanceTests {
+    private static let name = WorktreeName(rawValue: "yh-x")
+
+    private func accepts(_ reported: String, recorded: String? = nil) -> Bool {
+        WorktreeAllocator.accepts(
+            reported: reported, worktreeName: Self.name, recorded: recorded.map { FeatureBranch(name: $0) }
+        )
+    }
+
+    @Test("with nothing recorded, the name or a '<prefix>/' before it is accepted")
+    func firstAllocation() {
+        #expect(accepts("yh-x"))
+        #expect(accepts("rozd/yh-x"))
+        #expect(accepts("team/rozd/yh-x"))
+        #expect(!accepts("yh-x-2"))
+        #expect(!accepts("rozd-yh-x"))
+    }
+
+    @Test("with a branch recorded, only that exact branch is accepted")
+    func recordedBranch() {
+        #expect(!accepts("other/yh-x", recorded: "rozd/yh-x"))
+        #expect(accepts("rozd/yh-x", recorded: "rozd/yh-x"))
+    }
+}

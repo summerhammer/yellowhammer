@@ -119,13 +119,13 @@ extension JournalStore {
             guard existing == nil else { return nil }
 
             let timestamp = JournalStore.timestamp(now)
-            let branch = FeatureBranch(project: projectID.rawValue, feature: plan.name)
+            let worktreeName = WorktreeName(project: projectID.rawValue, feature: plan.name)
             try db.execute(
                 sql: """
-                INSERT INTO feature (issue_id, selected_night_id, state, branch, created_at)
+                INSERT INTO feature (issue_id, selected_night_id, state, worktree_name, created_at)
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                arguments: [featureIssueID, plan.nightID, "selected", branch.rawValue, timestamp]
+                arguments: [featureIssueID, plan.nightID, "selected", worktreeName.rawValue, timestamp]
             )
             let featureID = db.lastInsertedRowID
             try db.execute(

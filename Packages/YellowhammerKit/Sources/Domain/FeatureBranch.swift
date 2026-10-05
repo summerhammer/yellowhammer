@@ -1,9 +1,10 @@
 import Foundation
 
-/// A deterministic, slash-free branch name for a Feature in a repository.
+/// The branch Orca ADE reports at allocation for one (Feature, repository).
 ///
-/// Feature branches follow the naming pattern `yh-<project>-<feature>`, matching Orca ADE's
-/// worktree naming deterministically without slashes.
+/// It is the Worktree name, optionally preceded by `<prefix>/` from Orca ADE's branch-name prefix
+/// setting (the prefix may itself contain `/`). Recorded in the Journal per (Feature, repository),
+/// fixed once recorded, and never renamed by Yellowhammer.
 public struct FeatureBranch: RawRepresentable, Hashable, Sendable {
     public let rawValue: String
 
@@ -15,32 +16,6 @@ public struct FeatureBranch: RawRepresentable, Hashable, Sendable {
 
     public init(name: String) {
         self.rawValue = name
-    }
-
-    public init(projectID: ProjectID, feature: FeatureName) {
-        self.init(project: projectID.rawValue, feature: feature.rawValue)
-    }
-
-    public init(project: String, feature: String) {
-        let sanitizedProject = Self.sanitize(project)
-        let sanitizedFeature = Self.sanitize(feature)
-        self.rawValue = "yh-\(sanitizedProject)-\(sanitizedFeature)"
-    }
-
-    private static func sanitize(_ input: String) -> String {
-        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        let replaced = trimmed.unicodeScalars.map { scalar -> Character in
-            switch scalar {
-            case "A"..."Z", "a"..."z", "0"..."9", "_", "-":
-                return Character(String(scalar))
-            default:
-                return "-"
-            }
-        }
-        let result = String(replaced)
-            .split(separator: "-", omittingEmptySubsequences: true)
-            .joined(separator: "-")
-        return result.isEmpty ? "unnamed" : result
     }
 }
 

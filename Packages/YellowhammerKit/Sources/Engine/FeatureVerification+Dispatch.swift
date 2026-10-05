@@ -120,7 +120,8 @@ extension FeatureVerification {
         else {
             throw VerificationFault(reason: "this Project has no single specification source to verify against")
         }
-        let branchName = context.feature.branch?.name ?? "not recorded"
+        // B1.2: resolve per repository (featureBranches).
+        let branchName = context.feature.worktreeName?.rawValue ?? "not recorded"
         var names = Set(try act.journal.touchedRepositories(featureID: context.feature.id))
         for card in try act.journal.cards(cycleID: context.cycleID) where card.state != .cancelled {
             names.insert(card.repository)

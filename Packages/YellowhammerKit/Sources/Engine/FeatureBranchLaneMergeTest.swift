@@ -38,7 +38,10 @@ public struct FeatureBranchLaneMergeTest: LaneMergeTesting, Sendable {
     }
 
     private func evaluate(_ context: LandActLaneContext) async throws -> MergeTestOutcome {
-        guard let branch = context.feature.branch else {
+        let resolved = try context.act.journal.resolvedFeatureBranch(
+            feature: context.feature, repository: context.lane.repository
+        )
+        guard let branch = resolved else {
             return MergeTestOutcome(
                 conflict: false,
                 detail: "untestable: the Feature has no recorded Feature Branch",

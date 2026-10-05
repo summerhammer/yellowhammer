@@ -105,7 +105,7 @@ struct FeatureBranchPullRequestTests {
     /// two Definition of Done clauses, and one Waiting on You Card. Returns the Cycle id.
     static func setUpPartialLandingFixture(_ journal: JournalStore) throws -> Int64 {
         let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
-        try journal.recordFeatureBranch(featureID: featureID, branch: landBranch)
+        try journal.recordWorktreeName(featureID: featureID, worktreeName: WorktreeName(rawValue: landBranch.rawValue))
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         try insertReconcilerCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .done)
         try insertReconcilerCard(

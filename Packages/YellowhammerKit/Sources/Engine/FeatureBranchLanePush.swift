@@ -27,7 +27,8 @@ public struct FeatureBranchLanePush: LanePushing, Sendable {
         guard let repo = context.act.repositories?.workingRepos.first(where: { $0.name == repository }) else {
             return LanePushOutcome(kind: .failed(reason: "no repository named \"\(repository)\" is configured"))
         }
-        guard let branch = context.feature.branch else {
+        let resolved = try context.act.journal.resolvedFeatureBranch(feature: context.feature, repository: repository)
+        guard let branch = resolved else {
             return LanePushOutcome(
                 kind: .failed(reason: "the Feature has no recorded Feature Branch for \"\(repository)\"")
             )

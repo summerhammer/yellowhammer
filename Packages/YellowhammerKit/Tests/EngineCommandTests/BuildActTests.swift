@@ -16,6 +16,7 @@ let buildActNightStart = NightStart(rawValue: "2026-09-15")!
 // lease timestamp in these fixtures is relative to `Date()`, not a fixed epoch.
 let buildActEpoch = Date()
 let buildActBranch = FeatureBranch(rawValue: "yh-proj-feat")
+let buildActWorktreeName = WorktreeName(rawValue: buildActBranch.rawValue)
 
 /// Seeds the states `makeBoards()` does not: In Progress, Blocked and Waiting on You (mirroring
 /// BoardStateProjectionTests' `makeProjectionBoards`).
@@ -69,7 +70,9 @@ struct BuildActTests {
         }
 
         let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
-        try journal.recordFeatureBranch(featureID: featureID, branch: buildActBranch)
+        try journal.recordWorktreeName(
+            featureID: featureID, worktreeName: WorktreeName(rawValue: buildActBranch.rawValue)
+        )
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
 
         let backend1 = try insertReconcilerCard(
@@ -221,7 +224,9 @@ struct BuildActTests {
             return
         }
         let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
-        try journal.recordFeatureBranch(featureID: featureID, branch: buildActBranch)
+        try journal.recordWorktreeName(
+            featureID: featureID, worktreeName: WorktreeName(rawValue: buildActBranch.rawValue)
+        )
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         _ = try insertReconcilerCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .todo)
 
@@ -255,7 +260,9 @@ struct BuildActTests {
             return
         }
         let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
-        try journal.recordFeatureBranch(featureID: featureID, branch: buildActBranch)
+        try journal.recordWorktreeName(
+            featureID: featureID, worktreeName: WorktreeName(rawValue: buildActBranch.rawValue)
+        )
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         _ = try insertReconcilerCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .todo)
         _ = try insertReconcilerCard(journal, cycleID: cycleID, issueID: "MOB-1", repository: "mobile", state: .todo)
@@ -298,7 +305,9 @@ struct BuildActTests {
             return
         }
         let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
-        try journal.recordFeatureBranch(featureID: featureID, branch: buildActBranch)
+        try journal.recordWorktreeName(
+            featureID: featureID, worktreeName: WorktreeName(rawValue: buildActBranch.rawValue)
+        )
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         _ = try insertReconcilerCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .todo)
 

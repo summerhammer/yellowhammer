@@ -124,7 +124,8 @@ extension CardRun {
         guard let worktree = try journal.heldWorktree(featureID: context.feature.id, repository: card.repository) else {
             throw CardRunError.worktreeMissing(featureID: context.feature.id, repository: card.repository)
         }
-        guard let branch = context.feature.branch else {
+        guard let branch = try journal.resolvedFeatureBranch(feature: context.feature, repository: card.repository)
+        else {
             throw BuildActError.featureBranchUnrecorded(featureID: context.feature.id)
         }
         guard let check = checks[card.repository] else {

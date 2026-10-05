@@ -88,7 +88,10 @@ extension ProjectRemoval {
     private func removeWorktree(
         _ worktree: WorktreeRecord, context: WorktreeRemovalContext, outcome: WorktreeRemovalOutcome
     ) async {
-        guard let feature = try? context.journal.feature(id: worktree.featureID), let branch = feature.branch else {
+        guard
+            let feature = try? context.journal.feature(id: worktree.featureID),
+            let branch = try? context.journal.resolvedFeatureBranch(feature: feature, repository: worktree.repository)
+        else {
             outcome.failures.append(
                 "Worktree \(worktree.id) (\(worktree.repository)): no recorded Feature Branch" // glossary:ignore GL001
             )

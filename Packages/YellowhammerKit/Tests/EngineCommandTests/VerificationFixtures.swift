@@ -113,7 +113,7 @@ final class VerificationWorld {
         let runID = RunID()
         try claimLandLease(journal, runID: runID, mode: mode)
         featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
-        try journal.recordFeatureBranch(featureID: featureID, branch: landBranch)
+        try journal.recordWorktreeName(featureID: featureID, worktreeName: WorktreeName(rawValue: landBranch.rawValue))
         cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         for card in cards {
             try insertReconcilerCard(
