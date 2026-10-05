@@ -350,7 +350,9 @@ Read the ruling and the story before each step.
   - Lead: Opus 5.5, Medium effort, verifies the counts and lint.
 - **Done when** — the full suite is green and every case above is present.
 
-### [ ] B1.4 Scripts and CI
+### [x] B1.4 Scripts and CI
+
+**Status** — done 2026-10-05 (`7156c0d`). The yh- exemption tests the head ref's last path segment; scenario 2 reads `feature_repository.branch` per repo and uses it for the checkout and remote checks; the test schema is fixed. Both Python suites pass (213 CI, 196 rehearsal). Scenario 2 itself is not run live here.
 
 - **Work**
   - `check_spec_line.py`: exempt when the head ref's last path segment starts with `yh-`.
