@@ -377,7 +377,43 @@ Claude Fable 5.1 or Codex Astra. Then fix through another sidekick handoff rathe
 
 ## Layer 2 — A collision halts the build Act
 
-### [ ] B2.1 Collision halt, once-per-Night notification, Night Card
+### [x] B2.1 Collision halt, once-per-Night notification, Night Card
+
+**Status** — done 2026-10-05 (`8356fbd`). What landed:
+
+- **Pre-pass.** `BuildAct.runLanes` allocates in a sequential pre-pass and throws
+  `BuildActError.worktreeNameCollision` on a collision. Other allocation failures stay lane-local.
+- **Event.** A `WorktreeNameCollision` Journal event is wired through the event files.
+- **Catch.** `runUnderLease`'s catch moved to `recordHalt`. It appends the event, then `actIncomplete`.
+  The first collision this Night gets the full `notifyHalted`; later Acts get only the Night Card
+  comment.
+- **Summary.** The exception line renders in the Night summary.
+- **Tests.** All four done-when items pass: no Card, Attempt, Card Lease or Block Reason; one
+  notification across two Acts, with two comments and two events; the next Night notifies again; the
+  exception line renders.
+
+Gates: the whole suite passed on the first run, `--strict` lint reports 0, the module boundaries hold,
+and the app builds.
+
+Story ACs on lines 67–74:
+
+- **Met:**
+  - The collision halts the Act; the Cards stay Todo; no Attempt and no Block Reason.
+  - Once per Project per Night; later Acts only update the Night Card.
+  - The notice names the repo, the requested branch and the reported branch, with only
+    non-destructive remedies.
+- **Met by construction, not tested end-to-end:** "later Acts retry". Nothing persisted blocks the next
+  Act's allocation; B2.2 observes it live.
+
+Local choices:
+
+- **`requested` is the branch Yellowhammer expected:** the recorded Feature Branch when one exists,
+  else the Worktree name. When the prefix is turned off between Acts, the Worktree name equals the
+  reported branch, so naming it would make the notice read "made 'yh-x', not 'yh-x'".
+- **The notice fits 200 characters only for names up to about 75 characters,** repo plus both branches
+  (tested with `yellowhammer` and `yh-yellowhammer-night-card`). Longer Feature names are truncated in
+  the local notification by `collapsed`, which cuts the remedy. The Night Card comment keeps the full
+  text.
 
 - **Work**
   - **`BuildAct`:**
@@ -436,5 +472,9 @@ Claude Fable 5.1 or Codex Astra. Then fix through another sidekick handoff rathe
   unruled* lists it; keep today's behaviour.
 - **Asynchronous branch deletion** after a purge or release: a re-allocation may see `X-2`. Unruled;
   this is #325's territory.
+- **"The requested branch" in the collision notice** (story AC, line 73; OQ123(c)). After a prefix
+  change the Worktree name requested from Orca ADE equals the reported branch, and the recorded Feature
+  Branch is what differs. B2.1 names the recorded branch (the one Yellowhammer expected). Proposed AC
+  wording: "the branch Yellowhammer expected: the recorded Feature Branch, else the requested name".
 - **`check_spec_line.py`'s exemption** cannot tell an Orca custom prefix from a human branch named
   `x/yh-…`. This is repo-local, but worth a line if the spec ever names the `yh-*` exemption.
