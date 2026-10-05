@@ -30,7 +30,7 @@ struct SettingsWindow: View {
     /// request that opened it.
     @State private var appliedRequest = 0
     @Environment(SettingsRequest.self) private var request
-    @Environment(ProjectAdditions.self) private var projectAdditions
+    @Environment(ProjectListChanges.self) private var projectListChanges
 
     private var selection: Binding<SettingsSection?> {
         Binding(
@@ -79,7 +79,7 @@ struct SettingsWindow: View {
         .onAppear(perform: applyRequest)
         .onChange(of: request.token) { applyRequest() }
         // A Project added from the main window; a sheet finishing fires neither appear nor didBecomeActive.
-        .onChange(of: projectAdditions.token) { readConfiguration() }
+        .onChange(of: projectListChanges.token) { readConfiguration() }
         .task { await readWhileOpen() }
         .onDisappear {
             linearWorkspaces.terminate()
@@ -106,6 +106,7 @@ struct SettingsWindow: View {
                     let workspaces = linearWorkspaces
                     ProjectSettingsPane(
                         project: id, name: entry.name, onSaved: readConfiguration,
+                        onRemoved: projectRemoved,
                         workspaceLabel: { name in
                             LinearInstallationStatus.label(
                                 workspaceName: workspaces.statuses[name]?.workspaceName, localName: name
@@ -130,6 +131,14 @@ struct SettingsWindow: View {
     /// Reads the configuration again, so a saved name shows in the sidebar and the window's title.
     private func readConfiguration() {
         configured = ConfiguredProjects.load()
+    }
+
+    /// A Project was removed by `yh`: reads the configuration again so the sidebar drops it, leaves its pane
+    /// for General, and tells the other windows, so the main window drops it too.
+    private func projectRemoved() {
+        readConfiguration()
+        history.visit(.general)
+        projectListChanges.record()
     }
 
     /// Visits the requested Project or section, once per request. A request naming neither leaves the

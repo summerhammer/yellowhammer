@@ -26,8 +26,9 @@ struct YellowhammerApp: App {
     /// The Project the Settings window preselects when a gesture opens it. One for the app, so the main
     /// windows can ask and the Settings window can answer.
     @State private var settingsRequest = SettingsRequest()
-    /// Told when a Project is added, so every window that lists Projects reads its configuration again.
-    @State private var projectAdditions = ProjectAdditions()
+    /// Told when a Project is added or removed, so every window that lists Projects reads its configuration
+    /// again.
+    @State private var projectListChanges = ProjectListChanges()
     /// The ids links have named, so a main window can tell a linked unknown id from a stale one.
     @State private var deepLinkedProjects = DeepLinkedProjects()
 
@@ -57,7 +58,7 @@ struct YellowhammerApp: App {
             OverviewWindow(project: $project)
                 .addProjectSheet()
                 .environment(settingsRequest)
-                .environment(projectAdditions)
+                .environment(projectListChanges)
                 .environment(deepLinkedProjects)
         }
         // Room for the three columns at their ideal widths. The minimum comes from the columns' own.
@@ -79,7 +80,7 @@ struct YellowhammerApp: App {
             SettingsWindow()
                 .addProjectSheet()
                 .environment(settingsRequest)
-                .environment(projectAdditions)
+                .environment(projectListChanges)
         }
         .defaultSize(width: 860, height: 620)
         .handlesExternalEvents(matching: [])

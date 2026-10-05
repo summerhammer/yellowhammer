@@ -13,7 +13,7 @@ private struct AddProjectSheetModifier: ViewModifier {
     @State private var isPresented = false
     /// Runs with the new Project's id after the Operator presses Done. Held only while the sheet is up.
     @State private var pendingOnAdded: (@MainActor (ProjectID) -> Void)?
-    @Environment(ProjectAdditions.self) private var additions
+    @Environment(ProjectListChanges.self) private var listChanges
 
     func body(content: Content) -> some View {
         content
@@ -27,7 +27,7 @@ private struct AddProjectSheetModifier: ViewModifier {
                 content: {
                     SetupWizardView(
                         onAdded: { id in pendingOnAdded?(id) },
-                        onRunEnded: { additions.record() }
+                        onRunEnded: { listChanges.record() }
                     )
                 }
             )

@@ -38,7 +38,7 @@ struct OverviewWindow: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openURL) private var openURL
     @Environment(SettingsRequest.self) private var settingsRequest
-    @Environment(ProjectAdditions.self) private var projectAdditions
+    @Environment(ProjectListChanges.self) private var projectListChanges
     @Environment(DeepLinkedProjects.self) private var deepLinkedProjects
 
     /// The Project this window shows: its own value, or the first configured one for a new window.
@@ -116,8 +116,9 @@ struct OverviewWindow: View {
         .environment(\.attemptAbort, attemptAbortControl)
         .focusedSceneValue(\.overviewProject, scopedProject)
         .task { await readWhileOpen() }
-        // A sheet finishing fires neither appear nor didBecomeActive; the initial load is `readWhileOpen`'s.
-        .onChange(of: projectAdditions.token) { Task { await model.load() } }
+        // A sheet finishing, or a Project removed in Settings, fires neither appear nor didBecomeActive; the
+        // initial load is `readWhileOpen`'s.
+        .onChange(of: projectListChanges.token) { Task { await model.load() } }
         .onChange(of: staleProject, initial: true) { _, stale in
             if stale != nil { unscope() }
         }
