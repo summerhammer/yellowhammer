@@ -2,7 +2,7 @@ import Domain
 import Pulse
 import SwiftUI
 
-/// The Pulse's Now group: the Project's `idle`/`working` status, the next scheduled Act, and the running
+/// The Pulse's Now group: the Project's `idle`/`working` status, running and next scheduled Acts, and the running
 /// Attempts with a one-line status each. An Attempt opens in the Inspector.
 ///
 /// Neither the next Act nor an Attempt's status line is in the Journal, so a snapshot read from it
@@ -17,7 +17,7 @@ struct NowGroup: View {
 
     var body: some View {
         PulseCard(group: .now, summary: PulseGroup.summary(of: now)) {
-            NowStatus(status: now.status, nextAct: now.nextAct)
+            NowStatus(status: now.status, runningAct: now.runningAct, nextAct: now.nextAct)
             if now.attempts.isEmpty {
                 Label("No Attempt running", systemImage: "pause.circle")
                     .foregroundStyle(.secondary)
@@ -40,6 +40,7 @@ struct NowGroup: View {
 /// The Project's `idle`/`working` status and the next scheduled Act; without one, it says it is unknown.
 private struct NowStatus: View {
     let status: ProjectStatus
+    let runningAct: RunningAct?
     let nextAct: ScheduledAct?
 
     var body: some View {
@@ -55,6 +56,14 @@ private struct NowStatus: View {
                     Text("\(nextAct.act.rawValue) at \(nextAct.at.formatted(date: .omitted, time: .shortened))")
                 } else {
                     Text("unknown")
+                }
+            }
+            if let runningAct {
+                LabeledContent("Running Act") {
+                    Text(
+                        "\(runningAct.act.rawValue) · started " +
+                            runningAct.startedAt.formatted(date: .omitted, time: .shortened)
+                    )
                 }
             }
         }

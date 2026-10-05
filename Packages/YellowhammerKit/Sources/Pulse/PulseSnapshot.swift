@@ -114,18 +114,37 @@ public struct DecisionCard: Identifiable, Equatable, Sendable {
     }
 }
 
-/// Now: status, next scheduled Act, and running Attempts with a one-line status each.
+/// Now: status, running Act, next scheduled Act, and running Attempts with a one-line status each.
 public struct Now: Equatable, Sendable {
     public var status: ProjectStatus
+    /// The Act held by the Journal's current unexpired lease, with its best available start time.
+    public var runningAct: RunningAct?
     /// Nil from a Journal read: the next Act needs the Config schedule and `launchd`, neither of which the
     /// Journal holds.
     public var nextAct: ScheduledAct?
     public var attempts: [RunningAttempt]
 
-    public init(status: ProjectStatus, nextAct: ScheduledAct?, attempts: [RunningAttempt]) {
+    public init(
+        status: ProjectStatus,
+        nextAct: ScheduledAct?,
+        attempts: [RunningAttempt],
+        runningAct: RunningAct? = nil
+    ) {
         self.status = status
         self.nextAct = nextAct
         self.attempts = attempts
+        self.runningAct = runningAct
+    }
+}
+
+/// An Act whose current Journal lease is still held.
+public struct RunningAct: Equatable, Sendable {
+    public var act: Act
+    public var startedAt: Date
+
+    public init(act: Act, startedAt: Date) {
+        self.act = act
+        self.startedAt = startedAt
     }
 }
 

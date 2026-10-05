@@ -167,7 +167,7 @@ func landingSeededJournal() throws {
             repository: "backend", state: .blocked, blockReason: .hardFailure
         )
         _ = try journal.claimActLease(act: .build, runID: RunID(), mode: .real, now: epoch)
-        expected = try PulseSnapshot.read(from: journal, status: .working)
+        expected = try PulseSnapshot.read(from: journal, status: .working, asOf: asOf)
     }
 
     let landing = fixture.read(configuration, actJobs: alive("alpha", .build), asOf: asOf)
@@ -264,21 +264,107 @@ func landingBlendsNothing() throws {
     }
 }
 
-@Test("A held Act Lease with no alive job reads idle; an alive job with no Act Lease reads working")
-func landingStatusIsTheJobNotTheLease() throws {
+@Test("An unexpired Act Lease reads working; a job without a lease remains the fallback")
+func landingStatusUsesLeaseAndJobFallback() throws {
     let fixture = try ConfigurationFixture()
     try fixture.addProject(id: "alpha", name: "Alpha", repos: ["backend"])
     try fixture.addProject(id: "beta", name: "Beta", repos: ["web"])
     let configuration = try fixture.load()
-    // Alpha's Act crashed holding the lease: its job is gone.
+    // Alpha has a held lease and no alive job.
     _ = try fixture.openJournal("alpha").claimActLease(act: .build, runID: RunID(), mode: .real, now: epoch)
     // Beta's job is alive, but it holds no lease.
     _ = try fixture.openJournal("beta")
 
     let landing = fixture.read(configuration, actJobs: alive("beta", .land), asOf: epoch)
 
-    #expect(landing.project(try #require(ProjectID(rawValue: "alpha")))?.status == .idle)
+    #expect(landing.project(try #require(ProjectID(rawValue: "alpha")))?.status == .working)
     #expect(landing.project(try #require(ProjectID(rawValue: "beta")))?.status == .working)
+}
+
+@Test("A held lease names its Act and start time without a launchd job or running Attempt")
+func landingShowsRunningActFromLease() throws {
+    let startedAt = epoch.addingTimeInterval(15)
+    for act in Act.allCases {
+        let fixture = try ConfigurationFixture()
+        try fixture.addProject(id: "alpha", name: "Alpha", repos: ["backend"])
+        let configuration = try fixture.load()
+        let runID = RunID()
+        let journal = try fixture.openJournal("alpha")
+        _ = try journal.claimActLease(act: act, runID: runID, mode: .real, now: epoch)
+        try journal.append(.actStarted, act: act, runID: runID, now: startedAt)
+
+        let project = try #require(fixture.read(configuration, asOf: startedAt).projects.first)
+
+        #expect(project.status == .working)
+        #expect(project.pulse.now.attempts.isEmpty)
+        #expect(project.pulse.now.runningAct == RunningAct(act: act, startedAt: startedAt))
+    }
+}
+
+@Test("The lease expires at the strict boundary and stale jobs cannot keep it working")
+func landingLeaseExpiryBoundary() throws {
+    let fixture = try ConfigurationFixture()
+    try fixture.addProject(id: "alpha", name: "Alpha", repos: ["backend"])
+    let configuration = try fixture.load()
+    let journal = try fixture.openJournal("alpha")
+    let claim = try journal.claimActLease(act: .build, runID: RunID(), mode: .real, now: epoch)
+    guard case .claimed(let lease) = claim else { Issue.record("Expected the fixture to claim its lease"); return }
+
+    let before = fixture.read(
+        configuration, actJobs: alive("alpha", .build), asOf: lease.expiresAt.addingTimeInterval(-1)
+    )
+    let atBoundary = fixture.read(configuration, actJobs: alive("alpha", .build), asOf: lease.expiresAt)
+
+    #expect(before.projects.first?.status == .working)
+    #expect(atBoundary.projects.first?.status == .idle)
+    #expect(atBoundary.projects.first?.pulse.now.runningAct == nil)
+}
+
+@Test("When ActStarted is absent, the held lease's claim time is the running Act start")
+func landingRunningActUsesClaimTimeFallback() throws {
+    let fixture = try ConfigurationFixture()
+    try fixture.addProject(id: "alpha", name: "Alpha", repos: ["backend"])
+    let configuration = try fixture.load()
+    let journal = try fixture.openJournal("alpha")
+    _ = try journal.claimActLease(act: .build, runID: RunID(), mode: .real, now: epoch)
+
+    let project = try #require(fixture.read(configuration, asOf: epoch.addingTimeInterval(10)).projects.first)
+
+    #expect(project.pulse.now.runningAct == RunningAct(act: .build, startedAt: epoch))
+}
+
+@Test("Same-run completion events suppress an Act, but other runs' lifecycle events do not")
+func landingRunningActLifecycleIsRunScoped() throws {
+    for endingEvent: JournalEvent in [.actEnded, .actIncomplete(reason: "interrupted")] {
+        let fixture = try ConfigurationFixture()
+        try fixture.addProject(id: "alpha", name: "Alpha", repos: ["backend"])
+        let configuration = try fixture.load()
+        let journal = try fixture.openJournal("alpha")
+        let runID = RunID()
+        _ = try journal.claimActLease(act: .land, runID: runID, mode: .real, now: epoch)
+        try journal.append(.actEnded, act: .build, runID: RunID(), now: epoch.addingTimeInterval(1))
+        try journal.append(.actStarted, act: .land, runID: runID, now: epoch)
+
+        let active = try #require(fixture.read(configuration, asOf: epoch.addingTimeInterval(2)).projects.first)
+        #expect(active.status == .working)
+        #expect(active.pulse.now.runningAct?.act == .land)
+
+        try journal.append(endingEvent, act: .land, runID: runID, now: epoch.addingTimeInterval(3))
+        let completed = try #require(
+            fixture.read(
+                configuration, actJobs: alive("alpha", .author), asOf: epoch.addingTimeInterval(4)
+            ).projects.first
+        )
+        #expect(completed.status == .idle)
+        #expect(completed.pulse.now.runningAct == nil)
+        _ = try journal.releaseActLease(runID: runID)
+        let released = try #require(
+            fixture.read(
+                configuration, actJobs: alive("alpha", .land), asOf: epoch.addingTimeInterval(5)
+            ).projects.first
+        )
+        #expect(released.status == .idle)
+    }
 }
 
 @Test("A Project's job alive reads working for that Project only, with or without a Journal")
