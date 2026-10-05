@@ -12,6 +12,7 @@ extension JournalMigrations {
                 .check(sql: "mode IN ('real','rehearsal')")
             table.column("state", .text).notNull()
             table.column("night_card_issue_id", .text)
+            table.column("night_card_issue_id_for_display", .text)
             // The Night Card's Linear `identifier` and board `url`, recorded by the Delta Read so the
             // Pulse can open it (issue #230). Nullable: none until the Delta Read next sees the issue.
             table.column("night_card_issue_key", .text)
@@ -43,6 +44,7 @@ extension JournalMigrations {
         try db.create(table: "feature") { table in
             table.autoIncrementedPrimaryKey("id")
             table.column("issue_id", .text).notNull().unique()
+            table.column("issue_id_for_display", .text)
             // The Feature issue's Linear `identifier` and board `url`, recorded by the Delta Read so the
             // Pulse can open it (issue #230). Nullable: none until the Delta Read next sees the issue.
             table.column("issue_key", .text)
@@ -84,6 +86,7 @@ extension JournalMigrations {
             table.column("cycle_id", .integer).notNull()
                 .references("cycle", column: "id", onDelete: .cascade)
             table.column("issue_id", .text).notNull().unique()
+            table.column("issue_id_for_display", .text)
             // The Card issue's Linear `identifier` and board `url`, recorded by the Delta Read so the
             // Pulse can open it (issue #230). Nullable: none until the Delta Read next sees the issue.
             table.column("issue_key", .text)

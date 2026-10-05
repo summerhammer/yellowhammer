@@ -8,8 +8,10 @@ extension View {
     func attemptAbortDialogs(
         pending: Binding<PendingAttemptAbort?>, abort: AttemptAbortModel, afterAbort: @escaping () async -> Void
     ) -> some View {
-        confirmationDialog(
-            "Abort the Attempt on \(pending.wrappedValue?.attempt.cardID ?? "this Card")?",
+        let targetCard = pending.wrappedValue?.attempt.cardIDForDisplay
+            ?? (pending.wrappedValue?.attempt.cardID ?? "this Card")
+        return confirmationDialog(
+            "Abort the Attempt on \(targetCard)?",
             isPresented: Binding(get: { pending.wrappedValue != nil }, set: { if !$0 { pending.wrappedValue = nil } }),
             titleVisibility: .visible,
             presenting: pending.wrappedValue
@@ -22,8 +24,9 @@ extension View {
             }
             Button("Cancel", role: .cancel) {}
         } message: { request in
+            let cardName = request.attempt.cardIDForDisplay ?? request.attempt.cardID
             Text(
-                "This aborts the running Attempt on \(request.attempt.cardID). The Card is Blocked with the Block " +
+                "This aborts the running Attempt on \(cardName). The Card is Blocked with the Block " +
                     "Reason “operator abort” until you re-ready it in Linear: the Card is reclaimable, and no " +
                     "partial state was written as if it were complete. The Attempt does not count against the " +
                     "Card's Attempts and does not rule its route out. Nothing else is stopped."

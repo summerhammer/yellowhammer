@@ -56,7 +56,7 @@ private struct FeatureHeader: View {
                 .fontWeight(.medium)
                 .multilineTextAlignment(.leading)
             HStack(spacing: 6) {
-                Text(feature.id).font(.caption.monospaced()).foregroundStyle(.secondary)
+                Text(feature.issueIDForDisplay ?? feature.id).font(.caption.monospaced()).foregroundStyle(.secondary)
                 if let state = feature.state {
                     PulseCountBadge(text: state, style: .neutral)
                 } else {
@@ -126,5 +126,5 @@ private struct FeatureLaneRow: View {
 
 private extension FeatureInFlight {
     /// The Feature's title, or its id while the title is not known.
-    var displayTitle: String { title ?? id }
+    var displayTitle: String { title ?? (issueIDForDisplay ?? id) }
 }

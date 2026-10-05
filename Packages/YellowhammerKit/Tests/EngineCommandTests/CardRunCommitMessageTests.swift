@@ -166,7 +166,7 @@ struct CardRunCommitMessageTests {
 
     @Test("A reported commit with no trailer is recorded; the Card ends Done exactly as without the record")
     func missingTrailerIsRecordedAndOutcomeUnchanged() async throws {
-        let repo = GateGitFixture(name: "cardrun-trailer")
+        let repo = GateGitFixture(name: "cardrun-trailer-\(UUID().uuidString)")
         await repo.initRepo()
         let base = try await repo.commit(filename: "a.txt", message: "initial")
         _ = try await repo.commit(filename: "b.txt", message: "feat: tagged\n\nYellowhammer-Card: YLH-7")
@@ -189,7 +189,7 @@ struct CardRunCommitMessageTests {
 
     @Test("A Round that re-reports the same HEAD does not record the commit twice")
     func roundDoesNotRecordTwice() async throws {
-        let repo = GateGitFixture(name: "cardrun-trailer-round")
+        let repo = GateGitFixture(name: "cardrun-trailer-round-\(UUID().uuidString)")
         await repo.initRepo()
         let base = try await repo.commit(filename: "a.txt", message: "initial")
         let bare = try await repo.commit(filename: "c.txt", message: "feat: bare")
@@ -208,7 +208,7 @@ struct CardRunCommitMessageTests {
 
     @Test("A reported commit git cannot read is recorded as unread, and the Card's outcome is unchanged")
     func unreadableCommitIsRecordedAsUnread() async throws {
-        let repo = GateGitFixture(name: "cardrun-trailer-unread")
+        let repo = GateGitFixture(name: "cardrun-trailer-unread-\(UUID().uuidString)")
         await repo.initRepo()
         let base = try await repo.commit(filename: "a.txt", message: "initial")
         let fixture = try OutboxJournalFixture()

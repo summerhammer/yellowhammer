@@ -85,9 +85,10 @@ public struct NeedsYou: Equatable, Sendable {
 
 /// A Card that needs a decision, opened in one hop into the Inspector.
 public struct DecisionCard: Identifiable, Equatable, Sendable {
-    /// The Linear issue id, as the Journal records it. The identifier a person reads (`YH-142`) is in
-    /// ``link``.
+    /// The Linear issue id, as the Journal records it.
     public let id: String
+    /// The readable issue identifier (e.g. `ENG-123`), recorded for display.
+    public var issueIDForDisplay: String?
     public var title: String
     /// `.blocked` or `.waitingOnYou`.
     public var state: CardState
@@ -99,6 +100,7 @@ public struct DecisionCard: Identifiable, Equatable, Sendable {
 
     public init(
         id: String,
+        issueIDForDisplay: String? = nil,
         title: String,
         state: CardState,
         blockReason: BlockReason?,
@@ -106,11 +108,31 @@ public struct DecisionCard: Identifiable, Equatable, Sendable {
         link: LinearIssueLink? = nil
     ) {
         self.id = id
+        self.issueIDForDisplay = issueIDForDisplay
         self.title = title
         self.state = state
         self.blockReason = blockReason
         self.repo = repo
         self.link = link
+    }
+
+    public init(
+        id: String,
+        title: String,
+        state: CardState,
+        blockReason: BlockReason?,
+        repo: String,
+        link: LinearIssueLink? = nil
+    ) {
+        self.init(
+            id: id,
+            issueIDForDisplay: nil,
+            title: title,
+            state: state,
+            blockReason: blockReason,
+            repo: repo,
+            link: link
+        )
     }
 }
 
@@ -163,6 +185,8 @@ public struct RunningAttempt: Identifiable, Equatable, Sendable {
     public let id: String
     /// The running Card's Linear issue id, as the Journal records it.
     public var cardID: String
+    /// The running Card's readable identifier (e.g. `ENG-123`), recorded for display.
+    public var cardIDForDisplay: String?
     public var cardTitle: String
     public var repo: String
     /// The route `(cli, model, effort)`, rendered as `Route.description` renders it.
@@ -178,6 +202,7 @@ public struct RunningAttempt: Identifiable, Equatable, Sendable {
     public init(
         id: String,
         cardID: String,
+        cardIDForDisplay: String? = nil,
         cardTitle: String,
         repo: String,
         route: String,
@@ -188,6 +213,7 @@ public struct RunningAttempt: Identifiable, Equatable, Sendable {
     ) {
         self.id = id
         self.cardID = cardID
+        self.cardIDForDisplay = cardIDForDisplay
         self.cardTitle = cardTitle
         self.repo = repo
         self.route = route
@@ -196,13 +222,39 @@ public struct RunningAttempt: Identifiable, Equatable, Sendable {
         self.status = status
         self.cardLink = cardLink
     }
+
+    public init(
+        id: String,
+        cardID: String,
+        cardTitle: String,
+        repo: String,
+        route: String,
+        startedAt: Date,
+        round: Int,
+        status: String?,
+        cardLink: LinearIssueLink? = nil
+    ) {
+        self.init(
+            id: id,
+            cardID: cardID,
+            cardIDForDisplay: nil,
+            cardTitle: cardTitle,
+            repo: repo,
+            route: route,
+            startedAt: startedAt,
+            round: round,
+            status: status,
+            cardLink: cardLink
+        )
+    }
 }
 
 /// Feature: the in-flight Feature, its `rollup_state`, and its Repo Lanes.
 public struct FeatureInFlight: Equatable, Sendable {
-    /// The Feature Issue's Linear issue id, as the Journal records it. The identifier a person reads is
-    /// in ``link``.
+    /// The Feature Issue's Linear issue id, as the Journal records it.
     public let id: String
+    /// The Feature Issue's readable identifier (e.g. `ENG-10`), recorded for display.
+    public var issueIDForDisplay: String?
     /// Nil from a Journal read: the Feature Issue's title lives in Linear.
     public var title: String?
     /// The Feature Issue's Linear workflow state. Nil from a Journal read: it lives in Linear.
@@ -215,6 +267,7 @@ public struct FeatureInFlight: Equatable, Sendable {
 
     public init(
         id: String,
+        issueIDForDisplay: String? = nil,
         title: String?,
         state: String?,
         rollupState: RollUpState?,
@@ -222,11 +275,31 @@ public struct FeatureInFlight: Equatable, Sendable {
         link: LinearIssueLink? = nil
     ) {
         self.id = id
+        self.issueIDForDisplay = issueIDForDisplay
         self.title = title
         self.state = state
         self.rollupState = rollupState
         self.lanes = lanes
         self.link = link
+    }
+
+    public init(
+        id: String,
+        title: String?,
+        state: String?,
+        rollupState: RollUpState?,
+        lanes: [RepoLaneSnapshot],
+        link: LinearIssueLink? = nil
+    ) {
+        self.init(
+            id: id,
+            issueIDForDisplay: nil,
+            title: title,
+            state: state,
+            rollupState: rollupState,
+            lanes: lanes,
+            link: link
+        )
     }
 }
 
@@ -262,18 +335,31 @@ public struct RepoLaneSnapshot: Identifiable, Equatable, Sendable {
 
 /// One member Card of a Repo Lane: enough to list it in the Inspector.
 public struct LaneCard: Identifiable, Equatable, Sendable {
-    /// The Linear issue id, as the Journal records it. The identifier a person reads is in ``link``.
+    /// The Linear issue id, as the Journal records it.
     public let id: String
+    /// The readable issue identifier (e.g. `ENG-123`), recorded for display.
+    public var issueIDForDisplay: String?
     public var title: String
     public var state: CardState
     /// The Card's Linear issue; nil until the Delta Read has recorded its identifier and URL.
     public var link: LinearIssueLink?
 
-    public init(id: String, title: String, state: CardState, link: LinearIssueLink? = nil) {
+    public init(
+        id: String,
+        issueIDForDisplay: String? = nil,
+        title: String,
+        state: CardState,
+        link: LinearIssueLink? = nil
+    ) {
         self.id = id
+        self.issueIDForDisplay = issueIDForDisplay
         self.title = title
         self.state = state
         self.link = link
+    }
+
+    public init(id: String, title: String, state: CardState, link: LinearIssueLink? = nil) {
+        self.init(id: id, issueIDForDisplay: nil, title: title, state: state, link: link)
     }
 }
 
@@ -296,89 +382,4 @@ public enum PullRequestState: String, CaseIterable, Sendable {
     case draft
     case merged
     case closed
-}
-
-/// Tonight / last Night: `verdict_line`, `cards_by_disposition` counts, and Night state.
-public struct NightPulse: Equatable, Sendable {
-    public var state: NightPulseState
-    public var startedAt: Date
-    /// A factual failure count from the Journal, otherwise nil; the full Night Summary lives in Engine.
-    public var verdictLine: String?
-    /// Cards counted by disposition, in display order; zero counts are omitted.
-    public var cardsByDisposition: [DispositionCount]
-    /// Explains zero touched Cards using the immutable opening observation and recorded failures.
-    public var cardsAbsence: String
-    /// The Night Card's Linear issue; nil until the Delta Read has recorded its identifier and URL.
-    public var nightCard: LinearIssueLink?
-
-    public init(
-        state: NightPulseState,
-        startedAt: Date,
-        verdictLine: String?,
-        cardsByDisposition: [DispositionCount],
-        cardsAbsence: String = "No Cards touched",
-        nightCard: LinearIssueLink? = nil
-    ) {
-        self.state = state
-        self.startedAt = startedAt
-        self.verdictLine = verdictLine
-        self.cardsByDisposition = cardsByDisposition
-        self.cardsAbsence = cardsAbsence
-        self.nightCard = nightCard
-    }
-}
-
-public enum NightPulseState: String, CaseIterable, Sendable {
-    case running
-    case done
-    case halted
-    /// The Journal read never produces this: no starved record exists in the Journal.
-    case starved
-}
-
-public struct DispositionCount: Identifiable, Equatable, Sendable {
-    public var disposition: CardState
-    public var count: Int
-
-    public var id: CardState { disposition }
-
-    public init(disposition: CardState, count: Int) {
-        self.disposition = disposition
-        self.count = count
-    }
-}
-
-/// One doctor finding or aggregated Journal failure the Health group shows.
-public struct HealthFlag: Identifiable, Equatable, Sendable {
-    public var kind: HealthFlagKind
-    public var detail: String
-    public var occurrenceCount: Int
-    public var lastOccurredAt: Date?
-
-    /// A flag is its kind and detail; repeated Journal failures update its count and time.
-    public var id: String { "\(kind.rawValue): \(detail)" }
-
-    public init(
-        kind: HealthFlagKind, detail: String, occurrenceCount: Int = 1, lastOccurredAt: Date? = nil
-    ) {
-        self.kind = kind
-        self.detail = detail
-        self.occurrenceCount = occurrenceCount
-        self.lastOccurredAt = lastOccurredAt
-    }
-
-    /// Settings destination for doctor findings. Journal failures are read-only Health rows.
-    public var destination: PulseDestination {
-        switch kind {
-        case .staleOperatorIdentity, .appInstallationRevoked: .linearWorkspaces
-        case .probeFailure, .actFailure: .settings
-        }
-    }
-}
-
-public enum HealthFlagKind: String, CaseIterable, Sendable {
-    case staleOperatorIdentity = "stale Operator identity"
-    case appInstallationRevoked = "App Installation revoked"
-    case probeFailure = "probe failure"
-    case actFailure = "Act failure"
 }

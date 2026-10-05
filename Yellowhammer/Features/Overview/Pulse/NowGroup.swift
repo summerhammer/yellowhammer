@@ -83,7 +83,7 @@ private struct RunningAttemptRow: View {
                 .foregroundStyle(.active)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
-                Text("\(attempt.cardID)  \(attempt.cardTitle)").lineLimit(1)
+                Text("\(attempt.cardIDForDisplay ?? attempt.cardID)  \(attempt.cardTitle)").lineLimit(1)
                 Text(attempt.detailLine)
                     .font(.caption)
                     .foregroundStyle(.secondary)
