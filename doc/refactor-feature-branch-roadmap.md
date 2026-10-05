@@ -269,7 +269,25 @@ Read the ruling and the story before each step.
     `featureBranches` reads a released Feature.
   - The app's read-only open accepts `-4` and refuses `-3`.
 
-### [ ] B1.2 Consumers resolve the branch per (Feature, repo)
+### [x] B1.2 Consumers resolve the branch per (Feature, repo)
+
+**Status** — done 2026-10-05 (`4cf8e5b`).
+- **Landed:**
+  - `WorktreeReconciler.reconcile(feature:)` resolves per held record.
+  - The testers take `branches: [String: FeatureBranch]`; a repo absent from the map is reported
+    indeterminate (ancestry) or untestable (merge) without running git. The `branchName:` overloads
+    are gone.
+  - The gate uses the new `resolvedFeatureBranches(feature:repositories:)`, which shares the fallback
+    with `resolvedFeatureBranch`.
+  - Verification carries a per-repo branch, and the title no longer names one.
+  - Land, push, PR, Card frame and removal were already per repo in B1.1. Refs under
+    `refs/yellowhammer/` take the slashed name unchanged.
+- **Done-when:** the `feature.branch` grep and the `B1.2` markers are empty. The full suite is green,
+  including WorktreeReconcilerContinued and CardRunCommitMessage. The app builds, lint `--strict`
+  reports 0, and module boundaries pass.
+- **ACs:** the glossary's per-(Feature, repo) ancestry and merge reads, and the story
+  `reconcile-worktrees-at-act-start`'s WIP commit "on the Feature Branch recorded for that
+  repository", are met in code. The two-repo, different-prefix tests are B1.3's.
 
 - **Work**
   - Replace every `feature.branch` read with a per-repo lookup, using one shared helper that falls back
