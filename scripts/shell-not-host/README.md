@@ -53,3 +53,26 @@ Unit tests: `python3 -m unittest discover -s scripts/shell-not-host/tests -v`.
 
 This is not a UI test on purpose: under `xcodebuild test`, `testmanagerd` reaps a process the app
 spawns detached within about a second, whether or not the app quits (see `RecalibrateUITests`).
+
+## On-demand Author launch (#317)
+
+The selected Project's **Start Author** toolbar button launches `yh author --project <id>` and
+returns immediately. The CLI owns lease contention: if another Act holds the lease, Author stands
+down normally. The app retains only synchronous launch errors; it tracks no running or completed
+state. Output appends to `~/Library/Logs/Yellowhammer/<id>.author.log`, the scheduled Author log.
+
+`check_author_launch.py` drives that real toolbar through System Events, using a scratch configuration
+with two Projects and a held shell stub. It selects the second Project, checks the exact argv, clicks
+Re-read and Author again while the child is held (the stub stands down), quits the app, then releases
+the child and checks its completion and merged stdout/stderr log. It also makes the log unwritable and
+checks that the app shows its launch failure without starting another child. It needs Accessibility
+permission and the app quit before starting. Actual lease behavior remains covered by
+`SingleWriterTests.overlappingActStandsDown`; the stub checks only that the app permits another launch.
+
+```sh
+python3 scripts/shell-not-host/check_author_launch.py \
+    --app build/DerivedData/Build/Products/Debug/Yellowhammer.app
+```
+
+The script leaves its scratch directory and evidence paths in its output. It proves the app's
+detachment and scope, without invoking the real Author or asserting model-authored engine work.
