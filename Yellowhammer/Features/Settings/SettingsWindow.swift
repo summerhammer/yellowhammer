@@ -97,7 +97,7 @@ struct SettingsWindow: View {
         case .baseRoutingTable:
             BaseRoutingTablePane()
         case .refusedFiles:
-            RefusedFilesPane(configured: configured)
+            RefusedFilesPane(configured: configured, onRemoved: refusedProjectRemoved)
         case let .project(id):
             if let configured {
                 if let entry = configured.entry(for: id) {
@@ -138,6 +138,13 @@ struct SettingsWindow: View {
     private func projectRemoved() {
         readConfiguration()
         history.visit(.general)
+        projectListChanges.record()
+    }
+
+    /// A Project was removed from the Refused Files pane: reads the configuration again so its card goes, and
+    /// tells the other windows. The Operator stays on Refused Files, unlike `projectRemoved`.
+    private func refusedProjectRemoved() {
+        readConfiguration()
         projectListChanges.record()
     }
 

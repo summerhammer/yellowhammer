@@ -131,6 +131,42 @@ final class ProjectRemovalUITests: XCTestCase {
         confirm.click()
     }
 
+    /// Writes `projects/orphan.toml`: strict load refuses it (its installation is not in config.toml) and
+    /// the lenient load `yh project remove` uses accepts it.
+    private func writeOrphanProjectFile() throws {
+        try """
+        id = "orphan"
+        name = "Orphan"
+        spec_source = "~/dev/spec"
+
+        [board.linear]
+        installation = "gone"
+        project = "ORPHAN"
+
+        [[repos]]
+        name = "orphan"
+        path = "~/dev/orphan"
+        role = "backend"
+        check = "swift test"
+        """.write(
+            to: configurationDirectory.appending(components: "projects", "orphan.toml", directoryHint: .notDirectory),
+            atomically: true, encoding: .utf8
+        )
+    }
+
+    /// Launches, opens Settings and shows Refused Files.
+    private func openRefusedFiles() {
+        app.launch()
+        XCTAssertTrue(element("sidebar-archive").waitForExistence(timeout: 10))
+        app.activate()
+        app.menuBars.menuBarItems["Yellowhammer"].click()
+        app.menuBars.menuItems["Settings\u{2026}"].click()
+        let row = element("settings-refused-files")
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.click()
+        XCTAssertTrue(element("settings-refused-file-0").waitForExistence(timeout: 5))
+    }
+
     // MARK: Tests
 
     func testRemoveIsConfirmedByTypingTheProjectID() {
@@ -192,5 +228,38 @@ final class ProjectRemovalUITests: XCTestCase {
         XCTAssertTrue(element("settings-project-remove-sheet").waitForNonExistence(timeout: 5))
         XCTAssertTrue(element("settings-project-archive").exists, "a refused removal must keep the Project")
         XCTAssertTrue(element("sidebar-archive").exists)
+    }
+
+    func testRefusedFileRemovalIsOfferedOnlyWhereYhWouldAct() throws {
+        try writeOrphanProjectFile()
+        openRefusedFiles()
+
+        // broken.toml sorts first and is malformed, so yh refuses it too.
+        XCTAssertTrue(element("settings-refused-unremovable-0").exists)
+        XCTAssertFalse(element("settings-refused-remove-broken").exists)
+        let remove = element("settings-refused-remove-orphan")
+        XCTAssertTrue(remove.waitForExistence(timeout: 5))
+        XCTAssertTrue(remove.isEnabled, "the stub stands in for yh, so the removal is available")
+        remove.click()
+        XCTAssertTrue(element("settings-project-remove-sheet").waitForExistence(timeout: 5))
+
+        type("orphan")
+        let confirm = element("settings-project-remove-confirm")
+        XCTAssertTrue(waitUntil { confirm.isEnabled }, "typing the id never enabled the button")
+        confirm.click()
+
+        XCTAssertTrue(
+            waitUntil(timeout: 10) { removalRuns().contains("project remove orphan --yes") }, // glossary:ignore GL001
+            "yh never ran: \(recordedArguments())"
+        )
+        try FileManager.default.removeItem(
+            at: configurationDirectory.appending(components: "projects", "orphan.toml", directoryHint: .notDirectory)
+        )
+        openGate("project-removed")
+
+        XCTAssertTrue(element("settings-project-remove-sheet").waitForNonExistence(timeout: 10))
+        XCTAssertTrue(remove.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(element("settings-refused-file-0").exists, "broken is still refused")
+        XCTAssertTrue(element("settings-refused-unremovable-0").exists, "the Operator stays on Refused Files")
     }
 }
