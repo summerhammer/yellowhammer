@@ -36,6 +36,12 @@ extension JournalStore {
     /// Act-scoped lease before writing. When `featureBranch` (what Orca ADE reported at allocation) is
     /// given it is recorded for the pair in the same transaction (``recordFeatureBranch(featureID:repository:branch:)``
     /// rules): a conflict with the recorded name throws and rolls the Worktree row back too.
+    ///
+    /// `clearingRecoveryCommit` is the recovery commit (OQ123) this allocation verified: when non-nil the
+    /// pair's `recovery_commit` is set to NULL in the same transaction, but only if it still equals that
+    /// value, so a different recorded commit is never cleared. Recording the Worktree and clearing the
+    /// recovery are one write — a crash between them would otherwise leave a recorded Worktree whose
+    /// recovery still reads as outstanding.
     @discardableResult
     public func recordWorktree(
         featureID: Int64,
@@ -45,7 +51,8 @@ extension JournalStore {
         runID: RunID,
         lastKnownGoodCommit: String? = nil,
         now: Date = Date(),
-        featureBranch: FeatureBranch? = nil
+        featureBranch: FeatureBranch? = nil,
+        clearingRecoveryCommit: String? = nil
     ) throws -> WorktreeRecord {
         try write { db in
             _ = try Self.revalidateActLease(db, runID: runID, now: now)
@@ -68,6 +75,16 @@ extension JournalStore {
 
             if let featureBranch {
                 try Self.upsertFeatureBranch(db, featureID: featureID, repository: repository, branch: featureBranch)
+            }
+
+            if let clearingRecoveryCommit {
+                try db.execute(
+                    sql: """
+                    UPDATE feature_repository SET recovery_commit = NULL
+                    WHERE feature_id = ? AND repository = ? AND recovery_commit = ?
+                    """,
+                    arguments: [featureID, repository, clearingRecoveryCommit]
+                )
             }
 
             return WorktreeRecord(

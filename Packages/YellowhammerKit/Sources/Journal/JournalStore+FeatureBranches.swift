@@ -43,6 +43,63 @@ extension JournalStore {
         }
     }
 
+    /// The Feature Branch tip a ghost-Worktree purge pinned at `refs/yellowhammer/recovery/<branch>` for
+    /// `featureID`'s `repository`, nil when none is outstanding (OQ123). Non-nil only between that purge
+    /// and the re-allocation that verifies the re-created branch.
+    public func recoveryCommit(featureID: Int64, repository: String) throws -> String? {
+        try read { db in
+            try String.fetchOne(
+                db,
+                sql: "SELECT recovery_commit FROM feature_repository WHERE feature_id = ? AND repository = ?",
+                arguments: [featureID, repository]
+            )
+        }
+    }
+
+    /// Records, before a ghost-Worktree purge, the Feature Branch tip the purge is about to pin (OQ123).
+    /// One write transaction, revalidating the Act-scoped lease first. The pair's row must exist with a
+    /// Feature Branch recorded, else ``JournalError/recoveryCommitRefused(featureID:repository:reason:)``.
+    /// Recording the same commit again is a no-op; a different commit over a non-nil one throws the same
+    /// error — a second ghost before recovery is impossible by construction, and refusing is safer than
+    /// losing the first SHA.
+    public func recordRecoveryCommit(
+        featureID: Int64, repository: String, commit: String, runID: RunID, now: Date = Date()
+    ) throws {
+        try write { db in
+            _ = try Self.revalidateActLease(db, runID: runID, now: now)
+
+            guard let row = try Row.fetchOne(
+                db,
+                sql: "SELECT branch, recovery_commit FROM feature_repository WHERE feature_id = ? AND repository = ?",
+                arguments: [featureID, repository]
+            ) else {
+                throw JournalError.recoveryCommitRefused(
+                    featureID: featureID, repository: repository, reason: "the pair has no row"
+                )
+            }
+            let branch: String? = row["branch"]
+            guard branch != nil else {
+                throw JournalError.recoveryCommitRefused(
+                    featureID: featureID, repository: repository, reason: "no Feature Branch is recorded"
+                )
+            }
+            let existing: String? = row["recovery_commit"]
+            if let existing {
+                guard existing == commit else {
+                    throw JournalError.recoveryCommitRefused(
+                        featureID: featureID, repository: repository,
+                        reason: "recovery commit \(existing) is already recorded"
+                    )
+                }
+                return
+            }
+            try db.execute(
+                sql: "UPDATE feature_repository SET recovery_commit = ? WHERE feature_id = ? AND repository = ?",
+                arguments: [commit, featureID, repository]
+            )
+        }
+    }
+
     /// The Feature Branch to use for `repository`: the recorded one, else the Feature's Worktree name.
     /// The fallback is deliberate — an unallocated lane's ref cannot exist, so ref probes fail as before.
     public func resolvedFeatureBranch(feature: FeatureRecord, repository: String) throws -> FeatureBranch? {

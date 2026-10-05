@@ -10,7 +10,8 @@ extension JournalEvent {
             featureID: try reader.int64("feature_id"),
             repository: try reader.require("repository"),
             worktreeID: try reader.require("worktree_id"),
-            path: try reader.require("path")
+            path: try reader.require("path"),
+            pinnedCommit: reader.payload?["pinned_commit"]
         )
     }
 

@@ -132,11 +132,15 @@ func insertReconcilerCard(
     }
 }
 
-/// Initializes a git repository at `directory` with one commit, returning the commit's SHA.
+/// Initializes a git repository at `directory` with one commit, returning the commit's SHA. `branch` is
+/// the initial branch: a fixture that records `directory` itself as a held Worktree passes the Feature
+/// Branch, because reconciliation refuses a Worktree whose HEAD is on another branch.
 @discardableResult
-func initReconcilerGitRepo(at directory: URL, git: GitRunner) async throws -> String {
+func initReconcilerGitRepo(
+    at directory: URL, git: GitRunner = GitRunner(), branch: String = "main"
+) async throws -> String {
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    _ = await git.run(["init", "--initial-branch=main"], workingDirectory: directory.path)
+    _ = await git.run(["init", "--initial-branch=\(branch)"], workingDirectory: directory.path)
     _ = await git.run(["config", "user.name", "Test"], workingDirectory: directory.path)
     _ = await git.run(["config", "user.email", "test@example.com"], workingDirectory: directory.path)
     _ = await git.run(["config", "commit.gpgsign", "false"], workingDirectory: directory.path)
@@ -215,6 +219,10 @@ struct WorktreeReconcilerTests {
         let (backendWorktree, _) = try await makeReconcilerRepoAndWorktree(
             named: "backend", branch: reconcilerBranch.name, in: tempDir, git: git
         )
+        let backendRepository = tempDir.appendingPathComponent("backend-repo")
+        let tipBeforePurge = await reconcilerRevParse(
+            "refs/heads/\(reconcilerBranch.name)", in: backendRepository, git: git
+        )
         try FileManager.default.removeItem(at: backendWorktree)
 
         let (mobileWorktree, _) = try await makeReconcilerRepoAndWorktree(
@@ -243,8 +251,13 @@ struct WorktreeReconcilerTests {
         )
 
         let workspace = ReconcilerFakeWorkspace()
+        // This fake never deletes the branch the way Orca ADE does, so the wait for that deletion is tiny.
         let reconciler = WorktreeReconciler(
-            workspace: workspace, journal: journal, runID: runID, act: .build, nightID: nil, git: git
+            workspace: workspace, journal: journal, runID: runID, act: .build, nightID: nil, git: git,
+            repositories: ProjectRepositories(workingRepos: [
+                Repo(name: "backend", path: backendRepository.path, role: .backend)
+            ]),
+            branchDeletionTimeout: .milliseconds(50), branchDeletionPollInterval: .milliseconds(10)
         )
 
         let result = try await reconciler.reconcile(feature: try #require(journal.feature(id: featureID)))
@@ -265,6 +278,13 @@ struct WorktreeReconcilerTests {
 
         #expect(try journal.events(ofType: .worktreeLost).count == 1)
         #expect(try journal.events(ofType: .cardStateTransitioned).count == 1)
+
+        // The Feature Branch tip was pinned in the main repository, and recorded, before the purge.
+        let pinRef = FeatureBranchRecoveryPin.ref(for: reconcilerBranch)
+        #expect(pinRef == "refs/yellowhammer/recovery/\(reconcilerBranch.name)")
+        #expect(!tipBeforePurge.isEmpty)
+        await #expect(reconcilerRevParse(pinRef, in: backendRepository, git: git) == tipBeforePurge)
+        #expect(try journal.recoveryCommit(featureID: featureID, repository: "backend") == tipBeforePurge)
 
         #expect(try journal.card(id: inProgressBackend).state == .todo)
         #expect(try journal.card(id: inProgressMobile).state == .inProgress)

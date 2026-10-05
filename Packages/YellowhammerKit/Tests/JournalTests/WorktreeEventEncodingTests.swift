@@ -36,13 +36,18 @@ func worktreeLostRoundTrips() throws {
     let run = RunID()
 
     try journal.append(
-        .worktreeLost(featureID: 1, repository: "backend", worktreeID: "wt-1", path: "/tmp/wt-1"),
+        .worktreeLost(
+            featureID: 1, repository: "backend", worktreeID: "wt-1", path: "/tmp/wt-1", pinnedCommit: "abc123"
+        ),
         act: .build, runID: run, now: epoch
     )
     let records = try journal.events()
 
     #expect(records.count == 1)
-    guard case .worktreeLost(let featureID, let repository, let worktreeID, let path) = records[0].event else {
+    guard
+        case .worktreeLost(let featureID, let repository, let worktreeID, let path, let pinnedCommit) =
+        records[0].event
+    else {
         Issue.record("Event is not worktreeLost")
         return
     }
@@ -50,6 +55,7 @@ func worktreeLostRoundTrips() throws {
     #expect(repository == "backend")
     #expect(worktreeID == "wt-1")
     #expect(path == "/tmp/wt-1")
+    #expect(pinnedCommit == "abc123")
 }
 
 @Test("worktreeFenced event round-trips")

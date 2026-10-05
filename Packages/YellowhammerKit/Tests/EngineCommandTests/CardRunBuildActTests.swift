@@ -18,7 +18,9 @@ struct CardRunBuildActTests {
         let git = GitRunner()
         let worktrees = fixture.directory.appending(component: "worktrees", directoryHint: .isDirectory)
         for repository in ["backend", "mobile"] {
-            try await initReconcilerGitRepo(at: worktrees.appending(component: repository), git: git)
+            try await initReconcilerGitRepo(
+                at: worktrees.appending(component: repository), git: git, branch: buildActBranch.name
+            )
         }
         let world = try await makeCardRunWorld(
             journal: journal, cards: [("BACK-1", "backend"), ("BACK-2", "backend"), ("MOB-1", "mobile")],
