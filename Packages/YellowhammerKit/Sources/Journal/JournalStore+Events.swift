@@ -62,6 +62,27 @@ extension JournalStore {
         }
     }
 
+    /// Selected Night rows plus unstamped failures since the supplied boundary, filtered in SQL.
+    /// Unstamped failures can precede Night opening when an Act fails during invocation setup.
+    public func pulseEvents(nightID: Int64?, unstampedFailuresSince: Date) throws -> [JournalEventRecord] {
+        try read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                SELECT * FROM event
+                WHERE night_id = ? OR (night_id IS NULL AND type = ? AND occurred_at >= ?
+                    AND id > COALESCE((SELECT MAX(id) FROM event WHERE type = ?), 0))
+                ORDER BY id ASC
+                """,
+                arguments: [
+                    nightID, JournalEventType.actIncomplete.rawValue, Self.timestamp(unstampedFailuresSince),
+                    JournalEventType.actEnded.rawValue
+                ]
+            )
+            return try Self.decodeEvents(rows)
+        }
+    }
+
     /// The most recent Act lifecycle row, ordered by append id and limited in SQL.
     public func latestActLifecycleEvent() throws -> JournalEventRecord? {
         try read { db in

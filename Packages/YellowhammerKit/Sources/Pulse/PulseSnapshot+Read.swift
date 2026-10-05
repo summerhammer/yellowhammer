@@ -9,7 +9,7 @@ extension PulseSnapshot {
     /// Project's Journal (ADR-002): every value below comes from this one store. It only reads.
     ///
     /// What the Journal cannot say stays nil: `now.nextAct`, the Feature's title/state/rollup state, a
-    /// pull request's state, an Attempt's status line, the Night's verdict line and `health`.
+    /// pull request's state, an Attempt's status line, and the full Night Summary.
     ///
     /// `status` is handed in as the launchd fallback. An unexpired Journal lease is the authoritative
     /// running Act when readable; launchd remains useful when the Journal is absent or unreadable.
@@ -26,13 +26,30 @@ extension PulseSnapshot {
         } else {
             status
         }
+        let now = try now(journal, inFlight: inFlight, status: resolvedStatus, runningAct: runningAct)
+        let selectedNight = try journal.currentNight() ?? journal.nights().last
+        let events = try journal.pulseEvents(
+            nightID: selectedNight?.id,
+            unstampedFailuresSince: selectedNight?.openedAt ?? Date(timeIntervalSince1970: 0)
+        )
+        let failures = JournalFailures(events: events)
+        let liveRunID = runningAct != nil ? try journal.currentActLease()?.runID : nil
         return PulseSnapshot(
             needsYou: try needsYou(journal),
-            now: try now(journal, inFlight: inFlight, status: resolvedStatus, runningAct: runningAct),
-            feature: try feature(journal, inFlight: inFlight),
-            night: try night(journal),
-            health: nil
+            now: now,
+            feature: try feature(
+                journal, inFlight: inFlight, now: now,
+                runningLanes: runningLanes(night: selectedNight, events: events, liveRunID: liveRunID)
+            ),
+            night: try selectedNight.map { try night($0, journal: journal, events: events) },
+            health: failures.flags.isEmpty ? nil : failures.flags
         )
+    }
+
+    /// Adds doctor findings without dropping failures already read from this Project's Journal.
+    public mutating func mergeDoctorHealth(_ flags: [HealthFlag]?) {
+        guard let flags else { return }
+        health = (health ?? []) + flags
     }
 
     // MARK: Needs you
@@ -112,7 +129,9 @@ extension PulseSnapshot {
 
     private static func feature(
         _ journal: JournalStore,
-        inFlight: (feature: FeatureRecord, cycleID: Int64)?
+        inFlight: (feature: FeatureRecord, cycleID: Int64)?,
+        now: Now,
+        runningLanes: Set<String>
     ) throws -> FeatureInFlight? {
         guard let inFlight else { return nil }
         let featureID = inFlight.feature.id
@@ -134,8 +153,11 @@ extension PulseSnapshot {
                     .blocked
                 } else if laneCards.contains(where: { $0.state == .waitingOnYou }) {
                     .waitingOnYou
-                } else {
+                } else if now.attempts.contains(where: { $0.repo == repo })
+                    || runningLanes.contains(repo) {
                     .running
+                } else {
+                    .idle
                 }
             return RepoLaneSnapshot(
                 repo: repo,
@@ -163,6 +185,21 @@ extension PulseSnapshot {
         )
     }
 
+    private static func runningLanes(
+        night: NightRecord?, events: [JournalEventRecord], liveRunID: RunID?
+    ) -> Set<String> {
+        guard night?.state == .opened, let liveRunID else { return [] }
+        var repos: Set<String> = []
+        for record in events where record.runID == liveRunID {
+            switch record.event {
+            case .repoLaneStarted(let repository, _): repos.insert(repository)
+            case .repoLaneEnded(let repository, _, _, _): repos.remove(repository)
+            default: break
+            }
+        }
+        return repos
+    }
+
     /// The pull request's number is the last path component of its URL; nil when there is no URL, it is
     /// not an `https` or `http` URL, or it does not end in a number.
     private static func chip(_ record: PullRequestRecord) -> PullRequestChip? {
@@ -175,14 +212,28 @@ extension PulseSnapshot {
 
     // MARK: Night
 
-    private static func night(_ journal: JournalStore) throws -> NightPulse? {
-        // `nights()` is oldest first, so the last is the most recent.
-        guard let night = try journal.currentNight() ?? journal.nights().last else { return nil }
+    private static func night(
+        _ night: NightRecord, journal: JournalStore, events: [JournalEventRecord]
+    ) throws -> NightPulse {
+        // Unstamped invocation failures belong in Health, not in a Night they never reached.
+        let count = JournalFailures(events: events.filter { $0.nightID == night.id }).failedRunCount
+        let opening = try journal.openingReadyState(nightID: night.id)
+        let eligibility = opening == .zero ? "no eligible Cards at opening" : "opening eligibility unknown"
+        let absence: String = if count > 0, opening == .nonzero {
+            "No Cards touched — eligible Cards were available; Act failures recorded"
+        } else if count > 0 {
+            "No Cards touched — Acts failed; \(eligibility)"
+        } else if opening == .zero {
+            "No Cards touched — no eligible Cards at opening"
+        } else {
+            "No Cards touched"
+        }
         return NightPulse(
-            state: night.state == .opened ? .running : .done,
+            state: night.state == .opened ? .running : (count > 0 ? .halted : .done),
             startedAt: night.openedAt,
-            verdictLine: nil,
-            cardsByDisposition: try dispositions(night: night, journal: journal),
+            verdictLine: count > 0 ? "\(count) Act run\(count == 1 ? "" : "s") failed — see Health" : nil,
+            cardsByDisposition: try dispositions(night: night, journal: journal, events: events),
+            cardsAbsence: absence,
             nightCard: LinearIssueLink.link(key: night.nightCardIssueKey, url: night.nightCardIssueURL)
         )
     }
@@ -196,9 +247,10 @@ extension PulseSnapshot {
     /// Cards touched this Night, counted by their current state in `CardState` case order, zero counts
     /// omitted. Engine's `NightSummary` reports only Blocked and Waiting on You over these Cards; the
     /// Pulse extends the same touched-Card set to every state (an approximation of "disposition").
-    private static func dispositions(night: NightRecord, journal: JournalStore) throws -> [DispositionCount] {
+    private static func dispositions(night: NightRecord, journal: JournalStore, events: [JournalEventRecord]
+    ) throws -> [DispositionCount] {
         var touched: Set<Int64> = []
-        let events = try journal.events().filter {
+        let events = events.filter {
             $0.nightID == night.id && touchedCardEventTypes.contains($0.type)
         }
         for record in events {

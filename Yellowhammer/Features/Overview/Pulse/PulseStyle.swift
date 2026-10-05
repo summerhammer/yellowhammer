@@ -38,6 +38,7 @@ extension LaneState {
         case .blocked: .error
         case .waitingOnYou: .attention
         case .landed: .success
+        case .idle: .neutral
         }
         return style
     }
@@ -62,6 +63,7 @@ extension NightPulseState {
         case .running: .active
         case .done: .info
         case .starved: .attention
+        case .halted: .error
         }
         return style
     }

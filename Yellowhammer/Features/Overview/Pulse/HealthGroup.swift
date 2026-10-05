@@ -1,12 +1,9 @@
 import Pulse
 import SwiftUI
 
-/// The Pulse's Health group: the `yh doctor` flags (stale Operator identity, App Installation revoked,
-/// probe failures), each with `yh doctor`'s own message. Opens the Settings window, where the Operator
-/// acts on a flag; the group itself fixes nothing.
-///
-/// `health` is nil until `yh doctor` has been read, and whenever it cannot be. The group states that
-/// rather than claiming there are no flags.
+/// The Pulse's Health group: recorded Act failures and `yh doctor` findings. Runtime failures show
+/// their reason, count and last occurrence; doctor findings open Settings, where the Operator acts.
+/// Nil states that doctor was not read when there are no recorded failures to show.
 struct HealthGroup: View {
     let health: [HealthFlag]?
     @Environment(\.openPulseDestination) private var openDestination
@@ -24,12 +21,15 @@ struct HealthGroup: View {
                     .accessibilityIdentifier("health-absence")
             case let flags?:
                 ForEach(flags) { flag in
-                    Button { openDestination(flag.destination) } label: { HealthFlagRow(flag: flag) }
-                        .buttonStyle(.plain)
-                        .help(flag.destination == .linearWorkspaces
-                            ? "Open Settings → Boards" : "Open the Project's Settings")
-                        // On the Button, which is the accessibility element the row's label becomes.
-                        .accessibilityIdentifier("health-flag")
+                    if flag.kind == .actFailure {
+                        HealthFlagRow(flag: flag).accessibilityIdentifier("health-flag")
+                    } else {
+                        Button { openDestination(flag.destination) } label: { HealthFlagRow(flag: flag) }
+                            .buttonStyle(.plain)
+                            .help(flag.destination == .linearWorkspaces
+                                ? "Open Settings → Boards" : "Open the Project's Settings")
+                            .accessibilityIdentifier("health-flag")
+                    }
                 }
             }
             Button("Open Settings") { openDestination(.settings) }
@@ -40,7 +40,7 @@ struct HealthGroup: View {
     }
 }
 
-/// One flag: its kind, and `yh doctor`'s message for it.
+/// One flag: its recorded detail, plus occurrence metadata for a Journal failure.
 private struct HealthFlagRow: View {
     let flag: HealthFlag
 
@@ -57,13 +57,28 @@ private struct HealthFlagRow: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
+                if let last = flag.lastOccurredAt {
+                    Text("\(occurrenceLabel) · last \(last.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer(minLength: 8)
         }
         .contentShape(.rect)
         // Combining children drops the selectable detail from the label, so both are spelled out.
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(flag.kind.displayName): \(flag.detail)")
+        .accessibilityLabel(accessibilityDescription)
+    }
+
+    private var occurrenceLabel: String {
+        "\(flag.occurrenceCount) failure\(flag.occurrenceCount == 1 ? "" : "s")"
+    }
+
+    private var accessibilityDescription: String {
+        let detail = "\(flag.kind.displayName): \(flag.detail)"
+        guard let last = flag.lastOccurredAt else { return detail }
+        return "\(detail). \(occurrenceLabel), last \(last.formatted(date: .abbreviated, time: .shortened))"
     }
 }
 

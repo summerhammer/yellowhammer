@@ -3,11 +3,10 @@ import Pulse
 import SwiftUI
 
 /// The Pulse's Tonight / last Night group: `verdict_line`, `cards_by_disposition` counts, and the
-/// Night's state (running / done / starved). Opens the Night Card — the decision itself stays in
+/// Night's state (running / done / halted / starved). Opens the Night Card — the decision itself stays in
 /// Linear.
 ///
-/// `verdict_line` is nil from a Journal read: only Engine's `NightSummary` computes it. The group
-/// states it as unknown rather than inventing one.
+/// The Journal read supplies a factual failure count; a full Night Summary remains unknown.
 struct NightGroup: View {
     let night: NightPulse?
     @Environment(\.openPulseDestination) private var openDestination
@@ -45,7 +44,7 @@ struct NightGroup: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("night-state")
                 if night.cardsByDisposition.isEmpty {
-                    Text("No Cards touched").foregroundStyle(.secondary)
+                    Text(night.cardsAbsence).foregroundStyle(.secondary)
                 } else {
                     NightDispositionCounts(counts: night.cardsByDisposition)
                 }

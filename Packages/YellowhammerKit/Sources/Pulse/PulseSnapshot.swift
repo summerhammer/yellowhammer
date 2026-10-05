@@ -11,8 +11,8 @@ public struct PulseSnapshot: Equatable, Sendable {
     public var feature: FeatureInFlight?
     /// The running Night, else the last one; nil when this Project has had no Night yet.
     public var night: NightPulse?
-    /// `yh doctor` flags. Nil means `yh doctor` was not read (it lives in `EngineCommand`, which the app
-    /// may not link, so a Journal read never fills it); empty means doctor ran and raised none.
+    /// Journal failures plus `yh doctor` flags. Nil means doctor was not read and no Journal
+    /// failures were found; empty means doctor ran and raised none.
     public var health: [HealthFlag]?
 
     public init(
@@ -302,10 +302,12 @@ public enum PullRequestState: String, CaseIterable, Sendable {
 public struct NightPulse: Equatable, Sendable {
     public var state: NightPulseState
     public var startedAt: Date
-    /// Nil from a Journal read: only Engine's `NightSummary` computes it.
+    /// A factual failure count from the Journal, otherwise nil; the full Night Summary lives in Engine.
     public var verdictLine: String?
     /// Cards counted by disposition, in display order; zero counts are omitted.
     public var cardsByDisposition: [DispositionCount]
+    /// Explains zero touched Cards using the immutable opening observation and recorded failures.
+    public var cardsAbsence: String
     /// The Night Card's Linear issue; nil until the Delta Read has recorded its identifier and URL.
     public var nightCard: LinearIssueLink?
 
@@ -314,12 +316,14 @@ public struct NightPulse: Equatable, Sendable {
         startedAt: Date,
         verdictLine: String?,
         cardsByDisposition: [DispositionCount],
+        cardsAbsence: String = "No Cards touched",
         nightCard: LinearIssueLink? = nil
     ) {
         self.state = state
         self.startedAt = startedAt
         self.verdictLine = verdictLine
         self.cardsByDisposition = cardsByDisposition
+        self.cardsAbsence = cardsAbsence
         self.nightCard = nightCard
     }
 }
@@ -327,6 +331,7 @@ public struct NightPulse: Equatable, Sendable {
 public enum NightPulseState: String, CaseIterable, Sendable {
     case running
     case done
+    case halted
     /// The Journal read never produces this: no starved record exists in the Journal.
     case starved
 }
@@ -343,25 +348,30 @@ public struct DispositionCount: Identifiable, Equatable, Sendable {
     }
 }
 
-/// One `yh doctor` flag the Health group shows.
+/// One doctor finding or aggregated Journal failure the Health group shows.
 public struct HealthFlag: Identifiable, Equatable, Sendable {
     public var kind: HealthFlagKind
     public var detail: String
+    public var occurrenceCount: Int
+    public var lastOccurredAt: Date?
 
-    /// A flag is its kind and its detail: two CLIs can each raise a probe failure.
+    /// A flag is its kind and detail; repeated Journal failures update its count and time.
     public var id: String { "\(kind.rawValue): \(detail)" }
 
-    public init(kind: HealthFlagKind, detail: String) {
+    public init(
+        kind: HealthFlagKind, detail: String, occurrenceCount: Int = 1, lastOccurredAt: Date? = nil
+    ) {
         self.kind = kind
         self.detail = detail
+        self.occurrenceCount = occurrenceCount
+        self.lastOccurredAt = lastOccurredAt
     }
 
-    /// Where the flag's fix lives: the Boards pane for the two installation flags, the
-    /// Project's Settings entry for a probe failure.
+    /// Settings destination for doctor findings. Journal failures are read-only Health rows.
     public var destination: PulseDestination {
         switch kind {
         case .staleOperatorIdentity, .appInstallationRevoked: .linearWorkspaces
-        case .probeFailure: .settings
+        case .probeFailure, .actFailure: .settings
         }
     }
 }
@@ -370,4 +380,5 @@ public enum HealthFlagKind: String, CaseIterable, Sendable {
     case staleOperatorIdentity = "stale Operator identity"
     case appInstallationRevoked = "App Installation revoked"
     case probeFailure = "probe failure"
+    case actFailure = "Act failure"
 }
