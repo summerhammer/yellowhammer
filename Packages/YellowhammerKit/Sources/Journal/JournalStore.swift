@@ -1,10 +1,11 @@
+import Darwin
 import Domain
 import Foundation
 import GRDB
 
-/// One Project's Journal. Single-writer: the engine invocation for that Project is its only writer,
-/// and it opens no other Project's. The app opens a Journal read-only and never migrates it. The
-/// Journal records the Linear workspace it was created against and is never re-pointed at another.
+/// One Project's Journal. The engine invocations for that Project are its only writers (they serialise
+/// on SQLite's lock, and on a lock file while creating or migrating), and none opens another Project's.
+/// The app opens a Journal read-only and never migrates it. The Journal records the Linear workspace it was created against and is never re-pointed at another.
 public final class JournalStore: Sendable {
     public let projectID: ProjectID
     public let fileURL: URL
@@ -135,24 +136,56 @@ public final class JournalStore: Sendable {
             throw JournalError.missing(path: fileURL.path)
         }
 
-        var config = Configuration()
-        config.foreignKeysEnabled = true
-        config.busyMode = .timeout(busyTimeout)
+        // Two Acts of one Project (`build` and `land`) fired in the same minute can reach a fresh, or
+        // deleted-and-recreated, Journal at once. Each opens its own connection, and GRDB's migrator does
+        // not serialise DDL across processes: both see no `grdb_migrations` table and both run
+        // `journal-schema-N`, and the loser dies with `table "night" already exists`. An exclusive flock
+        // on a sibling lock file, held from opening the connection through the migration, serialises
+        // them. No re-check is needed: once the winner has committed, the loser's `migrate` finds the
+        // schema migration applied and does nothing.
+        let queue = try withMigrationLock(for: fileURL) {
+            var config = Configuration()
+            config.foreignKeysEnabled = true
+            config.busyMode = .timeout(busyTimeout)
 
-        let queue = try DatabaseQueue(path: fileURL.path, configuration: config)
+            let queue = try DatabaseQueue(path: fileURL.path, configuration: config)
 
-        // An existing Journal written by a build whose migrations this one does not know (for example
-        // one created before the schema was squashed into a single migration) is refused, not migrated:
-        // `schemaOlderThanKnown` when provably older, `schemaNewerThanKnown` otherwise.
-        try queue.read { db in
-            if try db.tableExists("grdb_migrations") {
-                try rejectUnknownMigrations(db, path: fileURL.path)
+            // An existing Journal written by a build whose migrations this one does not know (for example
+            // one created before the schema was squashed into a single migration) is refused, not migrated:
+            // `schemaOlderThanKnown` when provably older, `schemaNewerThanKnown` otherwise.
+            try queue.read { db in
+                if try db.tableExists("grdb_migrations") {
+                    try rejectUnknownMigrations(db, path: fileURL.path)
+                }
             }
+
+            try migrator.migrate(queue)
+            return queue
         }
 
-        try migrator.migrate(queue)
-
         return try makeStore(projectID: projectID, fileURL: fileURL, queue: queue)
+    }
+
+    /// Runs `body` while holding an exclusive `flock` on `<fileURL>.lock`. Unlike the Ledger's, this lock
+    /// never falls back to running unlocked: for the Journal that is the race it exists to prevent, so a
+    /// lock file that cannot be opened or locked throws `JournalError.migrationLockUnavailable`. `flock` is
+    /// retried once on `EINTR`.
+    private static func withMigrationLock<T>(for fileURL: URL, _ body: () throws -> T) throws -> T {
+        let lockPath = fileURL.path + ".lock"
+        let descriptor = Darwin.open(lockPath, O_CREAT | O_RDWR, 0o644)
+        guard descriptor >= 0 else {
+            throw JournalError.migrationLockUnavailable(path: lockPath, errno: errno)
+        }
+        defer { Darwin.close(descriptor) }
+        var result = flock(descriptor, LOCK_EX)
+        if result != 0, errno == EINTR {
+            result = flock(descriptor, LOCK_EX)
+        }
+        guard result == 0 else {
+            throw JournalError.migrationLockUnavailable(path: lockPath, errno: errno)
+        }
+        defer { flock(descriptor, LOCK_UN) }
+        return try body()
     }
 
     /// The app's open: read-only, never migrates. Throws JournalError.schemaOlderThanKnown if every migration this build does not know is provably older (delete the Journal), JournalError.schemaNewerThanKnown if it has any other unknown migration, and JournalError.schemaBehind if not fully migrated (only the engine migrates). Throws JournalError.missing if the file does not exist (never creates a file).
