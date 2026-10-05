@@ -70,14 +70,18 @@ struct OverviewToolbar: ToolbarContent {
     }
 }
 
-/// The Now line, `idle — next Act unknown`, and how many Attempts run, beside the status dot.
+/// The Now line and running Act, with the number of running Attempts, beside the status dot.
 private struct NowToolbarStatus: View {
     let now: Now
 
     var body: some View {
         HStack(spacing: 6) {
             Circle().fill(now.status.style).frame(width: 8, height: 8).accessibilityHidden(true)
-            Text(now.statusLine).lineLimit(1)
+            Text(now.runningAct.map { "working · \($0.act.rawValue)" } ?? now.statusLine).lineLimit(1)
+            if let runningAct = now.runningAct {
+                Text("· \(runningAct.startedAt.formatted(date: .omitted, time: .shortened))")
+                    .foregroundStyle(.secondary)
+            }
             if !now.attempts.isEmpty {
                 Text("\u{00B7} \(now.attempts.count) running").foregroundStyle(.secondary)
             }

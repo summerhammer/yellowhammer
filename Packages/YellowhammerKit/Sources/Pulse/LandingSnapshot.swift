@@ -43,8 +43,8 @@ public struct ProjectSnapshot: Identifiable, Equatable, Sendable {
     /// empty, idle Pulse is true.
     ///
     /// When this is set, `pulse` is empty and says nothing about the Project, except its `idle`/`working`
-    /// status, which comes from the Project's `launchd` Act jobs and not from the Journal. A view states
-    /// this failure in place of the rest of the Pulse, and still shows the status.
+    /// status, which falls back to the Project's `launchd` Act jobs. A view states this failure in place
+    /// of the rest of the Pulse, and still shows the status.
     public var journalFailure: String?
 
     public init(id: ProjectID, name: String, repos: [String], pulse: PulseSnapshot, journalFailure: String? = nil) {
@@ -56,9 +56,6 @@ public struct ProjectSnapshot: Identifiable, Equatable, Sendable {
     }
 
     /// The Sidebar's `idle`/`working`: the same value the Pulse's Now group shows.
-    ///
-    /// Read from the Project's `launchd` Act jobs, never from its Journal, so it holds whether or not
-    /// `journalFailure` is set.
     public var status: ProjectStatus { pulse.now.status }
 
     /// Whether `selection` names something in this Project's own Pulse or Repos. The Inspector shows
@@ -89,7 +86,9 @@ public struct ProjectSnapshot: Identifiable, Equatable, Sendable {
     }
 }
 
-/// A Project's derived status. `working` means exactly that the Project's `launchd` Act job is alive.
+/// A Project's derived status. A readable, unexpired Journal Act Lease means `working`; its matching
+/// completion event means `idle`, including after lease release. `launchd` is the fallback when there
+/// is no lease or lifecycle completion evidence, or when the Journal cannot be read.
 public enum ProjectStatus: String, CaseIterable, Sendable {
     case idle
     case working

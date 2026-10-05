@@ -2,8 +2,8 @@ import Domain
 
 /// The `launchd` jobs that are alive at one instant, as the labels `launchctl list` printed.
 ///
-/// A Project is `working` exactly when one of its three Act jobs is alive: tested on the job, never on
-/// a Lease. Pure data and parsing; running `launchctl` is the caller's.
+/// Fallback status evidence for a Project when its Journal has no current lease or cannot be read.
+/// Pure data and parsing; running `launchctl` is the caller's.
 public struct ActJobs: Equatable, Sendable {
     /// Labels of jobs with a running process.
     private let aliveLabels: Set<String>

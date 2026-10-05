@@ -58,7 +58,10 @@ enum PulseGroup: String, CaseIterable, Identifiable {
     }
 
     static func summary(of now: Now) -> String {
-        now.attempts.isEmpty ? now.statusLine : "\(now.status.rawValue) · \(now.attempts.count) running"
+        if let runningAct = now.runningAct {
+            return "\(runningAct.act.rawValue) running · \(now.attempts.count) Attempt(s)"
+        }
+        return now.attempts.isEmpty ? now.statusLine : "\(now.status.rawValue) · \(now.attempts.count) running"
     }
 
     static func summary(of feature: FeatureInFlight?) -> String {

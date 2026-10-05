@@ -191,7 +191,7 @@ func uiTestJournalIsAtCurrentSchema() throws {
     )
 }
 
-@Test("The UI test bundle's Journal fixture holds the current seed, so the UI tests' identifiers match it")
+@Test("The UI fixture seed holds the current Pulse data, so UI test identifiers match it")
 func uiTestJournalHoldsCurrentSeed() throws {
     let scratch = try ScratchDirectory()
     let copy = scratch.url.appending(component: "archive.db", directoryHint: .notDirectory)

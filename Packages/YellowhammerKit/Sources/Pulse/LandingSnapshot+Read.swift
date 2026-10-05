@@ -15,9 +15,9 @@ extension LandingSnapshot {
     /// never creates or migrates a Journal, and no value in the result comes from two Projects. A Journal
     /// that cannot be read makes its own Project's `journalFailure` and leaves its siblings unchanged.
     ///
-    /// A Project's status comes from `actJobs`, not from its Journal: `working` exactly when one of its
-    /// own Act jobs is alive, whether its Journal was read, is missing, or cannot be read. Each Project is
-    /// asked about its own jobs only.
+    /// An unexpired Act Lease with no matching closing event supplies the running Act and status.
+    /// Closing lifecycle evidence or expiry suppresses stale job status; otherwise `actJobs` is the
+    /// fallback when no lease exists or the Journal cannot be read.
     public static func read(
         configuration: Configuration, configurationDirectory: URL, actJobs: ActJobs, asOf: Date
     ) -> LandingSnapshot {
@@ -47,14 +47,14 @@ extension ProjectSnapshot {
         let fileURL = JournalStore.defaultFileURL(configurationDirectory: configurationDirectory, id: project.id)
         do {
             let journal = try JournalStore.openReadOnly(at: fileURL, projectID: project.id)
-            snapshot.pulse = try PulseSnapshot.read(from: journal, status: status)
+            snapshot.pulse = try PulseSnapshot.read(from: journal, status: status, asOf: asOf)
         } catch JournalError.missing {
             // No Act of this Project has finished opening a Journal yet. The empty Pulse is true, but
             // for the status: a first-ever Act may be running before its Journal exists, so the status
             // still reflects the job. Nothing needs the Operator, and there is no Feature and no Night.
             snapshot.pulse.now.status = status
         } catch {
-            // The status is still true: it comes from the Project's jobs, not from the Journal (#233).
+            // The status still falls back to the Project's jobs when its Journal cannot be read (#233).
             snapshot.journalFailure = "\(error)"
             snapshot.pulse.now.status = status
         }

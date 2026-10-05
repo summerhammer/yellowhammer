@@ -77,19 +77,19 @@ func needsYou() throws {
     #expect(needsYou.cards.first { $0.id == "C-4" }?.blockReason == nil)
 }
 
-@Test("The status is the one handed in, whether or not an Act Lease is held")
-func statusIsHandedIn() throws {
+@Test("A held Act Lease overrides status; without a lease the handed-in status is the fallback")
+func statusUsesLeaseAndFallback() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
 
     // An alive job that holds no lease (stood down, or before it claims one) is working.
-    let noLease = try PulseSnapshot.read(from: journal, status: .working)
+    let noLease = try PulseSnapshot.read(from: journal, status: .working, asOf: epoch)
     #expect(noLease.now.status == .working)
 
-    // An Act that crashed holding the lease has no alive job: idle.
+    // The held lease is authoritative even if the launchd fallback says idle.
     _ = try journal.claimActLease(act: .build, runID: RunID(), mode: .real, now: epoch)
-    let crashed = try PulseSnapshot.read(from: journal, status: .idle)
-    #expect(crashed.now.status == .idle)
+    let running = try PulseSnapshot.read(from: journal, status: .idle, asOf: epoch)
+    #expect(running.now.status == .working)
 }
 
 @Test("An open Attempt is a running Attempt; an ended one is not")
