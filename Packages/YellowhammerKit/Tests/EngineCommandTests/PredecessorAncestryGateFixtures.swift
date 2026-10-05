@@ -20,9 +20,9 @@ struct GateGitFixture: ~Copyable {
     let url: URL
     let git = GitRunner()
 
-    init(name: String = UUID().uuidString) {
+    init(name: String = "repo") {
         url = FileManager.default.temporaryDirectory
-            .appending(component: "yh-gate-git-\(name)", directoryHint: .isDirectory)
+            .appending(component: "yh-gate-git-\(name)-\(UUID().uuidString)", directoryHint: .isDirectory)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     }
 

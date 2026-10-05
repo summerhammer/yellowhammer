@@ -246,7 +246,7 @@ private struct SidebarRow: Identifiable {
 private extension RunningAttempt {
     /// The Attempt's Card and route. No output of the agent CLI, ever.
     var sidebarLabel: String {
-        "\(cardID) \u{00B7} \(route)"
+        "\(cardIDForDisplay ?? cardID) \u{00B7} \(route)"
     }
 
     /// Time since the Attempt started, measured to `asOf`, not to the clock.

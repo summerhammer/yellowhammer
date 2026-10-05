@@ -155,6 +155,10 @@ extension JournalMigrations {
             // The Feature Branch Orca ADE reported at this repository's first allocation. NULL until
             // then; never changed once set.
             table.column("branch", .text)
+            // The Feature Branch tip a ghost-Worktree purge pinned at
+            // `refs/yellowhammer/recovery/<branch>`. NULL except between that purge and the
+            // re-allocation that verifies the re-created branch (OQ123).
+            table.column("recovery_commit", .text)
             table.primaryKey(["feature_id", "repository"])
         }
 

@@ -78,7 +78,7 @@ extension WorktreeReconciler {
         return .clean(current)
     }
 
-    private func recordFailure(_ record: WorktreeRecord, reason: String) throws {
+    func recordFailure(_ record: WorktreeRecord, reason: String) throws {
         try journal.append(
             .worktreeReconciliationFailed(
                 featureID: record.featureID, repository: record.repository, path: record.path, reason: reason

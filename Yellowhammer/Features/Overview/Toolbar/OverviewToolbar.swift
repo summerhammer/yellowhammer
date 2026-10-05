@@ -3,7 +3,7 @@ import Pulse
 import SwiftUI
 
 /// The main window's toolbar: the selected Project's Now line as a centred status item, a re-read of
-/// its Journal, the standard Inspector toggle, and Stop the engine for the selected Project (spec:
+/// its Journal, Start Author, the standard Inspector toggle, and Stop the engine for the selected Project (spec:
 /// app/stop-the-engine-for-a-project). The Now line only displays; the re-read reads again, as the app
 /// becoming active does. The app triggers and never decides or records:
 /// confirming runs `yh stop --project <id>`, which records the request in the engine, so quitting the
@@ -16,6 +16,9 @@ struct OverviewToolbar: ToolbarContent {
     @Binding var confirming: Bool
     /// Reads every Journal again, unless a read is already running.
     let reread: @MainActor () -> Void
+    /// Launches only the selected Project's Author Act; the engine owns its lease and all run state.
+    let startAuthor: @MainActor () -> Void
+    let canStartAuthor: Bool
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .principal) {
@@ -32,6 +35,16 @@ struct OverviewToolbar: ToolbarContent {
             .accessibilityIdentifier("toolbar-reread")
         }
         ToolbarSpacer(.fixed)
+        ToolbarItem {
+            Button(action: startAuthor) {
+                Label("Start Author", systemImage: "pencil.circle")
+            }
+            .disabled(!canStartAuthor)
+            .labelStyle(.titleAndIcon)
+            .keyboardShortcut("a", modifiers: [.command, .shift])
+            .help(authorHelpText)
+            .accessibilityIdentifier("toolbar-start-author")
+        }
         ToolbarItem {
             Button {
                 inspectorShown.toggle()
@@ -67,6 +80,14 @@ struct OverviewToolbar: ToolbarContent {
         if stop.isStopping(project?.id) { return "Stopping…" }
         guard let project else { return "Stop the engine" }
         return "Stop the engine for \(project.name): abort every running Attempt in it"
+    }
+
+    private var authorHelpText: String {
+        guard let project else { return "Select a configured Project to start Author" }
+        guard canStartAuthor else { return "Author requires the engine\u{2019}s configured Project" }
+        let logURL = SetupEngine.logURL(projectID: project.id.rawValue, command: "author")
+        return "Run the author Act for \(project.name) now. If another Act is running, this run stands down. " +
+            "Output: \(logURL.path(percentEncoded: false))"
     }
 }
 

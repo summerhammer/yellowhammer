@@ -21,7 +21,7 @@ struct AttemptDetailView: View {
             systemImage: "gearshape.2.fill",
             style: .active,
             title: attempt.cardTitle,
-            subtitle: attempt.cardLink?.identifier ?? attempt.cardID,
+            subtitle: attempt.cardIDForDisplay ?? (attempt.cardLink?.identifier ?? attempt.cardID),
             titleIdentifier: "attempt-detail-title",
             wayOut: attempt.cardLink.map { ("Open \($0.identifier) in Linear", .linearIssue($0.url)) },
             note: nil,
@@ -30,7 +30,7 @@ struct AttemptDetailView: View {
             PulseCountBadge(text: "Round \(attempt.round)", style: .active)
         } content: {
             Section {
-                Button("\(attempt.cardID)  \(attempt.cardTitle)") {
+                Button("\(attempt.cardIDForDisplay ?? attempt.cardID)  \(attempt.cardTitle)") {
                     openDestination(.inspector(.card(attempt.cardID)))
                 }
                 .buttonStyle(.link)

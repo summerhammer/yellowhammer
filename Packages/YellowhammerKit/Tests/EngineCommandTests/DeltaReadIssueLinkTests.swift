@@ -38,12 +38,15 @@ struct DeltaReadIssueLinkTests {
 
         let card = try journal.card(id: cardID)
         #expect(card.issueKey == "ENG-card-1")
+        #expect(card.issueIDForDisplay == "ENG-card-1")
         #expect(card.issueURL == "https://linear.app/x/card-1")
         let feature = try #require(try journal.inFlightFeature()?.feature)
         #expect(feature.issueKey == "ENG-feature-of-card-1")
+        #expect(feature.issueIDForDisplay == "ENG-feature-of-card-1")
         #expect(feature.issueURL == "https://linear.app/x/feature-of-card-1")
         let night = try #require(try journal.night(id: opening.night.id))
         #expect(night.nightCardIssueKey == "ENG-night-1")
+        #expect(night.nightCardIssueIDForDisplay == "ENG-night-1")
         #expect(night.nightCardIssueURL == "https://linear.app/x/night-1")
         // The report is unchanged: the Feature and the Night Card are still unknown objects.
         #expect(report.unknownObjects.map(\.id.rawValue) == ["feature-of-card-1", "night-1"])

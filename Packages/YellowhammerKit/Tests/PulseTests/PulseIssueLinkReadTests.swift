@@ -55,11 +55,16 @@ func recordedLinksAreCarried() throws {
 
     let snapshot = try PulseSnapshot.read(from: journal, status: .idle)
 
+    #expect(snapshot.needsYou.cards.first?.issueIDForDisplay == "YH-1")
     #expect(snapshot.needsYou.cards.first?.link == (try link("YH-1", "https://linear.app/x/issue/YH-1")))
+    #expect(snapshot.now.attempts.first?.cardIDForDisplay == "YH-1")
     #expect(snapshot.now.attempts.first?.cardLink == (try link("YH-1", "https://linear.app/x/issue/YH-1")))
     let lane = try #require(snapshot.feature?.lanes.first)
+    #expect(lane.cards.first { $0.id == "C-1" }?.issueIDForDisplay == "YH-1")
     #expect(lane.cards.first { $0.id == "C-1" }?.link == (try link("YH-1", "https://linear.app/x/issue/YH-1")))
+    #expect(lane.cards.first { $0.id == "C-2" }?.issueIDForDisplay == nil)
     #expect(lane.cards.first { $0.id == "C-2" }?.link == nil)
+    #expect(snapshot.feature?.issueIDForDisplay == "YH-9")
     #expect(snapshot.feature?.link == (try link("YH-9", "https://linear.app/x/issue/YH-9")))
     #expect(snapshot.night?.nightCard == (try link("YH-100", "https://linear.app/x/issue/YH-100")))
 }
@@ -119,6 +124,10 @@ func cardDetailCarriesLink() throws {
     )
 
     let expected = try link("YH-1", "https://linear.app/x/issue/YH-1")
-    #expect(try CardDetail.read(from: journal, issueID: "C-1")?.link == expected)
-    #expect(try CardDetail.read(from: journal, issueID: "C-2")?.link == nil)
+    let card1 = try CardDetail.read(from: journal, issueID: "C-1")
+    #expect(card1?.issueIDForDisplay == "YH-1")
+    #expect(card1?.link == expected)
+    let card2 = try CardDetail.read(from: journal, issueID: "C-2")
+    #expect(card2?.issueIDForDisplay == nil)
+    #expect(card2?.link == nil)
 }

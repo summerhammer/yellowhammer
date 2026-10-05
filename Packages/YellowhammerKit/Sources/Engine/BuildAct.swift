@@ -138,7 +138,8 @@ public struct BuildAct: Sendable {
         }
         let reconciler = WorktreeReconciler(
             workspace: workspace, journal: context.journal, runID: context.runID, act: context.act,
-            nightID: context.night.id, committer: WorktreeCommitter(mode: context.mode, message: wipCommitMessage)
+            nightID: context.night.id, committer: WorktreeCommitter(mode: context.mode, message: wipCommitMessage),
+            repositories: context.repositories
         )
         return try await reconciler.reconcile(feature: feature)
     }
@@ -299,6 +300,9 @@ public struct BuildAct: Sendable {
         guard let worktreeName = context.feature.worktreeName else {
             return BuildActError.worktreeNameUnrecorded(featureID: context.feature.id).description
         }
+
+        // Never dispatch over a lane whose reconciliation did not settle, before the held-Worktree reuse below.
+        if let reason = context.reconciliation.undispatchableReason(for: lane.repository) { return reason }
 
         // A Worktree already held for (Feature, repository) is reused with no Orca ADE call
         // (``WorktreeAllocator/allocate(featureID:worktreeName:repos:)``), so no configured ``Repo`` is

@@ -154,8 +154,10 @@ public enum JournalEvent: Equatable, Sendable {
     case waitingOnYouUnbacked(issueID: String, cardID: Int64?, reason: String)
     /// A build Act's reconciliation (loop-state/reconcile-worktrees-at-act-start) found a held
     /// Worktree's recorded path gone: a ghost Worktree. The loss of build state is noted in the
-    /// Journal so the morning understands why it started cold.
-    case worktreeLost(featureID: Int64, repository: String, worktreeID: String, path: String)
+    /// Journal so the morning understands why it started cold. `pinnedCommit` is the Feature Branch tip
+    /// the purge pinned at `refs/yellowhammer/recovery/<branch>` first (OQ123) — the tip the next
+    /// allocation recovers from; nil when there was no branch to pin.
+    case worktreeLost(featureID: Int64, repository: String, worktreeID: String, path: String, pinnedCommit: String?)
     /// Reconciliation's process fencing killed at least one process still holding a Worktree before
     /// reconciliation inspected or touched it.
     case worktreeFenced(featureID: Int64, repository: String, path: String, killed: Int)

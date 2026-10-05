@@ -39,6 +39,10 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     /// Orca ADE reported a Feature Branch for this (Feature, repository) that differs from the one already
     /// recorded. The recorded name is fixed; nothing was written.
     case featureBranchConflict(featureID: Int64, repository: String, recorded: String, reported: String)
+    /// A recovery commit (OQ123) cannot be recorded for this (Feature, repository): the pair has no row or
+    /// no Feature Branch recorded, or a different recovery commit is already recorded and refusing it is
+    /// safer than losing the first SHA. `reason` says which. Nothing was written.
+    case recoveryCommitRefused(featureID: Int64, repository: String, reason: String)
     /// The Journal has no Cycle with this id.
     case cycleUnknown(cycleID: Int64)
     /// The Journal has no Worktree with this id.
@@ -169,6 +173,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
         case .featureBranchConflict(let featureID, let repository, let recorded, let reported):
             "Feature \(featureID) already has Feature Branch '\(recorded)' recorded for \(repository); " +
                 "Orca ADE reported '\(reported)'"
+        case .recoveryCommitRefused(let featureID, let repository, let reason):
+            "Feature \(featureID) cannot record a recovery commit for \(repository): \(reason)"
         case .cycleUnknown(let cycleID):
             "The Journal has no Cycle with id \(cycleID)"
         case .worktreeUnknown(let id):

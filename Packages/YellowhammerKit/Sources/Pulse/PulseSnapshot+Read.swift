@@ -59,11 +59,12 @@ extension PulseSnapshot {
             guard card.state == .blocked || card.state == .waitingOnYou else { return nil }
             return DecisionCard(
                 id: card.issueID,
+                issueIDForDisplay: card.issueIDForDisplay ?? card.issueKey,
                 title: card.displayTitle,
                 state: card.state,
                 blockReason: card.state == .blocked ? card.blockReason.flatMap { BlockReason(rawValue: $0) } : nil,
                 repo: card.repository,
-                link: LinearIssueLink.link(key: card.issueKey, url: card.issueURL)
+                link: LinearIssueLink.link(key: card.issueIDForDisplay ?? card.issueKey, url: card.issueURL)
             )
         }
         return NeedsYou(cards: cards)
@@ -86,13 +87,14 @@ extension PulseSnapshot {
                     RunningAttempt(
                         id: String(open.id),
                         cardID: card.issueID,
+                        cardIDForDisplay: card.issueIDForDisplay ?? card.issueKey,
                         cardTitle: card.displayTitle,
                         repo: card.repository,
                         route: open.route.description,
                         startedAt: open.startedAt,
                         round: round(of: open),
                         status: nil,
-                        cardLink: LinearIssueLink.link(key: card.issueKey, url: card.issueURL)
+                        cardLink: LinearIssueLink.link(key: card.issueIDForDisplay ?? card.issueKey, url: card.issueURL)
                     ))
             }
         }
@@ -143,45 +145,72 @@ extension PulseSnapshot {
         for card in cards where !repos.contains(card.repository) {
             repos.append(card.repository)
         }
-        let lanes = repos.map { repo -> RepoLaneSnapshot in
-            // A Cancelled Card is out of the lane: it counts toward neither done nor total.
-            let laneCards = cards.filter { $0.repository == repo && $0.state != .cancelled }
-            let state: LaneState =
-                if landed[repo] != nil {
-                    .landed
-                } else if laneCards.contains(where: { $0.state == .blocked }) {
-                    .blocked
-                } else if laneCards.contains(where: { $0.state == .waitingOnYou }) {
-                    .waitingOnYou
-                } else if now.attempts.contains(where: { $0.repo == repo })
-                    || runningLanes.contains(repo) {
-                    .running
-                } else {
-                    .idle
-                }
-            return RepoLaneSnapshot(
-                repo: repo,
-                state: state,
-                cardsDone: laneCards.count { $0.state == .done },
-                cardsTotal: laneCards.count,
-                pullRequest: pullRequests[repo].flatMap(chip),
-                cards: laneCards.map { card in
-                    LaneCard(
-                        id: card.issueID,
-                        title: card.displayTitle,
-                        state: card.state,
-                        link: LinearIssueLink.link(key: card.issueKey, url: card.issueURL)
-                    )
-                }
-            )
+        let context = FeatureLaneContext(
+            cards: cards,
+            landed: landed,
+            pullRequests: pullRequests,
+            now: now,
+            runningLanes: runningLanes
+        )
+        let lanes = repos.map { repo in
+            repoLane(repo: repo, context: context)
         }
         return FeatureInFlight(
             id: inFlight.feature.issueID,
+            issueIDForDisplay: inFlight.feature.issueIDForDisplay ?? inFlight.feature.issueKey,
             title: nil,
             state: nil,
             rollupState: nil,
             lanes: lanes,
-            link: LinearIssueLink.link(key: inFlight.feature.issueKey, url: inFlight.feature.issueURL)
+            link: LinearIssueLink.link(
+                key: inFlight.feature.issueIDForDisplay ?? inFlight.feature.issueKey,
+                url: inFlight.feature.issueURL
+            )
+        )
+    }
+
+    private struct FeatureLaneContext {
+        let cards: [CardRecord]
+        let landed: [String: String]
+        let pullRequests: [String: PullRequestRecord]
+        let now: Now
+        let runningLanes: Set<String>
+    }
+
+    private static func repoLane(
+        repo: String,
+        context: FeatureLaneContext
+    ) -> RepoLaneSnapshot {
+        // A Cancelled Card is out of the lane: it counts toward neither done nor total.
+        let laneCards = context.cards.filter { $0.repository == repo && $0.state != .cancelled }
+        let state: LaneState =
+            if context.landed[repo] != nil {
+                .landed
+            } else if laneCards.contains(where: { $0.state == .blocked }) {
+                .blocked
+            } else if laneCards.contains(where: { $0.state == .waitingOnYou }) {
+                .waitingOnYou
+            } else if context.now.attempts.contains(where: { $0.repo == repo })
+                || context.runningLanes.contains(repo) {
+                .running
+            } else {
+                .idle
+            }
+        return RepoLaneSnapshot(
+            repo: repo,
+            state: state,
+            cardsDone: laneCards.count { $0.state == .done },
+            cardsTotal: laneCards.count,
+            pullRequest: context.pullRequests[repo].flatMap(chip),
+            cards: laneCards.map { card in
+                LaneCard(
+                    id: card.issueID,
+                    issueIDForDisplay: card.issueIDForDisplay ?? card.issueKey,
+                    title: card.displayTitle,
+                    state: card.state,
+                    link: LinearIssueLink.link(key: card.issueIDForDisplay ?? card.issueKey, url: card.issueURL)
+                )
+            }
         )
     }
 
@@ -234,7 +263,10 @@ extension PulseSnapshot {
             verdictLine: count > 0 ? "\(count) Act run\(count == 1 ? "" : "s") failed — see Health" : nil,
             cardsByDisposition: try dispositions(night: night, journal: journal, events: events),
             cardsAbsence: absence,
-            nightCard: LinearIssueLink.link(key: night.nightCardIssueKey, url: night.nightCardIssueURL)
+            nightCard: LinearIssueLink.link(
+                key: night.nightCardIssueIDForDisplay ?? night.nightCardIssueKey,
+                url: night.nightCardIssueURL
+            )
         )
     }
 

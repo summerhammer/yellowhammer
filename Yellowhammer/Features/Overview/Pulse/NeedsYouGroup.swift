@@ -69,7 +69,7 @@ private struct DecisionCardRow: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(card.title).lineLimit(1)
-                Text("\(card.id) \u{00B7} \(card.repo)")
+                Text("\(card.issueIDForDisplay ?? card.id) \u{00B7} \(card.repo)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

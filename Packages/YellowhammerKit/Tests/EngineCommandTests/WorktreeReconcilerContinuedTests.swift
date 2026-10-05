@@ -39,7 +39,7 @@ struct WorktreeReconcilerContinuedTests {
 
         let process = try makeReconcilerSleepProcess(currentDirectory: worktree)
         defer { process.terminateAndReap() }
-        try await Task.sleep(for: .milliseconds(150))
+        try await Task.sleep(for: .milliseconds(300))
 
         let workspace = ReconcilerFakeWorkspace()
         let fencer = ProcessFencer(pollInterval: .milliseconds(20), quiescenceTimeout: .seconds(5))
@@ -55,8 +55,8 @@ struct WorktreeReconcilerContinuedTests {
 
         let fencedEvents = try journal.events(ofType: .worktreeFenced)
         #expect(fencedEvents.count == 1)
-        guard case .worktreeFenced(_, _, _, let killed) = fencedEvents[0].event else {
-            Issue.record("wrong event type")
+        guard let firstEvent = fencedEvents.first, case .worktreeFenced(_, _, _, let killed) = firstEvent.event else {
+            Issue.record("wrong event type or no fenced events")
             return
         }
         #expect(killed >= 1)
