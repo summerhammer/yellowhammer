@@ -2602,6 +2602,8 @@ One Mac holds a registry of App Installations and each Project selects one (risk
 OQ110). Planned and tracked in [the Linear per-Project roadmap](refactor-linear-per-project-roadmap.md)
 (L1.1–L4.1).
 
+The Feature Branch Orca ADE reports, with its prefix (#318), is planned and tracked in [the Feature Branch roadmap](refactor-feature-branch-roadmap.md) (B1.1–B2.2).
+
 ---
 
 ## Traceability: story → steps
