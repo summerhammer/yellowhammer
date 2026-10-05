@@ -120,8 +120,6 @@ extension FeatureVerification {
         else {
             throw VerificationFault(reason: "this Project has no single specification source to verify against")
         }
-        // B1.2: resolve per repository (featureBranches).
-        let branchName = context.feature.worktreeName?.rawValue ?? "not recorded"
         var names = Set(try act.journal.touchedRepositories(featureID: context.feature.id))
         for card in try act.journal.cards(cycleID: context.cycleID) where card.state != .cancelled {
             names.insert(card.repository)
@@ -132,10 +130,13 @@ extension FeatureVerification {
             }
             let held = try act.journal.heldWorktree(featureID: context.feature.id, repository: name)
             let directory = (held?.isHeld == true ? held?.path : nil) ?? repo.path
-            return VerificationRepository(name: name, directory: directory, featureBranch: branchName)
+            let branch = try act.journal.resolvedFeatureBranch(feature: context.feature, repository: name)
+            return VerificationRepository(
+                name: name, directory: directory, featureBranch: branch?.name ?? "not recorded"
+            )
         }
         return InstructionBase(
-            featureTitle: "\(context.feature.issueID) (Feature Branch \(branchName))",
+            featureTitle: context.feature.issueID,
             clauses: pending.map {
                 VerificationClause(
                     issueID: $0.clause.issueID, cid: $0.clause.cid, text: $0.clause.text,

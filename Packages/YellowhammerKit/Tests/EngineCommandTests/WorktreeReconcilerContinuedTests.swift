@@ -33,7 +33,8 @@ struct WorktreeReconcilerContinuedTests {
         try "modified".write(to: worktree.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
         _ = try journal.recordWorktree(
             featureID: featureID, repository: "backend", worktreeID: "wt-backend", path: worktree.path,
-            runID: runID, lastKnownGoodCommit: baseCommit
+            runID: runID, lastKnownGoodCommit: baseCommit,
+            featureBranch: reconcilerBranch
         )
 
         let process = try makeReconcilerSleepProcess(currentDirectory: worktree)
@@ -47,7 +48,7 @@ struct WorktreeReconcilerContinuedTests {
             fencer: fencer
         )
 
-        let result = try await reconciler.reconcile(featureID: featureID, branch: reconcilerBranch)
+        let result = try await reconciler.reconcile(feature: try #require(journal.feature(id: featureID)))
 
         let status = await process.waitForExit(timeout: .seconds(5))
         #expect(status == .signalled(SIGKILL) || status == .alreadyReaped)
@@ -84,7 +85,8 @@ struct WorktreeReconcilerContinuedTests {
         )
         _ = try journal.recordWorktree(
             featureID: featureID, repository: "backend", worktreeID: "wt-backend", path: worktree.path,
-            runID: runID, lastKnownGoodCommit: baseCommit
+            runID: runID, lastKnownGoodCommit: baseCommit,
+            featureBranch: reconcilerBranch
         )
         let before = await reconcilerObjectCount(in: worktree, git: git)
 
@@ -92,7 +94,7 @@ struct WorktreeReconcilerContinuedTests {
         let reconciler = WorktreeReconciler(
             workspace: workspace, journal: journal, runID: runID, act: .build, nightID: nil, git: git
         )
-        let result = try await reconciler.reconcile(featureID: featureID, branch: reconcilerBranch)
+        let result = try await reconciler.reconcile(feature: try #require(journal.feature(id: featureID)))
 
         guard case .clean = result["backend"] else {
             Issue.record("expected .clean, got \(String(describing: result["backend"]))")
@@ -126,7 +128,8 @@ struct WorktreeReconcilerContinuedTests {
         )
         let recorded = try journal.recordWorktree(
             featureID: featureID, repository: "backend", worktreeID: "wt-backend", path: worktree.path,
-            runID: runID
+            runID: runID,
+            featureBranch: reconcilerBranch
         )
         _ = try journal.recordWorktreePush(id: recorded.id, commit: "deadbeef", runID: runID)
         _ = try journal.releaseWorktree(id: recorded.id, runID: runID)
@@ -136,7 +139,7 @@ struct WorktreeReconcilerContinuedTests {
         let reconciler = WorktreeReconciler(
             workspace: workspace, journal: journal, runID: runID, act: .build, nightID: nil, git: git
         )
-        let result = try await reconciler.reconcile(featureID: featureID, branch: reconcilerBranch)
+        let result = try await reconciler.reconcile(feature: try #require(journal.feature(id: featureID)))
 
         #expect(result.outcomes.isEmpty)
         #expect(workspace.removeCalls.isEmpty)
@@ -161,14 +164,15 @@ struct WorktreeReconcilerContinuedTests {
         try "modified".write(to: worktree.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
         _ = try journal.recordWorktree(
             featureID: featureID, repository: "backend", worktreeID: "wt-backend", path: worktree.path,
-            runID: runID
+            runID: runID,
+            featureBranch: reconcilerBranch
         )
 
         let workspace = ReconcilerFakeWorkspace()
         let reconciler = WorktreeReconciler(
             workspace: workspace, journal: journal, runID: runID, act: .build, nightID: nil, git: git
         )
-        let result = try await reconciler.reconcile(featureID: featureID, branch: reconcilerBranch)
+        let result = try await reconciler.reconcile(feature: try #require(journal.feature(id: featureID)))
 
         guard case .wipCommitted(_, let wipCommit, _, let resetTo) = result["backend"] else {
             Issue.record("expected .wipCommitted, got \(String(describing: result["backend"]))")
@@ -197,7 +201,8 @@ struct WorktreeReconcilerContinuedTests {
         try "modified".write(to: worktree.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
         _ = try journal.recordWorktree(
             featureID: featureID, repository: "backend", worktreeID: "wt-backend", path: worktree.path,
-            runID: runID, lastKnownGoodCommit: baseCommit
+            runID: runID, lastKnownGoodCommit: baseCommit,
+            featureBranch: reconcilerBranch
         )
 
         let workspace = ReconcilerFakeWorkspace()
@@ -205,11 +210,11 @@ struct WorktreeReconcilerContinuedTests {
             workspace: workspace, journal: journal, runID: runID, act: .build, nightID: nil, git: git
         )
 
-        let firstResult = try await reconciler.reconcile(featureID: featureID, branch: reconcilerBranch)
+        let firstResult = try await reconciler.reconcile(feature: try #require(journal.feature(id: featureID)))
         try #require(isWIPCommitted(firstResult["backend"]))
         let countAfterFirst = await reconcilerBranchCommitCount(worktree: worktree, git: git)
 
-        let secondResult = try await reconciler.reconcile(featureID: featureID, branch: reconcilerBranch)
+        let secondResult = try await reconciler.reconcile(feature: try #require(journal.feature(id: featureID)))
         guard case .clean = secondResult["backend"] else {
             Issue.record("expected .clean on the second reconcile, got \(String(describing: secondResult["backend"]))")
             return
