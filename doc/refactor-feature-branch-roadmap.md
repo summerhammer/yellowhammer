@@ -198,7 +198,41 @@ Read the ruling and the story before each step.
 
 ## Layer 1 — Record the Feature Branch Orca ADE reports
 
-### [ ] B1.1 Domain, Journal and allocation
+### [x] B1.1 Domain, Journal and allocation
+
+**Status** — done 2026-10-05 (`fd410a4`).
+- **Landed:**
+  - `WorktreeName` and a plain `FeatureBranch`.
+  - `journal-schema-4` (`feature.worktree_name`, `feature_repository.branch`).
+  - `featureBranch` / `featureBranches` / `recordFeatureBranch`, with the new
+    `JournalError.featureBranchConflict`; `recordWorktree(…, featureBranch:)` writes both in one
+    transaction.
+  - The allocator's two exclusive rules, `WorktreeAllocator.accepts`. A Journal conflict raised
+    between the read and the write also removes the Worktree and throws `nameCollision`, now
+    `(repository:requested:reported:recorded:)`.
+  - `archive.db` regenerated.
+- **Stubs left for B1.2:**
+  - Sites with a repo in scope use `JournalStore.resolvedFeatureBranch(feature:repository:)` (recorded,
+    else the Worktree name).
+  - Reconcile, the predecessor gate and the verification title use the Worktree name and carry a
+    `// B1.2` marker.
+- **Pulled forward from B1.3:**
+  - The mechanical rename of the ~30 test calls, the raw `INSERT` and the assertions, which the suite
+    needed to compile.
+  - A pure test of the acceptance rule.
+  - B1.3 still owns the git-backed allocator cases and the two-repo tester tests.
+- **ACs met:**
+  - Lines 40–49 (request the slash-free name; record the reported branch with the Worktree's id and
+    path).
+  - Lines 50–54 (equal, or `/` + name).
+  - Lines 55–57 and 65–66 (a recorded branch is fixed; a different one on re-allocation is a
+    collision).
+  - Their collision outcome: the Worktree is removed and nothing is written. The halt itself is B2.1.
+- **Verification:**
+  - Full suite green except a `ProcessFencerTests` timing flake under whole-suite load. It passed in
+    isolation, as did WorktreeReconcilerContinued and CardRunCommitMessage.
+  - The app builds; lint `--strict` reports 0; module boundaries pass.
+  - The read-only open refuses `journal-schema-3`.
 
 - **Work**
   - `Domain/WorktreeName.swift`: `WorktreeName` (RawRepresentable, Hashable, Sendable) with
