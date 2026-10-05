@@ -1,3 +1,4 @@
+import Darwin
 import Domain
 
 public enum JournalError: Error, Equatable, CustomStringConvertible {
@@ -109,6 +110,9 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     /// The Journal would be created with no Linear workspace to record. Only a creating open supplies
     /// one; a non-creating open of a Journal that does not exist yet stops here rather than inventing it.
     case linearWorkspaceRequired
+    /// The lock file that serialises opening (and so migrating) a Journal could not be opened or locked.
+    /// The open stops rather than migrating unlocked: two Acts racing a fresh Journal is the failure it prevents.
+    case migrationLockUnavailable(path: String, errno: Int32)
 
     public var description: String {
         return switch self {
@@ -226,6 +230,8 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
                 "until \(JournalStore.timestamp(holder.expiresAt))"
         case .linearWorkspaceRequired:
             "The Journal cannot be created without the Linear workspace of the Project's App Installation"
+        case .migrationLockUnavailable(let path, let errno):
+            "Journal migration lock \(path) could not be taken: \(String(cString: strerror(errno))) (errno \(errno))"
         }
     }
 }

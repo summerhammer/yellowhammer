@@ -337,7 +337,9 @@ func journalPathIsAFunctionOfTheProjectID() throws {
     let journals = fixture.directory.appending(component: "journals", directoryHint: .isDirectory)
     #expect(journal.fileURL == journals.appending(component: "alpha.db", directoryHint: .notDirectory))
     #expect(journal.projectID == fixture.projectID)
-    #expect(try FileManager.default.contentsOfDirectory(atPath: journals.path) == ["alpha.db"])
+    // The migration lock file (`alpha.db.lock`) is the only other thing the open leaves there.
+    let listing = try FileManager.default.contentsOfDirectory(atPath: journals.path).sorted()
+    #expect(listing == ["alpha.db", "alpha.db.lock"])
     let siblingURL = JournalStore.defaultFileURL(configurationDirectory: fixture.directory, id: sibling)
     #expect(siblingURL.lastPathComponent == "beta.db")
     // Anything that could name a path outside `journals/` is not a ProjectID at all.

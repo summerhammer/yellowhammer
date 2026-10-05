@@ -125,6 +125,12 @@ let package = Package(
             name: "ProcessTestSupport",
             path: "Tests/ProcessTestSupport"
         ),
+        // Test-only child process for JournalTests' cross-process open race; no product.
+        .executableTarget(
+            name: "JournalOpenChild",
+            dependencies: ["Journal", "Domain"],
+            path: "Tests/JournalOpenChild"
+        ),
         .testTarget(
             name: "DomainTests",
             dependencies: ["Domain"]
@@ -141,7 +147,8 @@ let package = Package(
             name: "JournalTests",
             dependencies: [
                 "Journal",
-                "Domain"
+                "Domain",
+                "JournalOpenChild"
             ]
         ),
         .testTarget(
