@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.6.0](https://github.com/summerhammer/yellowhammer/compare/v0.5.0...v0.6.0) (2026-10-05)
+
+
+### Features
+
+* **app:** remove a Project from Settings ([113c6a0](https://github.com/summerhammer/yellowhammer/commit/113c6a00217f57c7e1b6bb3d0b7ccbd8af23bdfe))
+* **app:** remove a refused Project from Refused Files ([620c182](https://github.com/summerhammer/yellowhammer/commit/620c182c3b977c7517068ec3d53ed9be0ed044d7))
+* **app:** start the author Act on demand ([fe53863](https://github.com/summerhammer/yellowhammer/commit/fe53863ad0867a6c30d1fba43a663032fc604813))
+* **app:** verify a pasted Linear project id on Board step ([#299](https://github.com/summerhammer/yellowhammer/issues/299)) ([a044502](https://github.com/summerhammer/yellowhammer/commit/a04450205892d90585f9c89ee13bb9b05d1619d3))
+* **db:** extend DB schema with readable values for display ([bb4f26c](https://github.com/summerhammer/yellowhammer/commit/bb4f26c7287f644b8a2a69c37cf72ac3d91133b8)), closes [#326](https://github.com/summerhammer/yellowhammer/issues/326)
+
+
+### Bug Fixes
+
+* **ci:** accept a prefixed Feature Branch in the spec check and rehearsal suite ([510956e](https://github.com/summerhammer/yellowhammer/commit/510956e76d9f77c0f997f14989f89843aecad5e3)), closes [#318](https://github.com/summerhammer/yellowhammer/issues/318)
+* **config:** expand home paths before engine dispatch ([1333b9f](https://github.com/summerhammer/yellowhammer/commit/1333b9fc62df82a65a9e174890abcff5d9f4e22d)), closes [#314](https://github.com/summerhammer/yellowhammer/issues/314)
+* **engine:** a Worktree branch-name collision halts the build Act ([20efc16](https://github.com/summerhammer/yellowhammer/commit/20efc168646e6fd37a2149f94c24e5559d67d4ca)), closes [#318](https://github.com/summerhammer/yellowhammer/issues/318)
+* **engine:** address the Layer 1 review of the recorded Feature Branch ([ce8c164](https://github.com/summerhammer/yellowhammer/commit/ce8c164a7a66051d8f712e7dd1e762da5d1a7999)), closes [#318](https://github.com/summerhammer/yellowhammer/issues/318)
+* **engine:** pin the Feature Branch before a ghost-Worktree purge ([2b223a9](https://github.com/summerhammer/yellowhammer/commit/2b223a9985c4a794cf65ee653f72488875e489e0)), closes [#325](https://github.com/summerhammer/yellowhammer/issues/325)
+* **engine:** record the Feature Branch Orca ADE reports per repo ([6a7fe0f](https://github.com/summerhammer/yellowhammer/commit/6a7fe0fc8d0de98951d24e4cf808cf122fe42a1e)), closes [#318](https://github.com/summerhammer/yellowhammer/issues/318)
+* **engine:** resolve the Feature Branch per repo in every consumer ([bb63feb](https://github.com/summerhammer/yellowhammer/commit/bb63feb04f635a910e3a22d4fe2b24e34cd70905)), closes [#318](https://github.com/summerhammer/yellowhammer/issues/318)
+* **journal:** serialise creating and migrating a Journal across processes ([#322](https://github.com/summerhammer/yellowhammer/issues/322)) ([b565e12](https://github.com/summerhammer/yellowhammer/commit/b565e12641eeabb07768534b6cf048a5b8ef655f)), closes [#316](https://github.com/summerhammer/yellowhammer/issues/316)
+* **pulse:** show running Acts from the Journal lease ([70fbb53](https://github.com/summerhammer/yellowhammer/commit/70fbb537bab5c6c43ca3ab3ea3a27614cf4948f4)), closes [#315](https://github.com/summerhammer/yellowhammer/issues/315)
+* **pulse:** surface failed Acts and idle lanes ([7d77e22](https://github.com/summerhammer/yellowhammer/commit/7d77e22ffdf5f39102cee0767b4850a29b606008)), closes [#319](https://github.com/summerhammer/yellowhammer/issues/319)
+
 ## [0.5.0](https://github.com/summerhammer/yellowhammer/compare/v0.4.0...v0.5.0) (2026-10-04)
 
 
