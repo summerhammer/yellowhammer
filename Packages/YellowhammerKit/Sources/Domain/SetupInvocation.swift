@@ -142,11 +142,12 @@ public struct SetupInvocation: Equatable, Sendable {
 
     /// `["setup", "--print-choices", ...]`: never prompts, writes no configuration file.
     public static func choicesArguments(
-        installation: String?, githubCredential: String?
+        installation: String?, githubCredential: String?, linearProject: String? = nil
     ) -> [String] {
         var arguments = ["setup", "--print-choices"] // glossary:ignore GL001
         appendOption(&arguments, "--installation", installation)
         appendOption(&arguments, "--github-credential", githubCredential)
+        appendOption(&arguments, "--linear-project", linearProject)
         return arguments
     }
 

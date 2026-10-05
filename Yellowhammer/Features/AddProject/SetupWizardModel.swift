@@ -46,6 +46,9 @@ final class SetupWizardModel {
     /// terminated without disturbing the next.
     @ObservationIgnored var teamsEngine = SetupEngine()
     @ObservationIgnored var teamsFetchGeneration = 0
+    /// The `--print-choices --linear-project` run verifying a pasted project id.
+    @ObservationIgnored var verifyEngine = SetupEngine()
+    @ObservationIgnored var verifyGeneration = 0
 
     init(configurationDirectory: URL = ConfigurationDirectory.current) {
         self.configurationDirectory = configurationDirectory
@@ -142,6 +145,7 @@ final class SetupWizardModel {
     func terminateRun() {
         linearWorkspaces.terminate()
         teamsEngine.terminate()
+        verifyEngine.terminate()
         engine.terminate()
     }
 }

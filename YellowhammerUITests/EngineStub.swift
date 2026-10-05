@@ -40,10 +40,29 @@ enum EngineStub {
     static let printChoicesCase = """
           --print-choices)
             if [ -n "$YH_STUB_ARGV_LOG" ]; then echo "$all_args" >> "$YH_STUB_ARGV_LOG"; fi
+            check=""
+            prev=""
+            for arg in "$@"; do
+              if [ "$prev" = "--linear-project" ]; then
+                case "$arg" in
+                proj-not-found)
+                  check=',"linearProjectCheck":{"id":"proj-not-found","status":"notFound","teamNames":[]}'
+                  ;;
+                proj-no-access)
+                  check=',"linearProjectCheck":{"id":"proj-no-access","status":"noTeamAccess","teamNames":["Payments"]}'
+                  ;;
+                *)
+                  check=',"linearProjectCheck":{"id":"'"$arg"'","name":"Billing Revamp",'\
+        '"status":"found","teamNames":["Payments"]}'
+                  ;;
+                esac
+              fi
+              prev="$arg"
+            done
             echo '{"operatorCandidates":[{"id":"user-op","name":"operator","displayName":"Operator Person"}],\
         "configuredOperator":null,"teams":[{"id":"team-1","key":"ENG","name":"Engineering"}],\
         "linearProjects":[{"id":"proj-listed","name":"Acme Mobile","teamNames":["Engineering"]}],\
-        "cliAdapters":["claude","codex"]}'
+        "cliAdapters":["claude","codex"]'"$check"'}'
             exit 0
             ;;
 

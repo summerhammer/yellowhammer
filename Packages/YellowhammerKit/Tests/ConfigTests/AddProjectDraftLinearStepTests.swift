@@ -41,8 +41,59 @@ struct AddProjectDraftLinearStepTests {
         draft.selectLinearInstallation("acme")
         #expect(draft.problems(in: .board) == ["Choose the Linear project, or create one in a team."])
         draft.linearProjectID = "ACME"
+        #expect(draft.problems(in: .board) == ["Verify the Linear project id."])
+        draft.linearVerification = .verified(name: "Acme", teamNames: ["Engineering"])
         #expect(draft.problems(in: .board).isEmpty)
         #expect(draft.selectedLinearInstallation?.name == "acme")
+    }
+
+    @Test("Pasted Linear project id verification outcomes")
+    func verificationOutcomes() {
+        var draft = AddProjectDraft()
+        draft.context.linearInstallations = [addProjectInstallation()]
+        draft.selectLinearInstallation("acme")
+        draft.linearProjectID = "ACME"
+        #expect(draft.linearVerification == .unchecked)
+        #expect(draft.problems(in: .board) == ["Verify the Linear project id."])
+
+        draft.linearVerification = .checking
+        #expect(draft.problems(in: .board) == ["Verify the Linear project id."])
+
+        draft.linearVerification = .notFound
+        #expect(draft.problems(in: .board) == ["No Linear project has that id in acme."])
+
+        draft.linearVerification = .noTeamAccess(teamNames: ["Payments"])
+        #expect(draft.problems(in: .board) == ["Yellowhammer is not a member of the team Payments."])
+
+        draft.linearVerification = .noTeamAccess(teamNames: ["Engineering", "Payments"])
+        #expect(draft.problems(in: .board) == ["Yellowhammer is not a member of the teams Engineering and Payments."])
+
+        draft.linearVerification = .noTeamAccess(teamNames: [])
+        #expect(draft.problems(in: .board) == ["Yellowhammer is not a member of the team."])
+
+        draft.linearVerification = .verified(name: "Acme", teamNames: ["Engineering"])
+        #expect(draft.problems(in: .board).isEmpty)
+    }
+
+    @Test("Picking a listed Linear project is verified automatically; editing un-verifies")
+    func pickingListedAndEditing() {
+        var draft = AddProjectDraft()
+        draft.context.linearInstallations = [addProjectInstallation()]
+        draft.selectLinearInstallation("acme")
+        draft.context.linearProjects = [
+            SetupChoices.LinearProject(id: "ACME", name: "Acme Mobile", teamNames: ["Engineering"])
+        ]
+
+        draft.linearProjectID = "ACME"
+        #expect(draft.isLinearProjectVerified)
+        #expect(draft.effectiveLinearVerification == .verified(name: "Acme Mobile", teamNames: ["Engineering"]))
+        #expect(draft.problems(in: .board).isEmpty)
+
+        // Editing un-verifies
+        draft.linearProjectID = "OTHER"
+        #expect(!draft.isLinearProjectVerified)
+        #expect(draft.linearVerification == .unchecked)
+        #expect(draft.problems(in: .board) == ["Verify the Linear project id."])
     }
 
     @Test("Selecting another workspace clears its teams, Linear projects and choices; re-selecting changes nothing")

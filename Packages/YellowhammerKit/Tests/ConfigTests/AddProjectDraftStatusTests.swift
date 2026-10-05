@@ -103,6 +103,9 @@ struct AddProjectDraftStatusTests {
         draft.linearProjectID = "   "
         #expect(!draft.isComplete(.board))
         draft.linearProjectID = "ACME"
+        #expect(!draft.isComplete(.board))
+        #expect(draft.problems(in: .board) == ["Verify the Linear project id."])
+        draft.linearVerification = .verified(name: "Acme", teamNames: ["Engineering"])
         #expect(draft.isComplete(.board))
         draft.linearChoice = .createInTeam
         #expect(draft.problems(in: .board) == ["Choose a team to create the Linear project in."])

@@ -152,6 +152,19 @@ struct SetupInvocationTests {
         #expect(arguments == ["setup", "--print-choices"])
     }
 
+    @Test("choicesArguments passes --linear-project when provided") // glossary:ignore GL001
+    func choicesArgumentsPassesLinearProject() {
+        let arguments = SetupInvocation.choicesArguments(
+            installation: "main", githubCredential: nil, linearProject: "proj-1"
+        )
+
+        #expect(arguments == [
+            "setup", "--print-choices",
+            "--installation", "main",
+            "--linear-project", "proj-1"
+        ])
+    }
+
     @Test("installLinearArguments builds --install-linear --events json") // glossary:ignore GL001
     func installLinearArgumentsBuildsInstallLinear() {
         let arguments = SetupInvocation.installLinearArguments(installation: "main")

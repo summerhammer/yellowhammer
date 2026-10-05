@@ -104,5 +104,21 @@ struct SetupInvocationContractTests {
         #expect(options.installation == "main")
         #expect(options.githubCredential == CredentialReference("keychain:github"))
         #expect(options.projectID == nil)
+        #expect(options.linearProjectID == nil)
+    }
+
+    @Test("choicesArguments with linearProject parses back with linearProjectID") // glossary:ignore GL001
+    func choicesArgumentsWithLinearProjectParsesBack() throws {
+        let arguments = Array(SetupInvocation.choicesArguments(
+            installation: "main", githubCredential: nil, linearProject: "proj-1"
+        ).dropFirst())
+
+        let command = try SetupCommand.parse(arguments)
+        let options = try SetupOptions(command: command)
+
+        #expect(options.mode == .printChoices)
+        #expect(options.installation == "main")
+        #expect(options.linearProjectID == "proj-1")
+        #expect(options.projectID == nil)
     }
 }

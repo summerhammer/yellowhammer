@@ -24,6 +24,8 @@ struct AddProjectDraftSummaryTests {
         #expect(draft.summary(of: .board) == "No Linear project \u{b7} acme")
         draft.linearProjectID = " ACME "
         #expect(draft.summary(of: .board) == "\u{201c}ACME\u{201d} \u{b7} acme")
+        draft.linearVerification = .verified(name: "Acme Mobile", teamNames: ["Engineering"])
+        #expect(draft.summary(of: .board) == "\u{201c}Acme Mobile\u{201d} \u{b7} acme")
         draft.linearChoice = .createInTeam
         #expect(draft.summary(of: .board) == "No team \u{b7} acme")
         draft.teamKey = "ENG"

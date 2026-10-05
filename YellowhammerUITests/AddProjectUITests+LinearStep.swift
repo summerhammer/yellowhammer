@@ -90,6 +90,14 @@ extension AddProjectUITests {
         XCTAssertFalse(element("setup-linear-choose-workspace-first").exists)
     }
 
+    /// Chooses a listed workspace and waits for the Linear project block to appear.
+    func selectInstallation(_ name: String, in sheet: XCUIElement) {
+        let row = element("setup-linear-installation-\(name)")
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.click()
+        assertInstallationSelected(name, in: sheet)
+    }
+
     /// Finishes a connect the stub is running: once `--install-linear` was run, adds the entry `yh` would
     /// add to `config.toml` (no Operator identity yet), then lets the stub report it installed.
     func completeConnect(_ name: String) throws {
@@ -262,5 +270,94 @@ extension AddProjectUITests {
         try completeConnect("acme")
 
         assertInstallationSelected("acme", in: sheet)
+    }
+
+    // MARK: - Verification of pasted Linear project id
+
+    /// Typing an unlisted Linear project id shows "Not verified yet" and enables Verify;
+    /// verifying it queries Linear via yh setup --print-choices --linear-project, shows
+    /// the verified project name and team, and disables Verify.
+    func testVerifyPastedLinearProjectID() throws {
+        try launchApp(machine: Self.readyMachineTOML)
+        let sheet = openLinearStep()
+        selectInstallation("acme", in: sheet)
+
+        let linearID = sheet.textFields["setup-linear-project-id"]
+        XCTAssertTrue(linearID.waitForExistence(timeout: 10))
+        let verifyButton = sheet.buttons["setup-linear-verify"]
+        XCTAssertTrue(verifyButton.waitForExistence(timeout: 5))
+        XCTAssertFalse(verifyButton.isEnabled)
+
+        linearID.click()
+        linearID.typeText("proj-1")
+        XCTAssertTrue(verifyButton.isEnabled)
+        XCTAssertTrue(element("setup-linear-result-unchecked").waitForExistence(timeout: 5))
+
+        verifyButton.click()
+        XCTAssertTrue(element("setup-linear-result-verified").waitForExistence(timeout: 10))
+        XCTAssertFalse(verifyButton.isEnabled)
+        XCTAssertTrue(
+            waitForRecorded { $0.contains("--linear-project proj-1") },
+            "\(recordedArguments())"
+        )
+    }
+
+    /// Verifying an id not found in the workspace shows the not-found error and leaves Verify enabled.
+    func testVerifyPastedLinearProjectIDNotFound() throws {
+        try launchApp(machine: Self.readyMachineTOML)
+        let sheet = openLinearStep()
+        selectInstallation("acme", in: sheet)
+
+        let linearID = sheet.textFields["setup-linear-project-id"]
+        XCTAssertTrue(linearID.waitForExistence(timeout: 10))
+        let verifyButton = sheet.buttons["setup-linear-verify"]
+
+        linearID.click()
+        linearID.typeText("proj-not-found")
+        verifyButton.click()
+
+        XCTAssertTrue(element("setup-linear-result-not-found").waitForExistence(timeout: 10))
+        XCTAssertTrue(verifyButton.isEnabled)
+    }
+
+    /// Verifying an id where Yellowhammer lacks team membership shows the team-access error.
+    func testVerifyPastedLinearProjectIDNoTeamAccess() throws {
+        try launchApp(machine: Self.readyMachineTOML)
+        let sheet = openLinearStep()
+        selectInstallation("acme", in: sheet)
+
+        let linearID = sheet.textFields["setup-linear-project-id"]
+        XCTAssertTrue(linearID.waitForExistence(timeout: 10))
+        let verifyButton = sheet.buttons["setup-linear-verify"]
+
+        linearID.click()
+        linearID.typeText("proj-no-access")
+        verifyButton.click()
+
+        XCTAssertTrue(element("setup-linear-result-no-team-access").waitForExistence(timeout: 10))
+        XCTAssertTrue(verifyButton.isEnabled)
+    }
+
+    /// Editing the id un-verifies it; picking a listed Linear project is verified without clicking Verify.
+    func testEditingLinearProjectIDUnverifiesAndPickingListedVerifies() throws {
+        try launchApp(machine: Self.readyMachineTOML)
+        let sheet = openLinearStep()
+        selectInstallation("acme", in: sheet)
+
+        // Picking a listed project counts as verified immediately
+        let listedRow = element("setup-linear-project-proj-listed")
+        XCTAssertTrue(listedRow.waitForExistence(timeout: 10))
+        listedRow.click()
+
+        let verifyButton = sheet.buttons["setup-linear-verify"]
+        XCTAssertTrue(element("setup-linear-result-verified").waitForExistence(timeout: 5))
+        XCTAssertFalse(verifyButton.isEnabled)
+
+        // Editing the text field un-verifies
+        let linearID = sheet.textFields["setup-linear-project-id"]
+        linearID.click()
+        linearID.typeText("-edited")
+        XCTAssertTrue(element("setup-linear-result-unchecked").waitForExistence(timeout: 5))
+        XCTAssertTrue(verifyButton.isEnabled)
     }
 }

@@ -37,7 +37,13 @@ extension AddProjectDraft {
             let id = linearProjectID.trimmingCharacters(in: .whitespacesAndNewlines)
             if id.isEmpty { return "No Linear project" } // glossary:ignore GL001
             let listed = context.linearProjects.first { $0.id == id }
-            return "\u{201c}\(listed?.name ?? id)\u{201d}"
+            let verifiedName: String? = {
+                if case .verified(let name, _) = effectiveLinearVerification, !name.isEmpty {
+                    return name
+                }
+                return nil
+            }()
+            return "\u{201c}\(listed?.name ?? verifiedName ?? id)\u{201d}"
         case .createInTeam:
             guard let teamKey else { return "No team" }
             let team = context.teams.first { $0.key == teamKey }

@@ -25,6 +25,7 @@ func completeAddProjectDraft() -> AddProjectDraft {
     draft.context.linearInstallations = [addProjectInstallation()]
     draft.selectLinearInstallation("acme")
     draft.linearProjectID = "ACME"
+    draft.linearVerification = .verified(name: "Acme", teamNames: ["Engineering"])
     draft.addRepo(path: "/work/acme-backend")
     draft.repos[0].check = "make test"
     draft.useSpecSource("/work/acme-spec")
