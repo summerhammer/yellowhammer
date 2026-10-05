@@ -216,8 +216,17 @@ class TestExemptionReason(unittest.TestCase):
         self.assertIsNotNone(self.reason("feat(landing): Retry banked replies", "yh-yellowhammer-retry-banked-replies"))
         self.assertIsNotNone(self.reason("Retry banked replies (yellowhammer)", "yh-yellowhammer-retry-banked-replies"))
 
-    def test_branch_merely_containing_yh_is_not_exempt(self):
-        self.assertIsNone(self.reason("feat: x", "feature/yh-thing"))
+    def test_prefix_yh_x_is_exempt(self):
+        self.assertIsNotNone(self.reason("feat: x", "rozd/yh-x"))
+
+    def test_prefix_feature_yh_thing_is_exempt(self):
+        self.assertIsNotNone(self.reason("feat: x", "feature/yh-thing"))
+
+    def test_yh_prefix_not_in_last_segment_is_not_exempt(self):
+        self.assertIsNone(self.reason("feat: x", "my-yh-thing"))
+
+    def test_yh_alone_is_not_exempt(self):
+        self.assertIsNone(self.reason("feat: x", "yh"))
 
 
 if __name__ == "__main__":

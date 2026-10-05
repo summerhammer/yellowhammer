@@ -13,8 +13,9 @@ Only pull requests that change behavior need the line: those whose Conventional 
 title type is feat, fix, perf or revert (or whose title does not parse). Other types
 (docs, ci, build, chore, test, refactor) and release-please's release PRs (head branch
 `release-please--*`) are exempt without one. So are pull requests Yellowhammer opens from its
-own Feature Branches (`yh-<project>-<feature>`): their traceability is the Feature's Definition
-of Done, whose clauses cite the spec on the board, and the body quotes each unmet clause's citation.
+own Feature Branches (the last path segment of the head ref starts with `yh-`, e.g. `rozd/yh-x`):
+their traceability is the Feature's Definition of Done, whose clauses cite the spec on the board,
+and the body quotes each unmet clause's citation.
 """
 
 import os
@@ -38,7 +39,7 @@ def exemption_reason(title, head_ref):
     """Return why this pull request needs no spec line, or None if it needs one."""
     if head_ref.startswith(RELEASE_PR_BRANCH_PREFIX):
         return "release-please release PR"
-    if head_ref.startswith(FEATURE_BRANCH_PREFIX):
+    if head_ref.rsplit("/", 1)[-1].startswith(FEATURE_BRANCH_PREFIX):
         return "Yellowhammer Feature Branch: its Definition of Done cites the spec on the board"
     match = TITLE_TYPE_PATTERN.match(title)
     if match and match.group(1) not in SPEC_REQUIRED_TYPES:
@@ -158,7 +159,8 @@ def main():
             "  1. Spec: <epic>/<story> @ <sha> (epic and story are lowercase slugs, sha is 7-40 hex chars)\n"
             "  2. Spec-Exempt: <reason> (for non-spec work)\n"
             "A PR titled with type docs, ci, build, chore, test or refactor, or opened by\n"
-            "Yellowhammer from a yh-* Feature Branch, needs neither.",
+            "Yellowhammer from a Feature Branch whose last path segment starts with yh-\n"
+            "(e.g., rozd/yh-x or feature/yh-thing), needs neither.",
             file=sys.stderr
         )
 
