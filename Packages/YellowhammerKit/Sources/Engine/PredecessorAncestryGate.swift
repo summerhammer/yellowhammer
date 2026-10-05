@@ -156,7 +156,8 @@ public struct PredecessorAncestryGate: PredecessorGate {
         _ toTest: [String], feature: FeatureRecord, context: ActContext
     ) async throws -> AncestryTestResult {
         guard !toTest.isEmpty else { return AncestryTestResult() }
-        guard let branch = feature.branch else {
+        // B1.2: resolve per repository (featureBranches).
+        guard let branch = feature.worktreeName.map({ FeatureBranch(name: $0.rawValue) }) else {
             throw PredecessorAncestryGateError.predecessorBranchMissing(featureIssueID: feature.issueID)
         }
         let repos = try Self.resolveRepos(featureIssueID: feature.issueID, names: toTest, in: context.repositories)

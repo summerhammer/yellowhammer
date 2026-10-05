@@ -51,9 +51,10 @@ extension JournalMigrations {
             table.column("state", .text).notNull()
             table.column("reselection_count", .integer).notNull().defaults(to: 0)
             table.column("created_at", .text).notNull()
-            // The Feature Branch name (`yh-<project>-<feature>`), nullable: it is recorded by the author
-            // Act, so a Feature has none until it is next authored.
-            table.column("branch", .text)
+            // The Worktree name Yellowhammer requests (`yh-<project>-<feature>`), nullable: it is recorded
+            // by the author Act, so a Feature has none until it is next authored. The Feature Branch
+            // itself is per repository, on `feature_repository.branch`.
+            table.column("worktree_name", .text)
             // When the predecessor gate released the Feature (roadmap P9.9).
             table.column("released_at", .text)
             // Which route closed a Feature (roadmap P10.7; spec: verification/archive-the-cycle-on-a-

@@ -152,6 +152,9 @@ extension JournalMigrations {
             table.column("feature_id", .integer).notNull()
                 .references("feature", column: "id", onDelete: .cascade)
             table.column("repository", .text).notNull()
+            // The Feature Branch Orca ADE reported at this repository's first allocation. NULL until
+            // then; never changed once set.
+            table.column("branch", .text)
             table.primaryKey(["feature_id", "repository"])
         }
 

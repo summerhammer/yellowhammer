@@ -132,7 +132,8 @@ public struct BuildAct: Sendable {
         guard let workspace = context.workspace else {
             throw BuildActError.workspaceRequired(featureID: feature.id)
         }
-        guard let branch = feature.branch else {
+        // B1.2: resolve per repository (featureBranches).
+        guard let branch = feature.worktreeName.map({ FeatureBranch(name: $0.rawValue) }) else {
             throw BuildActError.featureBranchUnrecorded(featureID: feature.id)
         }
         let reconciler = WorktreeReconciler(
@@ -280,12 +281,12 @@ public struct BuildAct: Sendable {
     ) async -> String? {
         guard !runnable.isEmpty, let workspace = actContext.workspace else { return nil }
 
-        guard let branch = context.feature.branch else {
+        guard let worktreeName = context.feature.worktreeName else {
             return BuildActError.featureBranchUnrecorded(featureID: context.feature.id).description
         }
 
         // A Worktree already held for (Feature, repository) is reused with no Orca ADE call
-        // (``WorktreeAllocator/allocate(featureID:branch:repos:)``), so no configured ``Repo`` is
+        // (``WorktreeAllocator/allocate(featureID:worktreeName:repos:)``), so no configured ``Repo`` is
         // needed to resolve it — only a fresh allocation needs the repository's path.
         do {
             if try actContext.journal.heldWorktree(featureID: context.feature.id, repository: lane.repository) != nil {
@@ -301,7 +302,7 @@ public struct BuildAct: Sendable {
 
         let allocator = WorktreeAllocator(workspace: workspace, journal: actContext.journal, runID: actContext.runID)
         do {
-            _ = try await allocator.allocate(featureID: context.feature.id, branch: branch, repos: [repo])
+            _ = try await allocator.allocate(featureID: context.feature.id, worktreeName: worktreeName, repos: [repo])
             return nil
         } catch {
             return String(describing: error)

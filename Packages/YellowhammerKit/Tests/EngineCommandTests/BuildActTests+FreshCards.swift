@@ -22,7 +22,9 @@ extension BuildActTests {
             return
         }
         let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
-        try journal.recordFeatureBranch(featureID: featureID, branch: buildActBranch)
+        try journal.recordWorktreeName(
+            featureID: featureID, worktreeName: WorktreeName(rawValue: buildActBranch.rawValue)
+        )
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         // Freshly authored: Todo at state_version 0, and no state write of its own ever posted.
         let webCard = try insertReconcilerCard(

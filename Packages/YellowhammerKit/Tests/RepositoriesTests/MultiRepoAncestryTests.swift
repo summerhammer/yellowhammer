@@ -161,13 +161,15 @@ struct MultiRepoAncestryTests {
 
     @Test("FeatureBranch: Deterministic naming and slugification")
     func featureBranchNaming() {
-        let branch1 = FeatureBranch(project: "yellowhammer", feature: "bound unanswered nights")
+        let branch1 = FeatureBranch(
+            name: WorktreeName(project: "yellowhammer", feature: "bound unanswered nights").rawValue
+        )
         #expect(branch1.name == "yh-yellowhammer-bound-unanswered-nights")
         #expect(branch1.description == "yh-yellowhammer-bound-unanswered-nights")
 
         let projectID = ProjectID(rawValue: "core")!
         let featureName = FeatureName(rawValue: "auth/tokens")!
-        let branch2 = FeatureBranch(projectID: projectID, feature: featureName)
+        let branch2 = FeatureBranch(name: WorktreeName(projectID: projectID, feature: featureName).rawValue)
         #expect(branch2.name == "yh-core-auth-tokens")
 
         let branchLiteral: FeatureBranch = "yh-literal-branch"

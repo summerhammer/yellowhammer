@@ -49,7 +49,7 @@ func makeReadinessScenario() async throws -> ReadinessScenario {
     try journal.releaseActLease(runID: runID)
 
     let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-READY")
-    try journal.recordFeatureBranch(featureID: featureID, branch: FeatureBranch(rawValue: "yh-proj-ready"))
+    try journal.recordWorktreeName(featureID: featureID, worktreeName: WorktreeName(rawValue: "yh-proj-ready"))
     let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
 
     let issueOne = "READY-1"

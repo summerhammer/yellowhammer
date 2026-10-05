@@ -38,7 +38,8 @@ extension LandAct {
     private func postPushedComments(commit: String, laneContext: LandActLaneContext, context: ActContext) async {
         guard let outbox = context.outbox else { return }
         let repository = laneContext.lane.repository
-        let branchName = laneContext.feature.branch?.name ?? repository
+        let resolved = try? context.journal.resolvedFeatureBranch(feature: laneContext.feature, repository: repository)
+        let branchName = resolved?.name ?? repository
         let body = "Pushed Feature Branch `\(branchName)` for `\(repository)` at `\(commit)`."
         for card in laneContext.lane.cards where card.state == .done {
             let key = "land:\(laneContext.cycleID):\(repository):push:\(card.issueID)"
@@ -54,7 +55,8 @@ extension LandAct {
     ) async {
         guard let outbox = context.outbox else { return }
         let repository = laneContext.lane.repository
-        let branchName = laneContext.feature.branch?.name ?? repository
+        let resolved = try? context.journal.resolvedFeatureBranch(feature: laneContext.feature, repository: repository)
+        let branchName = resolved?.name ?? repository
         let body = "The push of Feature Branch `\(branchName)` for repository `\(repository)` did not "
             + "complete: \(pushFailureWording(for: outcome))"
         let key = "land:\(laneContext.cycleID):\(repository):push-failed"

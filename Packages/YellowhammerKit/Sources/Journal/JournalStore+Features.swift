@@ -15,8 +15,9 @@ public struct FeatureRecord: Equatable, Sendable {
     public let id: Int64
     public let issueID: String
     public let state: String
-    /// The Feature Branch name (`yh-<project>-<feature>`), recorded by the author Act. Nil until then.
-    public let branch: FeatureBranch?
+    /// The Worktree name (`yh-<project>-<feature>`) requested from Orca ADE, recorded by the author Act.
+    /// Nil until then. The Feature Branch itself is per repository (``JournalStore/featureBranch(featureID:repository:)``).
+    public let worktreeName: WorktreeName?
     public let createdAt: Date
     /// When this Feature was released (P10.9, not yet built), nil until then. A released Feature
     /// satisfies the predecessor gate for no repository and is never returned as the predecessor to
@@ -90,16 +91,16 @@ extension JournalStore {
         }
     }
 
-    /// Records the Feature Branch name for `featureID`. A simple update: the author Act records this
+    /// Records the Worktree name for `featureID`. A simple update: the author Act records this
     /// once, and tests set it up directly for the phases that read it before author writes it.
-    public func recordFeatureBranch(featureID: Int64, branch: FeatureBranch) throws {
+    public func recordWorktreeName(featureID: Int64, worktreeName: WorktreeName) throws {
         try write { db in
             guard try Int.fetchOne(db, sql: "SELECT 1 FROM feature WHERE id = ?", arguments: [featureID]) != nil else {
                 throw JournalError.featureUnknown(featureID: featureID)
             }
             try db.execute(
-                sql: "UPDATE feature SET branch = ? WHERE id = ?",
-                arguments: [branch.rawValue, featureID]
+                sql: "UPDATE feature SET worktree_name = ? WHERE id = ?",
+                arguments: [worktreeName.rawValue, featureID]
             )
         }
     }
@@ -108,14 +109,14 @@ extension JournalStore {
         let id: Int64 = row["id"]
         let createdAtText: String = row["created_at"]
         let createdAt = try Self.date(createdAtText) { JournalError.featureUnknown(featureID: id) }
-        let rawBranch: String? = row["branch"]
+        let rawWorktreeName: String? = row["worktree_name"]
         let rawReleasedAt: String? = row["released_at"]
         let rawClosedBy: String? = row["closed_by"]
         return FeatureRecord(
             id: id,
             issueID: row["issue_id"],
             state: row["state"],
-            branch: rawBranch.map { FeatureBranch(rawValue: $0) },
+            worktreeName: rawWorktreeName.map { WorktreeName(rawValue: $0) },
             createdAt: createdAt,
             releasedAt: try rawReleasedAt.map { try Self.date($0) { JournalError.featureUnknown(featureID: id) } },
             closedBy: rawClosedBy.flatMap { FeatureClosure(rawValue: $0) },

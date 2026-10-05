@@ -33,7 +33,9 @@ public struct WorktreeRecord: Equatable, Sendable {
 
 extension JournalStore {
     /// Records a Worktree held for `featureID`'s `repository`. One write transaction, revalidating the
-    /// Act-scoped lease before writing.
+    /// Act-scoped lease before writing. When `featureBranch` (what Orca ADE reported at allocation) is
+    /// given it is recorded for the pair in the same transaction (``recordFeatureBranch(featureID:repository:branch:)``
+    /// rules): a conflict with the recorded name throws and rolls the Worktree row back too.
     @discardableResult
     public func recordWorktree(
         featureID: Int64,
@@ -42,7 +44,8 @@ extension JournalStore {
         path: String,
         runID: RunID,
         lastKnownGoodCommit: String? = nil,
-        now: Date = Date()
+        now: Date = Date(),
+        featureBranch: FeatureBranch? = nil
     ) throws -> WorktreeRecord {
         try write { db in
             _ = try Self.revalidateActLease(db, runID: runID, now: now)
@@ -62,6 +65,10 @@ extension JournalStore {
                 ]
             )
             let id = db.lastInsertedRowID
+
+            if let featureBranch {
+                try Self.upsertFeatureBranch(db, featureID: featureID, repository: repository, branch: featureBranch)
+            }
 
             return WorktreeRecord(
                 id: id,

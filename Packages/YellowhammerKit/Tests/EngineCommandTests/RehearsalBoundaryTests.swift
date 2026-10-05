@@ -83,7 +83,9 @@ struct RehearsalBoundaryWorktreeTests {
             return
         }
         let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
-        try journal.recordFeatureBranch(featureID: featureID, branch: reconcilerBranch)
+        try journal.recordWorktreeName(
+            featureID: featureID, worktreeName: WorktreeName(rawValue: reconcilerBranch.rawValue)
+        )
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         _ = try insertReconcilerCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .todo)
 
@@ -133,7 +135,9 @@ struct RehearsalBoundaryWorktreeTests {
             return
         }
         let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
-        try journal.recordFeatureBranch(featureID: featureID, branch: reconcilerBranch)
+        try journal.recordWorktreeName(
+            featureID: featureID, worktreeName: WorktreeName(rawValue: reconcilerBranch.rawValue)
+        )
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         _ = try insertReconcilerCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .todo)
 

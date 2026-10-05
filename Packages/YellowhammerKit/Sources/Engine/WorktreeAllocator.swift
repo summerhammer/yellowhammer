@@ -23,9 +23,11 @@ public struct FeatureWorktrees: Equatable, Sendable {
 
 /// A failure allocating or releasing a Feature's Worktrees.
 public enum WorktreeAllocationError: Error, Equatable, Sendable {
-    /// Orca ADE could not honor the requested branch name for `repository`: `created` is what it made
-    /// instead. The Worktree it made was removed before this was thrown.
-    case nameCollision(repository: String, requested: String, created: String)
+    /// Orca ADE reported a branch for `repository` that is not acceptable. `requested` is the Worktree
+    /// name asked of Orca ADE; `reported` is the branch Orca ADE reported; `recorded` is the Feature
+    /// Branch already recorded for the pair, nil on a first allocation. The Worktree it made was
+    /// removed and nothing was written to the Journal before this was thrown.
+    case nameCollision(repository: String, requested: String, reported: String, recorded: String?)
     /// The Worktree held for `repository` cannot be released: its Feature Branch has not been pushed.
     case notPushed(repository: String)
     /// No Worktree is held for `repository`.
@@ -37,8 +39,14 @@ public enum WorktreeAllocationError: Error, Equatable, Sendable {
 extension WorktreeAllocationError: CustomStringConvertible {
     public var description: String {
         switch self {
-        case .nameCollision(let repository, let requested, let created):
-            "Orca ADE could not create branch '\(requested)' in \(repository); it created '\(created)' instead"
+        case .nameCollision(let repository, let requested, let reported, let recorded):
+            if let recorded {
+                "Orca ADE reported branch '\(reported)' for Worktree '\(requested)' in \(repository), " +
+                    "but the Feature Branch recorded there is '\(recorded)'"
+            } else {
+                "Orca ADE reported branch '\(reported)' for Worktree '\(requested)' in \(repository); " +
+                    "it is neither that name nor '<prefix>/' followed by it"
+            }
         case .notPushed(let repository):
             "The Worktree held for \(repository) cannot be released: its Feature Branch has not been pushed"
         case .notHeld(let repository):
@@ -52,11 +60,12 @@ extension WorktreeAllocationError: CustomStringConvertible {
 /// Allocates and releases the Worktrees a Feature needs, one per repository
 /// (graph-execution/allocate-a-worktree-per-graph-and-repo).
 ///
-/// Orca ADE owns Worktrees: it creates, places and removes them. This holds only what sits above the
-/// Workspace Port — the collision check on a name Orca ADE could not honor, the `git worktree prune`
-/// run in the repository before each new allocation, reuse of a Worktree already held for a Feature's
-/// repository, and the release gate on an unpushed Feature Branch. It never creates, places or
-/// deletes a worktree itself.
+/// Orca ADE owns Worktrees: it creates, places and removes them. Yellowhammer requests one by Worktree
+/// name (`yh-<project>-<feature>`) and records the Feature Branch Orca ADE reports, per (Feature,
+/// repository); it never renames that branch. This holds only what sits above the Workspace Port — the
+/// check on the reported branch, the `git worktree prune` run in the repository before each new
+/// allocation, reuse of a Worktree already held for a Feature's repository, and the release gate on an
+/// unpushed Feature Branch. It never creates, places or deletes a worktree itself.
 public struct WorktreeAllocator: Sendable {
     public let workspace: any Workspace
     public let journal: JournalStore
@@ -78,16 +87,21 @@ public struct WorktreeAllocator: Sendable {
     /// Allocates one Worktree per `repos`, in the given order. A repository that already holds a
     /// Worktree for this Feature reuses it, with no Orca ADE call and no prune. Otherwise `git
     /// worktree prune` runs first (best-effort: its failure does not stop allocation), then Orca ADE
-    /// is asked for a Worktree named after `branch`. A returned branch other than `branch.name` is a
-    /// collision Orca ADE could not honor: the Worktree it made is removed and
-    /// ``WorktreeAllocationError/nameCollision(repository:requested:created:)`` is thrown.
+    /// is asked for a Worktree named `worktreeName`.
+    ///
+    /// Exactly one rule judges the reported branch (``accepts(reported:worktreeName:recorded:)``): when
+    /// a Feature Branch is already recorded for the repository it must equal it exactly; when none is,
+    /// it must be `worktreeName` or `<prefix>/` followed by it (Orca ADE's branch-name prefix, which may
+    /// contain `/`). Otherwise the Worktree Orca ADE made is removed, nothing is written to the Journal,
+    /// and ``WorktreeAllocationError/nameCollision(repository:requested:reported:recorded:)`` is thrown.
+    /// On success the Worktree and the reported Feature Branch are recorded in one Journal transaction.
     ///
     /// The Worktree's HEAD is resolved and recorded as its last known-good commit (object-guide:
     /// Worktree.last_known_good_commit, set "at allocation") — best-effort: a Worktree the Workspace
     /// Port did not check out to a real commit (a fake in a test) resolves to nil rather than failing
     /// allocation.
     public func allocate(
-        featureID: Int64, branch: FeatureBranch, repos: [Repo]
+        featureID: Int64, worktreeName: WorktreeName, repos: [Repo]
     ) async throws -> FeatureWorktrees {
         var byRepository: [String: WorktreeRecord] = [:]
 
@@ -97,34 +111,46 @@ public struct WorktreeAllocator: Sendable {
                 continue
             }
 
+            let recorded = try journal.featureBranch(featureID: featureID, repository: repo.name)
             let repositoryPath = Self.expandedPath(repo.path)
             _ = await git.run(["worktree", "prune"], workingDirectory: repositoryPath)
 
             let worktree: WorkspaceWorktree
             do {
                 worktree = try await workspace.createWorktree(
-                    repositoryPath: repositoryPath, name: branch.name, baseBranch: nil
+                    repositoryPath: repositoryPath, name: worktreeName.rawValue, baseBranch: nil
                 )
             } catch {
                 throw WorktreeAllocationError.workspace(repository: repo.name, error)
             }
 
-            guard worktree.branch == branch.name else {
+            guard Self.accepts(reported: worktree.branch, worktreeName: worktreeName, recorded: recorded) else {
                 _ = try? await workspace.removeWorktree(id: worktree.id, force: true)
                 throw WorktreeAllocationError.nameCollision(
-                    repository: repo.name, requested: branch.name, created: worktree.branch
+                    repository: repo.name, requested: worktreeName.rawValue, reported: worktree.branch,
+                    recorded: recorded?.rawValue
                 )
             }
 
             let lastKnownGoodCommit = await Self.resolveHead(git: git, path: worktree.path)
-            let record = try journal.recordWorktree(
-                featureID: featureID,
-                repository: repo.name,
-                worktreeID: worktree.id.rawValue,
-                path: worktree.path,
-                runID: runID,
-                lastKnownGoodCommit: lastKnownGoodCommit
-            )
+            let record: WorktreeRecord
+            do {
+                record = try journal.recordWorktree(
+                    featureID: featureID,
+                    repository: repo.name,
+                    worktreeID: worktree.id.rawValue,
+                    path: worktree.path,
+                    runID: runID,
+                    lastKnownGoodCommit: lastKnownGoodCommit,
+                    featureBranch: FeatureBranch(name: worktree.branch)
+                )
+            } catch JournalError.featureBranchConflict(_, _, let conflicting, let reported) {
+                _ = try? await workspace.removeWorktree(id: worktree.id, force: true)
+                throw WorktreeAllocationError.nameCollision(
+                    repository: repo.name, requested: worktreeName.rawValue, reported: reported,
+                    recorded: conflicting
+                )
+            }
             byRepository[repo.name] = record
         }
 
@@ -159,6 +185,16 @@ public struct WorktreeAllocator: Sendable {
         return try journal.releaseWorktree(
             id: held.id, runID: runID, discardingUnpushedWork: discardingUnpushedWork
         )
+    }
+
+    /// Whether `reported` is an acceptable branch for a Worktree requested as `worktreeName`. With a
+    /// `recorded` Feature Branch it must equal it exactly; without one it must be `worktreeName` or end
+    /// with `/` followed by it.
+    static func accepts(reported: String, worktreeName: WorktreeName, recorded: FeatureBranch?) -> Bool {
+        if let recorded {
+            return reported == recorded.rawValue
+        }
+        return reported == worktreeName.rawValue || reported.hasSuffix("/" + worktreeName.rawValue)
     }
 
     private static func expandedPath(_ path: String) -> String {

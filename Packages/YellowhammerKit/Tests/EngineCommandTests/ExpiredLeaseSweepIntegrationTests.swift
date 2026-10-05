@@ -106,7 +106,7 @@ struct ExpiredLeaseSweepIntegrationTests {
             return
         }
         let featureID = try insertReconcilerFeature(journal, issueID: "E2E-FEAT")
-        try journal.recordFeatureBranch(featureID: featureID, branch: buildActBranch)
+        try journal.recordWorktreeName(featureID: featureID, worktreeName: buildActWorktreeName)
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         let cardID = try insertReconcilerCard(
             journal, cycleID: cycleID, issueID: "E2E-1", repository: "backend", state: .inProgress

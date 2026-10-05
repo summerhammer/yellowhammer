@@ -203,7 +203,9 @@ struct ExpiredLeaseSweepRealKillTests {
         try await initReconcilerGitRepo(at: worktree, git: git)
 
         let featureID = try insertReconcilerFeature(journal, issueID: "KILL-FEAT")
-        try journal.recordFeatureBranch(featureID: featureID, branch: buildActBranch)
+        try journal.recordWorktreeName(
+            featureID: featureID, worktreeName: WorktreeName(rawValue: buildActBranch.rawValue)
+        )
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         let cardID = try insertReconcilerCard(
             journal, cycleID: cycleID, issueID: "KILL-1", repository: "backend", state: .todo

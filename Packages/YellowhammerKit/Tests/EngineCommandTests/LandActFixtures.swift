@@ -112,7 +112,7 @@ struct LandFixture {
 
     static func make(_ journal: JournalStore, runID: RunID, worktrees: Bool = true) throws -> LandFixture {
         let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
-        try journal.recordFeatureBranch(featureID: featureID, branch: landBranch)
+        try journal.recordWorktreeName(featureID: featureID, worktreeName: WorktreeName(rawValue: landBranch.rawValue))
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         try insertReconcilerCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .done)
         try insertReconcilerCard(journal, cycleID: cycleID, issueID: "MOB-1", repository: "mobile", state: .done)

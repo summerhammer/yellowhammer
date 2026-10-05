@@ -73,7 +73,7 @@ private func makeArchiveWorld() async throws -> ArchiveWorld {
     let runID = RunID()
     try claimLandLease(journal, runID: runID)
     let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
-    try journal.recordFeatureBranch(featureID: featureID, branch: archiveBranch)
+    try journal.recordWorktreeName(featureID: featureID, worktreeName: WorktreeName(rawValue: archiveBranch.rawValue))
     let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
     let doneCardID = try insertReconcilerCard(
         journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .done

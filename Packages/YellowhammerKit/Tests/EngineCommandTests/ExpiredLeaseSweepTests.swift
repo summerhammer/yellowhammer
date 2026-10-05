@@ -55,7 +55,7 @@ func makeReclaimFixture(
         throw JournalError.actLeaseLost(runID: runID, holder: nil)
     }
     let featureID = try insertReconcilerFeature(journal, issueID: "RCFEAT-\(UUID().uuidString.prefix(8))")
-    try journal.recordFeatureBranch(featureID: featureID, branch: buildActBranch)
+    try journal.recordWorktreeName(featureID: featureID, worktreeName: WorktreeName(rawValue: buildActBranch.rawValue))
     let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
     let issueID = "RC-\(UUID().uuidString.prefix(8))"
     let cardID = try insertReconcilerCard(
@@ -305,7 +305,9 @@ struct ExpiredLeaseSweepTests {
             return
         }
         let featureID = try insertReconcilerFeature(journal, issueID: "LIVE-FEAT")
-        try journal.recordFeatureBranch(featureID: featureID, branch: buildActBranch)
+        try journal.recordWorktreeName(
+            featureID: featureID, worktreeName: WorktreeName(rawValue: buildActBranch.rawValue)
+        )
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         let cardID = try insertReconcilerCard(
             journal, cycleID: cycleID, issueID: "LIVE-1", repository: "backend", state: .inProgress
@@ -350,7 +352,9 @@ struct ExpiredLeaseSweepTests {
             return
         }
         let ownFeatureID = try insertReconcilerFeature(ownJournal, issueID: "OWN-FEAT")
-        try ownJournal.recordFeatureBranch(featureID: ownFeatureID, branch: buildActBranch)
+        try ownJournal.recordWorktreeName(
+            featureID: ownFeatureID, worktreeName: WorktreeName(rawValue: buildActBranch.rawValue)
+        )
         let ownCycleID = try insertReconcilerCycle(ownJournal, featureID: ownFeatureID)
 
         let sweep = ExpiredLeaseSweep(
