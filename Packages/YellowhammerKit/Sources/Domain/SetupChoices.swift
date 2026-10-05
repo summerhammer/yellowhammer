@@ -70,6 +70,8 @@ public struct SetupChoices: Codable, Equatable, Sendable {
         }
     }
 
+    public typealias LinearProjectCheck = Domain.LinearProjectCheck
+
     public var operatorCandidates: [Member]
     /// The selected installation's configured `operator`, only when it is still an Operator candidate;
     /// nil otherwise, including when nothing is configured or no installation was selected.
@@ -83,11 +85,14 @@ public struct SetupChoices: Codable, Equatable, Sendable {
     /// Every registry entry, in `config.toml` order. Absent from older `yh` output, so decoding treats
     /// a missing key as empty.
     public var installations: [Installation]
+    /// The outcome of verifying a Linear project id passed with `--linear-project`, if any.
+    public var linearProjectCheck: LinearProjectCheck? // glossary:ignore GL001
 
     public init(
         operatorCandidates: [Member], configuredOperator: String?, teams: [Team],
         linearProjects: [LinearProject] = [], cliAdapters: [String],
-        installations: [Installation] = []
+        installations: [Installation] = [],
+        linearProjectCheck: LinearProjectCheck? = nil
     ) {
         self.installations = installations
         self.linearProjects = linearProjects
@@ -95,10 +100,12 @@ public struct SetupChoices: Codable, Equatable, Sendable {
         self.configuredOperator = configuredOperator
         self.teams = teams
         self.cliAdapters = cliAdapters
+        self.linearProjectCheck = linearProjectCheck
     }
 
     private enum CodingKeys: String, CodingKey {
-        case operatorCandidates, configuredOperator, teams, linearProjects, cliAdapters, installations
+        case operatorCandidates, configuredOperator, teams, linearProjects
+        case cliAdapters, installations, linearProjectCheck
     }
 
     public init(from decoder: any Decoder) throws {
@@ -109,6 +116,7 @@ public struct SetupChoices: Codable, Equatable, Sendable {
         linearProjects = try container.decodeIfPresent([LinearProject].self, forKey: .linearProjects) ?? []
         cliAdapters = try container.decode([String].self, forKey: .cliAdapters)
         installations = try container.decodeIfPresent([Installation].self, forKey: .installations) ?? []
+        linearProjectCheck = try container.decodeIfPresent(LinearProjectCheck.self, forKey: .linearProjectCheck)
     }
 }
 
@@ -116,4 +124,39 @@ public struct SetupChoices: Codable, Equatable, Sendable {
 private enum InstallationCodingKeys: String, CodingKey {
     case name, workspace
     case operatorIdentity = "operator"
+}
+
+/// The result of checking a specific Linear project id during `yh setup --print-choices --linear-project <id>`.
+public struct LinearProjectCheck: Codable, Equatable, Sendable { // glossary:ignore GL001
+    public enum Status: String, Codable, Sendable {
+        case found
+        case notFound
+        case noTeamAccess
+    }
+
+    public var status: Status
+    public var id: String?
+    public var name: String?
+    public var teamNames: [String]?
+
+    public init(status: Status, id: String? = nil, name: String? = nil, teamNames: [String]? = nil) {
+        self.status = status
+        self.id = id
+        self.name = name
+        self.teamNames = teamNames
+    }
+
+    public static func found(id: String, name: String, teamNames: [String]) -> LinearProjectCheck {
+        LinearProjectCheck(status: .found, id: id, name: name, teamNames: teamNames)
+    }
+
+    public static var notFound: LinearProjectCheck {
+        LinearProjectCheck(status: .notFound)
+    }
+
+    public static func noTeamAccess(
+        id: String? = nil, name: String? = nil, teamNames: [String]
+    ) -> LinearProjectCheck {
+        LinearProjectCheck(status: .noTeamAccess, id: id, name: name, teamNames: teamNames)
+    }
 }

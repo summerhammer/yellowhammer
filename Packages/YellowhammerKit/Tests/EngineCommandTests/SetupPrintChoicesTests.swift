@@ -300,4 +300,112 @@ struct SetupPrintChoicesTests {
 
         #expect(options.mode == .printChoices)
     }
+
+    @Test("--print-choices allows --linear-project when --installation is present") // glossary:ignore GL001
+    func printChoicesAllowsLinearProjectWithInstallation() throws {
+        let command = try SetupCommand.parse([
+            "--print-choices",
+            "--installation", "main",
+            "--linear-project", "proj-1"
+        ])
+        let options = try SetupOptions(command: command)
+
+        #expect(options.mode == .printChoices)
+        #expect(options.installation == "main")
+        #expect(options.linearProjectID == "proj-1")
+    }
+
+    @Test("--print-choices with --linear-project without --installation is refused") // glossary:ignore GL001
+    func printChoicesRefusesLinearProjectWithoutInstallation() {
+        #expect(throws: (any Error).self) {
+            try SetupCommand.parse(["--print-choices", "--linear-project", "proj-1"])
+        }
+    }
+
+    @Test("--print-choices with --linear-project reports found project") // glossary:ignore GL001
+    func printChoicesReportsFoundLinearProject() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+        let projectScope = BoardProjectScope(
+            id: BoardObjectID(rawValue: "proj-1"),
+            name: "Billing Revamp",
+            teams: [engineeringTeam]
+        )
+        let board = await makeBoard(
+            project: projectScope,
+            members: [operatorMember],
+            teams: [engineeringTeam]
+        )
+        let output = RecordingOutput()
+        let setup = try makeSetup(
+            arguments: ["--print-choices", "--installation", "acme", "--linear-project", "proj-1"],
+            directory: directory, board: board, output: output
+        )
+
+        try await setup.run()
+
+        let data = try #require(output.lines.first?.data(using: .utf8))
+        let choices = try JSONDecoder().decode(SetupChoices.self, from: data)
+        #expect(choices.linearProjectCheck == SetupChoices.LinearProjectCheck(
+            status: .found, id: "proj-1", name: "Billing Revamp", teamNames: ["Engineering"]
+        ))
+        #expect(choices.teams == [SetupChoices.Team(id: "team-1", key: "ENG", name: "Engineering")])
+        #expect(!choices.operatorCandidates.isEmpty)
+    }
+
+    @Test("--print-choices with --linear-project reports notFound when missing") // glossary:ignore GL001
+    func printChoicesReportsNotFoundLinearProject() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+        let board = await makeBoard(
+            project: nil,
+            members: [operatorMember],
+            teams: [engineeringTeam]
+        )
+        let output = RecordingOutput()
+        let setup = try makeSetup(
+            arguments: ["--print-choices", "--installation", "acme", "--linear-project", "proj-missing"],
+            directory: directory, board: board, output: output
+        )
+
+        try await setup.run()
+
+        let data = try #require(output.lines.first?.data(using: .utf8))
+        let choices = try JSONDecoder().decode(SetupChoices.self, from: data)
+        #expect(choices.linearProjectCheck == SetupChoices.LinearProjectCheck(status: .notFound))
+        #expect(choices.teams == [SetupChoices.Team(id: "team-1", key: "ENG", name: "Engineering")])
+        #expect(!choices.operatorCandidates.isEmpty)
+    }
+
+    @Test("--print-choices with --linear-project reports noTeamAccess when not a member") // glossary:ignore GL001
+    func printChoicesReportsNoTeamAccessLinearProject() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+        let projectScope = BoardProjectScope(
+            id: BoardObjectID(rawValue: "proj-1"),
+            name: "Secret Project",
+            teams: [engineeringTeam]
+        )
+        let board = await makeBoard(
+            project: projectScope,
+            members: [operatorMember],
+            teams: [engineeringTeam]
+        )
+        await board.excludeMembership(of: engineeringTeam.id)
+        let output = RecordingOutput()
+        let setup = try makeSetup(
+            arguments: ["--print-choices", "--installation", "acme", "--linear-project", "proj-1"],
+            directory: directory, board: board, output: output
+        )
+
+        try await setup.run()
+
+        let data = try #require(output.lines.first?.data(using: .utf8))
+        let choices = try JSONDecoder().decode(SetupChoices.self, from: data)
+        #expect(choices.linearProjectCheck == SetupChoices.LinearProjectCheck(
+            status: .noTeamAccess, id: "proj-1", name: "Secret Project", teamNames: ["Engineering"]
+        ))
+        #expect(choices.teams == [SetupChoices.Team(id: "team-1", key: "ENG", name: "Engineering")])
+        #expect(!choices.operatorCandidates.isEmpty)
+    }
 }

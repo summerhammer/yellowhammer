@@ -106,7 +106,7 @@ struct SetupOptions {
         } else {
             projectID = nil
             projectName = nil
-            linearProjectID = nil
+            linearProjectID = command.printChoices ? command.linearProject : nil
             linearTeam = nil
             specSource = nil
             schedule = Schedule()
@@ -206,6 +206,19 @@ struct SetupOptions {
     /// Every Project option without `--project` is a ValidationError.
     private static func validateProjectOptionScope(_ command: SetupCommand) throws {
         guard command.project == nil else { return }
+        if command.printChoices && command.linearProject != nil {
+            guard command.projectName == nil, command.linearTeam == nil,
+                  command.specSource == nil, command.repo.isEmpty, command.nightStart == nil,
+                  command.nightEnd == nil, command.buildEveryMinutes == nil
+            else {
+                throw ValidationError(
+                    "--project-name, --linear-team, " // glossary:ignore GL001
+                        + "--spec-source, --night-start, --night-end, --build-every-minutes " // glossary:ignore GL001
+                        + "and --repo require --project" // glossary:ignore GL001
+                )
+            }
+            return
+        }
         guard command.projectName == nil, command.linearProject == nil, command.linearTeam == nil,
               command.specSource == nil, command.repo.isEmpty, command.nightStart == nil,
               command.nightEnd == nil, command.buildEveryMinutes == nil
@@ -318,7 +331,6 @@ extension SetupOptions {
             (command.config != nil, "--config"),
             (command.project != nil, "--project"), // glossary:ignore GL001
             (command.projectName != nil, "--project-name"), // glossary:ignore GL001
-            (command.linearProject != nil, "--linear-project"), // glossary:ignore GL001
             (command.linearTeam != nil, "--linear-team"),
             (command.specSource != nil, "--spec-source"),
             (command.nightStart != nil, "--night-start"),
@@ -339,6 +351,11 @@ extension SetupOptions {
         guard present.isEmpty else {
             throw ValidationError(
                 "--print-choices cannot be combined with " + present.joined(separator: ", ") // glossary:ignore GL001
+            )
+        }
+        if command.linearProject != nil && command.installation == nil {
+            throw ValidationError(
+                "--linear-project with --print-choices requires --installation" // glossary:ignore GL001
             )
         }
     }

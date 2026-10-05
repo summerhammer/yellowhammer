@@ -94,6 +94,10 @@ extension AddProjectUITests {
         XCTAssertTrue(linearID.waitForExistence(timeout: 5))
         linearID.click()
         linearID.typeText("proj-1")
+        let verify = sheet.buttons["setup-linear-verify"]
+        XCTAssertTrue(verify.waitForExistence(timeout: 5))
+        verify.click()
+        XCTAssertTrue(element("setup-linear-result-verified").waitForExistence(timeout: 5))
     }
 
     /// The story's "completing the wizard adds the new Project's row to the main window's Sidebar … and to

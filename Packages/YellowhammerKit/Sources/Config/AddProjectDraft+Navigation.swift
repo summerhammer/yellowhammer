@@ -52,6 +52,7 @@ extension AddProjectDraft {
         linearInstallationName = name
         teamKey = nil
         linearProjectID = ""
+        linearVerification = .unchecked
         context.teams = []
         context.linearProjects = []
     }

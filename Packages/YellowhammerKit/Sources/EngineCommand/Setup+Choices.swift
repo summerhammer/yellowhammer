@@ -35,7 +35,7 @@ extension Setup {
                     + "run yh setup --install-linear --installation \(name)"
             )
         }
-        let board = bindProvisioning(installation, "")
+        let board = bindProvisioning(installation, options.linearProjectID ?? "")
         let members = try await authorize(board: board)
         let teams = try await fetchTeams(board: board)
         // A failed projects read must not cost the Operator the teams and candidates already in hand:
@@ -47,12 +47,47 @@ extension Setup {
             output("warning: could not list the Linear projects: \(error)") // glossary:ignore GL001
             projects = []
         }
+        let projectCheck = await checkLinearProject(board: board)
         output(try encodeChoicesJSON(
             makeChoices(
-                installation: installation, members: members, teams: teams, projects: projects,
-                installations: listed
+                installation: installation,
+                board: BoardChoices(members: members, teams: teams, projects: projects),
+                installations: listed, projectCheck: projectCheck
             )
         ))
+    }
+
+    private func checkLinearProject(board: any BoardProvisioning) async -> SetupChoices.LinearProjectCheck? {
+        guard options.linearProjectID != nil else { return nil }
+        do {
+            let scope = try await board.linearProject()
+            let memberTeams: Set<BoardObjectID>
+            do {
+                memberTeams = Set(try await board.memberTeams())
+            } catch {
+                return SetupChoices.LinearProjectCheck.noTeamAccess(
+                    id: scope.id.rawValue,
+                    name: scope.name,
+                    teamNames: scope.teams.map(\.name)
+                )
+            }
+            let missing = scope.teams.filter { !memberTeams.contains($0.id) }
+            if missing.isEmpty {
+                return SetupChoices.LinearProjectCheck.found(
+                    id: scope.id.rawValue,
+                    name: scope.name,
+                    teamNames: scope.teams.map(\.name)
+                )
+            } else {
+                return SetupChoices.LinearProjectCheck.noTeamAccess(
+                    id: scope.id.rawValue,
+                    name: scope.name,
+                    teamNames: missing.map(\.name)
+                )
+            }
+        } catch {
+            return SetupChoices.LinearProjectCheck.notFound
+        }
     }
 
     private func loadMachineConfigurationForChoices() throws -> MachineConfiguration? {
@@ -75,11 +110,19 @@ extension Setup {
         }
     }
 
+    private struct BoardChoices {
+        var members: [BoardMember]
+        var teams: [BoardTeam]
+        var projects: [BoardLinearProject]
+    }
+
     private func makeChoices(
-        installation: LinearInstallation, members: [BoardMember], teams: [BoardTeam],
-        projects: [BoardLinearProject], installations: [SetupChoices.Installation]
+        installation: LinearInstallation,
+        board: BoardChoices,
+        installations: [SetupChoices.Installation],
+        projectCheck: SetupChoices.LinearProjectCheck?
     ) -> SetupChoices {
-        let candidates = OperatorIdentity.candidates(from: members)
+        let candidates = OperatorIdentity.candidates(from: board.members)
         let configuredOperator = installation.operatorIdentity.flatMap { configured in
             candidates.contains { $0.id == configured } ? configured.rawValue : nil
         }
@@ -88,14 +131,15 @@ extension Setup {
                 SetupChoices.Member(id: $0.id.rawValue, name: $0.name, displayName: $0.displayName)
             },
             configuredOperator: configuredOperator,
-            teams: teams.map { SetupChoices.Team(id: $0.id.rawValue, key: $0.key, name: $0.name) },
-            linearProjects: projects.filter { !$0.isCompleted && !$0.isCanceled }.map { project in
+            teams: board.teams.map { SetupChoices.Team(id: $0.id.rawValue, key: $0.key, name: $0.name) },
+            linearProjects: board.projects.filter { !$0.isCompleted && !$0.isCanceled }.map { project in
                 SetupChoices.LinearProject(
                     id: project.id.rawValue, name: project.name, teamNames: project.teams.map(\.name)
                 )
             },
             cliAdapters: CLIAdapterRegistry.allNames,
-            installations: installations
+            installations: installations,
+            linearProjectCheck: projectCheck
         )
     }
 

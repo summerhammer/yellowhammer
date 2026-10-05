@@ -78,9 +78,71 @@ extension SetupWizardModel {
             }
             draft.context.teams = decoded.teams
             draft.context.linearProjects = decoded.linearProjects
+            if let project = decoded.linearProjects.first(where: { $0.id == draft.linearProjectID }) {
+                draft.linearVerification = .verified(name: project.name, teamNames: project.teamNames)
+            }
         } catch {
             guard generation == teamsFetchGeneration, draft.linearInstallationName == installation else { return }
             teamsFailure = ["\(error)"]
+        }
+    }
+
+    /// Verifies the entered Linear project id against the selected workspace via `yh setup --print-choices --installation <name> --linear-project <id>`.
+    func verifyLinearProject() async {
+        let id = draft.linearProjectID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !id.isEmpty, let installation = draft.linearInstallationName else { return }
+        if let project = draft.context.linearProjects.first(where: { $0.id == id }) {
+            draft.linearVerification = .verified(name: project.name, teamNames: project.teamNames)
+            return
+        }
+        guard !ConfigurationDirectory.isOverridden || SetupEngine.isStubbed else { return }
+        verifyEngine.terminate()
+        let fetchEngine = SetupEngine()
+        verifyEngine = fetchEngine
+        verifyGeneration += 1
+        let generation = verifyGeneration
+        draft.linearVerification = .checking
+
+        let arguments = SetupInvocation.choicesArguments(
+            installation: installation, githubCredential: nil, linearProject: id
+        )
+        var lines: [String] = []
+        do {
+            let status = try await fetchEngine.run(arguments: arguments, standardInput: nil) { lines.append($0) }
+            guard generation == verifyGeneration,
+                  draft.linearProjectID.trimmingCharacters(in: .whitespacesAndNewlines) == id
+            else { return }
+            guard status == 0,
+                  let lastLine = lines.last(where: { !$0.isEmpty }),
+                  let data = lastLine.data(using: .utf8),
+                  let decoded = try? JSONDecoder().decode(SetupChoices.self, from: data)
+            else {
+                draft.linearVerification = .notFound
+                return
+            }
+            if !decoded.teams.isEmpty { draft.context.teams = decoded.teams }
+            if !decoded.linearProjects.isEmpty { draft.context.linearProjects = decoded.linearProjects }
+            applyLinearProjectCheck(decoded.linearProjectCheck, fallbackID: id)
+        } catch {
+            guard generation == verifyGeneration,
+                  draft.linearProjectID.trimmingCharacters(in: .whitespacesAndNewlines) == id
+            else { return }
+            draft.linearVerification = .notFound
+        }
+    }
+
+    private func applyLinearProjectCheck(_ check: SetupChoices.LinearProjectCheck?, fallbackID: String) {
+        guard let check else {
+            draft.linearVerification = .notFound
+            return
+        }
+        switch check.status {
+        case .found:
+            draft.linearVerification = .verified(name: check.name ?? fallbackID, teamNames: check.teamNames ?? [])
+        case .notFound:
+            draft.linearVerification = .notFound
+        case .noTeamAccess:
+            draft.linearVerification = .noTeamAccess(teamNames: check.teamNames ?? [])
         }
     }
 
