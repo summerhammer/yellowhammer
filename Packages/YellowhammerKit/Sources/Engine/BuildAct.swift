@@ -14,9 +14,13 @@ import Repositories
 ///    and human comments ride in its report for later phases to consume.
 /// 3. Derives Repo Lanes from the in-flight Feature's Cards, read fresh from the Journal after the
 ///    Delta Read, so Cancelled Cards (and a reclaimed Card's return to Ready) are already reflected.
-/// 4. Runs lanes concurrently. Each lane with runnable Cards and a bound Workspace first allocates its
-///    Repo's Worktree (``WorktreeAllocator``, graph-execution/allocate-a-worktree-per-graph-and-repo) —
-///    reusing one already held for this Feature and repository — before running its Cards one at a time
+/// 4. Allocates every lane's Worktree in a sequential pre-pass, in lane order: each lane with runnable
+///    Cards and a bound Workspace gets its Repo's Worktree (``WorktreeAllocator``,
+///    graph-execution/allocate-a-worktree-per-graph-and-repo), reusing one already held for this Feature
+///    and repository. A branch-name collision (``BuildActError/worktreeNameCollision(repository:requested:reported:)``)
+///    halts the Act right there: no lane starts, no Card runs, and no Attempt, Card Lease or Block Reason
+///    is written (OQ123(c)). Any other allocation failure is lane-local: that lane reports it and the
+///    rest run. Then runs lanes concurrently, each running its Cards one at a time
 ///    in authored order, through an injectable ``CardRunner`` (the per-Card run itself is P8.4, a later
 ///    phase) — a Crashed-Unknown reclaim retries its Card's same Route once in this very pass, since the
 ///    Card is back in Todo and that ending never excludes a Route.
@@ -191,11 +195,24 @@ public struct BuildAct: Sendable {
             act: context, feature: feature, cycleID: cycleID, reconciliation: reconciliation, deltaRead: deltaRead
         )
 
+        // The pre-pass: a collision throws out of here before any lane starts.
+        var allocationFailures: [String: String] = [:]
+        for lane in lanes {
+            if let failure = try await allocateWorktree(
+                runnable: lane.runnable, lane: lane, context: buildContext, actContext: context
+            ) {
+                allocationFailures[lane.repository] = failure
+            }
+        }
+
         var failures: [String: String] = [:]
         await withTaskGroup(of: (String, String?).self) { group in
             for lane in lanes {
+                let allocationFailure = allocationFailures[lane.repository]
                 group.addTask {
-                    await self.run(lane: lane, context: buildContext, actContext: context)
+                    await self.run(
+                        lane: lane, allocationFailure: allocationFailure, context: buildContext, actContext: context
+                    )
                 }
             }
             for await (repository, failure) in group {
@@ -213,16 +230,16 @@ public struct BuildAct: Sendable {
     /// One lane, start to end, appending its own started/ended events. Never throws: an engine fault
     /// from `cardRunner` is caught, recorded as this lane's failure, and returned to the caller so
     /// other lanes are never cancelled by it.
-    private func run(lane: RepoLane, context: BuildActContext, actContext: ActContext) async -> (String, String?) {
+    private func run(
+        lane: RepoLane, allocationFailure: String?, context: BuildActContext, actContext: ActContext
+    ) async -> (String, String?) {
         let runnable = lane.runnable
         _ = try? actContext.journal.append(
             .repoLaneStarted(repository: lane.repository, cards: runnable.count),
             act: actContext.act, runID: actContext.runID, nightID: actContext.night.id
         )
 
-        if let allocationFailure = await allocateWorktree(
-            runnable: runnable, lane: lane, context: context, actContext: actContext
-        ) {
+        if let allocationFailure {
             _ = try? actContext.journal.append(
                 .repoLaneEnded(
                     repository: lane.repository, cardsRun: 0, failure: allocationFailure, cardsSkipped: 0
@@ -269,12 +286,14 @@ public struct BuildAct: Sendable {
 
     /// Allocates this lane's Repo's Worktree (graph-execution/allocate-a-worktree-per-graph-and-repo)
     /// before its first Card, when the lane has Cards to run and a Workspace is bound. Returns a
-    /// description of the failure when allocation cannot proceed; nil otherwise. Skips allocation
-    /// entirely — never returning a failure — when the lane has no runnable Cards or no Workspace is
-    /// bound, so a fake-runner test with no Workspace keeps behaving exactly as before.
+    /// description of the failure when allocation cannot proceed; nil otherwise. A branch-name collision
+    /// is not a lane failure: it is thrown as
+    /// ``BuildActError/worktreeNameCollision(repository:requested:reported:)`` and halts the Act. Skips
+    /// allocation entirely — never returning a failure — when the lane has no runnable Cards or no
+    /// Workspace is bound, so a fake-runner test with no Workspace keeps behaving exactly as before.
     private func allocateWorktree(
         runnable: [CardRecord], lane: RepoLane, context: BuildActContext, actContext: ActContext
-    ) async -> String? {
+    ) async throws -> String? {
         guard !runnable.isEmpty, let workspace = actContext.workspace else { return nil }
 
         guard let worktreeName = context.feature.worktreeName else {
@@ -300,6 +319,10 @@ public struct BuildAct: Sendable {
         do {
             _ = try await allocator.allocate(featureID: context.feature.id, worktreeName: worktreeName, repos: [repo])
             return nil
+        } catch let WorktreeAllocationError.nameCollision(repository, requested, reported, recorded) {
+            throw BuildActError.worktreeNameCollision(
+                repository: repository, requested: recorded ?? requested, reported: reported
+            )
         } catch {
             return String(describing: error)
         }
@@ -342,9 +365,21 @@ public enum BuildActError: Error, Equatable, Sendable, CustomStringConvertible {
     /// At least one Repo Lane's runner threw; every lane ran to completion or failure before this was
     /// thrown. Keyed by repository.
     case lanesFailed([String: String])
+    /// Orca ADE made a branch Yellowhammer does not accept for `repository`'s Worktree; this halts the
+    /// build Act for the Project (OQ123(c)): the Cards stay Todo, no Attempt is spent, no Card Lease is
+    /// taken and no Block Reason is set. `requested` is the branch Yellowhammer *expected*: the recorded
+    /// Feature Branch when one is recorded, else the requested Worktree name. (When Orca ADE's prefix is
+    /// turned off between Acts the requested Worktree name equals `reported`, so only the recorded
+    /// branch makes a readable notice.)
+    case worktreeNameCollision(repository: String, requested: String, reported: String)
 
+    /// The collision notice is a push notification's body: keep it within 200 characters for realistic
+    /// repository and branch names.
     public var description: String {
         switch self {
+        case .worktreeNameCollision(let repository, let requested, let reported):
+            return "\(repository): Orca ADE made '\(reported)', not '\(requested)'. "
+                + "Restore Orca ADE's branch-name prefix setting, or `git branch -m` the branch that holds the name."
         case .featureBranchUnrecorded(let featureID):
             return "Feature \(featureID) holds a Worktree but the Journal has no Feature Branch recorded for it"
         case .worktreeNameUnrecorded(let featureID):

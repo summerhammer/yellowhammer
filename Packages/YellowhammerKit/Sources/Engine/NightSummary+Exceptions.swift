@@ -101,8 +101,8 @@ extension NightSummary {
     }
 
     /// The `**Exceptions:**` section: `boardWriteFailed`, `rateBudgetExhausted`, `mainlineFetchFailed`,
-    /// `absentNightDetected` and `notificationDeliveryFailed`. Empty when none of these happened this
-    /// Night.
+    /// `absentNightDetected`, `notificationDeliveryFailed` and `worktreeNameCollision`. Empty when none of
+    /// these happened this Night.
     public static func exceptionLines(night: NightRecord, journal: JournalStore) throws -> [String] {
         var lines: [String] = []
         for record in try nightEvents(night: night, journal: journal) {
@@ -127,6 +127,11 @@ extension NightSummary {
             case .notificationDeliveryFailed(let notification, let reason):
                 lines.append(
                     "Notification `\(notification)` delivery failed: \(reason). Fire-and-forget: never retried."
+                )
+            case .worktreeNameCollision(let repository, let requested, let reported):
+                lines.append(
+                    "A Worktree branch-name collision in `\(repository)` halted the build Act: Orca ADE made "
+                        + "`\(reported)`, not `\(requested)`. Later Acts retry."
                 )
             default:
                 break

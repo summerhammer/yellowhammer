@@ -280,13 +280,7 @@ public struct EngineInvocation: Sendable {
             try await closeNightIfNeeded(night, card: nightCard, outbox: outbox)
             appendClosing(.actEnded, night: night)
         } catch {
-            let reason = String(describing: error)
-            appendClosing(.actIncomplete(reason: reason), night: night)
-            if error.isLinearAuthorizationFailure {
-                await notifyLinearAuthorizationHalted(night: night)
-            } else {
-                await notifyHalted(reason: reason, night: night, nightCard: nightCard, outbox: outbox)
-            }
+            await recordHalt(error, night: night, nightCard: nightCard, outbox: outbox)
             throw error
         }
     }

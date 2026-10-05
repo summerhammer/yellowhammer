@@ -20,6 +20,7 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case mainlineConflictDetected = "MainlineConflictDetected"
     case managedBlockDelimiterBroken = "ManagedBlockDelimiterBroken"
     case notificationDeliveryFailed = "NotificationDeliveryFailed"
+    case worktreeNameCollision = "WorktreeNameCollision"
     case rateBudgetExhausted = "RateBudgetExhausted"
     case leaseReclaimed = "LeaseReclaimed"
     case cardLeaseReclaimed = "CardLeaseReclaimed"

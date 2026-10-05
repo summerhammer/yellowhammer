@@ -109,6 +109,65 @@ extension EngineInvocation {
         await notify(.halted(reason: reason), notification: "halted", night: night)
     }
 
+    /// `runUnderLease`'s catch: appends `.actIncomplete` — preceded by `.worktreeNameCollision` when
+    /// that is the cause — and then sends the halted notice the cause calls for. Never throws.
+    func recordHalt(_ error: any Error, night: NightRecord, nightCard: NightCardMaintenance?, outbox: Outbox?) async {
+        let reason = String(describing: error)
+        // Read before the collision event is appended, so this Act's own event does not count.
+        let collision = recordWorktreeNameCollision(error, night: night)
+        appendClosing(.actIncomplete(reason: reason), night: night)
+        if error.isLinearAuthorizationFailure {
+            await notifyLinearAuthorizationHalted(night: night)
+        } else if let collision {
+            await notifyWorktreeNameCollisionHalted(
+                collision, reason: reason, night: night, nightCard: nightCard, outbox: outbox
+            )
+        } else {
+            await notifyHalted(reason: reason, night: night, nightCard: nightCard, outbox: outbox)
+        }
+    }
+
+    /// Whether this Act's collision is the first this Night, for
+    /// ``notifyWorktreeNameCollisionHalted(_:reason:night:nightCard:outbox:)``.
+    enum WorktreeNameCollisionOccurrence {
+        case firstThisNight, repeatedThisNight
+    }
+
+    /// When `error` is a Worktree branch-name collision (graph-execution/allocate-a-worktree-per-graph-
+    /// and-repo, OQ123(c)), appends `.worktreeNameCollision` and says whether an earlier Act this Night
+    /// already recorded one. Called before `.actIncomplete`, so the event precedes it; nil for every
+    /// other error.
+    func recordWorktreeNameCollision(_ error: any Error, night: NightRecord) -> WorktreeNameCollisionOccurrence? {
+        guard case let BuildActError.worktreeNameCollision(repository, requested, reported) = error else {
+            return nil
+        }
+        let isFirst = (try? journal.events(ofType: .worktreeNameCollision))?
+            .allSatisfy { $0.nightID != night.id } ?? true
+        _ = try? journal.append(
+            .worktreeNameCollision(repository: repository, requested: requested, reported: reported),
+            act: act, runID: runID, nightID: night.id
+        )
+        return isFirst ? .firstThisNight : .repeatedThisNight
+    }
+
+    /// A collision is a cause of *halted*, not a fourth event, and fires once per Project per Night
+    /// (glossary: Exception Notification; OQ123(c)). The first Act this Night to hit one runs the full
+    /// ``notifyHalted(reason:night:nightCard:outbox:)``. A later Act only writes its halted comment on
+    /// the Night Card and posts nothing — not even `.haltedUnrecorded` when there is no Night Card to
+    /// write on, because the Operator was already told this Night.
+    func notifyWorktreeNameCollisionHalted(
+        _ occurrence: WorktreeNameCollisionOccurrence, reason: String, night: NightRecord,
+        nightCard: NightCardMaintenance?, outbox: Outbox?
+    ) async {
+        switch occurrence {
+        case .firstThisNight:
+            await notifyHalted(reason: reason, night: night, nightCard: nightCard, outbox: outbox)
+        case .repeatedThisNight:
+            guard board != nil, let outbox, nightCard != nil, let issueID = night.nightCardIssueID else { return }
+            _ = await recordHaltedComment(reason: reason, issueID: issueID, night: night, outbox: outbox)
+        }
+    }
+
     /// Names the cause and the fix, whether or not a Night Card could be opened (P17.5): a refused
     /// identity cannot have written one either way, so the message is never conditioned on that.
     ///

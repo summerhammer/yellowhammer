@@ -90,6 +90,10 @@ public enum JournalEvent: Equatable, Sendable {
     case managedBlockDelimiterBroken(issueID: String)
     /// Fire-and-forget: the failure is recorded, never acted on.
     case notificationDeliveryFailed(notification: String, reason: String)
+    /// Orca ADE reported a branch for a requested Worktree that Yellowhammer does not accept; the build
+    /// Act halted. `requested` is the branch Yellowhammer expected (the recorded Feature Branch when one is
+    /// recorded, else the requested Worktree name); `reported` is what Orca ADE made.
+    case worktreeNameCollision(repository: String, requested: String, reported: String)
     /// The board's request budget was exhausted and the Act did less work. The budget is the
     /// App Installation's, shared by every Project on that installation, so the record names it
     /// installation-wide (and the workspace, when known) and never attributes the exhaustion to this

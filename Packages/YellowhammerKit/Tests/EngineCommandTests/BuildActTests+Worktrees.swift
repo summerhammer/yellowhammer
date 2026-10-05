@@ -12,7 +12,7 @@ import Testing
 /// Records every `createWorktree` call and creates a real directory per Worktree under
 /// `baseDirectory`, so allocation resolves `branch == name` and succeeds. Modelled on
 /// `WorktreeAllocatorTests`' own `FakeWorkspace`, which is file-private there.
-private final class BuildActFakeWorkspace: Workspace, Sendable {
+final class BuildActFakeWorkspace: Workspace, Sendable {
     struct RemoveCall: Equatable {
         let id: WorktreeID
         let force: Bool
@@ -21,6 +21,7 @@ private final class BuildActFakeWorkspace: Workspace, Sendable {
     private struct State {
         var createCalls: [(repositoryPath: String, name: String)] = []
         var createFailures: Set<String> = []
+        var reportedBranches: [String: String] = [:]
         var removeCalls: [RemoveCall] = []
         var nextID = 0
     }
@@ -41,6 +42,11 @@ private final class BuildActFakeWorkspace: Workspace, Sendable {
         state.withLock { $0.createFailures.insert(path) }
     }
 
+    /// Every later `createWorktree` for `repositoryPath` reports `branch` instead of the requested name.
+    func scriptReportedBranch(_ branch: String, forRepositoryPath path: String) {
+        state.withLock { $0.reportedBranches[path] = branch }
+    }
+
     func createWorktree(
         repositoryPath: String, name: String, baseBranch: String?
     ) async throws(WorkspaceError) -> WorkspaceWorktree {
@@ -55,7 +61,8 @@ private final class BuildActFakeWorkspace: Workspace, Sendable {
         let directory = baseDirectory.appendingPathComponent(name)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return WorkspaceWorktree(
-            id: WorktreeID(rawValue: "fake-\(id)"), path: directory.path, branch: name, displayName: name
+            id: WorktreeID(rawValue: "fake-\(id)"), path: directory.path,
+            branch: state.withLock { $0.reportedBranches[repositoryPath] } ?? name, displayName: name
         )
     }
 
