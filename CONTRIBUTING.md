@@ -46,7 +46,7 @@ Each prerequisite prints `PASS`, `WARN`, `FAIL` or `SKIP`. The script exits 1 if
 
 The spec in `../yellowhammer-spec` is read-only from this repo: propose changes to its owners, never
 edit or copy it here. Conventions for naming, modules, testing and the ubiquitous language are in
-[CLAUDE.md](CLAUDE.md).
+[AGENTS.md](AGENTS.md).
 
 ## Commits and releases
 

@@ -3,7 +3,7 @@ import Domain
 import Foundation
 
 extension Doctor {
-    /// Check 3: `git --version` at least 2.38 (CLAUDE.md), once; then, for every valid Project, each
+    /// Check 3: `git --version` at least 2.38 (AGENTS.md), once; then, for every valid Project, each
     /// Repo's `path` and its `specSource` (when present), `~`-expanded against the injected home
     /// directory, must exist and be a git work tree.
     func runGitCheck(configuration: Configuration) async -> [DoctorFinding] {

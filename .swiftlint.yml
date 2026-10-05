@@ -1,5 +1,5 @@
 # SwiftLint — the repo's lint/format gate (swift-format is not used).
-# See CLAUDE.md § Local choices. Paths stay broad because the target layout
+# See AGENTS.md § Local choices. Paths stay broad because the target layout
 # is still an open decision.
 
 excluded:

@@ -262,7 +262,7 @@ enum TerminationSignals {
     }
 
     /// Surfaces a body ended by a signal as a clear, Operator-facing error rather than a bare
-    /// `CancellationError`. Uses the mandated interruption wording (CLAUDE.md): the Card is
+    /// `CancellationError`. Uses the mandated interruption wording (AGENTS.md): the Card is
     /// reclaimable, and no partial state was written as if it were complete — never that the Card
     /// "continues".
     struct InterruptedError: Error, CustomStringConvertible {

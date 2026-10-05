@@ -1,6 +1,6 @@
 name: Conventional Commits
 
-# Lints PR titles and commit headers against Conventional Commits (see CLAUDE.md's Git
+# Lints PR titles and commit headers against Conventional Commits (see AGENTS.md's Git
 # section), which drives release-please's SemVer bump and changelog. Any merge strategy
 # is allowed for a PR (squash, rebase, merge commit), so both surfaces are checked:
 # the PR title covers a squash merge, and every commit in the PR covers rebase and
