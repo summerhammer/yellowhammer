@@ -126,7 +126,12 @@ final class SetupEngine {
     /// the log is written next to the stub file instead, so a UI test never writes into the real user's
     /// Logs.
     static func rehearsalLogURL(projectID: String) -> URL {
-        let filename = "\(projectID).rehearse.log"
+        logURL(projectID: projectID, command: "rehearse")
+    }
+
+    /// The same log as the selected Project's LaunchAgent; the stub seam keeps output beside the stub.
+    static func logURL(projectID: String, command: String) -> URL {
+        let filename = "\(projectID).\(command).log"
         let arguments = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
         if let stubPath = arguments[stubArgument] as? String {
             return URL(filePath: stubPath).deletingLastPathComponent()
@@ -136,7 +141,7 @@ final class SetupEngine {
             .appending(components: "Library", "Logs", "Yellowhammer", filename, directoryHint: .notDirectory)
     }
 
-    /// Launches `arguments` fully detached from the app (P14.7's rehearsal Night): the app must remain
+    /// Launches `arguments` fully detached from the app (an Act or P14.7's rehearsal Night): the app must remain
     /// "shell, not host", so a Night launched from here must keep running with the app quit. `posix_spawn`s
     /// `/bin/sh` with `POSIX_SPAWN_SETSID`, running a script that backgrounds the real command and exits at
     /// once; only that shell is waited on, never the backgrounded grandchild, which is reparented to
@@ -158,7 +163,9 @@ final class SetupEngine {
         }
 
         let command = plan.executable.path(percentEncoded: false)
-        let backgroundScript = #"log="$1"; shift; "$@" </dev/null >>"$log" 2>&1 &"#
+        // Open the log before backgrounding, so an unwritable log is a launch failure, not a silent
+        // failure in the detached child after the app has already returned from this call.
+        let backgroundScript = #"log="$1"; shift; exec >>"$log" 2>&1 || exit 1; "$@" </dev/null &"#
         let shellArguments = ["/bin/sh", "-c", backgroundScript, "sh", logURL.path(percentEncoded: false), command]
             + plan.leadingArguments + arguments
 
