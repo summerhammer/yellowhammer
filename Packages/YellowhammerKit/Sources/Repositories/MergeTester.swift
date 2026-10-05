@@ -47,9 +47,11 @@ public struct RepoMergeResult: Equatable, Sendable {
     }
 }
 
-/// A report of merge tests for a Feature Branch across all repositories touched by a Feature.
+/// A report of merge tests across all repositories touched by a Feature, each against the Feature
+/// Branch recorded for that repository.
 public struct FeatureMergeReport: Equatable, Sendable {
-    public let branch: FeatureBranch
+    /// The Feature Branch tested per repository name.
+    public let branches: [String: FeatureBranch]
     public let results: [RepoMergeResult]
 
     /// Repositories whose merge test reported a Mainline Conflict.
@@ -71,10 +73,10 @@ public struct FeatureMergeReport: Equatable, Sendable {
     }
 
     public init(
-        branch: FeatureBranch,
+        branches: [String: FeatureBranch],
         results: [RepoMergeResult]
     ) {
-        self.branch = branch
+        self.branches = branches
         self.results = results
     }
 }
@@ -93,32 +95,28 @@ public struct MergeTester: Sendable {
         self.git = git
     }
 
-    /// Evaluates the merge test for a Feature Branch across all repositories touched by the Feature.
+    /// Evaluates the merge test across all repositories touched by the Feature, each against its own
+    /// Feature Branch in `branches`. A repository absent from the map is untestable without running git.
     public func evaluateMerge(
-        branch: FeatureBranch,
+        branches: [String: FeatureBranch],
         repos: [Repo],
         mainlines: ResolvedMainlines? = nil
     ) async -> FeatureMergeReport {
         var results: [RepoMergeResult] = []
         for repo in repos {
+            guard let branch = branches[repo.name] else {
+                results.append(
+                    RepoMergeResult(
+                        repository: repo.name, branch: "",
+                        verdict: .untestable(reason: "no Feature Branch recorded for \(repo.name)")
+                    )
+                )
+                continue
+            }
             let mainline = mainlines?[repo.name]
-            let result = await testMerge(branch: branch.name, in: repo, mainline: mainline)
-            results.append(result)
+            results.append(await testMerge(branch: branch.name, in: repo, mainline: mainline))
         }
-        return FeatureMergeReport(branch: branch, results: results)
-    }
-
-    /// Evaluates the merge test for a branch name across all repositories touched by the Feature.
-    public func evaluateMerge(
-        branchName: String,
-        repos: [Repo],
-        mainlines: ResolvedMainlines? = nil
-    ) async -> FeatureMergeReport {
-        await evaluateMerge(
-            branch: FeatureBranch(name: branchName),
-            repos: repos,
-            mainlines: mainlines
-        )
+        return FeatureMergeReport(branches: branches, results: results)
     }
 
     /// Test-merges a Feature Branch against a single repository's Mainline.

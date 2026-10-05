@@ -42,7 +42,9 @@ struct MultiRepoAncestryTests {
 
         let branch = FeatureBranch(name: "yh-proj-auth")
         let tester = AncestryTester()
-        let report = await tester.evaluateAncestry(branch: branch, repos: repos)
+        let report = await tester.evaluateAncestry(
+            branches: Dictionary(uniqueKeysWithValues: repos.map { ($0.name, branch) }), repos: repos
+        )
 
         #expect(report.mergedFraction.mergedCount == 3)
         #expect(report.mergedFraction.totalCount == 3)
@@ -93,7 +95,9 @@ struct MultiRepoAncestryTests {
 
         let branch = FeatureBranch(name: "yh-proj-partial")
         let tester = AncestryTester()
-        let report = await tester.evaluateAncestry(branch: branch, repos: repos)
+        let report = await tester.evaluateAncestry(
+            branches: Dictionary(uniqueKeysWithValues: repos.map { ($0.name, branch) }), repos: repos
+        )
 
         #expect(report.mergedFraction.mergedCount == 1)
         #expect(report.mergedFraction.totalCount == 3)
@@ -131,7 +135,10 @@ struct MultiRepoAncestryTests {
         ]
 
         let tester = AncestryTester()
-        let report = await tester.evaluateAncestry(branchName: "yh-proj-zero", repos: repos)
+        let report = await tester.evaluateAncestry(
+            branches: Dictionary(uniqueKeysWithValues: repos.map { ($0.name, FeatureBranch(name: "yh-proj-zero")) }),
+            repos: repos
+        )
 
         #expect(report.mergedFraction.mergedCount == 0)
         #expect(report.mergedFraction.totalCount == 2)
@@ -147,7 +154,7 @@ struct MultiRepoAncestryTests {
     @Test("Multi-repo: Zero repositories touched yields 0 of 0 merged")
     func multiRepoZeroRepos() async throws {
         let tester = AncestryTester()
-        let report = await tester.evaluateAncestry(branchName: "yh-proj-empty", repos: [])
+        let report = await tester.evaluateAncestry(branches: [:], repos: [])
 
         #expect(report.mergedFraction.mergedCount == 0)
         #expect(report.mergedFraction.totalCount == 0)

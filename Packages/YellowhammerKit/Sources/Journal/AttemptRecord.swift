@@ -37,7 +37,7 @@ public struct AttemptRecord: Equatable, Sendable {
     public let startedAt: Date
     public let endedAt: Date?
     public let rounds: [RoundRecord]
-    /// `refs/yellowhammer/attempts/<feature branch name>/<attempt id>`: this Attempt's own commits
+    /// `refs/yellowhammer/attempts/<Feature Branch name>/<attempt id>`: this Attempt's own commits
     /// plus any WIP commit, preserved before a reset moved the Feature Branch tip away from them
     /// (Attempt, Block and Reset Ruling 2026-09-19, OQ60). Nil when nothing was preserved.
     public let preservedRef: String?

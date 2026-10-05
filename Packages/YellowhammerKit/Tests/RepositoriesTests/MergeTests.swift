@@ -241,7 +241,9 @@ struct MergeTests {
 
         let branch = FeatureBranch(name: "yh-proj-feature")
         let tester = MergeTester()
-        let report = await tester.evaluateMerge(branch: branch, repos: repos)
+        let report = await tester.evaluateMerge(
+            branches: Dictionary(uniqueKeysWithValues: repos.map { ($0.name, branch) }), repos: repos
+        )
 
         #expect(report.hasMainlineConflict == true)
         #expect(report.conflictingRepositories == ["conflicting-repo"])
@@ -253,7 +255,7 @@ struct MergeTests {
     @Test("Multi-repo: Zero repositories touched has no Mainline Conflict")
     func multiRepoZeroRepos() async throws {
         let tester = MergeTester()
-        let report = await tester.evaluateMerge(branchName: "yh-proj-empty", repos: [])
+        let report = await tester.evaluateMerge(branches: [:], repos: [])
 
         #expect(report.hasMainlineConflict == false)
         #expect(report.conflictingRepositories.isEmpty)

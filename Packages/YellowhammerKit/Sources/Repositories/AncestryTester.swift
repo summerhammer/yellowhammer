@@ -24,9 +24,11 @@ public struct RepoAncestryResult: Equatable, Sendable {
     }
 }
 
-/// A report of ancestry checks for a Feature Branch across all repositories touched by a Feature.
+/// A report of ancestry checks across all repositories touched by a Feature, each against the Feature
+/// Branch recorded for that repository.
 public struct FeatureAncestryReport: Equatable, Sendable {
-    public let branch: FeatureBranch
+    /// The Feature Branch tested per repository name.
+    public let branches: [String: FeatureBranch]
     public let results: [RepoAncestryResult]
     public let mergedFraction: MergedFraction
 
@@ -54,10 +56,10 @@ public struct FeatureAncestryReport: Equatable, Sendable {
     }
 
     public init(
-        branch: FeatureBranch,
+        branches: [String: FeatureBranch],
         results: [RepoAncestryResult]
     ) {
-        self.branch = branch
+        self.branches = branches
         self.results = results
         let merged = results.filter(\.isAncestor).count
         self.mergedFraction = MergedFraction(mergedCount: merged, totalCount: results.count)
@@ -75,32 +77,28 @@ public struct AncestryTester: Sendable {
         self.git = git
     }
 
-    /// Evaluates ancestry for a Feature Branch across all repositories touched by the Feature.
+    /// Evaluates ancestry across all repositories touched by the Feature, each against its own Feature
+    /// Branch in `branches`. A repository absent from the map is reported indeterminate (empty branch, no
+    /// commits) without running git.
     public func evaluateAncestry(
-        branch: FeatureBranch,
+        branches: [String: FeatureBranch],
         repos: [Repo],
         mainlines: ResolvedMainlines? = nil
     ) async -> FeatureAncestryReport {
         var results: [RepoAncestryResult] = []
         for repo in repos {
+            guard let branch = branches[repo.name] else {
+                results.append(
+                    RepoAncestryResult(
+                        repository: repo.name, branch: "", isAncestor: false, branchCommit: nil, mainlineCommit: nil
+                    )
+                )
+                continue
+            }
             let mainline = mainlines?[repo.name]
-            let result = await testAncestry(branch: branch.name, in: repo, mainline: mainline)
-            results.append(result)
+            results.append(await testAncestry(branch: branch.name, in: repo, mainline: mainline))
         }
-        return FeatureAncestryReport(branch: branch, results: results)
-    }
-
-    /// Evaluates ancestry for a branch name across all repositories touched by the Feature.
-    public func evaluateAncestry(
-        branchName: String,
-        repos: [Repo],
-        mainlines: ResolvedMainlines? = nil
-    ) async -> FeatureAncestryReport {
-        await evaluateAncestry(
-            branch: FeatureBranch(name: branchName),
-            repos: repos,
-            mainlines: mainlines
-        )
+        return FeatureAncestryReport(branches: branches, results: results)
     }
 
     /// Tests whether a Feature Branch is an ancestor of a single repository's mainline.

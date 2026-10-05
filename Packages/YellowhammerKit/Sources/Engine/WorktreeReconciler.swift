@@ -94,17 +94,22 @@ public struct WorktreeReconciler: Sendable {
         self.fencer = fencer
     }
 
-    /// Reconciles every held Worktree recorded for `featureID` — this Project's in-flight Feature —
-    /// in repository order. Only the Journal's records are swept: the Workspace Port's list is
-    /// never consulted, so a worktree this Act cannot account for (a sibling Project's) is never
-    /// verified, fenced, committed or reset.
-    public func reconcile(featureID: Int64, branch: FeatureBranch) async throws -> WorktreeReconciliation {
-        let held = try journal.worktrees(featureID: featureID)
+    /// Reconciles every held Worktree recorded for `feature` — this Project's in-flight Feature —
+    /// in repository order, each against the Feature Branch resolved for its repository
+    /// (``JournalStore/resolvedFeatureBranch(feature:repository:)``); a held Worktree with none throws
+    /// ``BuildActError/featureBranchUnrecorded(featureID:)``. Only the Journal's records are swept: the
+    /// Workspace Port's list is never consulted, so a worktree this Act cannot account for (a sibling
+    /// Project's) is never verified, fenced, committed or reset.
+    public func reconcile(feature: FeatureRecord) async throws -> WorktreeReconciliation {
+        let held = try journal.worktrees(featureID: feature.id)
             .filter(\.isHeld)
             .sorted { $0.repository < $1.repository }
 
         var outcomes: [String: WorktreeReconciliationOutcome] = [:]
         for record in held {
+            guard let branch = try journal.resolvedFeatureBranch(feature: feature, repository: record.repository) else {
+                throw BuildActError.featureBranchUnrecorded(featureID: feature.id)
+            }
             outcomes[record.repository] = try await reconcileOne(record, branch: branch)
         }
         return WorktreeReconciliation(outcomes)

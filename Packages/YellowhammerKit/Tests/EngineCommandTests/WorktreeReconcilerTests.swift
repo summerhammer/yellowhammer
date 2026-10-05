@@ -223,11 +223,13 @@ struct WorktreeReconcilerTests {
 
         let backendRecord = try journal.recordWorktree(
             featureID: featureID, repository: "backend", worktreeID: "wt-backend", path: backendWorktree.path,
-            runID: runID
+            runID: runID,
+            featureBranch: reconcilerBranch
         )
         _ = try journal.recordWorktree(
             featureID: featureID, repository: "mobile", worktreeID: "wt-mobile", path: mobileWorktree.path,
-            runID: runID
+            runID: runID,
+            featureBranch: reconcilerBranch
         )
 
         let inProgressBackend = try insertReconcilerCard(
@@ -245,7 +247,7 @@ struct WorktreeReconcilerTests {
             workspace: workspace, journal: journal, runID: runID, act: .build, nightID: nil, git: git
         )
 
-        let result = try await reconciler.reconcile(featureID: featureID, branch: reconcilerBranch)
+        let result = try await reconciler.reconcile(feature: try #require(journal.feature(id: featureID)))
 
         guard case .lost(let lostRecord) = result["backend"] else {
             Issue.record("expected .lost, got \(String(describing: result["backend"]))")
@@ -290,7 +292,8 @@ struct WorktreeReconcilerTests {
 
         _ = try journal.recordWorktree(
             featureID: featureID, repository: "backend", worktreeID: "wt-backend", path: worktree.path,
-            runID: runID, lastKnownGoodCommit: baseCommit
+            runID: runID, lastKnownGoodCommit: baseCommit,
+            featureBranch: reconcilerBranch
         )
 
         let workspace = ReconcilerFakeWorkspace()
@@ -298,7 +301,7 @@ struct WorktreeReconcilerTests {
             workspace: workspace, journal: journal, runID: runID, act: .build, nightID: nil, git: git
         )
 
-        let result = try await reconciler.reconcile(featureID: featureID, branch: reconcilerBranch)
+        let result = try await reconciler.reconcile(feature: try #require(journal.feature(id: featureID)))
 
         guard case .wipCommitted(let record, let wipCommit, let wipRef, let resetTo) = result["backend"] else {
             Issue.record("expected .wipCommitted, got \(String(describing: result["backend"]))")
@@ -351,7 +354,8 @@ struct WorktreeReconcilerTests {
         await addReconcilerWorktree(repo: repo, branch: reconcilerBranch.name, at: ownWorktree, git: git)
         _ = try journal.recordWorktree(
             featureID: featureID, repository: "backend", worktreeID: "wt-own", path: ownWorktree.path,
-            runID: runID, lastKnownGoodCommit: baseCommit
+            runID: runID, lastKnownGoodCommit: baseCommit,
+            featureBranch: reconcilerBranch
         )
 
         let siblingBranch = "yh-sibling-feat"
@@ -368,7 +372,7 @@ struct WorktreeReconcilerTests {
             workspace: workspace, journal: journal, runID: runID, act: .build, nightID: nil, git: git
         )
 
-        let result = try await reconciler.reconcile(featureID: featureID, branch: reconcilerBranch)
+        let result = try await reconciler.reconcile(feature: try #require(journal.feature(id: featureID)))
 
         guard case .clean = result["backend"] else {
             Issue.record("expected .clean, got \(String(describing: result["backend"]))")

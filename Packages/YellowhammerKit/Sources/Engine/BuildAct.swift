@@ -132,15 +132,11 @@ public struct BuildAct: Sendable {
         guard let workspace = context.workspace else {
             throw BuildActError.workspaceRequired(featureID: feature.id)
         }
-        // B1.2: resolve per repository (featureBranches).
-        guard let branch = feature.worktreeName.map({ FeatureBranch(name: $0.rawValue) }) else {
-            throw BuildActError.featureBranchUnrecorded(featureID: feature.id)
-        }
         let reconciler = WorktreeReconciler(
             workspace: workspace, journal: context.journal, runID: context.runID, act: context.act,
             nightID: context.night.id, committer: WorktreeCommitter(mode: context.mode, message: wipCommitMessage)
         )
-        return try await reconciler.reconcile(featureID: feature.id, branch: branch)
+        return try await reconciler.reconcile(feature: feature)
     }
 
     // MARK: - Board repost

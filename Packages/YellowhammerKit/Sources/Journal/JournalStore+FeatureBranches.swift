@@ -46,10 +46,25 @@ extension JournalStore {
     /// The Feature Branch to use for `repository`: the recorded one, else the Feature's Worktree name.
     /// The fallback is deliberate — an unallocated lane's ref cannot exist, so ref probes fail as before.
     public func resolvedFeatureBranch(feature: FeatureRecord, repository: String) throws -> FeatureBranch? {
-        if let recorded = try featureBranch(featureID: feature.id, repository: repository) {
-            return recorded
+        let recorded = try featureBranch(featureID: feature.id, repository: repository)
+        return Self.resolving(recorded: recorded, feature: feature)
+    }
+
+    /// ``resolvedFeatureBranch(feature:repository:)`` for each of `repositories` from one read. A
+    /// repository that resolves to nil is omitted.
+    public func resolvedFeatureBranches(
+        feature: FeatureRecord, repositories: [String]
+    ) throws -> [String: FeatureBranch] {
+        let recorded = try featureBranches(featureID: feature.id)
+        var branches: [String: FeatureBranch] = [:]
+        for repository in repositories {
+            branches[repository] = Self.resolving(recorded: recorded[repository], feature: feature)
         }
-        return feature.worktreeName.map { FeatureBranch(name: $0.rawValue) }
+        return branches
+    }
+
+    private static func resolving(recorded: FeatureBranch?, feature: FeatureRecord) -> FeatureBranch? {
+        recorded ?? feature.worktreeName.map { FeatureBranch(name: $0.rawValue) }
     }
 
     /// The single implementation of the rule behind every Feature Branch write. Also records the pair as

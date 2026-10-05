@@ -160,7 +160,7 @@ extension JournalMigrations {
             // Attempt or a Block resets the Worktree to the last known-good commit, the prior Attempt's
             // own commits plus any WIP commit are preserved under a git ref before the reset, recorded
             // here against that Attempt — both nullable:
-            // - `preserved_ref` — `refs/yellowhammer/attempts/<feature branch name>/<attempt id>`.
+            // - `preserved_ref` — `refs/yellowhammer/attempts/<Feature Branch name>/<attempt id>`.
             // - `preserved_commit` — the Feature Branch tip the ref points at, just before the reset.
             table.column("preserved_ref", .text)
             table.column("preserved_commit", .text)

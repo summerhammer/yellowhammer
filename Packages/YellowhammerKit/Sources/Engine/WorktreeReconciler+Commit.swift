@@ -8,7 +8,7 @@ import Repositories
 extension WorktreeReconciler {
     /// Commits any uncommitted edits in `record`'s Worktree as a WIP commit on the Feature Branch and
     /// resets to the last known-good commit, or confirms a clean tree is already caught up. Never runs
-    /// on a path that is not quiescent: `reconcile(featureID:branch:)` fences it first.
+    /// on a path that is not quiescent: `reconcile(feature:)` fences it first.
     func reconcileCommitState(
         _ record: WorktreeRecord, branch: FeatureBranch
     ) async throws -> WorktreeReconciliationOutcome {

@@ -156,13 +156,13 @@ public struct PredecessorAncestryGate: PredecessorGate {
         _ toTest: [String], feature: FeatureRecord, context: ActContext
     ) async throws -> AncestryTestResult {
         guard !toTest.isEmpty else { return AncestryTestResult() }
-        // B1.2: resolve per repository (featureBranches).
-        guard let branch = feature.worktreeName.map({ FeatureBranch(name: $0.rawValue) }) else {
+        let branches = try context.journal.resolvedFeatureBranches(feature: feature, repositories: toTest)
+        guard toTest.allSatisfy({ branches[$0] != nil }) else {
             throw PredecessorAncestryGateError.predecessorBranchMissing(featureIssueID: feature.issueID)
         }
         let repos = try Self.resolveRepos(featureIssueID: feature.issueID, names: toTest, in: context.repositories)
         let ancestryReport = await ancestryTester.evaluateAncestry(
-            branch: branch, repos: repos, mainlines: context.mainlines
+            branches: branches, repos: repos, mainlines: context.mainlines
         )
 
         var result = AncestryTestResult()
@@ -181,7 +181,7 @@ public struct PredecessorAncestryGate: PredecessorGate {
 
         if !result.unmerged.isEmpty {
             try await reportMainlineConflicts(
-                branch: branch, repos: repos, unmergedRepositories: result.unmerged.sorted(),
+                branches: branches, repos: repos, unmergedRepositories: result.unmerged.sorted(),
                 feature: feature, context: context
             )
         }
@@ -250,12 +250,12 @@ public struct PredecessorAncestryGate: PredecessorGate {
     /// Re-runs the merge test on the unmerged repositories only, and records one
     /// `mainlineConflictDetected` per repository whose test found a Mainline Conflict.
     private func reportMainlineConflicts(
-        branch: FeatureBranch, repos: [Repo], unmergedRepositories: [String],
+        branches: [String: FeatureBranch], repos: [Repo], unmergedRepositories: [String],
         feature: FeatureRecord, context: ActContext
     ) async throws {
         let unmergedRepos = repos.filter { unmergedRepositories.contains($0.name) }
         let mergeReport = await mergeTester.evaluateMerge(
-            branch: branch, repos: unmergedRepos, mainlines: context.mainlines
+            branches: branches, repos: unmergedRepos, mainlines: context.mainlines
         )
         for result in mergeReport.results where result.isMainlineConflict {
             try context.journal.append(
