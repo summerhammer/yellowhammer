@@ -118,14 +118,14 @@ struct ManagedBlockMaintenanceTests {
 
     // MARK: - Labels
 
-    @Test("Disposition labels: one Block Reason at a time, one object type, and none once the Card is re-readied")
+    @Test("Disposition labels: one Block Reason at a time, one card type, and none once the Card is re-readied")
     func labelGroupExclusivity() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let board = FakeWritingBoard()
         let issue = await board.seed(issue: "issue-1", description: ManagedBlockFence.initialDescription(rendered: ""))
         await board.label(issue, add: labels.blockReason[.blockedByReviewer]!)
-        await board.label(issue, add: labels.objectType["Feature"]!)
+        await board.label(issue, add: labels.cardType[.featureCard]!)
         let cardID = try insertFixtureCard(journal, issueID: "issue-1")
         try setCard(journal, cardID, state: .blocked, blockReason: BlockReason.blockedByCheck.rawValue)
         let outbox = try heldOutbox(journal, board: board, cardID: cardID)
@@ -133,14 +133,14 @@ struct ManagedBlockMaintenanceTests {
 
         _ = try await maintenance.maintain(card: try journal.card(id: cardID), brief: brief)
         let blocked = try #require(await board.issue(issue)?.labels)
-        #expect(blocked == [labels.objectType["Card"]!, labels.blockReason[.blockedByCheck]!])
+        #expect(blocked == [labels.cardType[.workCard]!, labels.blockReason[.blockedByCheck]!])
         let description = try #require(await board.issue(issue)?.description)
         #expect(description.contains("**State:** Blocked — blocked by check"))
 
         try setCard(journal, cardID, state: .todo, blockReason: nil)
         _ = try await maintenance.maintain(card: try journal.card(id: cardID), brief: brief)
         let readied = try #require(await board.issue(issue)?.labels)
-        #expect(readied == [labels.objectType["Card"]!])
+        #expect(readied == [labels.cardType[.workCard]!])
     }
 
     @Test("Without a label catalogue only the block is written")
@@ -202,8 +202,8 @@ struct ManagedBlockMaintenanceTests {
     /// A label catalogue with an id for every child of both groups.
     var labels: DispositionLabels {
         DispositionLabels(
-            objectType: Dictionary(uniqueKeysWithValues: BoardProvisioner.objectTypeChildren.map {
-                ($0, BoardObjectID(rawValue: "label-type-\($0)"))
+            cardType: Dictionary(uniqueKeysWithValues: CardType.allCases.map {
+                ($0, BoardObjectID(rawValue: "label-type-\($0.rawValue)"))
             }),
             blockReason: Dictionary(uniqueKeysWithValues: BlockReason.allCases.map {
                 ($0, BoardObjectID(rawValue: "label-reason-\($0.rawValue)"))

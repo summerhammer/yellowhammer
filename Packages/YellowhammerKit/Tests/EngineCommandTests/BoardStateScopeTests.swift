@@ -30,7 +30,7 @@ struct BoardStateScopeTests {
         let scope = try await BoardStateScope.resolve(using: provisioning)
 
         #expect(scope.team == scopeTeam.id)
-        #expect(scope.labels.objectType["Card"] == ids["Card"])
+        #expect(scope.labels.cardType[.workCard] == ids[CardType.workCard.rawValue])
         for state: CardState in [.todo, .inProgress, .done, .blocked, .waitingOnYou] {
             #expect(scope.states[state] != nil)
         }
@@ -114,7 +114,7 @@ struct BoardStateScopeTests {
 
         let change = try scope.featureContentionChange()
         #expect(change.workflowState == (try scope.id(for: .todo)))
-        #expect(change.addLabels.contains(try #require(ids["Feature"])))
+        #expect(change.addLabels.contains(try #require(ids[CardType.featureCard.rawValue])))
         for reason in BlockReason.allCases {
             #expect(change.removeLabels.contains(try #require(ids[reason.rawValue])))
         }
@@ -133,6 +133,6 @@ struct BoardStateScopeTests {
 
         let change = try scope.featureContentionChange()
         #expect(change.workflowState == (try scope.id(for: .todo)))
-        #expect(change.addLabels.contains(try #require(ids["Feature"])))
+        #expect(change.addLabels.contains(try #require(ids[CardType.featureCard.rawValue])))
     }
 }

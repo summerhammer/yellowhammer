@@ -61,7 +61,7 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
         }
 
         let scope = try await BoardStateScope.resolve(using: board.provisioning)
-        var change = scope.labels.change(objectType: "Feature", state: SettleValue.resetTargetState, blockReason: nil)
+        var change = scope.labels.change(cardType: .featureCard, state: SettleValue.resetTargetState, blockReason: nil)
         change.workflowState = try scope.id(for: SettleValue.resetTargetState)
 
         let key = "settle:\(cycleID):reset:\(nightID)"

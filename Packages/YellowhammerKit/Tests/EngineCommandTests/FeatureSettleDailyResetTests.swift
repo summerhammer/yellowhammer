@@ -28,7 +28,7 @@ struct FeatureSettleDailyResetTests {
 
         let scope = try await BoardStateScope.resolve(using: world.boards.provisioning)
         let todoStateID = try scope.id(for: .todo)
-        let featureLabelID = try #require(scope.labels.objectType["Feature"])
+        let featureLabelID = try #require(scope.labels.cardType[.featureCard])
 
         let issueID = BoardObjectID(rawValue: "FEAT-1")
         let issue = try #require(await world.boards.writing.issues[issueID])
