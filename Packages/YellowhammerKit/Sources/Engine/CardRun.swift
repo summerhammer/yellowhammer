@@ -34,7 +34,7 @@ import Repositories
 /// repeats its Route, while a Crashed-Unknown may land on the same one — a new Attempt is recorded, and the
 /// whole pass sequence runs again from the architect, with no worker session carried over. The Card stays
 /// In Progress between Attempts; it is never bounced back through Ready to get there. Once the Attempt
-/// budget is spent, the Card Blocks instead — `hard failure` after a hard failure or a Crashed-Unknown,
+/// budget is spent, the Card Blocks instead — `route failure` after a hard failure or a Crashed-Unknown,
 /// or by whichever Lens's Round was the last after `rounds-exhausted` — and an `attempts-exhausted` step
 /// records the Operator-facing account of how the budget was spent.
 ///

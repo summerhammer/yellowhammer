@@ -14,7 +14,7 @@ func renderBasicFields() {
         kind: "impl.boilerplate",
         repository: "backend",
         state: .inProgress,
-        blockReason: "blocked by check",
+        blockReason: "check failure",
         lanePosition: 2,
         laneLength: 3,
         brief: brief,
@@ -26,7 +26,7 @@ func renderBasicFields() {
 
     #expect(rendered.contains("**Kind:** `impl.boilerplate`"))
     #expect(rendered.contains("**Repository:** `backend`"))
-    #expect(rendered.contains("**State:** In Progress — blocked by check"))
+    #expect(rendered.contains("**State:** In Progress — check failure"))
     #expect(rendered.contains("**Repo Lane position:** 2 of 3"))
 }
 

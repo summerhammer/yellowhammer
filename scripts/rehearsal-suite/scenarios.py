@@ -454,7 +454,7 @@ def scenario_4(env, checks):
     feature_issue = env.linear.issue(feature["issue_id"])
     description = (feature_issue.get("description") or "")
     checks.expect(
-        "partial landing" in description.lower(), "the Feature Issue's description leads with 'partial landing'"
+        "**partial · " in description, "the Feature Issue's description leads with the Roll-up word 'partial'"
     )
     # The Roll-up names each Card by its title (the Journal now records one, reconciled by the Delta
     # Read), so the hole is named by M's title and its state, not its issue id.
@@ -663,18 +663,18 @@ def scenario_6(env, checks):
     fired = [e for e in snap3.events(type="CardUnansweredBoundFired") if e["night_id"] == n3_id]
     checks.require(len(fired) >= 1, "N3: CardUnansweredBoundFired recorded")
     checks.expect(
-        fired[0]["payload"].get("bound") == "1" and fired[0]["payload"].get("block_reason") == "unanswered",
-        f"N3: bound 1, block_reason unanswered (got {fired[0]['payload']})",
+        fired[0]["payload"].get("bound") == "1" and fired[0]["payload"].get("block_reason") == "reply overdue",
+        f"N3: bound 1, block_reason reply overdue (got {fired[0]['payload']})",
     )
     card3 = next(c for c in snap3.cards() if c["id"] == card["id"])
     checks.expect(
-        card3["state"] == "Blocked" and card3.get("block_reason") == "unanswered",
-        f"N3: the Card is Blocked / unanswered (got state={card3['state']!r} block_reason={card3.get('block_reason')!r})",
+        card3["state"] == "Blocked" and card3.get("block_reason") == "reply overdue",
+        f"N3: the Card is Blocked / reply overdue (got state={card3['state']!r} block_reason={card3.get('block_reason')!r})",
     )
     board_card = env.linear.issue(card["issue_id"])
     checks.expect(board_card["state"]["name"] == "Blocked", f"N3: board state is Blocked (got {board_card['state']})")
     label_names = {label["name"] for label in board_card.get("labels", {}).get("nodes", [])}
-    checks.expect("unanswered" in label_names, f"N3: label 'unanswered' present (got {label_names})")
+    checks.expect("reply overdue" in label_names, f"N3: label 'reply overdue' present (got {label_names})")
     operator_id = suite_env.read_operator_identity(
         env.configuration_directory, suite_env.resolve_installation(env).name
     )

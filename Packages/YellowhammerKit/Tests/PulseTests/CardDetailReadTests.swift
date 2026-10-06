@@ -50,7 +50,7 @@ private func seedTwoAttempts(_ journal: JournalStore) throws {
     let feature = try insertFeature(journal, issueID: "ALPHA-F")
     let card = try insertCard(
         journal, cycleID: feature.cycleID, issueID: "ALPHA-1",
-        repository: "backend", state: .blocked, blockReason: .blockedByCheck
+        repository: "backend", state: .blocked, blockReason: .checkFailure
     )
     let other = try insertCard(journal, cycleID: feature.cycleID, issueID: "ALPHA-2", repository: "backend", order: 2)
     let run = RunID()
@@ -138,7 +138,7 @@ func cardDetailCarriesTheAccount() throws {
     #expect(detail.repo == "backend")
     #expect(detail.kind == "card")
     #expect(detail.state == .blocked)
-    #expect(detail.blockReason == .blockedByCheck)
+    #expect(detail.blockReason == .checkFailure)
     #expect(detail.waitingReason == nil)
     #expect(detail.budgetEpoch == 0)
     #expect(detail.routesTried == ["claude/sonnet/medium", "codex/gpt-5/high"])
@@ -223,7 +223,7 @@ func cardDetailReasonsFollowTheState() throws {
         // A Block Reason left on a Card that is not Blocked says nothing about it.
         try insertCard(
             journal, cycleID: feature.cycleID, issueID: "ALPHA-2",
-            state: .todo, blockReason: .hardFailure, order: 2
+            state: .todo, blockReason: .routeFailure, order: 2
         )
     }
 

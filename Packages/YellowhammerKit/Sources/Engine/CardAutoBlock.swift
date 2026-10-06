@@ -7,7 +7,7 @@ import Journal
 // (roadmap P10.9). Both use the same Card Lease discipline.
 
 enum CardAutoBlock {
-    /// Every Waiting on You Card of `cycleID` is auto-Blocked `unanswered` — the same exit
+    /// Every Waiting on You Card of `cycleID` is auto-Blocked `reply overdue` — the same exit
     /// `overdue_nights_max` would have given it, with its counters and round history untouched.
     /// Cancelled, Done and already-Blocked Cards are never touched. Through the board projection when
     /// an Outbox and board are wired; Journal-only otherwise, so the auto-Block still happens.
@@ -18,7 +18,7 @@ enum CardAutoBlock {
     /// so the caller's closure is retried by its next pass rather than writing under it.
     static func waitingOnYou(cycleID: Int64, context: ActContext) async throws {
         let cards = try context.journal.cards(cycleID: cycleID).filter { $0.state == .waitingOnYou }
-        try await block(cards: cards, reason: { _ in .unanswered }, context: context)
+        try await block(cards: cards, reason: { _ in .replyOverdue }, context: context)
     }
 
     /// A released running Feature carries Todo and In Progress Cards forward as Blocked. Existing
@@ -26,12 +26,12 @@ enum CardAutoBlock {
     static func releasedActive(cycleID: Int64, context: ActContext) async throws {
         let cards = try context.journal.cards(cycleID: cycleID)
             .filter { $0.state == .todo || $0.state == .inProgress }
-        try await block(cards: cards, reason: { _ in .released }, context: context)
+        try await block(cards: cards, reason: { _ in .featureAbandoned }, context: context)
     }
 
     /// Auto-Blocks specific Cards named by the caller (roadmap P11.4: the unanswered-Nights bound), each
-    /// under the Block Reason `reason` computes for it — `unanswered` on the `question` route,
-    /// `undecided` on `divergence`. Never touches a Worktree: this bound's firing releases nothing but
+    /// under the Block Reason `reason` computes for it — `reply overdue` on the `question` route,
+    /// `decision overdue` on `divergence`. Never touches a Worktree: this bound's firing releases nothing but
     /// the Card's own board state, and a Worktree's exit is landing.
     static func specific(
         cards: [CardRecord], reason: @escaping (CardRecord) -> BlockReason, context: ActContext

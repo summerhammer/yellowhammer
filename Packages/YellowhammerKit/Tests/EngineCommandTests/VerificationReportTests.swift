@@ -105,7 +105,7 @@ private let doneCard = PullRequestBodyCard(
 )
 private let blockedCard = PullRequestBodyCard(
     title: "BACK-2", repository: "backend", state: .blocked, routeSummary: "r", checkSummary: "c", roundCount: 1,
-    blockReason: "hard failure"
+    blockReason: "route failure"
 )
 
 @Suite("Pull request body carries the Verification report (P10.5)")

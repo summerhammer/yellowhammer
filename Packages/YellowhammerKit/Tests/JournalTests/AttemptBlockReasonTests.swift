@@ -65,7 +65,7 @@ private func claimLease(_ journal: JournalStore, runID: RunID, now: Date = epoch
     }
 }
 
-@Test("No such Attempt: nothing ever dispatched blocks hard failure")
+@Test("No such Attempt: nothing ever dispatched blocks route failure")
 func noAttemptBlocksHardFailure() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
@@ -73,10 +73,10 @@ func noAttemptBlocksHardFailure() throws {
 
     let history = try journal.attemptHistory(cardID: cardID)
 
-    #expect(history.blockReason(inEpoch: 0) == .hardFailure)
+    #expect(history.blockReason(inEpoch: 0) == .routeFailure)
 }
 
-@Test("A hard failure final Attempt blocks hard failure")
+@Test("A hard failure final Attempt blocks route failure")
 func hardFailureFinalBlocksHardFailure() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
@@ -91,7 +91,7 @@ func hardFailureFinalBlocksHardFailure() throws {
 
     let history = try journal.attemptHistory(cardID: cardID)
 
-    #expect(history.blockReason(inEpoch: 0) == .hardFailure)
+    #expect(history.blockReason(inEpoch: 0) == .routeFailure)
 }
 
 @Test("A Crashed-Unknown final Attempt blocks host crash")
@@ -131,7 +131,7 @@ func roundsExhaustedFinalBlocksByLens() throws {
 
     let history = try journal.attemptHistory(cardID: cardID)
 
-    #expect(history.blockReason(inEpoch: 0) == .blockedByCheck)
+    #expect(history.blockReason(inEpoch: 0) == .checkFailure)
 }
 
 @Test("Mixed history: hard failure then a final Crashed-Unknown blocks host crash")
@@ -159,7 +159,7 @@ func hardFailureThenCrashedUnknownBlocksHostCrash() throws {
     #expect(history.blockReason(inEpoch: 0) == .hostCrash)
 }
 
-@Test("Mixed history: Crashed-Unknown then a final hard failure blocks hard failure")
+@Test("Mixed history: Crashed-Unknown then a final hard failure blocks route failure")
 func crashedUnknownThenHardFailureBlocksHardFailure() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
@@ -181,7 +181,7 @@ func crashedUnknownThenHardFailureBlocksHardFailure() throws {
 
     let history = try journal.attemptHistory(cardID: cardID)
 
-    #expect(history.blockReason(inEpoch: 0) == .hardFailure)
+    #expect(history.blockReason(inEpoch: 0) == .routeFailure)
 }
 
 @Test("A question ending is skipped: the derivation reads the prior consuming Attempt instead")
@@ -205,10 +205,10 @@ func questionEndingIsSkipped() throws {
 
     let history = try journal.attemptHistory(cardID: cardID)
 
-    #expect(history.blockReason(inEpoch: 0) == .hardFailure)
+    #expect(history.blockReason(inEpoch: 0) == .routeFailure)
 }
 
-@Test("A Crashed-Unknown final Attempt the engine stopped blocks engine stop, not host crash (OQ92)")
+@Test("A Crashed-Unknown final Attempt the engine stopped blocks engine fault, not host crash (OQ92)")
 func engineStoppedFinalBlocksEngineStop() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
@@ -223,7 +223,7 @@ func engineStoppedFinalBlocksEngineStop() throws {
 
     let history = try journal.attemptHistory(cardID: cardID)
 
-    #expect(history.blockReason(inEpoch: 0) == .engineStop)
+    #expect(history.blockReason(inEpoch: 0) == .engineFault)
 }
 
 @Test("A Crashed-Unknown final Attempt the sweep reclaimed with no engine-stop cause still blocks host crash")

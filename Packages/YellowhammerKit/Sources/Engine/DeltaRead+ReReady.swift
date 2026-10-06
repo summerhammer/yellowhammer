@@ -3,7 +3,7 @@ import Journal
 
 // The narrow re-ready exception (roadmap P11.4; spec: bounds/bound-unanswered-nights), split out of
 // DeltaRead.swift to keep that file under the type-length limit. A Card the Journal Blocked
-// `unanswered` or `undecided` (the unanswered-Nights bound's own two reasons), read back as Todo, is
+// `reply overdue` or `decision overdue` (the unanswered-Nights bound's own two reasons), read back as Todo, is
 // the Operator's re-ready rather than a board write to restate: budget_epoch, attempts, rounds and
 // exclusions are untouched, only the state moves. Every other Block Reason keeps `reconcileState`'s
 // ordinary restate behavior.
@@ -16,7 +16,7 @@ extension DeltaRead {
     ) throws -> Bool {
         guard card.state == .blocked, boardState.name == CardState.todo.rawValue,
               let blockReason = card.blockReason,
-              blockReason == BlockReason.unanswered.rawValue || blockReason == BlockReason.undecided.rawValue
+              blockReason == BlockReason.replyOverdue.rawValue || blockReason == BlockReason.decisionOverdue.rawValue
         else {
             return false
         }

@@ -108,19 +108,21 @@ extension CardRun {
     }
 
     /// Shared by every consuming ending: retries with a fresh Attempt while the Attempt budget has room,
-    /// Blocks the Card once it is spent — never on the round budget alone. The Block Reason is the
+    /// Blocks the Card once it is spent — never on the round budget alone. The Block Reason is then the
     /// single derivation over the epoch's last ended Attempt (``AttemptHistory/blockReason(inEpoch:)``),
     /// not something this caller decides from which ending it just recorded.
     ///
     /// Before either, the failure's cause is counted (roadmap P8.8): a cause this Project's Journal
-    /// already met on an earlier Night promotes the Card to Triage rather than retrying it on a further
-    /// Route, even with Attempt budget left.
+    /// already met on an earlier Night Blocks the Card under `failure recurrence` rather than retrying it
+    /// on a further Route, even with Attempt budget left (OQ127). It is checked first, so when the same
+    /// Attempt also spent the budget the label is still `failure recurrence`; the final Attempt's own
+    /// ending stays in its Attempt account.
     private func retryOrBlock(
         attempt: AttemptRecord, cause: FailureCause?, frame: CardRunFrame
     ) async throws -> CardRunAction {
-        if let cause, let promotion = try recurrence(of: cause, frame: frame) {
-            try await block(after: attempt, frame: frame)
-            try frame.record(.promotedToTriage, detail: promotion)
+        if let cause, let recurrence = try recurrence(of: cause, frame: frame) {
+            try await block(after: attempt, reason: .failureRecurrence, frame: frame)
+            try frame.record(.blockedOnFailureRecurrence, detail: recurrence)
             return .stop
         }
         let budget = try attemptBudget(consumedInEpochOf: attempt, frame: frame)
@@ -136,10 +138,11 @@ extension CardRun {
         return .stop
     }
 
-    /// Blocks the Card on the final Attempt's termination — the one Block sequence, whether the Attempt
-    /// budget was spent or the failure cause recurred.
-    private func block(after attempt: AttemptRecord, frame: CardRunFrame) async throws {
-        let reason = try frame.journal.attemptHistory(cardID: frame.card.id).blockReason(inEpoch: attempt.budgetEpoch)
+    /// Blocks the Card — the one Block sequence, whether the Attempt budget was spent or the failure
+    /// cause recurred. Under `reason` when given; otherwise on the final Attempt's termination.
+    private func block(after attempt: AttemptRecord, reason: BlockReason? = nil, frame: CardRunFrame) async throws {
+        let reason = try reason
+            ?? frame.journal.attemptHistory(cardID: frame.card.id).blockReason(inEpoch: attempt.budgetEpoch)
         // The reset runs after the Attempt is ended and before the Blocked transition (OQ60); the Card
         // still Blocks whether it succeeds or fails.
         _ = try await attemptReset(priorAttemptID: attempt.id, frame: frame)
@@ -147,10 +150,10 @@ extension CardRun {
         try await frame.transition(.blocked(reason))
     }
 
-    /// Counts `cause` against the Card for this Act's Night and returns the Operator-facing promotion
-    /// reason when it has recurred across separate Nights, nil on a first occurrence. The spec names no
-    /// board state for the Triage disposition (loop-state/record-failure-cause-recurrence): a promoted
-    /// Card is Blocked, on the final Attempt's Block Reason, and carries the promotion beside it.
+    /// Counts `cause` against the Card for this Act's Night and returns the Operator-facing recurrence
+    /// reason when it has recurred across separate Nights, nil on a first occurrence. The count is held
+    /// per Card and cause and never reset at re-ready, so a Card re-readied without a change Blocks
+    /// again on the first failure of the same cause on a later Night (OQ127).
     private func recurrence(of cause: FailureCause, frame: CardRunFrame) throws -> String? {
         try frame.revalidateLease()
         let record = try frame.journal.recordFailureCause(
@@ -158,7 +161,7 @@ extension CardRun {
             runID: frame.context.act.runID, act: frame.context.act.act
         )
         guard record.hasRecurred else { return nil }
-        return TriagePromotion(cause: cause.summary, nights: record.recurrenceCount).reason
+        return FailureRecurrence(cause: cause.summary, nights: record.recurrenceCount).reason
     }
 
     /// The Attempt budget for the epoch `endedAttempt` just ended: `consumed` counts every ended Attempt

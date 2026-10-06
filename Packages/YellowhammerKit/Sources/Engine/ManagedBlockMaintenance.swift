@@ -109,7 +109,7 @@ public struct ManagedBlockMaintenance: Sendable {
             definitionOfDone: doDClauses,
             attempts: attempts,
             attemptConsumption: consumption,
-            triagePromotion: try triagePromotion(card: card),
+            failureRecurrence: try failureRecurrence(card: card),
             adoptionRefusalNotice: try adoptionRefusalNotice(card: card),
             unadoptedStanding: try unadoptedStanding(card: card)
         )
@@ -140,13 +140,15 @@ public struct ManagedBlockMaintenance: Sendable {
         return AdoptionRefusalNotice(featureName: refusal.featureName, staleBlocks: refusal.staleBlocks)
     }
 
-    /// The promotion to show on the Card: only while it is Blocked, and only when the failure cause the
-    /// Journal recorded last against it had recurred across separate Nights (roadmap P8.8).
-    private func triagePromotion(card: CardRecord) throws -> TriagePromotion? {
-        guard card.state == .blocked, let last = try journal.lastRecordedFailureCause(cardID: card.id),
-              last.hasRecurred else {
+    /// The recurrence to show on the Card: only while it is Blocked under `failure recurrence`, naming the
+    /// failure cause the Journal recorded last against it (roadmap P8.8; OQ127). Keyed on the Block
+    /// Reason, not on the cause having recurred: the count never resets, so a Card Blocked later on
+    /// another reason must not carry the line.
+    private func failureRecurrence(card: CardRecord) throws -> FailureRecurrence? {
+        guard card.state == .blocked, card.blockReason == BlockReason.failureRecurrence.rawValue,
+              let last = try journal.lastRecordedFailureCause(cardID: card.id) else {
             return nil
         }
-        return TriagePromotion(cause: last.summary, nights: last.recurrenceCount)
+        return FailureRecurrence(cause: last.summary, nights: last.recurrenceCount)
     }
 }

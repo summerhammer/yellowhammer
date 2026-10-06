@@ -20,14 +20,14 @@ struct FeatureRollUpTests {
 
     // MARK: - Every lattice word reachable
 
-    @Test("Waiting on You dominates the running half: needs you")
-    func needsYouReached() {
+    @Test("Waiting on You dominates the running half: waiting")
+    func waitingReached() {
         let rollUp = FeatureRollUp(
             members: [member("A", state: .waitingOnYou), member("B", state: .done)],
             lanesPushed: false, verificationPassed: false, mergedFraction: noMerge(), issueStanding: .authoring
         )
-        #expect(rollUp.state == .needsYou)
-        #expect(rollUp.sentence == "needs you · 1 of 2 Cards landed · 1 waiting on you")
+        #expect(rollUp.state == .waiting)
+        #expect(rollUp.sentence == "waiting · 1 of 2 Cards landed · 1 waiting on you")
     }
 
     @Test("Blocked dominates when nothing is Waiting on You: blocked")
@@ -60,26 +60,26 @@ struct FeatureRollUpTests {
         #expect(rollUp.sentence == "running · 1 of 2 Cards landed · all on track")
     }
 
-    @Test("Closed half, Waiting on You: partial landing")
+    @Test("Closed half, Waiting on You: partial")
     func partialLandingWaitingOnYou() {
         let rollUp = FeatureRollUp(
             members: [member("A", state: .waitingOnYou), member("B", state: .done)],
             lanesPushed: true, verificationPassed: false,
             mergedFraction: MergedFraction(mergedCount: 2, totalCount: 2), issueStanding: .authoring
         )
-        #expect(rollUp.state == .partialLanding)
-        #expect(rollUp.sentence == "partial landing · 1 of 2 Cards landed · 1 waiting on you")
+        #expect(rollUp.state == .partial)
+        #expect(rollUp.sentence == "partial · 1 of 2 Cards landed · 1 waiting on you")
     }
 
-    @Test("Closed half, Blocked (no Waiting on You): partial landing")
+    @Test("Closed half, Blocked (no Waiting on You): partial")
     func partialLandingBlocked() {
         let rollUp = FeatureRollUp(
             members: [member("A", state: .blocked), member("B", state: .done)],
             lanesPushed: true, verificationPassed: false,
             mergedFraction: MergedFraction(mergedCount: 2, totalCount: 2), issueStanding: .authoring
         )
-        #expect(rollUp.state == .partialLanding)
-        #expect(rollUp.sentence == "partial landing · 1 of 2 Cards landed · 1 blocked")
+        #expect(rollUp.state == .partial)
+        #expect(rollUp.sentence == "partial · 1 of 2 Cards landed · 1 blocked")
     }
 
     @Test("All Done and Verification passed: verified, with 'all verified' on top")
@@ -93,15 +93,15 @@ struct FeatureRollUpTests {
         #expect(rollUp.sentence == "verified · 2 of 2 Cards landed · all verified")
     }
 
-    @Test("Spec gap: all Done but Verification not passed renders partial landing")
-    func specGapAllDoneVerificationNotPassed() {
+    @Test("All Done without recorded Verification renders waiting")
+    func allDoneVerificationNotRecorded() {
         let rollUp = FeatureRollUp(
             members: [member("A", state: .done), member("B", state: .done)],
             lanesPushed: true, verificationPassed: false,
             mergedFraction: MergedFraction(mergedCount: 2, totalCount: 2), issueStanding: .authoring
         )
-        #expect(rollUp.state == .partialLanding)
-        #expect(rollUp.sentence == "partial landing · 2 of 2 Cards landed · verification not passed")
+        #expect(rollUp.state == .waiting)
+        #expect(rollUp.sentence == "waiting · 2 of 2 Cards landed · verification not recorded")
     }
 
     // MARK: - Zero-Card templates
@@ -122,8 +122,8 @@ struct FeatureRollUpTests {
             members: [], lanesPushed: false, verificationPassed: false, mergedFraction: noMerge(),
             issueStanding: .awaitingYou(.refusal)
         )
-        #expect(rollUp.state == .needsYou)
-        #expect(rollUp.sentence == "needs you · no Cards yet · refusal awaiting you")
+        #expect(rollUp.state == .waiting)
+        #expect(rollUp.sentence == "waiting · no Cards yet · refusal awaiting you")
     }
 
     @Test("Zero Cards, Refusal expired")
@@ -133,7 +133,7 @@ struct FeatureRollUpTests {
             issueStanding: .unanswered(.refusal)
         )
         #expect(rollUp.state == .blocked)
-        #expect(rollUp.sentence == "blocked · no Cards yet · refusal unanswered")
+        #expect(rollUp.sentence == "blocked · no Cards yet · reply overdue")
     }
 
     @Test("Zero Cards, Authoring Halt open")
@@ -142,8 +142,8 @@ struct FeatureRollUpTests {
             members: [], lanesPushed: false, verificationPassed: false, mergedFraction: noMerge(),
             issueStanding: .awaitingYou(.halt)
         )
-        #expect(rollUp.state == .needsYou)
-        #expect(rollUp.sentence == "needs you · no Cards yet · halt awaiting you")
+        #expect(rollUp.state == .waiting)
+        #expect(rollUp.sentence == "waiting · no Cards yet · halt awaiting you")
         #expect(!rollUp.sentence.contains("refusal"))
     }
 
@@ -154,7 +154,7 @@ struct FeatureRollUpTests {
             issueStanding: .unanswered(.halt)
         )
         #expect(rollUp.state == .blocked)
-        #expect(rollUp.sentence == "blocked · no Cards yet · halt unanswered")
+        #expect(rollUp.sentence == "blocked · no Cards yet · halt overdue")
         #expect(!rollUp.sentence.contains("refusal"))
     }
 
@@ -181,7 +181,7 @@ struct FeatureRollUpTests {
             issueStanding: .awaitingYou(.refusal)
         )
         #expect(rollUp.state == nil)
-        #expect(rollUp.sentence == "no live Cards · 3 cancelled")
+        #expect(rollUp.sentence == "no live Cards · 3 shelved")
     }
 
     // MARK: - Cancelled excluded from the denominator
@@ -241,7 +241,7 @@ struct FeatureRollUpTests {
             mergedFraction: MergedFraction(mergedCount: 2, totalCount: 2), issueStanding: .authoring
         )
         #expect(!rollUp.sentence.contains("merged"))
-        #expect(rollUp.sentence == "partial landing · 0 of 1 Cards landed · 1 waiting on you")
+        #expect(rollUp.sentence == "partial · 0 of 1 Cards landed · 1 waiting on you")
     }
 
     // MARK: - Conflicts beside the sentence

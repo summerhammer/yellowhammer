@@ -4,12 +4,13 @@ import Foundation
 @testable import Journal
 import Testing
 
-// loop-state/record-failure-cause-recurrence (roadmap P8.8): a failure cause met again on a later Night
-// of the same Project promotes the Card to Triage instead of retrying it on a further Route, even with
-// Attempt budget left; a first occurrence never does. Nothing here asserts model quality: the fixtures
+// loop-state/record-failure-cause-recurrence (roadmap P8.8; OQ127): a failure cause met again on a later
+// Night of the same Project Blocks the Card under `failure recurrence` instead of retrying it on a further
+// Route, even with Attempt budget left; a first occurrence never does. Nothing here asserts model quality: the fixtures
 // fail by construction, and the wiring and the count are all that is checked.
 
 private let recurrenceSecondNight = NightStart(rawValue: "2026-09-16")!
+private let recurrenceThirdNight = NightStart(rawValue: "2026-09-17")!
 
 private func twoRouteResolver() -> RouteResolver {
     cardRunResolver(table: RoutingTable(entries: [
@@ -55,8 +56,8 @@ extension CardRunWorld {
 
 @Suite("Card run, Failure-Cause Recurrence (P8.8)")
 struct CardRunRecurrenceTests {
-    @Test("A first occurrence is counted but never promotes: the Card Blocks on its spent Attempt budget")
-    func firstOccurrenceDoesNotPromote() async throws {
+    @Test("A first occurrence is counted but never Blocks on recurrence: the Card Blocks on its spent Attempt budget")
+    func firstOccurrenceDoesNotBlockOnRecurrence() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open(), withBoard: false)
 
@@ -69,12 +70,14 @@ struct CardRunRecurrenceTests {
         #expect(try world.attempts("BACK-1").count == 2)
         let steps = try cardRunLog(world.journal)
         #expect(steps.contains(CardRunStep.attemptsExhausted.rawValue))
-        #expect(!steps.contains(CardRunStep.promotedToTriage.rawValue))
-        #expect(try world.card("BACK-1").state == .blocked)
+        #expect(!steps.contains(CardRunStep.blockedOnFailureRecurrence.rawValue))
+        let card = try world.card("BACK-1")
+        #expect(card.state == .blocked)
+        #expect(card.blockReason == BlockReason.routeFailure.rawValue)
     }
 
-    @Test("The same cause on a later Night promotes to Triage after one Attempt, with budget and a Route left")
-    func recurrenceOnALaterNightPromotes() async throws {
+    @Test("The same cause on a later Night Blocks under failure recurrence after one Attempt, with budget left")
+    func recurrenceOnALaterNightBlocks() async throws {
         let fixture = try OutboxJournalFixture()
         let first = try await makeCardRunWorld(journal: try fixture.open(), withBoard: false)
         try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 1).run("BACK-1", in: first)
@@ -89,7 +92,9 @@ struct CardRunRecurrenceTests {
         #expect(try second.attempts("BACK-1").count == attemptsOnFirstNight + 1)
         let card = try second.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.hardFailure.rawValue)
+        #expect(card.blockReason == BlockReason.failureRecurrence.rawValue)
+        // The final Attempt's own ending stays in its Attempt account; only the label names the recurrence.
+        #expect(try second.attempts("BACK-1").last?.result == AttemptOutcome.hardFailure.rawValue)
 
         let cardID = try #require(second.cardIDs["BACK-1"])
         #expect(try second.journal.failureCauses(cardID: cardID).map(\.recurrenceCount) == [2])
@@ -97,13 +102,57 @@ struct CardRunRecurrenceTests {
         let secondNightSteps = try second.journal.events().filter { $0.runID == second.runID }.compactMap {
             if case .cardRunStep(_, _, let step, let detail) = $0.event { (step, detail) } else { nil }
         }
-        let promotion = try #require(secondNightSteps.first { $0.0 == .promotedToTriage })
-        #expect(promotion.1?.contains("recurred across 2 Nights") == true)
+        let recurrence = try #require(secondNightSteps.first { $0.0 == .blockedOnFailureRecurrence })
+        #expect(recurrence.1?.contains("recurred across 2 Nights") == true)
+        #expect(recurrence.1?.contains("Triage") == false)
         #expect(!secondNightSteps.contains { $0.0 == .attemptsExhausted })
     }
 
+    @Test("When the recurring Attempt also spends the Attempt budget, the label is still failure recurrence")
+    func recurrenceWinsOverASpentBudget() async throws {
+        let fixture = try OutboxJournalFixture()
+        let first = try await makeCardRunWorld(journal: try fixture.open(), withBoard: false)
+        try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 1).run("BACK-1", in: first)
+        #expect(try first.card("BACK-1").blockReason == BlockReason.routeFailure.rawValue)
+
+        // One Attempt allowed: the only Attempt of the new epoch both recurs and spends the budget.
+        let second = try first.onNextNight(recurrenceSecondNight, reReadying: "BACK-1")
+        try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 1).run("BACK-1", in: second)
+
+        let card = try second.card("BACK-1")
+        #expect(card.state == .blocked)
+        #expect(card.blockReason == BlockReason.failureRecurrence.rawValue)
+        let secondNightSteps = try second.journal.events().filter { $0.runID == second.runID }.compactMap {
+            if case .cardRunStep(_, _, let step, _) = $0.event { step } else { nil }
+        }
+        #expect(secondNightSteps.contains(.blockedOnFailureRecurrence))
+        #expect(!secondNightSteps.contains(.attemptsExhausted))
+    }
+
+    @Test("Re-ready resets the budget but not the recurrence count: the next failure of the cause Blocks again")
+    func reReadyKeepsTheRecurrenceCount() async throws {
+        let fixture = try OutboxJournalFixture()
+        let first = try await makeCardRunWorld(journal: try fixture.open(), withBoard: false)
+        try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 1).run("BACK-1", in: first)
+        let second = try first.onNextNight(recurrenceSecondNight, reReadying: "BACK-1")
+        try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 3).run("BACK-1", in: second)
+        #expect(try second.card("BACK-1").blockReason == BlockReason.failureRecurrence.rawValue)
+
+        // Re-readied without a change: a fresh epoch with three Attempts, but the cause has recurred already.
+        let third = try second.onNextNight(recurrenceThirdNight, reReadying: "BACK-1")
+        let log = CallLog()
+        try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 3, log: log).run("BACK-1", in: third)
+
+        #expect(log.all.filter { $0 == "dispatch worker" }.count == 1)
+        let card = try third.card("BACK-1")
+        #expect(card.state == .blocked)
+        #expect(card.blockReason == BlockReason.failureRecurrence.rawValue)
+        let cardID = try #require(third.cardIDs["BACK-1"])
+        #expect(try third.journal.failureCauses(cardID: cardID).map(\.recurrenceCount) == [3])
+    }
+
     @Test("A different cause on a later Night is a first occurrence of its own: the Card retries as usual")
-    func aDifferentCauseDoesNotPromote() async throws {
+    func aDifferentCauseDoesNotBlockOnRecurrence() async throws {
         let fixture = try OutboxJournalFixture()
         let first = try await makeCardRunWorld(journal: try fixture.open(), withBoard: false)
         try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 1).run("BACK-1", in: first)
@@ -115,6 +164,7 @@ struct CardRunRecurrenceTests {
         #expect(log.all.filter { $0 == "dispatch worker" }.count == 2)
         let cardID = try #require(second.cardIDs["BACK-1"])
         #expect(try second.journal.failureCauses(cardID: cardID).map(\.recurrenceCount) == [1, 1])
-        #expect(!(try cardRunLog(second.journal)).contains(CardRunStep.promotedToTriage.rawValue))
+        #expect(!(try cardRunLog(second.journal)).contains(CardRunStep.blockedOnFailureRecurrence.rawValue))
+        #expect(try second.card("BACK-1").blockReason != BlockReason.failureRecurrence.rawValue)
     }
 }

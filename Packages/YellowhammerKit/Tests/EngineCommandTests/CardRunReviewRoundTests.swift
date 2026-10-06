@@ -130,10 +130,10 @@ struct CardRunReviewRoundTests {
         #expect(attempt.rounds.map(\.lens) == [.review])
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.blockedByReviewer.rawValue)
+        #expect(card.blockReason == BlockReason.reviewerRejection.rawValue)
     }
 
-    @Test("reviewRoundsMax=1, attemptsPerWorkCard=1, the Check always fails: rounds-exhausted, blocked by check")
+    @Test("reviewRoundsMax=1, attemptsPerWorkCard=1, the Check always fails: rounds-exhausted, check failure")
     func checkAlwaysFailingBlocksTheCard() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
@@ -150,7 +150,7 @@ struct CardRunReviewRoundTests {
         #expect(attempt.rounds.map(\.lens) == [.check])
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.blockedByCheck.rawValue)
+        #expect(card.blockReason == BlockReason.checkFailure.rawValue)
         #expect(run.dispatch.requests.passes(.reviewer).isEmpty)
     }
 
@@ -170,8 +170,8 @@ struct CardRunReviewRoundTests {
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
         // Blocked by the last Attempt's own ending — rounds-exhausted on the review Lens — not
-        // `hard failure`: the Block Reason follows the final Attempt's termination (OQ58).
-        #expect(card.blockReason == BlockReason.blockedByReviewer.rawValue)
+        // `route failure`: the Block Reason follows the final Attempt's termination (OQ58).
+        #expect(card.blockReason == BlockReason.reviewerRejection.rawValue)
         #expect(try world.journal.excludedRoutes(cardID: try #require(world.cardIDs["BACK-1"])) == [cardRunOpus])
         // Blocked because routing found no candidate, not because the Attempt budget (1 of 2) was spent.
         #expect(!(try cardRunLog(world.journal).contains(CardRunStep.attemptsExhausted.rawValue)))
@@ -201,14 +201,14 @@ struct CardRunReviewRoundTests {
 
             let card = try world.card("BACK-1")
             #expect(card.state == .blocked)
-            #expect(card.blockReason == BlockReason.blockedByReviewer.rawValue)
+            #expect(card.blockReason == BlockReason.reviewerRejection.rawValue)
             // The seed Attempt itself, plus every Attempt this run recorded: a question consumes none of
             // the budget, so it leaves the run a full extra retry the crashed seed does not.
             #expect(try world.attempts("BACK-1").count == expectedTotalAttempts)
         }
     }
 
-    @Test("Mixed Lenses share the budget: one check Round then one review Round exhausts it, blocked by reviewer")
+    @Test("Mixed Lenses share the budget: one check Round then one review Round exhausts it, reviewer rejection")
     func mixedLensesShareTheBudget() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
@@ -225,7 +225,7 @@ struct CardRunReviewRoundTests {
         #expect(attempt.result == "rounds-exhausted")
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.blockedByReviewer.rawValue)
+        #expect(card.blockReason == BlockReason.reviewerRejection.rawValue)
     }
 
     @Test("A review Round posts one Card comment with a Board, and nothing without one")

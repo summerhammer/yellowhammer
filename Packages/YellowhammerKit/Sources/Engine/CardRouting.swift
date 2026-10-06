@@ -4,7 +4,7 @@ import Journal
 
 /// Resolves a Card's Route at dispatch and writes the routing consequence to the Journal
 /// (routing/resolve-a-route-for-a-card, roadmap P7.6): an Attempt carrying the resolved Route, or —
-/// with zero candidates — the Blocked transition with Block Reason `hard failure` and no Attempt, so
+/// with zero candidates — the Blocked transition with Block Reason `route failure` and no Attempt, so
 /// no phantom Attempt is spent. A refused Override writes nothing but its event: it is a Readiness
 /// Check failure, which the Readiness Check (P8.2) reports onto the Card. The Repo Lane moving on to
 /// its next Card is the Card loop's job (P8.4); this type writes only the routing consequence.
