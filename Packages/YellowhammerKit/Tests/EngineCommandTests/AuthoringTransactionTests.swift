@@ -19,7 +19,7 @@ struct AuthoringTransactionTests {
         #expect(outcome == .authored)
         let live = await rig.boards.writing.liveIssues
         let feature = try #require(live.first { $0.title == "FEAT-1" })
-        #expect(feature.labels == [try #require(rig.boards.ids["Feature"])])
+        #expect(feature.labels == [try #require(rig.boards.ids[CardType.featureCard.rawValue])])
         #expect(feature.parent == nil)
         // The sequence and its reasoning are recorded on the Feature card; the Managed Block is fenced.
         let featureDescription = try #require(feature.description)
@@ -30,7 +30,7 @@ struct AuthoringTransactionTests {
         #expect(cards.count == 3)
         for card in cards {
             #expect(card.parent == feature.id)
-            #expect(card.labels == [try #require(rig.boards.ids["Card"])])
+            #expect(card.labels == [try #require(rig.boards.ids[CardType.workCard.rawValue])])
             #expect(ManagedBlockFence.parts(of: card.description).isSuccess)
         }
 

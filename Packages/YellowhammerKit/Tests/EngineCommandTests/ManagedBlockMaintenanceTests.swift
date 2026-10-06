@@ -118,29 +118,29 @@ struct ManagedBlockMaintenanceTests {
 
     // MARK: - Labels
 
-    @Test("Disposition labels: one Block Reason at a time, one object type, and none once the Card is re-readied")
+    @Test("Disposition labels: one Block Reason at a time, one card type, and none once the Card is re-readied")
     func labelGroupExclusivity() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let board = FakeWritingBoard()
         let issue = await board.seed(issue: "issue-1", description: ManagedBlockFence.initialDescription(rendered: ""))
-        await board.label(issue, add: labels.blockReason[.blockedByReviewer]!)
-        await board.label(issue, add: labels.objectType["Feature"]!)
+        await board.label(issue, add: labels.blockReason[.reviewerRejection]!)
+        await board.label(issue, add: labels.cardType[.featureCard]!)
         let cardID = try insertFixtureCard(journal, issueID: "issue-1")
-        try setCard(journal, cardID, state: .blocked, blockReason: BlockReason.blockedByCheck.rawValue)
+        try setCard(journal, cardID, state: .blocked, blockReason: BlockReason.checkFailure.rawValue)
         let outbox = try heldOutbox(journal, board: board, cardID: cardID)
         let maintenance = ManagedBlockMaintenance(journal: journal, outbox: outbox, labels: labels)
 
         _ = try await maintenance.maintain(card: try journal.card(id: cardID), brief: brief)
         let blocked = try #require(await board.issue(issue)?.labels)
-        #expect(blocked == [labels.objectType["Card"]!, labels.blockReason[.blockedByCheck]!])
+        #expect(blocked == [labels.cardType[.workCard]!, labels.blockReason[.checkFailure]!])
         let description = try #require(await board.issue(issue)?.description)
-        #expect(description.contains("**State:** Blocked — blocked by check"))
+        #expect(description.contains("**State:** Blocked — check failure"))
 
         try setCard(journal, cardID, state: .todo, blockReason: nil)
         _ = try await maintenance.maintain(card: try journal.card(id: cardID), brief: brief)
         let readied = try #require(await board.issue(issue)?.labels)
-        #expect(readied == [labels.objectType["Card"]!])
+        #expect(readied == [labels.cardType[.workCard]!])
     }
 
     @Test("Without a label catalogue only the block is written")
@@ -187,6 +187,43 @@ struct ManagedBlockMaintenanceTests {
         #expect(try journal.outboxEntry(id: earlier.id)?.state == .aborted)
     }
 
+    // MARK: - Failure-Cause Recurrence
+
+    @Test("The recurrence line follows the failure recurrence Block Reason, not the cause's count alone")
+    func recurrenceLineFollowsTheBlockReason() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let board = FakeWritingBoard()
+        let issue = await board.seed(issue: "issue-1", description: ManagedBlockFence.initialDescription(rendered: ""))
+        let cardID = try insertFixtureCard(journal, issueID: "issue-1")
+        let runID = RunID()
+        let outbox = try heldOutbox(journal, board: board, cardID: cardID, runID: runID)
+        let maintenance = ManagedBlockMaintenance(journal: journal, outbox: outbox, labels: nil)
+        let cause = try #require(FailureCause(ending: .hardFailure(.exitStatus(2))))
+        for night in ["2026-09-15", "2026-09-16"] {
+            let nightID = try journal.openNight(
+                nightStart: try #require(NightStart(rawValue: night)), mode: .rehearsal, act: .build, runID: runID,
+                now: outboxEpoch
+            ).night.id
+            try journal.recordFailureCause(
+                cardID: cardID, cause: cause, nightID: nightID, runID: runID, now: outboxEpoch
+            )
+        }
+
+        try setCard(journal, cardID, state: .blocked, blockReason: BlockReason.failureRecurrence.rawValue)
+        _ = try await maintenance.maintain(card: try journal.card(id: cardID), brief: brief)
+        let recurred = try ManagedBlockFence.parts(of: await board.issue(issue)?.description).get().block
+        #expect(recurred.contains(
+            "**Failure-Cause Recurrence:** failure cause `\(cause.summary)` recurred across 2 Nights"
+        ))
+
+        // The count never resets, so a Card later Blocked on another reason must not carry the line.
+        try setCard(journal, cardID, state: .blocked, blockReason: BlockReason.routeFailure.rawValue)
+        _ = try await maintenance.maintain(card: try journal.card(id: cardID), brief: brief)
+        let other = try ManagedBlockFence.parts(of: await board.issue(issue)?.description).get().block
+        #expect(!other.contains("Failure-Cause Recurrence"))
+    }
+
     // MARK: - Fixtures
 
     /// A run holding the Project's Act-scoped Lease and the Card's Lease: what a build Act holds when it
@@ -202,8 +239,8 @@ struct ManagedBlockMaintenanceTests {
     /// A label catalogue with an id for every child of both groups.
     var labels: DispositionLabels {
         DispositionLabels(
-            objectType: Dictionary(uniqueKeysWithValues: BoardProvisioner.objectTypeChildren.map {
-                ($0, BoardObjectID(rawValue: "label-type-\($0)"))
+            cardType: Dictionary(uniqueKeysWithValues: CardType.allCases.map {
+                ($0, BoardObjectID(rawValue: "label-type-\($0.rawValue)"))
             }),
             blockReason: Dictionary(uniqueKeysWithValues: BlockReason.allCases.map {
                 ($0, BoardObjectID(rawValue: "label-reason-\($0.rawValue)"))

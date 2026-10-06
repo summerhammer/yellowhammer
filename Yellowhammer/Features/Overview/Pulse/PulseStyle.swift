@@ -49,7 +49,7 @@ extension RollUpState {
         let style: ThemeShapeStyle<Color> = switch self {
         case .authoring: .neutral
         case .running: .active
-        case .needsYou, .partialLanding: .attention
+        case .waiting, .partial: .attention
         case .blocked: .error
         case .verified: .success
         }

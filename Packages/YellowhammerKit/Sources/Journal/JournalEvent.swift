@@ -173,7 +173,7 @@ public enum JournalEvent: Equatable, Sendable {
     case worktreeReconciliationFailed(featureID: Int64, repository: String, path: String, reason: String)
     /// Route resolution left zero candidates for the Card — fallbacks exhausted
     /// (routing/resolve-a-route-for-a-card, OQ13): the Card moved to Blocked with Block Reason
-    /// `hard failure`, no Attempt was recorded, and `reason` names every candidate and what dropped it.
+    /// `route failure`, no Attempt was recorded, and `reason` names every candidate and what dropped it.
     case routeExhausted(cardID: Int64, issueID: String, reason: String)
     /// The Operator's Override could not resolve, pinned a Route whose CLI failed its Probe, or pinned a
     /// Route that failed its Route Pre-flight: a Readiness Check failure (G-17, OQ126). Nothing was
@@ -416,7 +416,7 @@ public enum JournalEvent: Equatable, Sendable {
     /// *released* is offered. Not honoured: treated as unsettled, and nothing else is written.
     case settleValueNotHonoured(featureIssueID: String, value: String, reason: String)
     /// A Card's unanswered-Nights clock exceeded `bound` (bounds/bound-unanswered-nights): it is being
-    /// auto-Blocked. `blockReason` is `unanswered` on the `question` route, `undecided` on `divergence`.
+    /// auto-Blocked. `blockReason` is `reply overdue` on the `question` route, `decision overdue` on `divergence`.
     case cardUnansweredBoundFired(
         cardID: Int64, issueID: String, unansweredNights: Int, bound: Int, blockReason: String
     )

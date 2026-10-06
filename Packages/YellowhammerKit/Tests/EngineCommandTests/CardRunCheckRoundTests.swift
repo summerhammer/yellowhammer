@@ -131,8 +131,8 @@ struct CardRunCheckRoundTests {
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
         // Blocked by the last (and only) Attempt's own ending — rounds-exhausted on the check Lens —
-        // not `hard failure`: the Block Reason follows the final Attempt's termination (OQ58).
-        #expect(card.blockReason == BlockReason.blockedByCheck.rawValue)
+        // not `route failure`: the Block Reason follows the final Attempt's termination (OQ58).
+        #expect(card.blockReason == BlockReason.checkFailure.rawValue)
         // Blocked because routing found no candidate, not because the Attempt budget (1 of 2) was spent.
         let steps = try cardRunLog(world.journal)
         #expect(!steps.contains(CardRunStep.attemptsExhausted.rawValue))

@@ -131,7 +131,7 @@ struct PullRequestTitleSeamTests {
 
         // The Partial Landing announcement stays in the body's first two lines, whatever the template.
         let lines = bare.body.split(separator: "\n", omittingEmptySubsequences: false)
-        #expect(lines[0].hasPrefix("**partial landing · 1 of 3 Cards landed"))
+        #expect(lines[0].hasPrefix("**partial · 1 of 3 Cards landed"))
         #expect(lines[1].contains("2 unfinished Cards are carried forward"))
         #expect(bare.body == withPrefix.body)
     }

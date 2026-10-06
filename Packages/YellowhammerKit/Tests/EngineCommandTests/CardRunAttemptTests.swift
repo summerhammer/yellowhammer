@@ -95,7 +95,7 @@ struct CardRunAttemptTests {
         #expect(attempts.map(\.route) == [cardRunOpus, cardRunFallback])
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.hardFailure.rawValue)
+        #expect(card.blockReason == BlockReason.routeFailure.rawValue)
         let steps = try cardRunLog(world.journal)
         #expect(steps.contains(CardRunStep.attemptsExhausted.rawValue))
     }
@@ -120,7 +120,7 @@ struct CardRunAttemptTests {
         #expect(attempts[0].result == "hard failure")
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.hardFailure.rawValue)
+        #expect(card.blockReason == BlockReason.routeFailure.rawValue)
         let steps = try cardRunLog(world.journal)
         #expect(!steps.contains(CardRunStep.attemptsExhausted.rawValue))
     }
@@ -146,7 +146,7 @@ struct CardRunAttemptTests {
         #expect(try world.journal.excludedRoutes(cardID: try #require(world.cardIDs["BACK-1"])).isEmpty)
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        // The final Attempt of the epoch ended Crashed-Unknown: `host crash`, not `hard failure`.
+        // The final Attempt of the epoch ended Crashed-Unknown: `host crash`, not `route failure`.
         #expect(card.blockReason == BlockReason.hostCrash.rawValue)
 
         let consumption = try world.journal.attemptHistory(cardID: try #require(world.cardIDs["BACK-1"]))
@@ -155,9 +155,9 @@ struct CardRunAttemptTests {
         #expect(consumption.routesFailed == 0)
     }
 
-    // MARK: - d'. a prior Attempt the engine stopped blocks `engine stop`, not `host crash` (OQ92)
+    // MARK: - d'. a prior Attempt the engine stopped blocks `engine fault`, not `host crash` (OQ92)
 
-    @Test("A prior Attempt the engine stopped, with the budget already spent, Blocks engine stop, not host crash")
+    @Test("A prior Attempt the engine stopped, with the budget already spent, Blocks engine fault, not host crash")
     func priorEngineStoppedAttemptBlocksEngineStop() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
@@ -185,7 +185,7 @@ struct CardRunAttemptTests {
         #expect(log.all == ["reset"])
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.engineStop.rawValue)
+        #expect(card.blockReason == BlockReason.engineFault.rawValue)
         let steps = try cardRunLog(world.journal)
         #expect(steps.contains(CardRunStep.attemptsExhausted.rawValue))
     }
@@ -216,7 +216,7 @@ struct CardRunAttemptTests {
         #expect(attempts.allSatisfy { $0.rounds.count == 1 })
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.blockedByReviewer.rawValue)
+        #expect(card.blockReason == BlockReason.reviewerRejection.rawValue)
     }
 
     // MARK: - f. a question consumes nothing and never retries
@@ -288,7 +288,7 @@ struct CardRunAttemptTests {
         #expect(try world.attempts("BACK-1").count == 2)
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.hardFailure.rawValue)
+        #expect(card.blockReason == BlockReason.routeFailure.rawValue)
         #expect(try cardRunLog(world.journal).contains(CardRunStep.attemptsExhausted.rawValue))
 
         // A fresh budget epoch (an Override pin change in triage, in the product) lets the Card dispatch.

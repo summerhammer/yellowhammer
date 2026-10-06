@@ -8,9 +8,9 @@ import Foundation
 /// with the merged Routing Table's Routes when one is given, and refreshed by re-running provisioning
 /// after the table changes: a Route it no longer names keeps its label, because nothing ever clears an
 /// Override. The per-axis groups `Override CLI`, `Override Model` and `Override Effort` that earlier
-/// builds provisioned are neither read nor removed; the Operator may delete them in Linear. The settle workflow-state group (`Kept in Flight`, `Released`) is provisioned alongside
+/// builds provisioned are neither read nor removed; the Operator may delete them in Linear. The settle workflow-state group (`Kept in Flight`, `Abandoned`) is provisioned alongside
 /// `Waiting on You` and `Blocked`; a same-name state of another type is a collision, never reused
-/// (G-6 probe, 2026-09-23).
+/// (G-6 probe, 2026-09-23; OQ128).
 public struct BoardProvisioner {
     /// The exact name of the workflow state Yellowhammer depends on, glossary-verbatim.
     public static let waitingOnYouState = "Waiting on You"
@@ -33,9 +33,9 @@ public struct BoardProvisioner {
     /// The workflow state for blocked work.
     public static let blockedState = "Blocked"
 
-    /// Object type label group and its children.
-    public static let objectTypeGroup = "Object Type"
-    public static let objectTypeChildren = ["Feature", "Card", "Night Card"]
+    /// Card type label group and its children.
+    public static let cardTypeGroup = "Card Type"
+    public static let cardTypeChildren = CardType.allCases.map(\.rawValue)
 
     /// Block Reason label group and its children.
     public static let blockReasonGroup = "Block Reason"
@@ -55,7 +55,7 @@ public struct BoardProvisioner {
 
     /// The label groups provisioned for every Project.
     private static let labelGroups = [
-        LabelGroupDeclaration(name: objectTypeGroup, children: objectTypeChildren),
+        LabelGroupDeclaration(name: cardTypeGroup, children: cardTypeChildren),
         LabelGroupDeclaration(name: blockReasonGroup, children: blockReasonChildren)
     ]
 

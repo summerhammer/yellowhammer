@@ -22,9 +22,9 @@ struct LinearWorkspaceTests {
         do {
             let created = try JournalStore.open(at: fileURL, projectID: projectID, linearWorkspace: workspaceX)
             #expect(created.linearWorkspace == workspaceX)
-            #expect(try created.appliedMigrations() == ["journal-schema-5"])
+            #expect(try created.appliedMigrations() == ["journal-schema-6"])
         }
-        #expect(JournalStore.migrationIdentifiers == ["journal-schema-5"])
+        #expect(JournalStore.migrationIdentifiers == ["journal-schema-6"])
 
         do {
             let readOnly = try JournalStore.openReadOnly(at: fileURL, projectID: projectID)

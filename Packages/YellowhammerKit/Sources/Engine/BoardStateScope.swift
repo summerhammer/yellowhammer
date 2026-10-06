@@ -45,7 +45,7 @@ public struct BoardStateScope: Equatable, Sendable {
     /// The issue change that returns a Feature to contention: transitions to `.todo` (contention)
     /// and clears any Block Reason label.
     public func featureContentionChange() throws -> BoardIssueChange {
-        var change = labels.change(objectType: "Feature", state: Self.contentionCardState, blockReason: nil)
+        var change = labels.change(cardType: .featureCard, state: Self.contentionCardState, blockReason: nil)
         change.workflowState = try contentionWorkflowStateID()
         return change
     }

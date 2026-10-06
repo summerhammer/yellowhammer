@@ -11,7 +11,7 @@ struct LinearIssueReadTests {
     private static let issueNode = """
         {"id":"feature-1","identifier":"ENG-100","title":"Feature","description":"Body",
          "url":"https://linear.app/acme/issue/ENG-100","createdAt":"2026-08-30T08:00:00Z",
-         "updatedAt":"2026-09-14T08:00:00Z","state":{"id":"state-2","name":"Released"},
+         "updatedAt":"2026-09-14T08:00:00Z","state":{"id":"state-2","name":"Abandoned"},
          "labels":{"nodes":[{"name":"yh:feature"}]},"parent":null}
         """
 
@@ -33,7 +33,7 @@ struct LinearIssueReadTests {
         #expect(feature.title == "Feature")
         #expect(feature.description == "Body")
         #expect(feature.workflowState.id == BoardObjectID(rawValue: "state-2"))
-        #expect(feature.workflowState.name == "Released")
+        #expect(feature.workflowState.name == "Abandoned")
         #expect(feature.labels == ["yh:feature"])
         #expect(feature.parent == nil)
         #expect(feature.url == "https://linear.app/acme/issue/ENG-100")

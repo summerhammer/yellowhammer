@@ -57,31 +57,31 @@ public struct AttemptHistory: Equatable, Sendable {
         return retries
     }
 
-    /// The Block Reason for `epoch`, derived from a single source (Attempt, Block and Reset Ruling
-    /// 2026-09-19, OQ58): the epoch's last ENDED, consuming Attempt — a `question` or `cancelled` ending
-    /// is skipped, and so is any still-open Attempt. An `aborted` one is NOT (unlike in
-    /// ``consumption(inEpoch:)``): as the last, the Card blocks `operator abort`. `rounds-exhausted` blocks by that Attempt's last Round's Lens;
-    /// a hard failure blocks `hard failure`; a Crashed-Unknown blocks `host crash`, or `engine stop` when
-    /// its run recorded that the engine stopped it (OQ92); no such Attempt at all blocks `hard failure`.
-    /// Every Block path — budget spent, found already spent, or a Route exclusion leaving none — reads this.
+    /// The Block Reason for `epoch`, derived from a single source (Attempt, Block and Reset Ruling 2026-09-19,
+    /// OQ58): the epoch's last ENDED, consuming Attempt — a `question` or `cancelled` ending is skipped, and so
+    /// is any still-open Attempt. An `aborted` one is NOT (unlike in ``consumption(inEpoch:)``): as the last,
+    /// the Card blocks `operator abort`. `rounds-exhausted` blocks by that Attempt's last Round's Lens; a hard
+    /// failure blocks `route failure`; a Crashed-Unknown blocks `host crash`, or `engine fault` when its run
+    /// recorded that the engine stopped it (OQ92); no such Attempt at all blocks `route failure`. Every Block
+    /// path reads this, except a Block under `failure recurrence`, which names its reason itself (`retryOrBlock`).
     public func blockReason(inEpoch epoch: Int) -> BlockReason {
         guard let last = attempts.last(where: {
             $0.budgetEpoch == epoch && $0.endedAt != nil
                 && $0.result != AttemptOutcome.question.rawValue
                 && $0.result != AttemptOutcome.cancelled.rawValue
         }) else {
-            return .hardFailure
+            return .routeFailure
         }
         switch last.result {
         case AttemptOutcome.roundsExhausted.rawValue:
-            guard let lens = last.rounds.last?.lens else { return .hardFailure }
-            return lens == .check ? .blockedByCheck : .blockedByReviewer
+            guard let lens = last.rounds.last?.lens else { return .routeFailure }
+            return lens == .check ? .checkFailure : .reviewerRejection
         case AttemptOutcome.crashedUnknown.rawValue:
             return last.classification?.hasPrefix(AttemptEnding.engineStoppedClassificationPrefix) == true
-                ? .engineStop : .hostCrash
+                ? .engineFault : .hostCrash
         case AttemptOutcome.aborted.rawValue: return .operatorAbort
         default:
-            return .hardFailure
+            return .routeFailure
         }
     }
 

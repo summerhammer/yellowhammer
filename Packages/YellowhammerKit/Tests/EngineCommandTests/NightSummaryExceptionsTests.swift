@@ -295,12 +295,12 @@ struct NightSummaryExceptionsTests {
         #expect(lines.contains { $0.contains("night_summary") && $0.contains("unreachable") })
     }
 
-    @Test("A released Feature's predecessor walk names it in the Authoring section")
-    func releasedFeatureAuthoringLine() {
+    @Test("An abandoned Feature's predecessor walk names it in the Authoring section")
+    func abandonedFeatureAuthoringLine() {
         let line = NightCardMaintenance.authoringLine(
             for: .predecessorWalkSkippedReleasedFeature(featureIssueID: "FEAT-OLD")
         )
-        #expect(line?.contains("Feature `FEAT-OLD` was released") == true)
+        #expect(line?.contains("Feature `FEAT-OLD` was abandoned") == true)
         #expect(line?.contains("tonight's work is not built on it") == true)
     }
 

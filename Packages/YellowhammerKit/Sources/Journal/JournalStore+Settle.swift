@@ -62,12 +62,12 @@ extension JournalStore {
         }
     }
 
-    /// Records the *released* settle value (roadmap P10.9): archives the Cycle (`cycle.archived_at`
-    /// only — never `closed_by`, whose CHECK admits only `verification`/`merge`; a released Feature is
-    /// re-enterable, not closed), marks the Feature released (`feature.released_at`), sets
+    /// Records the *abandoned* settle value (roadmap P10.9; OQ128): archives the Cycle (`cycle.archived_at`
+    /// only — never `closed_by`, whose CHECK admits only `verification`/`merge`; an abandoned Feature is
+    /// re-enterable, not closed), marks the Feature abandoned (`feature.abandoned_at`), sets
     /// `night.triaged_at` on `triagedNightID` (first write wins), and appends `.featureReleased`. One
-    /// write transaction, revalidating the Act Lease first. Idempotent on `feature.released_at`: a
-    /// Feature already released (by this call or, unreachably in practice since a merge-closed Feature
+    /// write transaction, revalidating the Act Lease first. Idempotent on `feature.abandoned_at`: a
+    /// Feature already abandoned (by this call or, unreachably in practice since a merge-closed Feature
     /// is no longer in flight, by merge closure) gets no writes and this returns false.
     @discardableResult
     public func settleFeatureReleased(
@@ -78,18 +78,18 @@ extension JournalStore {
 
             guard
                 let featureRow = try Row.fetchOne(
-                    db, sql: "SELECT released_at FROM feature WHERE id = ?", arguments: [release.featureID]
+                    db, sql: "SELECT abandoned_at FROM feature WHERE id = ?", arguments: [release.featureID]
                 )
             else {
                 throw JournalError.featureUnknown(featureID: release.featureID)
             }
-            let releasedAtText: String? = featureRow["released_at"]
-            guard releasedAtText == nil else { return false }
+            let abandonedAtText: String? = featureRow["abandoned_at"]
+            guard abandonedAtText == nil else { return false }
 
             let timestamp = JournalStore.timestamp(JournalStore.stored(now))
             try Self.archiveCycleIfUnarchived(db, cycleID: release.cycleID, timestamp: timestamp)
             try db.execute(
-                sql: "UPDATE feature SET released_at = ? WHERE id = ?", arguments: [timestamp, release.featureID]
+                sql: "UPDATE feature SET abandoned_at = ? WHERE id = ?", arguments: [timestamp, release.featureID]
             )
             try Self.stampNightTriagedIfUnset(db, nightID: release.triagedNightID, timestamp: timestamp)
 
@@ -107,8 +107,8 @@ extension JournalStore {
         }
     }
 
-    /// Sets `cycle.archived_at` for `cycleID` if it is still unset — a *released* Feature's Cycle is
-    /// archived without `closed_by` (never a closure route; `released_at` is the marker), so this never
+    /// Sets `cycle.archived_at` for `cycleID` if it is still unset — an *abandoned* Feature's Cycle is
+    /// archived without `closed_by` (never a closure route; `abandoned_at` is the marker), so this never
     /// reuses ``archiveCycleRow(_:cycleID:featureID:closedBy:now:)``.
     /// Widened from `private` and made `@discardableResult` so
     /// ``JournalStore/recordProjectRemoval(_:runID:now:)`` (P13.5) can archive a decommissioned in-flight

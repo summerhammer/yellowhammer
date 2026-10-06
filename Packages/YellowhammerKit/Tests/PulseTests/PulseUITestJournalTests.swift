@@ -54,7 +54,7 @@ private struct SeededCard {
 /// and the pull request number, so a change here is a change there.
 ///
 /// - Feature `ARC-10`, in flight, with one Repo Lane, `archive`, and pull request #42 on it.
-/// - `ARC-11` Blocked (hard failure), with one ended Attempt and a failed Check.
+/// - `ARC-11` Blocked (route failure), with one ended Attempt and a failed Check.
 /// - `ARC-12` Waiting on You.
 /// - `ARC-13` In Progress, with an open Attempt: the one running Attempt.
 /// - `ARC-14` Done.
@@ -72,7 +72,7 @@ private func seedUITestJournal(_ journal: JournalStore) throws {
     _ = try journal.recordNightCard(id: night.id, issueID: issueID(20), act: .build, runID: run, now: seededAt)
     let feature = try insertFeature(journal, issueID: issueID(10))
     let cards = [
-        SeededCard(number: 11, title: "Migrate the archive index", state: .blocked, blockReason: .hardFailure),
+        SeededCard(number: 11, title: "Migrate the archive index", state: .blocked, blockReason: .routeFailure),
         SeededCard(number: 12, title: "Choose the retention window", state: .waitingOnYou),
         SeededCard(number: 13, title: "Backfill archived Cards", state: .inProgress),
         SeededCard(number: 14, title: "Add the archive schema", state: .done)

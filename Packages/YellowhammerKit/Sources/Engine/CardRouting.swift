@@ -4,7 +4,7 @@ import Journal
 
 /// Resolves a Card's Route at dispatch and writes the routing consequence to the Journal
 /// (routing/resolve-a-route-for-a-card, roadmap P7.6): an Attempt carrying the resolved Route, or —
-/// with zero candidates — the Blocked transition with Block Reason `hard failure` and no Attempt, so
+/// with zero candidates — the Blocked transition with Block Reason `route failure` and no Attempt, so
 /// no phantom Attempt is spent. A refused Override writes nothing but its event: it is a Readiness
 /// Check failure, which the Card run reports onto the Card. An Override's Route passes its Route
 /// Pre-flight before any Attempt is recorded on it (OQ126), after the Probe check, so a Route whose CLI

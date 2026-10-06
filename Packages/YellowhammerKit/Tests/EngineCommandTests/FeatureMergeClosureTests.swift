@@ -9,7 +9,7 @@ import Testing
 
 // roadmap P10.8 (spec: landing/announce-a-partial-landing, morning-report/triage-the-morning): once
 // the predecessor-ancestry gate first observes every touched repository merged (k = N), the Feature is
-// closed by merge — unverified. A Card still Waiting on You is auto-Blocked `unanswered` ("merging
+// closed by merge — unverified. A Card still Waiting on You is auto-Blocked `reply overdue` ("merging
 // costs the Card nothing"); surviving Blocked Cards are detached, awaiting Adoption; the Cycle is
 // archived `closed_by = merge`; the Feature Issue is archived and never moved to Done. Never asserts
 // model-authored content.
@@ -75,11 +75,11 @@ struct FeatureMergeClosureTests {
         #expect(row.closedBy == "merge")
         #expect(try world.journal.inFlightCycleID() == nil)
 
-        // The Waiting on You Card was auto-Blocked `unanswered`, its counters untouched — on the board
+        // The Waiting on You Card was auto-Blocked `reply overdue`, its counters untouched — on the board
         // too, under a Card Lease claimed for the one write and released after it.
         let waiting = try world.journal.card(id: world.waitingCardID)
         #expect(waiting.state == .blocked)
-        #expect(waiting.blockReason == BlockReason.unanswered.rawValue)
+        #expect(waiting.blockReason == BlockReason.replyOverdue.rawValue)
         #expect(waiting.budgetEpoch == 2)
         #expect(waiting.boardStateVersion == waiting.stateVersion)
         #expect(try world.journal.currentCardLease(cardID: world.waitingCardID)?.runID != context.runID)
@@ -92,7 +92,7 @@ struct FeatureMergeClosureTests {
         #expect(try world.journal.card(id: world.doneCardID).state == .done)
         let alreadyBlocked = try world.journal.card(id: world.blockedCardID)
         #expect(alreadyBlocked.state == .blocked)
-        #expect(alreadyBlocked.blockReason == BlockReason.blockedByReviewer.rawValue)
+        #expect(alreadyBlocked.blockReason == BlockReason.reviewerRejection.rawValue)
 
         // Both Blocked Cards are detached; the Done Card is not.
         let waitingIssue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: "MOB-1")))
@@ -232,12 +232,12 @@ struct FeatureMergeClosureTests {
         #expect(await world.boards.writing.createCommentCalls == 0)
     }
 
-    @Test("A released Feature writes nothing")
-    func releasedFeatureWritesNothing() async throws {
+    @Test("An abandoned Feature writes nothing")
+    func abandonedFeatureWritesNothing() async throws {
         let world = try await makeMergeWorld(mergedRepositories: ["backend", "mobile"])
         let repositories = mergeWorldRepositories(world)
         let context = try world.makeContext(repositories: repositories)
-        try world.journal.markFeatureReleased(featureID: world.featureID)
+        try world.journal.markFeatureAbandoned(featureID: world.featureID)
         let (feature, _) = try #require(
             try world.journal.read { db in try Self.readFeature(db, id: world.featureID) }
         )

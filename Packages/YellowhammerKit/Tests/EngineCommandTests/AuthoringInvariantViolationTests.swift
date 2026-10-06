@@ -46,7 +46,7 @@ struct AuthoringInvariantViolationTests {
         )
         // BACK-1 is already Blocked: the hole BACK-2 is about to report needing.
         _ = try journal.transitionCard(
-            cardID: try world.card("BACK-1").id, to: .blocked, blockReason: .hardFailure,
+            cardID: try world.card("BACK-1").id, to: .blocked, blockReason: .routeFailure,
             runID: world.runID, act: .build, nightID: world.context.act.night.id
         )
 
