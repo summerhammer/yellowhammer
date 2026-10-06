@@ -246,7 +246,8 @@ struct CardRunAttemptTests {
         let secondLog = CallLog()
         let secondRun = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: secondLog),
-            check: RecordingCheck(log: secondLog), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 1,
+            check: RecordingCheck(log: secondLog), checks: ["backend": .none], reviewRoundsMax: 2,
+            attemptsPerWorkCard: 1,
             resetting: RecordingAttemptResetting()
         )
         try await secondRun.run("BACK-1", in: world)
@@ -303,7 +304,8 @@ struct CardRunAttemptTests {
         let secondLog = CallLog()
         let secondRun = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: secondLog),
-            check: RecordingCheck(log: secondLog), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 2,
+            check: RecordingCheck(log: secondLog), checks: ["backend": .none], reviewRoundsMax: 2,
+            attemptsPerWorkCard: 2,
             resetting: RecordingAttemptResetting()
         )
         try await secondRun.run("BACK-1", in: world)

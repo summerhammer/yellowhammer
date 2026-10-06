@@ -260,7 +260,8 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
                     ? "\(clause.text) (invalidated: \(clause.invalidatedCause ?? "unspecified"))"
                     : clause.text
                 unmetClauses.append(
-                    PullRequestBodyUnmetClause(workCardTitle: card.displayTitle, text: text, citation: clause.locationID)
+                    PullRequestBodyUnmetClause(workCardTitle: card.displayTitle, text: text,
+                        citation: clause.locationID)
                 )
             }
         }

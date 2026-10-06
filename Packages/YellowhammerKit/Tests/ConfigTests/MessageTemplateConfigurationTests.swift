@@ -77,7 +77,8 @@ func badTemplatesRefused() {
     #expect(unknown?.line == 12)
     #expect(unknown?.reason == .unknownTemplateToken(
         name: "branch", key: "commit_message",
-        accepted: ["{type}", "{title}", "{key}", "{repository}", "{scope}", "{work_card_key}", "{work_card_title}", "{story}"]
+        accepted: ["{type}", "{title}", "{key}", "{repository}", "{scope}",
+        "{work_card_key}", "{work_card_title}", "{story}"]
     ))
     #expect(unknown?.description.contains("names {branch}, which is not a commit_message token") == true)
 

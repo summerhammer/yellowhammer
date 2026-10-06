@@ -38,14 +38,14 @@ func messageTemplateRefusesForeignTokens() {
         }
     }
     let cases = [
-        Case(.pullRequestTitle, "{work_card_key}", "card_key"),
+        Case(.pullRequestTitle, "{work_card_key}", "work_card_key"),
         Case(.pullRequestTitle, "{story}", "story"),
         Case(.commitMessage, "{branch}", "branch"),
         Case(.commitMessage, "{partial}", "partial"),
         Case(.commitMessage, "{project}", "project"), // glossary:ignore GL001
         Case(.wipCommitMessage, "{title}", "title"),
         Case(.wipCommitMessage, "{scope}", "scope"),
-        Case(.wipCommitMessage, "{work_card_title}", "card_title"),
+        Case(.wipCommitMessage, "{work_card_title}", "work_card_title"),
         Case(.pullRequestTitle, "{nonsense}", "nonsense"),
         Case(.commitMessage, "{}", "")
     ]

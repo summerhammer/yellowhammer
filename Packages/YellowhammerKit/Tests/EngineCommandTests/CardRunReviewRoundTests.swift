@@ -114,7 +114,7 @@ struct CardRunReviewRoundTests {
         #expect(round.judgedCommit == reviewJudgedCommit)
     }
 
-    @Test("reviewRoundsMax=1, attemptsPerWorkCard=1, reviewer always requests changes: rounds-exhausted, blocked reviewer")
+    @Test("reviewRoundsMax=1, attemptsPerWorkCard=1, reviewer always requests changes: rounds-exhausted")
     func reviewerAlwaysRequestingChangesBlocksTheCard() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
@@ -154,7 +154,7 @@ struct CardRunReviewRoundTests {
         #expect(run.dispatch.requests.passes(.reviewer).isEmpty)
     }
 
-    @Test("reviewRoundsMax=1, attemptsPerWorkCard=2, a single Route: rounds-exhausted excludes it, and the retry Blocks")
+    @Test("reviewRoundsMax=1, attemptsPerWorkCard=2, one Route: rounds-exhausted excludes it, the retry Blocks")
     func roundBudgetAloneNeverBlocksTheCard() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())

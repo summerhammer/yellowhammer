@@ -291,7 +291,8 @@ struct ExpiredLeaseSweepRealKillTests {
         let retryRunID = RunID()
         let retryRun = CardRun(
             resolver: cardRunResolver(), dispatch: RehearsalDispatch(), check: RecordingCheck(log: CallLog()),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3, resetting: RecordingAttemptResetting()
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
+            resetting: RecordingAttemptResetting()
         )
         let fastFencer = ProcessFencer(pollInterval: .milliseconds(20), quiescenceTimeout: .seconds(5))
         let secondInvocation = EngineInvocation(

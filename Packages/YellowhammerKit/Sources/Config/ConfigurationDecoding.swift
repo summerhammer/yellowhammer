@@ -146,7 +146,8 @@ struct ConfigurationDecoding {
         var kind = Kind.any
         if let string = try optionalString("work_kind", in: table, path: path, allowEmpty: true) {
             guard let parsed = Kind(string) else {
-                throw error(line: table["work_kind"]?.line ?? table.line, key: "\(path).work_kind", .invalidKind(string))
+                throw error(line: table["work_kind"]?.line ?? table.line, key: "\(path).work_kind",
+                    .invalidKind(string))
             }
             kind = parsed
         }
