@@ -66,7 +66,7 @@ enum AuthoringTranscriptions {
                     blocks.append(try await transcribeOne(contract, transcriber: transcriber, context: context))
                 } catch {
                     unreadable.append(UnreadableContract(
-                        cardTitle: card.title, repository: contract.repository, paths: contract.paths,
+                        workCardTitle: card.title, repository: contract.repository, paths: contract.paths,
                         reason: reason(for: error)
                     ))
                 }

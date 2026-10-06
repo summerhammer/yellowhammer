@@ -55,9 +55,9 @@ public struct CardRun: CardRunner {
     /// The most Rounds one Attempt may record, both Lenses together (`review_rounds_max`). Required: the ruled
     /// default lives in `Config`, and the Engine holds no configuration.
     public let reviewRoundsMax: Int
-    /// The most Attempts a Card may consume in one budget epoch (`attempts_per_card`). Required: the ruled
+    /// The most Attempts a Card may consume in one budget epoch (`attempts_per_work_card`). Required: the ruled
     /// default lives in `Config`, and the Engine holds no configuration.
-    public let attemptsPerCard: Int
+    public let attemptsPerWorkCard: Int
     /// The fence → WIP-commit → preserve → reset seam (Attempt, Block and Reset Ruling 2026-09-19,
     /// OQ60), run before every new Attempt, on every Block path and when a question puts the Card in
     /// Waiting on You (OQ106): required, with no default, so production can never forget to wire the real
@@ -73,7 +73,7 @@ public struct CardRun: CardRunner {
     public let commitMessage: MessageTemplate
     /// The Project's `change_type`, which fills the commit message's `{type}`.
     public let changeType: ChangeType
-    /// Reads the worker's reported commits for the `Yellowhammer-Card` trailer, recorded only.
+    /// Reads the worker's reported commits for the `Yellowhammer-Work-Card` trailer, recorded only.
     public let commitTrailers: CommitTrailerReader
     /// How often a running Attempt checks the Journal for the Operator's abort request.
     public let operatorAbortPoll: Duration
@@ -87,7 +87,7 @@ public struct CardRun: CardRunner {
         check: any RepositoryCheckRunning,
         checks: [String: Check],
         reviewRoundsMax: Int,
-        attemptsPerCard: Int,
+        attemptsPerWorkCard: Int,
         leasePolicy: LeasePolicy = .ruled,
         resetting: any AttemptResetting,
         commitMessage: MessageTemplate = .default(.commitMessage),
@@ -102,7 +102,7 @@ public struct CardRun: CardRunner {
         self.check = check
         self.checks = checks
         self.reviewRoundsMax = reviewRoundsMax
-        self.attemptsPerCard = attemptsPerCard
+        self.attemptsPerWorkCard = attemptsPerWorkCard
         self.leasePolicy = leasePolicy
         self.resetting = resetting
         self.commitMessage = commitMessage
@@ -191,7 +191,7 @@ public struct CardRun: CardRunner {
             try Task.checkCancellation()
             let outcome = try await routing.route(
                 card: frame.card, repoRole: frame.repository?.role, override: override,
-                checkDeclaredNone: checkDeclaredNone, attemptsPerCard: attemptsPerCard
+                checkDeclaredNone: checkDeclaredNone, attemptsPerWorkCard: attemptsPerWorkCard
             )
             switch outcome {
             case .attempt(let attempt, let resolved):

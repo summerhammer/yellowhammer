@@ -4,8 +4,8 @@ import Journal
 
 /// One Project Bound's proximity at a Night's close: what the Bound allows (`value`), what this Night
 /// recorded against it (`observed`), and — when the Night Summary's line names what it counted — the
-/// `measure` phrase. Always in the same six-Bound order: `review_rounds_max`, `attempts_per_card`,
-/// `unanswered_nights_max`, `reselections_max`, `consecutive_refusals_max`, `failed_adoptions_max`.
+/// `measure` phrase. Always in the same six-Bound order: `review_rounds_max`, `attempts_per_work_card`,
+/// `overdue_nights_max`, `reselections_max`, `consecutive_refusals_max`, `failed_adoptions_max`.
 public struct BoundProximity: Sendable, Equatable {
     public let name: String
     public let value: Int
@@ -54,11 +54,11 @@ extension NightSummary {
                 measure: "highest Rounds in an Attempt"
             ),
             BoundProximity(
-                name: "attempts_per_card", value: bounds.attemptsPerCard, observed: attempts,
+                name: "attempts_per_work_card", value: bounds.attemptsPerWorkCard, observed: attempts,
                 measure: "highest consumed in an epoch"
             ),
             BoundProximity(
-                name: "unanswered_nights_max", value: bounds.unansweredNightsMax, observed: unanswered,
+                name: "overdue_nights_max", value: bounds.unansweredNightsMax, observed: unanswered,
                 measure: "highest Card count"
             ),
             BoundProximity(
@@ -73,7 +73,7 @@ extension NightSummary {
         ]
     }
 
-    /// `review_rounds_max`/`attempts_per_card`'s counters: the highest Rounds an Attempt reached, and the
+    /// `review_rounds_max`/`attempts_per_work_card`'s counters: the highest Rounds an Attempt reached, and the
     /// highest Attempts consumed in one budget epoch, across every Card this Night touched.
     private static func attemptCounters(
         current: [JournalEventRecord], journal: JournalStore, close: Date
@@ -100,7 +100,7 @@ extension NightSummary {
         return (rounds, attempts)
     }
 
-    /// `reselections_max`/`consecutive_refusals_max`/`unanswered_nights_max`/`failed_adoptions_max`'s
+    /// `reselections_max`/`consecutive_refusals_max`/`overdue_nights_max`/`failed_adoptions_max`'s
     /// counters, grouped to keep ``cardCounters(night:current:journal:)`` under SwiftLint's tuple-member
     /// limit.
     private struct CardCounts {

@@ -5,11 +5,11 @@ import Journal
 /// The worker pass's commit message (roadmap P19.4): the Project's `commit_message` Message Template
 /// rendered with the Card's token values. Pure; the Card run fetches the inputs.
 enum WorkerCommitMessage {
-    /// What fills the template's tokens. `cardKey` and `featureKey` are the human Linear identifiers and
+    /// What fills the template's tokens. `workCardKey` and `featureKey` are the human Linear identifiers and
     /// are empty when the board object was unavailable (never Linear's opaque id).
     struct Inputs: Equatable {
-        var cardKey: String
-        var cardTitle: String
+        var workCardKey: String
+        var workCardTitle: String
         var featureKey: String
         var featureTitle: String
         var repository: String
@@ -23,8 +23,8 @@ enum WorkerCommitMessage {
             .title: inputs.featureTitle,
             .key: inputs.featureKey,
             .repository: inputs.repository,
-            .cardKey: inputs.cardKey,
-            .cardTitle: inputs.cardTitle,
+            .workCardKey: inputs.workCardKey,
+            .workCardTitle: inputs.workCardTitle,
             .story: inputs.story ?? "",
             .scope: epic.map { "(\($0))" } ?? ""
         ])

@@ -30,10 +30,10 @@ struct AuthoringCitationResolution {
 /// limit.
 private struct ClauseLevel {
     let level: String
-    let cardTitle: String?
+    let workCardTitle: String?
 
-    static let feature = ClauseLevel(level: "feature", cardTitle: nil)
-    static func card(_ title: String) -> ClauseLevel { ClauseLevel(level: "card", cardTitle: title) }
+    static let feature = ClauseLevel(level: "feature", workCardTitle: nil)
+    static func card(_ title: String) -> ClauseLevel { ClauseLevel(level: "card", workCardTitle: title) }
 }
 
 enum AuthoringCitations {
@@ -73,7 +73,7 @@ enum AuthoringCitations {
         for draft in drafts {
             if let reason = await uncitableReason(draft, resolver: resolver, context: context) {
                 uncitable.append(UncitableClause(
-                    level: level.level, cardTitle: level.cardTitle, text: draft.text,
+                    level: level.level, workCardTitle: level.workCardTitle, text: draft.text,
                     citation: draft.citation.rawValue, reason: reason
                 ))
             } else {

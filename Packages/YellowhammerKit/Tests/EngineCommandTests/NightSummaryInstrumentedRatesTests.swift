@@ -210,9 +210,9 @@ struct NightSummaryInstrumentedRatesTests {
         let current = try NightSummary.instrumentedRateLines(
             night: try #require(try journal.night(id: second.id)), journal: journal, bounds: .init()
         )
-        #expect(old.contains("`unanswered_nights_max`: 2 of 3 (highest Card count)."))
+        #expect(old.contains("`overdue_nights_max`: 2 of 3 (highest Card count)."))
         #expect(old.contains("`failed_adoptions_max`: 1 of 2."))
-        #expect(current.contains("`unanswered_nights_max`: 5 of 3 (highest Card count)."))
+        #expect(current.contains("`overdue_nights_max`: 5 of 3 (highest Card count)."))
         #expect(current.contains("`failed_adoptions_max`: 4 of 2."))
     }
 }
@@ -311,7 +311,7 @@ extension NightSummaryInstrumentedRatesTests {
         #expect(lines.contains("`author_supplied_citation_count`: 1 (at this Night's close)."))
         #expect(lines.contains("`reselections_max`: 0 of 2."))
         #expect(lines.contains("`consecutive_refusals_max`: 0 of 3."))
-        #expect(lines.filter { $0.contains("_max`:") || $0.contains("attempts_per_card`:") }.count == 6)
+        #expect(lines.filter { $0.contains("_max`:") || $0.contains("attempts_per_work_card`:") }.count == 6)
 
         let firstLines = try NightSummary.instrumentedRateLines(
             night: try #require(try journal.night(id: first.id)), journal: journal, bounds: .init()

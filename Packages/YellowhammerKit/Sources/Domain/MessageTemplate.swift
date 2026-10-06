@@ -54,7 +54,7 @@ public struct MessageTemplate: Equatable, Hashable, Sendable, CustomStringConver
             case .pullRequestTitle:
                 [.type, .title, .key, .repository, .branch, .project, .partial, .scope]
             case .commitMessage:
-                [.type, .title, .key, .repository, .scope, .cardKey, .cardTitle, .story]
+                [.type, .title, .key, .repository, .scope, .workCardKey, .workCardTitle, .story]
             case .wipCommitMessage:
                 [.type, .repository, .branch, .project]
             }
@@ -64,7 +64,7 @@ public struct MessageTemplate: Equatable, Hashable, Sendable, CustomStringConver
         public var defaultText: String {
             switch self {
             case .pullRequestTitle: "{type}{scope}: {partial}{title}"
-            case .commitMessage: "{type}{scope}: {card_title}"
+            case .commitMessage: "{type}{scope}: {work_card_title}"
             case .wipCommitMessage: "chore(wip): preserve uncommitted work on {branch}"
             }
         }
@@ -80,8 +80,8 @@ public struct MessageTemplate: Equatable, Hashable, Sendable, CustomStringConver
         case project
         case partial
         case scope
-        case cardKey = "card_key"
-        case cardTitle = "card_title"
+        case workCardKey = "work_card_key"
+        case workCardTitle = "work_card_title"
         case story
 
         public var description: String { "{\(rawValue)}" }

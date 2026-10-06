@@ -93,7 +93,7 @@ struct DoctorConfigurationTests {
             [cli.claude]
 
             [[routing]]
-            kind = "*"
+            work_kind = "*"
             route = "claude/haiku/low"
             """)
         try directory.writeValidProjectFile(id: "alpha")

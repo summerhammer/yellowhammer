@@ -225,7 +225,7 @@ public struct RepoDeclaration: Equatable, Sendable {
 /// A Project's six Bounds, from `[limits]`. Each is an integer of at least 1 and fires when its count exceeds it.
 public struct Bounds: Equatable, Sendable {
     public var reviewRoundsMax: Int
-    public var attemptsPerCard: Int
+    public var attemptsPerWorkCard: Int
     public var unansweredNightsMax: Int
     public var reselectionsMax: Int
     public var consecutiveRefusalsMax: Int
@@ -234,14 +234,14 @@ public struct Bounds: Equatable, Sendable {
     /// The defaults are the spec's: bounds/overview and the Decision Gates Ruling, G-13 and G-16.
     public init(
         reviewRoundsMax: Int = 2,
-        attemptsPerCard: Int = 3,
+        attemptsPerWorkCard: Int = 3,
         unansweredNightsMax: Int = 3,
         reselectionsMax: Int = 2,
         consecutiveRefusalsMax: Int = 3,
         failedAdoptionsMax: Int = 2
     ) {
         self.reviewRoundsMax = reviewRoundsMax
-        self.attemptsPerCard = attemptsPerCard
+        self.attemptsPerWorkCard = attemptsPerWorkCard
         self.unansweredNightsMax = unansweredNightsMax
         self.reselectionsMax = reselectionsMax
         self.consecutiveRefusalsMax = consecutiveRefusalsMax

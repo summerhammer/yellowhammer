@@ -88,7 +88,7 @@ extension PulseSnapshot {
                         id: String(open.id),
                         cardID: card.issueID,
                         cardIDForDisplay: card.issueIDForDisplay ?? card.issueKey,
-                        cardTitle: card.displayTitle,
+                        workCardTitle: card.displayTitle,
                         repo: card.repository,
                         route: open.route.description,
                         startedAt: open.startedAt,

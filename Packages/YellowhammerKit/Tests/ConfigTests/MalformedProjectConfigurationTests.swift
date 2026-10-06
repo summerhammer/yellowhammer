@@ -52,8 +52,8 @@ private let repoFixtures: [MalformedFixture] = [
 ]
 
 private let limitsAndScheduleFixtures: [MalformedFixture] = [
-    MalformedFixture("bounds-zero", line: 12, key: "limits.unanswered_nights_max", .notPositive(0)),
-    MalformedFixture("bounds-negative", line: 12, key: "limits.attempts_per_card", .notPositive(-1)),
+    MalformedFixture("bounds-zero", line: 12, key: "limits.overdue_nights_max", .notPositive(0)),
+    MalformedFixture("bounds-negative", line: 12, key: "limits.attempts_per_work_card", .notPositive(-1)),
     MalformedFixture(
         "limit-not-integer", line: 12, key: "limits.review_rounds_max",
         .typeMismatch(expected: "integer", found: "string")
@@ -77,7 +77,7 @@ private let credentialAndRoutingFixtures: [MalformedFixture] = [
 
 /// Exactly one specification source across both kinds, and a Spec Source is a path only. The other
 /// per-file rules of P2.3 are covered above: `missing-check` (an absent `check` is refused, never
-/// read as `none`) and `bounds-zero` (`unanswered_nights_max` must be an integer >= 1).
+/// read as `none`) and `bounds-zero` (`overdue_nights_max` must be an integer >= 1).
 private let specificationSourceFixtures: [MalformedFixture] = [
     MalformedFixture("no-spec-source", line: 1, key: nil, .noSpecificationSource),
     MalformedFixture("two-spec-repos", line: 14, key: "repos[1].role", .secondSpecificationSource(firstLine: 8)),
@@ -148,7 +148,7 @@ role = "backend"
 check = "none"
 
 [[routing]]
-kind = "review"
+work_kind = "review"
 route = "claude/opus"
 fallbacks = ["gemini/pro"]
 """

@@ -60,7 +60,7 @@ extension AddProjectDraft {
     private var boundsSummary: String {
         bounds.isDefault
             ? "Defaults"
-            : "\(bounds.reviewRoundsMax) Rounds · \(bounds.attemptsPerCard) Attempts · "
+            : "\(bounds.reviewRoundsMax) Rounds · \(bounds.attemptsPerWorkCard) Attempts · "
                 + "\(bounds.unansweredNightsMax) Nights"
     }
 

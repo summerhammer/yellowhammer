@@ -53,7 +53,7 @@ public enum JournalEvent: Equatable, Sendable {
     /// Ruling items 5, 12, 13): `BoardError.notAuthenticated` — a refused refresh, a revoked
     /// Installation, a 401 surviving one retry, or no Installation at all. Appended alongside
     /// `.actIncomplete` for this cause; a Night whose every Act only ever recorded this spends none of
-    /// `unanswered_nights_max` (no clock reads this event — it simply never advances, since nothing
+    /// `overdue_nights_max` (no clock reads this event — it simply never advances, since nothing
     /// dispatched).
     case linearAuthorizationHalted
     /// One attempt to refresh the App Installation's token pair, succeeded or refused. Carries no token.
@@ -61,7 +61,7 @@ public enum JournalEvent: Equatable, Sendable {
     case mainlineFetchFailed(repository: String, reason: String)
     /// The resumption self-audit found a Night that never opened (OQ12): a calendar date
     /// between two recorded Nights with no Night row. Recorded on the Night that resumed, by its
-    /// first Act. Reported, never acted on — `unanswered_nights_max` is spent only by Nights that ran.
+    /// first Act. Reported, never acted on — `overdue_nights_max` is spent only by Nights that ran.
     case absentNightDetected(nightStart: NightStart)
     case authoringNoWorkAvailable
     /// The author Act found a Feature already in flight for this Project (an open Cycle) and authored
@@ -290,7 +290,7 @@ public enum JournalEvent: Equatable, Sendable {
     /// A rehearsal Night's pass was answered from a fixture instead of spawning an agent CLI process
     /// (system-overview, Environment Differences, P8.11): one of the three rehearsal boundaries held.
     case rehearsalFixtureAnswered(cardID: Int64, issueID: String, attemptID: Int64, pass: RunPass, fixture: String)
-    /// One commit the worker reported (or that the reported range reached) carries no `Yellowhammer-Card`
+    /// One commit the worker reported (or that the reported range reached) carries no `Yellowhammer-Work-Card`
     /// trailer (graph-execution/run-a-card). Recorded only: it never changes the Card's outcome, never
     /// creates a Round, and is not shown in the Roll-up (OQ102).
     case cardCommitTrailerMissing(cardID: Int64, issueID: String, attemptID: Int64, commit: String)

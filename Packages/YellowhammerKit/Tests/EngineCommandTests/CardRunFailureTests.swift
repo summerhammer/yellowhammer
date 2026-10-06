@@ -5,7 +5,7 @@ import Foundation
 import Testing
 
 // graph-execution/run-a-card (roadmap P8.4): every ending that is not a success, and Routes that never
-// dispatch. These fixtures use a single-Route table and `attemptsPerCard: 3`, so a consuming ending that
+// dispatch. These fixtures use a single-Route table and `attemptsPerWorkCard: 3`, so a consuming ending that
 // excludes its Route (hard failure) leaves no candidate for the retry (roadmap P8.7) to resolve, and the
 // Card Blocks `route failure` rather than returning to Ready — Crashed-Unknown excludes nothing, so it
 // retries on the same Route until the Attempt budget itself is spent. The Round loop's own Attempt-budget
@@ -18,7 +18,7 @@ struct CardRunFailureTests {
     ) -> CardRun {
         CardRun(
             resolver: resolver, dispatch: LoggingDispatch(log: log, script: script),
-            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
             resetting: RecordingAttemptResetting()
         )
     }
@@ -111,7 +111,7 @@ struct CardRunFailureTests {
         let log = CallLog()
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: RefusingDispatch(log: log), check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
             resetting: RecordingAttemptResetting()
         )
 

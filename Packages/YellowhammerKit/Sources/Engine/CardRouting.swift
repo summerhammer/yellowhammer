@@ -56,7 +56,7 @@ public struct CardRouting: Sendable {
         case blocked(CardRecord, RouteExhaustion)
         /// The Override was refused: the Card untouched, no Attempt, the refusal to report.
         case readinessFailure(CardRecord, OverrideRefusal)
-        /// The Card's current budget epoch has already consumed `attemptsPerCard` Attempts: the Card as
+        /// The Card's current budget epoch has already consumed `attemptsPerWorkCard` Attempts: the Card as
         /// it stands, untouched — no Attempt is recorded and the resolver is never asked (roadmap P8.7).
         /// The caller Blocks the Card; this type writes nothing but what selection already wrote.
         case attemptBudgetSpent(CardRecord)
@@ -70,7 +70,7 @@ public struct CardRouting: Sendable {
     /// ``JournalStore/recordAttempt(cardID:route:checkDeclaredNone:routeSource:override:runID:act:nightID:now:)``
     /// takes it, along with the resolved Route's ``ResolvedRoute/source`` and the Operator's Override.
     ///
-    /// `attemptsPerCard` is the Attempt budget guard (roadmap P8.7): when given and the Card's current
+    /// `attemptsPerWorkCard` is the Attempt budget guard (roadmap P8.7): when given and the Card's current
     /// budget epoch has already consumed that many Attempts — from this run's own retries or an earlier
     /// Act or Night, the counters live in the Journal and survive either — this returns
     /// ``Outcome/attemptBudgetSpent(_:)`` instead of resolving, so a Card that arrives already spent
@@ -82,7 +82,7 @@ public struct CardRouting: Sendable {
         repoRole: RepoRole?,
         override: Override?,
         checkDeclaredNone: Bool = false,
-        attemptsPerCard: Int? = nil
+        attemptsPerWorkCard: Int? = nil
     ) async throws -> Outcome {
         guard let kind = Kind(card.kind) else {
             throw CardRoutingError.kindUnparseable(cardID: card.id, kind: card.kind)
@@ -90,9 +90,9 @@ public struct CardRouting: Sendable {
 
         let card = try resetEpochIfOverridePinChanged(card: card, override: override)
 
-        if let attemptsPerCard {
+        if let attemptsPerWorkCard {
             let consumed = try journal.attemptHistory(cardID: card.id).consumption(inEpoch: card.budgetEpoch).consumed
-            if consumed >= attemptsPerCard {
+            if consumed >= attemptsPerWorkCard {
                 return .attemptBudgetSpent(card)
             }
         }

@@ -7,4 +7,4 @@ credential = "keychain:github"
 route = "claude/sonnet"
 
 [[routing]]
-kind = "impl"
+work_kind = "impl"

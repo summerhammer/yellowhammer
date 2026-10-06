@@ -74,7 +74,7 @@ func featureAuthoringAcceptedRoundTripsClauses() throws {
         featureClauses: [PlannedClause(cid: "c1", text: "Feature clause", citation: "epic/story")],
         uncitableClauses: [
             PlannedUncitableClause(
-                level: "card", cardTitle: "One", text: "Dropped", citation: "epic/ghost",
+                level: "card", workCardTitle: "One", text: "Dropped", citation: "epic/ghost",
                 reason: "the citation could not be resolved"
             )
         ]

@@ -18,11 +18,11 @@ private func twoRouteResolver() -> RouteResolver {
     ]))
 }
 
-private func makeRun(worker: RehearsalResultFixture, attemptsPerCard: Int, log: CallLog = CallLog()) -> CardRun {
+private func makeRun(worker: RehearsalResultFixture, attemptsPerWorkCard: Int, log: CallLog = CallLog()) -> CardRun {
     CardRun(
         resolver: twoRouteResolver(), dispatch: LoggingDispatch(log: log, script: [.worker: worker]),
         check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2,
-        attemptsPerCard: attemptsPerCard, resetting: RecordingAttemptResetting()
+        attemptsPerWorkCard: attemptsPerWorkCard, resetting: RecordingAttemptResetting()
     )
 }
 
@@ -61,7 +61,7 @@ struct CardRunRecurrenceTests {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open(), withBoard: false)
 
-        try await makeRun(worker: .workerFailed, attemptsPerCard: 2).run("BACK-1", in: world)
+        try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 2).run("BACK-1", in: world)
 
         // Two Attempts failed of the same cause within one Night: one occurrence, not a recurrence.
         let cardID = try #require(world.cardIDs["BACK-1"])
@@ -80,12 +80,12 @@ struct CardRunRecurrenceTests {
     func recurrenceOnALaterNightBlocks() async throws {
         let fixture = try OutboxJournalFixture()
         let first = try await makeCardRunWorld(journal: try fixture.open(), withBoard: false)
-        try await makeRun(worker: .workerFailed, attemptsPerCard: 1).run("BACK-1", in: first)
+        try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 1).run("BACK-1", in: first)
         let attemptsOnFirstNight = try first.attempts("BACK-1").count
 
         let second = try first.onNextNight(recurrenceSecondNight, reReadying: "BACK-1")
         let log = CallLog()
-        try await makeRun(worker: .workerFailed, attemptsPerCard: 3, log: log).run("BACK-1", in: second)
+        try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 3, log: log).run("BACK-1", in: second)
 
         // One Attempt only: the fallback Route was never tried, although two Attempts remained.
         #expect(log.all == ["dispatch architect", "dispatch worker"])
@@ -112,12 +112,12 @@ struct CardRunRecurrenceTests {
     func recurrenceWinsOverASpentBudget() async throws {
         let fixture = try OutboxJournalFixture()
         let first = try await makeCardRunWorld(journal: try fixture.open(), withBoard: false)
-        try await makeRun(worker: .workerFailed, attemptsPerCard: 1).run("BACK-1", in: first)
+        try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 1).run("BACK-1", in: first)
         #expect(try first.card("BACK-1").blockReason == BlockReason.routeFailure.rawValue)
 
         // One Attempt allowed: the only Attempt of the new epoch both recurs and spends the budget.
         let second = try first.onNextNight(recurrenceSecondNight, reReadying: "BACK-1")
-        try await makeRun(worker: .workerFailed, attemptsPerCard: 1).run("BACK-1", in: second)
+        try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 1).run("BACK-1", in: second)
 
         let card = try second.card("BACK-1")
         #expect(card.state == .blocked)
@@ -133,15 +133,15 @@ struct CardRunRecurrenceTests {
     func reReadyKeepsTheRecurrenceCount() async throws {
         let fixture = try OutboxJournalFixture()
         let first = try await makeCardRunWorld(journal: try fixture.open(), withBoard: false)
-        try await makeRun(worker: .workerFailed, attemptsPerCard: 1).run("BACK-1", in: first)
+        try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 1).run("BACK-1", in: first)
         let second = try first.onNextNight(recurrenceSecondNight, reReadying: "BACK-1")
-        try await makeRun(worker: .workerFailed, attemptsPerCard: 3).run("BACK-1", in: second)
+        try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 3).run("BACK-1", in: second)
         #expect(try second.card("BACK-1").blockReason == BlockReason.failureRecurrence.rawValue)
 
         // Re-readied without a change: a fresh epoch with three Attempts, but the cause has recurred already.
         let third = try second.onNextNight(recurrenceThirdNight, reReadying: "BACK-1")
         let log = CallLog()
-        try await makeRun(worker: .workerFailed, attemptsPerCard: 3, log: log).run("BACK-1", in: third)
+        try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 3, log: log).run("BACK-1", in: third)
 
         #expect(log.all.filter { $0 == "dispatch worker" }.count == 1)
         let card = try third.card("BACK-1")
@@ -155,11 +155,11 @@ struct CardRunRecurrenceTests {
     func aDifferentCauseDoesNotBlockOnRecurrence() async throws {
         let fixture = try OutboxJournalFixture()
         let first = try await makeCardRunWorld(journal: try fixture.open(), withBoard: false)
-        try await makeRun(worker: .workerFailed, attemptsPerCard: 1).run("BACK-1", in: first)
+        try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 1).run("BACK-1", in: first)
 
         let second = try first.onNextNight(recurrenceSecondNight, reReadying: "BACK-1")
         let log = CallLog()
-        try await makeRun(worker: .workerMalformed, attemptsPerCard: 2, log: log).run("BACK-1", in: second)
+        try await makeRun(worker: .workerMalformed, attemptsPerWorkCard: 2, log: log).run("BACK-1", in: second)
 
         #expect(log.all.filter { $0 == "dispatch worker" }.count == 2)
         let cardID = try #require(second.cardIDs["BACK-1"])
