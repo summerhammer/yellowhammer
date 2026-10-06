@@ -36,7 +36,11 @@ enum CardRunBinding {
             reviewRoundsMax: project.bounds.reviewRoundsMax, attemptsPerCard: project.bounds.attemptsPerCard,
             resetting: AttemptWorktreeReset(committer: WorktreeCommitter(mode: mode, message: project.wipCommit)),
             commitMessage: project.commitMessage, changeType: project.changeType,
-            normalExitFencing: AttributedWorktreeFence()
+            normalExitFencing: AttributedWorktreeFence(),
+            preflighting: DispatchBinding.routePreflight(
+                mode: mode, configuration: configuration, project: project,
+                configurationDirectory: configurationDirectory
+            )
         )
     }
 }

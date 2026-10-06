@@ -27,6 +27,10 @@ public struct ProvisioningEntry: Sendable {
         /// own group's create was refused: it was never attempted, since nothing can be created under
         /// a group that does not exist.
         case permissionRefused(String)
+        /// The item cannot be provisioned as declared, and creating it by hand would not help either: an
+        /// `Override` label whose Route text collides with another Route's, or that the board refuses
+        /// as a label name (OQ126). The reason names the Routing Entries to change.
+        case refused(String)
     }
 
     public var subject: Subject
@@ -84,7 +88,7 @@ public struct ProvisioningReport: Sendable {
             switch entry.outcome {
             case .notAMember, .permissionRefused:
                 true
-            case .present, .created, .collision, .missing, .blocked:
+            case .present, .created, .collision, .missing, .blocked, .refused:
                 false
             }
         }
@@ -163,6 +167,8 @@ extension ProvisioningReport: CustomStringConvertible {
             "not a member of team \(teamKey)"
         case .permissionRefused(let reason):
             "permission refused (\(reason))"
+        case .refused(let reason):
+            "refused  (\(reason))"
         }
     }
 }

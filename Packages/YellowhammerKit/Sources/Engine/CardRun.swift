@@ -13,8 +13,9 @@ import Repositories
 ///    without concluding the pass the cancellation aborted, and leaves the Card Lease to expire, so the
 ///    Card is reclaimable and its Attempt budget is not spent on the engine's own stop. An engine fault
 ///    does the same once the Card is In Progress or has an open Attempt; before that it releases the Lease.
-/// 2. Resolves the Route and records the Attempt (``CardRouting``); zero candidates Block the Card and an
-///    Override that cannot resolve is a Readiness Check failure, and either way nothing is dispatched.
+/// 2. Resolves the Route and records the Attempt (``CardRouting``); zero candidates Block the Card, and an
+///    Override that cannot resolve, whose CLI failed its Probe or whose Route fails its Route Pre-flight is
+///    a Readiness Check failure reported on the Card; either way nothing is dispatched.
 /// 3. Moves the Card to In Progress, then dispatches the architect, then the worker, in the lane's
 ///    Worktree, then runs the Check, then dispatches the reviewer.
 /// 4. Ends the Attempt from what the passes yielded (see `CardRun+Outcome.swift`).
@@ -76,6 +77,9 @@ public struct CardRun: CardRunner {
     public let commitTrailers: CommitTrailerReader
     /// How often a running Attempt checks the Journal for the Operator's abort request.
     public let operatorAbortPoll: Duration
+    /// Runs every Card override's Route Pre-flight before an Attempt is recorded on it (OQ126), shared by
+    /// every Card this runner runs so Cards pinned to the same Route share one; nil runs none.
+    public let routePreflight: RoutePreflight?
 
     public init(
         resolver: RouteResolver,
@@ -90,7 +94,8 @@ public struct CardRun: CardRunner {
         changeType: ChangeType = .feat,
         commitTrailers: CommitTrailerReader = CommitTrailerReader(),
         normalExitFencing: any NormalExitFencing = AttributedWorktreeFence(),
-        operatorAbortPoll: Duration = .seconds(2)
+        operatorAbortPoll: Duration = .seconds(2),
+        preflighting: (any RoutePreflighting)? = nil
     ) {
         self.resolver = resolver
         self.dispatch = dispatch
@@ -105,6 +110,7 @@ public struct CardRun: CardRunner {
         self.commitTrailers = commitTrailers
         self.normalExitFencing = normalExitFencing
         self.operatorAbortPoll = operatorAbortPoll
+        self.routePreflight = preflighting.map(RoutePreflight.init)
     }
 
     public func run(
@@ -174,7 +180,7 @@ public struct CardRun: CardRunner {
         let checkDeclaredNone = frame.check == .none
         let routing = CardRouting(
             resolver: resolver, journal: journal, projection: frame.projection, runID: context.act.runID,
-            act: context.act.act, nightID: context.act.night.id
+            act: context.act.act, nightID: context.act.night.id, preflight: routePreflight
         )
         let override = try await frame.override()
 
@@ -226,10 +232,10 @@ public struct CardRun: CardRunner {
                 try await attemptResetBeforeBlock(card: blockedCard, frame: frame)
                 return
 
-            case .readinessFailure:
-                // The refusal to report, with the Card untouched: no Attempt, nothing dispatched, and
-                // no Block — so no reset: nothing ran here for the reset sequence to move.
-                return
+            case .readinessFailure(_, let refusal):
+                // The refusal is reported on the Card, which is otherwise untouched: no Attempt, nothing
+                // dispatched, and no Block — so no reset: nothing ran here for the reset sequence to move.
+                return try await reportOverrideRefusal(refusal, frame: frame)
 
             case .attemptBudgetSpent(let spentCard):
                 try await blockOnSpentAttemptBudget(card: spentCard, frame: frame)

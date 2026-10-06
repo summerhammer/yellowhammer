@@ -27,6 +27,12 @@ extension JournalEvent {
         )
     }
 
+    static func decodeRoutePreflightRan(_ reader: PayloadReader) throws -> JournalEvent {
+        .routePreflightRan(
+            route: try reader.route(), passed: try reader.bool("passed"), reason: reader.payload?["reason"]
+        )
+    }
+
     static func decodeBudgetEpochReset(_ reader: PayloadReader) throws -> JournalEvent {
         .budgetEpochReset(
             cardID: try reader.int64("card_id"),

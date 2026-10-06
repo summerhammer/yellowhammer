@@ -82,7 +82,7 @@ struct CardRoutingTests {
             resolver: resolver(), journal: journal, projection: projection, runID: runID, act: .build
         )
 
-        let outcome = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: .none)
+        let outcome = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: nil)
 
         guard case .attempt(let attempt, let resolved) = outcome else {
             Issue.record("expected an Attempt, got \(outcome)")
@@ -123,7 +123,7 @@ struct CardRoutingTests {
             resolver: resolver(probe: codexFailed), journal: journal, projection: projection, runID: runID, act: .build
         )
 
-        let outcome = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: .none)
+        let outcome = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: nil)
 
         guard case .blocked(let record, let exhaustion) = outcome else {
             Issue.record("expected blocked, got \(outcome)")
@@ -161,7 +161,7 @@ struct CardRoutingTests {
         let neverProbed: RouteResolver.ProbeEligibility = { cli in .excluded(reason: "`\(cli)` has never been probed") }
         let routing = CardRouting(resolver: resolver(probe: neverProbed), journal: journal, runID: runID, act: .build)
 
-        let outcome = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: .none)
+        let outcome = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: nil)
 
         guard case .blocked(let record, _) = outcome else {
             Issue.record("expected blocked, got \(outcome)")
@@ -192,7 +192,9 @@ struct CardRoutingTests {
         )
         let before = try journal.card(id: cardID)
 
-        let outcome = try await routing.route(card: before, repoRole: .backend, override: Override(cli: "codex"))
+        let outcome = try await routing.route(
+            card: before, repoRole: .backend, override: Override(label: "codex/gpt-5.4/medium")
+        )
 
         guard case .readinessFailure(let record, let refusal) = outcome else {
             Issue.record("expected readinessFailure, got \(outcome)")
@@ -224,7 +226,7 @@ struct CardRoutingTests {
         let routing = CardRouting(resolver: resolver(), journal: journal, runID: runID, act: .build)
 
         let outcome = try await routing.route(
-            card: try journal.card(id: cardID), repoRole: .backend, override: Override(cli: "claude")
+            card: try journal.card(id: cardID), repoRole: .backend, override: Override(label: "claude/opus/high")
         )
 
         guard case .attempt(let attempt, let resolved) = outcome else {
@@ -249,7 +251,7 @@ struct CardRoutingTests {
         try claimActLease(journal, runID: runID)
         let routing = CardRouting(resolver: resolver(), journal: journal, runID: runID, act: .build)
 
-        let outcome = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: .none)
+        let outcome = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: nil)
 
         guard case .attempt(let attempt, let resolved) = outcome else {
             Issue.record("expected an Attempt, got \(outcome)")

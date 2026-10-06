@@ -1,32 +1,23 @@
-/// A per-Card route instruction the Operator sets on the board: up to three pins, one per axis of the
-/// Route, read from the three mutually exclusive label groups `Override CLI`, `Override Model` and
-/// `Override Effort` (Decision Gates Ruling, G-17).
+/// A per-Card route instruction the Operator sets on the board: one whole Route, read from the one
+/// mutually exclusive `Override` label group whose labels are Routes written as `cli/model/effort`
+/// (Decision Gates Ruling, G-17, as amended by the Override Ruling, OQ126).
 ///
-/// An absent axis is filled from the Card's resolved Routing Entry at resolution. An Override wins
-/// over Kind, Repo Role and attempt-history exclusion, never over Probe failure, and under it the
-/// entry's fallbacks are not consulted. The Operator sets it; nothing ever clears it.
+/// It holds only the label text as the board spells it. Resolution matches that text against the
+/// Project's Routing Table first and splits it only when nothing matches, so no axis is pinned alone
+/// and none is ever filled from a Routing Entry. An Override wins over Kind, Repo Role and
+/// attempt-history exclusion, never over Probe failure, and under it the entry's fallbacks are not
+/// consulted. The Operator sets it; nothing ever clears it.
 public struct Override: Hashable, Sendable {
-    public var cli: String?
-    public var model: String?
-    public var effort: String?
+    /// The `Override` group's child label on the Card, spelled as the board spells it.
+    public let label: String
 
-    public init(cli: String? = nil, model: String? = nil, effort: String? = nil) {
-        self.cli = cli
-        self.model = model
-        self.effort = effort
-    }
-
-    /// No axis pinned: the Card has no Override.
-    public static let none = Override()
-
-    /// True when no axis is pinned.
-    public var isEmpty: Bool {
-        cli == nil && model == nil && effort == nil
+    public init(label: String) {
+        self.label = label
     }
 }
 
 extension Override: CustomStringConvertible {
     public var description: String {
-        "\(cli ?? "-")/\(model ?? "-")/\(effort ?? "-")"
+        label
     }
 }
