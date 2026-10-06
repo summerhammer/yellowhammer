@@ -1,9 +1,9 @@
 import Domain
 import Foundation
 
-/// The comment posted on a Feature Issue the settle gesture released (roadmap P10.9; spec:
-/// morning-report/triage-the-morning). Pure: built from what the release computed, with no Journal or
-/// board access. States plainly that the release lands nothing — never that any abandoned work landed.
+/// The comment posted on a Feature Issue the settle gesture abandoned (roadmap P10.9; spec:
+/// morning-report/triage-the-morning; OQ128). Pure: built from what the abandon computed, with no Journal or
+/// board access. States plainly that the abandon lands nothing — never that any abandoned work landed.
 public struct FeatureReleaseComment: Equatable, Sendable {
     /// A Card carried forward, auto-Blocked and awaiting Adoption.
     public struct CarriedForwardCard: Equatable, Sendable {
@@ -20,7 +20,7 @@ public struct FeatureReleaseComment: Equatable, Sendable {
     /// The issue ids of the Cycle's Done Cards, recorded as accepted.
     public let acceptedCards: [String]
     /// Repositories with a recorded pull request but no recorded landing: left open on GitHub, never
-    /// closed by this release.
+    /// closed by this abandon.
     public let abandonedRepositories: [String]
     public let triagedNightStart: NightStart
 
@@ -37,7 +37,7 @@ public struct FeatureReleaseComment: Equatable, Sendable {
     public func body() -> String {
         var lines = [
             """
-            **Released.** This Feature is stop-with-salvage: it frees this Project's in-flight slot and \
+            **Abandoned.** This Feature is stop-with-salvage: it frees this Project's in-flight slot and \
             drops out of the predecessor-ancestry walk, so the next Night authors against mainline as it \
             stands, without this Feature's work. It lands nothing, satisfies the predecessor-ancestry \
             gate for no repository, and is never counted in the merged fraction. This Feature Issue is \
@@ -75,8 +75,8 @@ public struct FeatureReleaseComment: Equatable, Sendable {
         } else {
             for repository in abandonedRepositories.sorted() {
                 lines.append(
-                    "- \(repository): left open on GitHub, never closed by this release. Merging it "
-                        + "afterwards is untracked — this release does not know it happened."
+                    "- \(repository): left open on GitHub, never closed by this abandon. Merging it "
+                        + "afterwards is untracked — this abandon does not know it happened."
                 )
             }
         }

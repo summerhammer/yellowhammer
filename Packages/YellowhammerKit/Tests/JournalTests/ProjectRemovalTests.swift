@@ -112,7 +112,7 @@ func projectRemovalClosesAndDecommissions() throws {
     #expect(try cycleArchivedAt(journal, cycleID: seeded.cycleID) != nil)
 
     let feature = try #require(try journal.feature(id: seeded.featureID))
-    #expect(feature.releasedAt != nil)
+    #expect(feature.abandonedAt != nil)
 
     let worktrees = try journal.worktrees(featureID: seeded.featureID)
     let alpha = try #require(worktrees.first { $0.id == seeded.worktreeAlpha.id })

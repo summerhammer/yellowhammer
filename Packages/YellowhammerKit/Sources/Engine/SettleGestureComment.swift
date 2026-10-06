@@ -6,7 +6,7 @@ import Foundation
 /// Operator chooses — never after. Pure: no Journal or board access.
 ///
 /// Posted once while the Feature is running and once more when it becomes a Partial Landing, because
-/// the offered set can change between the two (only *released* is offered once every Card is
+/// the offered set can change between the two (only *abandoned* is offered once every Card is
 /// Cancelled) — the author Act keys the Outbox write on the Cycle id and the offered set so each shape
 /// posts exactly once.
 public struct SettleGestureComment: Equatable, Sendable {
@@ -33,10 +33,10 @@ public struct SettleGestureComment: Equatable, Sendable {
                 "- **\(SettleValue.keptInFlight.rawValue)**: the Feature stays in flight, unchanged."
             )
         }
-        if offered.contains(.released) {
+        if offered.contains(.abandoned) {
             lines.append(
                 """
-                - **\(SettleValue.released.rawValue)**: frees this Project's in-flight slot and removes \
+                - **\(SettleValue.abandoned.rawValue)**: frees this Project's in-flight slot and removes \
                 this Feature from the predecessor-ancestry walk, so the next Night authors against \
                 mainline as it stands, without this Feature's work. It lands nothing: it satisfies the \
                 predecessor-ancestry gate for no repository, and is never counted in the merged fraction.

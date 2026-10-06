@@ -57,8 +57,8 @@ extension JournalMigrations {
             // by the author Act, so a Feature has none until it is next authored. The Feature Branch
             // itself is per repository, on `feature_repository.branch`.
             table.column("worktree_name", .text)
-            // When the predecessor gate released the Feature (roadmap P9.9).
-            table.column("released_at", .text)
+            // When the Feature was abandoned (roadmap P9.9; OQ128).
+            table.column("abandoned_at", .text)
             // Which route closed a Feature (roadmap P10.7; spec: verification/archive-the-cycle-on-a-
             // verified-feature): `verification` when every Definition of Done clause was met, `merge`
             // when the Operator merged a Partial Landing (P10.8). Nullable — unset until a Feature closes.

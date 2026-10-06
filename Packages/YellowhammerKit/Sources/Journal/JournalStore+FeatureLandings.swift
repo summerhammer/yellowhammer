@@ -55,13 +55,13 @@ extension JournalStore {
         }
     }
 
-    /// Marks `featureID` released (P10.9): once set, this Feature satisfies the
+    /// Marks `featureID` abandoned (P10.9; OQ128): once set, this Feature satisfies the
     /// predecessor gate for no repository and is never returned as the predecessor to check — the walk
     /// moves past it to the Feature before it.
-    public func markFeatureReleased(featureID: Int64, now: Date = Date()) throws {
+    public func markFeatureAbandoned(featureID: Int64, now: Date = Date()) throws {
         try write { db in
             let timestamp = JournalStore.timestamp(JournalStore.stored(now))
-            try db.execute(sql: "UPDATE feature SET released_at = ? WHERE id = ?", arguments: [timestamp, featureID])
+            try db.execute(sql: "UPDATE feature SET abandoned_at = ? WHERE id = ?", arguments: [timestamp, featureID])
             guard db.changesCount == 1 else { throw JournalError.featureUnknown(featureID: featureID) }
         }
     }
