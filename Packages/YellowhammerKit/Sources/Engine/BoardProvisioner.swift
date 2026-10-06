@@ -111,7 +111,7 @@ public struct BoardProvisioner {
 
         // Step 2: For each team, check membership first (Board Provisioning Ruling, OQ80), then
         // provision workflow state and label groups. A team the app is not a member of — including one
-        // the App Installation never selected, invisible to `teams()` too — gets no create attempt at
+        // the Board Connection never selected, invisible to `teams()` too — gets no create attempt at
         // all; it is reported and setup moves on to the next team.
         let memberTeamIDs = Set(try await board.memberTeams())
         for team in project.teams {

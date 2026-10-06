@@ -17,7 +17,7 @@ public enum LinearInstallEvent: Equatable, Sendable {
     case awaitingRemoteApproval
     /// The pair was stored; `installation` is the registry entry's local name (absent in older output).
     case installed(workspaceName: String, installation: String?)
-    /// `--installation-name` named a new installation, but Linear approved a workspace already in the
+    /// `--board-connection-name` named a new installation, but Linear approved a workspace already in the
     /// registry: that entry was re-connected under its own local name `installation`, and `given` was
     /// discarded. Emitted before `installed`.
     case installationNameDiscarded(given: String, installation: String, text: String)
@@ -41,11 +41,11 @@ public enum LinearInstallEvent: Equatable, Sendable {
     public enum FailureReason: String, Equatable, Sendable, Codable {
         case cancelled
         case notCompleted
-        /// A re-connect aimed at one Linear App Installation was approved in another Linear workspace.
+        /// A re-connect aimed at one Linear Board Connection was approved in another Linear workspace.
         case differentWorkspace
         case portsBusy
         case other
-        /// `--installation-name` was refused before the install began: not a valid local name, or
+        /// `--board-connection-name` was refused before the install began: not a valid local name, or
         /// already used by another registry entry.
         case invalidInstallationName
         /// The remote-approval session (or its link) timed out before the admin acted.

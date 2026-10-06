@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The machine-wide settings of the Settings window's General section: Orca ADE. The Linear workspaces
+/// The machine-wide settings of the Settings window's General section: Orca ADE. The Board connections
 /// (Boards), Agent CLIs and the base Routing Table have panes of their own (P18.15, P18.16).
 struct GeneralSettingsPane: View {
     var body: some View {

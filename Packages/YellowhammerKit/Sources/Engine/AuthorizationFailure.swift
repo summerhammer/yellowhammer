@@ -1,6 +1,6 @@
 import Domain
 
-/// Classifies "authorization failure" (roadmap P17.5, Linear App Installation Ruling items 5, 12, 13):
+/// Classifies "authorization failure" (roadmap P17.5, Linear Board Connection Ruling items 5, 12, 13):
 /// `BoardError.notAuthenticated` — a refused refresh, a revoked Installation, a 401 surviving one
 /// retry, or no Installation at all. Never `.unreachable` (a network fault keeps the Outbox's ordinary
 /// pending-and-retry rules) and never `.forbidden`/`.refused` (a permission or other refusal, not an

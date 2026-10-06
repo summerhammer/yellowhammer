@@ -3,7 +3,7 @@ import Foundation
 import LinearAdapter
 import Synchronization
 
-/// The loopback HTTP listener that receives the OAuth redirect during the Linear App Installation
+/// The loopback HTTP listener that receives the OAuth redirect during the Linear Board Connection
 /// (roadmap P17.6; spec: board-projection/install-the-linear-app, OQ93 (a)). Binds **127.0.0.1** only —
 /// never `0.0.0.0` or `::` — on one caller-given port, with plain POSIX sockets so the exact bind
 /// behaviour (no `SO_REUSEPORT`, so a genuinely busy port fails to bind rather than sharing it) is

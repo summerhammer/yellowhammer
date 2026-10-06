@@ -178,7 +178,7 @@ func undeclaredInstallationRefusesOneProject() throws {
             id: nil,
             errors: [
                 ConfigurationError(
-                    file: badFile, line: 6, key: "board.linear.installation",
+                    file: badFile, line: 6, key: "board.linear.connection",
                     reason: .undeclaredLinearInstallation("missing")
                 )
             ]
@@ -225,6 +225,6 @@ func lenientLoadRefusesMissingInstallationKey() throws {
     let configuration = try Configuration.loadLeniently(directory: directory)
     #expect(configuration.projects.isEmpty)
     let error = try #require(configuration.invalidProjects.first?.errors.first)
-    #expect(error.key == "board.linear.installation")
+    #expect(error.key == "board.linear.connection")
     #expect(error.reason == .missingKey)
 }

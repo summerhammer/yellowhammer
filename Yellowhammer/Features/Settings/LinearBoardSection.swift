@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Linear's section of the Boards pane: one card per connected App Installation, then the way to connect
+/// Linear's section of the Boards pane: one card per connected Board Connection, then the way to connect
 /// another workspace, like the Add Project sheet's Repo cards and "Add Repo…". Everything Linear-specific in
 /// Boards is here or in the views it draws, so another board vendor's section is a sibling of this one.
 struct LinearBoardSection: View {

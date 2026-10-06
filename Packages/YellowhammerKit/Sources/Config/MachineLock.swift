@@ -1,7 +1,7 @@
 import Darwin
 import Foundation
 
-/// An exclusive lock on an empty file, one per App Installation (Linear App Installation Ruling,
+/// An exclusive lock on an empty file, one per Board Connection (Linear Board Connection Ruling,
 /// item 3 and 11; OQ109 item 8): every Engine invocation and the app itself acting through that
 /// Installation share one refresh critical section, so two processes
 /// racing to refresh the Installation's rotating refresh token never both succeed — Linear invalidates
@@ -17,7 +17,7 @@ public struct MachineLock: Sendable {
         self.fileURL = fileURL
     }
 
-    /// The default location of one App Installation's lock, alongside the rest of Yellowhammer's
+    /// The default location of one Board Connection's lock, alongside the rest of Yellowhammer's
     /// machine-scoped configuration (OQ109 item 8). Two Projects on the same Installation share
     /// this file; two Installations never do.
     ///

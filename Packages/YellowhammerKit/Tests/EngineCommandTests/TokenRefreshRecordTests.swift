@@ -5,7 +5,7 @@ import Foundation
 @testable import Journal
 import Testing
 
-// Every App Installation token-pair refresh an Act's board attempted is appended to the Journal, once,
+// Every Board Connection token-pair refresh an Act's board attempted is appended to the Journal, once,
 // before the Act's closing event: `.actEnded` on success, `.actIncomplete` on failure.
 
 @Suite("Token refresh records reach the Journal")

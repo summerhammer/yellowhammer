@@ -1,4 +1,4 @@
 id = "empty-repos"
 name = "Empty Repos"
-board = { linear = { installation = "acme", project = "ER" } }
+board = { linear = { connection = "acme", project = "ER" } }
 repos = []

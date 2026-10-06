@@ -1,6 +1,6 @@
 id = "missing-repo-path"
 name = "Repo No Path"
-board = { linear = { installation = "acme", project = "RNP" } }
+board = { linear = { connection = "acme", project = "RNP" } }
 
 [[repos]]
 name = "repo"

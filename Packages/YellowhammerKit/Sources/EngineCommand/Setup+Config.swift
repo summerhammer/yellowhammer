@@ -95,7 +95,7 @@ extension Setup {
         return InstallEntry(source: source, destination: destination, action: identical ? .present : .differs)
     }
 
-    /// Setup itself writes `[board.linear.installations.<name>].operator` into the installed machine file
+    /// Setup itself writes `[board.linear.connections.<name>].operator` into the installed machine file
     /// (step 3), so a prepared `config.toml` without it must still compare `present` on the next identical
     /// run: the destination counts as unchanged when it is exactly the prepared text with each
     /// installation's `operator` line set to the destination's.

@@ -124,7 +124,7 @@ private struct ProjectConfigurationFormView: View {
                 }
             }
             Divider().padding(.leading, 12)
-            WizardBlockRow(label: "Installation") {
+            WizardBlockRow(label: "Board Connection") {
                 SettingsValueText(value: installation, monospaced: true)
                     .accessibilityIdentifier("project-linear-installation") // glossary:ignore GL001
             }

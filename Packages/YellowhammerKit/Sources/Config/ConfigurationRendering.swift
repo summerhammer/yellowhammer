@@ -31,9 +31,9 @@ enum ConfigurationRendering {
         return result
     }
 
-    /// `[board.linear.installations.<name>]`, the name bare when it can be and quoted otherwise.
+    /// `[board.linear.connections.<name>]`, the name bare when it can be and quoted otherwise.
     static func installationHeader(_ name: String) -> String {
-        "[board.linear.installations.\(TOMLKey.isBare(name) ? name : quotedKey(name))]"
+        "[board.linear.connections.\(TOMLKey.isBare(name) ? name : quotedKey(name))]"
     }
 
     /// A quoted TOML key, used for table headers whose name may not be a bare key (such as a CLI
@@ -139,14 +139,14 @@ enum ConfigurationRendering {
 }
 
 extension MachineConfiguration {
-    /// Renders one `[board.linear.installations.<name>]` table per App Installation, `[github]`, one `[cli.<name>]` table per declared adapter and the base
+    /// Renders one `[board.linear.connections.<name>]` table per Board Connection, `[github]`, one `[cli.<name>]` table per declared adapter and the base
     /// Routing Table, in the shape ``MachineConfigurationDecoder`` reads back.
     public var renderedTOML: String {
         renderedTOML(routingTable: routingTable.map(RoutingEntryDraft.init))
     }
 
     /// A textual edit of an existing, hand-maintained `config.toml`: preserves every other line,
-    /// including comments. Replaces the `operator` line inside `[board.linear.installations.<name>]`, or
+    /// including comments. Replaces the `operator` line inside `[board.linear.connections.<name>]`, or
     /// inserts one after that table's last key when absent. Returns `text` unchanged when no such table
     /// header exists. Applying it twice equals applying it once.
     public static func settingOperator(
@@ -159,7 +159,7 @@ extension MachineConfiguration {
     }
 
     /// A textual edit of an existing, hand-maintained `config.toml`: preserves every other line,
-    /// including comments. Removes the `[board.linear.installations.<name>]` header and every line after
+    /// including comments. Removes the `[board.linear.connections.<name>]` header and every line after
     /// it up to, not including, the next table header (or the end of the file), except that a comment block
     /// directly above the next header stays with that table. No gap is doubled. Returns `text`
     /// unchanged when no such table header exists. Applying it twice equals applying it once.
@@ -189,7 +189,7 @@ extension MachineConfiguration {
 
     /// A textual edit of an existing, hand-maintained `config.toml`: preserves every other line,
     /// including comments. Adds or replaces the entry called `installation.name`. When its table exists,
-    /// `credential`, `workspace` and `app_user` are set in place (inserted when missing) and `operator`
+    /// `credential`, `workspace` and `yellowhammer_identity` are set in place (inserted when missing) and `operator`
     /// is written only when the installation has one, so a re-connect keeps the Operator identity. When it
     /// does not, a new table is appended at the end of the file. Applying it twice equals applying it once.
     public static func settingLinearInstallation(
@@ -206,7 +206,7 @@ extension MachineConfiguration {
                 ConfigurationRendering.installationHeader(installation.name),
                 "credential = \(ConfigurationRendering.quoted(installation.credential.rawValue))",
                 "workspace = \(ConfigurationRendering.quoted(installation.workspace.rawValue))",
-                "app_user = \(ConfigurationRendering.quoted(installation.appUser.rawValue))"
+                "yellowhammer_identity = \(ConfigurationRendering.quoted(installation.appUser.rawValue))"
             ]
             if let operatorIdentity = installation.operatorIdentity {
                 table.append("operator = \(ConfigurationRendering.quoted(operatorIdentity.rawValue))")
@@ -215,7 +215,7 @@ extension MachineConfiguration {
         }
         setKey("credential", to: installation.credential.rawValue, tableAt: header, in: &lines)
         setKey("workspace", to: installation.workspace.rawValue, tableAt: header, in: &lines)
-        setKey("app_user", to: installation.appUser.rawValue, tableAt: header, in: &lines)
+        setKey("yellowhammer_identity", to: installation.appUser.rawValue, tableAt: header, in: &lines)
         if let operatorIdentity = installation.operatorIdentity {
             setKey("operator", to: operatorIdentity.rawValue, tableAt: header, in: &lines)
         }
@@ -244,7 +244,7 @@ extension MachineConfiguration {
         lines.firstIndex { installationName(ofHeaderLine: $0) == name }
     }
 
-    /// The `<name>` of a `[board.linear.installations.<name>]` header line, nil for any other line. The
+    /// The `<name>` of a `[board.linear.connections.<name>]` header line, nil for any other line. The
     /// name may be bare or basic-quoted; whitespace around the dots and brackets and a trailing `#`
     /// comment are allowed.
     private static func installationName(ofHeaderLine line: String) -> String? {
@@ -265,7 +265,7 @@ extension MachineConfiguration {
         }
         skipSpaces(characters, &index)
         guard index == characters.count || characters[index] == "#" else { return nil }
-        guard segments.count == 4, segments.prefix(3) == ["board", "linear", "installations"] else { return nil }
+        guard segments.count == 4, segments.prefix(3) == ["board", "linear", "connections"] else { return nil }
         return segments[3]
     }
 

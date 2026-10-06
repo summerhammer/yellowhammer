@@ -4,7 +4,7 @@ import SwiftUI
 
 // MARK: - Board
 
-/// The Board step: a section per board. Linear's picks the Linear workspace (an App Installation in the
+/// The Board step: a section per board. Linear's picks the Linear workspace (a Board Connection in the
 /// registry), then an existing Linear project or a team to create one in. Jira's is drawn, disabled and
 /// marked Coming later: the step is shaped for more than one board without pretending to support one.
 struct BoardBlock: View {

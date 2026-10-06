@@ -1,6 +1,6 @@
 id = "fine"
 name = "Fine"
-board = { linear = { installation = "acme", project = "FIN" } }
+board = { linear = { connection = "acme", project = "FIN" } }
 spec_source = "~/dev/spec"
 
 [[repos]]

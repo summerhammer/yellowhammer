@@ -9,10 +9,10 @@ private let githubOnly = "[github]\ncredential = \"keychain:github\"\n"
 
 private func entry(_ name: String, workspace: String) -> String {
     """
-    [board.linear.installations.\(name)]
+    [board.linear.connections.\(name)]
     credential = "keychain:linear-\(name)"
     workspace = "\(workspace)"
-    app_user = "app-user-1"
+    yellowhammer_identity = "app-user-1"
     operator = "user-op"
 
 
@@ -43,7 +43,7 @@ private final class ChoiceRecorder: Sendable {
     }
 }
 
-@Suite("yh setup, interactive: choosing and naming a Linear App Installation")
+@Suite("yh setup, interactive: choosing and naming a Linear Board Connection")
 struct SetupInteractiveInstallationTests {
     private func machine(_ directory: borrowing ConfigurationDirectory) throws -> MachineConfiguration {
         try MachineConfiguration.load(contentsOf: directory.url.appending(component: "config.toml"))
@@ -70,7 +70,7 @@ struct SetupInteractiveInstallationTests {
         #expect(Set(recorder.boundNames) == ["acme"])
         #expect(recorder.references.isEmpty)
         #expect(opened.urls.isEmpty)
-        #expect(output.lines.contains("Linear workspaces:"))
+        #expect(output.lines.contains("Board connections:"))
         #expect(output.lines.contains { $0.contains("1) main — workspace workspace-old, Operator user-op") })
         #expect(output.lines.contains { $0.contains("3) Connect another Linear workspace") })
         #expect(console.prompts.first == "Choose [1-3]: ")
@@ -80,10 +80,10 @@ struct SetupInteractiveInstallationTests {
     func listingShowsOperatorNotChosen() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
-            [board.linear.installations.main]
+            [board.linear.connections.main]
             credential = "keychain:linear-main"
             workspace = "workspace-old"
-            app_user = "app-user-1"
+            yellowhammer_identity = "app-user-1"
 
             \(githubOnly)
             """)
@@ -175,7 +175,7 @@ struct SetupInteractiveInstallationTests {
 
         try await setup.run()
 
-        #expect(!output.lines.contains { $0.contains("Linear workspaces:") })
+        #expect(!output.lines.contains { $0.contains("Board connections:") })
         #expect(!console.prompts.contains { $0.hasPrefix("Choose [") })
         #expect(try machine(directory).linearInstallations.map(\.name) == ["acme"])
     }

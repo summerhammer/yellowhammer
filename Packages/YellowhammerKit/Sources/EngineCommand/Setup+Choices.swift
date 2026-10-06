@@ -7,8 +7,8 @@ import Foundation
 extension Setup {
     /// `--print-choices`: never prompts, writes no configuration file. Loads `config.toml` when present
     /// (invalid means throw, as elsewhere), or reads none. It always lists the registry (`installations`).
-    /// Without `--installation` that is all it does: no credential lookup and no Linear call. With
-    /// `--installation <name>` it also binds that entry's board, authorizes, and reads its teams and Linear
+    /// Without `--board-connection` that is all it does: no credential lookup and no Linear call. With
+    /// `--board-connection <name>` it also binds that entry's board, authorizes, and reads its teams and Linear
     /// projects. Its last line is the JSON-encoded ``SetupChoices``, the line the app decodes; a failed
     /// Linear projects read is reported on one `warning:` line before it.
     func printChoices() async throws {
@@ -32,7 +32,7 @@ extension Setup {
         guard credentials.secret(for: installation.credential) != nil else {
             throw SetupError(
                 "Yellowhammer is not installed in the Linear workspace of \(name) yet; "
-                    + "run yh setup --install-linear --installation \(name)"
+                    + "run yh setup --install-linear --board-connection \(name)"
             )
         }
         let board = bindProvisioning(installation, options.linearProjectID ?? "")

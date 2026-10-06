@@ -1,16 +1,16 @@
 import Domain
 import Foundation
 
-/// One Linear App Installation in the machine file's registry (`[board.linear.installations.<name>]`):
-/// the credential, the Linear workspace it was installed into, its app user and the optional Operator
+/// One Linear Board Connection in the machine file's registry (`[board.linear.connections.<name>]`):
+/// the credential, the Linear workspace it was installed into, its Yellowhammer identity and the optional Operator
 /// identity. Each Project selects exactly one by ``name``.
 public struct LinearInstallation: Equatable, Sendable {
     /// The local name, the table key. Chosen by the Operator; not a Linear identifier.
     public var name: String
     public var credential: CredentialReference
-    /// The Linear workspace id (`workspace`) this App Installation was installed into.
+    /// The Linear workspace id (`workspace`) this Board Connection was installed into.
     public var workspace: BoardObjectID
-    /// The App Installation's app user id (`app_user`).
+    /// The Board Connection's Yellowhammer identity id (`yellowhammer_identity`).
     public var appUser: BoardObjectID
     /// The Operator identity's Linear user id (`operator`), nil when unconfigured or configured
     /// empty — a missing Operator identity is never a load-time validation failure (Operator Identity
@@ -43,10 +43,10 @@ public struct LinearInstallation: Equatable, Sendable {
     }
 }
 
-/// The machine-wide configuration file: the registry of Linear App Installations (ADR-005), the machine
+/// The machine-wide configuration file: the registry of Linear Board Connections (ADR-005), the machine
 /// default GitHub credential, the declared CLI Adapters and the base Routing Table.
 public struct MachineConfiguration: Equatable, Sendable {
-    /// The registry of App Installations, in file order; zero or more.
+    /// The registry of Board Connections, in file order; zero or more.
     public var linearInstallations: [LinearInstallation]
     public var gitHubCredential: CredentialReference
     /// In file order.
@@ -71,7 +71,7 @@ public struct MachineConfiguration: Equatable, Sendable {
         linearInstallations.first { $0.name == name }
     }
 
-    /// The App Installation `project` selects. Nil only for a Project loaded leniently
+    /// The Board Connection `project` selects. Nil only for a Project loaded leniently
     /// (``Configuration/loadLeniently(directory:)``) whose installation name is missing from the registry.
     public func linearInstallation(for project: ProjectConfiguration) -> LinearInstallation? {
         linearInstallation(named: project.linearInstallationName)

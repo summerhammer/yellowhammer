@@ -25,7 +25,7 @@ extension Setup {
         guard journal.linearWorkspace == installation.workspace else {
             throw SetupError(
                 "Project \(id.rawValue): the kept Journal at \(path) was built against Linear workspace "
-                    + "\(journal.linearWorkspace.rawValue), but App Installation \"\(installation.name)\" is in "
+                    + "\(journal.linearWorkspace.rawValue), but Board Connection \"\(installation.name)\" is in "
                     + "Linear workspace \(installation.workspace.rawValue). " + Self.reusedProjectIDWaysOut
             )
         }

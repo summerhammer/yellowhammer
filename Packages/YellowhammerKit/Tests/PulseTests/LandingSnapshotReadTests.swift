@@ -7,10 +7,10 @@ import Testing
 @testable import Pulse
 
 private let machineTOML = """
-[board.linear.installations.acme]
+[board.linear.connections.acme]
 credential = "keychain:linear"
 workspace = "workspace-1"
-app_user = "app-user-1"
+yellowhammer_identity = "app-user-1"
 [github]
 credential = "keychain:github"
 
@@ -43,7 +43,7 @@ private struct ConfigurationFixture: ~Copyable {
         var toml = """
         id = "\(id)"
         name = "\(name)"
-        board = { linear = { installation = "acme", project = "\(id.uppercased())" } }
+        board = { linear = { connection = "acme", project = "\(id.uppercased())" } }
         spec_source = "~/dev/spec"
 
         """

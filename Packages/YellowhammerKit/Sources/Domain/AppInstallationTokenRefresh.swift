@@ -1,7 +1,7 @@
 import Foundation
 import Synchronization
 
-/// One attempt to refresh the App Installation's token pair, as the board adapter saw it. A Port-neutral
+/// One attempt to refresh the Board Connection's token pair, as the board adapter saw it. A Port-neutral
 /// value (ADR-001): it carries dates and plain strings only, never a token — every string in it has
 /// already been scrubbed of the secrets the adapter holds.
 public struct AppInstallationTokenRefresh: Equatable, Sendable {
@@ -45,7 +45,7 @@ public struct AppInstallationTokenRefresh: Equatable, Sendable {
         case notStored(message: String)
     }
 
-    /// The App Installation whose pair this attempt refreshed.
+    /// The Board Connection whose pair this attempt refreshed.
     public let installation: AppInstallationLabel
     public let attemptedAt: Date
     public let trigger: Trigger
@@ -65,7 +65,7 @@ public struct AppInstallationTokenRefresh: Equatable, Sendable {
     }
 }
 
-/// Collects the refresh attempts an Act's board makes through one App Installation, for the Engine to
+/// Collects the refresh attempts an Act's board makes through one Board Connection, for the Engine to
 /// drain into the Journal. Each record is handed out exactly once, stamped with that installation.
 public final class AppInstallationTokenRefreshLog: Sendable {
     private let records = Mutex<[AppInstallationTokenRefresh]>([])

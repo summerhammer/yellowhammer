@@ -54,7 +54,7 @@ final class SettingsWindowUITests: XCTestCase {
         }
     }
 
-    /// The Linear workspaces are in the Boards section's Linear section, not in General.
+    /// The Board connections are in the Boards section's Linear section, not in General.
     func testBoardsHoldsTheLinearWorkspacesAndGeneralDoesNot() {
         showSettings()
         app.activate()

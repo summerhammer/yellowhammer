@@ -3,15 +3,15 @@ import Domain
 import Foundation
 import Observation
 
-/// One App Installation's Operator identity — `config.toml`'s `[board.linear.installations.<name>].operator` —
-/// editable from the Settings window's Linear workspaces list (P18.16, L3.1). The candidates come from
+/// One Board Connection's Operator identity — `config.toml`'s `[board.linear.connections.<name>].operator` —
+/// editable from the Settings window's Board connections list (P18.16, L3.1). The candidates come from
 /// running the bundled `yh` (`SetupInvocation.choicesArguments`) and the write is `yh config operator`
 /// (`ConfigInvocation.operatorArguments`); the app reads no Board and edits no file of its own (ADR-001).
 /// The model holds no configuration: the list passes the configured identity in, and reloads after a save.
 @MainActor
 @Observable
 final class OperatorIdentityModel {
-    /// The local name of the App Installation this identity belongs to.
+    /// The local name of the Board Connection this identity belongs to.
     let installation: String
     /// The configured Operator identity, as the list last read it from `config.toml`.
     private(set) var configured: BoardObjectID?
@@ -59,7 +59,7 @@ final class OperatorIdentityModel {
         fetchFailure = []
         failure = nil
         defer { isFetching = false }
-        let arguments = SetupInvocation.choicesArguments(installation: installation, githubCredential: nil)
+        let arguments = SetupInvocation.choicesArguments(boardConnection: installation, githubCredential: nil)
         var lines: [String] = []
         do {
             let status = try await engine.run(arguments: arguments, standardInput: nil) { lines.append($0) }
@@ -81,7 +81,7 @@ final class OperatorIdentityModel {
         }
     }
 
-    /// Runs `yh config operator --installation <name> <user-id>` for the selected candidate. On success the
+    /// Runs `yh config operator --board-connection <name> <user-id>` for the selected candidate. On success the
     /// picker is cleared (so nothing is dirty) and ``onSaved`` runs; on refusal the selection stays exactly as
     /// the Operator left it and ``failure`` carries `yh`'s own lines.
     func save() async {
@@ -92,7 +92,7 @@ final class OperatorIdentityModel {
         var lines: [String] = []
         do {
             let status = try await engine.run(
-                arguments: ConfigInvocation.operatorArguments(installation: installation, userID: selection)
+                arguments: ConfigInvocation.operatorArguments(boardConnection: installation, userID: selection)
             ) { lines.append($0) }
             guard status == 0 else {
                 failure = lines.isEmpty ? "yh exited \(status)." : lines.joined(separator: "\n")

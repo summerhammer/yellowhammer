@@ -1,6 +1,6 @@
 id = "check-not-string"
 name = "Check Not String"
-board = { linear = { installation = "acme", project = "CNS" } }
+board = { linear = { connection = "acme", project = "CNS" } }
 
 [[repos]]
 name = "repo"

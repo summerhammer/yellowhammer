@@ -11,7 +11,7 @@ extension HealthFlag {
         DoctorFindingRow.decodeLastLine(lines).map { flags(in: $0, for: project) }
     }
 
-    /// The flags `project`'s Health group shows: stale Operator identity, App Installation revoked, and
+    /// The flags `project`'s Health group shows: stale Operator identity, Board Connection revoked, and
     /// probe failures, in `HealthFlagKind` order. Each flag's detail is the finding's own message, so the
     /// app invents no wording.
     ///
@@ -43,7 +43,7 @@ extension HealthFlag {
         case ("linear", "operator", "warning"):
             .staleOperatorIdentity
         // No Installation token pair at all.
-        case ("linear", "installation", "failure"):
+        case ("linear", "connection", "failure"):
             .appInstallationRevoked
         // The finding has no reason code, so revocation is told from "cannot be reached" by its wording.
         case ("linear", "authorization", "failure") where row.message.contains("revoked"):

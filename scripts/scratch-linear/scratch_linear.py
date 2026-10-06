@@ -20,7 +20,7 @@ Subcommands:
     exactly the scratch team — a Linear project shared with, or living in, any other team is a FAIL,
     since that is what keeps a production Linear project safe from this tool. Also reports, per
     Project, the informational count of non-archived issues.
-    A Project whose `[board.linear] installation` is not the resolved installation is a FAIL: it
+    A Project whose `[board.linear] connection` is not the resolved installation is a FAIL: it
     lives in another workspace and this token cannot see it.
     Exit codes: 0 every check passed, 1 some check failed, 2 the check could not be set up.
 
@@ -29,23 +29,23 @@ Subcommands:
     --keep-journal) deletes that Project's Journal. `--project` is required — there is no "reset
     every Project" default. Every Project is guarded before any Project is touched: if any Project
     fails a guard (its Linear project file is missing or incomplete, its Linear project is outside
-    the scratch team, its `[board.linear] installation` is not the resolved installation, or its Journal's Act lease has not expired — a Night is running), nothing is
+    the scratch team, its `[board.linear] connection` is not the resolved installation, or its Journal's Act lease has not expired — a Night is running), nothing is
     changed anywhere and the tool exits 2. `--dry-run` reports what would happen and sends no
     mutation and deletes nothing.
     Exit codes: 0 success, 1 a write failed, 2 a setup or guard error (nothing was changed).
 
-Credentials (P17.8: the App Installation replaces the withdrawn `client_credentials` identity):
+Credentials (P17.8: the Board Connection replaces the withdrawn `client_credentials` identity):
 this tool never calls the Linear token endpoint and never writes the Keychain. The machine file
-`config.toml` declares zero or more named App Installations under
-`[board.linear.installations.<name>]`, each with a required `credential` (`keychain:<account>`),
-`workspace` and `app_user`, and an optional `operator`. The global `--installation NAME` picks one;
+`config.toml` declares zero or more named Board Connections under
+`[board.linear.connections.<name>]`, each with a required `credential` (`keychain:<account>`),
+`workspace` and `yellowhammer_identity`, and an optional `operator`. The global `--board-connection NAME` picks one;
 without it the sole declared installation is used (none, or several without the flag, is a
 refusal). The tool reads that installation's token pair from the Keychain item `security
 find-generic-password -s dev.yellowhammer -a <account> -w`, and uses its `access_token` when more
 than two hours remain before `expires_at`. Otherwise it runs `yh doctor --check linear --json`,
 which refreshes the pair under that installation's lock, then re-reads the Keychain item once.
 Still stale or missing after that: "no working Linear installation on this Mac; run yh setup
---install-linear". A Project names its installation in `[board.linear] installation`; reset and
+--install-linear". A Project names its installation in `[board.linear] connection`; reset and
 check refuse a Project on any other installation.
 The token is never printed anywhere, including error messages.
 """
@@ -279,7 +279,7 @@ def archive_issue(client, issue_id):
 
 @dataclass(frozen=True)
 class MachineConfig:
-    """One App Installation from `[board.linear.installations.<name>]`."""
+    """One Board Connection from `[board.linear.connections.<name>]`."""
 
     name: str
     credential: str
@@ -289,13 +289,13 @@ class MachineConfig:
 
 
 def load_machine_config(configuration_directory, installation=None):
-    """The named App Installation, or the sole one when `installation` is None."""
+    """The named Board Connection, or the sole one when `installation` is None."""
     path = configuration_directory / "config.toml"
     entries = {}
     if path.is_file():
         with path.open("rb") as handle:
             data = tomllib.load(handle)
-        entries = data.get("board", {}).get("linear", {}).get("installations", {})
+        entries = data.get("board", {}).get("linear", {}).get("connections", {})
     if installation is not None:
         if installation not in entries:
             registered = ", ".join(sorted(entries)) or "none"
@@ -308,7 +308,7 @@ def load_machine_config(configuration_directory, installation=None):
     elif len(entries) > 1:
         raise SetupFailed(
             f"config.toml has several Linear installations ({', '.join(sorted(entries))}); "
-            "pass --installation <name>"
+            "pass --board-connection <name>"
         )
     else:
         name = next(iter(entries))
@@ -320,7 +320,7 @@ def load_machine_config(configuration_directory, installation=None):
         name=name,
         credential=credential,
         workspace=entry.get("workspace"),
-        app_user=entry.get("app_user"),
+        app_user=entry.get("yellowhammer_identity"),
         operator=entry.get("operator"),
     )
 
@@ -361,10 +361,10 @@ def load_linear_project_id(configuration_directory, project_id):
 
 
 def load_project_installation(configuration_directory, project_id):
-    """The Project's `[board.linear] installation`."""
-    installation = _load_board_linear(configuration_directory, project_id).get("installation")
+    """The Project's `[board.linear] connection`."""
+    installation = _load_board_linear(configuration_directory, project_id).get("connection")
     if not installation:
-        raise ProjectError(f"Project {project_id!r} has no [board.linear] installation")
+        raise ProjectError(f"Project {project_id!r} has no [board.linear] connection")
     return installation
 
 
@@ -376,7 +376,7 @@ def installation_mismatch(configuration_directory, project_id, installation_name
         return (
             f"Project {project_id!r} uses Linear installation {project_installation!r} but this run "
             f"resolved installation {installation_name!r}; that Project lives in another workspace "
-            "and must not be touched with this token (pass --installation to match)"
+            "and must not be touched with this token (pass --board-connection to match)"
         )
     return ""
 
@@ -633,8 +633,8 @@ def parse_arguments(argv):
         help="default ~/.config/yellowhammer",
     )
     parser.add_argument(
-        "--installation", metavar="NAME", default=None,
-        help="the App Installation (a name under [board.linear.installations] in config.toml); "
+        "--board-connection", dest="installation", metavar="NAME", default=None,
+        help="the Board Connection (a name under [board.linear.connections] in config.toml); "
         "default: the sole one",
     )
     parser.add_argument(

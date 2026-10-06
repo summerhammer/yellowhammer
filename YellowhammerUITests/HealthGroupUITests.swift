@@ -3,13 +3,13 @@ import XCTest
 
 /// The Pulse's Health group, driven against a stub `yh` that prints staged `yh doctor --json` findings
 /// (spec story app/land-on-the-sidebar-and-pulse). Covers that the group shows the stale Operator
-/// identity, App Installation revoked and probe failure flags with `yh doctor`'s own messages, and no
+/// identity, Board Connection revoked and probe failure flags with `yh doctor`'s own messages, and no
 /// other finding; that the two installation flags appear only on the Projects their installation
 /// serves; and that such a flag opens Settings → Boards. The stub prints nothing unless it
 /// is run as exactly `yh doctor --json`, so a run with `--fix`, `--yes` or `--probe` leaves the group
 /// unread and fails the test.
 ///
-/// The fixture has two App Installations: `acme` (revoked, stale Operator) serves `archive` and `owner`;
+/// The fixture has two Board Connections: `acme` (revoked, stale Operator) serves `archive` and `owner`;
 /// `scratch` (connected) serves `reader`.
 ///
 /// XCTest, not Swift Testing: the `Testing` module is unavailable in a UI testing bundle.
@@ -53,7 +53,7 @@ final class HealthGroupUITests: XCTestCase {
         XCTAssertEqual(flags.count, 3)
 
         for text in [
-            "Stale Operator identity", "App Installation revoked", "Probe failure",
+            "Stale Operator identity", "Board Connection revoked", "Probe failure",
             "the configured Operator identity usr-1 is no longer a candidate",
             "`codex` excluded from routing: probe failed"
         ] {
@@ -65,13 +65,13 @@ final class HealthGroupUITests: XCTestCase {
     func testARevokedInstallationShowsOnItsOwnProjectsOnly() {
         let flags = app.descendants(matching: .any).matching(identifier: "health-flag")
         XCTAssertTrue(flags.firstMatch.waitForExistence(timeout: 15), "the Health group never read yh doctor")
-        XCTAssertTrue(shows("App Installation revoked"), "archive uses acme, which is revoked")
+        XCTAssertTrue(shows("Board Connection revoked"), "archive uses acme, which is revoked")
 
         for (id, revoked) in [("owner", true), ("reader", false), ("archive", true)] {
             select(id)
             let expected = revoked ? 3 : 1
             XCTAssertTrue(waitForFlagCount(expected), "\(id) shows \(flags.count) flags, not \(expected)")
-            XCTAssertEqual(shows("App Installation revoked"), revoked, "\(id)")
+            XCTAssertEqual(shows("Board Connection revoked"), revoked, "\(id)")
             XCTAssertEqual(shows("Stale Operator identity"), revoked, "\(id)")
             XCTAssertTrue(shows("Probe failure"), "a probe failure is machine-wide; \(id) must show it")
         }
@@ -80,7 +80,7 @@ final class HealthGroupUITests: XCTestCase {
     func testAnInstallationFlagOpensTheBoardsPane() {
         let revoked = app.descendants(matching: .any)
             .matching(NSPredicate(
-                format: "identifier == 'health-flag' AND label BEGINSWITH 'App Installation revoked'"
+                format: "identifier == 'health-flag' AND label BEGINSWITH 'Board Connection revoked'"
             ))
             .firstMatch
         XCTAssertTrue(revoked.waitForExistence(timeout: 15), "the Health group never read yh doctor")
@@ -148,22 +148,22 @@ final class HealthGroupUITests: XCTestCase {
         return "{" + fields.joined(separator: ",") + "}"
     }
 
-    /// Two App Installations and three Projects: `acme` serves `archive` and `owner`, `scratch` serves
+    /// Two Board Connections and three Projects: `acme` serves `archive` and `owner`, `scratch` serves
     /// `reader`. No Journals.
     private static func writeConfiguration(in directory: URL) throws {
         let projects = directory.appending(component: "projects", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: projects, withIntermediateDirectories: true)
         try """
-        [board.linear.installations.acme]
+        [board.linear.connections.acme]
         credential = "keychain:linear-acme"
         workspace = "workspace-1"
-        app_user = "app-user-1"
+        yellowhammer_identity = "app-user-1"
         operator = "usr-1"
 
-        [board.linear.installations.scratch]
+        [board.linear.connections.scratch]
         credential = "keychain:linear-scratch"
         workspace = "workspace-2"
-        app_user = "app-user-2"
+        yellowhammer_identity = "app-user-2"
         operator = "usr-2"
 
         [github]
@@ -181,7 +181,7 @@ final class HealthGroupUITests: XCTestCase {
             spec_source = "~/dev/spec"
 
             [board.linear]
-            installation = "\(installation)"
+            connection = "\(installation)"
             project = "\(id.uppercased())"
 
             [[repos]]

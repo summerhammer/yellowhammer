@@ -35,7 +35,7 @@ struct ConfigurationDirectory: ~Copyable {
         try writeProjectFile(id: id, """
             id = "\(id)"
             name = "\(id)"
-            board = { linear = { installation = "acme", project = "\(id)" } }
+            board = { linear = { connection = "acme", project = "\(id)" } }
             spec_source = "~/Developer/\(id)-spec"
 
             [[repos]]
@@ -47,10 +47,10 @@ struct ConfigurationDirectory: ~Copyable {
     }
 
     static let machineFile = """
-        [board.linear.installations.acme]
+        [board.linear.connections.acme]
         credential = "keychain:linear"
         workspace = "workspace-1"
-        app_user = "app-user-1"
+        yellowhammer_identity = "app-user-1"
 
         [github]
         credential = "keychain:github"

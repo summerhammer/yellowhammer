@@ -5,7 +5,7 @@ Rehearsal scenario suite (P15.3): runs scripted end-to-end rehearsal Nights agai
 `README.md` for the full contract, the Prerequisites, and what each of the 13 scenarios checks.
 
   run --app PATH --team KEY [--scenario N ...] [--root DIR] [--work-directory DIR]
-      [--configuration-directory DIR] [--installation NAME] [--act-timeout SECONDS]
+      [--configuration-directory DIR] [--board-connection NAME] [--act-timeout SECONDS]
     Runs the selected scenarios (default: all). Exit codes: 0 every selected scenario passed,
     1 a scenario failed, 2 the suite could not be set up (nothing was run).
 
@@ -195,8 +195,8 @@ def parse_arguments(argv):
         help="default ~/.config/yellowhammer (yh itself always reads this default)",
     )
     run_parser.add_argument(
-        "--installation", metavar="NAME", default=None,
-        help="the App Installation in config.toml (default: the sole one)",
+        "--board-connection", dest="installation", metavar="NAME", default=None,
+        help="the Board Connection in config.toml (default: the sole one)",
     )
     run_parser.add_argument(
         "--act-timeout", type=float, default=600.0, help="seconds any single yh invocation may take"
@@ -223,8 +223,8 @@ def parse_arguments(argv):
         help="where the `yh project remove` log goes (default: a fresh temp dir)",
     )
     teardown_parser.add_argument(
-        "--installation", metavar="NAME", default=None,
-        help="the App Installation in config.toml (default: the sole one)",
+        "--board-connection", dest="installation", metavar="NAME", default=None,
+        help="the Board Connection in config.toml (default: the sole one)",
     )
     teardown_parser.add_argument(
         "--dry-run", action="store_true",

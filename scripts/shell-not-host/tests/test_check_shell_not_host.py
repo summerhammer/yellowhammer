@@ -353,7 +353,7 @@ name = "Alpha Project"
 spec_source = "~/repos/spec"
 
 [board.linear]
-installation = "scratch"
+connection = "scratch"
 project = "LINEAR-ALPHA"
 
 [[repos]]

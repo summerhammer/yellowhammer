@@ -6,7 +6,7 @@ import SwiftUI
 /// Projects, and a toolbar with back and forward; the current section's name is its pane's heading, and
 /// every pane is drawn with the Add Project sheet's blocks (`SettingsPane`). It is a separate window
 /// from the main window. A Project's Configuration, Recalibrate and the machine-wide settings
-/// (General: Orca ADE; Boards: Linear workspaces; Agent CLIs; the base Routing Table) are here.
+/// (General: Orca ADE; Boards: Board connections; Agent CLIs; the base Routing Table) are here.
 ///
 /// Where each piece of state lives:
 /// - **The current section** is `history.current`. The sidebar's selection is derived from it, and a
@@ -14,7 +14,7 @@ import SwiftUI
 /// - **The preselection** arrives in `SettingsRequest` when a gesture opens the window, from the key
 ///   main window's Project. After it is applied, this window's selection and the main window's are
 ///   independent.
-/// - **The Boards pane's model** (the Linear workspaces list and the install, Operator identity and removal
+/// - **The Boards pane's model** (the Board connections list and the install, Operator identity and removal
 ///   models under it), which also supplies a Project entry's Linear workspace name, is this window's
 ///   `@State`, so another sidebar row and back neither recreates it nor kills a running install.
 ///   Closing the window terminates it: setup is not an Act, so no child of it survives the window.

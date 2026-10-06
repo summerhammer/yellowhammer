@@ -10,7 +10,7 @@ import Foundation
 public struct ProjectConfiguration: Sendable {
     public var id: ProjectID
     public var name: String
-    /// The local name of the machine file's App Installation this Project selects
+    /// The local name of the machine file's Board Connection this Project selects
     /// (`[board.linear] installation`); see ``MachineConfiguration/linearInstallation(for:)``.
     public var linearInstallationName: String
     /// Linear's project this Project projects onto (`[board.linear] project`), as an opaque reference.

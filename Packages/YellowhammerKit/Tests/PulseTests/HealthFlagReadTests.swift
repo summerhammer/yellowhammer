@@ -59,7 +59,7 @@ func healthFlags() throws {
 @Test("A missing Linear Installation token pair is flagged as revoked")
 func missingInstallation() throws {
     let output = doctorOutput([
-        Finding("linear", "installation", "failure", "no Linear Installation token pair found", projects: ["demo"])
+        Finding("linear", "connection", "failure", "no Board Connection token pair found", projects: ["demo"])
     ])
 
     let flags = try #require(HealthFlag.read(doctorOutput: output, project: demo))
@@ -129,7 +129,7 @@ func perProjectFlags() throws {
 
 @Test("An installation row with no projects field is dropped, not broadcast")
 func nilProjectsDropped() {
-    let rows = [DoctorFindingRow(check: "linear", subject: "installation", severity: "failure", message: "x")]
+    let rows = [DoctorFindingRow(check: "linear", subject: "connection", severity: "failure", message: "x")]
     #expect(HealthFlag.flags(in: rows, for: demo) == [])
 }
 

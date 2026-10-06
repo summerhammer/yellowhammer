@@ -1,6 +1,6 @@
 # Machine configuration
 schedule = "nightly"
-# No Linear App Installations are declared;
+# No Linear Board Connections are declared;
 # the registry may be empty.
 
 [github]

@@ -6,7 +6,7 @@ extension MachineConfiguration {
     public static let defaultGitHubCredential = "keychain:github"
 
     /// A machine file that does not exist yet: the default GitHub credential and nothing declared. What the
-    /// app declares the first agent CLI against on a fresh Mac, before any Linear App Installation exists.
+    /// app declares the first agent CLI against on a fresh Mac, before any Linear Board Connection exists.
     public static var unconfigured: MachineConfiguration {
         // Non-empty literal: never fails.
         MachineConfiguration(

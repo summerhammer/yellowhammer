@@ -3,7 +3,7 @@ name = "bad"
 spec_source = "~/dev/spec"
 
 [board.linear]
-installation = "missing"
+connection = "missing"
 project = "BAD"
 
 [[repos]]

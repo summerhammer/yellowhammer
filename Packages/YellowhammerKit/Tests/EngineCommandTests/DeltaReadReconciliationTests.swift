@@ -141,7 +141,7 @@ struct DeltaReadReconciliationTests {
         #expect(try journal.events(ofType: .deltaReadCompleted).isEmpty)
     }
 
-    @Test("A degraded read names the Delta Read's App Installation and workspace when it has one")
+    @Test("A degraded read names the Delta Read's Board Connection and workspace when it has one")
     func rateLimitNamesTheInstallation() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()

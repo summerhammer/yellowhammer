@@ -285,10 +285,10 @@ final class OverviewWindowUITests: XCTestCase {
         let projects = directory.appending(component: "projects", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: projects, withIntermediateDirectories: true)
         try """
-        [board.linear.installations.acme]
+        [board.linear.connections.acme]
         credential = "keychain:linear"
         workspace = "workspace-1"
-        app_user = "app-user-1"
+        yellowhammer_identity = "app-user-1"
         [github]
         credential = "keychain:github"
 
@@ -311,7 +311,7 @@ final class OverviewWindowUITests: XCTestCase {
             spec_source = "~/dev/spec"
 
             [board.linear]
-            installation = "acme"
+            connection = "acme"
             project = "\(id.uppercased())"
 
             [[repos]]

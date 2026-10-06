@@ -5,16 +5,16 @@ import Foundation
 import Synchronization
 import Testing
 
-@Suite("Setup: --installation, remote approval")
+@Suite("Setup: --board-connection, remote approval")
 struct SetupInstallationRemoteTests {
-    @Test("Remote --install-linear --installation main approved elsewhere: failed(differentWorkspace), nothing stored")
+    @Test("Remote install approved elsewhere: failed(differentWorkspace), nothing stored")
     func remoteReconnectApprovedElsewhereIsRefused() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
-            [board.linear.installations.main]
+            [board.linear.connections.main]
             credential = "keychain:linear-main"
             workspace = "workspace-old"
-            app_user = "app-user-old"
+            yellowhammer_identity = "app-user-old"
 
             [github]
             credential = "keychain:github"

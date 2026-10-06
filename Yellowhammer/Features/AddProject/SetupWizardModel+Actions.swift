@@ -30,7 +30,7 @@ extension SetupWizardModel {
         (url.path(percentEncoded: false) as NSString).abbreviatingWithTildeInPath
     }
 
-    /// Runs when the sheet appears: reads the Linear workspaces' names once, then, if an installation is
+    /// Runs when the sheet appears: reads the Board connections' names once, then, if an installation is
     /// already selected, reads what it unlocks.
     func appeared() async {
         linearWorkspaces.refreshStatusOnFirstAppearance()
@@ -60,7 +60,7 @@ extension SetupWizardModel {
         isFetchingTeams = true
         teamsFailure = []
         defer { if generation == teamsFetchGeneration { isFetchingTeams = false } }
-        let arguments = SetupInvocation.choicesArguments(installation: installation, githubCredential: nil)
+        let arguments = SetupInvocation.choicesArguments(boardConnection: installation, githubCredential: nil)
         var lines: [String] = []
         do {
             let status = try await fetchEngine.run(arguments: arguments, standardInput: nil) { lines.append($0) }
@@ -87,7 +87,7 @@ extension SetupWizardModel {
         }
     }
 
-    /// Verifies the entered Linear project id against the selected workspace via `yh setup --print-choices --installation <name> --linear-project <id>`.
+    /// Verifies the entered Linear project id against the selected workspace via `yh setup --print-choices --board-connection <name> --linear-project <id>`.
     func verifyLinearProject() async {
         let id = draft.linearProjectID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty, let installation = draft.linearInstallationName else { return }
@@ -104,7 +104,7 @@ extension SetupWizardModel {
         draft.linearVerification = .checking
 
         let arguments = SetupInvocation.choicesArguments(
-            installation: installation, githubCredential: nil, linearProject: id
+            boardConnection: installation, githubCredential: nil, linearProject: id
         )
         var lines: [String] = []
         do {

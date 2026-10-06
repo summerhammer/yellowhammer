@@ -241,7 +241,7 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
             "Project removal refused: run \(holder.runID) holds the Act Lease for the \(holder.act.rawValue) Act " +
                 "until \(JournalStore.timestamp(holder.expiresAt))"
         case .linearWorkspaceRequired:
-            "The Journal cannot be created without the Linear workspace of the Project's App Installation"
+            "The Journal cannot be created without the Linear workspace of the Project's Board Connection"
         case .migrationLockUnavailable(let path, let errno):
             "Journal migration lock \(path) could not be taken: \(String(cString: strerror(errno))) (errno \(errno))"
         }

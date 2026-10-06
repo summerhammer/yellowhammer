@@ -10,7 +10,7 @@ import Observation
 /// Operator run `yh probe <cli>` on demand. It also declares a registered CLI Adapter not yet in
 /// `config.toml` (#281), written through the loader as the base Routing Table pane writes — creating
 /// `config.toml` when it does not exist yet, so a fresh Mac can declare its first CLI before any Linear
-/// App Installation, which the Add Project sheet makes only once a route exists. It removes a declared CLI
+/// Board Connection, which the Add Project sheet makes only once a route exists. It removes a declared CLI
 /// the same way; the loader refuses the removal while any route, base or a Project's, still names it. The app itself
 /// never probes and never writes the Ledger — `yh` does; this model only shells out to it and re-reads.
 @MainActor

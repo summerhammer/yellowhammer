@@ -1,5 +1,5 @@
 name = "No ID"
-board = { linear = { installation = "acme", project = "NOID" } }
+board = { linear = { connection = "acme", project = "NOID" } }
 
 [[repos]]
 name = "repo"

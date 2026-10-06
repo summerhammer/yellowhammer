@@ -17,7 +17,7 @@ struct DoctorProjectFilterTests {
         try directory.writeProjectFile(id: "alpha", """
             id = "alpha"
             name = "alpha"
-            board = { linear = { installation = "acme", project = "alpha" } }
+            board = { linear = { connection = "acme", project = "alpha" } }
             spec_source = "\(fixture.path)"
 
             [[repos]]

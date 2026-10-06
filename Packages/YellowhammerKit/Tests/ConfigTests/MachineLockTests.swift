@@ -59,7 +59,7 @@ private struct TestFailure: Error, CustomStringConvertible {
     init(_ description: String) { self.description = description }
 }
 
-@Suite("MachineLock (P17.4, Linear App Installation Ruling items 3 and 11)")
+@Suite("MachineLock (P17.4, Linear Board Connection Ruling items 3 and 11)")
 struct MachineLockTests {
     private func temporaryLockPath() -> URL {
         FileManager.default.temporaryDirectory

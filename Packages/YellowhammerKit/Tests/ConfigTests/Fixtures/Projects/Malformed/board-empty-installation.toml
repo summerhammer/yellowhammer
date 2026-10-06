@@ -1,7 +1,7 @@
 id = "board-empty-installation"
 name = "board-empty-installation"
 [board.linear]
-installation = ""
+connection = ""
 project = "X"
 
 [[repos]]

@@ -9,7 +9,7 @@ struct AddProjectDraftInvocationTests {
     func complete() throws {
         let draft = completeAddProjectDraft()
         let expected = SetupInvocation(
-            installation: "acme",
+            boardConnection: "acme",
             project: SetupInvocation.Project(
                 id: "acme", name: "Acme", linearProject: .existing("ACME"), specSource: "/work/acme-spec",
                 repos: [
@@ -22,7 +22,7 @@ struct AddProjectDraftInvocationTests {
         )
         #expect(draft.setupInvocation == expected)
         #expect(try draft.setupInvocation.arguments() == [
-            "setup", "--init", "--installation", "acme", "--project", "acme", "--project-name", "Acme",
+            "setup", "--init", "--board-connection", "acme", "--project", "acme", "--project-name", "Acme",
             "--linear-project", "ACME",
             "--spec-source", "/work/acme-spec", "--repo", "acme-backend,backend,/work/acme-backend,make test",
             "--install-jobs"
@@ -99,14 +99,14 @@ struct AddProjectDraftInvocationTests {
         #expect(draft.setupInvocation.jobs == .export(directory: "/out", cron: false))
     }
 
-    @Test("The draft's selected Linear App Installation is passed as --installation")
+    @Test("The draft's selected Board Connection is passed as --board-connection")
     func draftInstallationIsCarried() throws {
         var draft = completeAddProjectDraft()
         draft.linearInstallationName = "acme"
         let invocation = draft.setupInvocation
-        #expect(invocation.installation == "acme")
+        #expect(invocation.boardConnection == "acme")
         let arguments = try invocation.arguments()
-        let index = try #require(arguments.firstIndex(of: "--installation"))
+        let index = try #require(arguments.firstIndex(of: "--board-connection"))
         #expect(arguments[index + 1] == "acme")
     }
 

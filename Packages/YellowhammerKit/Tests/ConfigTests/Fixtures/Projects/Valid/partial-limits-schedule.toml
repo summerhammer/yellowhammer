@@ -3,7 +3,7 @@ name = "Partial Project"
 spec_source = "~/dev/partial-spec"
 
 [board.linear]
-installation = "acme"
+connection = "acme"
 project = "PARTIAL"
 
 [[repos]]

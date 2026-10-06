@@ -17,7 +17,7 @@ public struct AddProjectContext: Equatable, Sendable {
     public var teams: [SetupChoices.Team]
     /// The active Linear projects `yh setup --print-choices` returned, in the board's order. // glossary:ignore GL001
     public var linearProjects: [SetupChoices.LinearProject] // glossary:ignore GL001
-    /// The Linear App Installation registry (`[board.linear.installations.*]`), in config order.
+    /// The Linear Board Connection registry (`[board.linear.connections.*]`), in config order.
     public var linearInstallations: [LinearInstallation]
     /// What each kept Journal records, by Project id. The app fills it; Config never opens a Journal.
     public var keptJournals: [String: KeptJournal]

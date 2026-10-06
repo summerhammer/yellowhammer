@@ -1,6 +1,6 @@
 id = "bounds-negative"
 name = "Bounds Negative"
-board = { linear = { installation = "acme", project = "BN" } }
+board = { linear = { connection = "acme", project = "BN" } }
 
 [[repos]]
 name = "repo"

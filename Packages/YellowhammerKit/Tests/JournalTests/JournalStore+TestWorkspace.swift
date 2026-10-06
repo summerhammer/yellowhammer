@@ -4,7 +4,7 @@ import Foundation
 @testable import Journal
 
 extension BoardObjectID {
-    /// The Linear workspace of the fixture App Installation in the tests' machine files.
+    /// The Linear workspace of the fixture Board Connection in the tests' machine files.
     static let fixtureWorkspace = BoardObjectID(rawValue: "workspace-1")
 }
 

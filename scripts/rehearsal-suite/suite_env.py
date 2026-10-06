@@ -139,7 +139,7 @@ def render_project_toml(
         f"spec_source = {_toml_string(spec_source)}",
         "",
         "[board.linear]",
-        f"installation = {_toml_string(installation)}",
+        f"connection = {_toml_string(installation)}",
         f"project = {_toml_string(linear_project)}",
         "",
     ]
@@ -207,13 +207,13 @@ def project_file_path(configuration_directory, project_id):
 
 
 def read_operator_identity(configuration_directory, installation_name):
-    """`operator` of `[board.linear.installations.<name>]` in `config.toml`, or None when unset."""
+    """`operator` of `[board.linear.connections.<name>]` in `config.toml`, or None when unset."""
     path = configuration_directory / "config.toml"
     if not path.is_file():
         return None
     with path.open("rb") as handle:
         data = tomllib.load(handle)
-    installations = data.get("board", {}).get("linear", {}).get("installations", {})
+    installations = data.get("board", {}).get("linear", {}).get("connections", {})
     return (installations.get(installation_name) or {}).get("operator")
 
 
@@ -857,7 +857,7 @@ class Environment:
     act_timeout: float
     transport: object = None
     yh: YhRunner = None
-    #: The App Installation's local name: from `--installation`, else resolved to the sole entry
+    #: The Board Connection's local name: from `--board-connection`, else resolved to the sole entry
     #: by `resolve_installation` (which stores the resolved name back here).
     installation: str | None = None
     app_client: object = None
@@ -897,7 +897,7 @@ def make_environment(
 
 
 def resolve_installation(env):
-    """The App Installation this run uses (`env.installation`, else the sole one in `config.toml`),
+    """The Board Connection this run uses (`env.installation`, else the sole one in `config.toml`),
     resolved once: the resolved local name is stored back on `env.installation`."""
     try:
         machine = scratch_linear.load_machine_config(env.configuration_directory, env.installation)
@@ -917,7 +917,7 @@ def ensure_project(env, project_id):
     installation = resolve_installation(env).name
     manifest = build_fixture_tree(env.root, project_id, force=False)
     args = [
-        "--init", "--project", project_id, "--project-name", name, "--installation", installation,
+        "--init", "--project", project_id, "--project-name", name, "--board-connection", installation,
         "--linear-team", env.team,
         "--spec-source", manifest["spec_source"],
     ]
@@ -958,7 +958,7 @@ def _reset_worktrees_and_scratch_linear(env, project_id):
     reset_args = [
         sys.executable, str(SCRIPTS_DIR / "scratch-linear" / "scratch_linear.py"),
         "--configuration-directory", str(env.configuration_directory),
-        "--installation", resolve_installation(env).name,
+        "--board-connection", resolve_installation(env).name,
         "reset", "--team", env.team, "--project", project_id,
     ]
     result = subprocess.run(reset_args, capture_output=True, text=True)
@@ -985,7 +985,7 @@ def write_scenario_project_file(
     route="claude/sonnet/medium", fallbacks=("claude/opus/high",),
 ):
     """Rewrites the Project file with this scenario's [limits]/checks/Protected Paths and the
-    Routing Table override, keeping the `[board.linear]` `installation` and `project` the first `yh setup --init` wrote."""
+    Routing Table override, keeping the `[board.linear]` `connection` and `project` the first `yh setup --init` wrote."""
     linear_project = read_linear_project(env.configuration_directory, project_id)
     installation = read_project_installation(env.configuration_directory, project_id)
     repos = default_repo_declarations(manifest)

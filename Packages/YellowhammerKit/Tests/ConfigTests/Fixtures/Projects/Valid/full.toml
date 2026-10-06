@@ -3,7 +3,7 @@ id = "full"
 name = "Full Project"
 
 [board.linear]
-installation = "acme"
+connection = "acme"
 project = "FULL"
 
 [[repos]]

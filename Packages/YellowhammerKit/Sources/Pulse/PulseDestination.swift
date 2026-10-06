@@ -20,7 +20,7 @@ public enum PulseDestination: Hashable, Sendable {
     case inspector(PulseSelection)
     case nightCard(URL)
     case settings
-    /// The Settings window's Boards pane, where an App Installation or Operator identity flag is fixed: its
+    /// The Settings window's Boards pane, where a Board Connection or Operator identity flag is fixed: its
     /// Linear section lists the workspaces.
     case linearWorkspaces
     case pullRequest(URL)

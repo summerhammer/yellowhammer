@@ -2,7 +2,7 @@ import Domain
 import SwiftUI
 
 /// One card of a Linear section's workspaces: an icon and the workspace's label as its headline, the details
-/// of the App Installation laid out under it — local name, workspace, app user, the Projects that use it —
+/// of the Board Connection laid out under it — local name, workspace, Yellowhammer identity, the Projects that use it —
 /// then the doctor's reading, its Operator identity, and the things Settings does to it: re-connect, change
 /// the Operator identity, remove. Like the Add Project sheet's Repo cards. Every identifier is suffixed with
 /// the installation's local name.
@@ -86,7 +86,7 @@ struct LinearWorkspaceCard: View {
                 Text(workspace.workspaceID).font(.callout.monospaced()).textSelection(.enabled)
             }
             GridRow {
-                Text("App user").foregroundStyle(.secondary)
+                Text("Yellowhammer identity").foregroundStyle(.secondary)
                 Text(workspace.appUser.rawValue).font(.callout.monospaced()).textSelection(.enabled)
             }
             GridRow {
@@ -172,7 +172,7 @@ struct LinearWorkspaceCard: View {
         let projects = workspace.projects
         let commands = projects.map { "yh project remove \($0)" } // glossary:ignore GL001
         return [
-            "Linear refuses the installation \(name), so this deletes this Mac\u{2019}s entry and Keychain "
+            "Linear refuses the Board Connection \(name), so this deletes this Mac\u{2019}s entry and Keychain "
                 + "items for it while Projects still use it.",
             "These Projects will be refused at load until they are removed or the workspace is re-connected: "
                 + projects.joined(separator: ", ") + ".",
@@ -180,7 +180,7 @@ struct LinearWorkspaceCard: View {
             "Yellowhammer stays installed in that Linear workspace until a workspace admin removes it in "
                 + "Linear\u{2019}s settings.",
             "To undo, re-connect the same workspace under this exact local name: "
-                + "yh setup --installation-name \(name)."
+                + "yh setup --board-connection-name \(name)."
         ].joined(separator: "\n\n")
     }
 }

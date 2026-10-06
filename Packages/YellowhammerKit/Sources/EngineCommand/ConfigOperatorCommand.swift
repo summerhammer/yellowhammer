@@ -4,20 +4,20 @@ import Domain
 import Engine
 import Foundation
 
-/// `yh config operator [--installation <name>] <user-id>`: changes one App Installation's Operator
-/// identity, the `operator` key of its `[board.linear.installations.<name>]` table (spec
+/// `yh config operator [--board-connection <name>] <user-id>`: changes one Board Connection's Operator
+/// identity, the `operator` key of its `[board.linear.connections.<name>]` table (spec
 /// `install-the-linear-app`; OQ66; OQ109 items 7 and 8; OQ116).
 public struct ConfigOperatorCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "operator",
-        abstract: "Change an App Installation's Operator identity."
+        abstract: "Change a Board Connection's Operator identity."
     )
 
     @Option(
-        name: .customLong("installation"),
-        help: "The local name of the Linear App Installation; optional when exactly one is configured."
+        name: .customLong("board-connection"),
+        help: "The local name of the Board Connection; optional when exactly one is configured."
     )
-    public var installation: String?
+    public var boardConnection: String?
 
     @Argument(help: "The Linear user id of the new Operator identity.")
     public var userID: String
@@ -39,15 +39,15 @@ public struct ConfigOperatorCommand: AsyncParsableCommand {
         let change = ConfigOperatorChange(
             configurationDirectory: configurationDirectory, output: output, bindProvisioning: bindProvisioning
         )
-        guard await change.run(installation: installation, userID: userID) else {
+        guard await change.run(boardConnection: boardConnection, userID: userID) else {
             throw ExitCode(1)
         }
     }
 }
 
 /// `yh config operator`'s orchestration, with every side effect injected as a seam, mirroring
-/// ``ProjectRemoval``. Validates against the installation's own workspace members, then writes only that
-/// installation's table.
+/// ``ProjectRemoval``. Validates against the connection's own workspace members, then writes only that
+/// connection's table.
 struct ConfigOperatorChange {
     let configurationDirectory: URL
     let output: (String) -> Void
@@ -58,7 +58,7 @@ struct ConfigOperatorChange {
     }
 
     /// Returns whether the change succeeded, the command's exit code. Every refusal writes nothing.
-    func run(installation requested: String?, userID: String) async -> Bool {
+    func run(boardConnection requested: String?, userID: String) async -> Bool {
         do {
             let machine = try MachineConfiguration.load(contentsOf: machineFileURL)
             let installation = try resolve(requested, in: machine)
@@ -70,7 +70,7 @@ struct ConfigOperatorChange {
             if installation.operatorIdentity != id {
                 try OperatorIdentityEditing.write(id, installation: installation.name, machineFileURL: machineFileURL)
             }
-            output("Installation \(installation.name): Operator identity is now \(id.rawValue)")
+            output("Board Connection \(installation.name): Operator identity is now \(id.rawValue)")
             // The change is forward-only (OQ66 item 4): it never reassigns what is already assigned.
             output(
                 "The change applies from the next Act; it does not reassign issues already in " // glossary:ignore GL001
@@ -87,14 +87,14 @@ struct ConfigOperatorChange {
         let names = machine.linearInstallations.map(\.name)
         guard !names.isEmpty else {
             throw SetupError(
-                "no Linear App Installation is configured; connect a Linear workspace first: "
+                "no Board Connection is configured; connect a Linear workspace first: "
                     + "yh setup --install-linear"
             )
         }
         if let requested {
             guard let installation = machine.linearInstallation(named: requested) else {
                 throw SetupError(
-                    "no Linear App Installation is named \"\(requested)\"; "
+                    "no Board Connection is named \"\(requested)\"; "
                         + "valid names: \(names.joined(separator: ", "))"
                 )
             }
@@ -102,8 +102,8 @@ struct ConfigOperatorChange {
         }
         guard machine.linearInstallations.count == 1 else {
             throw SetupError(
-                "config.toml declares \(names.count) Linear App Installations (\(names.joined(separator: ", "))); "
-                    + "--installation is required"
+                "config.toml declares \(names.count) Board Connections (\(names.joined(separator: ", "))); "
+                    + "--board-connection is required"
             )
         }
         return machine.linearInstallations[0]
@@ -114,8 +114,8 @@ struct ConfigOperatorChange {
             return try await bindProvisioning(installation, "").workspaceMembers()
         } catch .notAuthenticated {
             throw SetupError(
-                "the Linear installation \"\(installation.name)\" was revoked or its sign-in expired; "
-                    + "re-connect that workspace: yh setup --install-linear --installation \(installation.name)"
+                "the Board Connection \"\(installation.name)\" was revoked or its sign-in expired; "
+                    + "re-connect that workspace: yh setup --install-linear --board-connection \(installation.name)"
             )
         } catch .unreachable {
             throw SetupError("Linear could not be reached")

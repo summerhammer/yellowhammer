@@ -5,17 +5,17 @@ import Testing
 struct ConfigurationRemovingInstallationTests {
     private let text = """
         # machine file
-        [board.linear.installations.alpha]
+        [board.linear.connections.alpha]
         credential = "keychain:linear-alpha"
         workspace = "ws-a"
-        app_user = "app-a"
+        yellowhammer_identity = "app-a"
         operator = "user-a"
 
         # the second one
-        [board.linear.installations.beta]
+        [board.linear.connections.beta]
         credential = "keychain:linear-beta"
         workspace = "ws-b"
-        app_user = "app-b"
+        yellowhammer_identity = "app-b"
 
         [github]
         credential = "keychain:github"
@@ -28,7 +28,7 @@ struct ConfigurationRemovingInstallationTests {
         #expect(!updated.contains("alpha"))
         #expect(updated.contains("# machine file"))
         #expect(updated.contains("# the second one"))
-        #expect(updated.contains("[board.linear.installations.beta]"))
+        #expect(updated.contains("[board.linear.connections.beta]"))
         #expect(updated.contains("[github]"))
         let machine = try MachineConfiguration.parse(updated, file: "config.toml")
         #expect(machine.linearInstallations.map(\.name) == ["beta"])

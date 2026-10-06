@@ -7,7 +7,7 @@ import Journal
 import Synchronization
 import Testing
 
-// roadmap P17.5, Linear App Installation Ruling items 5, 12, 13: an authorization failure
+// roadmap P17.5, Linear Board Connection Ruling items 5, 12, 13: an authorization failure
 // (BoardError.notAuthenticated) halts the Act before any board work — the preflight identity() read
 // is the Act's first Linear call — records `.linearAuthorizationHalted` alongside `.actIncomplete`,
 // and posts the local halted notification once per Night. A network error (.unreachable) is not this
@@ -32,10 +32,10 @@ private final class NotificationRecorder: Sendable {
 struct LinearAuthorizationHaltTests {
     private static let authorizationCopy =
         "Linear refused Yellowhammer's sign-in. Re-connect the Linear workspace: " +
-            "the Linear step of yh setup, or Settings → Linear workspaces in Yellowhammer.app."
+            "the Linear step of yh setup, or Settings → Board connections in Yellowhammer.app."
     private static let labelledCopy =
         "Linear refused Yellowhammer's sign-in for the Linear workspace \"acme\". " +
-            "Re-connect that workspace: the Linear step of yh setup, or Settings → Linear workspaces " +
+            "Re-connect that workspace: the Linear step of yh setup, or Settings → Board connections " +
             "in Yellowhammer.app."
 
     @Test("A labelled board's authorization halt names the workspace and both fixes")
@@ -67,7 +67,7 @@ struct LinearAuthorizationHaltTests {
         #expect(reason == Self.labelledCopy)
         #expect(reason.contains("\"acme\""))
         #expect(reason.contains("the Linear step of yh setup"))
-        #expect(reason.contains("Settings → Linear workspaces in Yellowhammer.app"))
+        #expect(reason.contains("Settings → Board connections in Yellowhammer.app"))
     }
 
     @Test("A refused identity halts before the Night Card, before work, records the cause once, and posts once")

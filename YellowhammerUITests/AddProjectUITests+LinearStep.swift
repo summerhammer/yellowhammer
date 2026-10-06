@@ -1,7 +1,7 @@
 import Foundation
 import XCTest
 
-/// The Add Project wizard's Linear step (roadmap L3.2): choosing the Linear workspace (an App Installation
+/// The Add Project wizard's Linear step (roadmap L3.2): choosing the Linear workspace (a Board Connection
 /// in `config.toml`'s registry), connecting one in place, and the Operator identity of a freshly connected
 /// entry. Split from `AddProjectUITests` to keep both under SwiftLint's length limits.
 ///
@@ -22,10 +22,10 @@ extension AddProjectUITests {
 
     /// One workspace with an Operator identity, a declared agent CLI and a route.
     static let readyMachineTOML = """
-    [board.linear.installations.acme]
+    [board.linear.connections.acme]
     credential = "keychain:linear"
     workspace = "workspace-1"
-    app_user = "app-user-1"
+    yellowhammer_identity = "app-user-1"
     operator = "user-op"
     [github]
     credential = "keychain:github"
@@ -37,15 +37,15 @@ extension AddProjectUITests {
     """
 
     static let twoInstallationsMachineTOML = """
-    [board.linear.installations.acme]
+    [board.linear.connections.acme]
     credential = "keychain:linear-acme"
     workspace = "workspace-1"
-    app_user = "app-user-1"
+    yellowhammer_identity = "app-user-1"
     operator = "user-op"
-    [board.linear.installations.scratch]
+    [board.linear.connections.scratch]
     credential = "keychain:linear-scratch"
     workspace = "workspace-2"
-    app_user = "app-user-2"
+    yellowhammer_identity = "app-user-2"
     operator = "user-op"
     [github]
     credential = "keychain:github"
@@ -103,10 +103,10 @@ extension AddProjectUITests {
     func completeConnect(_ name: String) throws {
         XCTAssertTrue(waitForRecorded { $0.contains("--install-linear") }, "\(recordedArguments())")
         try appendToMachine("""
-        [board.linear.installations.\(name)]
+        [board.linear.connections.\(name)]
         credential = "keychain:linear-\(name)"
         workspace = "workspace-\(name)"
-        app_user = "app-user-\(name)"
+        yellowhammer_identity = "app-user-\(name)"
         """)
         openGate("install")
     }
@@ -121,7 +121,7 @@ extension AddProjectUITests {
         let candidate = app.menuItems["Operator Person (operator)"]
         XCTAssertTrue(candidate.waitForExistence(timeout: 5))
         candidate.click()
-        let expected = "config operator --installation \(name) user-op"
+        let expected = "config operator --board-connection \(name) user-op"
         XCTAssertTrue(waitForRecorded { $0 == expected }, "\(recordedArguments())")
         try appendToMachine(#"operator = "user-op""#)
         openGate("operator")
@@ -133,7 +133,7 @@ extension AddProjectUITests {
 
     /// With no installation, the step shows the connect view at once: no "connect another" choice and no
     /// workspace row. Connecting selects the new entry and asks for its Operator identity; the hub then
-    /// completes with `--installation acme`.
+    /// completes with `--board-connection acme`.
     func testEmptyRegistryGoesStraightToConnecting() throws {
         try launchApp(machine: Self.noInstallationMachineTOML)
         let sheet = openLinearStep()
@@ -155,7 +155,7 @@ extension AddProjectUITests {
     // MARK: - Choosing a listed workspace
 
     /// Both workspaces are listed and neither is preselected; choosing `scratch` reads its teams and Linear
-    /// projects with `--installation scratch`, and the Project is added to it.
+    /// projects with `--board-connection scratch`, and the Project is added to it.
     func testChoosingAListedInstallation() throws {
         try launchApp(machine: Self.twoInstallationsMachineTOML)
         let sheet = openLinearStep()
@@ -169,7 +169,7 @@ extension AddProjectUITests {
         scratch.click()
         assertInstallationSelected("scratch", in: sheet)
         XCTAssertTrue(
-            waitForRecorded { $0.contains("--print-choices") && $0.contains("--installation scratch") },
+            waitForRecorded { $0.contains("--print-choices") && $0.contains("--board-connection scratch") },
             "\(recordedArguments())"
         )
 

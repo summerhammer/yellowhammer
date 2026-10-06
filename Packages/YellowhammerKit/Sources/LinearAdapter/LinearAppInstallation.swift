@@ -3,13 +3,13 @@ import Domain
 import Foundation
 import Security
 
-/// Yellowhammer's Linear App Installation (roadmap P17.3, ADR-005, board-projection/install-the-linear-app):
+/// Yellowhammer's Linear Board Connection (roadmap P17.3, ADR-005, board-projection/install-the-linear-app):
 /// the OAuth authorization-code + PKCE flow an Operator runs once, at setup, to install Yellowhammer's
-/// one public Linear app into their workspace as its own app user. No client secret ever crosses this
+/// one public Linear app into their workspace as its own Yellowhammer identity. No client secret ever crosses this
 /// flow — PKCE substitutes for one, since the app is public (its `clientID` is not a secret).
 ///
 /// Scopes are `read,write` only, `actor=app` — never `admin`, `app:assignable`, or `app:mentionable`
-/// (Linear App Installation Ruling, item 2). The three localhost redirect ports are tried in order, in
+/// (Linear Board Connection Ruling, item 2). The three localhost redirect ports are tried in order, in
 /// case one is already bound on the Operator's machine.
 public enum LinearAppInstallation {
     /// Yellowhammer's one public Linear OAuth application. Public, not a secret — safe to compile in.
@@ -110,7 +110,7 @@ public enum LinearAppInstallation {
         return try decodeTokenPair(data, clock: clock, failure: failure)
     }
 
-    /// Confirms the installation once tokens are in hand: the app user's own id and the workspace it
+    /// Confirms the installation once tokens are in hand: the Yellowhammer identity's own id and the workspace it
     /// installed into.
     public static func confirm(
         tokens: LinearTokenPair, transport: any HTTPTransport
@@ -184,7 +184,7 @@ public enum LinearAppInstallation {
 }
 
 /// The token endpoint's grant shape, shared by the authorization-code exchange and the refresh grant —
-/// both return a (rotated) refresh token alongside the access token (Linear App Installation Ruling).
+/// both return a (rotated) refresh token alongside the access token (Linear Board Connection Ruling).
 struct LinearOAuthGrant: Decodable {
     let accessToken: String
     let refreshToken: String
@@ -212,7 +212,7 @@ struct LinearInstallationOrganization: Decodable {
     let urlKey: String
 }
 
-/// The installed app user's identity and the workspace it belongs to — opaque strings only; no Linear
+/// The installed Yellowhammer identity's identity and the workspace it belongs to — opaque strings only; no Linear
 /// type crosses the Board Port (ADR-001).
 public struct LinearInstallationIdentity: Sendable, Equatable {
     public let appUserID: BoardObjectID

@@ -49,14 +49,14 @@ public enum JournalEvent: Equatable, Sendable {
     case actIncomplete(reason: String)
     /// Another run of the same Project held the Act-scoped lease; this Act ran nothing.
     case actStoodDown(holder: ActLease)
-    /// This Act halted on a Linear authorization failure (roadmap P17.5, Linear App Installation
+    /// This Act halted on a Linear authorization failure (roadmap P17.5, Linear Board Connection
     /// Ruling items 5, 12, 13): `BoardError.notAuthenticated` — a refused refresh, a revoked
     /// Installation, a 401 surviving one retry, or no Installation at all. Appended alongside
     /// `.actIncomplete` for this cause; a Night whose every Act only ever recorded this spends none of
     /// `overdue_nights_max` (no clock reads this event — it simply never advances, since nothing
     /// dispatched).
     case linearAuthorizationHalted
-    /// One attempt to refresh the App Installation's token pair, succeeded or refused. Carries no token.
+    /// One attempt to refresh the Board Connection's token pair, succeeded or refused. Carries no token.
     case appInstallationTokenRefresh(AppInstallationTokenRefresh)
     case mainlineFetchFailed(repository: String, reason: String)
     /// The resumption self-audit found a Night that never opened (OQ12): a calendar date
@@ -95,7 +95,7 @@ public enum JournalEvent: Equatable, Sendable {
     /// recorded, else the requested Worktree name); `reported` is what Orca ADE made.
     case worktreeNameCollision(repository: String, requested: String, reported: String)
     /// The board's request budget was exhausted and the Act did less work. The budget is the
-    /// App Installation's, shared by every Project on that installation, so the record names it
+    /// Board Connection's, shared by every Project on that installation, so the record names it
     /// installation-wide (and the workspace, when known) and never attributes the exhaustion to this
     /// Project's own reads.
     case rateBudgetExhausted(degradation: String, installation: AppInstallationLabel? = nil)

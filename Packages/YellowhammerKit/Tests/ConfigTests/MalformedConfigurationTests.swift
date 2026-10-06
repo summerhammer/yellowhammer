@@ -19,7 +19,7 @@ struct MalformedFixture: Sendable, CustomTestStringConvertible {
     var testDescription: String { name }
 }
 
-private let acmeCredential = "board.linear.installations.acme.credential"
+private let acmeCredential = "board.linear.connections.acme.credential"
 
 private let syntaxFixtures: [MalformedFixture] = [
     MalformedFixture("syntax-unterminated-string", line: 2, key: acmeCredential),
@@ -30,7 +30,7 @@ private let syntaxFixtures: [MalformedFixture] = [
     MalformedFixture("syntax-bad-array-element", line: 10, key: "routing[0].fallbacks[1]"),
     MalformedFixture("syntax-inline-table-trailing-comma", line: 7, key: "routing[0].route"),
     MalformedFixture("duplicate-key", line: 3, key: acmeCredential, .duplicateKey(firstLine: 2)),
-    MalformedFixture("table-redefined", line: 6, key: "board.linear.installations.acme", .tableRedefined(firstLine: 1))
+    MalformedFixture("table-redefined", line: 6, key: "board.linear.connections.acme", .tableRedefined(firstLine: 1))
 ]
 
 private let shapeFixtures: [MalformedFixture] = [
@@ -40,22 +40,23 @@ private let shapeFixtures: [MalformedFixture] = [
     MalformedFixture("board-linear-installation-key", line: 2, key: "board.linear.installation", .unknownKey),
     MalformedFixture("board-unknown-vendor", line: 1, key: "board.jira", .unknownKey),
     MalformedFixture(
-        "duplicate-linear-workspace", line: 8, key: "board.linear.installations.beta.workspace",
+        "duplicate-linear-workspace", line: 8, key: "board.linear.connections.beta.workspace",
         .duplicateLinearWorkspace(firstInstallation: "acme", firstLine: 3)
     ),
     MalformedFixture(
-        "installation-missing-credential", line: 2, key: "board.linear.installations.acme.credential", .missingKey
+        "installation-missing-credential", line: 2, key: "board.linear.connections.acme.credential", .missingKey
     ),
     MalformedFixture(
-        "installation-missing-workspace", line: 2, key: "board.linear.installations.acme.workspace", .missingKey
+        "installation-missing-workspace", line: 2, key: "board.linear.connections.acme.workspace", .missingKey
     ),
     MalformedFixture(
-        "installation-missing-app-user", line: 2, key: "board.linear.installations.acme.app_user", .missingKey
+        "installation-missing-app-user", line: 2,
+        key: "board.linear.connections.acme.yellowhammer_identity", .missingKey
     ),
     MalformedFixture(
-        "installation-unknown-key", line: 4, key: "board.linear.installations.acme.client_id", .unknownKey
+        "installation-unknown-key", line: 4, key: "board.linear.connections.acme.client_id", .unknownKey
     ),
-    MalformedFixture("installation-empty-name", line: 1, key: "board.linear.installations.\"\"", .emptyString),
+    MalformedFixture("installation-empty-name", line: 1, key: "board.linear.connections.\"\"", .emptyString),
     MalformedFixture("missing-github-credential", line: 3, key: "github.credential", .missingKey),
     MalformedFixture("empty-credential", line: 4, key: "github.credential", .emptyString),
     MalformedFixture(

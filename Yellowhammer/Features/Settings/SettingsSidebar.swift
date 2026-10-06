@@ -22,7 +22,7 @@ struct SettingsSidebar: View {
                 SettingsSidebarRow(title: "General", summary: "Orca ADE")
                     .tag(SettingsSection.general)
                     .accessibilityIdentifier("settings-general")
-                SettingsSidebarRow(title: "Boards", summary: "Linear workspaces")
+                SettingsSidebarRow(title: "Boards", summary: "Board connections")
                     .tag(SettingsSection.boards)
                     .accessibilityIdentifier("settings-boards")
                 SettingsSidebarRow(title: "Agent CLIs", summary: "Declared CLIs and their Probes")

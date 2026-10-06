@@ -5,7 +5,7 @@ import Foundation
 private let provisioningWorkflowStateColor = "#95a2b3"
 
 extension LinearGraphQL {
-    /// The workspace's own identity, read as the installation's app user.
+    /// The workspace's own identity, read as the installation's Yellowhammer identity.
     static let workspaceQuery = """
         query YellowhammerWorkspace { organization { id name urlKey } }
         """

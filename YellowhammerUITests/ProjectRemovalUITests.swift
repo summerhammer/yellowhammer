@@ -140,7 +140,7 @@ final class ProjectRemovalUITests: XCTestCase {
         spec_source = "~/dev/spec"
 
         [board.linear]
-        installation = "gone"
+        connection = "gone"
         project = "ORPHAN"
 
         [[repos]]

@@ -32,16 +32,16 @@ public struct SetupCommand: AsyncParsableCommand {
     public var printChoices: Bool = false
 
     @Option(
-        name: .customLong("installation"),
-        help: "The local name of the Linear App Installation this run acts on."
+        name: .customLong("board-connection"),
+        help: "The local name of the Board Connection this run acts on."
     )
-    public var installation: String?
+    public var boardConnection: String?
 
     @Option(
-        name: .customLong("installation-name"),
-        help: "The local name for a NEW Linear App Installation; cannot be combined with --installation."
+        name: .customLong("board-connection-name"),
+        help: "The local name for a NEW Board Connection; cannot be combined with --board-connection."
     )
-    public var installationName: String?
+    public var boardConnectionName: String?
 
     @Option(
         name: .customLong("github-credential"), help: "Reference to the GitHub credential (default keychain:github)."

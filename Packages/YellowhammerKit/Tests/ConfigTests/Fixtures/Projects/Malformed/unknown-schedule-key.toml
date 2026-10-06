@@ -1,6 +1,6 @@
 id = "unknown-schedule-key"
 name = "Unknown Schedule"
-board = { linear = { installation = "acme", project = "US" } }
+board = { linear = { connection = "acme", project = "US" } }
 
 [[repos]]
 name = "repo"

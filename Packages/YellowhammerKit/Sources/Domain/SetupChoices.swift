@@ -42,7 +42,7 @@ public struct SetupChoices: Codable, Equatable, Sendable {
         }
     }
 
-    /// A Linear App Installation in the machine file's registry, in `config.toml` order.
+    /// A Linear Board Connection in the machine file's registry, in `config.toml` order.
     public struct Installation: Codable, Equatable, Sendable {
         public var name: String
         /// The Linear workspace ID.

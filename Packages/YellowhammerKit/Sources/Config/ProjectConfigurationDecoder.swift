@@ -42,7 +42,7 @@ struct ProjectConfigurationDecoder {
         var configuration = ProjectConfiguration(
             id: id,
             name: name,
-            linearInstallationName: board.installation,
+            linearInstallationName: board.connection,
             linearProject: board.project,
             specSource: try decoding.optionalString("spec_source", in: root, path: nil),
             repos: try repos(in: root),
@@ -309,12 +309,12 @@ extension ProjectConfigurationDecoder {
     // MARK: - Board
 
     fileprivate struct LinearBoard {
-        let installation: String
+        let connection: String
         let project: String
-        let installationLine: Int
+        let connectionLine: Int
     }
 
-    /// `[board.linear]`: the App Installation this Project selects by name and the Linear project it
+    /// `[board.linear]`: the Board Connection this Project selects by name and the Linear project it
     /// projects onto. Exactly one vendor table is accepted, so a second `[board.<vendor>]`, or a vendor
     /// other than `linear`, is an unknown key.
     private func linearBoard(in root: TOMLTable) throws(ConfigurationError) -> LinearBoard {
@@ -327,24 +327,24 @@ extension ProjectConfigurationDecoder {
             throw decoding.error(line: board.line, key: "board.linear", .missingTable)
         }
         let linear = try decoding.table(linearValue, key: "board.linear")
-        try decoding.rejectUnknownKeys(in: linear, path: "board.linear", allowed: ["installation", "project"])
+        try decoding.rejectUnknownKeys(in: linear, path: "board.linear", allowed: ["connection", "project"])
         return LinearBoard(
-            installation: try decoding.requiredString("installation", in: linear, path: "board.linear"),
+            connection: try decoding.requiredString("connection", in: linear, path: "board.linear"),
             project: try decoding.requiredString("project", in: linear, path: "board.linear"),
-            installationLine: linear["installation"]?.line ?? linear.line
+            connectionLine: linear["connection"]?.line ?? linear.line
         )
     }
 
-    /// Refuses an `installation` the machine file's registry does not declare, when
+    /// Refuses a `connection` the machine file's registry does not declare, when
     /// ``declaredLinearInstallations`` is set. Runs after the shape decoded, so a shape error is
     /// always reported first.
     private func requireDeclaredInstallation(_ board: LinearBoard) throws(ConfigurationError) {
-        guard let declaredLinearInstallations, !declaredLinearInstallations.contains(board.installation) else {
+        guard let declaredLinearInstallations, !declaredLinearInstallations.contains(board.connection) else {
             return
         }
         throw decoding.error(
-            line: board.installationLine, key: "board.linear.installation",
-            .undeclaredLinearInstallation(board.installation)
+            line: board.connectionLine, key: "board.linear.connection",
+            .undeclaredLinearInstallation(board.connection)
         )
     }
 }

@@ -11,7 +11,7 @@ import Testing
 ///     YH_LINEAR_SCRATCH_TESTS=1 YH_LINEAR_INSTALLATION=<local name> YH_LINEAR_PROJECT_ID=… \
 ///         swift test --package-path Packages/YellowhammerKit --filter BoardProvisionerScratchTests
 ///
-/// Uses the token pair of the App Installation named `YH_LINEAR_INSTALLATION`, already stored in the Keychain
+/// Uses the token pair of the Board Connection named `YH_LINEAR_INSTALLATION`, already stored in the Keychain
 /// item `linear-<name>` (P17.3/P17.4), via `BoardBinding` — no client id or secret of its own.
 @Suite(
     "Linear provisioning (live)",
@@ -30,10 +30,10 @@ struct BoardProvisionerScratchTests {
         }
 
         let machine = try MachineConfiguration.parse("""
-            [board.linear.installations."\(installation)"]
+            [board.linear.connections."\(installation)"]
             credential = "keychain:linear-\(installation)"
             workspace = "workspace-1"
-            app_user = "app-user-1"
+            yellowhammer_identity = "app-user-1"
 
             [github]
             credential = "keychain:github"
@@ -42,7 +42,7 @@ struct BoardProvisionerScratchTests {
         let project = try ProjectConfiguration.parse("""
             id = "yellowhammer"
             name = "Yellowhammer"
-            board = { linear = { installation = "\(installation)", project = "\(linearProjectID)" } }
+            board = { linear = { connection = "\(installation)", project = "\(linearProjectID)" } }
             spec_source = "~/Developer/yellowhammer-spec"
 
             [[repos]]

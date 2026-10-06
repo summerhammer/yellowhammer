@@ -9,32 +9,32 @@ import Testing
 struct ConfigInvocationContractTests {
     @Test("operatorArguments parses back as ConfigOperatorCommand")
     func operatorArgumentsParseBack() throws {
-        let arguments = ConfigInvocation.operatorArguments(installation: "acme", userID: "user-1")
+        let arguments = ConfigInvocation.operatorArguments(boardConnection: "acme", userID: "user-1")
 
         let parsed = try ConfigCommand.parseAsRoot(Array(arguments.dropFirst()))
 
         let command = try #require(parsed as? ConfigOperatorCommand)
-        #expect(command.installation == "acme")
+        #expect(command.boardConnection == "acme")
         #expect(command.userID == "user-1")
     }
 
-    @Test("removeInstallationArguments parses back as ConfigRemoveInstallationCommand")
+    @Test("removeBoardConnectionArguments parses back as ConfigRemoveBoardConnectionCommand")
     func removeInstallationArgumentsParseBack() throws {
-        let arguments = ConfigInvocation.removeInstallationArguments(name: "acme")
+        let arguments = ConfigInvocation.removeBoardConnectionArguments(name: "acme")
 
         let parsed = try ConfigCommand.parseAsRoot(Array(arguments.dropFirst()))
 
-        let command = try #require(parsed as? ConfigRemoveInstallationCommand)
+        let command = try #require(parsed as? ConfigRemoveBoardConnectionCommand)
         #expect(command.name == "acme")
     }
 
-    @Test("removeInstallationArguments with orphanProjects parses back with both flags")
+    @Test("removeBoardConnectionArguments with orphanProjects parses back with both flags")
     func removeInstallationOrphanParsesBack() throws {
-        let arguments = ConfigInvocation.removeInstallationArguments(name: "acme", orphanProjects: true)
+        let arguments = ConfigInvocation.removeBoardConnectionArguments(name: "acme", orphanProjects: true)
 
         let parsed = try ConfigCommand.parseAsRoot(Array(arguments.dropFirst()))
 
-        let command = try #require(parsed as? ConfigRemoveInstallationCommand)
+        let command = try #require(parsed as? ConfigRemoveBoardConnectionCommand)
         #expect(command.name == "acme")
         #expect(command.orphanProjects)
         #expect(command.yes)

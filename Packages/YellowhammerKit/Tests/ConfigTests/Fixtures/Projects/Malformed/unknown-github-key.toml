@@ -1,6 +1,6 @@
 id = "unknown-github-key"
 name = "GitHub Unknown"
-board = { linear = { installation = "acme", project = "GU" } }
+board = { linear = { connection = "acme", project = "GU" } }
 
 [[repos]]
 name = "repo"

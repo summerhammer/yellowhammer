@@ -64,7 +64,7 @@ enum NotificationRegistration: Sendable {
     case off(reason: String)
 }
 
-/// Deletes an Installation's token pair from the Keychain, so `yh config remove-installation` never
+/// Deletes an Installation's token pair from the Keychain, so `yh config remove-board-connection` never
 /// touches the Keychain directly. An item that is already absent counts as deleted. The real conformance
 /// wraps ``KeychainCredentialStore``.
 protocol InstallationCredentialDeleter: Sendable {

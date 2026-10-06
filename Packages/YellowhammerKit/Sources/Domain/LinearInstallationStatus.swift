@@ -1,14 +1,14 @@
 import Foundation
 
-/// What `yh doctor --check linear --json` says about one Linear App Installation, read from its rows. The
+/// What `yh doctor --check linear --json` says about one Linear Board Connection, read from its rows. The
 /// interpretation lives here, not in the app's views, so the Setup wizard's single-installation check and
-/// the Settings window's Linear workspaces list read the same rows the same way, and a test can pin it.
+/// the Settings window's Board connections list read the same rows the same way, and a test can pin it.
 public enum LinearInstallationStatus: Equatable, Sendable {
     /// The `authorization` finding passed.
     case connected
     /// The `authorization` finding did not pass; `message` is the doctor's own text.
     case authorizationFailed(message: String)
-    /// The `installation` finding failed: no token pair is stored. `message` is the doctor's own text.
+    /// The `connection` finding failed: no token pair is stored. `message` is the doctor's own text.
     case noTokenPair(message: String)
     /// The rows say nothing about the installation (only `info` rows, or none).
     case unknown
@@ -27,7 +27,7 @@ public enum LinearInstallationStatus: Equatable, Sendable {
         if let authorization = own.first(where: { $0.subject == "authorization" }) {
             return status(of: authorization)
         }
-        if let missing = own.first(where: { $0.subject == "installation" && $0.severity == "failure" }) {
+        if let missing = own.first(where: { $0.subject == "connection" && $0.severity == "failure" }) {
             return .noTokenPair(message: missing.message)
         }
         return .unknown

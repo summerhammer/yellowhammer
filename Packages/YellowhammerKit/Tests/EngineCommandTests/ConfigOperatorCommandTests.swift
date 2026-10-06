@@ -7,16 +7,16 @@ import Synchronization
 import Testing
 
 private let twoInstallations = """
-    [board.linear.installations.alpha]
+    [board.linear.connections.alpha]
     credential = "keychain:linear-alpha"
     workspace = "ws-a"
-    app_user = "app-a"
+    yellowhammer_identity = "app-a"
     operator = "user-op"
 
-    [board.linear.installations.beta]
+    [board.linear.connections.beta]
     credential = "keychain:linear-beta"
     workspace = "ws-b"
-    app_user = "app-b"
+    yellowhammer_identity = "app-b"
     operator = "user-op"
 
     [github]
@@ -24,10 +24,10 @@ private let twoInstallations = """
     """
 
 private let oneInstallation = """
-    [board.linear.installations.alpha]
+    [board.linear.connections.alpha]
     credential = "keychain:linear-alpha"
     workspace = "ws-a"
-    app_user = "app-a"
+    yellowhammer_identity = "app-a"
 
     [github]
     credential = "keychain:github"
@@ -64,12 +64,16 @@ struct ConfigOperatorCommandTests {
     @Test("Both config subcommands parse")
     func parses() throws {
         let parsed = try #require(
-            try RootCommand.parseAsRoot(["config", "operator", "--installation", "a", "U1"]) as? ConfigOperatorCommand
+            try RootCommand.parseAsRoot(
+                ["config", "operator", "--board-connection", "a", "U1"]
+            ) as? ConfigOperatorCommand
         )
-        #expect(parsed.installation == "a")
+        #expect(parsed.boardConnection == "a")
         #expect(parsed.userID == "U1")
         let removal = try #require(
-            try RootCommand.parseAsRoot(["config", "remove-installation", "a"]) as? ConfigRemoveInstallationCommand
+            try RootCommand.parseAsRoot(
+                ["config", "remove-board-connection", "a"]
+            ) as? ConfigRemoveBoardConnectionCommand
         )
         #expect(removal.name == "a")
     }
@@ -83,7 +87,7 @@ struct ConfigOperatorCommandTests {
         #expect(result.lines.joined().contains("yh setup --install-linear"))
     }
 
-    @Test("Two installations without --installation is refused, listing the names; nothing is written")
+    @Test("Two installations without --board-connection is refused, listing the names; nothing is written")
     func ambiguous() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile(twoInstallations)
@@ -95,17 +99,18 @@ struct ConfigOperatorCommandTests {
         )
         #expect(!result.succeeded)
         let message = result.lines.joined()
-        #expect(message.contains("alpha") && message.contains("beta") && message.contains("--installation is required"))
+        #expect(message.contains("alpha") && message.contains("beta"))
+        #expect(message.contains("--board-connection is required"))
         #expect(try Data(contentsOf: file) == before)
         #expect(bound.names.isEmpty)
     }
 
-    @Test("An --installation naming no entry is refused, naming it and the valid names")
+    @Test("An --board-connection naming no entry is refused, naming it and the valid names")
     func unknownInstallation() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile(twoInstallations)
         let result = try await runOperator(
-            ["--installation", "gamma", "user-second"], directory: directory, board: await makeBoard()
+            ["--board-connection", "gamma", "user-second"], directory: directory, board: await makeBoard()
         )
         #expect(!result.succeeded)
         let message = result.lines.joined()
@@ -125,7 +130,7 @@ struct ConfigOperatorCommandTests {
         let file = directory.url.appending(component: "config.toml")
         let before = try Data(contentsOf: file)
         let board = await makeBoard(members: [operatorMember, deactivatedMember, appMember, selfMember])
-        let result = try await runOperator(["--installation", "alpha", id], directory: directory, board: board)
+        let result = try await runOperator(["--board-connection", "alpha", id], directory: directory, board: board)
         #expect(!result.succeeded)
         #expect(result.lines.joined().contains(reason))
         #expect(try Data(contentsOf: file) == before)
@@ -138,7 +143,7 @@ struct ConfigOperatorCommandTests {
         let bound = BoundNames()
         let board = await makeBoard(members: [operatorMember, secondCandidateMember])
         let result = try await runOperator(
-            ["--installation", "beta", "user-second"], directory: directory, board: board, bound: bound
+            ["--board-connection", "beta", "user-second"], directory: directory, board: board, bound: bound
         )
         #expect(result.succeeded)
         #expect(bound.names == ["beta"])
@@ -171,7 +176,7 @@ struct ConfigOperatorCommandTests {
         await board.refuseWorkspaceMembersNext(.notAuthenticated("revoked"))
         let result = try await runOperator(["user-op"], directory: directory, board: board)
         #expect(!result.succeeded)
-        #expect(result.lines.joined().contains("yh setup --install-linear --installation alpha"))
+        #expect(result.lines.joined().contains("yh setup --install-linear --board-connection alpha"))
         #expect(try Data(contentsOf: file) == before)
     }
 }

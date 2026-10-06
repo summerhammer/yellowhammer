@@ -5,7 +5,7 @@ import Domain
 enum SettingsSection: Hashable {
     /// The machine-wide settings: Orca ADE.
     case general
-    /// The board integrations: the Linear workspaces, their App Installations and Operator identities.
+    /// The board integrations: the Board connections, their Board Connections and Operator identities.
     case boards
     /// The declared Agent CLIs, their latest Probe Results, and a Probe on demand.
     case agentCLIs

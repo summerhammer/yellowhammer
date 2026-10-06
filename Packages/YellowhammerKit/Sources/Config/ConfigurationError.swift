@@ -30,7 +30,7 @@ public struct ConfigurationError: Error, Equatable, Sendable {
         case workingRepoConflict(project: ProjectID, file: String)
         /// Two registry entries name one Linear workspace; reported on the second entry's `workspace`.
         case duplicateLinearWorkspace(firstInstallation: String, firstLine: Int)
-        /// A Project's `installation` names no `[board.linear.installations.<name>]` in the machine file.
+        /// A Project's `installation` names no `[board.linear.connections.<name>]` in the machine file.
         case undeclaredLinearInstallation(String)
         /// A Message Template names `{name}`, which is not a token of its template. `key` is the
         /// template's own key (`commit_message`); `accepted` lists the tokens it does take.
@@ -115,10 +115,10 @@ extension ConfigurationError.Reason: CustomStringConvertible {
         case .workingRepoConflict(let project, let file):
             return "repository is also declared as a working Repo by Project \"\(project.rawValue)\" (\(file))"
         case .duplicateLinearWorkspace(let firstInstallation, let firstLine):
-            return "workspace is already used by installation \"\(firstInstallation)\" on line \(firstLine); "
-                + "a Linear workspace is installed once"
+            return "workspace is already used by Board Connection \"\(firstInstallation)\" on line \(firstLine); "
+                + "a Linear workspace is connected once"
         case .undeclaredLinearInstallation(let name):
-            return "Project names installation \"\(name)\", which has no [board.linear.installations.\(name)] "
+            return "Project names connection \"\(name)\", which has no [board.linear.connections.\(name)] "
                 + "in the machine file config.toml"
         case .unknownTemplateToken(let name, let key, let accepted):
             return "names {\(name)}, which is not a \(key) token; the tokens are \(accepted.joined(separator: ", "))"

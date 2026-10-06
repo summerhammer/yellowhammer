@@ -154,7 +154,7 @@ struct AddProjectDraft: Equatable {
     /// Whether the Operator typed the id; until then it follows the name.
     var idEdited = false
     var boardVendor: BoardVendor = .linear
-    /// The selected App Installation's local name; the Linear workspace the Project is projected onto.
+    /// The selected Board Connection's local name; the Linear workspace the Project is projected onto.
     var linearWorkspace: String?
     /// The connected installations; connecting one during the wizard adds to it.
     var workspaces = AddProjectFixtures.linearWorkspaces

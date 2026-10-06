@@ -4,7 +4,7 @@ import Foundation
 import LinearAdapter
 
 /// The registry half of the Linear install (roadmap L2.1; ADR-005): decides, before any Keychain or file
-/// write, whether a finished install re-connects a registered Linear App Installation or adds a new one.
+/// write, whether a finished install re-connects a registered Linear Board Connection or adds a new one.
 extension Setup {
     /// The free local name for a new registry entry: the workspace URL key, suffixed `-2`, `-3`, … while
     /// another entry (necessarily another workspace) already uses it. A URL key that is not a valid local
@@ -60,8 +60,8 @@ extension Setup {
     /// first: a re-connect aimed at `target` that Linear approved in another workspace discards the
     /// tokens (nothing stored, config.toml untouched); an approved workspace already in the registry
     /// re-connects that entry (tokens under its credential, its name and Operator identity kept,
-    /// `app_user` refreshed only if it changed); any other workspace becomes a new entry named from its
-    /// URL key (asked for when interactive) unless `--installation-name` gave it (checked before the
+    /// `yellowhammer_identity` refreshed only if it changed); any other workspace becomes a new entry named from its
+    /// URL key (asked for when interactive) unless `--board-connection-name` gave it (checked before the
     /// browser opened; the name is fixed once written, since the credential `keychain:linear-<name>`
     /// derives from it). With a given name, an approved workspace already in the registry re-connects
     /// its own entry and the given name is discarded, said aloud. Tokens are stored under that
@@ -109,7 +109,7 @@ extension Setup {
                 try store.tokenStore.write(pair)
             }
         } catch {
-            throw SetupError("could not store the Installation's tokens: \(error)")
+            throw SetupError("could not store the Board Connection's tokens: \(error)")
         }
 
         if changesFile { try writeLinearInstallation(installation) }
@@ -137,7 +137,7 @@ extension Setup {
         do {
             _ = try MachineConfiguration.parse(updated, file: path)
         } catch {
-            throw SetupError("could not set the Linear Installation: \(error)")
+            throw SetupError("could not set the Board Connection: \(error)")
         }
         do {
             try updated.write(to: machineFileURL, atomically: true, encoding: .utf8)

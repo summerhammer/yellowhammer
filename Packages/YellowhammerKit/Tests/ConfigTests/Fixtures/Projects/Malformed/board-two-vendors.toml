@@ -1,7 +1,7 @@
 id = "board-two-vendors"
 name = "board-two-vendors"
 [board.linear]
-installation = "acme"
+connection = "acme"
 project = "X"
 
 [board.jira]

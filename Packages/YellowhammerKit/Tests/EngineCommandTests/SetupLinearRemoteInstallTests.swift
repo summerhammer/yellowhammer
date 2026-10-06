@@ -182,7 +182,7 @@ func freshLinearInstallationStore() -> (store: LinearInstallationStore, referenc
 struct SetupLinearRemoteInstallTests {
     @Test("""
     --events json remote happy path emits adminStatement, approvalLinkIssued, awaitingRemoteApproval, \
-    installed; the pair is stored, config has workspace/app_user
+    installed; the pair is stored, config has workspace/yellowhammer_identity
     """)
     func eventsJSONRemoteHappyPathEmitsSequence() async throws {
         let directory = ConfigurationDirectory()

@@ -5,7 +5,7 @@
 public enum BoardError: Error, Equatable, Sendable {
     /// The credentials were refused, or no token could be obtained.
     case notAuthenticated(String)
-    /// The board refused the request for its rate limit. The budget named here is the App Installation's,
+    /// The board refused the request for its rate limit. The budget named here is the Board Connection's,
     /// never this Project's own.
     case rateLimited(retryAfter: Duration?, budget: BoardBudget?)
     /// The Project's Linear project is not visible to this identity.

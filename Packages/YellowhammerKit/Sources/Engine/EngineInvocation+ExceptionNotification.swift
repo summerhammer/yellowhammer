@@ -94,7 +94,7 @@ extension EngineInvocation {
         await notify(.halted(reason: Self.collapsed(reason)), notification: "halted", night: night)
     }
 
-    /// An authorization halt (roadmap P17.5, Linear App Installation Ruling items 5, 12, 13) never
+    /// An authorization halt (roadmap P17.5, Linear Board Connection Ruling items 5, 12, 13) never
     /// attempts the halted Night Card comment at all: the identity itself is refused, so that write
     /// would only queue pending behind the same refusal (P17.5, Outbox), and the OQ71
     /// "unrecorded" copy is not used for this cause either — the fix is always the same, whether or
@@ -171,12 +171,12 @@ extension EngineInvocation {
     /// Names the cause and the fix, whether or not a Night Card could be opened (P17.5): a refused
     /// identity cannot have written one either way, so the message is never conditioned on that.
     ///
-    /// With two App Installations the Operator cannot otherwise tell which workspace failed, so the copy
+    /// With two Board Connections the Operator cannot otherwise tell which workspace failed, so the copy
     /// names the installation's local name. The workspace's display name is not stored, and cannot be
     /// read while Linear refuses the sign-in (spec OQ117), so it is never used here. Without a label
-    /// (a board bound through no App Installation) the copy names no workspace.
+    /// (a board bound through no Board Connection) the copy names no workspace.
     static func linearAuthorizationCopy(for installation: AppInstallationLabel?) -> String {
-        let fixes = "the Linear step of yh setup, or Settings → Linear workspaces in Yellowhammer.app."
+        let fixes = "the Linear step of yh setup, or Settings → Board connections in Yellowhammer.app."
         guard let installation else {
             return "Linear refused Yellowhammer's sign-in. Re-connect the Linear workspace: " + fixes
         }
@@ -230,7 +230,7 @@ extension EngineInvocation {
     }
 
     /// Appends the Act's closing event (`.actEnded`, or `.actIncomplete` on the way out) after each
-    /// App Installation token-pair refresh the board attempted this Act, so the record precedes it.
+    /// Board Connection token-pair refresh the board attempted this Act, so the record precedes it.
     /// The log is drained, so each record lands exactly once. Best-effort, like every other event;
     /// every Linear call an Act makes happens after its Night opened, so the Night is always known.
     func appendClosing(_ closing: JournalEvent, night: NightRecord) {

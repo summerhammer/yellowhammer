@@ -20,7 +20,7 @@ struct SetupPrintChoicesTests {
         )
         let output = RecordingOutput()
         let setup = try makeSetup(
-            arguments: ["--print-choices", "--installation", "acme"], directory: directory, board: board,
+            arguments: ["--print-choices", "--board-connection", "acme"], directory: directory, board: board,
             output: output
         )
 
@@ -56,7 +56,7 @@ struct SetupPrintChoicesTests {
         ])
         let output = RecordingOutput()
         let setup = try makeSetup(
-            arguments: ["--print-choices", "--installation", "acme"], directory: directory, board: board,
+            arguments: ["--print-choices", "--board-connection", "acme"], directory: directory, board: board,
             output: output
         )
 
@@ -78,7 +78,7 @@ struct SetupPrintChoicesTests {
         await board.failLinearProjects(with: .unreadableResponse("boom"))
         let output = RecordingOutput()
         let setup = try makeSetup(
-            arguments: ["--print-choices", "--installation", "acme"], directory: directory, board: board,
+            arguments: ["--print-choices", "--board-connection", "acme"], directory: directory, board: board,
             output: output
         )
 
@@ -97,10 +97,10 @@ struct SetupPrintChoicesTests {
     func configuredOperatorReportedOnlyWhileCandidate() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
-            [board.linear.installations.acme]
+            [board.linear.connections.acme]
             credential = "keychain:linear"
             workspace = "workspace-1"
-            app_user = "app-user-1"
+            yellowhammer_identity = "app-user-1"
             operator = "user-op"
 
             [github]
@@ -109,7 +109,8 @@ struct SetupPrintChoicesTests {
         let board = await makeBoard(members: [operatorMember], teams: [engineeringTeam])
         let output = RecordingOutput()
         let setup = try makeSetup(
-            arguments: ["--print-choices", "--installation", "acme"], directory: directory, board: board, output: output
+            arguments: ["--print-choices", "--board-connection", "acme"], directory: directory,
+            board: board, output: output
         )
 
         try await setup.run()
@@ -123,10 +124,10 @@ struct SetupPrintChoicesTests {
     func configuredOperatorNoLongerCandidateIsNotReported() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
-            [board.linear.installations.acme]
+            [board.linear.connections.acme]
             credential = "keychain:linear"
             workspace = "workspace-1"
-            app_user = "app-user-1"
+            yellowhammer_identity = "app-user-1"
             operator = "user-dead"
 
             [github]
@@ -135,7 +136,8 @@ struct SetupPrintChoicesTests {
         let board = await makeBoard(members: [operatorMember, deactivatedMember], teams: [engineeringTeam])
         let output = RecordingOutput()
         let setup = try makeSetup(
-            arguments: ["--print-choices", "--installation", "acme"], directory: directory, board: board, output: output
+            arguments: ["--print-choices", "--board-connection", "acme"], directory: directory,
+            board: board, output: output
         )
 
         try await setup.run()
@@ -145,26 +147,27 @@ struct SetupPrintChoicesTests {
         #expect(choices.configuredOperator == nil)
     }
 
-    @Test("--installation naming an entry without a token pair refuses, naming the fix") // glossary:ignore GL001
+    @Test("--board-connection naming an entry without a token pair refuses, naming the fix") // glossary:ignore GL001
     func missingInstallationThrows() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
         let setup = try makeSetup(
-            arguments: ["--print-choices", "--installation", "acme"], directory: directory, board: await makeBoard(),
+            arguments: ["--print-choices", "--board-connection", "acme"], directory: directory,
+            board: await makeBoard(),
             credentials: RecordingCredentialStore()
         )
 
         let error = await #expect(throws: SetupError.self) { try await setup.run() }
 
-        #expect(error?.description.contains("yh setup --install-linear --installation acme") == true)
+        #expect(error?.description.contains("yh setup --install-linear --board-connection acme") == true)
     }
 
-    @Test("--installation naming no entry refuses with the unknown-installation message") // glossary:ignore GL001
+    @Test("--board-connection naming no entry refuses with the unknown-installation message") // glossary:ignore GL001
     func unknownInstallationRefused() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
         let setup = try makeSetup(
-            arguments: ["--print-choices", "--installation", "nope"], directory: directory, board: await makeBoard()
+            arguments: ["--print-choices", "--board-connection", "nope"], directory: directory, board: await makeBoard()
         )
 
         let error = await #expect(throws: SetupError.self) { try await setup.run() }
@@ -172,20 +175,20 @@ struct SetupPrintChoicesTests {
         #expect(error?.description == Setup.unknownInstallationMessage("nope", connected: ["acme"]))
     }
 
-    @Test("No --installation lists every entry in file order and makes no Linear call") // glossary:ignore GL001
+    @Test("No --board-connection lists every entry in file order and makes no Linear call") // glossary:ignore GL001
     func noFlagListsRegistryOnly() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
-            [board.linear.installations.beta]
+            [board.linear.connections.beta]
             credential = "keychain:linear-beta"
             workspace = "workspace-2"
-            app_user = "app-user-2"
+            yellowhammer_identity = "app-user-2"
             operator = "user-op"
 
-            [board.linear.installations.acme]
+            [board.linear.connections.acme]
             credential = "keychain:linear"
             workspace = "workspace-1"
-            app_user = "app-user-1"
+            yellowhammer_identity = "app-user-1"
 
             [github]
             credential = "keychain:github"
@@ -212,7 +215,7 @@ struct SetupPrintChoicesTests {
         #expect(choices.configuredOperator == nil)
     }
 
-    @Test("No --installation and no entries, or no config.toml, prints an empty registry") // glossary:ignore GL001
+    @Test("No --board-connection and no entries, or no config.toml, prints an empty registry") // glossary:ignore GL001
     func noFlagWithoutEntriesPrintsEmptyRegistry() async throws {
         for machineFile in [nil, "[github]\ncredential = \"keychain:github\"\n"] as [String?] {
             let directory = ConfigurationDirectory()
@@ -230,26 +233,26 @@ struct SetupPrintChoicesTests {
         }
     }
 
-    @Test("--installation reads one entry and still lists the whole registry") // glossary:ignore GL001
+    @Test("--board-connection reads one entry and still lists the whole registry") // glossary:ignore GL001
     func scopedReadIncludesFullRegistry() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
-            [board.linear.installations.acme]
+            [board.linear.connections.acme]
             credential = "keychain:linear"
             workspace = "workspace-1"
-            app_user = "app-user-1"
+            yellowhammer_identity = "app-user-1"
 
-            [board.linear.installations.beta]
+            [board.linear.connections.beta]
             credential = "keychain:linear-beta"
             workspace = "workspace-2"
-            app_user = "app-user-2"
+            yellowhammer_identity = "app-user-2"
 
             [github]
             credential = "keychain:github"
             """)
         let output = RecordingOutput()
         let setup = try makeSetup(
-            arguments: ["--print-choices", "--installation", "acme"], directory: directory,
+            arguments: ["--print-choices", "--board-connection", "acme"], directory: directory,
             board: await makeBoard(teams: [engineeringTeam]), output: output
         )
 
@@ -294,18 +297,18 @@ struct SetupPrintChoicesTests {
     func printChoicesAllowsLinearOptions() throws {
         let command = try SetupCommand.parse([
             "--print-choices",
-            "--installation", "main", "--github-credential", "keychain:github"
+            "--board-connection", "main", "--github-credential", "keychain:github"
         ])
         let options = try SetupOptions(command: command)
 
         #expect(options.mode == .printChoices)
     }
 
-    @Test("--print-choices allows --linear-project when --installation is present") // glossary:ignore GL001
+    @Test("--print-choices allows --linear-project when --board-connection is present") // glossary:ignore GL001
     func printChoicesAllowsLinearProjectWithInstallation() throws {
         let command = try SetupCommand.parse([
             "--print-choices",
-            "--installation", "main",
+            "--board-connection", "main",
             "--linear-project", "proj-1"
         ])
         let options = try SetupOptions(command: command)
@@ -315,7 +318,7 @@ struct SetupPrintChoicesTests {
         #expect(options.linearProjectID == "proj-1")
     }
 
-    @Test("--print-choices with --linear-project without --installation is refused") // glossary:ignore GL001
+    @Test("--print-choices with --linear-project without --board-connection is refused") // glossary:ignore GL001
     func printChoicesRefusesLinearProjectWithoutInstallation() {
         #expect(throws: (any Error).self) {
             try SetupCommand.parse(["--print-choices", "--linear-project", "proj-1"])
@@ -338,7 +341,7 @@ struct SetupPrintChoicesTests {
         )
         let output = RecordingOutput()
         let setup = try makeSetup(
-            arguments: ["--print-choices", "--installation", "acme", "--linear-project", "proj-1"],
+            arguments: ["--print-choices", "--board-connection", "acme", "--linear-project", "proj-1"],
             directory: directory, board: board, output: output
         )
 
@@ -364,7 +367,7 @@ struct SetupPrintChoicesTests {
         )
         let output = RecordingOutput()
         let setup = try makeSetup(
-            arguments: ["--print-choices", "--installation", "acme", "--linear-project", "proj-missing"],
+            arguments: ["--print-choices", "--board-connection", "acme", "--linear-project", "proj-missing"],
             directory: directory, board: board, output: output
         )
 
@@ -394,7 +397,7 @@ struct SetupPrintChoicesTests {
         await board.excludeMembership(of: engineeringTeam.id)
         let output = RecordingOutput()
         let setup = try makeSetup(
-            arguments: ["--print-choices", "--installation", "acme", "--linear-project", "proj-1"],
+            arguments: ["--print-choices", "--board-connection", "acme", "--linear-project", "proj-1"],
             directory: directory, board: board, output: output
         )
 

@@ -1,6 +1,6 @@
 id = "unknown-top-key"
 name = "Unknown Top"
-board = { linear = { installation = "acme", project = "UT" } }
+board = { linear = { connection = "acme", project = "UT" } }
 unknown_key = "value"
 
 [[repos]]

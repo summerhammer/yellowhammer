@@ -328,7 +328,7 @@ func rateBudgetExhaustedRoundTrips() throws {
     #expect(installation == nil)
 }
 
-@Test("rateBudgetExhausted carries its App Installation's name and workspace when given one")
+@Test("rateBudgetExhausted carries its Board Connection's name and workspace when given one")
 func rateBudgetExhaustedCarriesInstallation() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()

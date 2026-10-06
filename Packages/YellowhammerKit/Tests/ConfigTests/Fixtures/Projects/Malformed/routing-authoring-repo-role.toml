@@ -1,6 +1,6 @@
 id = "routing-authoring-repo-role"
 name = "Routing Authoring Repo Role"
-board = { linear = { installation = "acme", project = "RA" } }
+board = { linear = { connection = "acme", project = "RA" } }
 
 [[repos]]
 name = "repo"

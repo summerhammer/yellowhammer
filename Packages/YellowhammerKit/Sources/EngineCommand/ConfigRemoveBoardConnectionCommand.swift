@@ -3,30 +3,30 @@ import Config
 import Domain
 import Foundation
 
-/// `yh config remove-installation <name>`: removes one App Installation from the machine registry and
-/// deletes its Keychain items (spec `install-the-linear-app`, *Removing an installation*; OQ109 item 14;
+/// `yh config remove-board-connection <name>`: removes one Board Connection from the machine registry and
+/// deletes its Keychain items (spec `install-the-linear-app`, *Removing a connection*; OQ109 item 14;
 /// OQ116). No confirmation prompt by default: the refusals are the guard, and the app runs it
 /// non-interactively.
 ///
-/// `--orphan-projects` (OQ121) is the one override: it removes the installation even while Project files
+/// `--orphan-projects` (OQ121) is the one override: it removes the Board Connection even while Project files
 /// still name it, but only when its authorization is permanently refused (the Keychain item is absent, or
-/// Linear refused it) — otherwise a Feature in flight and a dead installation deadlock `yh project remove`.
-/// It asks for confirmation unless `--yes`. Those Projects then name a missing installation, and
+/// Linear refused it) — otherwise a Feature in flight and a dead connection deadlock `yh project remove`.
+/// It asks for confirmation unless `--yes`. Those Projects then name a missing connection, and
 /// `yh project remove` removes them.
-public struct ConfigRemoveInstallationCommand: AsyncParsableCommand {
+public struct ConfigRemoveBoardConnectionCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
-        commandName: "remove-installation",
-        abstract: "Remove an App Installation from config.toml and delete its Keychain items.",
+        commandName: "remove-board-connection",
+        abstract: "Remove a Board Connection from config.toml and delete its Keychain items.",
         discussion: "With --orphan-projects, removes it even while Projects name it, but only when its "
             + "authorization is permanently refused."
     )
 
-    @Argument(help: "The local name of the Linear App Installation to remove.")
+    @Argument(help: "The local name of the Board Connection to remove.")
     public var name: String
 
     @Flag(
         name: .customLong("orphan-projects"),
-        help: "Remove the installation even while Projects name it, when its authorization is refused."
+        help: "Remove the Board Connection even while Projects name it, when its authorization is refused."
     )
     public var orphanProjects: Bool = false
 
@@ -86,7 +86,7 @@ enum RemovalOutcome: Equatable {
     case usage(String)
 }
 
-/// `yh config remove-installation`'s orchestration, with every side effect injected as a seam.
+/// `yh config remove-board-connection`'s orchestration, with every side effect injected as a seam.
 ///
 /// Keychain first, then `config.toml`, on purpose: a failure after the Keychain step leaves an entry with
 /// no tokens, which `yh doctor` reports; the reverse order would orphan a secret. The installation's
@@ -111,12 +111,12 @@ struct InstallationRemoval {
 
     func run(name: String) async -> RemovalOutcome {
         do {
-            // The removal-shaped load: a Project naming a missing installation still loads.
+            // The removal-shaped load: a Project naming a missing connection still loads.
             let configuration = try Configuration.loadLeniently(directory: configurationDirectory)
             guard let installation = configuration.machine.linearInstallation(named: name) else {
                 let names = configuration.machine.linearInstallations.map(\.name)
                 let valid = names.isEmpty ? "none configured" : names.joined(separator: ", ")
-                throw SetupError("no Linear App Installation is named \"\(name)\"; valid names: \(valid)")
+                throw SetupError("no Board Connection is named \"\(name)\"; valid names: \(valid)")
             }
             let named = configuration.projects.filter { $0.linearInstallationName == name }
                 .map(\.id.rawValue).sorted()
@@ -129,7 +129,7 @@ struct InstallationRemoval {
             }
             try deleteCredential(of: installation)
             try removeEntry(named: name)
-            output("Installation \(name) removed: its entry in config.toml and its Keychain items.")
+            output("Board Connection \(name) removed: its entry in config.toml and its Keychain items.")
             if orphanProjects {
                 Self.orphanReport(name: name, named: named).forEach(output)
             } else {
@@ -153,12 +153,12 @@ struct InstallationRemoval {
         let name = installation.name
         let files = configuration.invalidProjects.map(\.file).sorted()
         if !files.isEmpty {
-            throw SetupError("installation \"\(name)\" was not removed: " + Self.undecodableRefusal(name, files))
+            throw SetupError("Board Connection \"\(name)\" was not removed: " + Self.undecodableRefusal(name, files))
         }
         guard !named.isEmpty else {
             return .usage(
-                "no Project names installation \"\(name)\", so there is nothing to orphan; "
-                    + "`yh config remove-installation \(name)` removes it"
+                "no Project names Board Connection \"\(name)\", so there is nothing to orphan; "
+                    + "`yh config remove-board-connection \(name)` removes it"
             )
         }
         let authorization = await probe.check(installation).authorization
@@ -166,12 +166,12 @@ struct InstallationRemoval {
             throw SetupError(refusal)
         }
         if !assumeYes {
-            output("Installation \(name) is permanently refused, but Projects still name it:")
+            output("Board Connection \(name) is permanently refused, but Projects still name it:")
             Self.orphanReport(name: name, named: named).forEach(output)
-            let answer = console.ask("Remove installation \(name) anyway? [y/N] ")?
+            let answer = console.ask("Remove Board Connection \(name) anyway? [y/N] ")?
                 .trimmingCharacters(in: .whitespaces).lowercased()
             guard let answer, ["y", "yes"].contains(answer) else {
-                throw SetupError("installation \"\(name)\" was not removed: not confirmed")
+                throw SetupError("Board Connection \"\(name)\" was not removed: not confirmed")
             }
         }
         return nil
@@ -181,7 +181,7 @@ struct InstallationRemoval {
     private static func orphanRefusal(
         _ authorization: InstallationAuthorization, name: String, named: [String]
     ) -> String? {
-        let prefix = "installation \"\(name)\" was not removed: "
+        let prefix = "Board Connection \"\(name)\" was not removed: "
         switch authorization {
         case .refused:
             return nil
@@ -200,23 +200,23 @@ struct InstallationRemoval {
         }
     }
 
-    /// (a)–(e): the installation, the Projects it leaves refused, the next step for each, that Yellowhammer
+    /// (a)–(e): the connection, the Projects it leaves refused, the next step for each, that Yellowhammer
     /// stays installed in the Linear workspace, and the undo.
     static func orphanReport(name: String, named: [String]) -> [String] {
         [
-            "Installation \(name) (its entry in config.toml and its Keychain items).",
+            "Board Connection \(name) (its entry in config.toml and its Keychain items).",
             "Projects naming it, each refused at load until removed or re-connected: "
                 + named.joined(separator: ", "),
             "Next step: " + named.map { "yh project remove \($0)" }.joined(separator: "; "), // glossary:ignore GL001
             "Yellowhammer stays installed in that Linear workspace until a workspace admin removes it "
                 + "in Linear's settings.",
-            "Undo: `yh setup --installation-name \(name)` re-connects it under this exact "
+            "Undo: `yh setup --board-connection-name \(name)` re-connects it under this exact "
                 + "local name and brings the Projects back."
         ]
     }
 
     private static func undecodableRefusal(_ name: String, _ files: [String]) -> String {
-        "these Project files failed to decode, so whether they name installation \"\(name)\" cannot be "
+        "these Project files failed to decode, so whether they name Board Connection \"\(name)\" cannot be "
             + "known; fix or remove them first:\n" + files.map { "  \($0)" }.joined(separator: "\n")
     }
 
@@ -226,7 +226,7 @@ struct InstallationRemoval {
             let plural = named.count != 1
             refusals.append(
                 "Project\(plural ? "s" : "") \(named.joined(separator: ", ")) use\(plural ? "" : "s") "
-                    + "installation \"\(name)\"; remove \(plural ? "them" : "it") first: "
+                    + "Board Connection \"\(name)\"; remove \(plural ? "them" : "it") first: "
                     + named.map { "yh project remove \($0)" }.joined(separator: "; ") // glossary:ignore GL001
                     + "; if its authorization can never be restored, add --orphan-projects"
             )
@@ -236,7 +236,7 @@ struct InstallationRemoval {
             refusals.append(Self.undecodableRefusal(name, files))
         }
         guard refusals.isEmpty else {
-            throw SetupError("installation \"\(name)\" was not removed: " + refusals.joined(separator: "\n"))
+            throw SetupError("Board Connection \"\(name)\" was not removed: " + refusals.joined(separator: "\n"))
         }
     }
 
@@ -265,7 +265,7 @@ struct InstallationRemoval {
         do {
             _ = try MachineConfiguration.parse(updated, file: path)
         } catch {
-            throw SetupError("could not remove the installation: \(error)")
+            throw SetupError("could not remove the Board Connection: \(error)")
         }
         do {
             try updated.write(to: machineFileURL, atomically: true, encoding: .utf8)

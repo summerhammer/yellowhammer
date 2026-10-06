@@ -151,10 +151,10 @@ struct CLIAdapterDispatchTests {
 struct CardRunBindingTests {
     private func configuration(projectID: ProjectID) throws -> (Configuration, ProjectConfiguration) {
         let machine = try MachineConfiguration.parse("""
-            [board.linear.installations.acme]
+            [board.linear.connections.acme]
             credential = "keychain:linear"
             workspace = "workspace-1"
-            app_user = "app-user-1"
+            yellowhammer_identity = "app-user-1"
 
             [github]
             credential = "keychain:github"

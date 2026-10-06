@@ -85,7 +85,7 @@ public struct HealthFlag: Identifiable, Equatable, Sendable {
 
 public enum HealthFlagKind: String, CaseIterable, Sendable {
     case staleOperatorIdentity = "stale Operator identity"
-    case appInstallationRevoked = "App Installation revoked"
+    case appInstallationRevoked = "Board Connection revoked"
     case probeFailure = "probe failure"
     case actFailure = "Act failure"
 }

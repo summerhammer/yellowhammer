@@ -12,7 +12,7 @@ import Journal
 /// Yellowhammer reads and never writes, and which takes effect here, at the Act boundary. When the
 /// board refuses for its rate budget the read degrades — nothing read is acted on, no sync point
 /// moves — and the degradation is recorded as installation-wide, because the budget is the App
-/// Installation's and shared by every Project on that same App Installation.
+/// Installation's and shared by every Project on that same Board Connection.
 public struct DeltaRead: Sendable {
     // swiftlint:disable:previous type_body_length
     public let journal: JournalStore
@@ -24,7 +24,7 @@ public struct DeltaRead: Sendable {
     /// The names of the Project's Repos, so a Card whose board copy names a repository outside the
     /// Project is reported as an invariant break. Nil skips that check.
     public let repositories: Set<String>?
-    /// The App Installation the read goes through, named on a rate-budget record. Nil for a board bound
+    /// The Board Connection the read goes through, named on a rate-budget record. Nil for a board bound
     /// through none.
     public let installation: AppInstallationLabel?
     /// `first` on each root of the compound query. A page that overflows is followed by its cursor.

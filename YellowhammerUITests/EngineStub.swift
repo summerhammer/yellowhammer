@@ -36,7 +36,7 @@ enum EngineStub {
     """
 
     /// When `YH_STUB_ARGV_LOG` names a file, the full argument vector (`setup --print-choices ...`, so a
-    /// test can see `--installation <name>`) is appended to it as one line before the answer.
+    /// test can see `--board-connection <name>`) is appended to it as one line before the answer.
     static let printChoicesCase = """
           --print-choices)
             if [ -n "$YH_STUB_ARGV_LOG" ]; then echo "$all_args" >> "$YH_STUB_ARGV_LOG"; fi
@@ -69,7 +69,7 @@ enum EngineStub {
         """
 
     /// When `YH_STUB_PROJECTS_DIR` names a directory, `--init` also writes a minimal Project file there,
-    /// named by `--project`'s value (its `installation` is the value after `--installation`, else `acme`), as the real `yh setup --init` writes `projects/<id>.toml`. The tests
+    /// named by `--project`'s value (its `installation` is the value after `--board-connection`, else `acme`), as the real `yh setup --init` writes `projects/<id>.toml`. The tests
     /// point the configuration's `projects` folder at that `/tmp` directory with a symlink, because the
     /// stub cannot write into the UI test runner's container.
     static let initCase = """
@@ -81,7 +81,7 @@ enum EngineStub {
             for arg in "$@"; do
               echo "argv: $arg"
               if [ "$previous" = "--project" ]; then project_id="$arg"; fi
-              if [ "$previous" = "--installation" ]; then init_installation="$arg"; fi
+              if [ "$previous" = "--board-connection" ]; then init_installation="$arg"; fi
               previous="$arg"
             done
             if [ -n "$YH_STUB_PROJECTS_DIR" ] && [ -n "$project_id" ]; then
@@ -91,7 +91,7 @@ enum EngineStub {
               echo 'name = "'"$project_id"'"' >> "$project_file"
               echo 'spec_source = "/tmp/acme-spec"' >> "$project_file"
               echo '[board.linear]' >> "$project_file"
-              echo 'installation = "'"$init_installation"'"' >> "$project_file"
+              echo 'connection = "'"$init_installation"'"' >> "$project_file"
               echo 'project = "proj-1"' >> "$project_file"
               echo '[[repos]]' >> "$project_file"
               echo 'name = "backend"' >> "$project_file"
@@ -127,7 +127,7 @@ enum EngineStub {
             if [ -n "$installed" ]; then
               echo '[{"check":"linear","subject":"authorization","severity":"pass","message":"ok"}]'
             else
-              echo '[{"check":"linear","subject":"installation","severity":"failure","message":"no pair"}]'
+              echo '[{"check":"linear","subject":"connection","severity":"failure","message":"no pair"}]'
             fi
             exit 0
             ;;
@@ -137,7 +137,7 @@ enum EngineStub {
     /// `yh setup --install-linear --events json`: when `YH_STUB_ARGV_LOG` names a file, first appends the
     /// full argument vector (`setup --install-linear ...`) to it as one line, so a test can assert on what
     /// the app ran. Branches on `--remote` (roadmap P17.9). The `installed` event carries `installation`:
-    /// the value after `--installation` when passed, else `YH_STUB_CONNECT_NAME` when set, else `acme`
+    /// the value after `--board-connection` when passed, else `YH_STUB_CONNECT_NAME` when set, else `acme`
     /// locally and `scratch` remotely. Just before `installed`, the attempt waits on the `install` gate
     /// (``waitForGate``), so a test can first write the entry `yh` would add to `config.toml`. Without
     /// `--remote`, the first attempt reports every port busy when `YH_STUB_PORTS_BUSY_FIRST` is set (a Retry
@@ -151,7 +151,7 @@ enum EngineStub {
             install_prev=""
             for arg in "$@"; do
               if [ "$arg" = "--remote" ]; then is_remote="1"; fi
-              if [ "$install_prev" = "--installation" ]; then install_name="$arg"; fi
+              if [ "$install_prev" = "--board-connection" ]; then install_name="$arg"; fi
               install_prev="$arg"
             done
             [ -n "$install_name" ] || install_name="$YH_STUB_CONNECT_NAME"
@@ -207,7 +207,7 @@ enum EngineStub {
 
         """
 
-    /// `yh config operator [--installation <name>] <user-id>`: appends the full argument vector to
+    /// `yh config operator [--board-connection <name>] <user-id>`: appends the full argument vector to
     /// `YH_STUB_ARGV_LOG` when set, waits on the `operator` gate (``waitForGate``) so a test can first write
     /// the identity to `config.toml`, then prints the real command's success lines and exits 0. When
     /// `YH_STUB_OPERATOR_REFUSAL` is set it echoes that text and exits 1 instead.
@@ -222,24 +222,24 @@ enum EngineStub {
             operator_id=""
             operator_prev=""
             for arg in "$@"; do
-              if [ "$operator_prev" = "--installation" ]; then operator_installation="$arg"; fi
+              if [ "$operator_prev" = "--board-connection" ]; then operator_installation="$arg"; fi
               operator_id="$arg"
               operator_prev="$arg"
             done
             wait_for_gate operator
-            echo "Installation $operator_installation: Operator identity is now $operator_id"
+            echo "Board Connection $operator_installation: Operator identity is now $operator_id"
             echo "The change applies from the next Act; it does not reassign issues already in Waiting on You."
             exit 0
             ;;
 
         """
 
-    /// `yh config remove-installation <name>`: appends the full argument vector to `YH_STUB_ARGV_LOG` when
+    /// `yh config remove-board-connection <name>`: appends the full argument vector to `YH_STUB_ARGV_LOG` when
     /// set. `YH_STUB_INSTALLATION_USERS` holds space-separated `name=project` pairs; when a pair's name
     /// equals the argument, prints the real refusal (Projects joined with ", ") and exits 1. Otherwise prints
     /// the real two success lines and exits 0.
     static let removeInstallationCase = """
-          remove-installation)
+          remove-board-connection)
             if [ -n "$YH_STUB_ARGV_LOG" ]; then echo "$all_args" >> "$YH_STUB_ARGV_LOG"; fi
             removal_users=""
             for pair in $YH_STUB_INSTALLATION_USERS; do
@@ -248,12 +248,12 @@ enum EngineStub {
               fi
             done
             if [ -n "$removal_users" ]; then
-              removal_name="installation \\"$2\\" was not removed: Project $removal_users"
-              removal_name="$removal_name uses installation \\"$2\\"; remove it first:"
+              removal_name="Board Connection \\"$2\\" was not removed: Project $removal_users"
+              removal_name="$removal_name uses Board Connection \\"$2\\"; remove it first:"
               echo "$removal_name yh project remove $removal_users"
               exit 1
             fi
-            echo "Installation $2 removed: its entry in config.toml and its Keychain items."
+            echo "Board Connection $2 removed: its entry in config.toml and its Keychain items."
             echo "Yellowhammer stays installed in that Linear workspace until a workspace admin removes it" \\
               "in Linear's settings."
             exit 0
