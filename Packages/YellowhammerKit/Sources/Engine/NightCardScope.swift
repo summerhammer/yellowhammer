@@ -1,7 +1,7 @@
 import Domain
 
 /// Where the Night Card is created and what marks it complete, resolved once per Act from the board's
-/// provisioning surface: the team, the "Night Card" object-type label, and the workflow state to move
+/// provisioning surface: the team, the "Night Card" card-type label, and the workflow state to move
 /// it to when the Night closes.
 public struct NightCardScope: Equatable, Sendable {
     public let team: BoardObjectID
@@ -24,11 +24,13 @@ public struct NightCardScope: Equatable, Sendable {
             throw NightCardScopeError.noTeam
         }
         let labels = try await board.labels(team: team.id)
-        let nightCardLabel = try DispositionLabels(labels: labels).objectType["Night Card"]
+        let nightCardLabel = try DispositionLabels(labels: labels).cardType[.nightCard]
         guard let nightCardLabel else {
             // DispositionLabels already verifies every declared child is present; this only guards
             // against its map changing shape underneath this call.
-            throw DispositionLabelsError.missing(group: BoardProvisioner.objectTypeGroup, label: "Night Card")
+            throw DispositionLabelsError.missing(
+                group: BoardProvisioner.cardTypeGroup, label: CardType.nightCard.rawValue
+            )
         }
         let states = try await board.workflowStates(team: team.id)
         guard let completedState = states.first(where: { $0.category == .completed }) else {

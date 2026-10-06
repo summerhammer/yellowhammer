@@ -19,8 +19,10 @@ enum AuthoringStopBoard {
     ) async throws {
         guard let outbox = context.outbox, let board = context.board else { return }
         let scope = try await BoardStateScope.resolve(using: board.provisioning)
-        guard let featureLabelID = scope.labels.objectType["Feature"] else {
-            throw DispositionLabelsError.missing(group: BoardProvisioner.objectTypeGroup, label: "Feature")
+        guard let featureLabelID = scope.labels.cardType[.featureCard] else {
+            throw DispositionLabelsError.missing(
+                group: BoardProvisioner.cardTypeGroup, label: CardType.featureCard.rawValue
+            )
         }
         let waitingOnYouID = try scope.id(for: .waitingOnYou)
         let assignee = await context.operatorIdentity.assignee(on: board.reading)
@@ -56,7 +58,7 @@ enum AuthoringStopBoard {
         try recordIssue(createdID.rawValue)
 
         if let reopenKey, !newlyCreated {
-            var change = scope.labels.change(objectType: "Feature", state: .waitingOnYou, blockReason: nil)
+            var change = scope.labels.change(cardType: .featureCard, state: .waitingOnYou, blockReason: nil)
             change.workflowState = waitingOnYouID
             _ = try await outbox.post(OutboxWrite(
                 key: reopenKey, write: .updateIssue(issue: createdID, change: change, undo: nil)

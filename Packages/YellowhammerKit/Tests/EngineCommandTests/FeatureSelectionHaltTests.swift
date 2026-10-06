@@ -50,7 +50,7 @@ struct FeatureSelectionHaltTests {
 
         let issue = try #require(await boards.writing.liveIssues.first { $0.title == "FEAT-1" })
         #expect(try await issue.workflowState == waitingOnYouStateID(boards))
-        #expect(issue.labels.contains(try #require(boards.ids["Feature"])))
+        #expect(issue.labels.contains(try #require(boards.ids[CardType.featureCard.rawValue])))
         let comments = await boards.writing.comments
         #expect(comments.contains { $0.issue == issue.id && $0.body.contains("the shared endpoint") })
     }
