@@ -49,11 +49,11 @@ struct SetupOptions {
     /// `--remote` (roadmap P17.9): requests admin approval through the Code Relay instead of signing in
     /// on this Mac. Only meaningful with `--install-linear`.
     let remoteApproval: Bool
-    /// `--installation`: the local name of the Linear App Installation this run acts on (a re-connect
+    /// `--board-connection`: the local name of the Linear Board Connection this run acts on (a re-connect
     /// target under `--install-linear`).
     let installation: String?
-    /// `--installation-name`: the local name for a NEW Linear App Installation. It never selects or
-    /// renames an existing one, so it cannot be combined with `--installation`; when Linear approves a
+    /// `--board-connection-name`: the local name for a NEW Linear Board Connection. It never selects or
+    /// renames an existing one, so it cannot be combined with `--board-connection`; when Linear approves a
     /// workspace already in the registry the name is discarded (and the run says so).
     let installationName: String?
     let githubCredential: CredentialReference?
@@ -78,7 +78,7 @@ struct SetupOptions {
         mode = try Self.parseMode(command)
         eventsJSON = try Self.parseEventsJSON(command)
         remoteApproval = try Self.parseRemoteApproval(command)
-        installation = try Self.parseInstallation(command.installation)
+        installation = try Self.parseInstallation(command.boardConnection)
         installationName = try Self.parseInstallationName(command)
         githubCredential = try Self.parseCredential(command.githubCredential, option: "--github-credential")
         operatorID = command.operatorID.map { BoardObjectID(rawValue: $0) }
@@ -181,7 +181,7 @@ struct SetupOptions {
     private static func parseInstallation(_ raw: String?) throws -> String? {
         guard let raw else { return nil }
         guard !raw.trimmingCharacters(in: .whitespaces).isEmpty else {
-            throw ValidationError("--installation must not be empty")
+            throw ValidationError("--board-connection must not be empty")
         }
         return raw
     }
@@ -345,7 +345,7 @@ extension SetupOptions {
             (command.exportJobs != nil, "--export-jobs"),
             (command.cron, "--cron"),
             (command.installLinear, "--install-linear"),
-            (command.installationName != nil, "--installation-name")
+            (command.boardConnectionName != nil, "--board-connection-name")
         ]
         let present = forbidden.filter(\.0).map(\.1)
         guard present.isEmpty else {
@@ -353,22 +353,22 @@ extension SetupOptions {
                 "--print-choices cannot be combined with " + present.joined(separator: ", ") // glossary:ignore GL001
             )
         }
-        if command.linearProject != nil && command.installation == nil {
+        if command.linearProject != nil && command.boardConnection == nil {
             throw ValidationError(
-                "--linear-project with --print-choices requires --installation" // glossary:ignore GL001
+                "--linear-project with --print-choices requires --board-connection" // glossary:ignore GL001
             )
         }
     }
 
     private static func parseInstallationName(_ command: SetupCommand) throws -> String? {
-        guard let raw = command.installationName else { return nil }
+        guard let raw = command.boardConnectionName else { return nil }
         guard !raw.trimmingCharacters(in: .whitespaces).isEmpty else {
-            throw ValidationError("--installation-name must not be empty")
+            throw ValidationError("--board-connection-name must not be empty")
         }
-        guard command.installation == nil else {
+        guard command.boardConnection == nil else {
             throw ValidationError(
-                "--installation-name names a new Linear App Installation and cannot be combined with "
-                    + "--installation, which selects an existing one"
+                "--board-connection-name names a new Board Connection and cannot be combined with "
+                    + "--board-connection, which selects an existing one"
             )
         }
         return raw

@@ -21,7 +21,7 @@ import Pulse
 @Observable
 final class OverviewModel {
     /// Nil until the first read finishes, and while the configuration cannot be read. Each Project's
-    /// Pulse carries its own Health flags: the installation flags are those of the App Installation that
+    /// Pulse carries its own Health flags: the installation flags are those of the Board Connection that
     /// Project selected, and only probe failures (machine-wide) are on every Project.
     var snapshot: LandingSnapshot? {
         guard var read = journalSnapshot else { return nil }

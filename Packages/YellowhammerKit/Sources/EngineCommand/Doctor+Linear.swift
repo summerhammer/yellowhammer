@@ -3,7 +3,7 @@ import Domain
 import Engine
 
 extension Doctor {
-    /// Check 4 (shift-scheduling/diagnose-the-installation): runs once per App Installation in the
+    /// Check 4 (shift-scheduling/diagnose-the-installation): runs once per Board Connection in the
     /// registry, in registry order. Each installation gets its token pair check, authorization and Operator
     /// identity (Operator Identity Ruling, OQ66: a stale Operator identity is flagged, never a load-time
     /// failure), an info line when no Project uses it, and then board membership for each Project it serves.
@@ -17,9 +17,9 @@ extension Doctor {
         guard !installations.isEmpty else {
             guard configuration.projects.isEmpty, missing.isEmpty else { return missing }
             return [finding(
-                .linear, subject: "installation", .info,
+                .linear, subject: "connection", .info,
                 "no Linear workspace is connected; connect one with `yh setup --install-linear`, " +
-                    "or Settings → Linear workspaces in Yellowhammer.app"
+                    "or Settings → Board connections in Yellowhammer.app"
             )]
         }
         var findings: [DoctorFinding] = []
@@ -44,7 +44,7 @@ extension Doctor {
         return refused.sorted { $0.id.rawValue < $1.id.rawValue }.map { id, name in
             finding(
                 .linear, subject: "project", .failure,
-                "Project \(id) names installation \(name), which is not in the registry; " // glossary:ignore GL001
+                "Project \(id) names Board Connection \(name), which is not in the registry; " // glossary:ignore GL001
                     + "connect that workspace with `yh setup --install-linear` and enter \(name) as its local "
                     + "name, or remove the Project (`yh project remove \(id)`) and add it again",
                 project: id,
@@ -87,9 +87,9 @@ extension Doctor {
         ]
         if served.isEmpty {
             findings.append(linearFinding(
-                scope(workspaceName), "installation", .info,
-                "no Project uses this installation; if you no longer use it, run "
-                    + "`yh config remove-installation \(installation.name)`"
+                scope(workspaceName), "connection", .info,
+                "no Project uses this Board Connection; if you no longer use it, run "
+                    + "`yh config remove-board-connection \(installation.name)`"
             ))
         }
         for project in served {
@@ -110,22 +110,22 @@ extension Doctor {
             return nil
         case .refused(.keychainAbsent):
             return linearFinding(
-                scope, "installation", .failure,
-                "no Linear Installation token pair found; re-connect this workspace: "
+                scope, "connection", .failure,
+                "no token pair found; re-connect this workspace: "
                     + Self.reconnectFix(installation),
                 authorization: .refused
             )
         case .refused(.linearRefused):
             return linearFinding(
                 scope, "authorization", .failure,
-                "the Linear installation was revoked or its sign-in expired; a workspace admin must approve "
+                "the Board Connection was revoked or its sign-in expired; a workspace admin must approve "
                     + "the app again: " + Self.reconnectFix(installation),
                 authorization: .refused
             )
         case .unreachable(.keychainUnreadable(let detail)):
             return linearFinding(
                 scope, "authorization", .failure,
-                "the Keychain item of this installation could not be read (\(detail)); "
+                "the Keychain item of this Board Connection could not be read (\(detail)); "
                     + "unlock the login Keychain and run `yh doctor` again",
                 authorization: .unreachable
             )
@@ -152,8 +152,8 @@ extension Doctor {
         return finding
     }
 
-    /// `installation acme (workspace "Acme Inc"; Projects alpha, beta): ` — the workspace name only when it
-    /// was read live; `no Projects` when the installation serves none.
+    /// `Board Connection acme (workspace "Acme Inc"; Projects alpha, beta): ` — the workspace name only when it
+    /// was read live; `no Projects` when the Board Connection serves none.
     static func installationPrefix(_ scope: DoctorInstallationScope) -> String {
         var parts: [String] = []
         if let name = scope.workspaceName {
@@ -161,12 +161,12 @@ extension Doctor {
         }
         let projects = scope.projects.map(\.rawValue).joined(separator: ", ")
         parts.append(scope.projects.isEmpty ? "no Projects" : "Projects " + projects)
-        return "installation \(scope.name) (\(parts.joined(separator: "; "))): "
+        return "Board Connection \(scope.name) (\(parts.joined(separator: "; "))): "
     }
 
     static func reconnectFix(_ installation: LinearInstallation) -> String {
-        "`yh setup --install-linear --installation \(installation.name)`, "
-            + "or Settings → Linear workspaces in Yellowhammer.app"
+        "`yh setup --install-linear --board-connection \(installation.name)`, "
+            + "or Settings → Board connections in Yellowhammer.app"
     }
 
     private func operatorIdentityFinding(
@@ -178,7 +178,7 @@ extension Doctor {
             return linearFinding(
                 scope, "operator", .warning,
                 "no Operator identity configured; Waiting on You issues of \(served) " // glossary:ignore GL001
-                    + "will be left unassigned; run `yh config operator --installation \(installation.name)`"
+                    + "will be left unassigned; run `yh config operator --board-connection \(installation.name)`"
             )
         }
         let candidates = OperatorIdentity.candidates(from: members)

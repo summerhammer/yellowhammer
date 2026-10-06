@@ -26,7 +26,7 @@ func defaultFileURL() {
     #expect(url.path(percentEncoded: false) == "/Users/operator/.config/yellowhammer/config.toml")
 }
 
-@Test("A minimal file declares no App Installations, no CLI Adapters and an empty Routing Table")
+@Test("A minimal file declares no Board Connections, no CLI Adapters and an empty Routing Table")
 func minimalFileLoads() throws {
     let configuration = try MachineConfiguration.load(contentsOf: fixture("minimal", in: "Valid"))
     #expect(configuration == MachineConfiguration(
@@ -94,7 +94,7 @@ func fullFileLoads() throws {
 @Test("Tables may be written as dotted keys or inline tables")
 func alternativeTableSpellings() throws {
     let text = """
-    board.linear.installations.acme = { credential = "keychain:linear", workspace = "w1", app_user = "u1" }
+    board.linear.connections.acme = { credential = "keychain:linear", workspace = "w1", yellowhammer_identity = "u1" }
     github = { credential = "keychain:github" }
     cli.claude = {}
     routing = [{ route = "claude/opus/high" }]
@@ -107,21 +107,40 @@ func alternativeTableSpellings() throws {
     #expect(configuration.routingTable == [RoutingEntry(route: try route("claude", "opus", "high"))])
 }
 
+@Test("Legacy installation table and app_user keys are rejected")
+func legacyBoardConnectionKeysAreRejected() {
+    let legacyTable = """
+    [board.linear.installations.acme]
+    credential = "keychain:linear"
+    workspace = "workspace-1"
+    yellowhammer_identity = "app-user-1"
+    """ + githubSection
+    let legacyIdentity = """
+    [board.linear.connections.acme]
+    credential = "keychain:linear"
+    workspace = "workspace-1"
+    app_user = "app-user-1"
+    """ + githubSection
+
+    #expect(throws: (any Error).self) { try MachineConfiguration.parse(legacyTable, file: "config.toml") }
+    #expect(throws: (any Error).self) { try MachineConfiguration.parse(legacyIdentity, file: "config.toml") }
+}
+
 private let githubSection = """
 
     [github]
     credential = "keychain:github"
     """
 
-@Test("A machine file with no [board] declares zero App Installations")
+@Test("A machine file with no [board] declares zero Board Connections")
 func noBoardMeansNoInstallations() throws {
     let configuration = try MachineConfiguration.parse(githubSection, file: "config.toml")
     #expect(configuration.linearInstallations == [])
 }
 
-@Test("An empty [board.linear.installations], an empty [board.linear] and an empty [board] declare none")
+@Test("An empty [board.linear.connections], an empty [board.linear] and an empty [board] declare none")
 func emptyRegistryMeansNoInstallations() throws {
-    for header in ["[board.linear.installations]", "[board.linear]", "[board]"] {
+    for header in ["[board.linear.connections]", "[board.linear]", "[board]"] {
         let configuration = try MachineConfiguration.parse(header + "\n" + githubSection, file: "config.toml")
         #expect(configuration.linearInstallations == [], "\(header)")
     }
@@ -130,16 +149,16 @@ func emptyRegistryMeansNoInstallations() throws {
 @Test("Two installations decode in file order with every field; operator is optional or empty")
 func installationsDecodeInFileOrder() throws {
     let text = """
-        [board.linear.installations.acme]
+        [board.linear.connections.acme]
         credential = "keychain:linear-acme"
         workspace = "workspace-1"
-        app_user = "app-user-1"
+        yellowhammer_identity = "app-user-1"
         operator = "user-123"
 
-        [board.linear.installations."acme corp"]
+        [board.linear.connections."acme corp"]
         credential = "keychain:linear-corp"
         workspace = "workspace-2"
-        app_user = "app-user-2"
+        yellowhammer_identity = "app-user-2"
         operator = ""
         """ + githubSection
     let configuration = try MachineConfiguration.parse(text, file: "config.toml")
@@ -166,10 +185,10 @@ func installationsDecodeInFileOrder() throws {
 @Test("A missing operator key decodes to nil")
 func absentOperatorIsNil() throws {
     let text = """
-        [board.linear.installations.acme]
+        [board.linear.connections.acme]
         credential = "keychain:linear-acme"
         workspace = "workspace-1"
-        app_user = "app-user-1"
+        yellowhammer_identity = "app-user-1"
         """ + githubSection
     let configuration = try MachineConfiguration.parse(text, file: "config.toml")
     #expect(configuration.linearInstallations.first?.operatorIdentity == nil)
@@ -201,10 +220,10 @@ func installationForProject() throws {
 @Test("An installation's operator must be a string when present")
 func installationOperatorTypeMismatch() {
     let text = """
-    [board.linear.installations.acme]
+    [board.linear.connections.acme]
     credential = "keychain:linear"
     workspace = "w1"
-    app_user = "u1"
+    yellowhammer_identity = "u1"
     operator = 42
     [github]
     credential = "keychain:github"
@@ -213,7 +232,7 @@ func installationOperatorTypeMismatch() {
         _ = try MachineConfiguration.parse(text, file: "config.toml")
         Issue.record("expected a non-string operator to fail")
     } catch {
-        #expect(error.key == "board.linear.installations.acme.operator")
+        #expect(error.key == "board.linear.connections.acme.operator")
         #expect(error.reason == .typeMismatch(expected: "string", found: "integer"))
     }
 }
@@ -221,15 +240,15 @@ func installationOperatorTypeMismatch() {
 @Test("A quoted installation name renders quoted in the key of its errors")
 func quotedInstallationNameInKey() {
     let text = """
-    [board.linear.installations."acme corp"]
+    [board.linear.connections."acme corp"]
     credential = "keychain:linear"
-    app_user = "u1"
+    yellowhammer_identity = "u1"
     """ + githubSection
     do {
         _ = try MachineConfiguration.parse(text, file: "config.toml")
         Issue.record("expected the parse to fail")
     } catch {
-        #expect(error.key == "board.linear.installations.\"acme corp\".workspace", "\(error)")
+        #expect(error.key == "board.linear.connections.\"acme corp\".workspace", "\(error)")
         #expect(error.reason == .missingKey)
     }
 }

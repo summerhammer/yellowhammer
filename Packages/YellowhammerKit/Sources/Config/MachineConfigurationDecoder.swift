@@ -29,26 +29,26 @@ struct MachineConfigurationDecoder {
 
     // MARK: - Sections
 
-    /// `[board.linear.installations.<name>]`, zero or more: the registry of App Installations. Each
-    /// carries a required `credential`, `workspace` and `app_user` and an optional Operator identity
+    /// `[board.linear.connections.<name>]`, zero or more: the registry of Board Connections. Each
+    /// carries a required `credential`, `workspace` and `yellowhammer_identity` and an optional Operator identity
     /// (`operator`). An absent or empty `operator` decodes to nil — never a load-time validation failure
     /// (Operator Identity Ruling — 2026-09-23). Two entries may not share a `workspace`.
     ///
-    /// `[board]`, `[board.linear]` and `[board.linear.installations]` may each be absent or empty.
+    /// `[board]`, `[board.linear]` and `[board.linear.connections]` may each be absent or empty.
     private func linearInstallations(in root: TOMLTable) throws(ConfigurationError) -> [LinearInstallation] {
         guard let boardValue = root["board"] else { return [] }
         let board = try decoding.table(boardValue, key: "board")
         try decoding.rejectUnknownKeys(in: board, path: "board", allowed: ["linear"])
         guard let linearValue = board["linear"] else { return [] }
         let linear = try decoding.table(linearValue, key: "board.linear")
-        try decoding.rejectUnknownKeys(in: linear, path: "board.linear", allowed: ["installations"])
-        guard let registryValue = linear["installations"] else { return [] }
-        let registry = try decoding.table(registryValue, key: "board.linear.installations")
+        try decoding.rejectUnknownKeys(in: linear, path: "board.linear", allowed: ["connections"])
+        guard let registryValue = linear["connections"] else { return [] }
+        let registry = try decoding.table(registryValue, key: "board.linear.connections")
 
         var installations: [LinearInstallation] = []
         var firstWorkspaces: [String: (installation: String, line: Int)] = [:]
         for entry in registry.entries {
-            let path = TOMLKey.path("board.linear.installations", entry.key)
+            let path = TOMLKey.path("board.linear.connections", entry.key)
             let table = try decoding.table(entry.value, key: path)
             guard !entry.key.isEmpty else {
                 throw decoding.error(line: entry.value.line, key: path, .emptyString)
@@ -71,7 +71,7 @@ struct MachineConfigurationDecoder {
         named name: String, in table: TOMLTable, path: String
     ) throws(ConfigurationError) -> LinearInstallation {
         try decoding.rejectUnknownKeys(
-            in: table, path: path, allowed: ["credential", "workspace", "app_user", "operator"]
+            in: table, path: path, allowed: ["credential", "workspace", "yellowhammer_identity", "operator"]
         )
         let credentialString = try decoding.requiredString("credential", in: table, path: path)
         guard let credential = CredentialReference(credentialString) else {
@@ -79,7 +79,7 @@ struct MachineConfigurationDecoder {
             throw decoding.error(line: line, key: TOMLKey.path(path, "credential"), .emptyString)
         }
         let workspace = try decoding.requiredString("workspace", in: table, path: path)
-        let appUser = try decoding.requiredString("app_user", in: table, path: path)
+        let appUser = try decoding.requiredString("yellowhammer_identity", in: table, path: path)
         let operatorString = try decoding.optionalString("operator", in: table, path: path, allowEmpty: true)
         return LinearInstallation(
             name: name,

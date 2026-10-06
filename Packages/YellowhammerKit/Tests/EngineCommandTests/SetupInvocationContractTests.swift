@@ -12,7 +12,7 @@ struct SetupInvocationContractTests {
     @Test("A full --init invocation parses back to the matching SetupOptions") // glossary:ignore GL001
     func fullInitInvocationParsesBack() throws {
         let invocation = SetupInvocation(
-            installation: "main",
+            boardConnection: "main",
             githubCredential: "keychain:github",
             cliAdapters: ["claude"],
             route: "claude/sonnet/medium",
@@ -67,9 +67,9 @@ struct SetupInvocationContractTests {
         #expect(options.linearProjectID == nil)
     }
 
-    @Test("installLinearArguments with a name parses back with --installation-name") // glossary:ignore GL001
+    @Test("installLinearArguments with a name parses back with --board-connection-name") // glossary:ignore GL001
     func installLinearWithNameParsesBack() throws {
-        let built = SetupInvocation.installLinearArguments(installationName: "work", remote: true)
+        let built = SetupInvocation.installLinearArguments(boardConnectionName: "work", remote: true)
         let arguments = Array(built.dropFirst())
 
         let options = try SetupOptions(command: try SetupCommand.parse(arguments))
@@ -81,9 +81,9 @@ struct SetupInvocationContractTests {
         #expect(options.remoteApproval)
     }
 
-    @Test("An --init invocation's installationName parses back")
+    @Test("An --init invocation's boardConnectionName parses back")
     func initInstallationNameParsesBack() throws {
-        let arguments = Array(try SetupInvocation(installationName: "work").arguments().dropFirst())
+        let arguments = Array(try SetupInvocation(boardConnectionName: "work").arguments().dropFirst())
 
         let options = try SetupOptions(command: try SetupCommand.parse(arguments))
 
@@ -94,7 +94,7 @@ struct SetupInvocationContractTests {
     @Test("choicesArguments parses back as --print-choices, no Project or generating options") // glossary:ignore GL001
     func choicesArgumentsParsesBack() throws {
         let arguments = Array(SetupInvocation.choicesArguments(
-            installation: "main", githubCredential: "keychain:github"
+            boardConnection: "main", githubCredential: "keychain:github"
         ).dropFirst())
 
         let command = try SetupCommand.parse(arguments)
@@ -110,7 +110,7 @@ struct SetupInvocationContractTests {
     @Test("choicesArguments with linearProject parses back with linearProjectID") // glossary:ignore GL001
     func choicesArgumentsWithLinearProjectParsesBack() throws {
         let arguments = Array(SetupInvocation.choicesArguments(
-            installation: "main", githubCredential: nil, linearProject: "proj-1"
+            boardConnection: "main", githubCredential: nil, linearProject: "proj-1"
         ).dropFirst())
 
         let command = try SetupCommand.parse(arguments)

@@ -26,7 +26,7 @@ The five checks:
   3. launchd jobs           — the three generated LaunchAgents point at the installed yh, are
                               loaded, and the selected Act's job actually fires it.
   4. yh doctor              — probes pass, Orca ADE meets the minimum version, and the
-                              Linear App Installation's authorization succeeds.
+                              Linear Board Connection's authorization succeeds.
   5. Shell, not host        — an Act fires and finishes whether or not the app was ever opened,
                               and quitting the app mid-Act does not kill it.
 

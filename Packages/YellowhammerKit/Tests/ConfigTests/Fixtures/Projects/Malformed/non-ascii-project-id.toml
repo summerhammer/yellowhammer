@@ -1,6 +1,6 @@
 id = "café"
 name = "Non-ASCII ID"
-board = { linear = { installation = "acme", project = "NA" } }
+board = { linear = { connection = "acme", project = "NA" } }
 
 [[repos]]
 name = "repo"

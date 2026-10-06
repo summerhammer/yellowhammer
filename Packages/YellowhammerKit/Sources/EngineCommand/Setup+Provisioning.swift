@@ -15,7 +15,7 @@ extension Setup {
         var unfinished: [(ProjectID, ProvisioningReport)] = []
         for project in configuration.projects {
             guard let installation = machine.linearInstallation(for: project) else {
-                output("Project \(project.id): names an unknown Linear App Installation") // glossary:ignore GL001
+                output("Project \(project.id): names an unknown Linear Board Connection") // glossary:ignore GL001
                 failed.insert(project.id)
                 continue
             }

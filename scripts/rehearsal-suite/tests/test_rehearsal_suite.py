@@ -262,11 +262,11 @@ class ParseArgumentsTests(unittest.TestCase):
         run = rehearsal_suite.parse_arguments(["run", "--app", "/tmp/App.app", "--team", "YLH"])
         self.assertIsNone(run.installation)
         run = rehearsal_suite.parse_arguments(
-            ["run", "--app", "/tmp/App.app", "--team", "YLH", "--installation", "my-ws"]
+            ["run", "--app", "/tmp/App.app", "--team", "YLH", "--board-connection", "my-ws"]
         )
         self.assertEqual(run.installation, "my-ws")
         teardown = rehearsal_suite.parse_arguments(
-            ["teardown", "--app", "/tmp/App.app", "--team", "YLH", "--installation", "my-ws"]
+            ["teardown", "--app", "/tmp/App.app", "--team", "YLH", "--board-connection", "my-ws"]
         )
         self.assertEqual(teardown.installation, "my-ws")
 

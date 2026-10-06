@@ -6,7 +6,7 @@ import Testing
 @testable import Engine
 @testable import Journal
 
-// roadmap P17.5, Linear App Installation Ruling: a write refused as BoardError.notAuthenticated is not
+// roadmap P17.5, Linear Board Connection Ruling: a write refused as BoardError.notAuthenticated is not
 // a permanent failure like .refused/.scopeNotFound/.forbidden — it stays pending so the Act above halts
 // and the write replays once re-authorized. Split out from OutboxTests.swift (SwiftLint's
 // type_body_length).

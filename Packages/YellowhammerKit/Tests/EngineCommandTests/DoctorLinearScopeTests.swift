@@ -10,16 +10,16 @@ struct DoctorLinearScopeTests {
         let output = RecordingOutput()
         let findings = await fixture.doctor(output: output).run()
 
-        let info = try #require(findings.linear("globex", subject: "installation").first)
+        let info = try #require(findings.linear("globex", subject: "connection").first)
         #expect(info.severity == .info)
-        #expect(info.message.contains("yh config remove-installation globex"))
+        #expect(info.message.contains("yh config remove-board-connection globex"))
         #expect(info.message.contains("no Project uses"))
-        #expect(info.message.hasPrefix("installation globex (workspace \"Globex Corp\"; no Projects): "))
+        #expect(info.message.hasPrefix("Board Connection globex (workspace \"Globex Corp\"; no Projects): "))
         // Its Keychain, authorization and Operator findings still run.
         #expect(findings.linear("globex", subject: "authorization").first?.severity == .pass)
         #expect(findings.linear("globex", subject: "operator").first?.severity == .pass)
         #expect(!findings.contains { $0.check == .linear && ($0.severity == .failure || $0.severity == .warning) })
-        #expect(output.lines.contains { $0.hasPrefix("[info] linear: installation globex") })
+        #expect(output.lines.contains { $0.hasPrefix("[info] linear: Board Connection globex") })
         // The summary counts only failures and warnings: the info line adds to neither.
         let others = findings.filter { $0.check != .linear && $0.severity == .warning }.count
         #expect(output.lines.last == "0 failed, \(others) warnings")
@@ -43,7 +43,7 @@ struct DoctorLinearScopeTests {
         #expect(missing.message.contains("initech"))
         #expect(missing.message.contains("yh setup --install-linear"))
         #expect(missing.message.contains("yh project remove delta"))
-        #expect(!missing.message.hasPrefix("installation "))
+        #expect(!missing.message.hasPrefix("connection "))
         #expect(findings.linear("acme", subject: "authorization").first?.severity == .pass)
         #expect(findings.linear("globex", subject: "authorization").first?.severity == .pass)
 
@@ -74,7 +74,7 @@ struct DoctorLinearScopeTests {
         let linear = none.filter { $0.check == .linear }
         #expect(linear.count == 1)
         #expect(linear[0].severity == .info)
-        #expect(linear[0].subject == "installation")
+        #expect(linear[0].subject == "connection")
         #expect(linear[0].message.contains("no Linear workspace is connected"))
 
         let withProject = ConfigurationDirectory()
@@ -120,7 +120,7 @@ struct DoctorLinearScopeTests {
         #expect(!forbidden.message.contains("not visible"))
         let hidden = try #require(findings.linear("globex", subject: "team").first)
         #expect(hidden.severity == .failure)
-        #expect(hidden.message.contains("not visible to this installation"))
+        #expect(hidden.message.contains("not visible to this connection"))
     }
 
     @Test("--project keeps only the filtered Project's installation and its own Project findings")

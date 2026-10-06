@@ -3,9 +3,9 @@ import Domain
 import Foundation
 import Observation
 
-/// The Linear workspaces list, in Settings → Boards (L3.1) and in the Add Project wizard's
-/// Linear step (L3.2): one row per App Installation in `config.toml`'s
-/// `[board.linear.installations.<name>]` registry, with per row a re-connect, a removal and the Operator
+/// The Board connections list, in Settings → Boards (L3.1) and in the Add Project wizard's
+/// Linear step (L3.2): one row per Board Connection in `config.toml`'s
+/// `[board.linear.connections.<name>]` registry, with per row a re-connect, a removal and the Operator
 /// identity, and one connect-another install. The app decides nothing (ADR-001): every change is a `yh`
 /// invocation built in `Domain`, `config.toml` is only ever read here, and a refusal is `yh`'s own words.
 ///
@@ -16,7 +16,7 @@ import Observation
 @MainActor
 @Observable
 final class LinearWorkspacesModel {
-    /// One App Installation as `config.toml` holds it, plus the Projects that name it.
+    /// One Board Connection as `config.toml` holds it, plus the Projects that name it.
     struct Workspace: Identifiable, Equatable {
         /// The local name, the registry key.
         let name: String
@@ -95,7 +95,7 @@ final class LinearWorkspacesModel {
     // MARK: Reading
 
     /// Reads `config.toml` and the Project files in `directory`. Never writes. The removal-shaped load,
-    /// as `yh config remove-installation` reads them: a Project naming a missing installation still loads,
+    /// as `yh config remove-board-connection` reads them: a Project naming a missing installation still loads,
     /// so it never blocks another installation's *Remove*.
     func load() {
         do {
@@ -215,7 +215,7 @@ final class LinearWorkspacesModel {
             && statuses[workspace.name]?.authorization == .refused
     }
 
-    /// Runs `yh config remove-installation <name>`, with `--orphan-projects --yes` for *Remove anyway…*
+    /// Runs `yh config remove-board-connection <name>`, with `--orphan-projects --yes` for *Remove anyway…*
     /// (whose dialog was the confirmation). Exit 0: reloads, refreshes and keeps `yh`'s lines as the list's
     /// success message. Otherwise `yh`'s lines are that row's refusal, verbatim.
     func remove(_ name: String, orphanProjects: Bool = false) async {
@@ -227,7 +227,7 @@ final class LinearWorkspacesModel {
         var lines: [String] = []
         do {
             let status = try await removalEngine.run(
-                arguments: ConfigInvocation.removeInstallationArguments(name: name, orphanProjects: orphanProjects)
+                arguments: ConfigInvocation.removeBoardConnectionArguments(name: name, orphanProjects: orphanProjects)
             ) { lines.append($0) }
             guard status == 0 else {
                 removalFailures[name] = lines.isEmpty ? ["yh exited \(status)."] : lines

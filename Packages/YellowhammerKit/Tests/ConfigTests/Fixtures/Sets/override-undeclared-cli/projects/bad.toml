@@ -1,6 +1,6 @@
 id = "bad"
 name = "Bad Override"
-board = { linear = { installation = "acme", project = "BAD" } }
+board = { linear = { connection = "acme", project = "BAD" } }
 spec_source = "~/dev/spec"
 
 [[repos]]

@@ -1,8 +1,8 @@
-[board.linear.installations.acme]
+[board.linear.connections.acme]
 credential = "keychain:linear-acme"
 workspace = "ws-1"
 client_id = "yellowhammer-client-id"
-app_user = "app-1"
+yellowhammer_identity = "app-1"
 
 [github]
 credential = "keychain:github"

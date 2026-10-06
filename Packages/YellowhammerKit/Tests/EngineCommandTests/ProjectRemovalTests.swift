@@ -311,7 +311,7 @@ func invalidTemplateProjectIsRemovable() async throws {
     try directory.writeProjectFile(id: "alpha", """
         id = "alpha"
         name = "alpha"
-        board = { linear = { installation = "acme", project = "alpha" } }
+        board = { linear = { connection = "acme", project = "alpha" } }
         spec_source = "~/Developer/alpha-spec"
         change_type = ""
 
@@ -354,7 +354,7 @@ func removalStillValidatesWhatItUses() async throws {
     try directory.writeProjectFile(id: "alpha", """
         id = "alpha"
         name = "alpha"
-        board = { linear = { installation = "acme", project = "alpha" } }
+        board = { linear = { connection = "acme", project = "alpha" } }
         spec_source = "~/Developer/alpha-spec"
 
         [git]

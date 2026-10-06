@@ -21,7 +21,7 @@ final class SetupWizardModel {
 
     /// The machine file as last loaded; nil when it does not load, as on a Mac where Setup has never run.
     var machineConfiguration: MachineConfiguration?
-    /// The Linear workspaces list the Linear step chooses from, and connects another to.
+    /// The Board connections list the Linear step chooses from, and connects another to.
     let linearWorkspaces: LinearWorkspacesModel
     var isFetchingTeams = false
     /// `yh --print-choices`'s output when it could not list the teams; the Linear project step still takes

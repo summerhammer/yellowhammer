@@ -164,7 +164,7 @@ public struct AddProjectDraft: Equatable, Sendable {
     public var idConfirmed = false
 
     // Linear project
-    /// The local name of the Linear App Installation the Operator selected; nil is not chosen.
+    /// The local name of the Linear Board Connection the Operator selected; nil is not chosen.
     public var linearInstallationName: String?
     public var linearChoice: LinearProjectChoice = .existing
     /// A typed or picked Linear project id; trimmed empty means not chosen.

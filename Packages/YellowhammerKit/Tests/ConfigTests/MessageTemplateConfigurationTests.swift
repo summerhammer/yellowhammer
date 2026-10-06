@@ -6,7 +6,7 @@ import Testing
 private let base = """
     id = "alpha"
     name = "Alpha"
-    board = { linear = { installation = "acme", project = "ALP" } }
+    board = { linear = { connection = "acme", project = "ALP" } }
     spec_source = "~/spec"
     """
 
@@ -161,12 +161,12 @@ func badTemplateIsolatesProject() throws {
     let projects = directory.appending(component: "projects", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: projects, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: directory) }
-    let machineText = "[board.linear.installations.acme]\ncredential = \"keychain:linear\"\n"
-        + "workspace = \"w1\"\napp_user = \"u1\"\n\n[github]\ncredential = \"keychain:github\"\n"
+    let machineText = "[board.linear.connections.acme]\ncredential = \"keychain:linear\"\n"
+        + "workspace = \"w1\"\nyellowhammer_identity = \"u1\"\n\n[github]\ncredential = \"keychain:github\"\n"
     try machineText.write(to: directory.appending(component: "config.toml"), atomically: true, encoding: .utf8)
     func file(_ id: String, _ path: String, _ extra: String) -> String {
         "id = \"\(id)\"\nname = \"\(id)\"\nspec_source = \"~/spec\"\n\n"
-            + "[board.linear]\ninstallation = \"acme\"\nproject = \"\(id)\"\n\n"
+            + "[board.linear]\nconnection = \"acme\"\nproject = \"\(id)\"\n\n"
             + "[[repos]]\nname = \"b\"\npath = \"\(path)\"\nrole = \"backend\"\ncheck = \"none\"\n\n\(extra)\n"
     }
     try file("good", "~/good", "").write(

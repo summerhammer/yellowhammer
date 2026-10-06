@@ -23,8 +23,8 @@ FRESH_APP_PAIR = {
 
 
 MACHINE_CONFIG = (
-    '[board.linear.installations.scratch]\n'
-    'credential = "keychain:linear-scratch"\nworkspace = "ws-1"\napp_user = "app-1"\noperator = "user-123"\n'
+    '[board.linear.connections.scratch]\n'
+    'credential = "keychain:linear-scratch"\nworkspace = "ws-1"\nyellowhammer_identity = "app-1"\noperator = "user-123"\n'
 )
 
 # MARK: - Project TOML rendering
@@ -46,7 +46,7 @@ class RenderProjectTomlTests(unittest.TestCase):
         self.assertEqual(data["id"], "rehearsal-suite-a")
         self.assertEqual(data["name"], "Rehearsal Suite A")
         self.assertEqual(data["board"]["linear"]["project"], "11111111-1111-4111-8111-111111111111")
-        self.assertEqual(data["board"]["linear"]["installation"], "scratch")
+        self.assertEqual(data["board"]["linear"]["connection"], "scratch")
         self.assertNotIn("linear_project", data)
         self.assertEqual(data["spec_source"], "/tmp/spec")
         self.assertEqual(len(data["repos"]), 2)
@@ -352,8 +352,8 @@ class ResetProjectTests(unittest.TestCase):
             result = suite_env.reset_project(env, "rehearsal-suite-a")
         rm_mock.assert_called_once_with("wt-feature")
         reset_command = run_mock.call_args.args[0]
-        self.assertEqual(reset_command[reset_command.index("--installation") + 1], "scratch")
-        self.assertLess(reset_command.index("--installation"), reset_command.index("reset"))
+        self.assertEqual(reset_command[reset_command.index("--board-connection") + 1], "scratch")
+        self.assertLess(reset_command.index("--board-connection"), reset_command.index("reset"))
         self.assertEqual(result, rebuilt_manifest)
         add_mock.assert_called_once_with(str(clone_path))
 
@@ -387,8 +387,8 @@ class ReadOperatorIdentityTests(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         config_dir = Path(tmp.name)
         (config_dir / "config.toml").write_text(
-            MACHINE_CONFIG + '\n[board.linear.installations."my-ws"]\n'
-            'credential = "keychain:linear-other"\nworkspace = "ws-2"\napp_user = "app-2"\noperator = "user-456"\n'
+            MACHINE_CONFIG + '\n[board.linear.connections."my-ws"]\n'
+            'credential = "keychain:linear-other"\nworkspace = "ws-2"\nyellowhammer_identity = "app-2"\noperator = "user-456"\n'
         )
         self.assertEqual(suite_env.read_operator_identity(config_dir, "my-ws"), "user-456")
         self.assertEqual(suite_env.read_operator_identity(config_dir, "scratch"), "user-123")
@@ -415,8 +415,8 @@ class InstallationTests(unittest.TestCase):
         self.config_dir = Path(self.tmp.name) / "config"
         (self.config_dir / "projects").mkdir(parents=True)
         self.second = (
-            '\n[board.linear.installations."my-ws"]\n'
-            'credential = "keychain:linear-other"\nworkspace = "ws-2"\napp_user = "app-2"\n'
+            '\n[board.linear.connections."my-ws"]\n'
+            'credential = "keychain:linear-other"\nworkspace = "ws-2"\nyellowhammer_identity = "app-2"\n'
         )
 
     def make_env(self, installation=None):
@@ -437,7 +437,7 @@ class InstallationTests(unittest.TestCase):
         (self.config_dir / "config.toml").write_text(MACHINE_CONFIG + self.second)
         with self.assertRaises(suite_env.SetupFailed) as ctx:
             suite_env.resolve_installation(self.make_env())
-        self.assertIn("--installation <name>", str(ctx.exception))
+        self.assertIn("--board-connection <name>", str(ctx.exception))
         env = self.make_env("my-ws")
         self.assertEqual(suite_env.resolve_installation(env).credential, "keychain:linear-other")
 
@@ -451,20 +451,20 @@ class InstallationTests(unittest.TestCase):
              mock.patch.object(suite_env, "default_repo_declarations", return_value=[]):
             suite_env.ensure_project(env, "rehearsal-suite-a")
         args = env.yh.run_setup.call_args.args[1]
-        self.assertEqual(args[args.index("--installation") + 1], "my-ws")
+        self.assertEqual(args[args.index("--board-connection") + 1], "my-ws")
 
     def test_scenario_project_file_preserves_installation_and_project(self):
         (self.config_dir / "config.toml").write_text(MACHINE_CONFIG)
         path = suite_env.project_file_path(self.config_dir, "rehearsal-suite-a")
         path.write_text(
-            'id = "rehearsal-suite-a"\n\n[board.linear]\ninstallation = "my-ws"\nproject = "lp-a"\n'
+            'id = "rehearsal-suite-a"\n\n[board.linear]\nconnection = "my-ws"\nproject = "lp-a"\n'
         )
         env = self.make_env()
         manifest = {"spec_source": "/tmp/spec", "repos": []}
         with mock.patch.object(suite_env, "default_repo_declarations", return_value=[]):
             suite_env.write_scenario_project_file(env, "rehearsal-suite-a", manifest)
         data = tomllib.loads(path.read_text())
-        self.assertEqual(data["board"]["linear"], {"installation": "my-ws", "project": "lp-a"})
+        self.assertEqual(data["board"]["linear"], {"connection": "my-ws", "project": "lp-a"})
         self.assertNotIn("linear_project", data)
 
     def test_rendered_table_precedes_repos(self):
@@ -1166,7 +1166,7 @@ class TeardownProjectTests(unittest.TestCase):
         path = suite_env.project_file_path(self.config_dir, project_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
-            f'id = "{project_id}"\n\n[board.linear]\ninstallation = "scratch"\nproject = "{linear_project_id}"\n'
+            f'id = "{project_id}"\n\n[board.linear]\nconnection = "scratch"\nproject = "{linear_project_id}"\n'
         )
 
     def _write_fixture_tree(self, project_id):

@@ -7,10 +7,10 @@ import Testing
 @Suite("Doctor: probes check")
 struct DoctorProbesTests {
     private static let machineFileWithClaude = """
-        [board.linear.installations.acme]
+        [board.linear.connections.acme]
         credential = "keychain:linear"
         workspace = "workspace-1"
-        app_user = "app-user-1"
+        yellowhammer_identity = "app-user-1"
 
         [github]
         credential = "keychain:github"

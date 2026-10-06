@@ -95,7 +95,7 @@ def run_suite(
         "--app", str(app), "--team", team, "--work-directory", str(work_directory),
     ]
     if installation is not None:
-        command += ["--installation", installation]
+        command += ["--board-connection", installation]
     for number in scenario_numbers or []:
         command += ["--scenario", str(number)]
     if act_timeout is not None:
@@ -390,8 +390,8 @@ def parse_arguments(argv):
     )
 
     record_parser.add_argument(
-        "--installation", metavar="NAME", default=None,
-        help="the App Installation in config.toml, passed to the suite (default: the sole one)",
+        "--board-connection", dest="installation", metavar="NAME", default=None,
+        help="the Board Connection in config.toml, passed to the suite (default: the sole one)",
     )
 
     check_parser = subparsers.add_parser("check", help="exit 0 only if the evidence is a clean green")

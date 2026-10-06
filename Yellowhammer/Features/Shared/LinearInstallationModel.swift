@@ -2,7 +2,7 @@ import Domain
 import Foundation
 import Observation
 
-/// The Linear App Installation's browser-install state (P17.7; spec: board-projection/install-the-linear-app),
+/// The Linear Board Connection's browser-install state (P17.7; spec: board-projection/install-the-linear-app),
 /// shared by the Setup wizard's Linear step and the Settings window's Boards pane. Every piece of copy the
 /// Operator sees for a running attempt comes from `yh setup --install-linear --events json`'s NDJSON stream,
 /// decoded with `Domain.LinearInstallEvent` — the app invents no wording of its own for what an attempt is
@@ -40,16 +40,16 @@ final class LinearInstallationModel {
     /// Whether the running (or most recently ended) attempt used `--remote` (roadmap P17.9) — so a
     /// same-path retry (`startLinearInstall()`, no argument) repeats it.
     private(set) var lastLinearInstallWasRemote = false
-    /// The registry entry passed as `--installation` (a re-connect target); nil connects untargeted.
+    /// The registry entry passed as `--board-connection` (a re-connect target); nil connects untargeted.
     let installationName: String?
     /// Called once an attempt has installed and `yh` has exited, so an owner that outlives the view (the Settings
-    /// window's Linear workspaces list) can reload without a view being on screen.
+    /// window's Board connections list) can reload without a view being on screen.
     var onInstalled: (@MainActor () -> Void)?
     /// The local name of the registry entry the most recent attempt installed into, from its `installed`
     /// event: a new entry, or the existing one a re-connect replaced. nil until an attempt installs.
     private(set) var installedInstallationName: String?
     /// The Operator's local name for a new installation (connect-another only, `installationName` nil),
-    /// passed as `--installation-name`; empty means "use the proposal", the workspace's URL key, which is
+    /// passed as `--board-connection-name`; empty means "use the proposal", the workspace's URL key, which is
     /// known only once Linear approves. `yh` checks it before the browser opens; the app holds nothing.
     var newInstallationName = ""
     /// `yh`'s own line when Linear approved a workspace that was already connected, so the given name was
@@ -127,8 +127,8 @@ final class LinearInstallationModel {
 
     private func runLinearInstall(remote: Bool) async {
         let arguments = SetupInvocation.installLinearArguments(
-            installation: installationName,
-            installationName: namesNewInstallation ? newInstallationName : nil,
+            boardConnection: installationName,
+            boardConnectionName: namesNewInstallation ? newInstallationName : nil,
             remote: remote
         )
         do {

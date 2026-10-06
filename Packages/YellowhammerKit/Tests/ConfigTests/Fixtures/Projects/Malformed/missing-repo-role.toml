@@ -1,6 +1,6 @@
 id = "missing-repo-role"
 name = "Repo No Role"
-board = { linear = { installation = "acme", project = "RNR" } }
+board = { linear = { connection = "acme", project = "RNR" } }
 
 [[repos]]
 name = "repo"

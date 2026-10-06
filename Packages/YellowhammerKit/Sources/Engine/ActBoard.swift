@@ -12,11 +12,11 @@ public struct ActBoard: Sendable {
     public let writing: any BoardWriting
     public let provisioning: any BoardProvisioning
 
-    /// The refresh attempts this Act's board made of the App Installation's token pair; the Engine
+    /// The refresh attempts this Act's board made of the Board Connection's token pair; the Engine
     /// drains it into the Journal. Nil for a board that records none.
     public let tokenRefreshes: AppInstallationTokenRefreshLog?
 
-    /// The App Installation this board works through. Nil for a board bound through no App
+    /// The Board Connection this board works through. Nil for a board bound through no App
     /// Installation (test fakes).
     public let installation: AppInstallationLabel?
 

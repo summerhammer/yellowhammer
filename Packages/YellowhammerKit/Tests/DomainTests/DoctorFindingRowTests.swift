@@ -57,7 +57,7 @@ struct DoctorFindingRowTests {
         #expect(DoctorFindingRow.decodeLastLine([DoctorFindingRow.encodeLine([row])]) == [row])
     }
 
-    @Test("authorizationState prefers the authorization row, falls back to the installation row")
+    @Test("authorizationState prefers the authorization row, falls back to the connection row")
     func authorizationStateAccessor() {
         func row(_ subject: String, _ installation: String, _ state: String?) -> DoctorFindingRow {
             DoctorFindingRow(
@@ -66,7 +66,7 @@ struct DoctorFindingRowTests {
             )
         }
         let rows = [
-            row("operator", "acme", nil), row("installation", "acme", "refused"),
+            row("operator", "acme", nil), row("connection", "acme", "refused"),
             row("authorization", "globex", "unreachable"), row("authorization", "initech", "authorized")
         ]
         #expect(DoctorFindingRow.authorizationState(in: rows, installation: "acme") == .refused)

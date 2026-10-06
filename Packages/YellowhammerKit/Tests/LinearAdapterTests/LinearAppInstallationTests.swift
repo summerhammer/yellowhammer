@@ -3,7 +3,7 @@ import Foundation
 @testable import LinearAdapter
 import Testing
 
-@Suite("Linear App Installation (P17.3, ADR-005)")
+@Suite("Linear Board Connection (P17.3, ADR-005)")
 struct LinearAppInstallationTests {
     @Test("The authorization URL carries every required parameter, with the exact redirect URI")
     func authorizationURLParameters() throws {
@@ -91,7 +91,7 @@ struct LinearAppInstallationTests {
         #expect(!body.contains("client_secret"))
     }
 
-    @Test("confirm decodes the app user's id and the workspace id and name")
+    @Test("confirm decodes the Yellowhammer identity's id and the workspace id and name")
     func confirmDecodesIdentity() async throws {
         let transport = StubHTTPTransport([
             Fixture.json(#"{"data":{"viewer":{"id":"app-user-1","name":"Yellowhammer"},"#

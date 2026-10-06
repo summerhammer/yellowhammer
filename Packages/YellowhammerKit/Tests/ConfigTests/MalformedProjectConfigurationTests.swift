@@ -20,11 +20,11 @@ private let boardFixtures: [MalformedFixture] = [
     MalformedFixture("board-without-vendor", line: 3, key: "board.linear", .missingTable),
     MalformedFixture("board-unknown-vendor", line: 3, key: "board.jira", .unknownKey),
     MalformedFixture("board-two-vendors", line: 7, key: "board.jira", .unknownKey),
-    MalformedFixture("board-installations-table", line: 3, key: "board.linear.installations", .unknownKey),
+    MalformedFixture("board-installations-table", line: 3, key: "board.linear.connections", .unknownKey),
     MalformedFixture("top-level-linear-project", line: 3, key: "linear_project", .unknownKey), // glossary:ignore GL001
     MalformedFixture("top-level-linear-table", line: 3, key: "linear", .unknownKey),
-    MalformedFixture("missing-installation", line: 3, key: "board.linear.installation", .missingKey),
-    MalformedFixture("board-empty-installation", line: 4, key: "board.linear.installation", .emptyString)
+    MalformedFixture("missing-installation", line: 3, key: "board.linear.connection", .missingKey),
+    MalformedFixture("board-empty-installation", line: 4, key: "board.linear.connection", .emptyString)
 ]
 
 private let repoFixtures: [MalformedFixture] = [
@@ -118,7 +118,7 @@ func parseSkipsFileStemCheck() throws {
     spec_source = "~/spec"
 
     [board.linear]
-    installation = "acme"
+    connection = "acme"
     project = "ANY"
 
     [[repos]]
@@ -138,7 +138,7 @@ name = "Override"
 spec_source = "~/spec"
 
 [board.linear]
-installation = "acme"
+connection = "acme"
 project = "OVR"
 
 [[repos]]
@@ -189,7 +189,21 @@ func installationCheckNeedsTheDeclaredInstallations() throws {
         return
     }
     #expect(error.line == 6)
-    #expect(error.key == "board.linear.installation")
+    #expect(error.key == "board.linear.connection")
     #expect(error.reason == .undeclaredLinearInstallation("acme"))
     #expect(error.description.contains("config.toml"))
+}
+
+@Test("The retired Project installation key is rejected")
+func retiredProjectInstallationKeyIsRejected() {
+    let legacy = overrideText.replacingOccurrences(of: "connection =", with: "installation =")
+    let result = Result { () throws(ConfigurationError) in
+        try ProjectConfiguration.parse(legacy, file: "/tmp/legacy-project.toml")
+    }
+    guard case .failure(let error) = result else {
+        Issue.record("expected the retired Project key to be rejected")
+        return
+    }
+    #expect(error.key == "board.linear.installation")
+    #expect(error.reason == .unknownKey)
 }

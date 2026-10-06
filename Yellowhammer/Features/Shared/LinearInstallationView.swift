@@ -2,7 +2,7 @@ import AppKit
 import Domain
 import SwiftUI
 
-/// The Linear App Installation's install UI (roadmap P17.6/P17.9): one view per phase of
+/// The Linear Board Connection's install UI (roadmap P17.6/P17.9): one view per phase of
 /// ``LinearInstallationModel``, shared by the Setup wizard's Linear step and the Settings window's Boards
 /// pane. It lays out its rows into whatever container embeds it, so it belongs inside a `Form` section.
 /// `offersReinstall` adds, to the installed state, the two buttons that re-run the install — replacing the
@@ -24,7 +24,7 @@ struct LinearInstallationView: View {
     @ViewBuilder private var content: some View {
         switch model.phase {
         case .checking:
-            ProgressView("Checking for an existing installation…")
+            ProgressView("Checking for an existing Board Connection…")
                 .accessibilityIdentifier("setup-linear-checking")
         case .notInstalled:
             nameField

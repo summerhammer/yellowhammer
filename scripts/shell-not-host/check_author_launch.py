@@ -102,10 +102,10 @@ def prepare(directory):
     projects = configuration / "projects"
     projects.mkdir(parents=True)
     (configuration / "config.toml").write_text('''
-[board.linear.installations.acme]
+[board.linear.connections.acme]
 credential = "keychain:linear"
 workspace = "workspace-1"
-app_user = "app-user-1"
+yellowhammer_identity = "app-user-1"
 [github]
 credential = "keychain:github"
 [cli.claude]
@@ -118,7 +118,7 @@ id = "{project}"
 name = "{project.title()}"
 spec_source = "~/dev/spec"
 [board.linear]
-installation = "acme"
+connection = "acme"
 project = "{project.upper()}"
 [[repos]]
 name = "{project}"

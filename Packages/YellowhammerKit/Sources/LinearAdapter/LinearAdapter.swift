@@ -3,7 +3,7 @@ import Foundation
 
 /// The Linear implementation of the Board Port, bound at construction to one Project's Linear project.
 ///
-/// It authenticates as Yellowhammer's Linear App Installation (ADR-005) — an application-actor identity,
+/// It authenticates as Yellowhammer's Linear Board Connection (ADR-005) — an application-actor identity,
 /// never an Operator's personal API key, and never a client secret (the withdrawn client-credentials
 /// mode was removed in P17.4) — records the budget every response reports, and translates every
 /// failure into ``BoardError``. It translates and never decides: no Outbox, no Lease; the one exception

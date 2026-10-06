@@ -5,7 +5,7 @@ import Foundation
 import Synchronization
 import Testing
 
-// One refresh lock per App Installation (roadmap L1.2; install-the-linear-app, *Keeping it alive*;
+// One refresh lock per Board Connection (roadmap L1.2; install-the-linear-app, *Keeping it alive*;
 // OQ109 item 8), across real processes. A child process plays another Act's refresh: it flocks a lock
 // file, and may write a rotated pair to a file-backed token store before releasing. This process runs
 // a real `LinearInstallationTokenSource` whose refresh lock is a `MachineLock` at the path
@@ -90,7 +90,7 @@ private struct ChildFailure: Error, CustomStringConvertible {
     init(_ description: String) { self.description = description }
 }
 
-@Suite("One refresh lock per App Installation, across processes (L1.2, OQ109 item 8)")
+@Suite("One refresh lock per Board Connection, across processes (L1.2, OQ109 item 8)")
 struct InstallationRefreshLockProcessTests {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
 

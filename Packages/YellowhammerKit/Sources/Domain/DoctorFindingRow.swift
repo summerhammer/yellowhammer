@@ -11,7 +11,7 @@ public struct DoctorFindingRow: Codable, Equatable, Sendable {
     /// `"pass"`, `"warning"`, `"failure"` or `"info"`.
     public var severity: String
     public var message: String
-    /// The App Installation's local name, when the finding is about one.
+    /// The Board Connection's local name, when the finding is about one.
     public var installation: String?
     /// The Linear workspace ID the installation belongs to (an opaque vendor ID).
     public var workspace: String?

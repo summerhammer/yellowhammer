@@ -119,13 +119,13 @@ struct ProjectRemoval {
             )
             let body = ProjectRemovalComment(projectID: project.id, mode: mode).body()
             if configuration.machine.linearInstallation(for: project) == nil {
-                // fire-an-act-on-schedule; OQ109 item 10: with the Project's App Installation gone from
+                // fire-an-act-on-schedule; OQ109 item 10: with the Project's Board Connection gone from
                 // config.toml there is no identity to comment as, and a missing installation never blocks
                 // removal: it proceeds, reports the skip, and counts it as a succeeded step. An
                 // installation that is present but refused by Linear is not this case (OQ119): that
                 // comment step still fails below.
                 output(
-                    "skipped the release comment on \(feature.issueID): Linear App Installation "
+                    "skipped the release comment on \(feature.issueID): Linear Board Connection "
                         + "\"\(project.linearInstallationName)\" is not in config.toml"
                 )
             } else {

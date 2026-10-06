@@ -197,7 +197,7 @@ struct OverviewWindow: View {
                 settingsRequest.request(scopedProject)
                 openWindow(id: SettingsWindow.windowID)
             case .linearWorkspaces:
-                // The Linear workspaces list is in Settings → Boards.
+                // The Board connections list is in Settings → Boards.
                 settingsRequest.request(scopedProject, section: .boards)
                 openWindow(id: SettingsWindow.windowID)
             case let .nightCard(url), let .linearIssue(url), let .pullRequest(url):

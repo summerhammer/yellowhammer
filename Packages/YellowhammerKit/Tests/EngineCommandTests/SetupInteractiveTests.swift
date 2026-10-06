@@ -69,7 +69,7 @@ struct SetupInteractiveTests {
         // A second interactive run, declining to declare the Project again, creates nothing further.
         let secondConsole = ScriptedConsole(answers: ["n"])
         let secondSetup = try makeSetup(
-            arguments: arguments + ["--installation", "acme"], directory: directory, board: board,
+            arguments: arguments + ["--board-connection", "acme"], directory: directory, board: board,
             console: secondConsole
         )
         try await secondSetup.run()

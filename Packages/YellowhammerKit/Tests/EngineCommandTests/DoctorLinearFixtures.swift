@@ -1,7 +1,7 @@
 import Domain
 @testable import EngineCommand
 
-/// Two App Installations, `acme` (Projects alpha, gamma) and `globex` (Project beta), with a credential per
+/// Two Board Connections, `acme` (Projects alpha, gamma) and `globex` (Project beta), with a credential per
 /// installation and one fake board each, for the per-installation Check 4 tests.
 struct DoctorLinearFixture: ~Copyable {
     let directory = ConfigurationDirectory()
@@ -17,10 +17,10 @@ struct DoctorLinearFixture: ~Copyable {
         func entry(_ name: String, workspace: String) -> String {
             let operatorLine = operators[name].map { "operator = \"\($0)\"\n" } ?? ""
             return """
-                [board.linear.installations.\(name)]
+                [board.linear.connections.\(name)]
                 credential = "keychain:linear-\(name)"
                 workspace = "\(workspace)"
-                app_user = "app-user-\(name)"
+                yellowhammer_identity = "app-user-\(name)"
                 \(operatorLine)
                 """
         }
@@ -32,7 +32,7 @@ struct DoctorLinearFixture: ~Copyable {
             try directory.writeProjectFile(id: project.id, """
                 id = "\(project.id)"
                 name = "\(project.id)"
-                board = { linear = { installation = "\(project.installation)", project = "lp-\(project.id)" } }
+                board = { linear = { connection = "\(project.installation)", project = "lp-\(project.id)" } }
                 spec_source = "~/Developer/\(project.id)-spec"
 
                 [[repos]]

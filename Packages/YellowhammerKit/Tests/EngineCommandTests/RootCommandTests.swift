@@ -55,7 +55,7 @@ func actWithoutProjectFailsToParse(_ act: Act) {
     }
 }
 
-@Test("An Act invocation creates the Project's Journal with its App Installation's Linear workspace")
+@Test("An Act invocation creates the Project's Journal with its Board Connection's Linear workspace")
 func actInvocationRecordsInstallationWorkspace() throws {
     let directory = ConfigurationDirectory()
     try directory.writeMachineFile(

@@ -2,7 +2,7 @@ import Domain
 @testable import EngineCommand
 import Testing
 
-@Suite("Doctor: linear check, per App Installation")
+@Suite("Doctor: linear check, per Board Connection")
 struct DoctorLinearTests {
     @Test("Both healthy: each installation passes, naming its workspace and Projects, bound once by name")
     func bothHealthy() async throws {
@@ -13,11 +13,11 @@ struct DoctorLinearTests {
         let acmeAuth = try #require(findings.linear("acme", subject: "authorization").first)
         #expect(acmeAuth.severity == .pass)
         #expect(acmeAuth.message
-            == #"installation acme (workspace "Acme Inc"; Projects alpha, gamma): Linear authorization succeeded"#)
+            == #"Board Connection acme (workspace "Acme Inc"; Projects alpha, gamma): Linear authorization succeeded"#)
         #expect(findings.linear("acme", subject: "operator").first?.severity == .pass)
         let globexAuth = try #require(findings.linear("globex", subject: "authorization").first)
         #expect(globexAuth.message
-            == #"installation globex (workspace "Globex Corp"; Projects beta): Linear authorization succeeded"#)
+            == #"Board Connection globex (workspace "Globex Corp"; Projects beta): Linear authorization succeeded"#)
         #expect(findings.linear("globex", subject: "operator").first?.severity == .pass)
         let workspaceBinds = fixture.binds.calls.filter { $0.linearProjectID.isEmpty }
         #expect(workspaceBinds.map(\.installation) == ["acme", "globex"])
@@ -32,9 +32,9 @@ struct DoctorLinearTests {
         let acme = findings.linear("acme")
         #expect(acme.count == 1)
         #expect(acme[0].severity == .failure)
-        #expect(acme[0].subject == "installation")
-        #expect(acme[0].message.contains("yh setup --install-linear --installation acme"))
-        #expect(acme[0].message.contains("Settings → Linear workspaces"))
+        #expect(acme[0].subject == "connection")
+        #expect(acme[0].message.contains("yh setup --install-linear --board-connection acme"))
+        #expect(acme[0].message.contains("Settings → Board connections"))
         #expect(!acme[0].message.contains("workspace \""))
         #expect(findings.linear("globex", subject: "authorization").first?.severity == .pass)
     }
@@ -49,7 +49,7 @@ struct DoctorLinearTests {
         #expect(acme.severity == .failure)
         #expect(acme.message.contains("revoked"))
         #expect(acme.message.contains(#"workspace "Acme Inc""#))
-        #expect(acme.message.contains("--installation acme"))
+        #expect(acme.message.contains("--board-connection acme"))
         #expect(findings.linear("acme", subject: "operator").isEmpty)
         #expect(findings.linear("acme", subject: "team").isEmpty)
         #expect(findings.linear("globex", subject: "authorization").first?.severity == .pass)
@@ -85,7 +85,7 @@ struct DoctorLinearTests {
 
         let acme = try #require(findings.linear("acme", subject: "operator").first)
         #expect(acme.severity == .warning)
-        #expect(acme.message.contains("yh config operator --installation acme"))
+        #expect(acme.message.contains("yh config operator --board-connection acme"))
         #expect(acme.message.contains("alpha, gamma"))
         #expect(acme.message.contains("unassigned"))
         let globex = try #require(findings.linear("globex", subject: "operator").first)
@@ -102,7 +102,7 @@ struct DoctorLinearTests {
 
         let acme = try #require(findings.linear("acme", subject: "authorization").first)
         #expect(acme.severity == .pass)
-        #expect(acme.message == "installation acme (Projects alpha, gamma): Linear authorization succeeded")
+        #expect(acme.message == "Board Connection acme (Projects alpha, gamma): Linear authorization succeeded")
         #expect(acme.installation?.workspaceName == nil)
         #expect(!findings.contains { $0.message.contains("could not read") })
         #expect(findings.linear("globex", subject: "authorization").first?.message.contains("Globex Corp") == true)
@@ -123,7 +123,7 @@ struct DoctorLinearTests {
 
         let credentials = RecordingCredentialStore(seed: ["keychain:linear-globex": "secret"])
         let absent = await fixture.doctor(credentials: credentials).run()
-        #expect(absent.linear("acme", subject: "installation").first?.authorization == .refused)
+        #expect(absent.linear("acme", subject: "connection").first?.authorization == .refused)
     }
 
     @Test("An unreadable Keychain item is an authorization failure, unreachable, with no live call")

@@ -89,8 +89,8 @@ def write_toml(path, text):
 def installation_table(name, credential, workspace, operator=None):
     header = f'"{name}"' if not name.replace("-", "").replace("_", "").isalnum() else name
     text = (
-        f"[board.linear.installations.{header}]\n"
-        f'credential = "{credential}"\nworkspace = "{workspace}"\napp_user = "app-{name}"\n'
+        f"[board.linear.connections.{header}]\n"
+        f'credential = "{credential}"\nworkspace = "{workspace}"\nyellowhammer_identity = "app-{name}"\n'
     )
     if operator:
         text += f'operator = "{operator}"\n'
@@ -108,7 +108,7 @@ def write_machine_config_with(directory, tables):
 def write_project(directory, project_id, linear_project_id, installation="scratch"):
     write_toml(
         directory / "projects" / f"{project_id}.toml",
-        f'id = "{project_id}"\n\n[board.linear]\ninstallation = "{installation}"\nproject = "{linear_project_id}"\n',
+        f'id = "{project_id}"\n\n[board.linear]\nconnection = "{installation}"\nproject = "{linear_project_id}"\n',
     )
 
 
@@ -643,7 +643,7 @@ class InstallationSelectionTests(ScratchLinearTestCase):
         message = str(context.exception)
         self.assertIn("my-ws", message)
         self.assertIn("scratch", message)
-        self.assertIn("--installation <name>", message)
+        self.assertIn("--board-connection <name>", message)
 
     def test_unknown_name_is_refused_naming_registered_ones(self):
         self.two_installations()
@@ -654,7 +654,7 @@ class InstallationSelectionTests(ScratchLinearTestCase):
         self.assertIn("my-ws, scratch", message)
 
     def test_installation_flag_is_parsed(self):
-        args = scratch_linear.parse_arguments(["--installation", "my-ws", "check", "--team", "SCRATCH"])
+        args = scratch_linear.parse_arguments(["--board-connection", "my-ws", "check", "--team", "SCRATCH"])
         self.assertEqual(args.installation, "my-ws")
         args = scratch_linear.parse_arguments(["check", "--team", "SCRATCH"])
         self.assertIsNone(args.installation)

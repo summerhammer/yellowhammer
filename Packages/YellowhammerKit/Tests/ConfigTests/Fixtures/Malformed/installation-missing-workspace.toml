@@ -1,7 +1,7 @@
-# One App Installation without its workspace.
-[board.linear.installations.acme]
+# One Board Connection without its workspace.
+[board.linear.connections.acme]
 credential = "keychain:linear-acme"
-app_user = "app-1"
+yellowhammer_identity = "app-1"
 
 [github]
 credential = "keychain:github"

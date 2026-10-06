@@ -1,2 +1,2 @@
-[board.linear.installations.acme]
+[board.linear.connections.acme]
 credential = "keychain:linear

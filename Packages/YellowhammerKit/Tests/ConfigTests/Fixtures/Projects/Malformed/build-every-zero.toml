@@ -1,6 +1,6 @@
 id = "build-every-zero"
 name = "Build Zero"
-board = { linear = { installation = "acme", project = "BZ" } }
+board = { linear = { connection = "acme", project = "BZ" } }
 
 [[repos]]
 name = "repo"

@@ -6,7 +6,7 @@ import LinearAdapter
 
 /// Builds the Board Port for one resolved Project. The only place a board adapter is wired (MB2).
 ///
-/// The Linear identity is the Project's own App Installation (ADR-005), resolved from the machine
+/// The Linear identity is the Project's own Board Connection (ADR-005), resolved from the machine
 /// file's registry by the name its `[board.linear] installation` key gives: its tokens live in the
 /// Keychain behind that installation's credential reference, refreshed under that
 /// installation's own `MachineLock`; only the Linear project comes from the
@@ -59,7 +59,7 @@ enum BoardBinding {
         )
     }
 
-    /// Binds directly from an already-resolved App Installation and Linear project id, for
+    /// Binds directly from an already-resolved Board Connection and Linear project id, for
     /// `yh setup`/`yh doctor`, which have no `ProjectConfiguration` yet. `linearProjectID` may be `""` for
     /// the workspace-level calls (`workspaceMembers()`, `teams()`, project creation): those are not scoped
     /// to a Linear project, so the binding's own linearProjectID is irrelevant to them.
@@ -91,7 +91,7 @@ enum BoardBinding {
         )
     }
 
-    /// The Linear workspace of the App Installation `project` selects: what a Journal created for the
+    /// The Linear workspace of the Board Connection `project` selects: what a Journal created for the
     /// Project records.
     static func workspace(
         machine: MachineConfiguration, project: ProjectConfiguration
@@ -130,7 +130,7 @@ enum BoardBindingError: Error, Equatable, CustomStringConvertible {
     var description: String {
         switch self {
         case .installationMissing(let project, let installation):
-            "Project \(project.rawValue) names Linear App Installation \"\(installation)\", "
+            "Project \(project.rawValue) names Linear Board Connection \"\(installation)\", "
                 + "which config.toml does not declare"
         }
     }

@@ -9,10 +9,10 @@ private let githubOnly = "[github]\ncredential = \"keychain:github\"\n"
 
 private func entry(_ name: String, workspace: String, credential: String? = nil) -> String {
     """
-    [board.linear.installations.\(name)]
+    [board.linear.connections.\(name)]
     credential = "\(credential ?? "keychain:linear-\(name)")"
     workspace = "\(workspace)"
-    app_user = "app-user-1"
+    yellowhammer_identity = "app-user-1"
     operator = "user-op"
 
 
@@ -65,9 +65,25 @@ private func projectFileExists(_ directory: URL) -> Bool {
     )
 }
 
-@Suite("Setup: --installation")
+@Suite("Setup: --board-connection")
 struct SetupInstallationOptionTests {
-    @Test("--install-linear --installation main, approved for another workspace: nothing stored, file unchanged")
+    @Test("The retired --installation option is rejected")
+    func retiredInstallationOptionIsRejected() {
+        #expect(throws: (any Error).self) {
+            try SetupCommand.parse(["--init", "--installation", "acme"])
+        }
+        #expect(throws: (any Error).self) {
+            try SetupCommand.parse(["--install-linear", "--installation-name", "acme"])
+        }
+        #expect(throws: (any Error).self) {
+            try ConfigCommand.parse(["remove-installation", "acme"])
+        }
+        #expect(throws: (any Error).self) {
+            try RootCommand.parseAsRoot(["config", "operator", "--installation", "acme", "user-op"])
+        }
+    }
+
+    @Test("--install-linear --board-connection main, approved for another workspace: nothing stored, file unchanged")
     func reconnectApprovedElsewhereIsRefused() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile(twoEntries)
@@ -96,7 +112,7 @@ struct SetupInstallationOptionTests {
         #expect(text.contains("not main's workspace"))
     }
 
-    @Test("--install-linear --installation main, same workspace: tokens replaced, config.toml byte for byte")
+    @Test("--install-linear --board-connection main, same workspace: tokens replaced, config.toml byte for byte")
     func reconnectSameWorkspaceKeepsFile() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile(twoEntries)
@@ -116,7 +132,7 @@ struct SetupInstallationOptionTests {
         #expect(try recorder.store.tokenStore.read() != nil)
     }
 
-    @Test("--install-linear --installation nope: refused listing the connected names; nothing opened or written")
+    @Test("--install-linear --board-connection nope: refused listing the connected names; nothing opened or written")
     func unknownInstallationIsRefused() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile(twoEntries)
@@ -139,7 +155,7 @@ struct SetupInstallationOptionTests {
         #expect(try Data(contentsOf: file) == before)
     }
 
-    @Test("--init --project --installation acme with two entries writes acme into the Project and binds acme")
+    @Test("--init --project --board-connection acme with two entries writes acme into the Project and binds acme")
     func initSelectsTheNamedInstallation() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile(twoEntries)
@@ -154,12 +170,12 @@ struct SetupInstallationOptionTests {
         let text = try String(
             contentsOf: directory.url.appending(components: "projects", "demo.toml"), encoding: .utf8
         )
-        #expect(text.contains("[board.linear]\ninstallation = \"acme\""))
+        #expect(text.contains("[board.linear]\nconnection = \"acme\""))
         #expect(!recorder.boundNames.isEmpty)
         #expect(Set(recorder.boundNames) == ["acme"])
     }
 
-    @Test("--init --project without --installation, with entries: refused naming them; nothing written or called")
+    @Test("--init --project without --board-connection, with entries: refused naming them; nothing written or called")
     func initWithoutInstallationIsRefused() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile(twoEntries)
@@ -179,7 +195,7 @@ struct SetupInstallationOptionTests {
         #expect(await board.creates == 0)
     }
 
-    @Test("--init --project --installation nope: refused, no Project file")
+    @Test("--init --project --board-connection nope: refused, no Project file")
     func initWithUnknownInstallationIsRefused() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile(twoEntries)
@@ -196,7 +212,7 @@ struct SetupInstallationOptionTests {
         #expect(recorder.boundNames.isEmpty)
     }
 
-    @Test("--init without --project and without --installation runs no Linear step; with --operator it is refused")
+    @Test("--init without --project and without --board-connection runs no Linear step; with --operator it is refused")
     func initWithoutProjectSkipsTheLinearStep() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile(twoEntries)
@@ -220,7 +236,7 @@ struct SetupInstallationOptionTests {
             credentials: RecordingCredentialStore(seed: seededCredentials)
         )
         let error = await #expect(throws: SetupError.self) { try await refused.run() }
-        #expect(error?.description.contains("--operator needs --installation") == true)
+        #expect(error?.description.contains("--operator needs --board-connection") == true)
     }
 
     @Test("A named entry with no stored tokens, non-interactive: refused with the re-connect command")
@@ -234,18 +250,18 @@ struct SetupInstallationOptionTests {
 
         let error = await #expect(throws: SetupError.self) { try await setup.run() }
 
-        #expect(error?.description.contains("yh setup --install-linear --installation acme") == true)
+        #expect(error?.description.contains("yh setup --install-linear --board-connection acme") == true)
         #expect(!projectFileExists(directory.url))
     }
 
-    @Test("--print-choices --installation reads the named entry of several")
+    @Test("--print-choices --board-connection reads the named entry of several")
     func printChoicesReadsTheNamedEntry() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile(twoEntries)
         let recorder = InstallRecorder()
         let output = RecordingOutput()
         let setup = try makeSetup(
-            arguments: ["--print-choices", "--installation", "main"], directory: directory,
+            arguments: ["--print-choices", "--board-connection", "main"], directory: directory,
             board: await makeBoard(members: [operatorMember]),
             credentials: RecordingCredentialStore(seed: seededCredentials), output: output, onBind: recorder.bind
         )
@@ -257,21 +273,21 @@ struct SetupInstallationOptionTests {
         #expect(choices.configuredOperator == "user-op")
     }
 
-    @Test("--installation must not be empty")
+    @Test("--board-connection must not be empty")
     func emptyInstallationIsAValidationError() {
         #expect(throws: (any Error).self) {
-            try SetupOptions(command: SetupCommand.parse(["--init", "--installation", " "]))
+            try SetupOptions(command: SetupCommand.parse(["--init", "--board-connection", " "]))
         }
     }
 
-    @Test("--config --installation --operator sets that entry's operator; the identical second run is present")
+    @Test("--config --board-connection --operator sets that entry's operator; the identical second run is present")
     func configWithInstallationSetsOperator() async throws {
         let prepared = ConfigurationDirectory()
         try prepared.writeMachineFile("""
-            [board.linear.installations.main]
+            [board.linear.connections.main]
             credential = "keychain:linear-main"
             workspace = "workspace-1"
-            app_user = "app-user-1"
+            yellowhammer_identity = "app-user-1"
 
             \(githubOnly)
             """)

@@ -66,7 +66,7 @@ func refusedTemplateWritesDefaultWIPCommit() async throws {
     try directory.writeProjectFile(id: "alpha", """
         id = "alpha"
         name = "alpha"
-        board = { linear = { installation = "acme", project = "alpha" } }
+        board = { linear = { connection = "acme", project = "alpha" } }
         spec_source = "~/Developer/alpha-spec"
         change_type = 7
 
@@ -275,7 +275,7 @@ func removalWithUndeclaredInstallationSkipsTheComment() async throws {
         spec_source = "~/Developer/alpha-spec"
 
         [board.linear]
-        installation = "gone"
+        connection = "gone"
         project = "alpha"
 
         [[repos]]
@@ -317,7 +317,7 @@ func removalWithUndeclaredInstallationSkipsTheComment() async throws {
     #expect(bound.value == nil)
     #expect(output.lines.contains {
         $0.contains("skipped the release comment on \(seeded.featureIssueID)")
-            && $0.contains("Linear App Installation \"gone\" is not in config.toml")
+            && $0.contains("Linear Board Connection \"gone\" is not in config.toml")
     })
     #expect(!output.lines.contains { $0.contains("could not comment on") })
     #expect(workspace.removeCalls == [WorktreeID(rawValue: "wt-1")])

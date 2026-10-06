@@ -26,7 +26,7 @@ enum JournalMigrations {
     }
 
     /// The migrator for a creating open: the Journal records `linearWorkspace` (the Linear workspace of
-    /// the Project's App Installation) in the same insert that creates `project_state`.
+    /// the Project's Board Connection) in the same insert that creates `project_state`.
     static func migrator(linearWorkspace: BoardObjectID?) -> DatabaseMigrator {
         var migrator = DatabaseMigrator()
         migrator.registerMigration(schemaIdentifier) { db in

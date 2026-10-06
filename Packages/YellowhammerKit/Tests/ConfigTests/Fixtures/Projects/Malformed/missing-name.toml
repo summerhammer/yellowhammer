@@ -1,5 +1,5 @@
 id = "missing-name"
-board = { linear = { installation = "acme", project = "MN" } }
+board = { linear = { connection = "acme", project = "MN" } }
 
 [[repos]]
 name = "repo"

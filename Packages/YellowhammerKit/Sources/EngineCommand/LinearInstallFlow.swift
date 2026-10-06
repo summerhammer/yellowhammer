@@ -4,7 +4,7 @@ import LinearAdapter
 import Subprocess
 import System
 
-/// One attempt of the Linear App Installation's browser install (roadmap P17.6; spec: board-projection/
+/// One attempt of the Linear Board Connection's browser install (roadmap P17.6; spec: board-projection/
 /// install-the-linear-app, ADR-005). Every side effect is injected — port binding, the browser opener,
 /// the token exchange's transport — so this is testable end to end with stubs; nothing here is wired
 /// into `Setup.run` yet (slice (a)). It stores nothing and decides nothing about workspace mismatch:

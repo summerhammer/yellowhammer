@@ -11,7 +11,7 @@ import Testing
 ///         swift test --package-path Packages/YellowhammerKit --filter LinearScratchTests
 ///
 /// The Installation's token pair is read from (and refreshed pairs written back to) the Keychain item
-/// `linear-<name>` (the App Installation named by `YH_LINEAR_INSTALLATION`), as the JSON `LinearTokenPair.encoded()` shape (P17.3/P17.4). The Keychain is
+/// `linear-<name>` (the Board Connection named by `YH_LINEAR_INSTALLATION`), as the JSON `LinearTokenPair.encoded()` shape (P17.3/P17.4). The Keychain is
 /// read and written with `Security` directly, because this test target may import only its own adapter
 /// (MB2) — it cannot import `Config`'s `KeychainCredentialStore` or `MachineLock`. A live run is a
 /// single process, so no cross-process refresh lock is needed here; the lock closure just runs its body.

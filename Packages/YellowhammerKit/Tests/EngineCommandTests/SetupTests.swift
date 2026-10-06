@@ -61,7 +61,7 @@ struct SetupTests {
         let createsAfterFirst = await board.creates
 
         let setup2 = try makeSetup(
-            arguments: arguments + ["--installation", "acme"], directory: directory, board: board
+            arguments: arguments + ["--board-connection", "acme"], directory: directory, board: board
         )
         try await setup2.run()
 
@@ -141,7 +141,7 @@ struct SetupTests {
         let createsAfterFirst = await board.creates
 
         let setup2 = try makeSetup(
-            arguments: arguments + ["--installation", "acme"], directory: directory, board: board
+            arguments: arguments + ["--board-connection", "acme"], directory: directory, board: board
         )
         try await setup2.run()
         #expect(await board.creates == createsAfterFirst)
@@ -253,10 +253,10 @@ struct SetupTests {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
             # do not touch this line
-            [board.linear.installations.acme]
+            [board.linear.connections.acme]
             credential = "keychain:linear"
             workspace = "workspace-1"
-            app_user = "app-user-1"
+            yellowhammer_identity = "app-user-1"
 
             [github]
             credential = "keychain:github"

@@ -96,7 +96,7 @@ func projectRendersExplicitDefaultBounds() throws {
 
 // MARK: - Machine file round-trip
 
-@Test("A minimal machine file (no App Installations, no CLI adapters, no routing) round-trips")
+@Test("A minimal machine file (no Board Connections, no CLI adapters, no routing) round-trips")
 func machineMinimalRoundTrip() throws {
     let machine = MachineConfiguration(
         gitHubCredential: try credential("keychain:github"),
@@ -107,7 +107,7 @@ func machineMinimalRoundTrip() throws {
     #expect(parsed == machine)
 }
 
-@Test("A full machine file with two App Installations, CLI tables with/without executable, and routing fallbacks")
+@Test("A full machine file with two Board Connections, CLI tables with/without executable, and routing fallbacks")
 func machineFullRoundTrip() throws {
     let machine = MachineConfiguration(
         linearInstallations: [
@@ -149,16 +149,16 @@ func machineFullRoundTrip() throws {
 
 private let registryText = """
     # Machine file.
-    [board.linear.installations.acme]
+    [board.linear.connections.acme]
     credential = "keychain:linear-acme"
     workspace = "workspace-1"
-    app_user = "app-user-1"
+    yellowhammer_identity = "app-user-1"
     operator = "old-user"
 
-    [board.linear.installations."acme corp"]
+    [board.linear.connections."acme corp"]
     credential = "keychain:linear-corp"
     workspace = "workspace-2"
-    app_user = "app-user-2"
+    yellowhammer_identity = "app-user-2"
     operator = "corp-user"
 
     [github]
@@ -191,10 +191,10 @@ func settingOperatorQuotedName() throws {
 @Test("settingOperator inserts operator after the table's last key when absent")
 func settingOperatorInserts() throws {
     let text = """
-        [board.linear.installations.acme]
+        [board.linear.connections.acme]
         credential = "keychain:linear-acme"
         workspace = "workspace-1"
-        app_user = "app-user-1"
+        yellowhammer_identity = "app-user-1"
 
         [github]
         credential = "keychain:github"
@@ -203,17 +203,17 @@ func settingOperatorInserts() throws {
         BoardObjectID(rawValue: "user-1"), installation: "acme", inFileText: text
     )
     #expect(try operatorOf(result, "acme") == BoardObjectID(rawValue: "user-1"))
-    #expect(result.contains("app_user = \"app-user-1\"\noperator = \"user-1\"\n\n[github]"))
+    #expect(result.contains("yellowhammer_identity = \"app-user-1\"\noperator = \"user-1\"\n\n[github]"))
 }
 
 @Test("settingOperator matches a quoted-but-bare-safe header and a header with a trailing comment")
 func settingOperatorHeaderSpellings() throws {
     for header in [
-        "[board.linear.installations.\"acme\"]",
-        "[ board . linear . installations . acme ]  # the main one",
-        "[board.linear.installations.acme] # note"
+        "[board.linear.connections.\"acme\"]",
+        "[ board . linear . connections . acme ]  # the main one",
+        "[board.linear.connections.acme] # note"
     ] {
-        let text = header + "\ncredential = \"c\"\nworkspace = \"w\"\napp_user = \"a\"\n"
+        let text = header + "\ncredential = \"c\"\nworkspace = \"w\"\nyellowhammer_identity = \"a\"\n"
             + "\n[github]\ncredential = \"g\"\n"
         let result = MachineConfiguration.settingOperator(
             BoardObjectID(rawValue: "u"), installation: "acme", inFileText: text
@@ -266,7 +266,7 @@ func settingInstallationAppends() throws {
 @Test("settingLinearInstallation replaces an existing entry's fields, keeping its operator and comments")
 func settingInstallationReplaces() throws {
     let text = """
-        [board.linear.installations.acme]
+        [board.linear.connections.acme]
         # keep me
         credential = "keychain:old"
         workspace = "old-ws"
@@ -304,7 +304,7 @@ func settingInstallationSecondAndQuoted() throws {
     )
     let second = try installation("acme corp", workspace: "ws-2")
     let result = MachineConfiguration.settingLinearInstallation(second, inFileText: withFirst)
-    #expect(result.contains("[board.linear.installations.\"acme corp\"]"))
+    #expect(result.contains("[board.linear.connections.\"acme corp\"]"))
     let parsed = try MachineConfiguration.parse(result, file: "config.toml")
     #expect(parsed.linearInstallations == [first, second])
     #expect(MachineConfiguration.settingLinearInstallation(second, inFileText: result) == result)
@@ -325,7 +325,7 @@ func routingSaveKeepsRegistry() throws {
     let reparsed = try MachineConfiguration.parse(rendered, file: "config.toml")
     #expect(reparsed.linearInstallations == original.linearInstallations)
     #expect(reparsed.linearInstallations.first?.operatorIdentity == BoardObjectID(rawValue: "old-user"))
-    let order = ["[board.linear.installations.acme]", "[board.linear.installations.\"acme corp\"]", "[github]"]
+    let order = ["[board.linear.connections.acme]", "[board.linear.connections.\"acme corp\"]", "[github]"]
     let positions = order.compactMap { rendered.range(of: $0)?.lowerBound }
     #expect(positions.count == order.count)
     #expect(positions == positions.sorted())
@@ -379,6 +379,6 @@ func configurationSaveRefusesUnregisteredInstallation() throws {
             return
         }
         #expect(errors.map(\.reason) == [.undeclaredLinearInstallation("missing")])
-        #expect(errors.first?.key == "board.linear.installation")
+        #expect(errors.first?.key == "board.linear.connection")
     }
 }

@@ -1,6 +1,6 @@
 id = "no-spec-source"
 name = "No Spec Source"
-board = { linear = { installation = "acme", project = "NSS" } }
+board = { linear = { connection = "acme", project = "NSS" } }
 
 [[repos]]
 name = "backend"

@@ -163,22 +163,22 @@ final class LinearSettingsUITests: XCTestCase {
     }
 }
 
-// MARK: - The Linear workspaces list (roadmap L3.1)
+// MARK: - The Board connections list (roadmap L3.1)
 
 extension LinearSettingsUITests {
-    /// Two App Installations; Project `alpha` uses `acme`, none uses `scratch`, whose Operator identity is
+    /// Two Board Connections; Project `alpha` uses `acme`, none uses `scratch`, whose Operator identity is
     /// not one of the stub's candidates.
     private static let twoInstallationsTOML = """
-    [board.linear.installations.acme]
+    [board.linear.connections.acme]
     credential = "keychain:linear-acme"
     workspace = "workspace-1"
-    app_user = "app-user-1"
+    yellowhammer_identity = "app-user-1"
     operator = "user-op"
 
-    [board.linear.installations.scratch]
+    [board.linear.connections.scratch]
     credential = "keychain:linear-scratch"
     workspace = "workspace-2"
-    app_user = "app-user-2"
+    yellowhammer_identity = "app-user-2"
     operator = "user-old"
 
     [github]
@@ -196,7 +196,7 @@ extension LinearSettingsUITests {
     spec_source = "~/dev/alpha-spec"
 
     [board.linear]
-    installation = "acme"
+    connection = "acme"
     project = "ALPHA"
 
     [[repos]]
@@ -268,7 +268,7 @@ extension LinearSettingsUITests {
         let recorded = recordedArguments()
         XCTAssertEqual(recorded.count, 1, "\(recorded)")
         let line = recorded.first ?? ""
-        XCTAssertTrue(line.contains("setup --install-linear --events json --installation scratch"), line)
+        XCTAssertTrue(line.contains("setup --install-linear --events json --board-connection scratch"), line)
         XCTAssertFalse(line.contains("--remote"), line)
     }
 
@@ -312,7 +312,7 @@ extension LinearSettingsUITests {
         XCTAssertFalse(element("settings-linear-remove-acme").isEnabled)
         anyway.click()
         // The confirmation states the undo under this exact local name before anything runs.
-        let undoText = "yh setup --installation-name acme"
+        let undoText = "yh setup --board-connection-name acme"
         let predicate = NSPredicate(format: "value CONTAINS %@ OR label CONTAINS %@", undoText, undoText)
         let undo = app.staticTexts.matching(predicate)
         XCTAssertTrue(undo.firstMatch.waitForExistence(timeout: 5))
@@ -322,7 +322,7 @@ extension LinearSettingsUITests {
 
         XCTAssertTrue(element("settings-linear-removed").waitForExistence(timeout: 10))
         XCTAssertTrue(
-            recordedArguments().contains("config remove-installation acme --orphan-projects --yes"),
+            recordedArguments().contains("config remove-board-connection acme --orphan-projects --yes"),
             "\(recordedArguments())"
         )
     }
@@ -351,7 +351,7 @@ extension LinearSettingsUITests {
         XCTAssertTrue(element("setup-linear-installed").waitForExistence(timeout: 10))
 
         let line = recordedArguments().first ?? ""
-        XCTAssertTrue(line.contains("setup --install-linear --events json --installation-name acme-two"), line)
+        XCTAssertTrue(line.contains("setup --install-linear --events json --board-connection-name acme-two"), line)
     }
 
     func testRemoveOfAnUnusedWorkspaceSaysItStaysInstalledInLinear() throws {
@@ -368,7 +368,7 @@ extension LinearSettingsUITests {
         let removed = element("settings-linear-removed")
         XCTAssertTrue(removed.waitForExistence(timeout: 10))
         XCTAssertTrue(text(of: removed).contains("stays installed"), text(of: removed))
-        XCTAssertTrue(recordedArguments().contains("config remove-installation scratch"), "\(recordedArguments())")
+        XCTAssertTrue(recordedArguments().contains("config remove-board-connection scratch"), "\(recordedArguments())")
     }
 
     /// "Change Operator…" reads that workspace's candidates and saves through `yh config operator`.
@@ -390,11 +390,11 @@ extension LinearSettingsUITests {
         save.click()
 
         let deadline = Date().addingTimeInterval(10)
-        while !recordedArguments().contains("config operator --installation scratch user-op"), Date() < deadline {
+        while !recordedArguments().contains("config operator --board-connection scratch user-op"), Date() < deadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
         XCTAssertTrue(
-            recordedArguments().contains("config operator --installation scratch user-op"), "\(recordedArguments())"
+            recordedArguments().contains("config operator --board-connection scratch user-op"), "\(recordedArguments())"
         )
     }
 }

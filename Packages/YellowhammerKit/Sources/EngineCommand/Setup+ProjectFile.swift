@@ -138,7 +138,7 @@ extension Setup {
             throw SetupError("Linear authorization failed: \(error)")
         }
         guard let team = teams.first(where: { $0.key.lowercased() == key.lowercased() }) else {
-            // A team the App Installation never selected is invisible — Linear returns no such team —
+            // A team the Board Connection never selected is invisible — Linear returns no such team —
             // and is reported as a membership problem, the same cause as any other not-a-member team,
             // never as a missing or misspelled key (Board Provisioning Ruling, OQ80): the Operator may
             // have typed the key exactly right, on a team the app just cannot see yet.
@@ -175,7 +175,7 @@ extension Setup {
     }
 
     /// The membership fix (Board Provisioning Ruling, OQ80): named the same way whether the team is
-    /// invisible (the App Installation never selected it) or merely not a membership, since the
+    /// invisible (the Board Connection never selected it) or merely not a membership, since the
     /// Operator cannot tell those apart and the fix is identical either way.
     private static func notAMemberMessage(key: String) -> String {
         "the Yellowhammer app is not a member of team \"\(key)\" " + // glossary:ignore GL001

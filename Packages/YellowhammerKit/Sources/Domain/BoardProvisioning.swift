@@ -25,7 +25,7 @@ public protocol BoardProvisioning: Sendable {
     func linearProjects() async throws(BoardError) -> [BoardLinearProject]
 
     /// The teams Yellowhammer's own identity is a **member** of (Board Provisioning Ruling, OQ80): a
-    /// team the App Installation did not select is invisible to this identity and never appears here,
+    /// team the Board Connection did not select is invisible to this identity and never appears here,
     /// whether or not `teams()` can see it read-only. Setup checks membership before any create in a
     /// team.
     func memberTeams() async throws(BoardError) -> [BoardObjectID]

@@ -14,7 +14,7 @@ public final class JournalStore: Sendable {
     /// Project's fresh Journal never recomputes an id that resolves to an issue archived under the
     /// previous one.
     public let outboxSalt: String
-    /// The Linear workspace of the App Installation this Journal was built against
+    /// The Linear workspace of the Board Connection this Journal was built against
     /// (`project_state.linear_workspace`), recorded when the Journal was created and read once here.
     public let linearWorkspace: BoardObjectID
     private let queue: DatabaseQueue

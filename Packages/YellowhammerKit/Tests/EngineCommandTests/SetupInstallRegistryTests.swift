@@ -69,10 +69,10 @@ struct SetupInstallRegistryTests {
     func sameWorkspaceReconnects() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
-            [board.linear.installations.main]
+            [board.linear.connections.main]
             credential = "keychain:existing-credential"
             workspace = "workspace-1"
-            app_user = "app-user-old"
+            yellowhammer_identity = "app-user-old"
             operator = "user-op"
 
             \(githubOnly)
@@ -102,10 +102,10 @@ struct SetupInstallRegistryTests {
     func differentWorkspaceLeavesConfigAlone() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
-            [board.linear.installations.main]
+            [board.linear.connections.main]
             credential = "keychain:existing-credential"
             workspace = "workspace-old"
-            app_user = "app-user-old"
+            yellowhammer_identity = "app-user-old"
 
             \(githubOnly)
             """)
@@ -189,7 +189,7 @@ struct SetupInstallRegistryTests {
         #expect(machine.linearInstallations.last?.credential.rawValue == "keychain:linear-acme-2")
     }
 
-    @Test("Re-connecting the same workspace with the same app user leaves config.toml byte for byte")
+    @Test("Re-connecting the same workspace with the same Yellowhammer identity leaves config.toml byte for byte")
     func sameWorkspaceSameAppUserKeepsFileBytes() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile(
@@ -213,7 +213,7 @@ struct SetupInstallRegistryTests {
         #expect(output.lines.contains { $0.contains("Linear workspace Acme (as main)") })
     }
 
-    @Test("Re-connecting the same workspace with a different app user changes only app_user")
+    @Test("Re-connecting the same workspace with a different Yellowhammer identity changes only yellowhammer_identity")
     func sameWorkspaceNewAppUserChangesOnlyAppUser() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile(
@@ -256,7 +256,7 @@ struct SetupInstallRegistryTests {
         )
         let project = try ProjectConfiguration.parse(text, file: "demo.toml")
         #expect(project.linearInstallationName == "acme")
-        #expect(text.contains("[board.linear]\ninstallation = \"acme\""))
+        #expect(text.contains("[board.linear]\nconnection = \"acme\""))
         let configuration = try Configuration.load(directory: directory.url)
         #expect(configuration.invalidProjects.isEmpty)
     }
@@ -274,10 +274,10 @@ private func approvedIdentity(workspaceID: String, urlKey: String) -> LinearInst
 
 private func existingEntry(name: String, workspace: String, appUser: String = "app-user-old") -> String {
     """
-    [board.linear.installations.\(name)]
+    [board.linear.connections.\(name)]
     credential = "keychain:existing-credential"
     workspace = "\(workspace)"
-    app_user = "\(appUser)"
+    yellowhammer_identity = "\(appUser)"
     operator = "user-op"
 
 

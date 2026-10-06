@@ -109,7 +109,7 @@ extension AddProjectDraft {
 
 // MARK: - Linear workspace
 
-/// The connected Linear workspaces, the Operator identity the selected one still needs, and the way to
+/// The connected Board connections, the Operator identity the selected one still needs, and the way to
 /// connect another. With none connected, it goes straight to connecting.
 struct LinearWorkspaceSection: View {
     @Binding var draft: AddProjectDraft

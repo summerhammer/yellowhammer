@@ -3,7 +3,7 @@ name = "Minimal Project"
 spec_source = "~/dev/minimal-spec"
 
 [board.linear]
-installation = "acme"
+connection = "acme"
 project = "MIN"
 
 [[repos]]

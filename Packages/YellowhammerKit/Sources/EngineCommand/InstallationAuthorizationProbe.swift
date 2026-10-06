@@ -1,9 +1,9 @@
 import Config
 import Domain
 
-/// What the probe found for one App Installation, naming WHICH case it hit. Only `.refused` is a
+/// What the probe found for one Board Connection, naming WHICH case it hit. Only `.refused` is a
 /// permanent refusal; everything else that is not `.authorized` is "cannot judge now" and must never
-/// unlock `yh config remove-installation --orphan-projects`.
+/// unlock `yh config remove-board-connection --orphan-projects`.
 enum InstallationAuthorization: Equatable, Sendable {
     case authorized
     case refused(Refusal)
@@ -34,8 +34,8 @@ enum InstallationAuthorization: Equatable, Sendable {
     }
 }
 
-/// The one place that decides whether an App Installation's authorization is usable, shared by `yh doctor`
-/// and `yh config remove-installation --orphan-projects`.
+/// The one place that decides whether a Board Connection's authorization is usable, shared by `yh doctor`
+/// and `yh config remove-board-connection --orphan-projects`.
 struct InstallationAuthorizationProbe {
     let credentials: any SetupCredentialStore
     let bindProvisioning: (LinearInstallation, String) -> any BoardProvisioning

@@ -19,7 +19,7 @@ python3 scripts/rehearsal-suite/rehearsal_suite.py run \
     --app .build/app/Build/Products/Debug/Yellowhammer.app --team YLH
 ```
 
-`--installation NAME` picks the App Installation the suite runs against (default: the sole installation;
+`--board-connection NAME` picks the Board Connection the suite runs against (default: the sole Board Connection;
 none, or several without the flag, is refused); `run` and `teardown` take it, and so does `release_gate.py`.
 `--scenario N` (repeatable) runs a subset; `list` prints the scenarios. Exit codes: `0` every selected
 scenario passed, `1` a scenario failed, `2` the suite could not be set up (nothing was run). Logs, every
@@ -34,7 +34,7 @@ wait out a real ten-minute Lease TTL.
 - The **scratch Linear environment** (P15.1, `scripts/scratch-linear/README.md`): the scratch workspace's App
   Installation is registered in `config.toml` (token pair in Keychain item `linear-<name>`); the scratch
   team exists and the app is a member of it. A production installation may be on the Mac too, as long as
-  `--installation` names the scratch one.
+  `--board-connection` names the scratch one.
 - An **Operator credential** — a Linear personal API key of a human member of the scratch workspace,
   never the scratch app — for the Operator's own gestures on the board (replying to a question,
   Cancel and reopen, editing a Card's declared scope). The Engine tells a human's comment from its own
@@ -53,7 +53,7 @@ wait out a real ten-minute Lease TTL.
 
 - **Rehearsal Projects** `rehearsal-suite-a` and `rehearsal-suite-b` in `~/.config/yellowhammer/projects/`
   (`yh` always reads that directory, and rehearsal uses the machine's one real Ledger). The first run
-  creates each with `yh setup --init --installation <name> --linear-team <team>`, which creates its scratch Linear project
+  creates each with `yh setup --init --board-connection <name> --linear-team <team>`, which creates its scratch Linear project
   and provisions the team; no LaunchAgent is ever installed (`--install-jobs` is never passed). Later runs
   reuse them. Before every scenario the suite rewrites the Project file (keeping its `[board.linear]` table, `installation` and `project`)
   with that scenario's `[limits]`, `check` commands and Protected Paths, and a Routing Table override of

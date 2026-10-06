@@ -5,6 +5,6 @@ enum DomainSymbol {
     static let repo = "shippingbox"
     /// The filled form of ``repo``, for a heading. Every symbol chosen for ``repo`` must have a `.fill` form.
     static let repoFill = "\(repo).fill"
-    /// An App Installation, the connected workspace of a board vendor: the Settings window's Boards cards.
+    /// An Board Connection, the connected workspace of a board vendor: the Settings window's Boards cards.
     static let appInstallation = "building.2"
 }

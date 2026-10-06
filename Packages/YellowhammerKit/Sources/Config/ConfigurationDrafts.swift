@@ -180,7 +180,7 @@ extension ProjectFileDraft {
 
         sections.append([
             "[board.linear]",
-            "installation = \(ConfigurationRendering.quoted(linearInstallationName))",
+            "connection = \(ConfigurationRendering.quoted(linearInstallationName))",
             "project = \(ConfigurationRendering.quoted(linearProject))" // glossary:ignore GL001
         ].joined(separator: "\n"))
 
@@ -213,7 +213,7 @@ extension ProjectFileDraft {
 }
 
 extension MachineConfiguration {
-    /// Renders one `[board.linear.installations.<name>]` table per App Installation, `[github]`, one `[cli.<name>]` table per declared adapter and the given base
+    /// Renders one `[board.linear.connections.<name>]` table per Board Connection, `[github]`, one `[cli.<name>]` table per declared adapter and the given base
     /// Routing Table, in the shape ``MachineConfigurationDecoder`` reads back. Everything but the
     /// Routing Table is carried from `self`.
     public func renderedTOML(routingTable: [RoutingEntryDraft]) -> String {
@@ -224,7 +224,7 @@ extension MachineConfiguration {
                 ConfigurationRendering.installationHeader(installation.name),
                 "credential = \(ConfigurationRendering.quoted(installation.credential.rawValue))",
                 "workspace = \(ConfigurationRendering.quoted(installation.workspace.rawValue))",
-                "app_user = \(ConfigurationRendering.quoted(installation.appUser.rawValue))"
+                "yellowhammer_identity = \(ConfigurationRendering.quoted(installation.appUser.rawValue))"
             ]
             if let operatorIdentity = installation.operatorIdentity {
                 lines.append("operator = \(ConfigurationRendering.quoted(operatorIdentity.rawValue))")

@@ -39,13 +39,13 @@ struct DoctorFinding: Equatable, Sendable {
     let message: String
     /// The Project this finding is scoped to, or nil when it is machine-scoped.
     let projectID: ProjectID?
-    /// The App Installation this finding is about, when it is scoped to one.
+    /// The Board Connection this finding is about, when it is scoped to one.
     var installation: DoctorInstallationScope?
     /// The installation's authorization state, on the rows that judge it.
     var authorization: InstallationAuthorizationState?
 }
 
-/// The App Installation a finding names: its local name, its workspace (the registered id, and the
+/// The Board Connection a finding names: its local name, its workspace (the registered id, and the
 /// name read live where it could be read) and the Projects it serves, in Project id order.
 struct DoctorInstallationScope: Equatable, Sendable {
     let name: String

@@ -98,10 +98,10 @@ struct SetupLinearInstallTests {
     func installLinearKeepsExistingOperatorAndSkipsProjects() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
-            [board.linear.installations.acme]
+            [board.linear.connections.acme]
             credential = "keychain:linear"
             workspace = "workspace-1"
-            app_user = "app-user-1"
+            yellowhammer_identity = "app-user-1"
             operator = "user-op"
 
             [github]

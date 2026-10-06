@@ -1,8 +1,8 @@
 import Domain
 import Foundation
 
-// The App Installation token-pair refresh event's payload and decoding, and the rate-budget event's
-// (both name the App Installation), split out of
+// The Board Connection token-pair refresh event's payload and decoding, and the rate-budget event's
+// (both name the Board Connection), split out of
 // JournalEvent+Payload.swift and JournalEvent+Decoding.swift to keep those under the file length limit.
 // The payload never carries a token: the record's strings were scrubbed before they reached the Engine.
 

@@ -29,10 +29,10 @@ private func route(_ cli: String, _ model: String, _ effort: String) -> Route {
 
 private func configuration(table: RoutingTable, for projectID: ProjectID) throws -> Configuration {
     let machine = try MachineConfiguration.parse("""
-        [board.linear.installations.acme]
+        [board.linear.connections.acme]
         credential = "keychain:linear"
         workspace = "workspace-1"
-        app_user = "app-user-1"
+        yellowhammer_identity = "app-user-1"
 
         [github]
         credential = "keychain:github"

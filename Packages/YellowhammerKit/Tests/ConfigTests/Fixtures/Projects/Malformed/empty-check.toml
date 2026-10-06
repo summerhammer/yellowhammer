@@ -1,6 +1,6 @@
 id = "empty-check"
 name = "Empty Check"
-board = { linear = { installation = "acme", project = "EC" } }
+board = { linear = { connection = "acme", project = "EC" } }
 
 [[repos]]
 name = "repo"

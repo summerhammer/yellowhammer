@@ -24,7 +24,7 @@ struct SetupInvocationTests {
     @Test("A full invocation builds every option, in order")
     func fullInvocationBuildsEveryOption() throws {
         let invocation = SetupInvocation(
-            installation: "main",
+            boardConnection: "main",
             githubCredential: "keychain:github",
             cliAdapters: ["claude", "codex=codex-bin"],
             route: "claude/sonnet/medium",
@@ -42,7 +42,7 @@ struct SetupInvocationTests {
 
         #expect(try invocation.arguments() == [
             "setup", "--init",
-            "--installation", "main",
+            "--board-connection", "main",
             "--github-credential", "keychain:github",
             "--cli", "claude",
             "--cli", "codex=codex-bin",
@@ -66,7 +66,7 @@ struct SetupInvocationTests {
     @Test("nil and empty (after trimming) options are omitted")
     func emptyOptionsAreOmitted() throws {
         let invocation = SetupInvocation(
-            installation: nil, githubCredential: "", cliAdapters: ["  ", ""]
+            boardConnection: nil, githubCredential: "", cliAdapters: ["  ", ""]
         )
 
         #expect(try invocation.arguments() == ["setup", "--init"])
@@ -135,19 +135,19 @@ struct SetupInvocationTests {
     @Test("choicesArguments builds --print-choices with only the Linear options") // glossary:ignore GL001
     func choicesArgumentsBuildsPrintChoices() {
         let arguments = SetupInvocation.choicesArguments(
-            installation: "main", githubCredential: "keychain:github"
+            boardConnection: "main", githubCredential: "keychain:github"
         )
 
         #expect(arguments == [
             "setup", "--print-choices",
-            "--installation", "main",
+            "--board-connection", "main",
             "--github-credential", "keychain:github"
         ])
     }
 
     @Test("choicesArguments omits absent options") // glossary:ignore GL001
     func choicesArgumentsOmitsAbsentOptions() {
-        let arguments = SetupInvocation.choicesArguments(installation: nil, githubCredential: nil)
+        let arguments = SetupInvocation.choicesArguments(boardConnection: nil, githubCredential: nil)
 
         #expect(arguments == ["setup", "--print-choices"])
     }
@@ -155,22 +155,22 @@ struct SetupInvocationTests {
     @Test("choicesArguments passes --linear-project when provided") // glossary:ignore GL001
     func choicesArgumentsPassesLinearProject() {
         let arguments = SetupInvocation.choicesArguments(
-            installation: "main", githubCredential: nil, linearProject: "proj-1"
+            boardConnection: "main", githubCredential: nil, linearProject: "proj-1"
         )
 
         #expect(arguments == [
             "setup", "--print-choices",
-            "--installation", "main",
+            "--board-connection", "main",
             "--linear-project", "proj-1"
         ])
     }
 
     @Test("installLinearArguments builds --install-linear --events json") // glossary:ignore GL001
     func installLinearArgumentsBuildsInstallLinear() {
-        let arguments = SetupInvocation.installLinearArguments(installation: "main")
+        let arguments = SetupInvocation.installLinearArguments(boardConnection: "main")
 
         #expect(arguments == [
-            "setup", "--install-linear", "--events", "json", "--installation", "main"
+            "setup", "--install-linear", "--events", "json", "--board-connection", "main"
         ])
     }
 
@@ -181,28 +181,28 @@ struct SetupInvocationTests {
         #expect(arguments == ["setup", "--install-linear", "--events", "json"])
     }
 
-    @Test("installLinearArguments appends --installation-name, omitting an empty one")
+    @Test("installLinearArguments appends --board-connection-name, omitting an empty one")
     func installLinearArgumentsAppendsInstallationName() {
-        #expect(SetupInvocation.installLinearArguments(installationName: "work") == [
-            "setup", "--install-linear", "--events", "json", "--installation-name", "work" // glossary:ignore GL001
+        #expect(SetupInvocation.installLinearArguments(boardConnectionName: "work") == [
+            "setup", "--install-linear", "--events", "json", "--board-connection-name", "work" // glossary:ignore GL001
         ])
-        #expect(SetupInvocation.installLinearArguments(installationName: "  ") == [
+        #expect(SetupInvocation.installLinearArguments(boardConnectionName: "  ") == [
             "setup", "--install-linear", "--events", "json" // glossary:ignore GL001
         ])
     }
 
-    @Test("An --init invocation passes --installation-name after --installation")
+    @Test("An --init invocation passes --board-connection-name after --board-connection")
     func initPassesInstallationName() throws {
-        let invocation = SetupInvocation(installationName: "work")
-        #expect(try invocation.arguments() == ["setup", "--init", "--installation-name", "work"])
+        let invocation = SetupInvocation(boardConnectionName: "work")
+        #expect(try invocation.arguments() == ["setup", "--init", "--board-connection-name", "work"])
     }
 
     @Test("installLinearArguments appends --remote when true") // glossary:ignore GL001
     func installLinearArgumentsAppendsRemote() {
-        let arguments = SetupInvocation.installLinearArguments(installation: "main", remote: true)
+        let arguments = SetupInvocation.installLinearArguments(boardConnection: "main", remote: true)
 
         #expect(arguments == [
-            "setup", "--install-linear", "--events", "json", "--installation", "main", "--remote"
+            "setup", "--install-linear", "--events", "json", "--board-connection", "main", "--remote"
         ])
     }
 }

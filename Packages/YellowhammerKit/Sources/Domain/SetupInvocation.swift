@@ -62,11 +62,11 @@ public struct SetupInvocation: Equatable, Sendable {
         case export(directory: String, cron: Bool)
     }
 
-    /// The local name of the Linear App Installation the run acts on (`--installation`).
-    public var installation: String?
-    /// The local name for a NEW Linear App Installation (`--installation-name`); never combined with
-    /// `installation`. Omitted when nil or trimmed empty (the proposal is used).
-    public var installationName: String?
+    /// The local name of the Board Connection the run acts on (`--board-connection`).
+    public var boardConnection: String?
+    /// The local name for a NEW Board Connection (`--board-connection-name`); never combined with
+    /// `boardConnection`. Omitted when nil or trimmed empty (the proposal is used).
+    public var boardConnectionName: String?
     public var githubCredential: String?
     /// `"name"` or `"name=executable"`, in `--cli` order.
     public var cliAdapters: [String]
@@ -78,8 +78,8 @@ public struct SetupInvocation: Equatable, Sendable {
     public var jobs: Jobs
 
     public init(
-        installation: String? = nil,
-        installationName: String? = nil,
+        boardConnection: String? = nil,
+        boardConnectionName: String? = nil,
         githubCredential: String? = nil,
         cliAdapters: [String] = [],
         route: String? = nil,
@@ -88,8 +88,8 @@ public struct SetupInvocation: Equatable, Sendable {
         project: Project? = nil,
         jobs: Jobs = .notNow
     ) {
-        self.installation = installation
-        self.installationName = installationName
+        self.boardConnection = boardConnection
+        self.boardConnectionName = boardConnectionName
         self.githubCredential = githubCredential
         self.cliAdapters = cliAdapters
         self.route = route
@@ -102,8 +102,8 @@ public struct SetupInvocation: Equatable, Sendable {
     /// `["setup", "--init", ...]`, the app's non-interactive `yh setup` invocation.
     public func arguments() throws(SetupInvocationError) -> [String] {
         var arguments = ["setup", "--init"]
-        Self.appendOption(&arguments, "--installation", installation)
-        Self.appendOption(&arguments, "--installation-name", installationName)
+        Self.appendOption(&arguments, "--board-connection", boardConnection)
+        Self.appendOption(&arguments, "--board-connection-name", boardConnectionName)
         Self.appendOption(&arguments, "--github-credential", githubCredential)
         Self.appendRepeated(&arguments, "--cli", cliAdapters)
         Self.appendOption(&arguments, "--route", route)
@@ -142,10 +142,10 @@ public struct SetupInvocation: Equatable, Sendable {
 
     /// `["setup", "--print-choices", ...]`: never prompts, writes no configuration file.
     public static func choicesArguments(
-        installation: String?, githubCredential: String?, linearProject: String? = nil
+        boardConnection: String?, githubCredential: String?, linearProject: String? = nil
     ) -> [String] {
         var arguments = ["setup", "--print-choices"] // glossary:ignore GL001
-        appendOption(&arguments, "--installation", installation)
+        appendOption(&arguments, "--board-connection", boardConnection)
         appendOption(&arguments, "--github-credential", githubCredential)
         appendOption(&arguments, "--linear-project", linearProject)
         return arguments
@@ -153,15 +153,15 @@ public struct SetupInvocation: Equatable, Sendable {
 
     /// `["setup", "--install-linear", "--events", "json", ...]`: the app's re-run of just the Linear
     /// step (P17.6 slice (b)) — used both for the first install and for the app's own Retry/Cancel on a
-    /// `portsBusy`/`cancelled`/`notCompleted` event, which re-runs this exact invocation. `installation`
-    /// selects an existing installation to re-connect; `installationName` names a new one (an empty
+    /// `portsBusy`/`cancelled`/`notCompleted` event, which re-runs this exact invocation. `boardConnection`
+    /// selects an existing Board Connection to re-connect; `boardConnectionName` names a new one (an empty
     /// value means "use the proposal"); the two are never passed together.
     public static func installLinearArguments(
-        installation: String? = nil, installationName: String? = nil, remote: Bool = false
+        boardConnection: String? = nil, boardConnectionName: String? = nil, remote: Bool = false
     ) -> [String] {
         var arguments = ["setup", "--install-linear", "--events", "json"] // glossary:ignore GL001
-        appendOption(&arguments, "--installation", installation)
-        appendOption(&arguments, "--installation-name", installationName)
+        appendOption(&arguments, "--board-connection", boardConnection)
+        appendOption(&arguments, "--board-connection-name", boardConnectionName)
         if remote { arguments.append("--remote") }
         return arguments
     }

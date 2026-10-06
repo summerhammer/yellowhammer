@@ -26,7 +26,7 @@ public struct Outbox: Sendable {
     /// How many transient failures (the board unreachable, a response unreadable) a write survives
     /// before it is recorded as permanently failed. A rate-limit refusal never counts.
     public var attemptLimit = 3
-    /// The App Installation the board writes through, named on a rate-budget record. Nil for a board
+    /// The Board Connection the board writes through, named on a rate-budget record. Nil for a board
     /// bound through none.
     public let installation: AppInstallationLabel?
 
@@ -292,7 +292,7 @@ public struct Outbox: Sendable {
     private func refused(_ entry: OutboxEntry, write: BoardWrite, error: BoardError) throws -> OutboxDelivery {
         switch error {
         case .rateLimited(let retryAfter, _):
-            // The budget is the App Installation's, shared by every Project on it: named as
+            // The budget is the Board Connection's, shared by every Project on it: named as
             // installation-wide, never as this Project's own excess. The entry stays pending, untouched.
             try append(.rateBudgetExhausted(
                 degradation: "board write \(write.operation) deferred; \(String(describing: error))",

@@ -3,7 +3,7 @@ name = "good"
 spec_source = "~/dev/spec"
 
 [board.linear]
-installation = "acme"
+connection = "acme"
 project = "GOOD"
 
 [[repos]]

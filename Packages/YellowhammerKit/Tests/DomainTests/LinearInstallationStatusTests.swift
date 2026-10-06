@@ -4,11 +4,11 @@ import Testing
 struct LinearInstallationStatusTests {
     private func row(
         _ subject: String, _ severity: String, _ message: String = "m", installation: String? = nil,
-        workspaceName: String? = nil
+        workspaceName: String? = nil, authorization: String? = nil
     ) -> DoctorFindingRow {
         DoctorFindingRow(
             check: "linear", subject: subject, severity: severity, message: message,
-            installation: installation, workspaceName: workspaceName
+            installation: installation, workspaceName: workspaceName, authorization: authorization
         )
     }
 
@@ -29,13 +29,16 @@ struct LinearInstallationStatusTests {
 
     @Test("A named installation with a failed installation row has no token pair")
     func namedNoTokenPair() {
-        let rows = [row("installation", "failure", "no pair", installation: "acme")]
+        let rows = [row(
+            "connection", "failure", "no pair", installation: "acme", authorization: "refused"
+        )]
         #expect(LinearInstallationStatus.interpret(rows, installation: "acme") == .noTokenPair(message: "no pair"))
+        #expect(DoctorFindingRow.authorizationState(in: rows, installation: "acme") == .refused)
     }
 
     @Test("Info rows are not faults")
     func infoOnly() {
-        let rows = [row("installation", "info", "unused", installation: "acme")]
+        let rows = [row("connection", "info", "unused", installation: "acme")]
         #expect(LinearInstallationStatus.interpret(rows, installation: "acme") == .unknown)
     }
 
@@ -51,18 +54,18 @@ struct LinearInstallationStatusTests {
 
     @Test("Without a name the first authorization row decides, and none means no token pair")
     func unnamedRule() {
-        let pass = [row("installation", "info"), row("authorization", "pass"), row("authorization", "failure")]
+        let pass = [row("connection", "info"), row("authorization", "pass"), row("authorization", "failure")]
         #expect(LinearInstallationStatus.interpret(pass, installation: nil) == .connected)
         let fail = [row("authorization", "failure", "bad")]
         #expect(LinearInstallationStatus.interpret(fail, installation: nil) == .authorizationFailed(message: "bad"))
-        let none = [row("installation", "failure", "no pair")]
+        let none = [row("connection", "failure", "no pair")]
         #expect(LinearInstallationStatus.interpret(none, installation: nil) == .noTokenPair(message: ""))
     }
 
     @Test("The workspace name comes from any row of the installation")
     func workspaceNameLookup() {
         let rows = [
-            row("installation", "info", installation: "acme"),
+            row("connection", "info", installation: "acme"),
             row("authorization", "pass", installation: "acme", workspaceName: "Acme Inc"),
             row("authorization", "pass", installation: "other", workspaceName: "Other")
         ]

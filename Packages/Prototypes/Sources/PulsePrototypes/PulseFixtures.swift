@@ -346,7 +346,7 @@ extension PulseSnapshot {
         health = HealthFlagKind.allCases.filter(kinds.contains).map { kind in
             let detail = switch kind {
             case .staleOperatorIdentity: "The Operator identity was last confirmed 41 days ago."
-            case .appInstallationRevoked: "The Linear workspace revoked the App Installation."
+            case .appInstallationRevoked: "The Linear workspace revoked the Board Connection."
             case .probeFailure: "codex failed its Probe: exit status 127."
             case .actFailure: "build · main: Worktree allocation failed."
             }

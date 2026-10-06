@@ -95,10 +95,10 @@ final class RecalibrateUITests: XCTestCase {
     }
 
     private static let machineTOML = """
-    [board.linear.installations.acme]
+    [board.linear.connections.acme]
     credential = "keychain:linear"
     workspace = "workspace-1"
-    app_user = "app-user-1"
+    yellowhammer_identity = "app-user-1"
     [github]
     credential = "keychain:github"
 
@@ -114,7 +114,7 @@ final class RecalibrateUITests: XCTestCase {
     spec_source = "~/dev/demo-spec"
 
     [board.linear]
-    installation = "acme"
+    connection = "acme"
     project = "DEMO"
 
     [[repos]]

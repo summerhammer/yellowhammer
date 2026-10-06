@@ -112,8 +112,8 @@ func makeArguments(
     if cron { arguments.append("--cron") }
     if installLinear { arguments.append("--install-linear") }
     if remote { arguments.append("--remote") }
-    appendOption(&arguments, "--installation", installation)
-    appendOption(&arguments, "--installation-name", installationName)
+    appendOption(&arguments, "--board-connection", installation)
+    appendOption(&arguments, "--board-connection-name", installationName)
     appendOption(&arguments, "--events", events)
     appendOption(&arguments, "--config", config)
     appendOption(&arguments, "--route", route)
@@ -250,7 +250,7 @@ func busyLinearInstallSeams() -> LinearInstallSeams {
 }
 
 /// The default seams of ``makeSetup``: an install, if the run needs one, succeeds in workspace
-/// "Acme" (`workspace-1`, app user `app-user-1`).
+/// "Acme" (`workspace-1`, Yellowhammer identity `app-user-1`).
 func defaultLinearInstallSeams() -> LinearInstallSeams {
     happyPathSeams()
 }

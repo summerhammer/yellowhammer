@@ -2,7 +2,7 @@ import Config
 import Domain
 
 extension Doctor {
-    /// The app user's team membership in each team of `project`'s Linear project, read through the
+    /// The Yellowhammer identity's team membership in each team of `project`'s Linear project, read through the
     /// installation that serves the Project (Board Provisioning Ruling, OQ80). Provisioned items (states,
     /// labels) are not verified here.
     func boardMembershipFindings(
@@ -12,7 +12,7 @@ extension Doctor {
             name: installation.name, workspace: installation.workspace.rawValue,
             workspaceName: workspaceName, projects: [project.id]
         )
-        let prefix = "Project \(project.id) (installation \(installation.name)): " // glossary:ignore GL001
+        let prefix = "Project \(project.id) (Board Connection \(installation.name)): " // glossary:ignore GL001
         func team(_ severity: DoctorSeverity, _ message: String) -> DoctorFinding {
             finding(.linear, subject: "team", severity, prefix + message, project: project.id, installation: scope)
         }
@@ -26,13 +26,13 @@ extension Doctor {
         } catch .forbidden {
             return [team(
                 .failure,
-                "Linear refused permission to read Linear project \(project.linearProject) for this installation; " +
+                "Linear refused permission to read Linear project \(project.linearProject) for this connection; " +
                     "check the app's access in Linear"
             )]
         } catch .scopeNotFound {
             return [team(
                 .failure,
-                "Linear project \(project.linearProject) is not visible to this installation; " +
+                "Linear project \(project.linearProject) is not visible to this connection; " +
                     "select its team when approving the app, or re-connect the workspace: " +
                     Self.reconnectFix(installation)
             )]

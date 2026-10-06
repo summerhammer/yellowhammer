@@ -40,7 +40,7 @@ struct DoctorConfigurationTests {
         try directory.writeProjectFile(id: "broken", """
             id = "broken"
             name = "broken"
-            board = { linear = { installation = "acme", project = "broken" } }
+            board = { linear = { connection = "acme", project = "broken" } }
             spec_source = "~/Developer/broken-spec"
 
             [[repos]]
@@ -82,10 +82,10 @@ struct DoctorConfigurationTests {
     func routingEntryWithoutFallbacksWarns() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile("""
-            [board.linear.installations.acme]
+            [board.linear.connections.acme]
             credential = "keychain:linear"
             workspace = "workspace-1"
-            app_user = "app-user-1"
+            yellowhammer_identity = "app-user-1"
 
             [github]
             credential = "keychain:github"

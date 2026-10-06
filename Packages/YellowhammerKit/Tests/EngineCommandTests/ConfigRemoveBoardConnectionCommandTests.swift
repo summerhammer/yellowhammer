@@ -8,15 +8,15 @@ import Testing
 
 private let twoInstallations = """
     # machine file
-    [board.linear.installations.alpha]
+    [board.linear.connections.alpha]
     credential = "keychain:linear-alpha"
     workspace = "ws-a"
-    app_user = "app-a"
+    yellowhammer_identity = "app-a"
 
-    [board.linear.installations.beta]
+    [board.linear.connections.beta]
     credential = "keychain:linear-beta"
     workspace = "ws-b"
-    app_user = "app-b"
+    yellowhammer_identity = "app-b"
 
     [github]
     credential = "keychain:github"
@@ -70,7 +70,7 @@ private func remove(
     board: FakeProvisioningBoard? = nil, answers: [String?] = []
 ) async throws -> RemoveResult {
     let command = try #require(
-        try ConfigRemoveInstallationCommand.parse([name] + flags) as? ConfigRemoveInstallationCommand
+        try ConfigRemoveBoardConnectionCommand.parse([name] + flags) as? ConfigRemoveBoardConnectionCommand
     )
     let output = RecordingOutput()
     let binds = Mutex(0)
@@ -101,8 +101,8 @@ private func remove(
     }
 }
 
-@Suite("yh config remove-installation")
-struct ConfigRemoveInstallationCommandTests {
+@Suite("yh config remove-board-connection")
+struct ConfigRemoveBoardConnectionCommandTests {
     @Test("An unknown name is refused, naming it; nothing changes")
     func unknownName() async throws {
         let directory = ConfigurationDirectory()
@@ -213,12 +213,12 @@ struct ConfigRemoveInstallationCommandTests {
         #expect(refusedFiles == ["abc.toml", "zeta.toml"])
         #expect(strict.projects.isEmpty)
         let report = result.lines.joined(separator: "\n")
-        #expect(report.contains("Installation acme removed"))
+        #expect(report.contains("Board Connection acme removed"))
         #expect(report.contains("abc, zeta"))
         #expect(report.contains("yh project remove abc")) // glossary:ignore GL001
         #expect(report.contains("yh project remove zeta")) // glossary:ignore GL001
         #expect(report.contains("stays installed in that Linear workspace"))
-        #expect(report.contains("yh setup --installation-name acme"))
+        #expect(report.contains("yh setup --board-connection-name acme"))
     }
 
     @Test("Present and Linear refuses it: removed")
@@ -311,7 +311,7 @@ struct ConfigRemoveInstallationCommandTests {
         #expect(!result.succeeded)
         let usage = try #require(result.error as? ValidationError)
         #expect(usage.message.contains("nothing to orphan"))
-        #expect(usage.message.contains("yh config remove-installation alpha"))
+        #expect(usage.message.contains("yh config remove-board-connection alpha"))
         #expect(result.binds == 0)
         #expect(presence.askCount == 0)
         #expect(deleter.references.isEmpty)
@@ -344,12 +344,12 @@ struct ConfigRemoveInstallationCommandTests {
         )
         #expect(!result.succeeded)
         #expect(result.error is ExitCode)
-        #expect(result.prompts == ["Remove installation acme anyway? [y/N] "])
+        #expect(result.prompts == ["Remove Board Connection acme anyway? [y/N] "])
         let shown = result.lines.joined(separator: "\n")
         #expect(shown.contains("abc, zeta"))
         #expect(shown.contains("yh project remove abc")) // glossary:ignore GL001
         #expect(shown.contains("stays installed in that Linear workspace"))
-        #expect(shown.contains("--installation-name acme"))
+        #expect(shown.contains("--board-connection-name acme"))
         #expect(deleter.references.isEmpty)
         #expect(try configText(directory) == before)
     }
@@ -376,7 +376,7 @@ struct ConfigRemoveInstallationCommandTests {
     @Test("--yes without --orphan-projects is a usage error")
     func yesNeedsOrphanProjects() {
         #expect(throws: (any Error).self) {
-            try ConfigRemoveInstallationCommand.parse(["alpha", "--yes"])
+            try ConfigRemoveBoardConnectionCommand.parse(["alpha", "--yes"])
         }
     }
 }

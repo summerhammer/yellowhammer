@@ -11,10 +11,10 @@ import Testing
 struct BoardBindingTests {
     private func makeMachineAndProject(credential: String) throws -> (MachineConfiguration, ProjectConfiguration) {
         let machine = try MachineConfiguration.parse("""
-            [board.linear.installations.acme]
+            [board.linear.connections.acme]
             credential = "\(credential)"
             workspace = "workspace-1"
-            app_user = "app-user-1"
+            yellowhammer_identity = "app-user-1"
 
             [github]
             credential = "keychain:github"
@@ -22,7 +22,7 @@ struct BoardBindingTests {
         let project = try ProjectConfiguration.parse("""
             id = "yellowhammer"
             name = "Yellowhammer"
-            board = { linear = { installation = "acme", project = "7f1c2d9e-3b4a-4c5d-8e6f-0a1b2c3d4e5f" } }
+            board = { linear = { connection = "acme", project = "7f1c2d9e-3b4a-4c5d-8e6f-0a1b2c3d4e5f" } }
             spec_source = "~/Developer/yellowhammer-spec"
 
             [[repos]]
@@ -72,7 +72,7 @@ struct BoardBindingTests {
         spec_source = "~/Developer/\(id)-spec"
 
         [board.linear]
-        installation = "\(installation)"
+        connection = "\(installation)"
         project = "\(id.uppercased())"
 
         [[repos]]
@@ -87,16 +87,16 @@ struct BoardBindingTests {
     func actBindsOwnInstallation() throws {
         let uuid = UUID().uuidString
         let machine = try MachineConfiguration.parse("""
-            [board.linear.installations.acme]
+            [board.linear.connections.acme]
             credential = "keychain:yh-test-a-\(uuid)"
             workspace = "workspace-a"
-            app_user = "app-user-a"
+            yellowhammer_identity = "app-user-a"
             operator = "op-a"
 
-            [board.linear.installations.beta]
+            [board.linear.connections.beta]
             credential = "keychain:yh-test-b-\(uuid)"
             workspace = "workspace-b"
-            app_user = "app-user-b"
+            yellowhammer_identity = "app-user-b"
             operator = "op-b"
 
             [github]

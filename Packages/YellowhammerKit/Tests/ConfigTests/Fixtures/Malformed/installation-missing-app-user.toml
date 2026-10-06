@@ -1,5 +1,5 @@
-# One App Installation without its app user.
-[board.linear.installations.acme]
+# One Board Connection without its Yellowhammer identity.
+[board.linear.connections.acme]
 credential = "keychain:linear-acme"
 workspace = "ws-1"
 

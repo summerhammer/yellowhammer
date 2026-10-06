@@ -3,7 +3,7 @@ import LinearAdapter
 import System
 import Subprocess
 
-/// Picking the first free loopback port of the three the Linear App Installation registers (roadmap
+/// Picking the first free loopback port of the three the Linear Board Connection registers (roadmap
 /// P17.6; spec: board-projection/install-the-linear-app "The install", OQ94). All three busy is not a
 /// retryable-per-port condition: setup stops before the browser and asks the Operator to quit one.
 

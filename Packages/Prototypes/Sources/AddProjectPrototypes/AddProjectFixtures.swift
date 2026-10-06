@@ -5,7 +5,7 @@ struct LinearProjectFixture: Identifiable, Hashable { // glossary:ignore GL001
     let id: String
     let name: String
     let teamName: String
-    /// The local name of the App Installation whose Linear workspace holds it.
+    /// The local name of the Board Connection whose Linear workspace holds it.
     var workspace = "acme"
     /// Whether Yellowhammer is a member of its team, so it can read it.
     var readable = true
@@ -18,7 +18,7 @@ struct TeamFixture: Identifiable, Hashable {
     var id: String { key }
 }
 
-/// A connected App Installation: a Linear workspace Yellowhammer is installed in.
+/// A connected Board Connection: a Linear workspace Yellowhammer is installed in.
 struct LinearWorkspaceFixture: Identifiable, Hashable {
     /// The installation's local name, which the Project file records.
     let localName: String
@@ -65,7 +65,7 @@ enum AddProjectFixtures {
     )
 
     /// Linear users the Operator identity can be chosen from: active human members only, never
-    /// Yellowhammer's own app user, bots or deactivated users.
+    /// Yellowhammer's own Yellowhammer identity, bots or deactivated users.
     static let workspaceMembers = ["operator@acme.dev", "max@summerhammer.dev", "dana@summerhammer.dev"]
 
     /// Linear projects beyond `linearProjects`: in other workspaces, or in a team Yellowhammer is not in.

@@ -114,8 +114,8 @@ class NightCardLinkTests(unittest.TestCase):
         transport = FakeTransport(fail_ids={"issue-2"})
         with tempfile.TemporaryDirectory() as configuration_directory:
             configuration_directory = Path(configuration_directory)
-            (configuration_directory / "config.toml").write_text(('[board.linear.installations.scratch]\n'
-                'credential = "keychain:linear-scratch"\nworkspace = "ws-1"\napp_user = "app-1"\n'))
+            (configuration_directory / "config.toml").write_text(('[board.linear.connections.scratch]\n'
+                'credential = "keychain:linear-scratch"\nworkspace = "ws-1"\nyellowhammer_identity = "app-1"\n'))
             with mock.patch.object(
                 release_gate.scratch_linear, "keychain_token_pair", return_value=FRESH_PAIR
             ):

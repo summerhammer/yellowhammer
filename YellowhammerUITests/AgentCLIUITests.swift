@@ -159,10 +159,10 @@ final class AgentCLIUITests: XCTestCase {
     }
 
     private static let machineTOML = """
-    [board.linear.installations.acme]
+    [board.linear.connections.acme]
     credential = "keychain:linear"
     workspace = "workspace-1"
-    app_user = "app-user-1"
+    yellowhammer_identity = "app-user-1"
     [github]
     credential = "keychain:github"
 
@@ -175,10 +175,10 @@ final class AgentCLIUITests: XCTestCase {
 
     /// What `yh setup --install-linear` writes on a Mac with no `config.toml`: no CLI, no route.
     private static let linearOnlyMachineTOML = """
-    [board.linear.installations.acme]
+    [board.linear.connections.acme]
     credential = "keychain:linear"
     workspace = "workspace-1"
-    app_user = "app-user-1"
+    yellowhammer_identity = "app-user-1"
     [github]
     credential = "keychain:github"
     """

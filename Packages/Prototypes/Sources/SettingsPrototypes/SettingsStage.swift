@@ -87,7 +87,7 @@ struct SettingsStage<Content: View>: View {
         VStack(alignment: .leading, spacing: 4) {
             sectionTitle("This Mac")
             sidebarRow("General", "Orca ADE")
-            sidebarRow("Boards", "Linear workspaces")
+            sidebarRow("Boards", "Board connections")
             sidebarRow("Agent CLIs", "Declared CLIs and their Probes", selected: section == .agentCLIs)
             sidebarRow("Base Routing Table", "Routes every Project shares", selected: section == .baseRoutingTable)
             sidebarRow("Refused Files", "None")

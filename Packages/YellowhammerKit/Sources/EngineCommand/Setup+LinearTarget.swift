@@ -1,7 +1,7 @@
 import Config
 import Domain
 
-/// Which Linear App Installation a `yh setup` run acts on (roadmap L2.1), decided before any Linear call.
+/// Which Linear Board Connection a `yh setup` run acts on (roadmap L2.1), decided before any Linear call.
 extension Setup {
     /// What the run does about Linear.
     enum LinearRequest {
@@ -14,8 +14,8 @@ extension Setup {
         case use(LinearInstallation)
     }
 
-    /// Resolves `--installation`, `--installation-name` and the registry into a ``LinearRequest``, or
-    /// refuses. Refusals write nothing and call nothing. `--installation-name` means "connect a new
+    /// Resolves `--board-connection`, `--board-connection-name` and the registry into a ``LinearRequest``, or
+    /// refuses. Refusals write nothing and call nothing. `--board-connection-name` means "connect a new
     /// workspace" in every mode: no installations list, and `--init`/`--config` connect rather than refuse.
     func resolveLinearRequest(machine: MachineConfiguration) throws -> LinearRequest {
         if options.installationName != nil { return .connect(nil) }
@@ -29,12 +29,12 @@ extension Setup {
         case .initialize, .config:
             if let id = options.projectID {
                 throw SetupError(
-                    "name the Linear App Installation for Project \(id.rawValue) with --installation: "
+                    "name the Board Connection for Project \(id.rawValue) with --board-connection: "
                         + names.joined(separator: ", ")
                 )
             }
             if options.operatorID != nil {
-                throw SetupError("--operator needs --installation <name> when Linear workspaces are connected")
+                throw SetupError("--operator needs --board-connection <name> when Board connections are connected")
             }
             return .skip
         case .installLinear, .printChoices:
@@ -42,7 +42,7 @@ extension Setup {
         }
     }
 
-    /// `--installation <name>`: a re-connect of that entry under `--install-linear`, else acting on it.
+    /// `--board-connection <name>`: a re-connect of that entry under `--install-linear`, else acting on it.
     private func resolveNamedInstallation(_ name: String, machine: MachineConfiguration) throws -> LinearRequest {
         guard let entry = machine.linearInstallation(named: name) else {
             throw SetupError(Self.unknownInstallationMessage(name, connected: machine.linearInstallations.map(\.name)))
@@ -55,7 +55,7 @@ extension Setup {
     /// The workspace is shown by ID: its name needs a live read, which setup does not make here. An empty,
     /// non-numeric or out-of-range answer re-asks; EOF cancels.
     private func askInstallation(_ entries: [LinearInstallation]) throws -> LinearRequest {
-        output("Linear workspaces:")
+        output("Board connections:")
         for (index, entry) in entries.enumerated() {
             let operatorText = entry.operatorIdentity.map { "Operator \($0.rawValue)" } ?? "Operator not chosen"
             output("  \(index + 1)) \(entry.name) — workspace \(entry.workspace.rawValue), \(operatorText)")
@@ -79,7 +79,7 @@ extension Setup {
         let listing = names.isEmpty
             ? "none are connected; connect one with yh setup --install-linear"
             : "connected: \(names.joined(separator: ", "))"
-        return "\(name) is not a connected Linear App Installation (\(listing))"
+        return "\(name) is not a connected Board Connection (\(listing))"
     }
 
     /// Runs the request: the installation the run acts on and the workspace members (the immediate
@@ -119,14 +119,14 @@ extension Setup {
     /// Interactive: re-connects `entry`, asking first when Linear refused it (a missing token pair just
     /// re-connects). Anything else throws the re-connect command.
     private func confirmReconnect(_ entry: LinearInstallation, refusedByLinear: Bool) throws {
-        let message = "Linear refused the App Installation \(entry.name); "
-            + "re-connect it: yh setup --install-linear --installation \(entry.name)"
+        let message = "Linear refused the Board Connection \(entry.name); "
+            + "re-connect it: yh setup --install-linear --board-connection \(entry.name)"
         guard isInteractive else { throw SetupError(message) }
         guard refusedByLinear else {
-            output("The App Installation \(entry.name) has no stored tokens; re-connecting it.")
+            output("The Board Connection \(entry.name) has no stored tokens; re-connecting it.")
             return
         }
-        output("Linear refused the App Installation \(entry.name) (revoked, or its sign-in expired).")
+        output("Linear refused the Board Connection \(entry.name) (revoked, or its sign-in expired).")
         guard let line = console.ask("Re-connect \(entry.name)? [y/n]: "),
               ["y", "yes"].contains(line.trimmingCharacters(in: .whitespaces).lowercased())
         else {

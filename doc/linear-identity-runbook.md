@@ -1,12 +1,12 @@
-# Linear board identity: App Installations, storage, re-connecting, removal
+# Linear board identity: Board Connections, storage, re-connecting, removal
 
-Yellowhammer authenticates to Linear as its own app user, through an **App Installation** of its
+Yellowhammer authenticates to Linear as its own Yellowhammer identity, through an **Board Connection** of its
 Linear OAuth application in a Linear workspace — never as an Operator's personal API key. A personal
 key silences Linear's self-action notification suppression, so Yellowhammer's own comments and
 assignments would never reach the Operator's Inbox — see spec `system-overview.md` → *Why the board
 identity is its own subsystem concern* and the Linear feasibility probe (*Identity & notifications*).
 
-The machine holds a registry of App Installations, zero or more, one per Linear workspace. Each
+The machine holds a registry of Board Connections, zero or more, one per Linear workspace. Each
 Project selects one by name. A developer Mac can hold a scratch installation and a production
 installation at once; nothing is shared between them (see *Storage*). The earlier rule that a machine
 talks to exactly one workspace, through a single `keychain:linear` reference, is gone, and so is the
@@ -19,19 +19,19 @@ yh setup --install-linear
 ```
 
 This opens the browser for a Linear workspace admin to approve the app. There is no client id and no
-client secret to copy. The approval creates the app user in that workspace; Yellowhammer then
+client secret to copy. The approval creates the Yellowhammer identity in that workspace; Yellowhammer then
 stores the token pair and registers the installation (below).
 
 - Re-connecting a workspace that is already registered replaces its tokens and keeps its local name
-  and its Operator identity. `yh setup --install-linear --installation <name>` re-connects that one
+  and its Operator identity. `yh setup --install-linear --board-connection <name>` re-connects that one
   installation.
 - The local `<name>` defaults to the workspace URL key and is fixed once written. Name it yourself
-  with `yh setup --install-linear --installation-name <name>` (the app's name field passes the same
+  with `yh setup --install-linear --board-connection-name <name>` (the app's name field passes the same
   flag). An invalid name, or one another installation uses, is refused before the browser opens. If
   Linear approves a workspace that is already connected, that installation is re-connected and the
   given name is discarded.
 - Two entries with one workspace are refused.
-- Choose which Linear teams the app user joins on the install screen. The app user must be a
+- Choose which Linear teams the Yellowhammer identity joins on the install screen. The Yellowhammer identity must be a
   **member** of the team a Project provisions inside; "All public teams" does not make it one (see
   `../scripts/scratch-linear/README.md`).
 
@@ -40,10 +40,10 @@ stores the token pair and registers the installation (below).
 The machine-wide config file (`~/.config/yellowhammer/config.toml`) holds zero or more installations:
 
 ```toml
-[board.linear.installations.<name>]
+[board.linear.connections.<name>]
 credential = "keychain:linear-<name>"
 workspace = "<Linear workspace id>"
-app_user = "<app user id>"
+yellowhammer_identity = "<Yellowhammer identity id>"
 operator = "<user id>"
 ```
 
@@ -62,7 +62,7 @@ A Project file selects an installation in `projects/<id>.toml`:
 
 ```toml
 [board.linear]
-installation = "<name>"
+connection = "<name>"
 project = "<Linear project id>"
 ```
 
@@ -82,8 +82,8 @@ project = "<Linear project id>"
 ## Choosing and changing the Operator identity
 
 ```sh
-yh setup --print-choices [--installation <name>]
-yh config operator --installation <name> <user-id>
+yh setup --print-choices [--board-connection <name>]
+yh config operator --board-connection <name> <user-id>
 ```
 
 `--print-choices` lists the Operator candidates and the teams the app can see, and writes nothing.
@@ -115,7 +115,7 @@ YH_LINEAR_PROJECT_ID=<scratch-linear-project-id> \
 swift test --package-path Packages/YellowhammerKit --filter LinearScratchTests
 ```
 
-`YH_LINEAR_INSTALLATION` names the scratch App Installation; the test reads its token pair from the
+`YH_LINEAR_INSTALLATION` names the scratch Board Connection; the test reads its token pair from the
 Keychain item `linear-<name>` and writes refreshed pairs back. There is no client id or secret in the
 environment. Run it on a developer machine holding the scratch installation, never against production's.
 
@@ -125,7 +125,7 @@ The engine refreshes the token pair itself under the installation's refresh lock
 no longer works (the doctor reports the installation's authorization as failing), on a compromise
 suspicion, or on developer-machine offboarding:
 
-1. `yh setup --install-linear --installation <name>`, and approve in Linear again. The tokens in that
+1. `yh setup --install-linear --board-connection <name>`, and approve in Linear again. The tokens in that
    installation's Keychain item are replaced; its name and Operator identity are kept.
 2. `yh doctor --check linear` to confirm the installation is healthy.
 3. Installations are independent: re-connecting one never touches another.
@@ -135,7 +135,7 @@ The spec does not mandate a schedule.
 ## Removal and revocation
 
 ```sh
-yh config remove-installation <name>
+yh config remove-board-connection <name>
 ```
 
 This is refused while any Project names the installation. Otherwise it deletes the entry from
@@ -147,7 +147,7 @@ will approve again) and a Project still names it, `yh project remove` cannot fin
 is in flight. The exit is:
 
 ```sh
-yh config remove-installation <name> --orphan-projects   # asks to confirm; --yes skips the prompt
+yh config remove-board-connection <name> --orphan-projects   # asks to confirm; --yes skips the prompt
 ```
 
 It removes the entry and its Keychain item even while Projects name it, but only when a live check
@@ -155,7 +155,7 @@ finds the authorization refused. An absent Keychain item counts as refused. An u
 item or an unreachable Linear refuses it and exits 1. It is still refused while a Project file fails
 to decode. Then run `yh project remove <id>` for each Project it lists: the release comment is
 skipped and reported. To undo, re-connect the same workspace with
-`yh setup --installation-name <name>` under the exact same local name. Do not delete a Project file
+`yh setup --board-connection-name <name>` under the exact same local name. Do not delete a Project file
 by hand: that skips the WIP Commit and push. Settings offers the same as **Remove Anyway…**.
 
 ## Provisioning (P5.3)

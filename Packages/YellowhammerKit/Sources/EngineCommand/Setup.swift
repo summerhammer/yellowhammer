@@ -31,7 +31,7 @@ struct Setup {
     let fileExists: (String) -> Bool
     /// `launchd`'s control surface for `--install-jobs`.
     let launchAgents: any LaunchAgentControl
-    /// The Linear App Installation browser flow's side effects (P17.6): port binding, the browser
+    /// The Linear Board Connection browser flow's side effects (P17.6): port binding, the browser
     /// opener, the token transport. Tests inject stubs; `SetupCommand` wires the real ones.
     let linearInstallSeams: LinearInstallSeams
     /// Builds the Installation token store bound to a credential reference — a seam so tests use a

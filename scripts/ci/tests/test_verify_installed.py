@@ -274,8 +274,8 @@ class VerifyInstalledTestCase(unittest.TestCase):
         config_dir = self.home / ".config" / "yellowhammer"
         config_dir.mkdir(parents=True)
         (config_dir / "config.toml").write_text(
-            '[general]\nsomething = "x"\n\n[board.linear.installations.scratch]\n'
-            'credential = "keychain:linear-scratch"\nworkspace = "ws-1"\napp_user = "app-1"\n'
+            '[general]\nsomething = "x"\n\n[board.linear.connections.scratch]\n'
+            'credential = "keychain:linear-scratch"\nworkspace = "ws-1"\nyellowhammer_identity = "app-1"\n'
         )
 
     def setup_orca(self, bin_dir, version=ORCA_VERSION):

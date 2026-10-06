@@ -1,13 +1,13 @@
 import Config
 import Domain
 
-/// `--installation-name` (spec ruling OQ120): the Operator names a NEW Linear App Installation on every
+/// `--board-connection-name` (spec ruling OQ120): the Operator names a NEW Linear Board Connection on every
 /// surface. The name is checked before the browser opens, and an Operator-given name is never altered —
 /// only the automatic proposal is sanitized and suffixed.
 extension Setup {
     /// Refuses a given name that is not a valid local name, or that another registry entry already
     /// uses, before the admin statement is reported and before any authorization opens. No-op without
-    /// `--installation-name`. Under `--events json` a refusal emits `.failed(.invalidInstallationName)`.
+    /// `--board-connection-name`. Under `--events json` a refusal emits `.failed(.invalidInstallationName)`.
     func checkInstallationName(machine: MachineConfiguration) async throws {
         guard let name = options.installationName else { return }
         if !LinearInstallation.isValidLocalName(name) {
@@ -20,7 +20,7 @@ extension Setup {
             let workspace = await workspaceLabel(of: taken)
             try refuseInstallationName(
                 "\(name) is already used by the Linear workspace \(workspace); choose another name, "
-                    + "or re-connect that workspace with --installation \(name); nothing was changed."
+                    + "or re-connect that workspace with --board-connection \(name); nothing was changed."
             )
         }
     }
@@ -40,7 +40,7 @@ extension Setup {
         return entry.workspace.rawValue
     }
 
-    /// The local name for a workspace new to the registry: the given `--installation-name` (which
+    /// The local name for a workspace new to the registry: the given `--board-connection-name` (which
     /// answers the interactive prompt, so it is not shown), else `proposed`.
     func newInstallationName(proposed: String, machine: MachineConfiguration) throws -> String {
         if let given = options.installationName { return given }

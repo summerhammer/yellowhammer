@@ -10,46 +10,46 @@ private let githubOnly = "[github]\ncredential = \"keychain:github\"\n"
 
 private func existingEntry(name: String, workspace: String) -> String {
     """
-    [board.linear.installations.\(name)]
+    [board.linear.connections.\(name)]
     credential = "keychain:existing-credential"
     workspace = "\(workspace)"
-    app_user = "app-user-1"
+    yellowhammer_identity = "app-user-1"
     operator = "user-op"
 
 
     """
 }
 
-/// `--installation-name` (spec ruling OQ120): the Operator names a NEW Linear App Installation.
-@Suite("Setup: --installation-name")
+/// `--board-connection-name` (spec ruling OQ120): the Operator names a NEW Linear Board Connection.
+@Suite("Setup: --board-connection-name")
 struct SetupInstallationNameTests {
     // MARK: Option level
 
-    @Test("--installation-name cannot be combined with --installation")
+    @Test("--board-connection-name cannot be combined with --board-connection")
     func conflictsWithInstallation() {
         #expect(throws: (any Error).self) {
             try SetupOptions(command: SetupCommand.parse([
-                "--install-linear", "--installation", "main", "--installation-name", "work"
+                "--install-linear", "--board-connection", "main", "--board-connection-name", "work"
             ]))
         }
     }
 
-    @Test("--installation-name cannot be combined with --print-choices") // glossary:ignore GL001
+    @Test("--board-connection-name cannot be combined with --print-choices") // glossary:ignore GL001
     func conflictsWithPrintChoices() {
         #expect(throws: (any Error).self) {
-            let arguments = ["--print-choices", "--installation-name", "work"] // glossary:ignore GL001
+            let arguments = ["--print-choices", "--board-connection-name", "work"] // glossary:ignore GL001
             try SetupOptions(command: SetupCommand.parse(arguments))
         }
     }
 
-    @Test("An empty --installation-name is a ValidationError")
+    @Test("An empty --board-connection-name is a ValidationError")
     func emptyNameIsRejected() {
         #expect(throws: (any Error).self) {
-            try SetupOptions(command: SetupCommand.parse(["--install-linear", "--installation-name", "  "]))
+            try SetupOptions(command: SetupCommand.parse(["--install-linear", "--board-connection-name", "  "]))
         }
     }
 
-    @Test("--installation-name resolves to connecting a new workspace in every mode")
+    @Test("--board-connection-name resolves to connecting a new workspace in every mode")
     func resolvesToConnectNew() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile(existingEntry(name: "main", workspace: "workspace-a") + githubOnly)

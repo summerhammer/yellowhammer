@@ -4,7 +4,7 @@ import Foundation
 
 /// The two pieces `yh setup`'s Operator step and `yh config operator` share (spec
 /// `install-the-linear-app`, OQ66): why a user id is refused as an Operator identity, and the
-/// validated, atomic write of one App Installation's `operator` key.
+/// validated, atomic write of one Board Connection's `operator` key.
 enum OperatorIdentityEditing {
     /// Why `id` is not an Operator candidate among `members`: not a member, deactivated, an app, or
     /// Yellowhammer's own identity.
@@ -18,7 +18,7 @@ enum OperatorIdentityEditing {
         return "\(id.rawValue) is not an Operator candidate: \(reason)"
     }
 
-    /// Sets `operator` in `[board.linear.installations.<name>]` of the machine file, touching no other
+    /// Sets `operator` in `[board.linear.connections.<name>]` of the machine file, touching no other
     /// table. The edited text is re-parsed before it is written, and written atomically, so a refusal
     /// leaves the file as it was.
     static func write(_ id: BoardObjectID, installation name: String, machineFileURL: URL) throws {
@@ -31,7 +31,7 @@ enum OperatorIdentityEditing {
         }
         let updated = MachineConfiguration.settingOperator(id, installation: name, inFileText: text)
         guard updated != text else {
-            throw SetupError("\(path) has no [board.linear.installations.\(name)] to hold the Operator identity")
+            throw SetupError("\(path) has no [board.linear.connections.\(name)] to hold the Operator identity")
         }
         do {
             _ = try MachineConfiguration.parse(updated, file: path)

@@ -280,7 +280,7 @@ struct OutboxTests {
         #expect(issueID == "issue-1")
     }
 
-    @Test("A rate-limit refusal names the Outbox's App Installation and workspace when it has one")
+    @Test("A rate-limit refusal names the Outbox's Board Connection and workspace when it has one")
     func rateLimitNamesTheInstallation() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()

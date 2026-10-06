@@ -1,6 +1,6 @@
 id = "board-installations-table"
 name = "board-installations-table"
-[board.linear.installations.x]
+[board.linear.connections.x]
 credential = "keychain:x"
 
 [[repos]]
