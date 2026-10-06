@@ -226,7 +226,7 @@ func overrideRefusedRoundTrips() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
     let run = RunID()
-    let reason = "Override `codex/-/-` pins `codex`, which is not offered by its Probe: never probed"
+    let reason = "Override `codex/gpt-5.4/medium` pins `codex`, which is not offered by its Probe: never probed"
 
     let event = JournalEvent.overrideRefused(cardID: 7, issueID: "ENG-7", reason: reason)
     try journal.append(event, act: .build, runID: run, now: epoch)

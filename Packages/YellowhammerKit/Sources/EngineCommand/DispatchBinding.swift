@@ -19,16 +19,42 @@ enum DispatchBinding {
         case .rehearsal:
             return RehearsalDispatch(script: resultFixtures)
         case .real:
-            var declared: [String: String] = [:]
-            for adapter in configuration.machine.cliAdapters {
-                declared[adapter.name] = adapter.executable
-            }
             return CLIAdapterDispatch(
                 runsDirectory: CLIAdapterDispatch.runsDirectory(
                     configurationDirectory: configurationDirectory, projectID: project.id
                 ),
-                declaredExecutables: declared
+                declaredExecutables: declaredExecutables(configuration)
             )
         }
+    }
+
+    /// The Route Pre-flight seam's implementation for a Night (OQ126), chosen the same way: a Rehearsal
+    /// Night never runs an agent CLI, so its pre-flight is a fixture answer.
+    static func routePreflight(
+        mode: NightMode,
+        configuration: Configuration,
+        project: ProjectConfiguration,
+        configurationDirectory: URL
+    ) -> any RoutePreflighting {
+        switch mode {
+        case .rehearsal:
+            RehearsalRoutePreflight()
+        case .real:
+            CLIAdapterRoutePreflight(
+                runsDirectory: CLIAdapterDispatch.runsDirectory(
+                    configurationDirectory: configurationDirectory, projectID: project.id
+                ),
+                declaredExecutables: declaredExecutables(configuration)
+            )
+        }
+    }
+
+    /// Each declared CLI Adapter's executable from the machine configuration, by CLI name.
+    private static func declaredExecutables(_ configuration: Configuration) -> [String: String] {
+        var declared: [String: String] = [:]
+        for adapter in configuration.machine.cliAdapters {
+            declared[adapter.name] = adapter.executable
+        }
+        return declared
     }
 }

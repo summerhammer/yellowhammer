@@ -125,13 +125,13 @@ extension JournalStore {
         route: Route,
         checkDeclaredNone: Bool = false,
         routeSource: String? = nil,
-        override: Override = .none,
+        override: Override? = nil,
         runID: RunID,
         act: Act? = nil,
         nightID: Int64? = nil,
         now: Date = Date()
     ) throws -> AttemptRecord {
-        let overridePin = override.isEmpty ? nil : override.description
+        let overridePin = override?.description
         return try write { db in
             _ = try Self.revalidateActLease(db, runID: runID, now: now)
 

@@ -222,88 +222,101 @@ struct RouteFilterTests {
 
 @Suite("Route resolution: the Override")
 struct RouteOverrideTests {
-    @Test("A full Override beats Kind and Repo Role, and reports the entry it would have used")
-    func fullOverrideBeatsSelection() throws {
-        let override = Override(cli: "gemini", model: "pro", effort: "high")
-        let request = RouteRequest(kind: kind("impl.boilerplate"), repoRole: .backend, override: override)
-        let resolved = try resolved(try resolver().resolve(request))
-        #expect(resolved.route == route("gemini", "pro", "high"))
-        #expect(resolved.selectedBy == .override)
-        #expect(resolved.entry == RoutingEntry.Key(kind: kind("impl.boilerplate"), repoRole: .any))
+    @Test("A table Route pinned whole resolves to exactly that Route, whatever the Kind, Repo Role and exclusions")
+    func tableRouteBeatsSelectionAndExclusion() throws {
+        let cards = [(kind("impl.boilerplate"), RepoRole.backend), (kind("review"), .web), (kind("impl"), .backend)]
+        for (kind, role) in cards {
+            let request = RouteRequest(
+                kind: kind, repoRole: role, override: Override(label: "codex/gpt-5.4/medium"),
+                excludedRoutes: [codexMedium, claudeSonnet, claudeHaiku]
+            )
+            let resolved = try resolved(try resolver().resolve(request))
+            #expect(resolved.route == codexMedium)
+            #expect(resolved.selectedBy == .override)
+            #expect(resolved.skipped.isEmpty)
+        }
     }
 
-    @Test("A partial Override fills the absent axes from the resolved entry's primary route, never a fallback")
-    func partialOverrideFillsFromThePrimaryRoute() throws {
-        // impl for backend resolves to codex/gpt-5.4/medium with fallback claude/sonnet/medium.
-        let request = RouteRequest(kind: kind("impl.api"), repoRole: .backend, override: Override(effort: "high"))
-        let filled = try resolved(try resolver().resolve(request))
-        #expect(filled.route == route("codex", "gpt-5.4", "high"))
-        #expect(filled.selectedBy == .override)
-
-        let modelOnly = RouteRequest(kind: kind("impl.api"), repoRole: .backend, override: Override(model: "o3"))
-        #expect(try resolved(try resolver().resolve(modelOnly)).route == route("codex", "o3", "medium"))
+    @Test("A label is matched whole and case-insensitively first, so a model id containing `/` resolves")
+    func labelIsMatchedWholeFirst() throws {
+        let slashed = route("openrouter", "anthropic/claude-opus", "high")
+        let withSlash = RoutingTable(entries: table.entries + [RoutingEntry(kind: kind("docs"), route: slashed)])
+        for label in ["openrouter/anthropic/claude-opus/high", "OPENROUTER/Anthropic/Claude-Opus/HIGH"] {
+            let request = RouteRequest(kind: kind("impl"), repoRole: .web, override: Override(label: label))
+            #expect(try resolved(try resolver(withSlash).resolve(request)).route == slashed)
+        }
+        let upper = RouteRequest(kind: kind("impl"), repoRole: .web, override: Override(label: "CODEX/GPT-5.4/MEDIUM"))
+        #expect(try resolved(try resolver().resolve(upper)).route == codexMedium)
     }
 
-    @Test("An Override beats attempt-history exclusion: the pinned route resolves although it is excluded")
-    func overrideBeatsAttemptHistory() throws {
-        let request = RouteRequest(
-            kind: kind("impl.api"), repoRole: .backend,
-            override: Override(cli: "codex", model: "gpt-5.4", effort: "medium"),
-            excludedRoutes: [codexMedium, claudeSonnet]
-        )
-        let resolved = try resolved(try resolver().resolve(request))
-        #expect(resolved.route == codexMedium)
-        #expect(resolved.selectedBy == .override)
-        #expect(resolved.skipped.isEmpty)
+    @Test("An off-table label splits into its three parts and resolves, with or without a matching entry")
+    func offTableLabelSplits() throws {
+        let offTableLabel = Override(label: "agy/gemini-3-pro/high")
+        let request = RouteRequest(kind: kind("impl"), repoRole: .web, override: offTableLabel)
+        let offTable = try resolved(try resolver().resolve(request))
+        #expect(offTable.route == route("agy", "gemini-3-pro", "high"))
+        #expect(offTable.selectedBy == .override)
+        #expect(offTable.entry == RoutingEntry.Key(kind: kind("impl"), repoRole: .any))
+
+        let noCatchAll = RoutingTable(entries: Array(table.entries.dropFirst()))
+        let pin = Override(label: "claude/opus/high")
+        let unmatched = RouteRequest(kind: kind("review"), repoRole: .web, override: pin)
+        let pinned = try resolved(try resolver(noCatchAll).resolve(unmatched))
+        #expect(pinned.route == claudeOpus)
+        #expect(pinned.entry == nil)
+    }
+
+    @Test("A label that is neither a table Route nor three non-empty parts cannot resolve")
+    func malformedLabelIsUnresolvable() throws {
+        for label in ["agy", "agy/opus", "a/b/c/d", "a//c", "claude/opus /high"] {
+            let override = Override(label: label)
+            let request = RouteRequest(kind: kind("impl"), repoRole: .web, override: override)
+            let refusal = try refused(try resolver().resolve(request))
+            guard case .unresolvable(let refused, _) = refusal else {
+                Issue.record("expected unresolvable for \(label), got \(refusal)")
+                continue
+            }
+            #expect(refused == override)
+            #expect(refusal.description.hasPrefix("Override `\(label)` cannot resolve"))
+        }
+    }
+
+    @Test("No Route is built from part of an Override and part of an entry: a CLI pinned alone is refused")
+    func cliAloneIsNeverFilledFromTheEntry() throws {
+        // impl for web resolves to claude/opus/high; pinning `agy` alone once dispatched agy/opus/high.
+        let request = RouteRequest(kind: kind("impl"), repoRole: .web, override: Override(label: "agy"))
+        guard case .unresolvable = try refused(try resolver().resolve(request)) else {
+            Issue.record("expected unresolvable")
+            return
+        }
     }
 
     @Test("An Override does not beat Probe failure, and fallbacks are not consulted under it")
     func overrideNeverBeatsProbeFailure() throws {
         // The entry has a healthy fallback (claude/sonnet); it must not be taken.
-        let request = RouteRequest(kind: kind("impl.api"), repoRole: .backend, override: Override(cli: "codex"))
+        let override = Override(label: "codex/gpt-5.4/medium")
+        let request = RouteRequest(kind: kind("impl.api"), repoRole: .backend, override: override)
         let refusal = try refused(try resolver(probe: codexFailed).resolve(request))
         #expect(refusal == .probeFailed(
-            Override(cli: "codex"), cli: "codex", reason: "process containment: orphaned child after SIGKILL"
+            override, cli: "codex", reason: "process containment: orphaned child after SIGKILL"
         ))
         #expect(refusal.description.contains("pins `codex`"))
     }
 
-    @Test("A pinned entry axis on a probe-failed entry CLI is refused too: the fill comes from the entry")
-    func filledCLIIsCheckedAgainstTheProbe() throws {
-        // impl for backend fills cli from the entry: codex, which failed its Probe.
-        let request = RouteRequest(kind: kind("impl.api"), repoRole: .backend, override: Override(effort: "high"))
-        let refusal = try refused(try resolver(probe: codexFailed).resolve(request))
-        guard case .probeFailed(_, let cli, _) = refusal else {
-            Issue.record("expected probeFailed, got \(refusal)")
-            return
-        }
-        #expect(cli == "codex")
-    }
-
-    @Test("An Override with an absent axis and no matching entry cannot resolve; fully pinned, it needs no entry")
-    func unresolvableVersusFullyPinned() throws {
-        let noCatchAll = RoutingTable(entries: Array(table.entries.dropFirst()))
-        let partial = RouteRequest(kind: kind("review"), repoRole: .web, override: Override(cli: "claude"))
-        let refusal = try refused(try resolver(noCatchAll).resolve(partial))
-        #expect(refusal == .unresolvable(
-            Override(cli: "claude"), reason: "no Routing Entry matches the Card to fill the absent model, effort axis"
-        ))
-        #expect(refusal.description.hasPrefix("Override `claude/-/-` cannot resolve"))
-
-        let full = RouteRequest(
-            kind: kind("review"), repoRole: .web, override: Override(cli: "claude", model: "opus", effort: "high")
-        )
-        let resolved = try resolved(try resolver(noCatchAll).resolve(full))
-        #expect(resolved.route == claudeOpus)
-        #expect(resolved.entry == nil)
-    }
-
-    @Test("No pin is no Override: an empty Override resolves exactly as no Override does")
-    func emptyOverrideIsNone() throws {
+    @Test("No Override resolves through the entry")
+    func noOverrideResolvesThroughTheEntry() throws {
         let plain = RouteRequest(kind: kind("impl.api"), repoRole: .web, excludedRoutes: [claudeOpus])
-        let empty = RouteRequest(kind: kind("impl.api"), repoRole: .web, override: .none, excludedRoutes: [claudeOpus])
-        #expect(Override.none.isEmpty)
-        #expect(try resolver().resolve(plain) == (try resolver().resolve(empty)))
-        #expect(try resolved(try resolver().resolve(empty)).selectedBy == .entry)
+        #expect(try resolved(try resolver().resolve(plain)).selectedBy == .entry)
+    }
+}
+
+@Suite("Route label shorthand")
+struct RouteLabelTests {
+    @Test("A label is exactly three non-empty `/`-separated parts with no whitespace")
+    func threePartsOnly() {
+        #expect(Route(label: "claude/opus/max") == route("claude", "opus", "max"))
+        for label in ["claude/opus", "a/b/c/d", "a//c", "/b/c", "a/b/", "claude/opus /max", " claude/opus/max", ""] {
+            #expect(Route(label: label) == nil, "\(label)")
+        }
     }
 }

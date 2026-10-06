@@ -9,12 +9,13 @@ public struct RouteRequest: Equatable, Sendable {
     /// The role of the Card's Repo; nil when the repository is not configured, in which case only
     /// Routing Entries for any Repo Role apply.
     public var repoRole: RepoRole?
-    public var override: Override
+    /// The Operator's Override, nil when the Card carries none.
+    public var override: Override?
     /// The attempt-history exclusion set: every Route already excluded for this Card in its current
     /// budget epoch, held in the Journal (routing/exclude-tried-routes-on-retry).
     public var excludedRoutes: Set<Route>
 
-    public init(kind: Kind, repoRole: RepoRole?, override: Override = .none, excludedRoutes: Set<Route> = []) {
+    public init(kind: Kind, repoRole: RepoRole?, override: Override? = nil, excludedRoutes: Set<Route> = []) {
         self.kind = kind
         self.repoRole = repoRole
         self.override = override
@@ -28,8 +29,9 @@ public struct RouteRequest: Equatable, Sendable {
 /// Resolution is two stages, not five ranked alternatives. It **selects** a Routing Entry — by
 /// Override, then Kind by longest dotted-prefix match, then Repo Role — and then **filters** the
 /// entry's candidates (its route, then its fallbacks in order) by attempt history and Probe failure.
-/// An Override beats Kind, Repo Role and attempt-history exclusion but never Probe failure, and under
-/// it the entry's fallbacks are not consulted (Decision Gates Ruling, G-17).
+/// An Override names a whole Route; it beats Kind, Repo Role and attempt-history exclusion but never Probe
+/// failure, and under it the entry's fallbacks are not consulted (Decision Gates Ruling, G-17, as amended
+/// by the Override Ruling, OQ126).
 ///
 /// The table is the one the Act was handed: `EngineCommand` loads configuration on every Act, so the
 /// table is read fresh each time. Nothing about resolution is learned, inferred or adapted from past
@@ -80,8 +82,8 @@ public struct RouteResolver: Sendable {
             return verdict
         }
 
-        if !request.override.isEmpty {
-            return try Self.resolveOverride(request.override, entry: entry, eligibility: eligibility)
+        if let override = request.override {
+            return try resolveOverride(override, entry: entry, eligibility: eligibility)
         }
 
         guard let entry else {
@@ -106,28 +108,26 @@ public struct RouteResolver: Sendable {
 
     // MARK: - Override
 
-    /// Under an Override the absent axes are filled from the resolved entry's primary route — never a
-    /// fallback — and the pin is then checked against Probe failure only: attempt-history exclusion
-    /// does not apply, because a lever the machine can silently veto is not a lever (G-17).
-    private static func resolveOverride(
+    /// Under an Override the label names the whole Route (OQ126): matched whole, case-insensitively,
+    /// against the rendered Routes of the table — so a table Route whose model id contains `/` still
+    /// resolves, spelled as the table spells it — and only then split as the three-part shorthand. No
+    /// axis is ever taken from the entry. The Route is then checked against Probe failure only:
+    /// attempt-history exclusion does not apply, because a lever the machine can silently veto is not a
+    /// lever (G-17). Its Route Pre-flight is the caller's, because it runs the CLI.
+    private func resolveOverride(
         _ override: Override,
         entry: RoutingEntry?,
         eligibility: (String) throws -> RouteTargetEligibility
     ) throws -> RouteResolution {
-        let cli = override.cli ?? entry?.route.cli
-        let model = override.model ?? entry?.route.model
-        let effort = override.effort ?? entry?.route.effort
-        guard let cli, let model, let effort, let route = Route(cli: cli, model: model, effort: effort) else {
-            let absent = [
-                override.cli == nil ? "cli" : nil,
-                override.model == nil ? "model" : nil,
-                override.effort == nil ? "effort" : nil
-            ].compactMap { $0 }
-            let reason = "no Routing Entry matches the Card to fill the absent \(absent.joined(separator: ", ")) axis"
+        let label = override.label.lowercased()
+        guard let route = table.allRoutes.first(where: { $0.description.lowercased() == label })
+            ?? Route(label: override.label)
+        else {
+            let reason = "it is neither a Route of the Project's Routing Table nor a three-part `cli/model/effort`"
             return .overrideRefused(.unresolvable(override, reason: reason))
         }
-        if case .excluded(let reason) = try eligibility(cli) {
-            return .overrideRefused(.probeFailed(override, cli: cli, reason: reason))
+        if case .excluded(let reason) = try eligibility(route.cli) {
+            return .overrideRefused(.probeFailed(override, cli: route.cli, reason: reason))
         }
         return .resolved(ResolvedRoute(route: route, entry: entry?.key, selectedBy: .override, skipped: []))
     }
