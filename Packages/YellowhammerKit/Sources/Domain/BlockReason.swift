@@ -20,4 +20,9 @@ public enum BlockReason: String, CaseIterable, Sendable {
     case undecided = "undecided"
     /// Unfinished work carried forward when its still-running Feature is released.
     case released = "released"
+    /// The Journal stopped retrying the Card because its failure cause recurred across separate Nights
+    /// (Failure-Cause Recurrence; OQ127). Names why retrying stopped, not how the final Attempt ended:
+    /// it replaces the reason that Attempt's ending would have given, and wins over a spent Attempt
+    /// budget on the same Attempt.
+    case failureRecurrence = "failure recurrence"
 }

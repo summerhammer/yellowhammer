@@ -187,6 +187,43 @@ struct ManagedBlockMaintenanceTests {
         #expect(try journal.outboxEntry(id: earlier.id)?.state == .aborted)
     }
 
+    // MARK: - Failure-Cause Recurrence
+
+    @Test("The recurrence line follows the failure recurrence Block Reason, not the cause's count alone")
+    func recurrenceLineFollowsTheBlockReason() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let board = FakeWritingBoard()
+        let issue = await board.seed(issue: "issue-1", description: ManagedBlockFence.initialDescription(rendered: ""))
+        let cardID = try insertFixtureCard(journal, issueID: "issue-1")
+        let runID = RunID()
+        let outbox = try heldOutbox(journal, board: board, cardID: cardID, runID: runID)
+        let maintenance = ManagedBlockMaintenance(journal: journal, outbox: outbox, labels: nil)
+        let cause = try #require(FailureCause(ending: .hardFailure(.exitStatus(2))))
+        for night in ["2026-09-15", "2026-09-16"] {
+            let nightID = try journal.openNight(
+                nightStart: try #require(NightStart(rawValue: night)), mode: .rehearsal, act: .build, runID: runID,
+                now: outboxEpoch
+            ).night.id
+            try journal.recordFailureCause(
+                cardID: cardID, cause: cause, nightID: nightID, runID: runID, now: outboxEpoch
+            )
+        }
+
+        try setCard(journal, cardID, state: .blocked, blockReason: BlockReason.failureRecurrence.rawValue)
+        _ = try await maintenance.maintain(card: try journal.card(id: cardID), brief: brief)
+        let recurred = try ManagedBlockFence.parts(of: await board.issue(issue)?.description).get().block
+        #expect(recurred.contains(
+            "**Failure-Cause Recurrence:** failure cause `\(cause.summary)` recurred across 2 Nights"
+        ))
+
+        // The count never resets, so a Card later Blocked on another reason must not carry the line.
+        try setCard(journal, cardID, state: .blocked, blockReason: BlockReason.hardFailure.rawValue)
+        _ = try await maintenance.maintain(card: try journal.card(id: cardID), brief: brief)
+        let other = try ManagedBlockFence.parts(of: await board.issue(issue)?.description).get().block
+        #expect(!other.contains("Failure-Cause Recurrence"))
+    }
+
     // MARK: - Fixtures
 
     /// A run holding the Project's Act-scoped Lease and the Card's Lease: what a build Act holds when it
