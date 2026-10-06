@@ -86,7 +86,7 @@ struct Setup {
                 await reportNotifications()
                 reportRoutingWarnings(configuration: configuration, machine: machine)
                 throw SetupError(
-                    "setup finished without a Linear installation; run yh setup --install-linear (\(error))"
+                    "setup finished without a Board Connection; run yh setup --install-linear (\(error))"
                 )
             }
             throw error
