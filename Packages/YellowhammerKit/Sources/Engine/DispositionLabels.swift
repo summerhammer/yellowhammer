@@ -1,41 +1,41 @@
 import Domain
 import Foundation
 
-/// Label management for Card disposition: object type and block reason.
+/// Label management for Card disposition: card type and block reason.
 public struct DispositionLabels: Equatable, Sendable {
-    public var objectType: [String: BoardObjectID]  // child name → id
+    public var cardType: [CardType: BoardObjectID]
     public var blockReason: [BlockReason: BoardObjectID]
 
-    public init(objectType: [String: BoardObjectID], blockReason: [BlockReason: BoardObjectID]) {
-        self.objectType = objectType
+    public init(cardType: [CardType: BoardObjectID], blockReason: [BlockReason: BoardObjectID]) {
+        self.cardType = cardType
         self.blockReason = blockReason
     }
 
     /// Resolves from the labels a team exposes: the child of the group named
-    /// BoardProvisioner.objectTypeGroup / blockReasonGroup, matched case-insensitively.
+    /// BoardProvisioner.cardTypeGroup / blockReasonGroup, matched case-insensitively.
     /// Throws DispositionLabelsError.missing(group:label:) naming the first missing one.
     public init(labels: [BoardLabel]) throws {
-        var objectTypeMap: [String: BoardObjectID] = [:]
+        var cardTypeMap: [CardType: BoardObjectID] = [:]
         var blockReasonMap: [BlockReason: BoardObjectID] = [:]
 
         // Find group label IDs
-        let objectTypeGroupID = labels.first { label in
-            label.name.lowercased() == BoardProvisioner.objectTypeGroup.lowercased() && label.isGroup
+        let cardTypeGroupID = labels.first { label in
+            label.name.lowercased() == BoardProvisioner.cardTypeGroup.lowercased() && label.isGroup
         }?.id
 
         let blockReasonGroupID = labels.first { label in
             label.name.lowercased() == BoardProvisioner.blockReasonGroup.lowercased() && label.isGroup
         }?.id
 
-        // Process object type children
-        if let groupID = objectTypeGroupID {
-            for child in BoardProvisioner.objectTypeChildren {
-                let lowerChild = child.lowercased()
+        // Process card type children
+        if let groupID = cardTypeGroupID {
+            for type in CardType.allCases {
+                let lowerChild = type.rawValue.lowercased()
                 let predicate = { (label: BoardLabel) in
                     label.name.lowercased() == lowerChild && label.parent == groupID
                 }
                 if let label = labels.first(where: predicate) {
-                    objectTypeMap[child] = label.id
+                    cardTypeMap[type] = label.id
                 }
             }
         }
@@ -53,9 +53,9 @@ public struct DispositionLabels: Equatable, Sendable {
             }
         }
 
-        // Verify we have all object type children
-        for child in BoardProvisioner.objectTypeChildren where objectTypeMap[child] == nil {
-            throw DispositionLabelsError.missing(group: BoardProvisioner.objectTypeGroup, label: child)
+        // Verify we have all card type children
+        for type in CardType.allCases where cardTypeMap[type] == nil {
+            throw DispositionLabelsError.missing(group: BoardProvisioner.cardTypeGroup, label: type.rawValue)
         }
 
         // Verify we have all block reasons
@@ -63,23 +63,23 @@ public struct DispositionLabels: Equatable, Sendable {
             throw DispositionLabelsError.missing(group: BoardProvisioner.blockReasonGroup, label: reason.rawValue)
         }
 
-        self.objectType = objectTypeMap
+        self.cardType = cardTypeMap
         self.blockReason = blockReasonMap
     }
 
-    /// The change that puts exactly the right labels on an issue: adds `objectType`'s child label and
-    /// removes the other object-type children; adds the one Block Reason label when `state` is Blocked
+    /// The change that puts exactly the right labels on an issue: adds `cardType`'s child label and
+    /// removes the other card-type children; adds the one Block Reason label when `state` is Blocked
     /// with a known reason, and removes every other Block Reason label (the Block Reason group is only
     /// ever non-empty on a Blocked issue).
-    public func change(objectType: String, state: CardState, blockReason: BlockReason?) -> BoardIssueChange {
+    public func change(cardType: CardType, state: CardState, blockReason: BlockReason?) -> BoardIssueChange {
         var change = BoardIssueChange()
 
-        // Object type: add the named child, remove the others.
-        if let id = self.objectType[objectType] {
+        // Card type: add the named child, remove the others.
+        if let id = self.cardType[cardType] {
             change.addLabels.append(id)
         }
-        for child in BoardProvisioner.objectTypeChildren where child != objectType {
-            if let id = self.objectType[child] {
+        for type in CardType.allCases where type != cardType {
+            if let id = self.cardType[type] {
                 change.removeLabels.append(id)
             }
         }
@@ -98,9 +98,9 @@ public struct DispositionLabels: Equatable, Sendable {
         return change
     }
 
-    /// `change(objectType:state:blockReason:)` for a Card.
+    /// `change(cardType:state:blockReason:)` for a Work Card.
     public func change(for state: CardState, blockReason: BlockReason?) -> BoardIssueChange {
-        change(objectType: "Card", state: state, blockReason: blockReason)
+        change(cardType: .workCard, state: state, blockReason: blockReason)
     }
 }
 

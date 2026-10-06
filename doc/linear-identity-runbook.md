@@ -172,7 +172,7 @@ Then, **once per team** the Linear project belongs to (Projects sharing a team s
 
 - the `Waiting on You`, `Blocked`, `Kept in Flight` and `Released` workflow states (type
   `started`), each matched by name, case-insensitively;
-- the label group `Object Type` with `Feature`, `Card`, `Night Card`;
+- the label group `Card Type` with `Feature Card`, `Work Card`, `Night Card`;
 - the label group `Block Reason` with `blocked by reviewer`, `blocked by check`, `hard failure`,
   `host crash`, `unanswered`, `undecided`, `released` (`BlockReason.allCases`).
 

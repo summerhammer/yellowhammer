@@ -248,7 +248,7 @@ public enum PullRequestBody {
     }
 
     /// Line 1 (OQ31, fixed copy): worst-first — `waiting on you` dominates `blocked`, mirroring the
-    /// Roll-up lattice's own worst-first rule (`needs you` before `blocked`).
+    /// Roll-up lattice's own worst-first rule (`waiting` before `blocked`).
     private static func openingLine1(
         waitingCount: Int, blockedCount: Int, landedCount: Int, totalCardCount: Int, input: PullRequestBodyInput
     ) -> String {
@@ -257,7 +257,7 @@ public enum PullRequestBody {
             : "\(blockedCount) blocked"
         let notes = input.noPullRequestRepositories.isEmpty
             ? "" : " " + FeatureRollUp.noPullRequestNotes(input.noPullRequestRepositories)
-        return "**partial landing · \(landedCount) of \(totalCardCount) Cards landed · "
+        return "**partial · \(landedCount) of \(totalCardCount) Cards landed · "
             + "0 of \(input.pushedRepositoryCount) merged · \(dispositionWord)**" + notes
     }
 
@@ -273,12 +273,12 @@ public enum PullRequestBody {
     }
 
     private static func stampLine(_ input: PullRequestBodyInput) -> String {
-        let link = input.featureIssueURL.map { "[Linear Feature Issue](\($0))" } ?? "Linear Feature Issue"
+        let link = input.featureIssueURL.map { "[Feature Card](\($0))" } ?? "Feature Card"
         return "*As of Night \(input.nightID) (\(input.nightTimestamp)). Live state: \(link)*"
     }
 
     private static func featurePointerLine(_ input: PullRequestBodyInput) -> String {
-        let link = input.featureIssueURL.map { "[Feature card](\($0))" } ?? "the Feature card"
+        let link = input.featureIssueURL.map { "[Feature Card](\($0))" } ?? "the Feature Card"
         return "See \(link) for the live version of this Feature."
     }
 

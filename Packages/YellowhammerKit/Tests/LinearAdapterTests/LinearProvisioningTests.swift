@@ -148,8 +148,8 @@ struct LinearProvisioningTests {
         let json = """
             {"data":{"issueLabels":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[
               {"id":"lbl-1","name":"Feature","isGroup":false,"parent":null,"team":null},
-              {"id":"lbl-2","name":"Object Type","isGroup":true,"parent":null,"team":{"id":"team-1"}},
-              {"id":"lbl-3","name":"Card","isGroup":false,"parent":{"id":"lbl-2"},"team":{"id":"team-1"}}
+              {"id":"lbl-2","name":"Card Type","isGroup":true,"parent":null,"team":{"id":"team-1"}},
+              {"id":"lbl-3","name":"Work Card","isGroup":false,"parent":{"id":"lbl-2"},"team":{"id":"team-1"}}
             ]}}}
             """
         let transport = StubHTTPTransport([Fixture.token(), Fixture.json(json)])

@@ -26,12 +26,12 @@ struct FeatureRollUpMaintenanceZeroCardTests {
 
         try await maintenance.maintainAll(night: world.night)
         var description = try #require(await world.board.issue(BoardObjectID(rawValue: "REFUSAL-1"))?.description)
-        #expect(description.contains("needs you · no Cards yet · refusal awaiting you"))
+        #expect(description.contains("waiting · no Cards yet · refusal awaiting you"))
 
         try updateRefusalState(journal, issueID: "REFUSAL-1", state: .expired)
         try await maintenance.maintainAll(night: world.night)
         description = try #require(await world.board.issue(BoardObjectID(rawValue: "REFUSAL-1"))?.description)
-        #expect(description.contains("blocked · no Cards yet · refusal unanswered"))
+        #expect(description.contains("blocked · no Cards yet · reply overdue"))
 
         try updateRefusalState(journal, issueID: "REFUSAL-1", state: .answered)
         try await maintenance.maintainAll(night: world.night)
@@ -52,13 +52,13 @@ struct FeatureRollUpMaintenanceZeroCardTests {
 
         try await maintenance.maintainAll(night: world.night)
         var description = try #require(await world.board.issue(BoardObjectID(rawValue: "HALT-1"))?.description)
-        #expect(description.contains("needs you · no Cards yet · halt awaiting you"))
+        #expect(description.contains("waiting · no Cards yet · halt awaiting you"))
         #expect(!description.contains("refusal"))
 
         try updateAuthoringHaltState(journal, issueID: "HALT-1", state: .expired)
         try await maintenance.maintainAll(night: world.night)
         description = try #require(await world.board.issue(BoardObjectID(rawValue: "HALT-1"))?.description)
-        #expect(description.contains("blocked · no Cards yet · halt unanswered"))
+        #expect(description.contains("blocked · no Cards yet · halt overdue"))
         #expect(!description.contains("refusal"))
 
         try updateAuthoringHaltState(journal, issueID: "HALT-1", state: .cleared)
@@ -124,6 +124,6 @@ struct FeatureRollUpMaintenanceZeroCardTests {
         let refusalDescription = try #require(
             await world.board.issue(BoardObjectID(rawValue: "REFUSAL-1"))?.description
         )
-        #expect(refusalDescription.contains("needs you · no Cards yet · refusal awaiting you"))
+        #expect(refusalDescription.contains("waiting · no Cards yet · refusal awaiting you"))
     }
 }

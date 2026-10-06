@@ -83,6 +83,8 @@ public struct FeatureRollUp: Sendable {
     /// but never pushes, and a real lane's push can fail) — that is ``pushedRepositories``.
     public let lanesPushed: Bool
     public let verificationPassed: Bool
+    /// Unmet or unresolved clauses in the recorded Verification; nil means no record exists.
+    public let unmetClauseCount: Int?
     public let mergedFraction: MergedFraction
     public let conflictingRepositories: [String]
     /// The repositories with a No-Pushed-Branch Outcome (roadmap P19.7; risks OQ108): each is shown as a
@@ -109,6 +111,7 @@ public struct FeatureRollUp: Sendable {
         members: [RollUpMember],
         lanesPushed: Bool,
         verificationPassed: Bool,
+        unmetClauseCount: Int? = nil,
         mergedFraction: MergedFraction,
         conflictingRepositories: [String] = [],
         noPullRequestRepositories: [String] = [],
@@ -118,6 +121,7 @@ public struct FeatureRollUp: Sendable {
         self.members = members
         self.lanesPushed = lanesPushed
         self.verificationPassed = verificationPassed
+        self.unmetClauseCount = unmetClauseCount
         self.mergedFraction = mergedFraction
         self.conflictingRepositories = conflictingRepositories
         self.noPullRequestRepositories = noPullRequestRepositories
@@ -125,7 +129,8 @@ public struct FeatureRollUp: Sendable {
         self.issueStanding = issueStanding
 
         let (state, sentence) = Self.compute(
-            members: members, lanesPushed: lanesPushed, verificationPassed: verificationPassed,
+            members: members, lanesPushed: lanesPushed,
+            verification: (verificationPassed, unmetClauseCount),
             mergedFraction: mergedFraction, issueStanding: issueStanding
         )
         self.state = state
@@ -143,7 +148,8 @@ public struct FeatureRollUp: Sendable {
     }
 
     private static func compute(
-        members: [RollUpMember], lanesPushed: Bool, verificationPassed: Bool,
+        members: [RollUpMember], lanesPushed: Bool,
+        verification: (passed: Bool, unmetClauseCount: Int?),
         mergedFraction: MergedFraction, issueStanding: FeatureIssueStanding
     ) -> (RollUpState?, String) {
         guard !members.isEmpty else {
@@ -151,10 +157,11 @@ public struct FeatureRollUp: Sendable {
         }
         let live = members.filter { $0.state != .cancelled }
         guard !live.isEmpty else {
-            return (nil, "no live Cards · \(members.count) cancelled")
+            return (nil, "no live Cards · \(members.count) shelved")
         }
         return lanesPushed
-            ? closedHalf(live: live, verificationPassed: verificationPassed, mergedFraction: mergedFraction)
+            ? closedHalf(live: live, verificationPassed: verification.passed,
+                         unmetClauseCount: verification.unmetClauseCount, mergedFraction: mergedFraction)
             : runningHalf(live: live)
     }
 
@@ -163,9 +170,9 @@ public struct FeatureRollUp: Sendable {
         case .authoring:
             (.authoring, "authoring · no Cards yet · in authoring")
         case .awaitingYou(let kind):
-            (.needsYou, "needs you · no Cards yet · \(kind.zeroCardWord) awaiting you")
+            (.waiting, "waiting · no Cards yet · \(kind.zeroCardWord) awaiting you")
         case .unanswered(let kind):
-            (.blocked, "blocked · no Cards yet · \(kind.zeroCardWord) unanswered")
+            (.blocked, "blocked · no Cards yet · \(kind == .halt ? "halt overdue" : "reply overdue")")
         }
     }
 
@@ -176,7 +183,7 @@ public struct FeatureRollUp: Sendable {
         let blockedCount = live.count { $0.state == .blocked }
         let inProgressCount = live.count { $0.state == .inProgress }
 
-        let word: RollUpState = waitingCount > 0 ? .needsYou : (blockedCount > 0 ? .blocked : .running)
+        let word: RollUpState = waitingCount > 0 ? .waiting : (blockedCount > 0 ? .blocked : .running)
         let top: String
         if waitingCount > 0 {
             top = "\(waitingCount) waiting on you"
@@ -191,7 +198,7 @@ public struct FeatureRollUp: Sendable {
     }
 
     private static func closedHalf(
-        live: [RollUpMember], verificationPassed: Bool, mergedFraction: MergedFraction
+        live: [RollUpMember], verificationPassed: Bool, unmetClauseCount: Int?, mergedFraction: MergedFraction
     ) -> (RollUpState?, String) {
         let liveCount = live.count
         let doneCount = live.count { $0.state == .done }
@@ -202,20 +209,19 @@ public struct FeatureRollUp: Sendable {
         let word: RollUpState
         let top: String
         if waitingCount > 0 {
-            word = .partialLanding
+            word = .partial
             top = "\(waitingCount) waiting on you"
         } else if blockedCount > 0 {
-            word = .partialLanding
+            word = .partial
             top = "\(blockedCount) blocked"
         } else if allDone && verificationPassed {
             word = .verified
             top = "all verified"
         } else {
-            // Spec gap: every live Card is Done, but Verification has not passed (or was never
-            // recorded). board-projection/maintain-the-managed-block's lattice has no row for this
-            // cell; rendered as Partial Landing per this roadmap item's ruling.
-            word = .partialLanding
-            top = "verification not passed"
+            // All Done without passing Verification is a Feature-level waiting disposition,
+            // not a Partial Landing: no live member is Blocked or Waiting on You.
+            word = .waiting
+            top = unmetClauseCount.map { "\($0) clauses unmet" } ?? "verification not recorded"
         }
 
         var slots = ["\(word.rawValue)", "\(doneCount) of \(liveCount) Cards landed"]

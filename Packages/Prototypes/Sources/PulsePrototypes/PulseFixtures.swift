@@ -45,7 +45,7 @@ enum PulseScenario: String, CaseIterable, Identifiable, CustomStringConvertible 
         case .morningTriage:
             pulse.setWaitingOnYou(2)
             pulse.setBlocked(3)
-            pulse.feature = PulseFixtures.feature(rollup: .needsYou)
+            pulse.feature = PulseFixtures.feature(rollup: .waiting)
             pulse.night = PulseFixtures.night(
                 .done,
                 verdict: "advanced — 6 Cards done, 5 need you",
@@ -178,8 +178,8 @@ enum PulseFixtures {
     static func feature(rollup: RollUpState, repos: [String] = defaultRepos) -> FeatureInFlight {
         let laneState: LaneState = switch rollup {
         case .authoring, .running: .running
-        case .needsYou: .waitingOnYou
-        case .blocked, .partialLanding: .blocked
+        case .waiting: .waitingOnYou
+        case .blocked, .partial: .blocked
         case .verified: .landed
         }
         let lanes = repos.enumerated().map { index, repo in
@@ -205,7 +205,7 @@ enum PulseFixtures {
         id: "YH-120",
         title: "Recalibrate the Routing Table from the last seven Nights",
         state: "In Progress",
-        rollupState: .partialLanding,
+        rollupState: .partial,
         lanes: [
             RepoLaneSnapshot(
                 repo: "yellowhammer", state: .landed, cardsDone: 5, cardsTotal: 5,

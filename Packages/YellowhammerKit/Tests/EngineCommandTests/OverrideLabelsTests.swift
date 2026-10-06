@@ -90,12 +90,12 @@ struct OverrideLabelsTests {
         #expect(labels.override(on: object(labels: ["high priority", "codex-tips", "Status"])) == .none)
     }
 
-    @Test("A team without the groups reads every Card as having no Override")
+    @Test("A team without the groups reads every Work Card as having no Override")
     func missingGroupsMeanNoOverride() {
         let labels = OverrideLabels(labels: [
-            label("g-object", "Object Type", isGroup: true), label("card", "Card", parent: "g-object")
+            label("g-card-type", "Card Type", isGroup: true), label("card", "Work Card", parent: "g-card-type")
         ])
         #expect(labels.cli.isEmpty && labels.model.isEmpty && labels.effort.isEmpty)
-        #expect(labels.override(on: object(labels: ["Card", "codex", "high"])) == .none)
+        #expect(labels.override(on: object(labels: ["Work Card", "codex", "high"])) == .none)
     }
 }
