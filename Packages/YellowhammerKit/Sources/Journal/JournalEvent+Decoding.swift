@@ -127,6 +127,8 @@ extension JournalEvent {
                 issueID: try reader.require("issue_id"),
                 reason: try reader.require("reason")
             )
+        case .routePreflightRan:
+            try Self.decodeRoutePreflightRan(reader)
         case .attemptEnded:
             try Self.decodeAttemptEnded(reader)
         case .routeRetried:

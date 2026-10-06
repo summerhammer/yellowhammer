@@ -37,6 +37,11 @@ extension BoardProvisioner {
             reportGroupCreationRefused(group: group, team: team, reason: reason, into: &entries)
             return
         }
+        for (childName, reason) in group.refusals.sorted(by: { $0.key < $1.key }) {
+            entries.append(ProvisioningEntry(
+                subject: .label(childName, group: group.name, team: team), outcome: .refused(reason)
+            ))
+        }
         let context = ChildLabelContext(group: group, team: team, groupId: groupId)
         for childName in group.children {
             try await provisionChildLabel(
@@ -98,6 +103,14 @@ extension BoardProvisioner {
             entries.append(ProvisioningEntry(subject: subject, outcome: .created))
         } catch .forbidden(let reason) {
             entries.append(ProvisioningEntry(subject: subject, outcome: .permissionRefused(reason)))
+        } catch .refused(let reason) where group.entries[childName] != nil {
+            // A Route text the board refuses as a label name cannot be pinned by that label (OQ126):
+            // reported against the Routing Entries naming it, and setup moves on.
+            let account = group.entries[childName] ?? ""
+            entries.append(ProvisioningEntry(
+                subject: subject,
+                outcome: .refused("the board refused it as a label name (\(reason)); Routing Entry \(account)")
+            ))
         }
     }
 

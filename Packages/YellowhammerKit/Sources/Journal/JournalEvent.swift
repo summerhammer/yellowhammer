@@ -175,10 +175,15 @@ public enum JournalEvent: Equatable, Sendable {
     /// (routing/resolve-a-route-for-a-card, OQ13): the Card moved to Blocked with Block Reason
     /// `route failure`, no Attempt was recorded, and `reason` names every candidate and what dropped it.
     case routeExhausted(cardID: Int64, issueID: String, reason: String)
-    /// The Operator's Override could not resolve, or pinned a CLI that failed its Probe: a Readiness
-    /// Check failure (G-17). Nothing was dispatched, no Attempt was recorded and the Card's state was
-    /// not touched.
+    /// The Operator's Override could not resolve, pinned a Route whose CLI failed its Probe, or pinned a
+    /// Route that failed its Route Pre-flight: a Readiness Check failure (G-17, OQ126). Nothing was
+    /// dispatched, no Attempt was recorded and the Card's state was not touched.
     case overrideRefused(cardID: Int64, issueID: String, reason: String)
+    /// A Route Pre-flight ran (OQ126): the Route's CLI was run once with its model and effort on a trivial
+    /// prompt, or a rehearsal fixture answered in its place. Stamped with the Night, it is the verdict
+    /// every later Card pinned to the same Route reads for the rest of that Night. `reason` says why it
+    /// failed, or what answered in place of the CLI.
+    case routePreflightRan(route: Route, passed: Bool, reason: String?)
     /// An Attempt ended, with its outcome and whether it excluded the Route it ran on
     /// (routing/exclude-tried-routes-on-retry, P7.7).
     case attemptEnded(

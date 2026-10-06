@@ -4,10 +4,11 @@ import Foundation
 /// The declared provisioning scope for a Linear project.
 ///
 /// These constants define the state name and label groups that Yellowhammer provisions
-/// at setup time. The three Override label groups (G-17, roadmap P7.6) are provisioned from the
-/// merged Routing Table's values when one is given, and refreshed by re-running provisioning after
-/// the table changes: a value it no longer names is never removed, because nothing ever clears an
-/// Override. The settle workflow-state group (`Kept in Flight`, `Abandoned`) is provisioned alongside
+/// at setup time. The `Override` label group (G-17 as amended by OQ126, roadmap P7.6) is provisioned
+/// with the merged Routing Table's Routes when one is given, and refreshed by re-running provisioning
+/// after the table changes: a Route it no longer names keeps its label, because nothing ever clears an
+/// Override. The per-axis groups `Override CLI`, `Override Model` and `Override Effort` that earlier
+/// builds provisioned are neither read nor removed; the Operator may delete them in Linear. The settle workflow-state group (`Kept in Flight`, `Abandoned`) is provisioned alongside
 /// `Waiting on You` and `Blocked`; a same-name state of another type is a collision, never reused
 /// (G-6 probe, 2026-09-23; OQ128).
 public struct BoardProvisioner {
@@ -45,6 +46,11 @@ public struct BoardProvisioner {
     struct LabelGroupDeclaration {
         let name: String
         let children: [String]
+        /// For the `Override` group: each child to the Routing Entries naming its Route, so a label name
+        /// the board refuses is reported against them. Empty for every other group.
+        var entries: [String: String] = [:]
+        /// Children refused before any board call, with why: reported, never created.
+        var refusals: [String: String] = [:]
     }
 
     /// The label groups provisioned for every Project.
@@ -53,14 +59,12 @@ public struct BoardProvisioner {
         LabelGroupDeclaration(name: blockReasonGroup, children: blockReasonChildren)
     ]
 
-    /// The Override label groups, with the merged Routing Table's values as their children (G-17).
-    private static func overrideGroups(for table: RoutingTable) -> [LabelGroupDeclaration] {
+    /// The `Override` label group, with the merged Routing Table's Routes as its children (OQ126).
+    private static func overrideGroup(for table: RoutingTable) -> LabelGroupDeclaration {
         let values = OverrideLabelValues(table: table)
-        return [
-            LabelGroupDeclaration(name: overrideCLIGroup, children: values.clis),
-            LabelGroupDeclaration(name: overrideModelGroup, children: values.models),
-            LabelGroupDeclaration(name: overrideEffortGroup, children: values.efforts)
-        ]
+        return LabelGroupDeclaration(
+            name: overrideGroup, children: values.labels, entries: values.entries, refusals: values.refusals
+        )
     }
 
     /// Provision the Linear project for one Project.
@@ -70,8 +74,9 @@ public struct BoardProvisioner {
     /// created, present, collision, blocked, or missing. Board errors propagate; a partial
     /// run is fine and re-running is safe.
     ///
-    /// With `routingTable`, the Project's merged Routing Table, the three Override label groups are
-    /// provisioned too, one child per distinct value the table names on each axis.
+    /// With `routingTable`, the Project's merged Routing Table, the `Override` label group is
+    /// provisioned too, one child per distinct Route the table names, primaries and fallbacks, as
+    /// `cli/model/effort`. Projects sharing a team add their Routes to the one group.
     public static func provision(
         using board: any BoardProvisioning,
         projectName: String,
@@ -79,7 +84,7 @@ public struct BoardProvisioner {
         routingTable: RoutingTable? = nil
     ) async throws(BoardError) -> ProvisioningReport {
         var entries: [ProvisioningEntry] = []
-        let groups = Self.labelGroups + (routingTable.map(Self.overrideGroups(for:)) ?? [])
+        let groups = Self.labelGroups + (routingTable.map { [Self.overrideGroup(for: $0)] } ?? [])
 
         // Step 1: Verify or create the Linear project.
         let project: BoardProjectScope

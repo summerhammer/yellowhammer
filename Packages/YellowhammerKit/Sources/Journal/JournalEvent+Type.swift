@@ -99,6 +99,8 @@ extension JournalEvent {
             .routeExhausted
         case .overrideRefused:
             .overrideRefused
+        case .routePreflightRan:
+            .routePreflightRan
         case .attemptEnded:
             .attemptEnded
         case .routeRetried:

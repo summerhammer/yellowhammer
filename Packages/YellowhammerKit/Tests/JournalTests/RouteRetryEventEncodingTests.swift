@@ -111,7 +111,7 @@ func budgetEpochResetRoundTrips() throws {
     let run = RunID()
 
     let event = JournalEvent.budgetEpochReset(
-        cardID: 7, issueID: "ENG-7", from: 0, to: 1, reason: "Override `claude/-/-` pinned in triage"
+        cardID: 7, issueID: "ENG-7", from: 0, to: 1, reason: "Override `claude/opus/high` pinned in triage"
     )
     try journal.append(event, act: .build, runID: run, now: epoch)
     let records = try journal.events(ofType: .budgetEpochReset)

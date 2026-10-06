@@ -92,7 +92,7 @@ func resetBudgetEpochBehavior() throws {
     #expect(try journal.excludedRoutes(cardID: cardID) == [routeA])
 
     let reset = try journal.resetBudgetEpoch(
-        cardID: cardID, reason: "Override `claude/-/-` pinned in triage", runID: runID, act: .build,
+        cardID: cardID, reason: "Override `claude/opus/high` pinned in triage", runID: runID, act: .build,
         nightID: nil, now: epoch.addingTimeInterval(20)
     )
 
@@ -105,7 +105,7 @@ func resetBudgetEpochBehavior() throws {
     #expect(events.count == 1)
     #expect(
         events[0].event == .budgetEpochReset(
-            cardID: cardID, issueID: "ENG-1", from: 0, to: 1, reason: "Override `claude/-/-` pinned in triage"
+            cardID: cardID, issueID: "ENG-1", from: 0, to: 1, reason: "Override `claude/opus/high` pinned in triage"
         )
     )
 
@@ -185,14 +185,14 @@ func overridePinAndRouteSourceRoundTrip() throws {
     try claimLease(journal, runID: runID)
 
     let attempt = try journal.recordAttempt(
-        cardID: cardID, route: routeA, routeSource: "fallback:1", override: Override(cli: "claude"),
+        cardID: cardID, route: routeA, routeSource: "fallback:1", override: Override(label: "claude/opus/high"),
         runID: runID, now: epoch
     )
 
     #expect(attempt.routeSource == "fallback:1")
-    #expect(attempt.overridePin == "claude/-/-")
+    #expect(attempt.overridePin == "claude/opus/high")
 
     let history = try journal.attemptHistory(cardID: cardID)
     #expect(history.attempts[0].routeSource == "fallback:1")
-    #expect(history.attempts[0].overridePin == "claude/-/-")
+    #expect(history.attempts[0].overridePin == "claude/opus/high")
 }

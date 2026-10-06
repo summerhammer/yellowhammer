@@ -207,6 +207,17 @@ extension JournalEvent {
         case .routeExhausted(let cardID, let issueID, let reason),
              .overrideRefused(let cardID, let issueID, let reason):
             ["card_id": String(cardID), "issue_id": issueID, "reason": reason]
+        case .routePreflightRan(let route, let passed, let reason):
+            {
+                var dict = [
+                    "passed": passed ? "true" : "false",
+                    "route_cli": route.cli, "route_effort": route.effort, "route_model": route.model
+                ]
+                if let reason {
+                    dict["reason"] = reason
+                }
+                return dict
+            }()
         case .attemptEnded(let cardID, let issueID, let attemptID, let route, let outcome, let routeExcluded):
             [
                 "attempt_id": String(attemptID), "card_id": String(cardID), "issue_id": issueID,
