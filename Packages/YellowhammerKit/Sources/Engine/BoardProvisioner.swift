@@ -7,9 +7,9 @@ import Foundation
 /// at setup time. The three Override label groups (G-17, roadmap P7.6) are provisioned from the
 /// merged Routing Table's values when one is given, and refreshed by re-running provisioning after
 /// the table changes: a value it no longer names is never removed, because nothing ever clears an
-/// Override. The settle workflow-state group (`Kept in Flight`, `Released`) is provisioned alongside
+/// Override. The settle workflow-state group (`Kept in Flight`, `Abandoned`) is provisioned alongside
 /// `Waiting on You` and `Blocked`; a same-name state of another type is a collision, never reused
-/// (G-6 probe, 2026-09-23).
+/// (G-6 probe, 2026-09-23; OQ128).
 public struct BoardProvisioner {
     /// The exact name of the workflow state Yellowhammer depends on, glossary-verbatim.
     public static let waitingOnYouState = "Waiting on You"

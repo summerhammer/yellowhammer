@@ -146,7 +146,7 @@ extension JournalMigrations {
     /// select-the-next-feature, third story): the repositories a Feature touches, recorded at
     /// selection time rather than derived from its Cards (a Card's repository row can disappear —
     /// cancelled, adopted elsewhere — long after the Feature that touched it is a predecessor), the
-    /// landings the gate has observed for it, and (on `feature.released_at`) whether it has been released.
+    /// landings the gate has observed for it, and (on `feature.abandoned_at`) whether it has been abandoned.
     static func createFeatureLandingTables(_ db: Database) throws {
         try db.create(table: "feature_repository") { table in
             table.column("feature_id", .integer).notNull()

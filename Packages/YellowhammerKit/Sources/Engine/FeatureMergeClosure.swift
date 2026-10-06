@@ -18,9 +18,9 @@ public struct FeatureMergeClosure: PostMergeClosure, Sendable {
     public init() { }
 
     public func closeByMerge(feature: FeatureRecord, context: ActContext) async throws {
-        // A release (P10.9) lands nothing; a Feature already closed by verification is already closed
+        // An abandon (P10.9) lands nothing; a Feature already closed by verification is already closed
         // — its merge closes nothing further.
-        guard feature.releasedAt == nil else { return }
+        guard feature.abandonedAt == nil else { return }
         guard feature.closedBy != .verification else { return }
 
         let journal = context.journal

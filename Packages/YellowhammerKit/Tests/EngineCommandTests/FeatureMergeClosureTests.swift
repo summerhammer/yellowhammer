@@ -232,12 +232,12 @@ struct FeatureMergeClosureTests {
         #expect(await world.boards.writing.createCommentCalls == 0)
     }
 
-    @Test("A released Feature writes nothing")
-    func releasedFeatureWritesNothing() async throws {
+    @Test("An abandoned Feature writes nothing")
+    func abandonedFeatureWritesNothing() async throws {
         let world = try await makeMergeWorld(mergedRepositories: ["backend", "mobile"])
         let repositories = mergeWorldRepositories(world)
         let context = try world.makeContext(repositories: repositories)
-        try world.journal.markFeatureReleased(featureID: world.featureID)
+        try world.journal.markFeatureAbandoned(featureID: world.featureID)
         let (feature, _) = try #require(
             try world.journal.read { db in try Self.readFeature(db, id: world.featureID) }
         )

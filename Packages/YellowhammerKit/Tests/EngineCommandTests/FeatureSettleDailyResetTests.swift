@@ -49,7 +49,7 @@ struct FeatureSettleDailyResetTests {
     @Test(
         "reset is a no-op when the Feature Issue is not Kept in Flight",
         arguments: [
-            SettleValue.released.rawValue,
+            SettleValue.abandoned.rawValue,
             CardState.todo.rawValue,
             "Waiting on You",
             "In Progress"

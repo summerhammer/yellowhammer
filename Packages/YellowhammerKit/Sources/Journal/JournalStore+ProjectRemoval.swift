@@ -34,8 +34,8 @@ public struct ProjectRemovalRecord: Equatable, Sendable {
     public let closedNightIDs: [Int64]
     /// The in-flight Cycle this call archived, nil when none was open or it was already archived.
     public let archivedCycleID: Int64?
-    /// The in-flight Feature this call released (`feature.released_at`), nil when none was open or it
-    /// was already released.
+    /// The in-flight Feature this call released (`feature.abandoned_at`), nil when none was open or it
+    /// was already abandoned.
     public let releasedFeatureID: Int64?
     /// The repositories whose held Worktree this call released.
     public let removedWorktrees: [String]
@@ -52,8 +52,8 @@ extension JournalStore {
     /// 2. Closes every open Night with reason `.projectRemoved`, appending `.nightClosed(reason:)` per
     ///    Night, stamped act nil.
     /// 3. Decommissions the in-flight slot when a Cycle is open: archives it (`archived_at` only, never
-    ///    `closed_by`) and sets `feature.released_at` if unset — the same shape
-    ///    ``settleFeatureReleased(_:runID:act:nightID:now:)`` writes for a *released* settle value.
+    ///    `closed_by`) and sets `feature.abandoned_at` if unset — the same shape
+    ///    ``settleFeatureReleased(_:runID:act:nightID:now:)`` writes for an *abandoned* settle value.
     /// 4. Sets `released_at` on the Worktree rows `removal.releasedWorktreeIDs` names, skipping ones
     ///    already released.
     /// 5. Appends `.projectRemoved(featureIssueID:removedWorktrees:keptWorktrees:)`, stamped act nil,
@@ -139,14 +139,14 @@ extension JournalStore {
 
         guard
             let featureRow = try Row.fetchOne(
-                db, sql: "SELECT released_at FROM feature WHERE id = ?", arguments: [featureID]
+                db, sql: "SELECT abandoned_at FROM feature WHERE id = ?", arguments: [featureID]
             )
         else {
             throw JournalError.featureUnknown(featureID: featureID)
         }
         var releasedFeatureID: Int64?
-        if (featureRow["released_at"] as String?) == nil {
-            try db.execute(sql: "UPDATE feature SET released_at = ? WHERE id = ?", arguments: [timestamp, featureID])
+        if (featureRow["abandoned_at"] as String?) == nil {
+            try db.execute(sql: "UPDATE feature SET abandoned_at = ? WHERE id = ?", arguments: [timestamp, featureID])
             releasedFeatureID = featureID
         }
         return (archived ? cycleID : nil, releasedFeatureID)
