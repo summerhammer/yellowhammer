@@ -244,7 +244,7 @@ private struct PulseProjectControls: View {
     }
 
     private static func feature(_ rollup: RollUpState, repos: [String]) -> FeatureInFlight {
-        rollup == .partialLanding && repos == PulseFixtures.defaultRepos
+        rollup == .partial && repos == PulseFixtures.defaultRepos
             ? PulseFixtures.partialLandingFeature
             : PulseFixtures.feature(rollup: rollup, repos: repos)
     }

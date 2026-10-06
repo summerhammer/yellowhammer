@@ -102,7 +102,7 @@ extension PulsePalette {
         return switch state {
         case .authoring: .secondary
         case .running: working
-        case .needsYou, .partialLanding: needsYou
+        case .waiting, .partial: needsYou
         case .blocked: blocked
         case .verified: landed
         }
