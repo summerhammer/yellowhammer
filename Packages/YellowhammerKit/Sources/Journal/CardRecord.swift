@@ -3,7 +3,7 @@ import Foundation
 
 // MARK: - Card Record
 
-public enum WaitingReason: String, Sendable { case question, divergence }
+public enum WaitingReason: String, Sendable { case question, divergence, overreach }
 
 public struct CardRecord: Equatable, Sendable {
     public let id: Int64

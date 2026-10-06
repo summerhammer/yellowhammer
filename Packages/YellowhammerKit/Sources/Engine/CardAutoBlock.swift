@@ -31,7 +31,7 @@ enum CardAutoBlock {
 
     /// Auto-Blocks specific Cards named by the caller (roadmap P11.4: the unanswered-Nights bound), each
     /// under the Block Reason `reason` computes for it — `reply overdue` on the `question` route,
-    /// `decision overdue` on `divergence`. Never touches a Worktree: this bound's firing releases nothing but
+    /// `decision overdue` on `divergence` and `overreach`. Never touches a Worktree: this bound's firing releases nothing but
     /// the Card's own board state, and a Worktree's exit is landing.
     static func specific(
         cards: [CardRecord], reason: @escaping (CardRecord) -> BlockReason, context: ActContext

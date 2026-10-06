@@ -36,6 +36,8 @@ extension DeltaRead {
                     commentedAt: human.comment.createdAt
                 )
                 try recordReply(draft, nightID: nightID, into: &report)
+            case .overreach:
+                break
             }
         }
     }

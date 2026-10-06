@@ -180,6 +180,30 @@ struct CardUnansweredClockTests {
         #expect(blockReason == "decision overdue")
     }
 
+    @Test("On the overreach route the bound fires with `decision overdue`, never `reply overdue`")
+    func overreachRouteFiresDecisionOverdue() throws {
+        let fixture = try JournalFixture()
+        let world = try ClockWorld(try fixture.open(), waitingReason: .overreach)
+
+        let night2 = try world.openNight(NightStart(rawValue: "2026-09-21")!, now: epoch.addingTimeInterval(86_400))
+        _ = try world.journal.advanceCardUnansweredClocks(
+            cycleIDs: [world.cycleID], nightID: night2, unansweredNightsMax: 1, act: .build, runID: world.runID
+        )
+        let night3 = try world.openNight(
+            NightStart(rawValue: "2026-09-22")!, now: epoch.addingTimeInterval(2 * 86_400)
+        )
+        _ = try world.journal.advanceCardUnansweredClocks(
+            cycleIDs: [world.cycleID], nightID: night3, unansweredNightsMax: 1, act: .build, runID: world.runID
+        )
+
+        let events = try world.journal.events(ofType: .cardUnansweredBoundFired)
+        guard case .cardUnansweredBoundFired(_, _, _, _, let blockReason) = events[0].event else {
+            Issue.record("expected cardUnansweredBoundFired")
+            return
+        }
+        #expect(blockReason == "decision overdue")
+    }
+
     @Test("Advancing twice for the same Night (author and build Acts) counts once")
     func idempotentWithinANight() throws {
         let fixture = try JournalFixture()
