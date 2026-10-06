@@ -49,7 +49,8 @@ struct AuthoringPlanner {
         let (cards, cardWrites) = try create(nextOrder: &nextOrder)
         let uncitable = citations.uncitable.map {
             PlannedUncitableClause(
-                level: $0.level, cardTitle: $0.cardTitle, text: $0.text, citation: $0.citation, reason: $0.reason
+                level: $0.level, workCardTitle: $0.workCardTitle, text: $0.text,
+                citation: $0.citation, reason: $0.reason
             )
         }
         return AuthoringPlan(

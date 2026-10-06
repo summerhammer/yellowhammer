@@ -1,7 +1,7 @@
 import Foundation
 
 extension JournalStore {
-    /// The sha of every commit recorded as missing the `Yellowhammer-Card` trailer for this Card, across
+    /// The sha of every commit recorded as missing the `Yellowhammer-Work-Card` trailer for this Card, across
     /// all its Attempts. Reads `cardCommitTrailerMissing` events only; it never changes the Card's outcome.
     public func commitsRecordedMissingTrailer(cardID: Int64) throws -> Set<String> {
         var commits: Set<String> = []

@@ -10,11 +10,11 @@ struct CommitTrailerReaderTests {
         await fixture.initRepo()
         let base = try await fixture.commit(filename: "a.txt", message: "initial")
         let tagged = try await fixture.commit(
-            filename: "b.txt", message: "feat: tagged\n\nYellowhammer-Card: YLH-7"
+            filename: "b.txt", message: "feat: tagged\n\nYellowhammer-Work-Card: YLH-7"
         )
         let bare = try await fixture.commit(filename: "c.txt", message: "feat: bare")
 
-        let result = await CommitTrailerReader().commitsMissingCardTrailer(
+        let result = await CommitTrailerReader().commitsMissingWorkCardTrailer(
             worktreePath: fixture.path, from: base, to: bare
         )
 
@@ -29,7 +29,7 @@ struct CommitTrailerReaderTests {
         _ = try await fixture.commit(filename: "a.txt", message: "initial")
         let head = try await fixture.commit(filename: "b.txt", message: "feat: bare")
 
-        let result = await CommitTrailerReader().commitsMissingCardTrailer(
+        let result = await CommitTrailerReader().commitsMissingWorkCardTrailer(
             worktreePath: fixture.path, from: nil, to: head
         )
 
@@ -42,7 +42,7 @@ struct CommitTrailerReaderTests {
         await fixture.initRepo()
         let head = try await fixture.commit(filename: "a.txt", message: "initial")
 
-        let result = await CommitTrailerReader().commitsMissingCardTrailer(
+        let result = await CommitTrailerReader().commitsMissingWorkCardTrailer(
             worktreePath: fixture.path, from: head, to: head
         )
 
@@ -55,7 +55,7 @@ struct CommitTrailerReaderTests {
         await fixture.initRepo()
         let base = try await fixture.commit(filename: "a.txt", message: "initial")
 
-        let result = await CommitTrailerReader().commitsMissingCardTrailer(
+        let result = await CommitTrailerReader().commitsMissingWorkCardTrailer(
             worktreePath: fixture.path, from: base, to: String(repeating: "0", count: 40)
         )
 
@@ -73,7 +73,7 @@ struct CommitTrailerReaderTests {
         _ = try await fixture.commit(filename: "a.txt", message: "initial")
         let written = (fixture.path as NSString).appendingPathComponent("written-by-git.txt")
 
-        let result = await CommitTrailerReader().commitsMissingCardTrailer(
+        let result = await CommitTrailerReader().commitsMissingWorkCardTrailer(
             worktreePath: fixture.path, from: nil, to: "--output=\(written)"
         )
 

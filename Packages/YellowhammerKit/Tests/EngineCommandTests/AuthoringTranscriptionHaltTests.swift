@@ -123,7 +123,7 @@ struct AuthoringTranscriptionHaltTests {
         #expect(resolution.isReadable == false)
         #expect(resolution.unreadable.count == 1)
         let unreadable = try #require(resolution.unreadable.first)
-        #expect(unreadable.cardTitle == "Backend one")
+        #expect(unreadable.workCardTitle == "Backend one")
         #expect(unreadable.repository == "mobile")
         #expect(unreadable.reason.contains("no repositories configured"))
     }

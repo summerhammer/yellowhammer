@@ -12,7 +12,7 @@ enum CardRunAction: Sendable {
 }
 
 extension CardRun {
-    /// Blocks a Card whose Attempt budget the routing guard (``CardRouting/route(card:repoRole:override:checkDeclaredNone:attemptsPerCard:)``)
+    /// Blocks a Card whose Attempt budget the routing guard (``CardRouting/route(card:repoRole:override:checkDeclaredNone:attemptsPerWorkCard:)``)
     /// found already spent for `card`'s current budget epoch before any Attempt of this run: no Attempt
     /// was recorded and nothing was dispatched by this run, so the reset (OQ60) runs against the Card's
     /// last Attempt in history, if it has one, before the Block, and the Block Reason is the single

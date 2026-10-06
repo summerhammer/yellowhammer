@@ -4,7 +4,7 @@ import Journal
 
 extension CardRun {
     /// After a worker reports a commit, reads LKG..commit with `git log` and records each commit missing
-    /// the `Yellowhammer-Card` trailer (graph-execution/run-a-card). Recorded only: it never changes the
+    /// the `Yellowhammer-Work-Card` trailer (graph-execution/run-a-card). Recorded only: it never changes the
     /// Card's outcome, never creates a Round and never touches the board. A commit already recorded for
     /// this Card is not recorded again, so a later Round re-reading the same range adds nothing. When git
     /// cannot read the commits that is recorded instead (`cardCommitTrailersUnread`): a git failure never
@@ -14,7 +14,7 @@ extension CardRun {
         let worktree = try journal.heldWorktree(
             featureID: frame.context.feature.id, repository: frame.card.repository
         ) ?? frame.worktree
-        let outcome = await commitTrailers.commitsMissingCardTrailer(
+        let outcome = await commitTrailers.commitsMissingWorkCardTrailer(
             worktreePath: worktree.path, from: worktree.lastKnownGoodCommit, to: commit
         )
         let act = frame.context.act

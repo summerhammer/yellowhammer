@@ -94,7 +94,7 @@ func projectFullFileLoads() throws {
         repos: fullFixtureRepos,
         bounds: Bounds(
             reviewRoundsMax: 3,
-            attemptsPerCard: 5,
+            attemptsPerWorkCard: 5,
             unansweredNightsMax: 4,
             reselectionsMax: 3,
             consecutiveRefusalsMax: 5,

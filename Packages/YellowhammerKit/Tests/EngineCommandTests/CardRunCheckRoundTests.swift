@@ -20,7 +20,7 @@ struct CardRunCheckRoundTests {
     }
 
     private func makeRun(
-        results: [RepositoryCheckResult], roundsMax: Int = 2, attemptsPerCard: Int = 3,
+        results: [RepositoryCheckResult], roundsMax: Int = 2, attemptsPerWorkCard: Int = 3,
         checks: [String: Check] = ["backend": .command("make test")],
         during: (@Sendable (RunPass) async throws -> Void)? = nil
     ) -> Run {
@@ -29,7 +29,7 @@ struct CardRunCheckRoundTests {
         let check = RecordingCheck(log: log, results: results)
         let card = CardRun(
             resolver: cardRunResolver(), dispatch: dispatch, check: check, checks: checks,
-            reviewRoundsMax: roundsMax, attemptsPerCard: attemptsPerCard,
+            reviewRoundsMax: roundsMax, attemptsPerWorkCard: attemptsPerWorkCard,
             resetting: RecordingAttemptResetting()
         )
         return Run(card: card, dispatch: dispatch, check: check, log: log)
@@ -116,7 +116,7 @@ struct CardRunCheckRoundTests {
     func exhaustsTwoRounds() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
-        let run = makeRun(results: [red], roundsMax: 2, attemptsPerCard: 2)
+        let run = makeRun(results: [red], roundsMax: 2, attemptsPerWorkCard: 2)
 
         try await run.card.run("BACK-1", in: world)
 
@@ -151,7 +151,7 @@ struct CardRunCheckRoundTests {
     func exhaustsOneRound() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
-        let run = makeRun(results: [red], roundsMax: 1, attemptsPerCard: 1)
+        let run = makeRun(results: [red], roundsMax: 1, attemptsPerWorkCard: 1)
 
         try await run.card.run("BACK-1", in: world)
 
@@ -170,7 +170,7 @@ struct CardRunCheckRoundTests {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
         let cardID = try #require(world.cardIDs["BACK-1"])
-        let run = makeRun(results: [red], roundsMax: 2, attemptsPerCard: 2) { pass in
+        let run = makeRun(results: [red], roundsMax: 2, attemptsPerWorkCard: 2) { pass in
             guard pass == .worker else { return }
             let attempt = try #require(try world.journal.attemptHistory(cardID: cardID).openAttempt)
             if attempt.rounds.isEmpty {
@@ -265,7 +265,7 @@ struct CardRunCheckRoundTests {
         let log = CallLog()
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log), check: WorktreeCheck(),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
             resetting: RecordingAttemptResetting()
         )
 

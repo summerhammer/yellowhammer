@@ -188,7 +188,7 @@ struct PulseInspectorView: View {
             systemImage: "gearshape.2.fill",
             tint: palette.working,
             identifier: attempt.cardIDForDisplay ?? attempt.cardID,
-            title: attempt.cardTitle,
+            title: attempt.workCardTitle,
             badges: [("running", palette.working), ("Round \(attempt.round)", .secondary)],
             facts: facts,
             related: [
@@ -196,7 +196,7 @@ struct PulseInspectorView: View {
                 attempt.cardLink.map { link in
                     .init(title: "Card", items: [
                         .init(
-                            id: attempt.cardID, title: link.identifier, subtitle: attempt.cardTitle,
+                            id: attempt.cardID, title: link.identifier, subtitle: attempt.workCardTitle,
                             systemImage: "arrow.up.forward.square", tint: .secondary,
                             action: .open(.linearIssue(link.url))
                         )

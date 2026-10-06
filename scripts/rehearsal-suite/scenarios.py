@@ -376,7 +376,7 @@ def scenario_4(env, checks):
     slug = "04-mid-lane-block"
 
     manifest = suite_env.reset_project(env, project_id)
-    suite_env.write_scenario_project_file(env, project_id, manifest, limits={"attempts_per_card": 1})
+    suite_env.write_scenario_project_file(env, project_id, manifest, limits={"attempts_per_work_card": 1})
 
     n1 = night(1)
     returncode, output, log_path = env.yh.run_act(
@@ -609,16 +609,16 @@ def scenario_5(env, checks):
     checks.expect(returncode == 0, f"(b) N2 land exits 0 (got {returncode}); see {log_path}")
 
 
-# MARK: - 6. `unanswered_nights_max` firing with a value of 1
+# MARK: - 6. `overdue_nights_max` firing with a value of 1
 
 
-@scenario(6, "`unanswered_nights_max` firing with a value of 1")
+@scenario(6, "`overdue_nights_max` firing with a value of 1")
 def scenario_6(env, checks):
     project_id = "rehearsal-suite-a"
     slug = "06-unanswered-nights-max"
 
     manifest = suite_env.reset_project(env, project_id)
-    suite_env.write_scenario_project_file(env, project_id, manifest, limits={"unanswered_nights_max": 1})
+    suite_env.write_scenario_project_file(env, project_id, manifest, limits={"overdue_nights_max": 1})
 
     n1 = night(1)
     returncode, output, log_path = env.yh.run_rehearse(

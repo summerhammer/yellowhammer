@@ -8,7 +8,7 @@ import Journal
 /// event, so a throw here leaves the Feature unclosed and is retried by the next pass.
 ///
 /// "Merging costs the Card nothing": a Card still Waiting on You is auto-Blocked with Block Reason
-/// `reply overdue`, the same exit `unanswered_nights_max` would have given it — its counters and round
+/// `reply overdue`, the same exit `overdue_nights_max` would have given it — its counters and round
 /// history untouched. Surviving Blocked Cards are detached from the Feature Issue, awaiting Adoption.
 /// The Cycle is archived `closed_by = merge`; the Feature Issue is archived (`issueArchive`) and never
 /// moved to Done — the spec leaves the merge-closed state deliberately unnamed, which is how "closed by

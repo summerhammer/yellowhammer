@@ -86,7 +86,7 @@ private func recordKnownGood(_ commit: String, world: CardRunWorld) throws {
 private func makeRun(dispatch: any AgentDispatch) -> CardRun {
     CardRun(
         resolver: cardRunResolver(), dispatch: dispatch, check: RecordingCheck(log: CallLog()),
-        checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+        checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
         resetting: AttemptWorktreeReset()
     )
 }

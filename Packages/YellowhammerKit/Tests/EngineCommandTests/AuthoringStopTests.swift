@@ -36,7 +36,8 @@ private func stopContext(
 private let seam = AuthoringHaltCause.noBackwardCompatibleSeam(seam: "the shared endpoint")
 private let finding = RefusalFinding(
     uncitable: [UncitableClause(
-        level: "card", cardTitle: "Backend one", text: "Ghost clause", citation: "epic/ghost", reason: "no such story"
+        level: "card", workCardTitle: "Backend one", text: "Ghost clause",
+        citation: "epic/ghost", reason: "no such story"
     )],
     reselectionDepth: 2
 )
@@ -173,7 +174,8 @@ struct AuthoringStopTests {
 
     @Test("Every halt cause's comment and Night Card line avoid the Refusal vocabulary and name the repository")
     func haltVocabulary() async throws {
-        let contract = UnreadableContract(cardTitle: "Card", repository: "web", paths: ["a.swift"], reason: "missing")
+        let contract = UnreadableContract(workCardTitle: "Card", repository: "web",
+        paths: ["a.swift"], reason: "missing")
         let causes: [(AuthoringHaltCause, String)] = [
             (seam, "shared endpoint"), (.repositoriesUndetermined, "repositories"),
             (.contractOutsideProject(repository: "web"), "web"), (.contractUnreadable(contracts: [contract]), "web")

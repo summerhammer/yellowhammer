@@ -8,7 +8,7 @@ import Testing
 // The Card side of the unanswered-Nights clock's own arithmetic (roadmap P11.4; spec:
 // bounds/bound-unanswered-nights), mirroring RefusalStoreTests.swift's coverage of the Refusal clock,
 // but counted per Card and gated on a banked reply the way ``JournalStore/hasWaitingOnYouCardInLandedCycle()``
-// already is. `unanswered_nights_max = 1` throughout, so a Card's second qualifying Night pushes it past
+// already is. `overdue_nights_max = 1` throughout, so a Card's second qualifying Night pushes it past
 // the bound.
 
 private struct JournalFixture: ~Copyable {

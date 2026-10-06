@@ -11,18 +11,18 @@ extension NightCardMaintenance {
     /// imports `Config`, so `EngineCommand` is the one place these are read from `project.bounds`.
     public struct Bounds: Equatable, Sendable {
         public let reviewRoundsMax: Int
-        public let attemptsPerCard: Int
+        public let attemptsPerWorkCard: Int
         public let unansweredNightsMax: Int
         public let reselectionsMax: Int
         public let consecutiveRefusalsMax: Int
         public let failedAdoptionsMax: Int
 
         public init(
-            reviewRoundsMax: Int = 2, attemptsPerCard: Int = 3, unansweredNightsMax: Int = 3,
+            reviewRoundsMax: Int = 2, attemptsPerWorkCard: Int = 3, unansweredNightsMax: Int = 3,
             reselectionsMax: Int = 2, consecutiveRefusalsMax: Int = 3, failedAdoptionsMax: Int = 2
         ) {
             self.reviewRoundsMax = reviewRoundsMax
-            self.attemptsPerCard = attemptsPerCard
+            self.attemptsPerWorkCard = attemptsPerWorkCard
             self.unansweredNightsMax = unansweredNightsMax
             self.reselectionsMax = reselectionsMax
             self.consecutiveRefusalsMax = consecutiveRefusalsMax

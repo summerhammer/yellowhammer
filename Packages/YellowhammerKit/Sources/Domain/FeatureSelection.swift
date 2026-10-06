@@ -95,14 +95,14 @@ public struct UncitableClause: Equatable, Sendable {
     /// `"feature"` or `"card"`.
     public let level: String
     /// The Card's title, when ``level`` is `"card"`; nil for a Feature-level clause.
-    public let cardTitle: String?
+    public let workCardTitle: String?
     public let text: String
     public let citation: String
     public let reason: String
 
-    public init(level: String, cardTitle: String?, text: String, citation: String, reason: String) {
+    public init(level: String, workCardTitle: String?, text: String, citation: String, reason: String) {
         self.level = level
-        self.cardTitle = cardTitle
+        self.workCardTitle = workCardTitle
         self.text = text
         self.citation = citation
         self.reason = reason
@@ -113,13 +113,13 @@ public struct UncitableClause: Equatable, Sendable {
 /// spec: feature-authoring/author-an-architectural-brief): named specifically enough to act on — the
 /// Card that needed it, the repository and paths it could not be read from, and why.
 public struct UnreadableContract: Equatable, Sendable {
-    public let cardTitle: String
+    public let workCardTitle: String
     public let repository: String
     public let paths: [String]
     public let reason: String
 
-    public init(cardTitle: String, repository: String, paths: [String], reason: String) {
-        self.cardTitle = cardTitle
+    public init(workCardTitle: String, repository: String, paths: [String], reason: String) {
+        self.workCardTitle = workCardTitle
         self.repository = repository
         self.paths = paths
         self.reason = reason
@@ -162,7 +162,7 @@ public enum AuthoringHaltCause: Equatable, Sendable {
         case .repositoriesUndetermined: nil
         case .contractOutsideProject(let repository): repository
         case .contractUnreadable(let contracts):
-            contracts.map { "\($0.cardTitle):\($0.repository):\($0.paths.joined(separator: ","))" }
+            contracts.map { "\($0.workCardTitle):\($0.repository):\($0.paths.joined(separator: ","))" }
                 .joined(separator: "; ")
         }
     }
@@ -179,7 +179,7 @@ extension AuthoringHaltCause: CustomStringConvertible {
             return "Repository '\(repository)' is not configured for this Project."
         case .contractUnreadable(let contracts):
             let named = contracts.map { contract -> String in
-                "Card '\(contract.cardTitle)': repository '\(contract.repository)' " +
+                "Card '\(contract.workCardTitle)': repository '\(contract.repository)' " +
                     "(\(contract.paths.joined(separator: ", "))) could not be read: \(contract.reason)"
             }.joined(separator: "; ")
             return "A contract this author Act cannot read blocks authoring: \(named)"
@@ -203,14 +203,14 @@ public struct RefusalFinding: Equatable, Sendable {
 
     /// A compact listing of every uncitable clause, for the Journal's payload.
     public var clauseListing: String {
-        uncitable.map { "\($0.level):\($0.cardTitle ?? "-"):\($0.text)" }.joined(separator: "; ")
+        uncitable.map { "\($0.level):\($0.workCardTitle ?? "-"):\($0.text)" }.joined(separator: "; ")
     }
 }
 
 extension RefusalFinding: CustomStringConvertible {
     public var description: String {
         let named = uncitable.map { clause -> String in
-            let location = clause.cardTitle.map { "Card '\($0)'" } ?? "the Feature"
+            let location = clause.workCardTitle.map { "Card '\($0)'" } ?? "the Feature"
             return "\(location): clause '\(clause.text)' citing '\(clause.citation)' does not resolve: " +
                 clause.reason
         }.joined(separator: "; ")

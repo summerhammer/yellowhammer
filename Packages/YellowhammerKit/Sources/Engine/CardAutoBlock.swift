@@ -8,7 +8,7 @@ import Journal
 
 enum CardAutoBlock {
     /// Every Waiting on You Card of `cycleID` is auto-Blocked `reply overdue` — the same exit
-    /// `unanswered_nights_max` would have given it, with its counters and round history untouched.
+    /// `overdue_nights_max` would have given it, with its counters and round history untouched.
     /// Cancelled, Done and already-Blocked Cards are never touched. Through the board projection when
     /// an Outbox and board are wired; Journal-only otherwise, so the auto-Block still happens.
     ///

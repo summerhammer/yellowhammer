@@ -81,7 +81,7 @@ final class ConfigurationEditingUITests: XCTestCase {
     func testInvalidBoundIsRefusedAndDiskIsUnchanged() throws {
         let onDiskBeforeSave = try String(contentsOf: projectFileURL, encoding: .utf8)
 
-        let bound = app.textFields["bound-attempts_per_card"]
+        let bound = app.textFields["bound-attempts_per_work_card"]
         XCTAssertTrue(bound.waitForExistence(timeout: 10))
         bound.click()
         // Select all and replace, rather than appending to whatever the loaded value already is.
@@ -95,7 +95,7 @@ final class ConfigurationEditingUITests: XCTestCase {
         let failure = app.staticTexts["configuration-save-failure"]
         XCTAssertTrue(failure.waitForExistence(timeout: 5))
         let message = (failure.value as? String) ?? ""
-        XCTAssertTrue(message.contains("attempts_per_card"), message)
+        XCTAssertTrue(message.contains("attempts_per_work_card"), message)
         XCTAssertTrue(message.contains("must be an integer >= 1"), message)
 
         let onDiskAfterSave = try String(contentsOf: projectFileURL, encoding: .utf8)
