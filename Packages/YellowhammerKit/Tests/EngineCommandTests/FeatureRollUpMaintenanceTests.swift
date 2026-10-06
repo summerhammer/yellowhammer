@@ -84,7 +84,7 @@ struct FeatureRollUpMaintenanceTests {
         }
         #expect(afterHash != beforeHash)
         let description = try #require(await world.board.issue(BoardObjectID(rawValue: "FEAT-1"))?.description)
-        let expected = "partial landing · 1 of 1 Cards landed · 0 of 1 merged · verification not passed"
+        let expected = "waiting · 1 of 1 Cards landed · 0 of 1 merged · verification not recorded"
         #expect(description.contains(expected))
     }
 
@@ -336,8 +336,8 @@ extension FeatureRollUpMaintenanceTests {
         let afterSentence = try #require(afterParts.block.components(separatedBy: "\n").first)
         // N drops from 2 to 1 (frontend is out of it), so only the merged fraction's own denominator moves;
         // the note sits after the closing `**`, outside the sentence's bold span.
-        let sentence = "partial landing · 1 of 1 Cards landed · 0 of 1 merged · verification not passed"
-        #expect(beforeSentence == "**partial landing · 1 of 1 Cards landed · 0 of 2 merged · verification not passed**")
+        let sentence = "waiting · 1 of 1 Cards landed · 0 of 1 merged · verification not recorded"
+        #expect(beforeSentence == "**waiting · 1 of 1 Cards landed · 0 of 2 merged · verification not recorded**")
         #expect(afterSentence == "**\(sentence)** [no pull request: frontend]")
 
         let updates = await world.board.updateCalls

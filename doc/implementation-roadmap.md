@@ -1021,7 +1021,7 @@ comment on the Delta Read).
     `<!-- yh:clause:<id> -->` marker and the citation.
   - Persist each clause in the Journal `clause` table with provenance `machine-found`.
   - A Feature too thin to cite goes Waiting on You before any dispatch, naming the uncitable
-    clauses, with no Attempt and a Night Summary. Its roll-up reads `needs you`.
+    clauses, with no Attempt and a Night Summary. Its roll-up reads `waiting`.
 - **Spec** — `feature-authoring/author-citable-definitions-of-done`; DR4; risks.md TD8, OQ18.
 - **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests check the clause line format, the Journal rows, and the
@@ -1406,7 +1406,7 @@ comment on the Delta Read).
   - Derive the roll-up state from Card states and Repo Lane completion, with fallback to the Feature
     Issue's own state when there are no Cards.
   - Render the fixed sentence shapes for the running and closed halves, the zero-Card templates, the
-    `no live Cards · <c> cancelled` absence case, and Mainline Conflicts beside the sentence. The
+    `no live Cards · <c> shelved` absence case, and Mainline Conflicts beside the sentence. The
     zero-Card templates cover the Authoring Halt forms as well as the Refusal ones, and the word
     `refusal` is never rendered for a halt.
   - State-sorted member list grouped by Repo Lane, with adopted, banked-answer and Cancelled

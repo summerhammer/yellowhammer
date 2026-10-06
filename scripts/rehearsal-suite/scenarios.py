@@ -454,7 +454,7 @@ def scenario_4(env, checks):
     feature_issue = env.linear.issue(feature["issue_id"])
     description = (feature_issue.get("description") or "")
     checks.expect(
-        "partial landing" in description.lower(), "the Feature Issue's description leads with 'partial landing'"
+        "**partial · " in description, "the Feature Issue's description leads with the Roll-up word 'partial'"
     )
     # The Roll-up names each Card by its title (the Journal now records one, reconciled by the Delta
     # Read), so the hole is named by M's title and its state, not its issue id.
