@@ -62,8 +62,8 @@ struct FeatureSettleGestureTests {
         #expect(try world.journal.events(ofType: .featureSettled).count == 1)
     }
 
-    @Test("released on a running Feature: salvages, archives the Cycle, never archives the Feature Issue")
-    func releasedOnARunningFeature() async throws {
+    @Test("abandon on a running Feature: salvages, archives the Cycle, never archives the Feature Issue")
+    func abandonedOnARunningFeature() async throws {
         let world = try await makeSettleWorld()
         let active = try await world.seedActiveCards()
         try world.holdWorktree(repository: "backend", pushed: true)
@@ -72,7 +72,7 @@ struct FeatureSettleGestureTests {
             featureID: world.featureID, repository: "backend", url: "https://github.com/acme/backend/pull/1",
             nightID: world.previousNightID, runID: RunID()
         )
-        await world.seedFeatureIssueState(SettleValue.released.rawValue)
+        await world.seedFeatureIssueState(SettleValue.abandoned.rawValue)
         let context = try world.makeContext()
         let feature = try inFlightFeature(world)
 
@@ -97,9 +97,9 @@ struct FeatureSettleGestureTests {
         let worktrees = try world.journal.worktrees(featureID: world.featureID)
         #expect(worktrees.allSatisfy { !$0.isHeld })
 
-        // The Cycle is archived, never with closed_by; the Feature is released, not closed.
+        // The Cycle is archived, never with closed_by; the Feature is abandoned, not closed.
         let row = try settleFeatureRow(world.journal, featureID: world.featureID)
-        #expect(row.releasedAt != nil)
+        #expect(row.abandonedAt != nil)
         #expect(row.closedBy == nil)
         #expect(try world.journal.inFlightCycleID() == nil)
 
@@ -111,7 +111,7 @@ struct FeatureSettleGestureTests {
         #expect(await world.boards.writing.createCommentCalls == 1)
         let featureIssueID = BoardObjectID(rawValue: "FEAT-1")
         let comment = try #require(await world.boards.writing.comments.first { $0.issue == featureIssueID })
-        #expect(comment.body.hasPrefix("**Released.**"))
+        #expect(comment.body.hasPrefix("**Abandoned.**"))
         #expect(comment.body.contains("backend"))
         #expect(!comment.body.localizedCaseInsensitiveContains("landed this"))
 
@@ -129,16 +129,16 @@ struct FeatureSettleGestureTests {
         #expect(abandoned == ["backend"])
         try await assertReleasedActiveCards(world, active: active, comment: comment.body)
 
-        // The same author Act proceeds past the predecessor gate: the walk skips a released Feature.
+        // The same author Act proceeds past the predecessor gate: the walk skips an abandoned Feature.
         let walk = try world.journal.predecessorFeature()
         #expect(walk.predecessor == nil)
     }
 
-    @Test("A live Card Lease prevents release until its holder lets go")
-    func releasedActiveCardHeldByAnotherRun() async throws {
+    @Test("A live Card Lease prevents abandon until its holder lets go")
+    func abandonedActiveCardHeldByAnotherRun() async throws {
         let world = try await makeSettleWorld()
         let active = try await world.seedActiveCards()
-        await world.seedFeatureIssueState(SettleValue.released.rawValue)
+        await world.seedFeatureIssueState(SettleValue.abandoned.rawValue)
         let context = try world.makeContext()
         let holder = RunID()
         _ = try world.journal.claimCardLease(cardID: active.todo, runID: holder)
@@ -157,14 +157,14 @@ struct FeatureSettleGestureTests {
         #expect(try world.journal.events(ofType: .featureReleased).count == 1)
     }
 
-    @Test("released on a Partial Landing: worktree release is a no-op, abandoned repositories recorded")
-    func releasedOnAPartialLanding() async throws {
+    @Test("abandon on a Partial Landing: worktree release is a no-op, abandoned repositories recorded")
+    func abandonedOnAPartialLanding() async throws {
         let world = try await makeSettleWorld(landed: true)
         try world.journal.recordLanding(featureID: world.featureID, repository: "backend", mainlineCommit: "c1")
         try world.journal.recordPullRequest(
             featureID: world.featureID, repository: "mobile", url: nil, nightID: world.previousNightID, runID: RunID()
         )
-        await world.seedFeatureIssueState(SettleValue.released.rawValue)
+        await world.seedFeatureIssueState(SettleValue.abandoned.rawValue)
         let context = try world.makeContext()
         let feature = try inFlightFeature(world)
 
@@ -172,7 +172,7 @@ struct FeatureSettleGestureTests {
 
         #expect(world.workspace.removeCalls.isEmpty)
         let row = try settleFeatureRow(world.journal, featureID: world.featureID)
-        #expect(row.releasedAt != nil)
+        #expect(row.abandonedAt != nil)
         let events = try world.journal.events(ofType: .featureReleased)
         guard case .featureReleased(_, _, _, _, let abandoned, _) = events[0].event else {
             Issue.record("expected featureReleased")
@@ -183,10 +183,10 @@ struct FeatureSettleGestureTests {
     }
 
     @Test(
-        "kept in flight is not honoured where only released is offered: a Partial Landing, or every Card Cancelled",
+        "kept in flight is not honoured where only abandoned is offered: a Partial Landing, or every Card Cancelled",
         arguments: [(true, false), (true, true), (false, true)]
     )
-    func keptInFlightNotHonouredWhereOnlyReleasedIsOffered(landed: Bool, allCancelled: Bool) async throws {
+    func keptInFlightNotHonouredWhereOnlyAbandonedIsOffered(landed: Bool, allCancelled: Bool) async throws {
         let world = try await makeSettleWorld(landed: landed, allCancelled: allCancelled)
         await world.seedFeatureIssueState(SettleValue.keptInFlight.rawValue)
         let context = try world.makeContext()
@@ -204,10 +204,10 @@ struct FeatureSettleGestureTests {
         }
         #expect(featureIssueID == "FEAT-1")
         #expect(value == SettleValue.keptInFlight.rawValue)
-        // Treated as unsettled: the one comment states only `released` is offered.
+        // Treated as unsettled: the one comment states only `abandoned` is offered.
         #expect(await world.boards.writing.createCommentCalls == 1)
         let comment = try #require(await world.boards.writing.comments.first)
-        #expect(comment.body.contains(SettleValue.released.rawValue))
+        #expect(comment.body.contains(SettleValue.abandoned.rawValue))
         #expect(!comment.body.contains(SettleValue.keptInFlight.rawValue))
     }
 
@@ -226,15 +226,15 @@ struct FeatureSettleGestureTests {
         #expect(await world.boards.writing.createCommentCalls == 1)
         let comment = try #require(await world.boards.writing.comments.first)
         #expect(comment.body.contains(SettleValue.keptInFlight.rawValue))
-        #expect(comment.body.contains(SettleValue.released.rawValue))
+        #expect(comment.body.contains(SettleValue.abandoned.rawValue))
         #expect(!comment.body.localizedCaseInsensitiveContains("landed"))
     }
 
-    @Test("Releasing twice writes nothing more")
-    func releasingTwiceIsIdempotent() async throws {
+    @Test("Abandoning twice writes nothing more")
+    func abandoningTwiceIsIdempotent() async throws {
         let world = try await makeSettleWorld()
         let active = try await world.seedActiveCards()
-        await world.seedFeatureIssueState(SettleValue.released.rawValue)
+        await world.seedFeatureIssueState(SettleValue.abandoned.rawValue)
         let context = try world.makeContext()
         let gesture = FeatureSettleGesture()
 
@@ -288,10 +288,10 @@ private func assertReleasedActiveCards(
 
 @Suite("Author Act applies the settle seam (P10.9)")
 struct AuthorActFeatureSettleGestureTests {
-    @Test("A released Feature frees the Act to author afresh, past the predecessor gate")
-    func releasedFeatureFreesTheActToAuthorAfresh() async throws {
+    @Test("An abandoned Feature frees the Act to author afresh, past the predecessor gate")
+    func abandonedFeatureFreesTheActToAuthorAfresh() async throws {
         let world = try await makeSettleWorld()
-        await world.seedFeatureIssueState(SettleValue.released.rawValue)
+        await world.seedFeatureIssueState(SettleValue.abandoned.rawValue)
         let board = ActBoard(
             reading: world.reading, writing: world.boards.writing, provisioning: world.boards.provisioning
         )
@@ -311,7 +311,7 @@ struct AuthorActFeatureSettleGestureTests {
         #expect(!events.contains(.authoringSkippedFeatureInFlight))
         #expect(events.contains(.featureReleased))
         let row = try settleFeatureRow(world.journal, featureID: world.featureID)
-        #expect(row.releasedAt != nil)
+        #expect(row.abandonedAt != nil)
     }
 
     @Test("A kept-in-flight Feature still skips authoring: the same quiet Night as any in-flight Feature")
@@ -343,18 +343,18 @@ struct AuthorActFeatureSettleGestureTests {
 struct SettleCommentRenderingTests {
     @Test("Both offered values state their ancestry consequence, never that abandoned work landed")
     func bothOfferedStateConsequence() {
-        let body = SettleGestureComment(offered: [.keptInFlight, .released]).body()
+        let body = SettleGestureComment(offered: [.keptInFlight, .abandoned]).body()
         #expect(body.contains(SettleValue.keptInFlight.rawValue))
-        #expect(body.contains("Released"))
+        #expect(body.contains("Abandoned"))
         #expect(body.contains("predecessor-ancestry"))
         #expect(!body.localizedCaseInsensitiveContains("this Feature's work landed"))
     }
 
-    @Test("Only released offered omits kept in flight")
-    func onlyReleasedOffered() {
-        let body = SettleGestureComment(offered: [.released]).body()
+    @Test("Only abandoned offered omits kept in flight")
+    func onlyAbandonedOffered() {
+        let body = SettleGestureComment(offered: [.abandoned]).body()
         #expect(!body.contains(SettleValue.keptInFlight.rawValue))
-        #expect(body.contains("Released"))
+        #expect(body.contains("Abandoned"))
     }
 
     @Test("The release comment names carried-forward Cards, accepted Cards and abandoned repositories")
@@ -365,7 +365,7 @@ struct SettleCommentRenderingTests {
             triagedNightStart: NightStart(rawValue: "2026-09-10")!
         )
         let body = comment.body()
-        #expect(body.hasPrefix("**Released.**"))
+        #expect(body.hasPrefix("**Abandoned.**"))
         #expect(body.contains("BACK-2"))
         #expect(body.contains("BACK-1"))
         #expect(body.contains("backend"))
@@ -373,12 +373,12 @@ struct SettleCommentRenderingTests {
     }
 }
 
-func settleFeatureRow(_ journal: JournalStore, featureID: Int64) throws -> (releasedAt: String?, closedBy: String?) {
+func settleFeatureRow(_ journal: JournalStore, featureID: Int64) throws -> (abandonedAt: String?, closedBy: String?) {
     try journal.read { db in
         let row = try Row.fetchOne(
-            db, sql: "SELECT released_at, closed_by FROM feature WHERE id = ?", arguments: [featureID]
+            db, sql: "SELECT abandoned_at, closed_by FROM feature WHERE id = ?", arguments: [featureID]
         )!
-        return (row["released_at"], row["closed_by"])
+        return (row["abandoned_at"], row["closed_by"])
     }
 }
 

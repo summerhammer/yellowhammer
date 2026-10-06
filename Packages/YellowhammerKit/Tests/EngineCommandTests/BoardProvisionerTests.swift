@@ -54,8 +54,8 @@ private func keptInFlight(_ subject: ProvisioningEntry.Subject) -> Bool {
     return false
 }
 
-private func released(_ subject: ProvisioningEntry.Subject) -> Bool {
-    if case .workflowState(SettleValue.released.rawValue, _) = subject { return true }
+private func abandoned(_ subject: ProvisioningEntry.Subject) -> Bool {
+    if case .workflowState(SettleValue.abandoned.rawValue, _) = subject { return true }
     return false
 }
 
@@ -71,7 +71,7 @@ struct BoardProvisionerTests {
         #expect(outcome(of: report, waitingOnYou) == .created)
         #expect(outcome(of: report, blocked) == .created)
         #expect(outcome(of: report, keptInFlight) == .created)
-        #expect(outcome(of: report, released) == .created)
+        #expect(outcome(of: report, abandoned) == .created)
         #expect(outcome(of: report, cardTypeGroup) == .created)
         #expect(outcome(of: report, blockReasonGroup) == .created)
         for name in ["Feature Card", "Work Card", "Night Card"] {
@@ -405,7 +405,7 @@ struct BoardProvisionerTests {
         // Every other declared item in the team still got created.
         #expect(outcome(of: report, waitingOnYou) == .created)
         #expect(outcome(of: report, keptInFlight) == .created)
-        #expect(outcome(of: report, released) == .created)
+        #expect(outcome(of: report, abandoned) == .created)
         #expect(outcome(of: report, cardTypeGroup) == .created)
         #expect(report.hasUnfinishedSteps)
         #expect(report.createByHandGuideline?.contains("Blocked") == true)

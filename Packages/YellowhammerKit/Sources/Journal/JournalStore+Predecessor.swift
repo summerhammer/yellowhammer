@@ -63,7 +63,7 @@ extension JournalStore {
             var skipped: [FeatureRecord] = []
             for row in rows {
                 let feature = try Self.featureRecord(from: row)
-                guard feature.releasedAt == nil else {
+                guard feature.abandonedAt == nil else {
                     skipped.append(feature)
                     continue
                 }
