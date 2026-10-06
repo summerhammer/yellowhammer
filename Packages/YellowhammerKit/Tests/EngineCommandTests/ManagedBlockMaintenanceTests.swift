@@ -124,18 +124,18 @@ struct ManagedBlockMaintenanceTests {
         let journal = try fixture.open()
         let board = FakeWritingBoard()
         let issue = await board.seed(issue: "issue-1", description: ManagedBlockFence.initialDescription(rendered: ""))
-        await board.label(issue, add: labels.blockReason[.blockedByReviewer]!)
+        await board.label(issue, add: labels.blockReason[.reviewerRejection]!)
         await board.label(issue, add: labels.cardType[.featureCard]!)
         let cardID = try insertFixtureCard(journal, issueID: "issue-1")
-        try setCard(journal, cardID, state: .blocked, blockReason: BlockReason.blockedByCheck.rawValue)
+        try setCard(journal, cardID, state: .blocked, blockReason: BlockReason.checkFailure.rawValue)
         let outbox = try heldOutbox(journal, board: board, cardID: cardID)
         let maintenance = ManagedBlockMaintenance(journal: journal, outbox: outbox, labels: labels)
 
         _ = try await maintenance.maintain(card: try journal.card(id: cardID), brief: brief)
         let blocked = try #require(await board.issue(issue)?.labels)
-        #expect(blocked == [labels.cardType[.workCard]!, labels.blockReason[.blockedByCheck]!])
+        #expect(blocked == [labels.cardType[.workCard]!, labels.blockReason[.checkFailure]!])
         let description = try #require(await board.issue(issue)?.description)
-        #expect(description.contains("**State:** Blocked — blocked by check"))
+        #expect(description.contains("**State:** Blocked — check failure"))
 
         try setCard(journal, cardID, state: .todo, blockReason: nil)
         _ = try await maintenance.maintain(card: try journal.card(id: cardID), brief: brief)
@@ -218,7 +218,7 @@ struct ManagedBlockMaintenanceTests {
         ))
 
         // The count never resets, so a Card later Blocked on another reason must not carry the line.
-        try setCard(journal, cardID, state: .blocked, blockReason: BlockReason.hardFailure.rawValue)
+        try setCard(journal, cardID, state: .blocked, blockReason: BlockReason.routeFailure.rawValue)
         _ = try await maintenance.maintain(card: try journal.card(id: cardID), brief: brief)
         let other = try ManagedBlockFence.parts(of: await board.issue(issue)?.description).get().block
         #expect(!other.contains("Failure-Cause Recurrence"))

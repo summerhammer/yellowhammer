@@ -60,7 +60,7 @@ struct CardRunResetTests {
         #expect(log.all.contains("reset"))
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.hardFailure.rawValue)
+        #expect(card.blockReason == BlockReason.routeFailure.rawValue)
         let steps = try cardRunLog(world.journal)
         #expect(steps.contains(CardRunStep.attemptResetFailed.rawValue))
     }

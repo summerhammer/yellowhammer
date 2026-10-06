@@ -31,5 +31,5 @@ func recurrenceRendersUnderTheState() throws {
 
 @Test("A Card Blocked on a first occurrence carries no recurrence line")
 func firstOccurrenceRendersNoRecurrence() {
-    #expect(!block(recurrence: nil, blockReason: .hardFailure).render().contains("Failure-Cause Recurrence"))
+    #expect(!block(recurrence: nil, blockReason: .routeFailure).render().contains("Failure-Cause Recurrence"))
 }

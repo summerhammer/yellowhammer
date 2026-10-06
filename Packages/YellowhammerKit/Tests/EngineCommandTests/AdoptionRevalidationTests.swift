@@ -80,7 +80,7 @@ struct AdoptionRevalidationTests {
 
         // Calls `AuthoringTransaction.author` directly rather than through `FeatureSelection`: once the
         // first refusal moves the Card to Waiting on You it is no longer a Blocked candidate, so a real
-        // second refusal only happens after the unanswered-Nights clock re-Blocks it `undecided` — this
+        // second refusal only happens after the unanswered-Nights clock re-Blocks it `decision overdue` — this
         // exercises the re-validation and the notice's replacement in isolation from that clock.
         func author(paths: [String], nightStart: String, previous: RunID?) async throws -> RunID {
             let transaction = try transaction(
@@ -138,7 +138,7 @@ struct AdoptionRevalidationTests {
         #expect(try journal.inFlightFeature() == nil)
     }
 
-    @Test("A refused Card is later auto-Blocked undecided once unanswered_nights_max is exceeded")
+    @Test("A refused Card is later auto-Blocked decision overdue once unanswered_nights_max is exceeded")
     func refusedCardIsLaterAutoBlocked() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
@@ -166,7 +166,7 @@ struct AdoptionRevalidationTests {
 
         let after = try journal.card(id: seeded.cardRowID)
         #expect(after.state == .blocked)
-        #expect(after.blockReason == BlockReason.undecided.rawValue)
+        #expect(after.blockReason == BlockReason.decisionOverdue.rawValue)
     }
 
     @Test("Untestable provenance: the Card is not adopted, no Divergence, and its counters are unchanged")

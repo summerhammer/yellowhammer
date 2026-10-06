@@ -73,7 +73,7 @@ struct CardRunRecurrenceTests {
         #expect(!steps.contains(CardRunStep.blockedOnFailureRecurrence.rawValue))
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.hardFailure.rawValue)
+        #expect(card.blockReason == BlockReason.routeFailure.rawValue)
     }
 
     @Test("The same cause on a later Night Blocks under failure recurrence after one Attempt, with budget left")
@@ -113,7 +113,7 @@ struct CardRunRecurrenceTests {
         let fixture = try OutboxJournalFixture()
         let first = try await makeCardRunWorld(journal: try fixture.open(), withBoard: false)
         try await makeRun(worker: .workerFailed, attemptsPerCard: 1).run("BACK-1", in: first)
-        #expect(try first.card("BACK-1").blockReason == BlockReason.hardFailure.rawValue)
+        #expect(try first.card("BACK-1").blockReason == BlockReason.routeFailure.rawValue)
 
         // One Attempt allowed: the only Attempt of the new epoch both recurs and spends the budget.
         let second = try first.onNextNight(recurrenceSecondNight, reReadying: "BACK-1")

@@ -81,7 +81,7 @@ private struct AssignedQuestionCardWorld {
 
 @Suite("The unanswered-Nights bound end to end (P11.4)")
 struct UnansweredCardClockTests {
-    @Test("Question route: the second qualifying Night auto-Blocks `unanswered`, keeping the question and assignee")
+    @Test("Question route: the second qualifying Night auto-Blocks `reply overdue`, keeping the question and assignee")
     func questionRouteBlocksUnanswered() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
@@ -101,7 +101,7 @@ struct UnansweredCardClockTests {
         #expect(try journal.card(id: world.cardID).state == .waitingOnYou)
         #expect(try journal.card(id: world.cardID).unansweredNights == 1)
 
-        // Night 3: exceeds the bound — auto-Blocked `unanswered`.
+        // Night 3: exceeds the bound — auto-Blocked `reply overdue`.
         let night3 = try world.openNight(NightStart(rawValue: "2026-09-22")!)
         try await UnansweredCardClock.run(
             cycleIDs: [world.cycleID], unansweredNightsMax: 1, context: world.context(night: night3)
@@ -109,7 +109,7 @@ struct UnansweredCardClockTests {
 
         let card = try journal.card(id: world.cardID)
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.unanswered.rawValue)
+        #expect(card.blockReason == BlockReason.replyOverdue.rawValue)
         #expect(try journal.latestCardQuestion(cardID: world.cardID) != nil, "the question record survives")
         #expect(try journal.events(ofType: .cardUnansweredBoundFired).count == 1)
 
@@ -118,7 +118,7 @@ struct UnansweredCardClockTests {
         #expect(issue.workflowState == world.scope.states[.blocked])
     }
 
-    @Test("Divergence route: the bound fires `undecided`, never `unanswered`")
+    @Test("Divergence route: the bound fires `decision overdue`, never `reply overdue`")
     func divergenceRouteBlocksUndecided() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
@@ -134,7 +134,7 @@ struct UnansweredCardClockTests {
 
         let card = try world.card()
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.undecided.rawValue)
+        #expect(card.blockReason == BlockReason.decisionOverdue.rawValue)
     }
 
     @Test("A Partial Landing's unanswered Card spends its Nights through the author Act and auto-Blocks")
@@ -156,7 +156,7 @@ struct UnansweredCardClockTests {
 
         let card = try world.card()
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.unanswered.rawValue)
+        #expect(card.blockReason == BlockReason.replyOverdue.rawValue)
         #expect(try journal.events(ofType: .cardUnansweredBoundFired).count == 1)
     }
 

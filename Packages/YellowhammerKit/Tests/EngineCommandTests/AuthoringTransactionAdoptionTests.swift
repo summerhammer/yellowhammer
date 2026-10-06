@@ -34,7 +34,7 @@ struct AuthoringTransactionAdoptionTests {
             try db.execute(
                 sql: """
                 UPDATE card SET failed_adoptions = 2, unanswered_nights = 1, budget_epoch = 4,
-                block_reason = 'unanswered' WHERE id = ?
+                block_reason = 'reply overdue' WHERE id = ?
                 """,
                 arguments: [rowID]
             )
@@ -91,7 +91,7 @@ struct AuthoringTransactionAdoptionTests {
             return
         }
         #expect(previousFeatureIssueID == "FEAT-OLD")
-        #expect(priorBlockReason == "unanswered")
+        #expect(priorBlockReason == "reply overdue")
         #expect(!coldStartNote.isEmpty)
 
         let lane = try cardRows(rig.journal).filter { $0.repository == "backend" }

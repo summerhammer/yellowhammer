@@ -163,7 +163,7 @@ struct EngineStopTests {
                 attemptID: attempt.id, ending: .hardFailure(.exitStatus(1)), runID: runID, act: .build
             )
             _ = try journal.transitionCard(
-                cardID: cardID, to: .blocked, blockReason: .hardFailure, runID: runID, act: .build, nightID: nil
+                cardID: cardID, to: .blocked, blockReason: .routeFailure, runID: runID, act: .build, nightID: nil
             )
         }()
         let started = ContinuousClock.now

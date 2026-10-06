@@ -146,8 +146,8 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
         )
     }
 
-    /// Stop-with-salvage: every Waiting on You Card is auto-Blocked `unanswered`, while Todo and In
-    /// Progress Cards are auto-Blocked `released` (``CardAutoBlock``). Blocked Cards are detached from the
+    /// Stop-with-salvage: every Waiting on You Card is auto-Blocked `reply overdue`, while Todo and In
+    /// Progress Cards are auto-Blocked `feature abandoned` (``CardAutoBlock``). Blocked Cards are detached from the
     /// Feature Issue, every held Worktree is released — including unpushed work, which a release
     /// discards rather than refuses — and the Cycle is archived without `closed_by` (never a closure
     /// route; `released_at` is the marker). The Feature Issue itself is never archived and its workflow

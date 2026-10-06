@@ -100,7 +100,7 @@ struct RefusalLifecycleTests {
 
         let updated = try #require(await boards.writing.liveIssues.first { $0.id.rawValue == issueID })
         #expect(try await updated.workflowState == blockedStateID(boards))
-        #expect(updated.labels.contains(try #require(boards.ids["unanswered"])))
+        #expect(updated.labels.contains(try #require(boards.ids["reply overdue"])))
     }
 
     /// Asserts the Feature Issue landed in Waiting on You with a comment naming the halt's content —

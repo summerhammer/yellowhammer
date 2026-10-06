@@ -7,7 +7,7 @@ import Testing
 @testable import Journal
 
 // The re-ready exception (roadmap P11.4; spec: bounds/bound-unanswered-nights): a Journal-Blocked Card
-// under `unanswered` or `undecided`, read on the board as Todo with no pending write, is accepted as
+// under `reply overdue` or `decision overdue`, read on the board as Todo with no pending write, is accepted as
 // the Operator's re-ready — `reReadied`, not `restated` — with its counters untouched. Every other Block
 // Reason keeps the existing restate behavior (DeltaReadReconciliationTests.swift,
 // WaitingOnYouAnomalyTests.swift).
@@ -46,11 +46,11 @@ private func insertBlockedCard(
 
 @Suite("The re-ready exception (P11.4)")
 struct DeltaReadReReadyTests {
-    @Test("A Card Blocked `unanswered`, read as Todo, is re-readied: Journal Todo, budget_epoch untouched")
+    @Test("A Card Blocked `reply overdue`, read as Todo, is re-readied: Journal Todo, budget_epoch untouched")
     func unansweredBlockIsReReadied() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
-        let cardID = try insertBlockedCard(journal, issueID: "card-1", reason: .unanswered)
+        let cardID = try insertBlockedCard(journal, issueID: "card-1", reason: .replyOverdue)
         let board = FakeReadingBoard([page(objects: [object("card-1", state: stateTodo)])])
         let (read, _) = try deltaRead(journal, board: board)
 
@@ -68,11 +68,11 @@ struct DeltaReadReReadyTests {
         #expect(card.budgetEpoch == 2, "re-ready never resets budget_epoch")
     }
 
-    @Test("A Card Blocked `undecided`, read as Todo, is re-readied the same way")
-    func undecidedBlockIsReReadied() async throws {
+    @Test("A Card Blocked `decision overdue`, read as Todo, is re-readied the same way")
+    func decisionOverdueBlockIsReReadied() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
-        let cardID = try insertBlockedCard(journal, issueID: "card-1", reason: .undecided)
+        let cardID = try insertBlockedCard(journal, issueID: "card-1", reason: .decisionOverdue)
         let board = FakeReadingBoard([page(objects: [object("card-1", state: stateTodo)])])
         let (read, _) = try deltaRead(journal, board: board)
 
@@ -85,11 +85,11 @@ struct DeltaReadReReadyTests {
         #expect(try journal.card(id: cardID).state == .todo)
     }
 
-    @Test("A Card Blocked `hard failure`, read as Todo, is still restated — the exception is narrow")
+    @Test("A Card Blocked `route failure`, read as Todo, is still restated — the exception is narrow")
     func hardFailureBlockIsStillRestated() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
-        let cardID = try insertBlockedCard(journal, issueID: "card-1", reason: .hardFailure)
+        let cardID = try insertBlockedCard(journal, issueID: "card-1", reason: .routeFailure)
         let board = FakeReadingBoard([page(objects: [object("card-1", state: stateTodo)])])
         let (read, _) = try deltaRead(journal, board: board)
 

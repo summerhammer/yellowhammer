@@ -13,8 +13,8 @@ struct FeatureMergeClosureCommentTests {
         let comment = FeatureMergeClosureComment(
             landings: ["backend": "abc123", "mobile": "def456"],
             carriedForward: [
-                FeatureMergeClosureComment.CarriedForwardCard(issueID: "MOB-1", blockReason: .unanswered),
-                FeatureMergeClosureComment.CarriedForwardCard(issueID: "BACK-2", blockReason: .blockedByReviewer)
+                FeatureMergeClosureComment.CarriedForwardCard(issueID: "MOB-1", blockReason: .replyOverdue),
+                FeatureMergeClosureComment.CarriedForwardCard(issueID: "BACK-2", blockReason: .reviewerRejection)
             ],
             acceptedCards: ["BACK-1"],
             unmetClauses: [],
@@ -32,7 +32,7 @@ struct FeatureMergeClosureCommentTests {
         #expect(!body.contains("## Still unmet"))
         #expect(body.contains("## Carried forward"))
         #expect(body.contains(
-            "- BACK-2 — Blocked (blocked by reviewer), awaiting Adoption by a later Feature; its counters "
+            "- BACK-2 — Blocked (reviewer rejection), awaiting Adoption by a later Feature; its counters "
                 + "and round history are intact."
         ))
         #expect(body.contains("## Accepted"))

@@ -94,8 +94,8 @@ struct CardRunTests {
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
         // Blocked by the last Attempt's own ending — rounds-exhausted on the review Lens — not
-        // `hard failure`: the Block Reason follows the final Attempt's termination (OQ58).
-        #expect(card.blockReason == BlockReason.blockedByReviewer.rawValue)
+        // `route failure`: the Block Reason follows the final Attempt's termination (OQ58).
+        #expect(card.blockReason == BlockReason.reviewerRejection.rawValue)
     }
 
     @Test("A failed architect skips the worker; a single-Route table leaves the retry no candidate, Card Blocks")
