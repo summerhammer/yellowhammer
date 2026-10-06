@@ -102,7 +102,7 @@ extension ActCommand {
             workspace: workspace,
             nightCardBounds: NightCardMaintenance.Bounds(
                 reviewRoundsMax: project.bounds.reviewRoundsMax,
-                attemptsPerCard: project.bounds.attemptsPerCard,
+                attemptsPerWorkCard: project.bounds.attemptsPerWorkCard,
                 unansweredNightsMax: project.bounds.unansweredNightsMax,
                 reselectionsMax: project.bounds.reselectionsMax,
                 consecutiveRefusalsMax: project.bounds.consecutiveRefusalsMax,

@@ -173,7 +173,7 @@ extension CardRun {
     ) throws -> AttemptBudget {
         let history = try frame.journal.attemptHistory(cardID: frame.card.id)
         let consumed = history.consumption(inEpoch: endedAttempt.budgetEpoch).consumed
-        return AttemptBudget(max: attemptsPerCard, consumed: consumed)
+        return AttemptBudget(max: attemptsPerWorkCard, consumed: consumed)
     }
 
     func endAttempt(_ ending: AttemptEnding, frame: CardRunFrame) throws {

@@ -132,9 +132,9 @@ final class RecalibrateUITests: XCTestCase {
     "bounds":[\
     {"name":"review_rounds_max","consequenceShape":"stops","consequence":"stops work on a Card",\
     "value":3,"proximity":2,"measure":"highest Rounds in an Attempt"},\
-    {"name":"attempts_per_card","consequenceShape":"stops","consequence":"stops work on a Card",\
+    {"name":"attempts_per_work_card","consequenceShape":"stops","consequence":"stops work on a Card",\
     "value":3,"proximity":null,"measure":null},\
-    {"name":"unanswered_nights_max","consequenceShape":"stops","consequence":"stops the Project",\
+    {"name":"overdue_nights_max","consequenceShape":"stops","consequence":"stops the Project",\
     "value":3,"proximity":null,"measure":null},\
     {"name":"reselections_max","consequenceShape":"stops","consequence":"stops work on a Card",\
     "value":3,"proximity":null,"measure":null},\

@@ -12,10 +12,10 @@ public struct CommitTrailerReadFailure: Error, Equatable, Sendable, CustomString
     public var description: String { reason }
 }
 
-/// Reads which of a worker's commits carry no `Yellowhammer-Card` git trailer, with the local `git`
+/// Reads which of a worker's commits carry no `Yellowhammer-Work-Card` git trailer, with the local `git`
 /// executable (graph-execution/run-a-card). Only presence counts; the trailer's value is not judged.
 public struct CommitTrailerReader: Sendable {
-    public static let trailerKey = "Yellowhammer-Card"
+    public static let trailerKey = "Yellowhammer-Work-Card"
 
     private let git: GitRunner
 
@@ -26,7 +26,7 @@ public struct CommitTrailerReader: Sendable {
     /// The shas, oldest first, of the commits in `base..commit` that carry no trailer. With a nil `base`
     /// only `commit` itself is read, never an open range. A non-zero git exit is a failure carrying
     /// git's stderr.
-    public func commitsMissingCardTrailer(
+    public func commitsMissingWorkCardTrailer(
         worktreePath: String, from base: String?, to commit: String
     ) async -> Result<[String], CommitTrailerReadFailure> {
         var arguments = [

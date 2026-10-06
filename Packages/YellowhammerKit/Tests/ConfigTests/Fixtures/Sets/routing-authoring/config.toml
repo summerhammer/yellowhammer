@@ -8,10 +8,10 @@ credential = "keychain:github"
 [cli.codex]
 
 [[routing]]
-kind = "*"
+work_kind = "*"
 route = "claude/sonnet/medium"
 
 [[routing]]
-kind = "authoring"
+work_kind = "authoring"
 route = "claude/opus/high"
 fallbacks = ["codex/gpt-5.4/high"]

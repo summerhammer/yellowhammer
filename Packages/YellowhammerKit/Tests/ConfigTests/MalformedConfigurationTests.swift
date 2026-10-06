@@ -81,9 +81,9 @@ private let shapeFixtures: [MalformedFixture] = [
 ]
 
 private let routingFixtures: [MalformedFixture] = [
-    MalformedFixture("kind-empty-segment", line: 7, key: "routing[0].kind", .invalidKind("impl..x")),
-    MalformedFixture("kind-empty", line: 7, key: "routing[0].kind", .invalidKind("")),
-    MalformedFixture("kind-star-in-path", line: 7, key: "routing[0].kind", .invalidKind("impl.*")),
+    MalformedFixture("kind-empty-segment", line: 7, key: "routing[0].work_kind", .invalidKind("impl..x")),
+    MalformedFixture("kind-empty", line: 7, key: "routing[0].work_kind", .invalidKind("")),
+    MalformedFixture("kind-star-in-path", line: 7, key: "routing[0].work_kind", .invalidKind("impl.*")),
     MalformedFixture("repo-role-empty", line: 7, key: "routing[0].repo_role", .emptyString),
     MalformedFixture("route-missing", line: 9, key: "routing[1].route", .missingKey),
     MalformedFixture("route-one-part", line: 7, key: "routing[0].route", .invalidRoute("claude")),

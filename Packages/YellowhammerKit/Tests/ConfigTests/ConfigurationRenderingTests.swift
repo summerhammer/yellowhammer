@@ -59,7 +59,7 @@ func projectFullRoundTrip() throws {
             )
         ],
         bounds: Bounds(
-            reviewRoundsMax: 3, attemptsPerCard: 5, unansweredNightsMax: 4,
+            reviewRoundsMax: 3, attemptsPerWorkCard: 5, unansweredNightsMax: 4,
             reselectionsMax: 3, consecutiveRefusalsMax: 5, failedAdoptionsMax: 3
         ),
         schedule: Schedule(
@@ -82,7 +82,7 @@ func projectFullRoundTrip() throws {
     #expect(parsed == project)
 }
 
-@Test("A Project rendered from Bounds()/Schedule() contains the spec's unanswered_nights_max default")
+@Test("A Project rendered from Bounds()/Schedule() contains the spec's overdue_nights_max default")
 func projectRendersExplicitDefaultBounds() throws {
     let project = ProjectConfiguration(
         id: try projectID("bounds-default"),
@@ -91,7 +91,7 @@ func projectRendersExplicitDefaultBounds() throws {
         linearProject: "BD",
         repos: [RepoDeclaration(name: "only-repo", path: "~/dev/bd", role: .backend, check: .none)]
     )
-    #expect(project.renderedTOML.contains("unanswered_nights_max = 3"))
+    #expect(project.renderedTOML.contains("overdue_nights_max = 3"))
 }
 
 // MARK: - Machine file round-trip

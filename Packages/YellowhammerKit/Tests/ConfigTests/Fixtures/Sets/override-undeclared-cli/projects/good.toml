@@ -10,5 +10,5 @@ role = "backend"
 check = "swift test"
 
 [[routing]]
-kind = "review"
+work_kind = "review"
 route = "codex/gpt-5.4/high"

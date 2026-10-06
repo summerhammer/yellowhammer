@@ -218,7 +218,7 @@ struct PulseAttemptRow: View {
         HStack(spacing: 8) {
             Image(systemName: "gearshape.2.fill").foregroundStyle(palette.working)
             VStack(alignment: .leading, spacing: 1) {
-                Text("\(attempt.cardIDForDisplay ?? attempt.cardID)  \(attempt.cardTitle)").lineLimit(1)
+                Text("\(attempt.cardIDForDisplay ?? attempt.cardID)  \(attempt.workCardTitle)").lineLimit(1)
                 Text([attempt.repo, attempt.status].compactMap { $0 }.joined(separator: " · "))
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }

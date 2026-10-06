@@ -10,15 +10,15 @@ role = "backend"
 check = "swift test"
 
 [[routing]]
-kind = "review"
+work_kind = "review"
 route = "codex/gpt-5.4/high"
 
 [[routing]]
-kind = "impl"
+work_kind = "impl"
 repo_role = "web"
 route = "claude/sonnet/low"
 
 [[routing]]
-kind = "arch"
+work_kind = "arch"
 route = "claude/opus/high"
 fallbacks = ["codex/gpt-5.4/high"]

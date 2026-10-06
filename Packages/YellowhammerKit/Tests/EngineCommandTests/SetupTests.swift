@@ -33,7 +33,7 @@ struct SetupTests {
         let projectText = try String(
             contentsOf: directory.url.appending(components: "projects", "demo.toml"), encoding: .utf8
         )
-        #expect(projectText.contains("unanswered_nights_max = 3"))
+        #expect(projectText.contains("overdue_nights_max = 3"))
         let machineText = try String(contentsOf: directory.url.appending(component: "config.toml"), encoding: .utf8)
         #expect(machineText.contains(#"operator = "user-op""#))
         #expect(output.lines.contains("Setup complete."))

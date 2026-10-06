@@ -2,7 +2,7 @@ import Domain
 import Testing
 
 // graph-execution/run-a-card: the worker pass's instruction states the rendered commit message and
-// asks for a Yellowhammer-Card trailer; no other pass renders the section.
+// asks for a Yellowhammer-Work-Card trailer; no other pass renders the section.
 
 private func makeInstruction(pass: RunPass, commitMessage: CommitMessageRequest?) -> Instruction {
     Instruction(
@@ -26,7 +26,7 @@ private func makeInstruction(pass: RunPass, commitMessage: CommitMessageRequest?
 @Test("a worker instruction with a request renders the format and the trailer after the Repository section")
 func workerRendersCommitMessages() {
     let text = makeInstruction(
-        pass: .worker, commitMessage: CommitMessageRequest(message: "feat: YLH-42 a card", cardKey: "YLH-42")
+        pass: .worker, commitMessage: CommitMessageRequest(message: "feat: YLH-42 a card", workCardKey: "YLH-42")
     ).render()
     #expect(
         text.contains(
@@ -37,7 +37,7 @@ func workerRendersCommitMessages() {
 
                 feat: YLH-42 a card
 
-            End each commit message with the git trailer `Yellowhammer-Card: YLH-42`.
+            End each commit message with the git trailer `Yellowhammer-Work-Card: YLH-42`.
             """
         )
     )
@@ -53,10 +53,10 @@ func workerRendersCommitMessages() {
 func workerWithoutCardKeyOmitsTrailer() {
     for key in [nil, ""] as [String?] {
         let text = makeInstruction(
-            pass: .worker, commitMessage: CommitMessageRequest(message: "feat: a card", cardKey: key)
+            pass: .worker, commitMessage: CommitMessageRequest(message: "feat: a card", workCardKey: key)
         ).render()
         #expect(text.contains("Write each commit message in this format:\n\n    feat: a card\n\n## Result contract"))
-        #expect(!text.contains("Yellowhammer-Card"))
+        #expect(!text.contains("Yellowhammer-Work-Card"))
     }
 }
 
@@ -64,7 +64,7 @@ func workerWithoutCardKeyOmitsTrailer() {
 func otherPassesRenderNoSection() {
     for pass in [RunPass.architect, .reviewer] {
         let text = makeInstruction(
-            pass: pass, commitMessage: CommitMessageRequest(message: "feat: a card", cardKey: "YLH-42")
+            pass: pass, commitMessage: CommitMessageRequest(message: "feat: a card", workCardKey: "YLH-42")
         ).render()
         #expect(!text.contains("## Commit messages"))
     }

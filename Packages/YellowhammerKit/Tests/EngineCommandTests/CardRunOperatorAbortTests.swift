@@ -14,7 +14,7 @@ struct CardRunOperatorAbortTests {
     private func makeRun(log: CallLog, dispatch: any AgentDispatch) -> CardRun {
         CardRun(
             resolver: cardRunResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
             resetting: RecordingAttemptResetting(log: log), operatorAbortPoll: .milliseconds(20)
         )
     }

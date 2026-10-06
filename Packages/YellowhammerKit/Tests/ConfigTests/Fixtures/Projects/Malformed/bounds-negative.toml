@@ -9,4 +9,4 @@ role = "backend"
 check = "test"
 
 [limits]
-attempts_per_card = -1
+attempts_per_work_card = -1

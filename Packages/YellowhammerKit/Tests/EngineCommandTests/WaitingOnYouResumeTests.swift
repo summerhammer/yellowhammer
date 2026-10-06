@@ -19,7 +19,7 @@ private let resumeQuestionText = "The DoD asks for a 40-hex commit, but the Work
 private func makeRun(dispatch: any AgentDispatch, resetting: RecordingAttemptResetting? = nil) -> CardRun {
     CardRun(
         resolver: cardRunResolver(), dispatch: dispatch, check: RecordingCheck(log: CallLog()),
-        checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+        checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
         resetting: resetting ?? RecordingAttemptResetting()
     )
 }

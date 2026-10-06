@@ -105,7 +105,7 @@
 * **config:** Change Type and Message Templates in Project configuration ([e946395](https://github.com/summerhammer/yellowhammer/commit/e9463959ea278b47197188de312638ad6449f761))
 * **engine:** abort every running Attempt of a Project on yh stop ([cb5bc2b](https://github.com/summerhammer/yellowhammer/commit/cb5bc2b5c13eebd12497c3c1bf17286254d62b40))
 * **engine:** abort one running Attempt with yh abort ([1ffab45](https://github.com/summerhammer/yellowhammer/commit/1ffab45fc5a701aa8d8f4108d954db2dea97fad3))
-* **engine:** ask the worker for the commit-message template and record a missing Yellowhammer-Card trailer ([b978ec1](https://github.com/summerhammer/yellowhammer/commit/b978ec1488e8de82d6fd8fee4e1209947c539d9b))
+* **engine:** ask the worker for the commit-message template and record a missing Yellowhammer-Work-Card trailer ([b978ec1](https://github.com/summerhammer/yellowhammer/commit/b978ec1488e8de82d6fd8fee4e1209947c539d9b))
 * **engine:** record the No-Pushed-Branch Outcome and count N over pushed branches ([0195e7f](https://github.com/summerhammer/yellowhammer/commit/0195e7f13a16f7cc68a7ec3a189867ac66b603ea))
 * **engine:** render each pull request title from its Message Template ([4780b58](https://github.com/summerhammer/yellowhammer/commit/4780b581fd2a27ffa12a03b4a2ed850c9efaff65))
 * **engine:** reset the lane when a question puts its Card in Waiting on You ([27f6b82](https://github.com/summerhammer/yellowhammer/commit/27f6b82ddf4c65d863e4631bd1a12905dd641c6a))

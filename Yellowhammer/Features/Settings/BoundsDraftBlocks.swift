@@ -6,8 +6,8 @@ extension BoundsDraft {
     static func keyPath(for key: String) -> WritableKeyPath<BoundsDraft, String>? {
         switch key {
         case "review_rounds_max": \.reviewRoundsMax
-        case "attempts_per_card": \.attemptsPerCard
-        case "unanswered_nights_max": \.unansweredNightsMax
+        case "attempts_per_work_card": \.attemptsPerWorkCard
+        case "overdue_nights_max": \.unansweredNightsMax
         case "reselections_max": \.reselectionsMax
         case "consecutive_refusals_max": \.consecutiveRefusalsMax
         case "failed_adoptions_max": \.failedAdoptionsMax

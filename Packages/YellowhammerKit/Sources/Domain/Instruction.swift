@@ -146,11 +146,11 @@ public struct CommitMessageRequest: Equatable, Sendable {
     /// The rendered `[git] commit_message` template.
     public let message: String
     /// The Card's human Linear identifier (such as `YLH-42`); nil when it is not known.
-    public let cardKey: String?
+    public let workCardKey: String?
 
-    public init(message: String, cardKey: String? = nil) {
+    public init(message: String, workCardKey: String? = nil) {
         self.message = message
-        self.cardKey = cardKey
+        self.workCardKey = workCardKey
     }
 }
 

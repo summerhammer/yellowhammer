@@ -56,14 +56,14 @@ extension Bounds {
             consequence: .stopsCard, keyPath: \Bounds.reviewRoundsMax
         ),
         Field(
-            key: "attempts_per_card", title: "Attempts per Card", unit: "attempt", units: "attempts",
+            key: "attempts_per_work_card", title: "Attempts per Card", unit: "attempt", units: "attempts",
             explanation: "How many times a Card is dispatched, each on a different route. Past this, the "
                 + "Card stops and says why. An aborted Attempt does not count.",
             sentence: ("Try a Card for up to", "on different routes, then stop it and say why."),
-            consequence: .stopsCard, keyPath: \Bounds.attemptsPerCard
+            consequence: .stopsCard, keyPath: \Bounds.attemptsPerWorkCard
         ),
         Field(
-            key: "unanswered_nights_max", title: "Unanswered Nights", unit: "Night", units: "Nights",
+            key: "overdue_nights_max", title: "Unanswered Nights", unit: "Night", units: "Nights",
             explanation: "How many Nights a question put to you can stand unanswered. Past this, the Card "
                 + "becomes Blocked with the question kept. Only Nights this Project runs count.",
             sentence: ("Wait up to", "for your answer, then mark the Card Blocked."),
