@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.7.0](https://github.com/summerhammer/yellowhammer/compare/v0.6.0...v0.7.0) (2026-10-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* **config:** rename Linear installations to Board Connections ([#349](https://github.com/summerhammer/yellowhammer/issues/349))
+* **engine:** hard rename, with no migration (sponsor ruling, 2026-10-05). Labels provisioned on a team under the old names are not recognised. A Journal holding an old `block_reason` value reads as Blocked with no known reason. The `block_reason` column has no CHECK constraint, so there is no schema bump.
+
+### Features
+
+* **config:** rename Linear installations to Board Connections ([#349](https://github.com/summerhammer/yellowhammer/issues/349)) ([62c3506](https://github.com/summerhammer/yellowhammer/commit/62c35065550b863a706e97de227971acacbf61ab))
+* **engine:** Block Reason labels in the subject + issue form, plus `failure recurrence` (OQ128, OQ127) ([#345](https://github.com/summerhammer/yellowhammer/issues/345)) ([e3cf633](https://github.com/summerhammer/yellowhammer/commit/e3cf633f6c1eec1ed0e56e084824823eed8b45f2))
+* **engine:** settle value Released → Abandoned, gesture release → abandon (OQ128) ([aee2bfe](https://github.com/summerhammer/yellowhammer/commit/aee2bfe3c116ad6e0c6ade7bb21484a206c53c4b)), closes [#335](https://github.com/summerhammer/yellowhammer/issues/335)
+* **engine:** use waiting and partial Roll-up words ([#341](https://github.com/summerhammer/yellowhammer/issues/341)) ([260e1e7](https://github.com/summerhammer/yellowhammer/commit/260e1e7427124e8f432d1af3dec50a862559556b))
+
+
+### Bug Fixes
+
+* **engine:** an expired `overreach` Work Card Blocks under `decision overdue`, not the reply reason (OQ89, OQ128) ([#348](https://github.com/summerhammer/yellowhammer/issues/348)) ([9930009](https://github.com/summerhammer/yellowhammer/commit/99300098e22bd674fe6371503b69a15ac812d028))
+* **engine:** pin whole Routes with one Override label group and pre-flight them ([#347](https://github.com/summerhammer/yellowhammer/issues/347)) ([1bac4db](https://github.com/summerhammer/yellowhammer/commit/1bac4dbda433d83937e91eb6645bf71899cadd8a))
+* **setup:** provision the `Card Type` label group — `Feature Card`, `Work Card`, `Night Card` ([e3f3382](https://github.com/summerhammer/yellowhammer/commit/e3f3382d76519df39ce936475a43b07d054de80f)), closes [#334](https://github.com/summerhammer/yellowhammer/issues/334)
+
 ## [0.6.0](https://github.com/summerhammer/yellowhammer/compare/v0.5.0...v0.6.0) (2026-10-05)
 
 
