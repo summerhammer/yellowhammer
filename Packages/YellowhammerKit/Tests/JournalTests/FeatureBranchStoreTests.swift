@@ -92,7 +92,7 @@ struct FeatureBranchStoreTests {
         try journal.write { db in
             try Self.insertUnallocatedRepository(db, featureID: featureID, repository: "web")
         }
-        try journal.markFeatureReleased(featureID: featureID)
+        try journal.markFeatureAbandoned(featureID: featureID)
 
         #expect(
             try journal.featureBranches(featureID: featureID) == ["backend": "rozd/yh-p-f", "mobile": "yh-p-f"]

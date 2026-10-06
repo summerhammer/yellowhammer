@@ -10,6 +10,6 @@ role = "backend"
 check = "swift test"
 
 [[routing]]
-kind = "authoring"
+work_kind = "authoring"
 route = "codex/gpt-5.4/medium"
 fallbacks = ["claude/sonnet/high"]

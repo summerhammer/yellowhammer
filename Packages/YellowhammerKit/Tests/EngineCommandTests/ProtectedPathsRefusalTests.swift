@@ -44,7 +44,7 @@ func protectedPathRefusesBeforeDispatch() async throws {
 
     let card = try #require(try scenario.journal.card(issueID: scenario.issueOne))
     #expect(card.state == .waitingOnYou)
-    #expect(card.waitingReason == .question)
+    #expect(card.waitingReason == .overreach)
 
     let refused = try scenario.journal.events(ofType: .protectedPathRefused)
     #expect(refused.count == 1)
@@ -142,7 +142,7 @@ func scopeEditedOnBoardIsReconciled() async throws {
 
     let card = try #require(try scenario.journal.card(issueID: scenario.issueOne))
     #expect(card.state == .waitingOnYou)
-    #expect(card.waitingReason == .question)
+    #expect(card.waitingReason == .overreach)
 
     let refused = try scenario.journal.events(ofType: .protectedPathRefused)
     #expect(refused.count == 1)

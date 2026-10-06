@@ -33,10 +33,14 @@ enum CardRunBinding {
         // committer it hands to `AttemptWorktreeReset` refuses a WIP commit in rehearsal.
         return CardRun(
             resolver: resolver, dispatch: dispatch, check: WorktreeCheck(), checks: checks,
-            reviewRoundsMax: project.bounds.reviewRoundsMax, attemptsPerCard: project.bounds.attemptsPerCard,
+            reviewRoundsMax: project.bounds.reviewRoundsMax, attemptsPerWorkCard: project.bounds.attemptsPerWorkCard,
             resetting: AttemptWorktreeReset(committer: WorktreeCommitter(mode: mode, message: project.wipCommit)),
             commitMessage: project.commitMessage, changeType: project.changeType,
-            normalExitFencing: AttributedWorktreeFence()
+            normalExitFencing: AttributedWorktreeFence(),
+            preflighting: DispatchBinding.routePreflight(
+                mode: mode, configuration: configuration, project: project,
+                configurationDirectory: configurationDirectory
+            )
         )
     }
 }

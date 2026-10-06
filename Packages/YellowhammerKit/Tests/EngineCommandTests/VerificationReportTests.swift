@@ -105,7 +105,7 @@ private let doneCard = PullRequestBodyCard(
 )
 private let blockedCard = PullRequestBodyCard(
     title: "BACK-2", repository: "backend", state: .blocked, routeSummary: "r", checkSummary: "c", roundCount: 1,
-    blockReason: "hard failure"
+    blockReason: "route failure"
 )
 
 @Suite("Pull request body carries the Verification report (P10.5)")
@@ -121,7 +121,7 @@ struct VerificationPullRequestBodyTests {
     @Test("A Partial Landing lists unmet clauses derived from the report, so the two cannot disagree")
     func unmetListComesFromTheReport() {
         // The caller's own list names a clause the report does not; the report wins.
-        let stale = [PullRequestBodyUnmetClause(cardTitle: "BACK-9", text: "Stale clause.", citation: "x/y")]
+        let stale = [PullRequestBodyUnmetClause(workCardTitle: "BACK-9", text: "Stale clause.", citation: "x/y")]
         let body = PullRequestBody.render(bodyInput(cards: [doneCard, blockedCard], unmet: stale, report: mixedReport))
         #expect(body.contains("Definition of Done clauses unmet:"))
         #expect(body.contains("- BACK-1: \"Returns 404 for a missing id.\" (epic/story) — unmet"))
@@ -132,7 +132,7 @@ struct VerificationPullRequestBodyTests {
 
     @Test("Without a report the body is exactly what it was")
     func unchangedWithoutReport() {
-        let unmet = [PullRequestBodyUnmetClause(cardTitle: "BACK-2", text: "A clause.", citation: "x/y")]
+        let unmet = [PullRequestBodyUnmetClause(workCardTitle: "BACK-2", text: "A clause.", citation: "x/y")]
         let body = PullRequestBody.render(bodyInput(cards: [doneCard, blockedCard], unmet: unmet))
         #expect(!body.contains("Verification, clause by clause"))
         #expect(!body.contains("Known limitation"))

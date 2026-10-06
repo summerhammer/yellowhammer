@@ -6,25 +6,25 @@ public enum RouteResolution: Equatable, Sendable {
     /// A Route was selected and survived the filters: the Attempt is recorded on it.
     case resolved(ResolvedRoute)
     /// Zero candidates remain — fallbacks exhausted. The Card moves to Blocked with Block Reason
-    /// `hard failure`, no Attempt is recorded, and its Repo Lane moves on (OQ13).
+    /// `route failure`, no Attempt is recorded, and its Repo Lane moves on (OQ13).
     case exhausted(RouteExhaustion)
-    /// The Operator's Override cannot resolve, or pins a CLI that failed its Probe: a Readiness Check
-    /// failure, never a silent fallthrough (G-17). No Attempt, and the Card's state is untouched.
+    /// The Operator's Override cannot resolve, or pins a Route whose CLI failed its Probe: a Readiness
+    /// Check failure, never a silent fallthrough (G-17). No Attempt, and the Card's state is untouched.
     case overrideRefused(OverrideRefusal)
 }
 
 /// The Route a Card was resolved to, and how.
 public struct ResolvedRoute: Equatable, Sendable {
     public enum Selection: Equatable, Sendable {
-        /// The Operator's Override pinned it, absent axes filled from ``ResolvedRoute/entry``.
+        /// The Operator's Override named it, whole (OQ126).
         case override
         /// The Routing Entry's route or one of its fallbacks, after the filters.
         case entry
     }
 
     public var route: Route
-    /// The Routing Entry the selection stage matched; nil only under a fully pinned Override with no
-    /// matching entry.
+    /// The Routing Entry the selection stage matched; nil only under an Override with no matching
+    /// entry. Under an Override it is a record only: no part of the Route comes from it.
     public var entry: RoutingEntry.Key?
     public var selectedBy: Selection
     /// The entry's candidates the filters dropped before this one, in the order they were tried.
@@ -108,12 +108,14 @@ public struct RouteExhaustion: Equatable, Sendable, CustomStringConvertible {
     }
 }
 
-/// Why an Override was refused: a Readiness Check failure, reported and never dispatched (G-17).
+/// Why an Override was refused: a Readiness Check failure, reported and never dispatched (G-17, OQ126).
 public enum OverrideRefusal: Equatable, Sendable, CustomStringConvertible {
-    /// An axis is absent and no Routing Entry matches the Card to fill it from.
+    /// The label is neither a Route of the Project's Routing Table nor a three-part `cli/model/effort`.
     case unresolvable(Override, reason: String)
-    /// The pinned CLI is not offered as a route target: its Probe failed, or it was never probed.
+    /// The Route's CLI is not offered as a route target: its Probe failed, or it was never probed.
     case probeFailed(Override, cli: String, reason: String)
+    /// The Route's CLI refused it, or could not run it, in its Route Pre-flight (OQ126).
+    case preflightFailed(Override, route: Route, reason: String)
 
     public var description: String {
         switch self {
@@ -121,6 +123,8 @@ public enum OverrideRefusal: Equatable, Sendable, CustomStringConvertible {
             "Override `\(override)` cannot resolve: \(reason)"
         case .probeFailed(let override, let cli, let reason):
             "Override `\(override)` pins `\(cli)`, which is not offered by its Probe: \(reason)"
+        case .preflightFailed(let override, let route, let reason):
+            "Override `\(override)` failed its Route Pre-flight on `\(route)`: \(reason)"
         }
     }
 }

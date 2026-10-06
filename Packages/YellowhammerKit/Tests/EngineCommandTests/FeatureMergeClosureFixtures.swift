@@ -143,7 +143,7 @@ func makeMergeWorld(
     )
     let blockedCardID = try insertMergeCard(
         journal, cycleID: cycleID, issueID: "BACK-2", repository: "backend", state: .blocked,
-        blockReason: .blockedByReviewer
+        blockReason: .reviewerRejection
     )
     let cancelledCardID = try insertMergeCard(
         journal, cycleID: cycleID, issueID: "MOB-2", repository: "mobile", state: .cancelled

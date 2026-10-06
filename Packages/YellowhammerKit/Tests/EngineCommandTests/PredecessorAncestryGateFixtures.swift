@@ -76,7 +76,9 @@ func insertGateFeature(
 ) throws -> Int64 {
     try journal.write { db in
         try db.execute(
-            sql: "INSERT INTO feature (issue_id, state, worktree_name, released_at, created_at) VALUES (?, ?, ?, ?, ?)",
+            sql: """
+            INSERT INTO feature (issue_id, state, worktree_name, abandoned_at, created_at) VALUES (?, ?, ?, ?, ?)
+            """,
             arguments: [
                 issueID, "selected", branch, released ? JournalStore.timestamp(outboxEpoch) : nil,
                 JournalStore.timestamp(outboxEpoch)

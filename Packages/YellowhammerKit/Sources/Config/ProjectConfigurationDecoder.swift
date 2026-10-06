@@ -150,7 +150,7 @@ struct ProjectConfigurationDecoder {
             in: table,
             path: "limits",
             allowed: [
-                "review_rounds_max", "attempts_per_card", "unanswered_nights_max",
+                "review_rounds_max", "attempts_per_work_card", "overdue_nights_max",
                 "reselections_max", "consecutive_refusals_max", "failed_adoptions_max"
             ]
         )
@@ -159,8 +159,8 @@ struct ProjectConfigurationDecoder {
         }
         return Bounds(
             reviewRoundsMax: try bound("review_rounds_max", defaults.reviewRoundsMax),
-            attemptsPerCard: try bound("attempts_per_card", defaults.attemptsPerCard),
-            unansweredNightsMax: try bound("unanswered_nights_max", defaults.unansweredNightsMax),
+            attemptsPerWorkCard: try bound("attempts_per_work_card", defaults.attemptsPerWorkCard),
+            unansweredNightsMax: try bound("overdue_nights_max", defaults.unansweredNightsMax),
             reselectionsMax: try bound("reselections_max", defaults.reselectionsMax),
             consecutiveRefusalsMax: try bound("consecutive_refusals_max", defaults.consecutiveRefusalsMax),
             failedAdoptionsMax: try bound("failed_adoptions_max", defaults.failedAdoptionsMax)

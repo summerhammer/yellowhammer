@@ -53,7 +53,7 @@ public enum JournalEvent: Equatable, Sendable {
     /// Ruling items 5, 12, 13): `BoardError.notAuthenticated` — a refused refresh, a revoked
     /// Installation, a 401 surviving one retry, or no Installation at all. Appended alongside
     /// `.actIncomplete` for this cause; a Night whose every Act only ever recorded this spends none of
-    /// `unanswered_nights_max` (no clock reads this event — it simply never advances, since nothing
+    /// `overdue_nights_max` (no clock reads this event — it simply never advances, since nothing
     /// dispatched).
     case linearAuthorizationHalted
     /// One attempt to refresh the Board Connection's token pair, succeeded or refused. Carries no token.
@@ -61,7 +61,7 @@ public enum JournalEvent: Equatable, Sendable {
     case mainlineFetchFailed(repository: String, reason: String)
     /// The resumption self-audit found a Night that never opened (OQ12): a calendar date
     /// between two recorded Nights with no Night row. Recorded on the Night that resumed, by its
-    /// first Act. Reported, never acted on — `unanswered_nights_max` is spent only by Nights that ran.
+    /// first Act. Reported, never acted on — `overdue_nights_max` is spent only by Nights that ran.
     case absentNightDetected(nightStart: NightStart)
     case authoringNoWorkAvailable
     /// The author Act found a Feature already in flight for this Project (an open Cycle) and authored
@@ -173,12 +173,17 @@ public enum JournalEvent: Equatable, Sendable {
     case worktreeReconciliationFailed(featureID: Int64, repository: String, path: String, reason: String)
     /// Route resolution left zero candidates for the Card — fallbacks exhausted
     /// (routing/resolve-a-route-for-a-card, OQ13): the Card moved to Blocked with Block Reason
-    /// `hard failure`, no Attempt was recorded, and `reason` names every candidate and what dropped it.
+    /// `route failure`, no Attempt was recorded, and `reason` names every candidate and what dropped it.
     case routeExhausted(cardID: Int64, issueID: String, reason: String)
-    /// The Operator's Override could not resolve, or pinned a CLI that failed its Probe: a Readiness
-    /// Check failure (G-17). Nothing was dispatched, no Attempt was recorded and the Card's state was
-    /// not touched.
+    /// The Operator's Override could not resolve, pinned a Route whose CLI failed its Probe, or pinned a
+    /// Route that failed its Route Pre-flight: a Readiness Check failure (G-17, OQ126). Nothing was
+    /// dispatched, no Attempt was recorded and the Card's state was not touched.
     case overrideRefused(cardID: Int64, issueID: String, reason: String)
+    /// A Route Pre-flight ran (OQ126): the Route's CLI was run once with its model and effort on a trivial
+    /// prompt, or a rehearsal fixture answered in its place. Stamped with the Night, it is the verdict
+    /// every later Card pinned to the same Route reads for the rest of that Night. `reason` says why it
+    /// failed, or what answered in place of the CLI.
+    case routePreflightRan(route: Route, passed: Bool, reason: String?)
     /// An Attempt ended, with its outcome and whether it excluded the Route it ran on
     /// (routing/exclude-tried-routes-on-retry, P7.7).
     case attemptEnded(
@@ -285,7 +290,7 @@ public enum JournalEvent: Equatable, Sendable {
     /// A rehearsal Night's pass was answered from a fixture instead of spawning an agent CLI process
     /// (system-overview, Environment Differences, P8.11): one of the three rehearsal boundaries held.
     case rehearsalFixtureAnswered(cardID: Int64, issueID: String, attemptID: Int64, pass: RunPass, fixture: String)
-    /// One commit the worker reported (or that the reported range reached) carries no `Yellowhammer-Card`
+    /// One commit the worker reported (or that the reported range reached) carries no `Yellowhammer-Work-Card`
     /// trailer (graph-execution/run-a-card). Recorded only: it never changes the Card's outcome, never
     /// creates a Round, and is not shown in the Roll-up (OQ102).
     case cardCommitTrailerMissing(cardID: Int64, issueID: String, attemptID: Int64, commit: String)
@@ -411,7 +416,7 @@ public enum JournalEvent: Equatable, Sendable {
     /// *released* is offered. Not honoured: treated as unsettled, and nothing else is written.
     case settleValueNotHonoured(featureIssueID: String, value: String, reason: String)
     /// A Card's unanswered-Nights clock exceeded `bound` (bounds/bound-unanswered-nights): it is being
-    /// auto-Blocked. `blockReason` is `unanswered` on the `question` route, `undecided` on `divergence`.
+    /// auto-Blocked. `blockReason` is `reply overdue` on the `question` route, `decision overdue` on `divergence`.
     case cardUnansweredBoundFired(
         cardID: Int64, issueID: String, unansweredNights: Int, bound: Int, blockReason: String
     )

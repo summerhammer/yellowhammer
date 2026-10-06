@@ -39,7 +39,7 @@ func recordedLinksAreCarried() throws {
     let journal = try fixture.open()
     let feature = try insertFeature(journal, issueID: "F-1")
     let blocked = try insertCard(
-        journal, cycleID: feature.cycleID, issueID: "C-1", state: .blocked, blockReason: .hardFailure, order: 1
+        journal, cycleID: feature.cycleID, issueID: "C-1", state: .blocked, blockReason: .routeFailure, order: 1
     )
     try insertCard(journal, cycleID: feature.cycleID, issueID: "C-2", state: .todo, order: 2)
     let run = RunID()

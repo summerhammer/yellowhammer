@@ -49,7 +49,7 @@ struct FeatureBranchPullRequestNTests {
         // P19.7 (risks OQ108): the note sits beside the bold Roll-up sentence, which is unchanged.
         let firstLine = try #require(body.components(separatedBy: "\n").first)
         #expect(firstLine.hasSuffix("0 of 1 merged · 1 waiting on you** [no pull request: mobile]"))
-        #expect(firstLine.hasPrefix("**partial landing · "))
+        #expect(firstLine.hasPrefix("**partial · "))
     }
 
     // MARK: - The note on the rendered body (P19.7; risks OQ108)
@@ -88,7 +88,7 @@ struct FeatureBranchPullRequestNTests {
 
         let plainLine = plain.components(separatedBy: "\n")[0]
         let notedLine = noted.components(separatedBy: "\n")[0]
-        #expect(plainLine == "**partial landing · 1 of 2 Cards landed · 0 of 1 merged · 1 waiting on you**")
+        #expect(plainLine == "**partial · 1 of 2 Cards landed · 0 of 1 merged · 1 waiting on you**")
         #expect(notedLine == plainLine + " [no pull request: mobile] [no pull request: web]")
         // Only line 1 differs.
         #expect(plain.components(separatedBy: "\n").dropFirst() == noted.components(separatedBy: "\n").dropFirst())

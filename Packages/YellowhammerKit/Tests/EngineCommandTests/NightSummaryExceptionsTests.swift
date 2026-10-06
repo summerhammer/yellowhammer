@@ -198,6 +198,27 @@ struct NightSummaryExceptionsTests {
         #expect(lines.contains { $0.contains("Night `2026-09-15` opened and died") })
     }
 
+    @Test("Exceptions list a refused Override once per Card and reason, however many Acts refused it")
+    func exceptionsListARefusedOverrideOnce() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let reason = "Override `agy/opus/max` failed its Route Pre-flight on `agy/opus/max`: "
+            + "`agy` rejected model `opus`"
+        let night = try await openNightForExceptionsTest(journal: journal, board: board) { context in
+            for _ in 0..<2 {
+                try journal.append(
+                    .overrideRefused(cardID: 1, issueID: "CARD-1", reason: reason),
+                    act: context.act, runID: context.runID, nightID: context.night.id
+                )
+            }
+        }
+
+        let lines = try NightSummary.exceptionLines(night: night, journal: journal)
+        #expect(lines == ["`CARD-1` was not dispatched and spent no Attempt: \(reason)."])
+    }
+
     @Test("Exceptions render a Worktree branch-name collision that halted the build Act")
     func exceptionsRenderWorktreeNameCollision() async throws {
         let fixture = try NightCardJournalFixture()
@@ -274,12 +295,12 @@ struct NightSummaryExceptionsTests {
         #expect(lines.contains { $0.contains("night_summary") && $0.contains("unreachable") })
     }
 
-    @Test("A released Feature's predecessor walk names it in the Authoring section")
-    func releasedFeatureAuthoringLine() {
+    @Test("An abandoned Feature's predecessor walk names it in the Authoring section")
+    func abandonedFeatureAuthoringLine() {
         let line = NightCardMaintenance.authoringLine(
             for: .predecessorWalkSkippedReleasedFeature(featureIssueID: "FEAT-OLD")
         )
-        #expect(line?.contains("Feature `FEAT-OLD` was released") == true)
+        #expect(line?.contains("Feature `FEAT-OLD` was abandoned") == true)
         #expect(line?.contains("tonight's work is not built on it") == true)
     }
 

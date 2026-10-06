@@ -13,8 +13,9 @@ import Repositories
 ///    without concluding the pass the cancellation aborted, and leaves the Card Lease to expire, so the
 ///    Card is reclaimable and its Attempt budget is not spent on the engine's own stop. An engine fault
 ///    does the same once the Card is In Progress or has an open Attempt; before that it releases the Lease.
-/// 2. Resolves the Route and records the Attempt (``CardRouting``); zero candidates Block the Card and an
-///    Override that cannot resolve is a Readiness Check failure, and either way nothing is dispatched.
+/// 2. Resolves the Route and records the Attempt (``CardRouting``); zero candidates Block the Card, and an
+///    Override that cannot resolve, whose CLI failed its Probe or whose Route fails its Route Pre-flight is
+///    a Readiness Check failure reported on the Card; either way nothing is dispatched.
 /// 3. Moves the Card to In Progress, then dispatches the architect, then the worker, in the lane's
 ///    Worktree, then runs the Check, then dispatches the reviewer.
 /// 4. Ends the Attempt from what the passes yielded (see `CardRun+Outcome.swift`).
@@ -34,7 +35,7 @@ import Repositories
 /// repeats its Route, while a Crashed-Unknown may land on the same one — a new Attempt is recorded, and the
 /// whole pass sequence runs again from the architect, with no worker session carried over. The Card stays
 /// In Progress between Attempts; it is never bounced back through Ready to get there. Once the Attempt
-/// budget is spent, the Card Blocks instead — `hard failure` after a hard failure or a Crashed-Unknown,
+/// budget is spent, the Card Blocks instead — `route failure` after a hard failure or a Crashed-Unknown,
 /// or by whichever Lens's Round was the last after `rounds-exhausted` — and an `attempts-exhausted` step
 /// records the Operator-facing account of how the budget was spent.
 ///
@@ -54,9 +55,9 @@ public struct CardRun: CardRunner {
     /// The most Rounds one Attempt may record, both Lenses together (`review_rounds_max`). Required: the ruled
     /// default lives in `Config`, and the Engine holds no configuration.
     public let reviewRoundsMax: Int
-    /// The most Attempts a Card may consume in one budget epoch (`attempts_per_card`). Required: the ruled
+    /// The most Attempts a Card may consume in one budget epoch (`attempts_per_work_card`). Required: the ruled
     /// default lives in `Config`, and the Engine holds no configuration.
-    public let attemptsPerCard: Int
+    public let attemptsPerWorkCard: Int
     /// The fence → WIP-commit → preserve → reset seam (Attempt, Block and Reset Ruling 2026-09-19,
     /// OQ60), run before every new Attempt, on every Block path and when a question puts the Card in
     /// Waiting on You (OQ106): required, with no default, so production can never forget to wire the real
@@ -72,10 +73,13 @@ public struct CardRun: CardRunner {
     public let commitMessage: MessageTemplate
     /// The Project's `change_type`, which fills the commit message's `{type}`.
     public let changeType: ChangeType
-    /// Reads the worker's reported commits for the `Yellowhammer-Card` trailer, recorded only.
+    /// Reads the worker's reported commits for the `Yellowhammer-Work-Card` trailer, recorded only.
     public let commitTrailers: CommitTrailerReader
     /// How often a running Attempt checks the Journal for the Operator's abort request.
     public let operatorAbortPoll: Duration
+    /// Runs every Card override's Route Pre-flight before an Attempt is recorded on it (OQ126), shared by
+    /// every Card this runner runs so Cards pinned to the same Route share one; nil runs none.
+    public let routePreflight: RoutePreflight?
 
     public init(
         resolver: RouteResolver,
@@ -83,21 +87,22 @@ public struct CardRun: CardRunner {
         check: any RepositoryCheckRunning,
         checks: [String: Check],
         reviewRoundsMax: Int,
-        attemptsPerCard: Int,
+        attemptsPerWorkCard: Int,
         leasePolicy: LeasePolicy = .ruled,
         resetting: any AttemptResetting,
         commitMessage: MessageTemplate = .default(.commitMessage),
         changeType: ChangeType = .feat,
         commitTrailers: CommitTrailerReader = CommitTrailerReader(),
         normalExitFencing: any NormalExitFencing = AttributedWorktreeFence(),
-        operatorAbortPoll: Duration = .seconds(2)
+        operatorAbortPoll: Duration = .seconds(2),
+        preflighting: (any RoutePreflighting)? = nil
     ) {
         self.resolver = resolver
         self.dispatch = dispatch
         self.check = check
         self.checks = checks
         self.reviewRoundsMax = reviewRoundsMax
-        self.attemptsPerCard = attemptsPerCard
+        self.attemptsPerWorkCard = attemptsPerWorkCard
         self.leasePolicy = leasePolicy
         self.resetting = resetting
         self.commitMessage = commitMessage
@@ -105,6 +110,7 @@ public struct CardRun: CardRunner {
         self.commitTrailers = commitTrailers
         self.normalExitFencing = normalExitFencing
         self.operatorAbortPoll = operatorAbortPoll
+        self.routePreflight = preflighting.map(RoutePreflight.init)
     }
 
     public func run(
@@ -174,7 +180,7 @@ public struct CardRun: CardRunner {
         let checkDeclaredNone = frame.check == .none
         let routing = CardRouting(
             resolver: resolver, journal: journal, projection: frame.projection, runID: context.act.runID,
-            act: context.act.act, nightID: context.act.night.id
+            act: context.act.act, nightID: context.act.night.id, preflight: routePreflight
         )
         let override = try await frame.override()
 
@@ -185,7 +191,7 @@ public struct CardRun: CardRunner {
             try Task.checkCancellation()
             let outcome = try await routing.route(
                 card: frame.card, repoRole: frame.repository?.role, override: override,
-                checkDeclaredNone: checkDeclaredNone, attemptsPerCard: attemptsPerCard
+                checkDeclaredNone: checkDeclaredNone, attemptsPerWorkCard: attemptsPerWorkCard
             )
             switch outcome {
             case .attempt(let attempt, let resolved):
@@ -226,10 +232,10 @@ public struct CardRun: CardRunner {
                 try await attemptResetBeforeBlock(card: blockedCard, frame: frame)
                 return
 
-            case .readinessFailure:
-                // The refusal to report, with the Card untouched: no Attempt, nothing dispatched, and
-                // no Block — so no reset: nothing ran here for the reset sequence to move.
-                return
+            case .readinessFailure(_, let refusal):
+                // The refusal is reported on the Card, which is otherwise untouched: no Attempt, nothing
+                // dispatched, and no Block — so no reset: nothing ran here for the reset sequence to move.
+                return try await reportOverrideRefusal(refusal, frame: frame)
 
             case .attemptBudgetSpent(let spentCard):
                 try await blockOnSpentAttemptBudget(card: spentCard, frame: frame)

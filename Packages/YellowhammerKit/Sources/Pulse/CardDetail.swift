@@ -25,8 +25,8 @@ public struct CardDetail: Identifiable, Equatable, Sendable {
     /// The Card's `kind`, as authored.
     public var kind: String
     public var state: CardState
-    /// Set only when `state` is `.waitingOnYou`: the Journal's `waiting_reason`, e.g. `question` or
-    /// `divergence`. Shown beside the state, never as a chip.
+    /// Set only when `state` is `.waitingOnYou`: the Journal's `waiting_reason`, e.g. `question`,
+    /// `divergence` or `overreach`. Shown beside the state, never as a chip.
     public var waitingReason: String?
     /// Set only when `state` is `.blocked`.
     public var blockReason: BlockReason?

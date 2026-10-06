@@ -29,7 +29,7 @@ private struct JournalFixture: ~Copyable {
 
 private let epoch = Date(timeIntervalSince1970: 1_800_000_000)
 
-@Test("cardUnansweredBoundFired event round-trips with an `unanswered` Block Reason")
+@Test("cardUnansweredBoundFired event round-trips with an `reply overdue` Block Reason")
 func cardUnansweredBoundFiredRoundTripsUnanswered() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
@@ -37,7 +37,7 @@ func cardUnansweredBoundFiredRoundTripsUnanswered() throws {
 
     try journal.append(
         .cardUnansweredBoundFired(
-            cardID: 1, issueID: "BACK-1", unansweredNights: 2, bound: 1, blockReason: "unanswered"
+            cardID: 1, issueID: "BACK-1", unansweredNights: 2, bound: 1, blockReason: "reply overdue"
         ),
         act: .build, runID: run, now: epoch
     )
@@ -54,10 +54,10 @@ func cardUnansweredBoundFiredRoundTripsUnanswered() throws {
     #expect(issueID == "BACK-1")
     #expect(unansweredNights == 2)
     #expect(bound == 1)
-    #expect(blockReason == "unanswered")
+    #expect(blockReason == "reply overdue")
 }
 
-@Test("cardUnansweredBoundFired event round-trips with an `undecided` Block Reason")
+@Test("cardUnansweredBoundFired event round-trips with an `decision overdue` Block Reason")
 func cardUnansweredBoundFiredRoundTripsUndecided() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
@@ -65,7 +65,7 @@ func cardUnansweredBoundFiredRoundTripsUndecided() throws {
 
     try journal.append(
         .cardUnansweredBoundFired(
-            cardID: 2, issueID: "BACK-2", unansweredNights: 2, bound: 1, blockReason: "undecided"
+            cardID: 2, issueID: "BACK-2", unansweredNights: 2, bound: 1, blockReason: "decision overdue"
         ),
         act: .build, runID: run, now: epoch
     )
@@ -75,5 +75,5 @@ func cardUnansweredBoundFiredRoundTripsUndecided() throws {
         Issue.record("Event is not cardUnansweredBoundFired")
         return
     }
-    #expect(blockReason == "undecided")
+    #expect(blockReason == "decision overdue")
 }

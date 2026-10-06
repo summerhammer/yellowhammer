@@ -84,7 +84,7 @@ public struct RepoDraft: Equatable, Sendable {
 /// instead of being coerced or refused a second time here.
 public struct BoundsDraft: Equatable, Sendable {
     public var reviewRoundsMax: String
-    public var attemptsPerCard: String
+    public var attemptsPerWorkCard: String
     public var unansweredNightsMax: String
     public var reselectionsMax: String
     public var consecutiveRefusalsMax: String
@@ -92,14 +92,14 @@ public struct BoundsDraft: Equatable, Sendable {
 
     public init(
         reviewRoundsMax: String,
-        attemptsPerCard: String,
+        attemptsPerWorkCard: String,
         unansweredNightsMax: String,
         reselectionsMax: String,
         consecutiveRefusalsMax: String,
         failedAdoptionsMax: String
     ) {
         self.reviewRoundsMax = reviewRoundsMax
-        self.attemptsPerCard = attemptsPerCard
+        self.attemptsPerWorkCard = attemptsPerWorkCard
         self.unansweredNightsMax = unansweredNightsMax
         self.reselectionsMax = reselectionsMax
         self.consecutiveRefusalsMax = consecutiveRefusalsMax
@@ -109,7 +109,7 @@ public struct BoundsDraft: Equatable, Sendable {
     public init(_ bounds: Bounds) {
         self.init(
             reviewRoundsMax: String(bounds.reviewRoundsMax),
-            attemptsPerCard: String(bounds.attemptsPerCard),
+            attemptsPerWorkCard: String(bounds.attemptsPerWorkCard),
             unansweredNightsMax: String(bounds.unansweredNightsMax),
             reselectionsMax: String(bounds.reselectionsMax),
             consecutiveRefusalsMax: String(bounds.consecutiveRefusalsMax),

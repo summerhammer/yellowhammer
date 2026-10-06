@@ -45,7 +45,7 @@ enum PulseScenario: String, CaseIterable, Identifiable, CustomStringConvertible 
         case .morningTriage:
             pulse.setWaitingOnYou(2)
             pulse.setBlocked(3)
-            pulse.feature = PulseFixtures.feature(rollup: .needsYou)
+            pulse.feature = PulseFixtures.feature(rollup: .waiting)
             pulse.night = PulseFixtures.night(
                 .done,
                 verdict: "advanced — 6 Cards done, 5 need you",
@@ -178,8 +178,8 @@ enum PulseFixtures {
     static func feature(rollup: RollUpState, repos: [String] = defaultRepos) -> FeatureInFlight {
         let laneState: LaneState = switch rollup {
         case .authoring, .running: .running
-        case .needsYou: .waitingOnYou
-        case .blocked, .partialLanding: .blocked
+        case .waiting: .waitingOnYou
+        case .blocked, .partial: .blocked
         case .verified: .landed
         }
         let lanes = repos.enumerated().map { index, repo in
@@ -205,7 +205,7 @@ enum PulseFixtures {
         id: "YH-120",
         title: "Recalibrate the Routing Table from the last seven Nights",
         state: "In Progress",
-        rollupState: .partialLanding,
+        rollupState: .partial,
         lanes: [
             RepoLaneSnapshot(
                 repo: "yellowhammer", state: .landed, cardsDone: 5, cardsTotal: 5,
@@ -253,7 +253,7 @@ enum PulseFixtures {
 
     // MARK: Pools
 
-    static let cardTitles = [
+    static let workCardTitles = [
         "Refuse a second Journal open from the app",
         "Show the next scheduled Act in yh status",
         "Revalidate the Lease before the Outbox flush",
@@ -265,7 +265,8 @@ enum PulseFixtures {
     ]
 
     static let blockReasonCycle: [BlockReason] = [
-        .blockedByReviewer, .blockedByCheck, .hardFailure, .blockedByReviewer, .hostCrash, .unanswered, .undecided
+        .reviewerRejection, .checkFailure, .routeFailure, .reviewerRejection, .hostCrash,
+        .replyOverdue, .decisionOverdue
     ]
 
     static let attemptStatuses = [
@@ -288,7 +289,7 @@ extension PulseSnapshot {
         let waiting = (0..<count).map { index in
             DecisionCard(
                 id: "YH-\(140 + index)",
-                title: PulseFixtures.cardTitles[index % PulseFixtures.cardTitles.count],
+                title: PulseFixtures.workCardTitles[index % PulseFixtures.workCardTitles.count],
                 state: .waitingOnYou,
                 blockReason: nil,
                 repo: PulseFixtures.defaultRepos[index % PulseFixtures.defaultRepos.count],
@@ -303,7 +304,7 @@ extension PulseSnapshot {
         let blocked = (0..<count).map { index in
             DecisionCard(
                 id: "YH-\(160 + index)",
-                title: PulseFixtures.cardTitles.reversed()[index % PulseFixtures.cardTitles.count],
+                title: PulseFixtures.workCardTitles.reversed()[index % PulseFixtures.workCardTitles.count],
                 state: .blocked,
                 blockReason: PulseFixtures.blockReasonCycle[index % PulseFixtures.blockReasonCycle.count],
                 repo: PulseFixtures.defaultRepos[(index + 1) % PulseFixtures.defaultRepos.count],
@@ -321,7 +322,7 @@ extension PulseSnapshot {
             RunningAttempt(
                 id: "attempt-\(index + 1)",
                 cardID: "YH-\(130 + index)",
-                cardTitle: PulseFixtures.cardTitles[(index + 2) % PulseFixtures.cardTitles.count],
+                workCardTitle: PulseFixtures.workCardTitles[(index + 2) % PulseFixtures.workCardTitles.count],
                 repo: repos[index % repos.count],
                 route: PulseFixtures.routes[index % PulseFixtures.routes.count],
                 startedAt: PulseFixtures.minutesBeforeAsOf(12 + index * 17),

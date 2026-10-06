@@ -133,13 +133,13 @@ public struct CardManagedBlock: Equatable, Sendable {
     /// in it yet. Read straight from the Journal (``AttemptHistory/consumption(inEpoch:)``): nothing here
     /// is model-authored.
     public var attemptConsumption: AttemptConsumption?
-    /// The most Attempts one budget epoch may consume (`attempts_per_card`), when the block's builder
+    /// The most Attempts one budget epoch may consume (`attempts_per_work_card`), when the block's builder
     /// holds it; nil renders the consumption account without a Bound to compare it to, rather than
     /// plumbing configuration through a layer that otherwise holds none.
-    public var attemptsPerCard: Int?
-    /// Set when Failure-Cause Recurrence promoted this Blocked Card to Triage (roadmap P8.8); nil for a
-    /// first occurrence, which Blocks like any other.
-    public var triagePromotion: TriagePromotion?
+    public var attemptsPerWorkCard: Int?
+    /// Set when this Card is Blocked under `failure recurrence` (roadmap P8.8; OQ127): the recurring
+    /// cause and how many Nights met it. Nil for every other Card.
+    public var failureRecurrence: FailureRecurrence?
     /// The Card's latest adoption refusal (roadmap P11.5), rendered only while the Card is Waiting on
     /// You under `divergence` because of it; nil otherwise, or once a later readiness Divergence
     /// supersedes it. A second refusal replaces this notice rather than stacking beside it.
@@ -163,8 +163,8 @@ public struct CardManagedBlock: Equatable, Sendable {
         definitionOfDone: [DoDClause],
         attempts: [AttemptAccount],
         attemptConsumption: AttemptConsumption? = nil,
-        attemptsPerCard: Int? = nil,
-        triagePromotion: TriagePromotion? = nil,
+        attemptsPerWorkCard: Int? = nil,
+        failureRecurrence: FailureRecurrence? = nil,
         adoptionRefusalNotice: AdoptionRefusalNotice? = nil,
         unadoptedStanding: UnadoptedStanding? = nil
     ) {
@@ -179,8 +179,8 @@ public struct CardManagedBlock: Equatable, Sendable {
         self.definitionOfDone = definitionOfDone
         self.attempts = attempts
         self.attemptConsumption = attemptConsumption
-        self.attemptsPerCard = attemptsPerCard
-        self.triagePromotion = triagePromotion
+        self.attemptsPerWorkCard = attemptsPerWorkCard
+        self.failureRecurrence = failureRecurrence
         self.adoptionRefusalNotice = adoptionRefusalNotice
         self.unadoptedStanding = unadoptedStanding
     }
@@ -214,8 +214,8 @@ public struct CardManagedBlock: Equatable, Sendable {
                 "`\(unadoptedStanding.closedFeatureIssueID)` closed"
         }
         lines.append(stateLine)
-        if let triagePromotion {
-            lines.append("**Promoted to Triage:** \(triagePromotion.reason)")
+        if let failureRecurrence {
+            lines.append("**Failure-Cause Recurrence:** \(failureRecurrence.reason)")
         }
 
         // Repo Lane position
@@ -286,7 +286,7 @@ public struct CardManagedBlock: Equatable, Sendable {
             lines.append("_No Attempt yet._")
         } else {
             if let attemptConsumption {
-                let bound = attemptsPerCard.map { " of \($0) allowed" } ?? ""
+                let bound = attemptsPerWorkCard.map { " of \($0) allowed" } ?? ""
                 lines.append("- \(attemptConsumption.description)\(bound)")
             }
             for (index, attempt) in attempts.enumerated() {

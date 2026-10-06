@@ -8,7 +8,7 @@ import Testing
 // The Card side of the unanswered-Nights clock's own arithmetic (roadmap P11.4; spec:
 // bounds/bound-unanswered-nights), mirroring RefusalStoreTests.swift's coverage of the Refusal clock,
 // but counted per Card and gated on a banked reply the way ``JournalStore/hasWaitingOnYouCardInLandedCycle()``
-// already is. `unanswered_nights_max = 1` throughout, so a Card's second qualifying Night pushes it past
+// already is. `overdue_nights_max = 1` throughout, so a Card's second qualifying Night pushes it past
 // the bound.
 
 private struct JournalFixture: ~Copyable {
@@ -117,7 +117,7 @@ struct CardUnansweredClockTests {
         #expect(try world.card().state == .waitingOnYou)
     }
 
-    @Test("A second qualifying Night exceeds the bound: the Card is named, with the `unanswered` reason")
+    @Test("A second qualifying Night exceeds the bound: the Card is named, with the `reply overdue` reason")
     func secondNightExceedsBoundOnQuestionRoute() throws {
         let fixture = try JournalFixture()
         let world = try ClockWorld(try fixture.open(), waitingReason: .question)
@@ -153,10 +153,10 @@ struct CardUnansweredClockTests {
         #expect(issueID == "ENG-1")
         #expect(unansweredNights == 2)
         #expect(bound == 1)
-        #expect(blockReason == "unanswered")
+        #expect(blockReason == "reply overdue")
     }
 
-    @Test("On the divergence route the bound fires with `undecided`, never `unanswered`")
+    @Test("On the divergence route the bound fires with `decision overdue`, never `reply overdue`")
     func divergenceRouteFiresUndecided() throws {
         let fixture = try JournalFixture()
         let world = try ClockWorld(try fixture.open(), waitingReason: .divergence)
@@ -177,7 +177,31 @@ struct CardUnansweredClockTests {
             Issue.record("expected cardUnansweredBoundFired")
             return
         }
-        #expect(blockReason == "undecided")
+        #expect(blockReason == "decision overdue")
+    }
+
+    @Test("On the overreach route the bound fires with `decision overdue`, never `reply overdue`")
+    func overreachRouteFiresDecisionOverdue() throws {
+        let fixture = try JournalFixture()
+        let world = try ClockWorld(try fixture.open(), waitingReason: .overreach)
+
+        let night2 = try world.openNight(NightStart(rawValue: "2026-09-21")!, now: epoch.addingTimeInterval(86_400))
+        _ = try world.journal.advanceCardUnansweredClocks(
+            cycleIDs: [world.cycleID], nightID: night2, unansweredNightsMax: 1, act: .build, runID: world.runID
+        )
+        let night3 = try world.openNight(
+            NightStart(rawValue: "2026-09-22")!, now: epoch.addingTimeInterval(2 * 86_400)
+        )
+        _ = try world.journal.advanceCardUnansweredClocks(
+            cycleIDs: [world.cycleID], nightID: night3, unansweredNightsMax: 1, act: .build, runID: world.runID
+        )
+
+        let events = try world.journal.events(ofType: .cardUnansweredBoundFired)
+        guard case .cardUnansweredBoundFired(_, _, _, _, let blockReason) = events[0].event else {
+            Issue.record("expected cardUnansweredBoundFired")
+            return
+        }
+        #expect(blockReason == "decision overdue")
     }
 
     @Test("Advancing twice for the same Night (author and build Acts) counts once")

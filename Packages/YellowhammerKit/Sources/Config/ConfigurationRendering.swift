@@ -3,7 +3,7 @@ import Foundation
 
 /// Renders configuration values back to the TOML shapes ``ConfigurationDecoding`` accepts, for setup to
 /// write `~/.config/yellowhammer/config.toml` and `projects/<id>.toml` with the spec's defaults spelled
-/// out (bounds/bound-unanswered-nights: "Initial setup sets `unanswered_nights_max = 3` in each
+/// out (bounds/bound-unanswered-nights: "Initial setup sets `overdue_nights_max = 3` in each
 /// Project's `[limits]` section").
 enum ConfigurationRendering {
     /// A TOML basic string: `\` and `"` are escaped, along with the control characters that must be
@@ -54,9 +54,9 @@ enum ConfigurationRendering {
         return "{ cli = \(quoted(route.cli)), model = \(quoted(route.model)), effort = \(quoted(route.effort)) }"
     }
 
-    /// `kind = "…"`, omitted when `kind` is `""` (not set — the loader treats that as `*`).
+    /// `work_kind = "…"`, omitted when `work_kind` is `""` (not set — the loader treats that as `*`).
     static func kindLine(_ kind: String) -> String? {
-        kind.isEmpty ? nil : "kind = \(quoted(kind))"
+        kind.isEmpty ? nil : "work_kind = \(quoted(kind))"
     }
 
     /// `repo_role = "…"`, omitted when `repoRole` is `""` (not set — the loader treats that as any Repo Role).
@@ -64,7 +64,7 @@ enum ConfigurationRendering {
         repoRole.isEmpty ? nil : "repo_role = \(quoted(repoRole))"
     }
 
-    /// One `[[routing]]` entry, in the key order the decoder reads: `kind`, `repo_role`, `route`,
+    /// One `[[routing]]` entry, in the key order the decoder reads: `work_kind`, `repo_role`, `route`,
     /// `fallbacks`.
     static func routingEntry(_ entry: RoutingEntryDraft) -> String {
         var lines = ["[[routing]]"]
@@ -119,8 +119,8 @@ enum ConfigurationRendering {
         """
         [limits]
         review_rounds_max = \(boundValue(bounds.reviewRoundsMax))
-        attempts_per_card = \(boundValue(bounds.attemptsPerCard))
-        unanswered_nights_max = \(boundValue(bounds.unansweredNightsMax))
+        attempts_per_work_card = \(boundValue(bounds.attemptsPerWorkCard))
+        overdue_nights_max = \(boundValue(bounds.unansweredNightsMax))
         reselections_max = \(boundValue(bounds.reselectionsMax))
         consecutive_refusals_max = \(boundValue(bounds.consecutiveRefusalsMax))
         failed_adoptions_max = \(boundValue(bounds.failedAdoptionsMax))

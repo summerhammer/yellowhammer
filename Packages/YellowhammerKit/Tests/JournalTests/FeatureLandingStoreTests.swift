@@ -7,7 +7,7 @@ import Testing
 
 // roadmap P9.9: the predecessor gate's own durable state — `feature_repository` (recorded at
 // selection, never derived from Cards), `feature_landing` (first-observation-wins), and
-// `feature.released_at`.
+// `feature.abandoned_at`.
 
 private struct JournalFixture: ~Copyable {
     let directory: URL
@@ -75,34 +75,34 @@ struct FeatureLandingStoreTests {
         #expect(landings["mobile"] == "ccc")
     }
 
-    @Test("markFeatureReleased sets released_at; a second Feature is untouched")
-    func markFeatureReleasedSetsReleasedAt() throws {
+    @Test("markFeatureAbandoned sets abandoned_at; a second Feature is untouched")
+    func markFeatureAbandonedSetsAbandonedAt() throws {
         let fixture = try JournalFixture()
         let journal = try fixture.open()
         let featureID = try insertFixtureFeature(journal, issueID: "FEAT-1")
         let otherID = try insertFixtureFeature(journal, issueID: "FEAT-2")
 
-        try journal.markFeatureReleased(featureID: featureID, now: epoch)
+        try journal.markFeatureAbandoned(featureID: featureID, now: epoch)
 
         let walk = try journal.predecessorFeature()
         _ = walk
-        let releasedAt: String? = try journal.read { db in
-            try String.fetchOne(db, sql: "SELECT released_at FROM feature WHERE id = ?", arguments: [featureID])
+        let abandonedAt: String? = try journal.read { db in
+            try String.fetchOne(db, sql: "SELECT abandoned_at FROM feature WHERE id = ?", arguments: [featureID])
         }
-        let otherReleasedAt: String? = try journal.read { db in
-            try String.fetchOne(db, sql: "SELECT released_at FROM feature WHERE id = ?", arguments: [otherID])
+        let otherAbandonedAt: String? = try journal.read { db in
+            try String.fetchOne(db, sql: "SELECT abandoned_at FROM feature WHERE id = ?", arguments: [otherID])
         }
-        #expect(releasedAt != nil)
-        #expect(otherReleasedAt == nil)
+        #expect(abandonedAt != nil)
+        #expect(otherAbandonedAt == nil)
     }
 
-    @Test("markFeatureReleased on an unknown Feature throws")
-    func markFeatureReleasedUnknownThrows() throws {
+    @Test("markFeatureAbandoned on an unknown Feature throws")
+    func markFeatureAbandonedUnknownThrows() throws {
         let fixture = try JournalFixture()
         let journal = try fixture.open()
 
         #expect(throws: JournalError.self) {
-            try journal.markFeatureReleased(featureID: 999, now: epoch)
+            try journal.markFeatureAbandoned(featureID: 999, now: epoch)
         }
     }
 }

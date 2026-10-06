@@ -14,7 +14,7 @@ struct RoundBudget: Equatable, Sendable {
     var allowsAnotherRound: Bool { recorded < max }
 }
 
-/// The Attempt arithmetic of one Card's current budget epoch: `attempts_per_card` is the Bound, and
+/// The Attempt arithmetic of one Card's current budget epoch: `attempts_per_work_card` is the Bound, and
 /// `consumed` counts only Attempts whose ending actually consumed one — every ended Attempt but a
 /// `question`, read back from the Journal's Attempt history, never counted in memory. A Card must never
 /// block on the round budget alone: it blocks only once this budget is spent too.

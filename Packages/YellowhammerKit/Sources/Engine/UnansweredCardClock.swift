@@ -18,7 +18,14 @@ enum UnansweredCardClock {
         )
         try await CardAutoBlock.specific(
             cards: overdue,
-            reason: { card in card.waitingReason == .divergence ? .undecided : .unanswered },
+            reason: { card in
+                switch card.waitingReason {
+                case .divergence, .overreach:
+                    .decisionOverdue
+                case .question, nil:
+                    .replyOverdue
+                }
+            },
             context: context
         )
     }

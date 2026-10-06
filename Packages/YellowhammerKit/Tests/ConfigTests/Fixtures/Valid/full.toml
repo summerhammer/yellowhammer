@@ -29,7 +29,7 @@ executable = '/usr/local/bin/agent'
 route = "claude/sonnet"
 
 [[routing]]
-kind = "impl.boilerplate"
+work_kind = "impl.boilerplate"
 repo_role = "backend"
 route = "claude/sonnet/low"
 fallbacks = [
@@ -40,13 +40,13 @@ fallbacks = [
 ]
 
 [[routing]]
-kind = "*"
+work_kind = "*"
 repo_role = "mobile"
 route = { cli = "codex", model = "gpt-5.4" }
 fallbacks = ["claude/opus"]
 
 [[routing]]
-kind = "review"
+work_kind = "review"
 repo_role = "*"
 fallbacks = []
 
@@ -56,6 +56,6 @@ model = "opus"
 effort = "high"
 
 [[routing]]
-kind = "impl"
+work_kind = "impl"
 repo_role = "data-pipeline"
 route = { cli = "claude", model = "sonnet", effort = "xhigh" }

@@ -111,7 +111,7 @@ struct AuthoringTransactionClauseTests {
         #expect(plan.uncitableClauses.count == 1)
         let dropped = try #require(plan.uncitableClauses.first)
         #expect(dropped.level == "card")
-        #expect(dropped.cardTitle == "Backend one")
+        #expect(dropped.workCardTitle == "Backend one")
         #expect(dropped.text == "Unreachable")
         #expect(dropped.citation == "epic/ghost")
     }

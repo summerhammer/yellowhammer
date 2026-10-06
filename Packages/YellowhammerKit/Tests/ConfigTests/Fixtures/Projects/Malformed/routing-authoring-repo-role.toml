@@ -9,6 +9,6 @@ role = "backend"
 check = "test"
 
 [[routing]]
-kind = "authoring"
+work_kind = "authoring"
 repo_role = "backend"
 route = "claude/sonnet"

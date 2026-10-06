@@ -47,7 +47,7 @@ struct RepoDetailView: View {
             }
             if let attempt {
                 Section("Running Attempt") {
-                    Button("\(attempt.cardIDForDisplay ?? attempt.cardID)  \(attempt.cardTitle)") {
+                    Button("\(attempt.cardIDForDisplay ?? attempt.cardID)  \(attempt.workCardTitle)") {
                         openDestination(.inspector(.attempt(attempt.id)))
                     }
                     .buttonStyle(.link)

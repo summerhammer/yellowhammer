@@ -124,7 +124,7 @@ struct AddProjectDraftInvocationTests {
     func boundsToWrite() {
         var draft = completeAddProjectDraft()
         #expect(draft.boundsToWrite(afterExitStatus: 0) == nil)
-        draft.bounds.attemptsPerCard = 5
+        draft.bounds.attemptsPerWorkCard = 5
         #expect(draft.boundsToWrite(afterExitStatus: 1) == nil)
         #expect(draft.boundsToWrite(afterExitStatus: 0) == draft.bounds)
     }

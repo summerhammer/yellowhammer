@@ -80,7 +80,7 @@ extension NightCardMaintenance {
                 """
         case .predecessorWalkSkippedReleasedFeature(let featureIssueID):
             return """
-                Feature `\(featureIssueID)` was released: tonight's work is not built on it. The \
+                Feature `\(featureIssueID)` was abandoned: tonight's work is not built on it. The \
                 predecessor-ancestry gate walked past it to the Feature before it.
                 """
         case .authoringNoWorkAvailable:
@@ -125,7 +125,7 @@ extension NightCardMaintenance {
         case .featureReleased(_, let featureIssueID, let carriedForward, _, let abandonedRepositories, _):
             let abandoned = abandonedRepositories.isEmpty ? "none" : abandonedRepositories.joined(separator: ", ")
             return """
-                Feature `\(featureIssueID)` was settled *released*: stop-with-salvage. \
+                Feature `\(featureIssueID)` was settled *abandoned*: stop-with-salvage. \
                 \(carriedForward.count) Cards carried forward, Blocked awaiting Adoption; abandoned pull \
                 requests: \(abandoned). This Feature Issue is not archived and stays re-enterable.
                 """

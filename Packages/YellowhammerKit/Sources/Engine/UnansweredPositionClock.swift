@@ -10,7 +10,7 @@ import Journal
 /// the author Act, before the in-flight check, so both clocks advance on every author Act of every Night
 /// regardless of what else that Act finds to do.
 enum UnansweredPositionClock {
-    /// Advances both clocks by this Night, then posts one idempotent Blocked / Block Reason `unanswered`
+    /// Advances both clocks by this Night, then posts one idempotent Blocked / Block Reason `reply overdue`
     /// board update for each expired Refusal and each expired halt — only when this invocation has an
     /// Outbox and a Board, and only when that row has a Feature Issue id. Without either, expiry is
     /// Journal-only: nothing throws, because a clock must advance even when this invocation cannot write
@@ -40,7 +40,7 @@ enum UnansweredPositionClock {
         let scope = try await BoardStateScope.resolve(using: board.provisioning)
         for (_, issueID, key) in expired {
             guard let issueID else { continue }
-            var change = scope.labels.change(objectType: "Feature", state: .blocked, blockReason: .unanswered)
+            var change = scope.labels.change(cardType: .featureCard, state: .blocked, blockReason: .replyOverdue)
             change.workflowState = try scope.id(for: .blocked)
             let write = OutboxWrite(
                 key: key, write: .updateIssue(issue: BoardObjectID(rawValue: issueID), change: change, undo: nil)

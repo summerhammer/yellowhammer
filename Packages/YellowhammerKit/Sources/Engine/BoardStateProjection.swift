@@ -153,7 +153,7 @@ public struct BoardStateProjection: Sendable {
             throw BoardStateProjectionError.blockReasonRequired
         }
 
-        var change = scope.labels.change(objectType: "Feature", state: state, blockReason: blockReason)
+        var change = scope.labels.change(cardType: .featureCard, state: state, blockReason: blockReason)
         change.workflowState = try scope.id(for: state)
         if let `operator` {
             change.assignee = .set(`operator`)
@@ -170,7 +170,7 @@ public struct BoardStateProjection: Sendable {
         record: CardRecord, state: CardState, blockReason: BlockReason?, assignee: BoardObjectID?
     ) async throws -> Outcome {
         let issue = BoardObjectID(rawValue: record.issueID)
-        var change = scope.labels.change(objectType: "Card", state: state, blockReason: blockReason)
+        var change = scope.labels.change(cardType: .workCard, state: state, blockReason: blockReason)
         change.workflowState = try scope.id(for: state)
         if let assignee {
             change.assignee = .set(assignee)

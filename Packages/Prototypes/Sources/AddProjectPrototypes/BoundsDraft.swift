@@ -5,7 +5,7 @@ import Foundation
 /// its value, so the copy below says "up to".
 struct BoundsDraft: Equatable {
     var reviewRoundsMax = 2
-    var attemptsPerCard = 3
+    var attemptsPerWorkCard = 3
     var unansweredNightsMax = 3
     var reselectionsMax = 2
     var consecutiveRefusalsMax = 3
@@ -58,12 +58,12 @@ struct BoundsDraft: Equatable {
             consequence: .stopsCard, keyPath: \.reviewRoundsMax
         ),
         Field(
-            key: "attempts_per_card", title: "Attempts per Card", unit: "attempt", units: "attempts",
+            key: "attempts_per_work_card", title: "Attempts per Card", unit: "attempt", units: "attempts",
             sentence: ("Try a Card for up to", "on different routes, then stop it and say why."),
-            consequence: .stopsCard, keyPath: \.attemptsPerCard
+            consequence: .stopsCard, keyPath: \.attemptsPerWorkCard
         ),
         Field(
-            key: "unanswered_nights_max", title: "Unanswered Nights", unit: "Night", units: "Nights",
+            key: "overdue_nights_max", title: "Unanswered Nights", unit: "Night", units: "Nights",
             sentence: ("Wait up to", "for your answer, then mark the Card Blocked."),
             consequence: .stopsCard, keyPath: \.unansweredNightsMax
         ),

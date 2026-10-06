@@ -70,7 +70,7 @@ class RenderProjectTomlTests(unittest.TestCase):
                     "check": "npm test", "protected_paths": ["migrations/"],
                 },
             ],
-            limits={"attempts_per_card": 1},
+            limits={"attempts_per_work_card": 1},
             schedule={"build_every_minutes": 5},
             route="claude/opus/high",
             fallbacks=("claude/sonnet/medium", "claude/opus/high"),
@@ -78,7 +78,7 @@ class RenderProjectTomlTests(unittest.TestCase):
         data = tomllib.loads(text)
         self.assertEqual(data["repos"][0]["check"], "npm test")
         self.assertEqual(data["repos"][0]["protected_paths"], ["migrations/"])
-        self.assertEqual(data["limits"]["attempts_per_card"], 1)
+        self.assertEqual(data["limits"]["attempts_per_work_card"], 1)
         self.assertEqual(data["limits"]["review_rounds_max"], suite_env.DEFAULT_LIMITS["review_rounds_max"])
         self.assertEqual(data["schedule"]["build_every_minutes"], 5)
         self.assertEqual(data["routing"][0]["fallbacks"], ["claude/sonnet/medium", "claude/opus/high"])

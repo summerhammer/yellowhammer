@@ -9,4 +9,4 @@ role = "backend"
 check = "test"
 
 [limits]
-unanswered_nights_max = 0
+overdue_nights_max = 0

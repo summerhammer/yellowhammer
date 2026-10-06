@@ -9,9 +9,9 @@ role = "backend"
 check = "test"
 
 [[routing]]
-kind = "impl"
+work_kind = "impl"
 route = "claude/sonnet"
 
 [[routing]]
-kind = "impl"
+work_kind = "impl"
 route = "codex/gpt-5.4"

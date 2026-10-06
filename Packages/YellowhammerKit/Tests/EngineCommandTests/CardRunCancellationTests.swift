@@ -30,7 +30,7 @@ struct CardRunCancellationTests {
         }
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
             resetting: RecordingAttemptResetting(log: log)
         )
 
@@ -70,7 +70,7 @@ struct CardRunCancellationTests {
         }
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
             resetting: RecordingAttemptResetting(log: log)
         )
         let invocation = EngineInvocation(

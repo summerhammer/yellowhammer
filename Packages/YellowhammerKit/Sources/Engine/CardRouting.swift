@@ -4,9 +4,11 @@ import Journal
 
 /// Resolves a Card's Route at dispatch and writes the routing consequence to the Journal
 /// (routing/resolve-a-route-for-a-card, roadmap P7.6): an Attempt carrying the resolved Route, or —
-/// with zero candidates — the Blocked transition with Block Reason `hard failure` and no Attempt, so
+/// with zero candidates — the Blocked transition with Block Reason `route failure` and no Attempt, so
 /// no phantom Attempt is spent. A refused Override writes nothing but its event: it is a Readiness
-/// Check failure, which the Readiness Check (P8.2) reports onto the Card. The Repo Lane moving on to
+/// Check failure, which the Card run reports onto the Card. An Override's Route passes its Route
+/// Pre-flight before any Attempt is recorded on it (OQ126), after the Probe check, so a Route whose CLI
+/// failed its Probe is refused without one. The Repo Lane moving on to
 /// its next Card is the Card loop's job (P8.4); this type writes only the routing consequence.
 ///
 /// The resolved Route reaches the Card through the Attempt: the Card's Managed Block renders every
@@ -25,6 +27,9 @@ public struct CardRouting: Sendable {
     public let runID: RunID
     public let act: Act
     public let nightID: Int64?
+    /// Runs and caches the Route Pre-flight of an Override's Route; nil runs none, for callers that
+    /// predate OQ126.
+    public let preflight: RoutePreflight?
 
     public init(
         resolver: RouteResolver,
@@ -32,7 +37,8 @@ public struct CardRouting: Sendable {
         projection: BoardStateProjection? = nil,
         runID: RunID,
         act: Act,
-        nightID: Int64? = nil
+        nightID: Int64? = nil,
+        preflight: RoutePreflight? = nil
     ) {
         self.resolver = resolver
         self.journal = journal
@@ -40,6 +46,7 @@ public struct CardRouting: Sendable {
         self.runID = runID
         self.act = act
         self.nightID = nightID
+        self.preflight = preflight
     }
 
     public enum Outcome: Equatable, Sendable {
@@ -49,20 +56,21 @@ public struct CardRouting: Sendable {
         case blocked(CardRecord, RouteExhaustion)
         /// The Override was refused: the Card untouched, no Attempt, the refusal to report.
         case readinessFailure(CardRecord, OverrideRefusal)
-        /// The Card's current budget epoch has already consumed `attemptsPerCard` Attempts: the Card as
+        /// The Card's current budget epoch has already consumed `attemptsPerWorkCard` Attempts: the Card as
         /// it stands, untouched — no Attempt is recorded and the resolver is never asked (roadmap P8.7).
         /// The caller Blocks the Card; this type writes nothing but what selection already wrote.
         case attemptBudgetSpent(CardRecord)
     }
 
-    /// Resolves and records for one Card. `repoRole` is the role of the Card's Repo and `override`
-    /// the Operator's pins read from the board; both are the caller's, because the Engine holds no
-    /// configuration and reads the board only through the Delta Read. `checkDeclaredNone` is copied
+    /// Resolves and records for one Card. `repoRole` is the role of the Card's Repo and `override` the
+    /// Operator's Override read from the board, nil when the Card carries none; both are the caller's,
+    /// because the Engine holds no configuration and reads the board only through the Delta Read.
+    /// `checkDeclaredNone` is copied
     /// onto the Attempt exactly as
     /// ``JournalStore/recordAttempt(cardID:route:checkDeclaredNone:routeSource:override:runID:act:nightID:now:)``
     /// takes it, along with the resolved Route's ``ResolvedRoute/source`` and the Operator's Override.
     ///
-    /// `attemptsPerCard` is the Attempt budget guard (roadmap P8.7): when given and the Card's current
+    /// `attemptsPerWorkCard` is the Attempt budget guard (roadmap P8.7): when given and the Card's current
     /// budget epoch has already consumed that many Attempts — from this run's own retries or an earlier
     /// Act or Night, the counters live in the Journal and survive either — this returns
     /// ``Outcome/attemptBudgetSpent(_:)`` instead of resolving, so a Card that arrives already spent
@@ -72,9 +80,9 @@ public struct CardRouting: Sendable {
     public func route(
         card: CardRecord,
         repoRole: RepoRole?,
-        override: Override,
+        override: Override?,
         checkDeclaredNone: Bool = false,
-        attemptsPerCard: Int? = nil
+        attemptsPerWorkCard: Int? = nil
     ) async throws -> Outcome {
         guard let kind = Kind(card.kind) else {
             throw CardRoutingError.kindUnparseable(cardID: card.id, kind: card.kind)
@@ -82,9 +90,9 @@ public struct CardRouting: Sendable {
 
         let card = try resetEpochIfOverridePinChanged(card: card, override: override)
 
-        if let attemptsPerCard {
+        if let attemptsPerWorkCard {
             let consumed = try journal.attemptHistory(cardID: card.id).consumption(inEpoch: card.budgetEpoch).consumed
-            if consumed >= attemptsPerCard {
+            if consumed >= attemptsPerWorkCard {
                 return .attemptBudgetSpent(card)
             }
         }
@@ -95,7 +103,13 @@ public struct CardRouting: Sendable {
             override: override,
             excludedRoutes: try journal.excludedRoutes(cardID: card.id)
         )
-        switch try resolver.resolve(request) {
+        var resolution = try resolver.resolve(request)
+        if case .resolved(let resolved) = resolution, let override, let refusal = try await preflightRefusal(
+            resolved, override: override
+        ) {
+            resolution = .overrideRefused(refusal)
+        }
+        switch resolution {
         case .resolved(let resolved):
             let attempt = try journal.recordAttempt(
                 cardID: card.id, route: resolved.route, checkDeclaredNone: checkDeclaredNone,
@@ -117,13 +131,23 @@ public struct CardRouting: Sendable {
         }
     }
 
+    /// The Route Pre-flight refusal of an Override's Route, or nil when it passed or none runs.
+    private func preflightRefusal(_ resolved: ResolvedRoute, override: Override) async throws -> OverrideRefusal? {
+        guard resolved.selectedBy == .override, let preflight else { return nil }
+        let verdict = try await preflight.verdict(
+            for: resolved.route, journal: journal, runID: runID, act: act, nightID: nightID
+        )
+        guard case .failed(let reason) = verdict else { return nil }
+        return .preflightFailed(override, route: resolved.route, reason: reason)
+    }
+
     /// The triage-Override rule (routing/exclude-tried-routes-on-retry, P7.7): an Override beats
     /// attempt-history exclusion, so pinning one in triage that differs from the pin the Card's last
     /// Attempt in its current budget epoch ran under resets that epoch — the exclusions it recorded
     /// stop applying. Never resets when the epoch has no Attempt yet, and never when the last Attempt
     /// already ran under this same pin.
-    private func resetEpochIfOverridePinChanged(card: CardRecord, override: Override) throws -> CardRecord {
-        guard !override.isEmpty else { return card }
+    private func resetEpochIfOverridePinChanged(card: CardRecord, override: Override?) throws -> CardRecord {
+        guard let override else { return card }
         let history = try journal.attemptHistory(cardID: card.id)
         let current = history.attempts.filter { $0.budgetEpoch == card.budgetEpoch }
         guard let last = current.last, last.overridePin != override.description else {

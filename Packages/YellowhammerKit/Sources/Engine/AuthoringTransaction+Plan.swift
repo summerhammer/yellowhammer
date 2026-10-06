@@ -49,7 +49,8 @@ struct AuthoringPlanner {
         let (cards, cardWrites) = try create(nextOrder: &nextOrder)
         let uncitable = citations.uncitable.map {
             PlannedUncitableClause(
-                level: $0.level, cardTitle: $0.cardTitle, text: $0.text, citation: $0.citation, reason: $0.reason
+                level: $0.level, workCardTitle: $0.workCardTitle, text: $0.text,
+                citation: $0.citation, reason: $0.reason
             )
         }
         return AuthoringPlan(
@@ -83,9 +84,9 @@ struct AuthoringPlanner {
         }
     }
 
-    private func label(_ name: String) throws -> BoardObjectID {
-        guard let id = scope.labels.objectType[name] else {
-            throw DispositionLabelsError.missing(group: BoardProvisioner.objectTypeGroup, label: name)
+    private func label(_ type: CardType) throws -> BoardObjectID {
+        guard let id = scope.labels.cardType[type] else {
+            throw DispositionLabelsError.missing(group: BoardProvisioner.cardTypeGroup, label: type.rawValue)
         }
         return id
     }
@@ -95,7 +96,7 @@ struct AuthoringPlanner {
             BoardIssueDraft(
                 team: scope.team, title: selection.name.rawValue,
                 description: featureDescription(clauses: clauses, adoptions: adoptions),
-                labels: [try label("Feature")], workflowState: try scope.id(for: .todo)
+                labels: [try label(.featureCard)], workflowState: try scope.id(for: .todo)
             ),
             parentKey: nil
         ))
@@ -125,7 +126,7 @@ struct AuthoringPlanner {
     }
 
     private func create(nextOrder: inout [String: Int]) throws -> ([PlannedCard], [OutboxWrite]) {
-        let cardLabel = try label("Card")
+        let cardLabel = try label(.workCard)
         let todo = try scope.id(for: .todo)
         var planned: [PlannedCard] = []
         var writes: [OutboxWrite] = []

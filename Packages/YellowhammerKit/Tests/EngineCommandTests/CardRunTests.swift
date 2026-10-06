@@ -15,12 +15,12 @@ struct CardRunTests {
         log: CallLog, script: RehearsalScript = .empty, check: RepositoryCheckResult = .declaredNone,
         checks: [String: Check] = ["backend": .none], leasePolicy: LeasePolicy = .ruled,
         during: (@Sendable (RunPass) async throws -> Void)? = nil,
-        resolver: RouteResolver = cardRunResolver(), reviewRoundsMax: Int = 2, attemptsPerCard: Int = 3
+        resolver: RouteResolver = cardRunResolver(), reviewRoundsMax: Int = 2, attemptsPerWorkCard: Int = 3
     ) -> CardRun {
         CardRun(
             resolver: resolver, dispatch: LoggingDispatch(log: log, script: script, during: during),
             check: RecordingCheck(log: log, result: check), checks: checks, reviewRoundsMax: reviewRoundsMax,
-            attemptsPerCard: attemptsPerCard, leasePolicy: leasePolicy,
+            attemptsPerWorkCard: attemptsPerWorkCard, leasePolicy: leasePolicy,
             resetting: RecordingAttemptResetting()
         )
     }
@@ -62,7 +62,7 @@ struct CardRunTests {
         let log = CallLog()
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: rehearsal, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
             resetting: RecordingAttemptResetting()
         )
 
@@ -81,7 +81,7 @@ struct CardRunTests {
         let log = CallLog()
 
         try await makeRun(
-            log: log, script: [.reviewer: .reviewerChangesRequested], reviewRoundsMax: 1, attemptsPerCard: 2
+            log: log, script: [.reviewer: .reviewerChangesRequested], reviewRoundsMax: 1, attemptsPerWorkCard: 2
         ).run("BACK-1", in: world)
 
         #expect(log.all == ["dispatch architect", "dispatch worker", "check", "dispatch reviewer"])
@@ -94,8 +94,8 @@ struct CardRunTests {
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
         // Blocked by the last Attempt's own ending — rounds-exhausted on the review Lens — not
-        // `hard failure`: the Block Reason follows the final Attempt's termination (OQ58).
-        #expect(card.blockReason == BlockReason.blockedByReviewer.rawValue)
+        // `route failure`: the Block Reason follows the final Attempt's termination (OQ58).
+        #expect(card.blockReason == BlockReason.reviewerRejection.rawValue)
     }
 
     @Test("A failed architect skips the worker; a single-Route table leaves the retry no candidate, Card Blocks")

@@ -101,7 +101,8 @@ extension NightSummary {
     }
 
     /// The `**Exceptions:**` section: `boardWriteFailed`, `rateBudgetExhausted`, `mainlineFetchFailed`,
-    /// `absentNightDetected`, `notificationDeliveryFailed` and `worktreeNameCollision`. Empty when none of
+    /// `absentNightDetected`, `notificationDeliveryFailed`, `worktreeNameCollision` and `overrideRefused`
+    /// — the last once per Card and reason, however many Acts refused it (OQ126). Empty when none of
     /// these happened this Night.
     public static func exceptionLines(night: NightRecord, journal: JournalStore) throws -> [String] {
         var lines: [String] = []
@@ -135,6 +136,19 @@ extension NightSummary {
                 )
             default:
                 break
+            }
+        }
+        return lines + (try overrideRefusalLines(night: night, journal: journal))
+    }
+
+    /// One line per Card and reason an Override was refused for this Night (OQ126).
+    static func overrideRefusalLines(night: NightRecord, journal: JournalStore) throws -> [String] {
+        var lines: [String] = []
+        for record in try nightEvents(night: night, journal: journal) {
+            guard case .overrideRefused(_, let issueID, let reason) = record.event else { continue }
+            let line = "`\(issueID)` was not dispatched and spent no Attempt: \(reason)."
+            if !lines.contains(line) {
+                lines.append(line)
             }
         }
         return lines

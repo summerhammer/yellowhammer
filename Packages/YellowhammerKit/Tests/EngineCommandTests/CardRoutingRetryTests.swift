@@ -47,7 +47,7 @@ extension CardRoutingTests {
         try claimActLease(journal, runID: runID)
         let routing = CardRouting(resolver: resolver(), journal: journal, runID: runID, act: .build)
 
-        let first = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: .none)
+        let first = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: nil)
         guard case .attempt(let attempt1, let resolved1) = first else {
             Issue.record("expected an Attempt, got \(first)")
             return
@@ -59,7 +59,7 @@ extension CardRoutingTests {
             attemptID: attempt1.id, ending: .hardFailure(.exitStatus(2)), runID: runID, act: .build
         )
 
-        let second = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: .none)
+        let second = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: nil)
         guard case .attempt(let attempt2, let resolved2) = second else {
             Issue.record("expected an Attempt, got \(second)")
             return
@@ -89,7 +89,7 @@ extension CardRoutingTests {
         try claimActLease(journal, runID: runID)
         let routing = CardRouting(resolver: resolver(), journal: journal, runID: runID, act: .build)
 
-        let first = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: .none)
+        let first = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: nil)
         guard case .attempt(let attempt1, _) = first else {
             Issue.record("expected an Attempt, got \(first)")
             return
@@ -98,7 +98,7 @@ extension CardRoutingTests {
             attemptID: attempt1.id, ending: .crashedUnknown(.signaled(9)), runID: runID, act: .build
         )
 
-        let second = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: .none)
+        let second = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: nil)
         guard case .attempt(let attempt2, let resolved2) = second else {
             Issue.record("expected an Attempt, got \(second)")
             return
@@ -127,14 +127,14 @@ extension CardRoutingTests {
         try claimActLease(journal, runID: runID)
         let routing = CardRouting(resolver: resolver(), journal: journal, runID: runID, act: .build)
 
-        let first = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: .none)
+        let first = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: nil)
         guard case .attempt(let attempt1, _) = first else {
             Issue.record("expected an Attempt, got \(first)")
             return
         }
         _ = try journal.endAttempt(attemptID: attempt1.id, ending: .question, runID: runID, act: .build)
 
-        let second = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: .none)
+        let second = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: nil)
         guard case .attempt(let attempt2, _) = second else {
             Issue.record("expected an Attempt, got \(second)")
             return
@@ -153,7 +153,7 @@ extension CardRoutingTests {
         try claimActLease(journal, runID: runID)
         let routing = CardRouting(resolver: resolver(), journal: journal, runID: runID, act: .build)
 
-        let first = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: .none)
+        let first = try await routing.route(card: try journal.card(id: cardID), repoRole: .backend, override: nil)
         guard case .attempt(let attempt1, _) = first else {
             Issue.record("expected an Attempt, got \(first)")
             return
@@ -165,7 +165,7 @@ extension CardRoutingTests {
         #expect(try journal.card(id: cardID).budgetEpoch == 0)
 
         let second = try await routing.route(
-            card: try journal.card(id: cardID), repoRole: .backend, override: Override(cli: "claude")
+            card: try journal.card(id: cardID), repoRole: .backend, override: Override(label: "claude/opus/high")
         )
         guard case .attempt(let attempt2, let resolved2) = second else {
             Issue.record("expected an Attempt, got \(second)")
@@ -174,14 +174,14 @@ extension CardRoutingTests {
         #expect(try journal.card(id: cardID).budgetEpoch == 1)
         #expect(try journal.excludedRoutes(cardID: cardID).isEmpty)
         #expect(attempt2.route == claudeOpus)
-        #expect(attempt2.overridePin == "claude/-/-")
+        #expect(attempt2.overridePin == "claude/opus/high")
         #expect(resolved2.source == "override")
         #expect(try journal.events(ofType: .budgetEpochReset).count == 1)
 
         _ = try journal.endAttempt(attemptID: attempt2.id, ending: .question, runID: runID, act: .build)
 
         let third = try await routing.route(
-            card: try journal.card(id: cardID), repoRole: .backend, override: Override(cli: "claude")
+            card: try journal.card(id: cardID), repoRole: .backend, override: Override(label: "claude/opus/high")
         )
         guard case .attempt = third else {
             Issue.record("expected an Attempt, got \(third)")
@@ -201,7 +201,7 @@ extension CardRoutingTests {
         let routing = CardRouting(resolver: resolver(), journal: journal, runID: runID, act: .build)
 
         let outcome = try await routing.route(
-            card: try journal.card(id: cardID), repoRole: .backend, override: Override(cli: "claude")
+            card: try journal.card(id: cardID), repoRole: .backend, override: Override(label: "claude/opus/high")
         )
 
         guard case .attempt(let attempt, let resolved) = outcome else {

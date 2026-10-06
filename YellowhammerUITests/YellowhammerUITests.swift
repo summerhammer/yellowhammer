@@ -133,7 +133,7 @@ final class OverviewWindowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["pulse-heading"].waitForExistence(timeout: 10))
         // Control: the same query finds a link-styled button by its title, so the checks below can fail.
         XCTAssertTrue(app.descendants(matching: .any)["Open Settings"].exists)
-        for gesture in ["Kept in Flight", "Released", "Settle", "Accept", "Adopt", "Re-ready", "Answer"] {
+        for gesture in ["Kept in Flight", "Abandoned", "Settle", "Accept", "Adopt", "Re-ready", "Answer"] {
             XCTAssertFalse(
                 app.descendants(matching: .any)[gesture].exists,
                 "The main window offers the triage gesture \u{201C}\(gesture)\u{201D}, which is Linear's"

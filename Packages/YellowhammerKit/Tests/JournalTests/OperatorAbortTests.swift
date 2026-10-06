@@ -106,7 +106,7 @@ func abortedLastAttemptBlocksOperatorAbort() throws {
         attemptID: second.id, ending: .hardFailure(.exitStatus(1)), runID: runID, act: .build,
         now: epoch.addingTimeInterval(3)
     )
-    #expect(try journal.attemptHistory(cardID: cardID).blockReason(inEpoch: 0) == .hardFailure)
+    #expect(try journal.attemptHistory(cardID: cardID).blockReason(inEpoch: 0) == .routeFailure)
 }
 
 @Test("The schema has the operator_abort_request table")

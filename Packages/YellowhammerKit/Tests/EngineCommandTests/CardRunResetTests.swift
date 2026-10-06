@@ -24,7 +24,7 @@ struct CardRunResetTests {
         let resetting = RecordingAttemptResetting(log: log, scripted: .refused(reason: "Worktree not quiescent"))
         let run = CardRun(
             resolver: twoRouteResolver(), dispatch: LoggingDispatch(log: log, script: [.worker: .workerFailed]),
-            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
             resetting: resetting
         )
 
@@ -47,11 +47,11 @@ struct CardRunResetTests {
         let world = try await makeCardRunWorld(journal: try fixture.open())
         let log = CallLog()
         let resetting = RecordingAttemptResetting(log: log, scripted: .failed(reason: "git reset exited 1"))
-        // attemptsPerCard: 1 so the first hard failure spends the budget outright: the retryOrBlock
+        // attemptsPerWorkCard: 1 so the first hard failure spends the budget outright: the retryOrBlock
         // Block path runs, not a retry.
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log, script: [.worker: .workerFailed]),
-            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 1,
+            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 1,
             resetting: resetting
         )
 
@@ -60,7 +60,7 @@ struct CardRunResetTests {
         #expect(log.all.contains("reset"))
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.hardFailure.rawValue)
+        #expect(card.blockReason == BlockReason.routeFailure.rawValue)
         let steps = try cardRunLog(world.journal)
         #expect(steps.contains(CardRunStep.attemptResetFailed.rawValue))
     }
@@ -76,7 +76,7 @@ struct CardRunResetTests {
         let dispatch = SequencedDispatch(log: log, sequences: sequences)
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 2,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 2,
             resetting: RecordingAttemptResetting(log: log)
         )
 

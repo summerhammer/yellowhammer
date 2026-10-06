@@ -97,7 +97,7 @@ struct BuildActTests {
             try journal.recordCardBoardState(cardID: cardID, version: 0, runID: runID, now: buildActEpoch)
         }
         _ = try journal.transitionCard(
-            cardID: backend2, to: .blocked, blockReason: .unanswered, runID: runID, act: .build, nightID: nil,
+            cardID: backend2, to: .blocked, blockReason: .replyOverdue, runID: runID, act: .build, nightID: nil,
             now: buildActEpoch
         )
         _ = try journal.transitionCard(

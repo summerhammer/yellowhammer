@@ -17,7 +17,7 @@ extension JournalStore {
     /// latest recorded Night of this Project (whatever its state); if it exists and is earlier than
     /// the new Night, each calendar date between them is a Night that should have opened and did not.
     /// Each absent Night is recorded as an event of the new Night. The audit reports and never acts on
-    /// these Nights: `unanswered_nights_max` is spent only by Nights that ran. A sibling Project's
+    /// these Nights: `overdue_nights_max` is spent only by Nights that ran. A sibling Project's
     /// Night is in a different Journal, so it is neither seen nor reported here.
     public func openNight(
         nightStart: NightStart,

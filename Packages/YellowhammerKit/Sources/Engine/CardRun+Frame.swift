@@ -100,9 +100,9 @@ struct CardRunFrame: Sendable {
 
     /// The Override the Operator pinned on this Card's board object, read from the Delta Read's copy of it;
     /// none when the Delta Read did not see the Card change or this invocation has no Board.
-    func override() async throws -> Override {
+    func override() async throws -> Override? {
         guard let object = changedObject, let board = context.act.board, let projection else {
-            return .none
+            return nil
         }
         let labels = try await board.provisioning.labels(team: projection.scope.team)
         return OverrideLabels(labels: labels).override(on: object)

@@ -13,8 +13,8 @@ public protocol FeatureSettle: Sendable {
     func reset(feature: FeatureRecord, cycleID: Int64, context: ActContext) async throws -> Bool
 }
 
-/// The real settle gesture (roadmap P10.9): reads the Feature Issue's workflow state as a tri-state —
-/// *unsettled*, *kept in flight*, or *released* (``SettleValue``) — and applies it.
+/// The real settle gesture (roadmap P10.9; OQ128): reads the Feature Issue's workflow state as a tri-state —
+/// *unsettled*, *kept in flight*, or *abandoned* (``SettleValue``) — and applies it.
 ///
 /// *unsettled* (including any state name the gesture does not recognise, and a value read that this
 /// pass's offered set does not include) writes nothing but the ``SettleGestureComment`` stating the
@@ -23,7 +23,7 @@ public protocol FeatureSettle: Sendable {
 /// further Journal write here.
 ///
 /// On a Partial Landing (``JournalStore/inFlightLandedFeature()`` non-nil), and when the Roll-up is
-/// absent (Cards exist and every one is Cancelled), only *released* is offered — a *kept in flight* read there is not honoured
+/// absent (Cards exist and every one is Cancelled), only *abandoned* is offered — a *kept in flight* read there is not honoured
 /// (``JournalEvent/settleValueNotHonoured(featureIssueID:value:reason:)``, treated as unsettled).
 /// Otherwise both values are offered.
 ///
@@ -44,7 +44,7 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
     /// Resets a kept-in-flight Feature's workflow state on the board back to *unsettled* (``SettleValue/resetTargetState``).
     ///
     /// Idempotent on `(cycleID, nightID)`. If the Feature Issue is not in `Kept in Flight` (e.g. already reset,
-    /// released, or in another state), no write is posted.
+    /// abandoned, or in another state), no write is posted.
     @discardableResult
     public static func resetSettleState(
         feature: FeatureRecord,
@@ -61,7 +61,7 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
         }
 
         let scope = try await BoardStateScope.resolve(using: board.provisioning)
-        var change = scope.labels.change(objectType: "Feature", state: SettleValue.resetTargetState, blockReason: nil)
+        var change = scope.labels.change(cardType: .featureCard, state: SettleValue.resetTargetState, blockReason: nil)
         change.workflowState = try scope.id(for: SettleValue.resetTargetState)
 
         let key = "settle:\(cycleID):reset:\(nightID)"
@@ -100,18 +100,18 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
         switch read {
         case .keptInFlight:
             try applyKeptInFlight(feature: feature, cycleID: cycleID, cards: cards, context: context)
-        case .released:
-            try await applyReleased(feature: feature, cycleID: cycleID, cards: cards, context: context)
+        case .abandoned:
+            try await applyAbandoned(feature: feature, cycleID: cycleID, cards: cards, context: context)
         }
     }
 
     /// Both values, unless this is a Partial Landing or the Roll-up is absent (Cards exist and every one
-    /// is Cancelled) — then only *released* is offered (glossary: Roll-up, Partial Landing).
+    /// is Cancelled) — then only *abandoned* is offered (glossary: Roll-up, Partial Landing).
     private static func offeredValues(cards: [CardRecord], context: ActContext) throws -> [SettleValue] {
         let allCancelled = !cards.isEmpty && cards.allSatisfy { $0.state == .cancelled }
         let landed = try context.journal.inFlightLandedFeature() != nil
-        if allCancelled || landed { return [.released] }
-        return [.keptInFlight, .released]
+        if allCancelled || landed { return [.abandoned] }
+        return [.keptInFlight, .abandoned]
     }
 
     private static func offeredKey(_ offered: [SettleValue]) -> String {
@@ -120,7 +120,7 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
 
     /// States the consequence of each offered choice before the Operator picks one, keyed on the Cycle
     /// id and the offered set so it posts once while the Feature is running and once more when it
-    /// becomes a Partial Landing (the offered set can shrink to `released` alone at that point).
+    /// becomes a Partial Landing (the offered set can shrink to `abandoned` alone at that point).
     private func postUnsettledComment(
         offered: [SettleValue], feature: FeatureRecord, cycleID: Int64, outbox: Outbox
     ) async throws {
@@ -146,18 +146,18 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
         )
     }
 
-    /// Stop-with-salvage: every Waiting on You Card is auto-Blocked `unanswered`, while Todo and In
-    /// Progress Cards are auto-Blocked `released` (``CardAutoBlock``). Blocked Cards are detached from the
-    /// Feature Issue, every held Worktree is released — including unpushed work, which a release
+    /// Stop-with-salvage: every Waiting on You Card is auto-Blocked `reply overdue`, while Todo and In
+    /// Progress Cards are auto-Blocked `feature abandoned` (``CardAutoBlock``). Blocked Cards are detached from the
+    /// Feature Issue, every held Worktree is released — including unpushed work, which an abandon
     /// discards rather than refuses — and the Cycle is archived without `closed_by` (never a closure
-    /// route; `released_at` is the marker). The Feature Issue itself is never archived and its workflow
-    /// state is never rewritten: it stays in the Operator's own *released* state, re-enterable.
+    /// route; `abandoned_at` is the marker). The Feature Issue itself is never archived and its workflow
+    /// state is never rewritten: it stays in the Operator's own *abandoned* state, re-enterable.
     ///
-    private func applyReleased(
+    private func applyAbandoned(
         feature: FeatureRecord, cycleID: Int64, cards: [CardRecord], context: ActContext
     ) async throws {
         let journal = context.journal
-        guard feature.releasedAt == nil else { return }
+        guard feature.abandonedAt == nil else { return }
 
         try await CardAutoBlock.waitingOnYou(cycleID: cycleID, context: context)
         try await CardAutoBlock.releasedActive(cycleID: cycleID, context: context)
@@ -185,16 +185,16 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
         )
         guard wrote else { return }
 
-        let computed = ReleaseComputed(
+        let computed = AbandonComputed(
             cycleID: cycleID, feature: feature, blockedCards: blockedCards, acceptedCards: acceptedCards,
             abandonedRepositories: abandonedRepositories, triagedNightID: triagedNightID
         )
-        try await postReleaseBoardWrites(computed, context: context)
+        try await postAbandonBoardWrites(computed, context: context)
     }
 
-    /// What ``applyReleased(feature:cycleID:cards:context:)`` computed, bundled so
-    /// ``postReleaseBoardWrites(_:context:)`` stays under the parameter-count limit.
-    private struct ReleaseComputed {
+    /// What ``applyAbandoned(feature:cycleID:cards:context:)`` computed, bundled so
+    /// ``postAbandonBoardWrites(_:context:)`` stays under the parameter-count limit.
+    private struct AbandonComputed {
         let cycleID: Int64
         let feature: FeatureRecord
         let blockedCards: [CardRecord]
@@ -217,10 +217,10 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
         }
     }
 
-    /// Each Blocked Card's detachment and the narrative release comment, keyed on the Cycle so a retry
+    /// Each Blocked Card's detachment and the narrative abandon comment, keyed on the Cycle so a retry
     /// re-queues the same writes rather than duplicating them. Skipped entirely when no Outbox is wired
     /// (unreachable here in practice, since ``settle(feature:cycleID:context:)`` already required one).
-    private func postReleaseBoardWrites(_ computed: ReleaseComputed, context: ActContext) async throws {
+    private func postAbandonBoardWrites(_ computed: AbandonComputed, context: ActContext) async throws {
         guard let outbox = context.outbox else { return }
         let journal = context.journal
         let cycleID = computed.cycleID
@@ -229,7 +229,7 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
         let issue = BoardObjectID(rawValue: feature.issueID)
 
         for card in blockedCards {
-            let key = "settle:\(cycleID):release:detach:\(card.issueID)"
+            let key = "settle:\(cycleID):abandon:detach:\(card.issueID)"
             let cardIssue = BoardObjectID(rawValue: card.issueID)
             let change = BoardIssueChange(parent: .clear)
             let write = OutboxWrite(key: key, write: .updateIssue(issue: cardIssue, change: change, undo: nil))
@@ -247,7 +247,7 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
             abandonedRepositories: computed.abandonedRepositories,
             triagedNightStart: triagedNight?.nightStart ?? context.night.nightStart
         ).body()
-        let commentKey = "settle:\(cycleID):release:comment:\(feature.issueID)"
+        let commentKey = "settle:\(cycleID):abandon:comment:\(feature.issueID)"
         _ = try await outbox.post(OutboxWrite(key: commentKey, write: .createComment(issue: issue, body: comment)))
     }
 }

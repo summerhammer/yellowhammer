@@ -14,7 +14,9 @@ struct NightCardScopeTests {
         let boards = try await makeBoards(includeNightCard: false)
         let provisioning = boards.provisioning
 
-        await #expect(throws: DispositionLabelsError.missing(group: "Object Type", label: "Night Card")) {
+        await #expect(throws: DispositionLabelsError.missing(
+            group: BoardProvisioner.cardTypeGroup, label: CardType.nightCard.rawValue
+        )) {
             try await NightCardScope.resolve(using: provisioning)
         }
     }

@@ -4,7 +4,7 @@
 credential = "keychain:github"
 
 [[routing]]
-kind = "*"
+work_kind = "*"
 repo_role = "backend"
 route = "claude/sonnet"
 

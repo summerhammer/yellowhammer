@@ -144,13 +144,13 @@ struct NoPushedBranchGateTests {
         #expect(line.contains("0 of 0 Feature Branches merged"))
         #expect(line.hasSuffix(" [no pull request: backend] [no pull request: mobile]"))
 
-        try await release(world, after: context, repositories: repositories)
+        try await abandon(world, after: context, repositories: repositories)
         #expect(try world.journal.inFlightFeature() == nil)
         #expect(try world.journal.events(ofType: .featureClosedByMerge).isEmpty)
     }
 
-    /// The Feature leaves flight through the settle gesture's `released` value, as an Operator would.
-    private func release(
+    /// The Feature leaves flight through the settle gesture's `abandoned` value, as an Operator would.
+    private func abandon(
         _ world: MergeWorld, after previous: ActContext, repositories: ProjectRepositories
     ) async throws {
         let base = try nextContext(world, after: previous, repositories: repositories)
@@ -159,7 +159,7 @@ struct NoPushedBranchGateTests {
             issue: BoardObject(
                 id: BoardObjectID(rawValue: "FEAT-1"), key: "FEAT-1", title: "Feature", description: nil,
                 workflowState: BoardWorkflowState(
-                    id: BoardObjectID(rawValue: "state-released"), name: SettleValue.released.rawValue
+                    id: BoardObjectID(rawValue: "state-abandoned"), name: SettleValue.abandoned.rawValue
                 ),
                 labels: [], parent: nil, url: "https://example.com/FEAT-1",
                 createdAt: outboxEpoch, updatedAt: outboxEpoch

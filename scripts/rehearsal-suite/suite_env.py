@@ -37,8 +37,8 @@ SUITE_PROJECTS = {
 
 DEFAULT_LIMITS = {
     "review_rounds_max": 2,
-    "attempts_per_card": 3,
-    "unanswered_nights_max": 3,
+    "attempts_per_work_card": 3,
+    "overdue_nights_max": 3,
     "reselections_max": 2,
     "consecutive_refusals_max": 3,
     "failed_adoptions_max": 2,

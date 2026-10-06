@@ -150,10 +150,10 @@ Every scenario starts from a reset Project. "Journal" means a read-only snapshot
    commits stand-in work and merges Feature 2 in `fixture-backend` only. Night 4 is quiet naming only
    `fixture-web`, and records `fixture-backend` as landed. *Stories:* `feature-authoring/select-the-next-feature`, `landing/announce-a-partial-landing`.
 4. **Mid-lane block with a Partial Landing announcement rendered.** Three repositories, three Cards in
-   the `fixture-backend` lane, `attempts_per_card = 1`; the lane's middle Card answers its worker pass
+   the `fixture-backend` lane, `attempts_per_work_card = 1`; the lane's middle Card answers its worker pass
    with `worker-failed`. It ends Blocked, a lane hole is recorded, and the Card after it still runs to
    Done. Land: the Cycle lands, is returned rather than archived, and the Feature Issue's Managed Block
-   on the board leads with `partial landing · … · 1 blocked` and names the blocked Card Blocked by its
+   on the board leads with `partial · … · 1 blocked` and names the blocked Card Blocked by its
    title. *Stories:* `graph-execution/handle-a-block-mid-graph`, `landing/announce-a-partial-landing`.
 5. **Waiting on You answered before landing, and after landing (banked).** (a) The Card's worker asks
    (`worker-question`); it is Waiting on You with a recorded question; the Operator replies to the
@@ -163,10 +163,10 @@ Every scenario starts from a reset Project. "Journal" means a read-only snapshot
    (`WaitingOnYouReplyBanked`, a `banked_reply` row stamped with that Night and each repository's
    mainline commit), acknowledges it with "Nothing runs; it is recorded and travels with the Card into
    Adoption.", and the Card stays Waiting on You. *Stories:* `bounds/escalate-a-question-to-the-operator`.
-6. **`unanswered_nights_max` firing with a value of 1.** The only Card asks on Night 1 and nobody
+6. **`overdue_nights_max` firing with a value of 1.** The only Card asks on Night 1 and nobody
    answers; the suite commits stand-in work so the Feature stays in flight. Night 2 counts one unanswered
    Night and blocks nothing; Night 3 fires `CardUnansweredBoundFired` and the Card is Blocked under Block
-   Reason `unanswered` on the board, still assigned to the Operator. *Stories:* `bounds/bound-unanswered-nights`.
+   Reason `reply overdue` on the board, still assigned to the Operator. *Stories:* `bounds/bound-unanswered-nights`.
 7. **Engine invocation killed mid-Card, then reclaimed.** `fixture-backend`'s Check holds once; the suite
    waits for it to start and kills the `yh build` holding the Card Lease. The Card is In Progress with an
    open Attempt. After the ten-minute TTL, the next build Act reclaims the Act Lease and the Card Lease,

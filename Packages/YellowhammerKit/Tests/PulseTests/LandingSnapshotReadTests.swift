@@ -164,7 +164,7 @@ func landingSeededJournal() throws {
         let feature = try insertFeature(journal, issueID: "ALPHA-F")
         try insertCard(
             journal, cycleID: feature.cycleID, issueID: "ALPHA-1",
-            repository: "backend", state: .blocked, blockReason: .hardFailure
+            repository: "backend", state: .blocked, blockReason: .routeFailure
         )
         _ = try journal.claimActLease(act: .build, runID: RunID(), mode: .real, now: epoch)
         expected = try PulseSnapshot.read(from: journal, status: .working, asOf: asOf)
@@ -189,7 +189,7 @@ private func seedBlendingAlpha(_ journal: JournalStore) throws {
     let feature = try insertFeature(journal, issueID: "ALPHA-F")
     try insertCard(
         journal, cycleID: feature.cycleID, issueID: "ALPHA-1",
-        repository: "backend", state: .blocked, blockReason: .hardFailure, order: 1
+        repository: "backend", state: .blocked, blockReason: .routeFailure, order: 1
     )
     let running = try insertCard(
         journal, cycleID: feature.cycleID, issueID: "ALPHA-2",
@@ -428,7 +428,7 @@ func landingOmitsRefusedProjects() throws {
         let feature = try insertFeature(journal, issueID: "REFUSED-F")
         try insertCard(
             journal, cycleID: feature.cycleID, issueID: "REFUSED-1",
-            state: .blocked, blockReason: .hardFailure
+            state: .blocked, blockReason: .routeFailure
         )
         _ = try journal.claimActLease(act: .build, runID: RunID(), mode: .real, now: epoch)
     }
@@ -448,14 +448,14 @@ func landingOmitsRefusedProjects() throws {
 func projectContainsSelection() throws {
     var pulse = PulseSnapshot.empty
     pulse.needsYou = NeedsYou(cards: [
-        DecisionCard(id: "C-1", title: "Card", state: .blocked, blockReason: .hardFailure, repo: "backend")
+        DecisionCard(id: "C-1", title: "Card", state: .blocked, blockReason: .routeFailure, repo: "backend")
     ])
     pulse.now = Now(
         status: .working,
         nextAct: nil,
         attempts: [
             RunningAttempt(
-                id: "attempt-1", cardID: "C-2", cardTitle: "Other", repo: "backend",
+                id: "attempt-1", cardID: "C-2", workCardTitle: "Other", repo: "backend",
                 route: "claude/sonnet/medium", startedAt: epoch, round: 1, status: nil
             )
         ]

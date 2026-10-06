@@ -17,8 +17,8 @@ extension JournalStore {
     /// of either kind, count once). One write transaction under the Act-scoped Lease.
     ///
     /// A Card whose new count first exceeds `unansweredNightsMax` appends `.cardUnansweredBoundFired`
-    /// with the Block Reason its `waitingReason` implies (`unanswered` for `question`, `undecided` for
-    /// `divergence`) — this call only records that the bound fired; ``cardsPastUnansweredBound(cycleIDs:unansweredNightsMax:)``
+    /// with the Block Reason its `waitingReason` implies (`reply overdue` for `question`, `decision overdue` for
+    /// `divergence` and `overreach`) — this call only records that the bound fired; ``cardsPastUnansweredBound(cycleIDs:unansweredNightsMax:)``
     /// is what the engine actually blocks from, so an Act killed between this call and the board write
     /// is completed by the next Act rather than silently losing the block.
     @discardableResult
@@ -85,8 +85,9 @@ extension JournalStore {
         )
 
         let rawWaitingReason: String? = row["waiting_reason"]
-        let blockReason: BlockReason = rawWaitingReason == WaitingReason.divergence.rawValue
-            ? .undecided : .unanswered
+        let waitingReason = rawWaitingReason.flatMap { WaitingReason(rawValue: $0) }
+        let blockReason: BlockReason = (waitingReason == .divergence || waitingReason == .overreach)
+            ? .decisionOverdue : .replyOverdue
         let issueID: String = row["issue_id"]
         _ = try Self.insertEvent(
             db,
@@ -112,7 +113,7 @@ extension JournalStore {
     /// never spend a Night and never auto-Block (bounds/bound-unanswered-nights). A *released* Feature's
     /// Cycle is archived without ever landing (``JournalStore/archiveReleasedCycle(cycleID:...)``, roadmap
     /// P11.5), and a Card an Adoption refused sits Waiting on You right there — its lane never reopens
-    /// either way, so the clock must still advance and, past `unansweredNightsMax`, Block it `undecided`
+    /// either way, so the clock must still advance and, past `unansweredNightsMax`, Block it `decision overdue`
     /// so it becomes a candidate for Adoption again.
     public func landedCycleIDsWithWaitingOnYouCards() throws -> [Int64] {
         try read { db in

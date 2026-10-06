@@ -148,11 +148,11 @@ struct FeatureRollUpBlockTests {
     @Test("Blocked Card with a block reason renders the reason suffix")
     func blockedReasonSuffix() {
         let rollUp = FeatureRollUp(
-            members: [member("A", repo: "backend", order: 0, state: .blocked, blockReason: "blocked by check")],
+            members: [member("A", repo: "backend", order: 0, state: .blocked, blockReason: "check failure")],
             lanesPushed: false, verificationPassed: false, mergedFraction: noMerge(), issueStanding: .authoring
         )
         let rendered = FeatureRollUpBlock(rollUp: rollUp).render()
-        #expect(rendered.contains("- `A` — Blocked (blocked by check)"))
+        #expect(rendered.contains("- `A` — Blocked (check failure)"))
     }
 
     @Test("Cancelled Cards render in a trailing group, sorted by repository then authoredOrder")
@@ -202,13 +202,13 @@ struct FeatureRollUpBlockTests {
             members: [
                 member(
                     "A", title: "Fix the login bug", repo: "backend", order: 0, state: .blocked,
-                    blockReason: "blocked by check"
+                    blockReason: "check failure"
                 )
             ],
             lanesPushed: false, verificationPassed: false, mergedFraction: noMerge(), issueStanding: .authoring
         )
         let rendered = FeatureRollUpBlock(rollUp: rollUp).render()
-        #expect(rendered.contains("- Fix the login bug — Blocked (blocked by check)"))
+        #expect(rendered.contains("- Fix the login bug — Blocked (check failure)"))
         #expect(!rendered.contains("`A`"))
     }
 

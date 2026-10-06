@@ -7,7 +7,7 @@ import Testing
 @Suite("Project Bounds write")
 struct ProjectBoundsWriteTests {
     private func changedBounds() -> Bounds {
-        Bounds(reviewRoundsMax: 4, attemptsPerCard: 5)
+        Bounds(reviewRoundsMax: 4, attemptsPerWorkCard: 5)
     }
 
     @Test("Changed Bounds are saved and reload")
@@ -36,7 +36,7 @@ struct ProjectBoundsWriteTests {
         let original = try String(contentsOf: file, encoding: .utf8)
 
         var draft = ProjectFileDraft(project)
-        draft.bounds = BoundsDraft(Bounds(attemptsPerCard: 0))
+        draft.bounds = BoundsDraft(Bounds(attemptsPerWorkCard: 0))
         #expect(throws: ConfigurationEditError.self) {
             try Configuration.save(draft.renderedTOML, to: file, in: directory, replacing: original)
         }

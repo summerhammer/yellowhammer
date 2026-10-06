@@ -25,74 +25,74 @@ private func outcome(of report: ProvisioningReport, _ state: String) -> Provisio
 }
 
 private let keptInFlight = SettleValue.keptInFlight.rawValue
-private let released = SettleValue.released.rawValue
+private let abandoned = SettleValue.abandoned.rawValue
 private let waitingOnYou = BoardProvisioner.waitingOnYouState
 
 @Suite("Board provisioning: settle workflow states")
 struct BoardProvisionerSettleStateTests {
-    @Test("A bare team gets Kept in Flight and Released created with category started")
+    @Test("A bare team gets Kept in Flight and Abandoned created with category started")
     func settleStatesAreCreatedStarted() async throws {
         let board = board()
         let report = try await provision(board)
 
         #expect(outcome(of: report, keptInFlight) == .created)
-        #expect(outcome(of: report, released) == .created)
+        #expect(outcome(of: report, abandoned) == .created)
         let states = try await board.workflowStates(team: engineering.id)
         let keptInFlightState = try #require(states.first { $0.name == SettleValue.keptInFlight.rawValue })
-        let releasedState = try #require(states.first { $0.name == SettleValue.released.rawValue })
+        let abandonedState = try #require(states.first { $0.name == SettleValue.abandoned.rawValue })
         #expect(keptInFlightState.category == .started)
-        #expect(releasedState.category == .started)
+        #expect(abandonedState.category == .started)
     }
 
-    @Test("An existing released of category started, lowercase, is present, not created again")
-    func releasedMatchesCaseInsensitivelyWhenStarted() async throws {
+    @Test("An existing abandoned of category started, lowercase, is present, not created again")
+    func abandonedMatchesCaseInsensitivelyWhenStarted() async throws {
         let board = board()
-        await board.seed(state: "released", team: engineering.id, category: .started)
+        await board.seed(state: "abandoned", team: engineering.id, category: .started)
 
         let report = try await provision(board)
 
-        #expect(outcome(of: report, released) == .present)
+        #expect(outcome(of: report, abandoned) == .present)
         #expect(outcome(of: report, keptInFlight) == .created)
     }
 
-    @Test("An existing Released of category completed is a collision, nothing named Released is created")
-    func releasedOfAnotherTypeCollides() async throws {
+    @Test("An existing Abandoned of category completed is a collision, nothing named Abandoned is created")
+    func abandonedOfAnotherTypeCollides() async throws {
         let board = board()
-        await board.seed(state: "Released", team: engineering.id, category: .completed)
+        await board.seed(state: "Abandoned", team: engineering.id, category: .completed)
 
         let report = try await provision(board)
 
-        #expect(outcome(of: report, released) == .collision("team"))
+        #expect(outcome(of: report, abandoned) == .collision("team"))
         #expect(outcome(of: report, keptInFlight) == .created)
         let states = try await board.workflowStates(team: engineering.id)
-        #expect(states.filter { $0.name == "Released" }.count == 1)
-        #expect(states.first { $0.name == "Released" }?.category == .completed)
+        #expect(states.filter { $0.name == "Abandoned" }.count == 1)
+        #expect(states.first { $0.name == "Abandoned" }?.category == .completed)
 
         let second = try await provision(board)
-        #expect(outcome(of: second, released) == .collision("team"))
+        #expect(outcome(of: second, abandoned) == .collision("team"))
         let statesAfterSecond = try await board.workflowStates(team: engineering.id)
-        #expect(statesAfterSecond.filter { $0.name == "Released" }.count == 1)
+        #expect(statesAfterSecond.filter { $0.name == "Abandoned" }.count == 1)
     }
 
-    @Test("A Released of type started and a Released of type completed both existing is still a collision")
-    func releasedCollidesWhenBothTypesExist() async throws {
+    @Test("An Abandoned of type started and an Abandoned of type completed both existing is still a collision")
+    func abandonedCollidesWhenBothTypesExist() async throws {
         let board = board()
-        await board.seed(state: "Released", team: engineering.id, category: .started)
-        await board.seed(state: "Released", team: engineering.id, category: .completed)
+        await board.seed(state: "Abandoned", team: engineering.id, category: .started)
+        await board.seed(state: "Abandoned", team: engineering.id, category: .completed)
 
         let report = try await provision(board)
 
-        #expect(outcome(of: report, released) == .collision("team"))
+        #expect(outcome(of: report, abandoned) == .collision("team"))
     }
 
     @Test("An existing same-name state with nil category is a collision")
     func sameNameStateWithNilCategoryCollides() async throws {
         let board = board()
-        await board.seed(state: "Released", team: engineering.id, category: nil)
+        await board.seed(state: "Abandoned", team: engineering.id, category: nil)
 
         let report = try await provision(board)
 
-        #expect(outcome(of: report, released) == .collision("team"))
+        #expect(outcome(of: report, abandoned) == .collision("team"))
     }
 
     @Test("The same (name, type) guard applies to Waiting on You too")

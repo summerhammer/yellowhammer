@@ -92,7 +92,7 @@ public struct ManagedBlockMaintenance: Sendable {
         let doDClauses = try journal.clauses(issueID: card.issueID).map { DoDClause($0) }
         let laneLength = try journal.repoLaneLength(cycleID: card.cycleID, repository: card.repository)
         let scope = try journal.declaredScope(cardID: card.id)
-        // This maintenance holds no configuration, so `attempts_per_card` never reaches the Managed
+        // This maintenance holds no configuration, so `attempts_per_work_card` never reaches the Managed
         // Block's rendering (roadmap P8.7): the consumption account renders without a Bound to compare it
         // to, rather than plumbing configuration through a layer built to hold none.
         let consumption = attempts.isEmpty ? nil : history.consumption(inEpoch: card.budgetEpoch)
@@ -109,7 +109,7 @@ public struct ManagedBlockMaintenance: Sendable {
             definitionOfDone: doDClauses,
             attempts: attempts,
             attemptConsumption: consumption,
-            triagePromotion: try triagePromotion(card: card),
+            failureRecurrence: try failureRecurrence(card: card),
             adoptionRefusalNotice: try adoptionRefusalNotice(card: card),
             unadoptedStanding: try unadoptedStanding(card: card)
         )
@@ -140,13 +140,15 @@ public struct ManagedBlockMaintenance: Sendable {
         return AdoptionRefusalNotice(featureName: refusal.featureName, staleBlocks: refusal.staleBlocks)
     }
 
-    /// The promotion to show on the Card: only while it is Blocked, and only when the failure cause the
-    /// Journal recorded last against it had recurred across separate Nights (roadmap P8.8).
-    private func triagePromotion(card: CardRecord) throws -> TriagePromotion? {
-        guard card.state == .blocked, let last = try journal.lastRecordedFailureCause(cardID: card.id),
-              last.hasRecurred else {
+    /// The recurrence to show on the Card: only while it is Blocked under `failure recurrence`, naming the
+    /// failure cause the Journal recorded last against it (roadmap P8.8; OQ127). Keyed on the Block
+    /// Reason, not on the cause having recurred: the count never resets, so a Card Blocked later on
+    /// another reason must not carry the line.
+    private func failureRecurrence(card: CardRecord) throws -> FailureRecurrence? {
+        guard card.state == .blocked, card.blockReason == BlockReason.failureRecurrence.rawValue,
+              let last = try journal.lastRecordedFailureCause(cardID: card.id) else {
             return nil
         }
-        return TriagePromotion(cause: last.summary, nights: last.recurrenceCount)
+        return FailureRecurrence(cause: last.summary, nights: last.recurrenceCount)
     }
 }

@@ -29,7 +29,7 @@ struct CardRunAttemptTests {
         let resetting = RecordingAttemptResetting(log: log)
         let run = CardRun(
             resolver: twoRouteResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
             resetting: resetting
         )
 
@@ -82,7 +82,7 @@ struct CardRunAttemptTests {
         let dispatch = SequencedDispatch(log: log, sequences: [.worker: [.workerFailed, .workerFailed]])
         let run = CardRun(
             resolver: twoRouteResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 2,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 2,
             resetting: RecordingAttemptResetting()
         )
 
@@ -95,7 +95,7 @@ struct CardRunAttemptTests {
         #expect(attempts.map(\.route) == [cardRunOpus, cardRunFallback])
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.hardFailure.rawValue)
+        #expect(card.blockReason == BlockReason.routeFailure.rawValue)
         let steps = try cardRunLog(world.journal)
         #expect(steps.contains(CardRunStep.attemptsExhausted.rawValue))
     }
@@ -109,7 +109,7 @@ struct CardRunAttemptTests {
         let log = CallLog()
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log, script: [.worker: .workerFailed]),
-            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
             resetting: RecordingAttemptResetting()
         )
 
@@ -120,7 +120,7 @@ struct CardRunAttemptTests {
         #expect(attempts[0].result == "hard failure")
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.hardFailure.rawValue)
+        #expect(card.blockReason == BlockReason.routeFailure.rawValue)
         let steps = try cardRunLog(world.journal)
         #expect(!steps.contains(CardRunStep.attemptsExhausted.rawValue))
     }
@@ -134,7 +134,7 @@ struct CardRunAttemptTests {
         let log = CallLog()
         let run = CardRun(
             resolver: twoRouteResolver(), dispatch: LoggingDispatch(log: log, script: [.worker: .workerEmpty]),
-            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 2,
+            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 2,
             resetting: RecordingAttemptResetting()
         )
 
@@ -146,7 +146,7 @@ struct CardRunAttemptTests {
         #expect(try world.journal.excludedRoutes(cardID: try #require(world.cardIDs["BACK-1"])).isEmpty)
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        // The final Attempt of the epoch ended Crashed-Unknown: `host crash`, not `hard failure`.
+        // The final Attempt of the epoch ended Crashed-Unknown: `host crash`, not `route failure`.
         #expect(card.blockReason == BlockReason.hostCrash.rawValue)
 
         let consumption = try world.journal.attemptHistory(cardID: try #require(world.cardIDs["BACK-1"]))
@@ -155,9 +155,9 @@ struct CardRunAttemptTests {
         #expect(consumption.routesFailed == 0)
     }
 
-    // MARK: - d'. a prior Attempt the engine stopped blocks `engine stop`, not `host crash` (OQ92)
+    // MARK: - d'. a prior Attempt the engine stopped blocks `engine fault`, not `host crash` (OQ92)
 
-    @Test("A prior Attempt the engine stopped, with the budget already spent, Blocks engine stop, not host crash")
+    @Test("A prior Attempt the engine stopped, with the budget already spent, Blocks engine fault, not host crash")
     func priorEngineStoppedAttemptBlocksEngineStop() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
@@ -174,7 +174,7 @@ struct CardRunAttemptTests {
         )
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log, script: .empty),
-            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 1,
+            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 1,
             resetting: RecordingAttemptResetting(log: log)
         )
 
@@ -185,7 +185,7 @@ struct CardRunAttemptTests {
         #expect(log.all == ["reset"])
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.engineStop.rawValue)
+        #expect(card.blockReason == BlockReason.engineFault.rawValue)
         let steps = try cardRunLog(world.journal)
         #expect(steps.contains(CardRunStep.attemptsExhausted.rawValue))
     }
@@ -202,7 +202,7 @@ struct CardRunAttemptTests {
         )
         let run = CardRun(
             resolver: twoRouteResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 1, attemptsPerCard: 2,
+            checks: ["backend": .none], reviewRoundsMax: 1, attemptsPerWorkCard: 2,
             resetting: RecordingAttemptResetting()
         )
 
@@ -216,7 +216,7 @@ struct CardRunAttemptTests {
         #expect(attempts.allSatisfy { $0.rounds.count == 1 })
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.blockedByReviewer.rawValue)
+        #expect(card.blockReason == BlockReason.reviewerRejection.rawValue)
     }
 
     // MARK: - f. a question consumes nothing and never retries
@@ -228,7 +228,7 @@ struct CardRunAttemptTests {
         let log = CallLog()
         let firstRun = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log, script: [.worker: .workerQuestion]),
-            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 1,
+            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 1,
             resetting: RecordingAttemptResetting()
         )
 
@@ -242,11 +242,12 @@ struct CardRunAttemptTests {
         #expect(firstCard.state == .waitingOnYou)
         #expect(firstCard.waitingReason == .question)
 
-        // attemptsPerCard=1, but the question consumed none of it: the next run still dispatches.
+        // attemptsPerWorkCard=1, but the question consumed none of it: the next run still dispatches.
         let secondLog = CallLog()
         let secondRun = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: secondLog),
-            check: RecordingCheck(log: secondLog), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 1,
+            check: RecordingCheck(log: secondLog), checks: ["backend": .none], reviewRoundsMax: 2,
+            attemptsPerWorkCard: 1,
             resetting: RecordingAttemptResetting()
         )
         try await secondRun.run("BACK-1", in: world)
@@ -275,7 +276,7 @@ struct CardRunAttemptTests {
         let resetLog = CallLog()
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log), check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 2,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 2,
             resetting: RecordingAttemptResetting(log: resetLog)
         )
 
@@ -288,7 +289,7 @@ struct CardRunAttemptTests {
         #expect(try world.attempts("BACK-1").count == 2)
         let card = try world.card("BACK-1")
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.hardFailure.rawValue)
+        #expect(card.blockReason == BlockReason.routeFailure.rawValue)
         #expect(try cardRunLog(world.journal).contains(CardRunStep.attemptsExhausted.rawValue))
 
         // A fresh budget epoch (an Override pin change in triage, in the product) lets the Card dispatch.
@@ -303,7 +304,8 @@ struct CardRunAttemptTests {
         let secondLog = CallLog()
         let secondRun = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: secondLog),
-            check: RecordingCheck(log: secondLog), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 2,
+            check: RecordingCheck(log: secondLog), checks: ["backend": .none], reviewRoundsMax: 2,
+            attemptsPerWorkCard: 2,
             resetting: RecordingAttemptResetting()
         )
         try await secondRun.run("BACK-1", in: world)

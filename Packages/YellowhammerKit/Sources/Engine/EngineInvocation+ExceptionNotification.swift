@@ -17,7 +17,7 @@ extension EngineInvocation {
 
     /// The Act's first Linear call, before the Night Card, the trigger, or any work (roadmap P17.5) —
     /// so a refused identity halts before any board work is attempted, and this Night spends none of
-    /// `unanswered_nights_max` (no clock has advanced yet). A non-auth failure here (network, etc.) is
+    /// `overdue_nights_max` (no clock has advanced yet). A non-auth failure here (network, etc.) is
     /// not treated as a halt: it is ignored, and the Night Card open right after this call meets the
     /// same error on its own terms.
     func authorizationPreflight() async throws {

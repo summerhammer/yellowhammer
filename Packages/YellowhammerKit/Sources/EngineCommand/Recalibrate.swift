@@ -29,7 +29,7 @@ struct Recalibrate {
 
         let bounds = NightCardMaintenance.Bounds(
             reviewRoundsMax: project.bounds.reviewRoundsMax,
-            attemptsPerCard: project.bounds.attemptsPerCard,
+            attemptsPerWorkCard: project.bounds.attemptsPerWorkCard,
             unansweredNightsMax: project.bounds.unansweredNightsMax,
             reselectionsMax: project.bounds.reselectionsMax,
             consecutiveRefusalsMax: project.bounds.consecutiveRefusalsMax,
@@ -81,8 +81,8 @@ struct Recalibrate {
     private static func value(name: String, bounds: NightCardMaintenance.Bounds) -> Int {
         switch name {
         case "review_rounds_max": return bounds.reviewRoundsMax
-        case "attempts_per_card": return bounds.attemptsPerCard
-        case "unanswered_nights_max": return bounds.unansweredNightsMax
+        case "attempts_per_work_card": return bounds.attemptsPerWorkCard
+        case "overdue_nights_max": return bounds.unansweredNightsMax
         case "reselections_max": return bounds.reselectionsMax
         case "consecutive_refusals_max": return bounds.consecutiveRefusalsMax
         default: return bounds.failedAdoptionsMax
@@ -99,9 +99,9 @@ struct Recalibrate {
     /// Every Bound's consequence, in the same six-Bound order ``BoundProximity`` reports.
     private static let consequences: [Consequence] = [
         Consequence(name: "review_rounds_max", shape: "stops", wording: "stops work on a Card"),
-        Consequence(name: "attempts_per_card", shape: "stops", wording: "stops work on a Card"),
+        Consequence(name: "attempts_per_work_card", shape: "stops", wording: "stops work on a Card"),
         Consequence(
-            name: "unanswered_nights_max", shape: "stops", wording: "stops an unanswered Card's remaining work"
+            name: "overdue_nights_max", shape: "stops", wording: "stops an unanswered Card's remaining work"
         ),
         Consequence(name: "reselections_max", shape: "stops", wording: "stops the Night's authoring"),
         Consequence(name: "consecutive_refusals_max", shape: "promotes", wording: "promotes to a standing item"),

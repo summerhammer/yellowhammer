@@ -142,11 +142,12 @@ struct ConfigurationDecoding {
     }
 
     func routingEntry(_ table: TOMLTable, path: String) throws(ConfigurationError) -> RoutingEntry {
-        try rejectUnknownKeys(in: table, path: path, allowed: ["kind", "repo_role", "route", "fallbacks"])
+        try rejectUnknownKeys(in: table, path: path, allowed: ["work_kind", "repo_role", "route", "fallbacks"])
         var kind = Kind.any
-        if let string = try optionalString("kind", in: table, path: path, allowEmpty: true) {
+        if let string = try optionalString("work_kind", in: table, path: path, allowEmpty: true) {
             guard let parsed = Kind(string) else {
-                throw error(line: table["kind"]?.line ?? table.line, key: "\(path).kind", .invalidKind(string))
+                throw error(line: table["work_kind"]?.line ?? table.line, key: "\(path).work_kind",
+                    .invalidKind(string))
             }
             kind = parsed
         }
