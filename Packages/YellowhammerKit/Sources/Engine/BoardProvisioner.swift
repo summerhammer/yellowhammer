@@ -32,9 +32,9 @@ public struct BoardProvisioner {
     /// The workflow state for blocked work.
     public static let blockedState = "Blocked"
 
-    /// Object type label group and its children.
-    public static let objectTypeGroup = "Object Type"
-    public static let objectTypeChildren = ["Feature", "Card", "Night Card"]
+    /// Card type label group and its children.
+    public static let cardTypeGroup = "Card Type"
+    public static let cardTypeChildren = CardType.allCases.map(\.rawValue)
 
     /// Block Reason label group and its children.
     public static let blockReasonGroup = "Block Reason"
@@ -49,7 +49,7 @@ public struct BoardProvisioner {
 
     /// The label groups provisioned for every Project.
     private static let labelGroups = [
-        LabelGroupDeclaration(name: objectTypeGroup, children: objectTypeChildren),
+        LabelGroupDeclaration(name: cardTypeGroup, children: cardTypeChildren),
         LabelGroupDeclaration(name: blockReasonGroup, children: blockReasonChildren)
     ]
 

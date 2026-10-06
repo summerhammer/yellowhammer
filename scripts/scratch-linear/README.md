@@ -43,8 +43,8 @@ points at are P15.2's concern, not this tool's.
      `Blocked`, `Kept in Flight` and `Released`, all under **Started**. A same-named state in
      another category (such as `Released` under Completed) is a collision and is never used.
      Whether team membership also lifts this refusal is unconfirmed (yellowhammer-spec#58).
-   - A workspace label named `Feature` (one of Linear's defaults) collides with the `Object Type`
-     group's `Feature`. Rename or delete it in the scratch workspace.
+   - The `Card Type` group provisions `Feature Card`, `Work Card`, and `Night Card`, none of
+     which collides with Linear's default `Feature` workspace label (OQ125).
 
 3. For each rehearsing Project, generate its configuration and provision its Linear project inside
    the scratch team with `yh setup --init --installation <name>` (`Packages/YellowhammerKit/Sources/EngineCommand/
@@ -68,7 +68,7 @@ points at are P15.2's concern, not this tool's.
 
    This writes `[board.linear]` with `installation` and `project` in the Project file, and creates the
    Linear project inside team `SCRATCH` (since `--linear-project` was not given)
-   and runs `Engine.BoardProvisioner` for it (workflow states, the `Object Type` and `Block Reason`
+   and runs `Engine.BoardProvisioner` for it (workflow states, the `Card Type` and `Block Reason`
    label groups — P5.3). Re-running the same `yh setup --init` keeps the existing Project file
    (so no second Linear project is created) and provisioning reports no changes.
 
