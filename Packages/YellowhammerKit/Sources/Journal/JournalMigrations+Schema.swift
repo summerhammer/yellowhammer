@@ -96,7 +96,7 @@ extension JournalMigrations {
             table.column("authored_order", .integer).notNull()
             table.column("state", .text).notNull()
             table.column("waiting_reason", .text)
-                .check(sql: "waiting_reason IN ('question','divergence')")
+                .check(sql: "waiting_reason IN ('question','divergence','overreach')")
             table.column("block_reason", .text)
             table.column("budget_epoch", .integer).notNull().defaults(to: 0)
             table.column("consecutive_divergences", .integer).notNull().defaults(to: 0)

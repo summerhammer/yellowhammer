@@ -59,12 +59,12 @@ extension ReadinessCheck {
     }
 
     /// A Card scoped onto a protected path is refused before dispatch: moved to Waiting on You,
-    /// carrying the protected path as its reason, with no Attempt recorded (P8.3).
+    /// carrying `overreach` as its reason, with no Attempt recorded (P8.3; OQ89, OQ128).
     func recordRefusal(
         match: ProtectedPathRefusal, card: CardRecord, context: BuildActContext
     ) async throws -> ReadinessVerdict {
         let journal = context.act.journal
-        let record = try await transitionToWaitingOnYou(reason: .question, card: card, context: context)
+        let record = try await transitionToWaitingOnYou(reason: .overreach, card: card, context: context)
 
         try journal.append(
             .protectedPathRefused(

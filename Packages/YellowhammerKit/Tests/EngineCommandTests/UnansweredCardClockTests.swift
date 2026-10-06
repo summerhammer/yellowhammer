@@ -137,6 +137,25 @@ struct UnansweredCardClockTests {
         #expect(card.blockReason == BlockReason.decisionOverdue.rawValue)
     }
 
+    @Test("Overreach route: the bound fires `decision overdue`, never `reply overdue`")
+    func overreachRouteBlocksDecisionOverdue() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let world = try await makeReplyWorld(journal: journal, waitingReason: .overreach)
+
+        let night2 = try world.openNight(NightStart(rawValue: "2026-09-21")!)
+        let context2 = world.context(night: night2, reading: FakeReadingBoard([]))
+        try await UnansweredCardClock.run(cycleIDs: [world.cycleID], unansweredNightsMax: 1, context: context2)
+
+        let night3 = try world.openNight(NightStart(rawValue: "2026-09-22")!)
+        let context3 = world.context(night: night3, reading: FakeReadingBoard([]))
+        try await UnansweredCardClock.run(cycleIDs: [world.cycleID], unansweredNightsMax: 1, context: context3)
+
+        let card = try world.card()
+        #expect(card.state == .blocked)
+        #expect(card.blockReason == BlockReason.decisionOverdue.rawValue)
+    }
+
     @Test("A Partial Landing's unanswered Card spends its Nights through the author Act and auto-Blocks")
     func partialLandingCardAdvancesThroughAuthorAct() async throws {
         let fixture = try OutboxJournalFixture()

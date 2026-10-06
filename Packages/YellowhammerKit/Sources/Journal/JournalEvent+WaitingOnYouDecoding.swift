@@ -1,8 +1,8 @@
 import Domain
 import Foundation
 
-// The decode and payload helpers of the two events that put a Card in Waiting on You under
-// `waiting_reason = question` — the protected-path refusal (P8.3) and the worker's question (P11.1) —
+// The decode and payload helpers of the two events that put a Card in Waiting on You — the protected-path
+// refusal (P8.3, `waiting_reason = overreach`) and the worker's question (P11.1, `waiting_reason = question`) —
 // split out of JournalEvent+Decoding.swift and JournalEvent+Payload.swift to keep those files under the
 // file length limit, as the settle gesture's are in JournalEvent+SettleDecoding.swift.
 

@@ -18,7 +18,7 @@ extension JournalStore {
     ///
     /// A Card whose new count first exceeds `unansweredNightsMax` appends `.cardUnansweredBoundFired`
     /// with the Block Reason its `waitingReason` implies (`reply overdue` for `question`, `decision overdue` for
-    /// `divergence`) — this call only records that the bound fired; ``cardsPastUnansweredBound(cycleIDs:unansweredNightsMax:)``
+    /// `divergence` and `overreach`) — this call only records that the bound fired; ``cardsPastUnansweredBound(cycleIDs:unansweredNightsMax:)``
     /// is what the engine actually blocks from, so an Act killed between this call and the board write
     /// is completed by the next Act rather than silently losing the block.
     @discardableResult
@@ -85,7 +85,8 @@ extension JournalStore {
         )
 
         let rawWaitingReason: String? = row["waiting_reason"]
-        let blockReason: BlockReason = rawWaitingReason == WaitingReason.divergence.rawValue
+        let waitingReason = rawWaitingReason.flatMap { WaitingReason(rawValue: $0) }
+        let blockReason: BlockReason = (waitingReason == .divergence || waitingReason == .overreach)
             ? .decisionOverdue : .replyOverdue
         let issueID: String = row["issue_id"]
         _ = try Self.insertEvent(
