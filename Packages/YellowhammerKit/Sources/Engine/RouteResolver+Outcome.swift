@@ -6,7 +6,7 @@ public enum RouteResolution: Equatable, Sendable {
     /// A Route was selected and survived the filters: the Attempt is recorded on it.
     case resolved(ResolvedRoute)
     /// Zero candidates remain — fallbacks exhausted. The Card moves to Blocked with Block Reason
-    /// `hard failure`, no Attempt is recorded, and its Repo Lane moves on (OQ13).
+    /// `route failure`, no Attempt is recorded, and its Repo Lane moves on (OQ13).
     case exhausted(RouteExhaustion)
     /// The Operator's Override cannot resolve, or pins a CLI that failed its Probe: a Readiness Check
     /// failure, never a silent fallthrough (G-17). No Attempt, and the Card's state is untouched.

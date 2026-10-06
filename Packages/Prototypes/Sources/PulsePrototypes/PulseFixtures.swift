@@ -265,7 +265,8 @@ enum PulseFixtures {
     ]
 
     static let blockReasonCycle: [BlockReason] = [
-        .blockedByReviewer, .blockedByCheck, .hardFailure, .blockedByReviewer, .hostCrash, .unanswered, .undecided
+        .reviewerRejection, .checkFailure, .routeFailure, .reviewerRejection, .hostCrash,
+        .replyOverdue, .decisionOverdue
     ]
 
     static let attemptStatuses = [

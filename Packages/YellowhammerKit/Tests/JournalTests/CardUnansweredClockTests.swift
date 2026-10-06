@@ -117,7 +117,7 @@ struct CardUnansweredClockTests {
         #expect(try world.card().state == .waitingOnYou)
     }
 
-    @Test("A second qualifying Night exceeds the bound: the Card is named, with the `unanswered` reason")
+    @Test("A second qualifying Night exceeds the bound: the Card is named, with the `reply overdue` reason")
     func secondNightExceedsBoundOnQuestionRoute() throws {
         let fixture = try JournalFixture()
         let world = try ClockWorld(try fixture.open(), waitingReason: .question)
@@ -153,10 +153,10 @@ struct CardUnansweredClockTests {
         #expect(issueID == "ENG-1")
         #expect(unansweredNights == 2)
         #expect(bound == 1)
-        #expect(blockReason == "unanswered")
+        #expect(blockReason == "reply overdue")
     }
 
-    @Test("On the divergence route the bound fires with `undecided`, never `unanswered`")
+    @Test("On the divergence route the bound fires with `decision overdue`, never `reply overdue`")
     func divergenceRouteFiresUndecided() throws {
         let fixture = try JournalFixture()
         let world = try ClockWorld(try fixture.open(), waitingReason: .divergence)
@@ -177,7 +177,7 @@ struct CardUnansweredClockTests {
             Issue.record("expected cardUnansweredBoundFired")
             return
         }
-        #expect(blockReason == "undecided")
+        #expect(blockReason == "decision overdue")
     }
 
     @Test("Advancing twice for the same Night (author and build Acts) counts once")

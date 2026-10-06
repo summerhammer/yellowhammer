@@ -81,7 +81,7 @@ struct FeatureSettleGestureTests {
         // The Waiting on You Card was auto-Blocked unanswered, its counters untouched.
         let waiting = try world.journal.card(id: world.waitingCardID)
         #expect(waiting.state == .blocked)
-        #expect(waiting.blockReason == BlockReason.unanswered.rawValue)
+        #expect(waiting.blockReason == BlockReason.replyOverdue.rawValue)
         #expect(waiting.budgetEpoch == 2)
 
         // Both Blocked Cards are detached; Done and Cancelled are untouched.
@@ -153,7 +153,7 @@ struct FeatureSettleGestureTests {
 
         try world.journal.releaseCardLease(cardID: active.todo, runID: holder)
         try await gesture.settle(feature: try inFlightFeature(world), cycleID: world.cycleID, context: context)
-        #expect(try world.journal.card(id: active.todo).blockReason == BlockReason.released.rawValue)
+        #expect(try world.journal.card(id: active.todo).blockReason == BlockReason.featureAbandoned.rawValue)
         #expect(try world.journal.events(ofType: .featureReleased).count == 1)
     }
 
@@ -265,7 +265,7 @@ private func assertReleasedActiveCards(
     for (cardID, epoch) in [(active.todo, 3), (active.inProgress, 4)] {
         let card = try world.journal.card(id: cardID)
         #expect(card.state == .blocked)
-        #expect(card.blockReason == BlockReason.released.rawValue)
+        #expect(card.blockReason == BlockReason.featureAbandoned.rawValue)
         #expect(card.budgetEpoch == epoch)
         #expect(card.stateVersion == 1)
         #expect(card.boardStateVersion == card.stateVersion)
@@ -277,7 +277,7 @@ private func assertReleasedActiveCards(
     #expect(try world.journal.attemptSummary(cardID: active.inProgress).roundCount == 1)
     #expect(comment.contains("BACK-3"))
     #expect(comment.contains("MOB-3"))
-    #expect(comment.contains(BlockReason.released.rawValue))
+    #expect(comment.contains(BlockReason.featureAbandoned.rawValue))
 
     let adoptable = try world.journal.blockedCardsLeftByClosedFeatures().map(\.issueID)
     #expect(adoptable.contains("BACK-3"))
@@ -360,7 +360,7 @@ struct SettleCommentRenderingTests {
     @Test("The release comment names carried-forward Cards, accepted Cards and abandoned repositories")
     func releaseCommentNamesEverything() {
         let comment = FeatureReleaseComment(
-            carriedForward: [.init(issueID: "BACK-2", blockReason: .unanswered)],
+            carriedForward: [.init(issueID: "BACK-2", blockReason: .replyOverdue)],
             acceptedCards: ["BACK-1"], abandonedRepositories: ["backend"],
             triagedNightStart: NightStart(rawValue: "2026-09-10")!
         )

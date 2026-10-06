@@ -7,7 +7,7 @@ import XCTest
 /// This bundle links no Journal module and cannot build a Journal at test time, so the Journal is
 /// `Fixtures/archive.db`, written and kept at the current schema by `PulseUITestJournalTests` in
 /// `PulseTests`. Its seed is the contract the identifiers below rely on: Feature `ARC-10` with one Repo
-/// Lane, `archive`, and pull request #42; `ARC-11` Blocked (hard failure) with one ended Attempt;
+/// Lane, `archive`, and pull request #42; `ARC-11` Blocked (route failure) with one ended Attempt;
 /// `ARC-12` Waiting on You; `ARC-13` with the one running Attempt, `2`; `ARC-14` Done; and a running
 /// Night with Night Card `ARC-20`. Each issue's Journal id is a Linear issue UUID (``issueID(_:)``), and
 /// its `ARC-n` identifier and Linear URL are recorded beside it.
@@ -69,7 +69,7 @@ final class PulseJournalUITests: XCTestCase {
         XCTAssertFalse(element("needs-you-absence").exists)
         let counts = text(of: "needs-you-counts")
         XCTAssertTrue(counts.contains("1 Waiting on You"), "needs-you-counts is \u{201C}\(counts)\u{201D}")
-        XCTAssertTrue(counts.contains("1 hard failure"), "needs-you-counts is \u{201C}\(counts)\u{201D}")
+        XCTAssertTrue(counts.contains("1 route failure"), "needs-you-counts is \u{201C}\(counts)\u{201D}")
     }
 
     func testNowListsTheRunningAttempt() {

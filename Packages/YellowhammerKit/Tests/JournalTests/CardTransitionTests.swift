@@ -77,12 +77,12 @@ struct CardTransitionTests {
         let (cardID, runID) = try fixtureCard(journal)
 
         let record = try journal.transitionCard(
-            cardID: cardID, to: .blocked, blockReason: .blockedByCheck,
+            cardID: cardID, to: .blocked, blockReason: .checkFailure,
             runID: runID, act: .build, nightID: nil, now: epoch
         )
 
         #expect(record.state == .blocked)
-        #expect(record.blockReason == BlockReason.blockedByCheck.rawValue)
+        #expect(record.blockReason == BlockReason.checkFailure.rawValue)
         #expect(record.stateVersion == 1)
         #expect(record.boardStateVersion == nil)
 
@@ -97,7 +97,7 @@ struct CardTransitionTests {
         #expect(from == .todo)
         #expect(to == .blocked)
         #expect(waiting == nil)
-        #expect(blocked == .blockedByCheck)
+        #expect(blocked == .checkFailure)
     }
 
     @Test("A no-op transition — same state, same reasons — bumps nothing and logs nothing")
@@ -106,12 +106,12 @@ struct CardTransitionTests {
         let journal = try fixture.open()
         let (cardID, runID) = try fixtureCard(journal)
         let first = try journal.transitionCard(
-            cardID: cardID, to: .blocked, blockReason: .blockedByCheck,
+            cardID: cardID, to: .blocked, blockReason: .checkFailure,
             runID: runID, act: .build, nightID: nil, now: epoch
         )
 
         let second = try journal.transitionCard(
-            cardID: cardID, to: .blocked, blockReason: .blockedByCheck,
+            cardID: cardID, to: .blocked, blockReason: .checkFailure,
             runID: runID, act: .build, nightID: nil, now: epoch
         )
 
@@ -195,7 +195,7 @@ struct CardTransitionTests {
         let journal = try fixture.open()
         let (cardID, runID) = try fixtureCard(journal)
         _ = try journal.transitionCard(
-            cardID: cardID, to: .blocked, blockReason: .blockedByReviewer,
+            cardID: cardID, to: .blocked, blockReason: .reviewerRejection,
             runID: runID, act: .build, nightID: nil, now: epoch
         )
 
@@ -218,12 +218,12 @@ struct CardTransitionTests {
         )
 
         let record = try journal.transitionCard(
-            cardID: cardID, to: .blocked, blockReason: .unanswered,
+            cardID: cardID, to: .blocked, blockReason: .replyOverdue,
             runID: runID, act: .build, nightID: nil, now: epoch
         )
 
         #expect(record.waitingReason == nil)
-        #expect(record.blockReason == BlockReason.unanswered.rawValue)
+        #expect(record.blockReason == BlockReason.replyOverdue.rawValue)
     }
 
     @Test("cardsWithUnpostedState and recordCardBoardState round-trip the board's confirmation")

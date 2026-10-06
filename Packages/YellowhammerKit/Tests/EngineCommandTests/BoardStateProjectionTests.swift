@@ -48,11 +48,11 @@ struct BoardStateProjectionTests {
         #expect(issueState.workflowState == scope.states[.inProgress])
         #expect(issueState.labels == [boards.ids[CardType.workCard.rawValue]!])
 
-        // → Blocked(blockedByCheck): exactly that Block Reason label, assignee untouched.
-        record = try await post(projection, &record, .blocked(.blockedByCheck))
+        // → Blocked(checkFailure): exactly that Block Reason label, assignee untouched.
+        record = try await post(projection, &record, .blocked(.checkFailure))
         issueState = try #require(await boards.writing.issue(issue))
         #expect(issueState.workflowState == scope.states[.blocked])
-        #expect(issueState.labels == [boards.ids[CardType.workCard.rawValue]!, boards.ids["blocked by check"]!])
+        #expect(issueState.labels == [boards.ids[CardType.workCard.rawValue]!, boards.ids["check failure"]!])
         #expect(issueState.assignee == nil)
 
         // → ready again: the Block Reason label is gone.
@@ -68,11 +68,11 @@ struct BoardStateProjectionTests {
         #expect(issueState.assignee == projectionOperator)
 
         // → Blocked(unanswered) from Waiting on You: the assignee is retained, nothing clears it.
-        record = try await post(projection, &record, .blocked(.unanswered))
+        record = try await post(projection, &record, .blocked(.replyOverdue))
         issueState = try #require(await boards.writing.issue(issue))
         #expect(issueState.workflowState == scope.states[.blocked])
         #expect(issueState.assignee == projectionOperator)
-        #expect(issueState.labels == [boards.ids[CardType.workCard.rawValue]!, boards.ids["unanswered"]!])
+        #expect(issueState.labels == [boards.ids[CardType.workCard.rawValue]!, boards.ids["reply overdue"]!])
 
         // → Done: the Block Reason label clears again.
         record = try await post(projection, &record, .done)

@@ -87,7 +87,7 @@ struct AuthoringStopTests {
         for issueID in [try #require(halt.issueID), try #require(refusal.issueID)] {
             let issue = try #require(await boards.writing.liveIssues.first { $0.id.rawValue == issueID })
             #expect(issue.workflowState == blocked)
-            #expect(issue.labels.contains(try #require(boards.ids["unanswered"])))
+            #expect(issue.labels.contains(try #require(boards.ids["reply overdue"])))
         }
     }
 
@@ -113,7 +113,7 @@ struct AuthoringStopTests {
         let scope = try await BoardStateScope.resolve(using: boards.provisioning)
         let issue = try #require(await boards.writing.liveIssues.first { $0.id.rawValue == refusal.issueID })
         #expect(issue.workflowState == (try scope.id(for: .todo)))
-        #expect(!issue.labels.contains(try #require(boards.ids["unanswered"])))
+        #expect(!issue.labels.contains(try #require(boards.ids["reply overdue"])))
     }
 
     @Test("A repeat halt posts no second createIssue and no updateIssue, only one more comment")
@@ -234,7 +234,7 @@ struct AuthoringStopTests {
         let scope = try await BoardStateScope.resolve(using: boards.provisioning)
         let issue = try #require(await boards.writing.liveIssues.first { $0.id.rawValue == refusal.issueID })
         #expect(issue.workflowState == (try scope.id(for: .todo)))
-        #expect(!issue.labels.contains(try #require(boards.ids["unanswered"])))
+        #expect(!issue.labels.contains(try #require(boards.ids["reply overdue"])))
     }
 
     @Test("Resolving a halt from Waiting on You moves the Feature Issue to Todo, once")
@@ -257,7 +257,7 @@ struct AuthoringStopTests {
         let scope = try await BoardStateScope.resolve(using: boards.provisioning)
         let issue = try #require(await boards.writing.liveIssues.first { $0.id.rawValue == halt.issueID })
         #expect(issue.workflowState == (try scope.id(for: .todo)))
-        #expect(!issue.labels.contains(try #require(boards.ids["unanswered"])))
+        #expect(!issue.labels.contains(try #require(boards.ids["reply overdue"])))
     }
 
     @Test("Resolving a halt after expiry moves the Feature Issue from Blocked to Todo, once")
@@ -282,7 +282,7 @@ struct AuthoringStopTests {
         let scope = try await BoardStateScope.resolve(using: boards.provisioning)
         let issue = try #require(await boards.writing.liveIssues.first { $0.id.rawValue == halt.issueID })
         #expect(issue.workflowState == (try scope.id(for: .todo)))
-        #expect(!issue.labels.contains(try #require(boards.ids["unanswered"])))
+        #expect(!issue.labels.contains(try #require(boards.ids["reply overdue"])))
     }
 
     @Test("A Feature that returns to contention and halts again moves back to Waiting on You")

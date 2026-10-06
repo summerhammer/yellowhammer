@@ -77,7 +77,7 @@ struct DeltaReadCancelledAttemptTests {
 
         // A Card Blocked with a Block Reason and consumed Attempts.
         _ = try journal.transitionCard(
-            cardID: cardID, to: .blocked, blockReason: .hardFailure, runID: runID, act: .build, nightID: nil
+            cardID: cardID, to: .blocked, blockReason: .routeFailure, runID: runID, act: .build, nightID: nil
         )
         let attempt1 = try journal.recordAttempt(cardID: cardID, route: cancelRoute, runID: runID)
         _ = try journal.endAttempt(attemptID: attempt1.id, ending: .hardFailure(.exitStatus(1)), runID: runID)

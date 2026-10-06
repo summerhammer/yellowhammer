@@ -228,7 +228,7 @@ private func insertSettleCards(_ journal: JournalStore, cycleID: Int64, allCance
         ),
         blockedCardID: try insertMergeCard(
             journal, cycleID: cycleID, issueID: "BACK-2", repository: "backend", state: .blocked,
-            blockReason: .blockedByReviewer
+            blockReason: .reviewerRejection
         ),
         cancelledCardID: try insertMergeCard(
             journal, cycleID: cycleID, issueID: "MOB-2", repository: "mobile", state: .cancelled

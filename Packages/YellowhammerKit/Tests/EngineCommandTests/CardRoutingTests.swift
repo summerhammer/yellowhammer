@@ -8,7 +8,7 @@ import Testing
 
 // routing/resolve-a-route-for-a-card (P7.6): the resolved Route is recorded on the Attempt and reaches
 // the Card through the Managed Block; zero candidates move the Card to Blocked with Block Reason
-// `hard failure` and record no phantom Attempt; a refused Override is a Readiness Check failure that
+// `route failure` and record no phantom Attempt; a refused Override is a Readiness Check failure that
 // writes nothing but its event. Rehearsal-assertable against the in-memory board.
 
 private func route(_ cli: String, _ model: String, _ effort: String) -> Route {
@@ -103,7 +103,7 @@ struct CardRoutingTests {
         #expect(try journal.card(id: cardID).state == .todo)
     }
 
-    @Test("Zero candidates: Blocked with Block Reason hard failure, no phantom Attempt, the account in the Journal")
+    @Test("Zero candidates: Blocked with Block Reason route failure, no phantom Attempt, the account in the Journal")
     func exhaustedBlocksWithoutAnAttempt() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
@@ -130,7 +130,7 @@ struct CardRoutingTests {
             return
         }
         #expect(record.state == .blocked)
-        #expect(record.blockReason == BlockReason.hardFailure.rawValue)
+        #expect(record.blockReason == BlockReason.routeFailure.rawValue)
         #expect(try journal.card(id: cardID).state == .blocked)
         #expect(try attemptRowCount(journal, cardID: cardID) == 0)
         #expect(exhaustion.skipped.map(\.route) == [claudeOpus, codexMedium])
@@ -148,7 +148,7 @@ struct CardRoutingTests {
 
         let issueState = try #require(await boards.writing.issue(issue))
         #expect(issueState.workflowState == scope.states[.blocked])
-        #expect(issueState.labels.contains(try #require(boards.ids["hard failure"])))
+        #expect(issueState.labels.contains(try #require(boards.ids["route failure"])))
     }
 
     @Test("Without a Board the Blocked transition is written to the Journal alone")
@@ -168,7 +168,7 @@ struct CardRoutingTests {
             return
         }
         #expect(record.state == .blocked)
-        #expect(record.blockReason == BlockReason.hardFailure.rawValue)
+        #expect(record.blockReason == BlockReason.routeFailure.rawValue)
         #expect(try attemptRowCount(journal, cardID: cardID) == 0)
         #expect(try journal.cardsWithUnpostedState().map(\.id) == [cardID])
     }

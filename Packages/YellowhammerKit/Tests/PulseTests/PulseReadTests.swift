@@ -53,15 +53,15 @@ func needsYou() throws {
     let feature = try insertFeature(journal, issueID: "F-1")
     try insertCard(
         journal, cycleID: feature.cycleID, issueID: "C-1",
-        state: .blocked, blockReason: .blockedByCheck, order: 1
+        state: .blocked, blockReason: .checkFailure, order: 1
     )
     try insertCard(
         journal, cycleID: feature.cycleID, issueID: "C-2",
-        state: .blocked, blockReason: .blockedByCheck, order: 2
+        state: .blocked, blockReason: .checkFailure, order: 2
     )
     try insertCard(
         journal, cycleID: feature.cycleID, issueID: "C-3",
-        state: .blocked, blockReason: .hardFailure, order: 3
+        state: .blocked, blockReason: .routeFailure, order: 3
     )
     try insertCard(journal, cycleID: feature.cycleID, issueID: "C-4", state: .waitingOnYou, order: 4)
     try insertCard(journal, cycleID: feature.cycleID, issueID: "C-5", state: .todo, order: 5)
@@ -72,7 +72,7 @@ func needsYou() throws {
 
     #expect(needsYou.cards.map(\.id) == ["C-1", "C-2", "C-3", "C-4"])
     #expect(needsYou.waitingOnYouCount == 1)
-    #expect(needsYou.blockReasonCounts.map(\.reason) == [.blockedByCheck, .hardFailure])
+    #expect(needsYou.blockReasonCounts.map(\.reason) == [.checkFailure, .routeFailure])
     #expect(needsYou.blockReasonCounts.map(\.count) == [2, 1])
     #expect(needsYou.cards.first { $0.id == "C-4" }?.blockReason == nil)
 }
@@ -137,14 +137,14 @@ func blockedWithoutReason() throws {
     let feature = try insertFeature(journal, issueID: "F-1")
     try insertCard(journal, cycleID: feature.cycleID, issueID: "C-1", state: .blocked, order: 1)
     try insertCard(
-        journal, cycleID: feature.cycleID, issueID: "C-2", state: .blocked, blockReason: .undecided, order: 2
+        journal, cycleID: feature.cycleID, issueID: "C-2", state: .blocked, blockReason: .decisionOverdue, order: 2
     )
 
     let needsYou = try PulseSnapshot.read(from: journal, status: .idle).needsYou
 
     #expect(needsYou.cards.map(\.id) == ["C-1", "C-2"])
     #expect(needsYou.cards.first?.blockReason == nil)
-    #expect(needsYou.blockReasonCounts.map(\.reason) == [.undecided])
+    #expect(needsYou.blockReasonCounts.map(\.reason) == [.decisionOverdue])
     #expect(needsYou.waitingOnYouCount == 0)
 }
 
@@ -186,11 +186,11 @@ func featureLanes() throws {
     try insertCard(journal, cycleID: cycle, issueID: "A-1", repository: "a", state: .done, order: 1)
     try insertCard(
         journal, cycleID: cycle, issueID: "A-2",
-        repository: "a", state: .blocked, blockReason: .hardFailure, order: 2
+        repository: "a", state: .blocked, blockReason: .routeFailure, order: 2
     )
     try insertCard(
         journal, cycleID: cycle, issueID: "B-1",
-        repository: "b", state: .blocked, blockReason: .hardFailure, order: 1
+        repository: "b", state: .blocked, blockReason: .routeFailure, order: 1
     )
     try insertCard(journal, cycleID: cycle, issueID: "B-2", repository: "b", state: .waitingOnYou, order: 2)
     try insertCard(journal, cycleID: cycle, issueID: "C-1", repository: "c", state: .waitingOnYou, order: 1)
@@ -260,7 +260,7 @@ func nightDispositions() throws {
     let feature = try insertFeature(journal, issueID: "F-1")
     let done = try insertCard(journal, cycleID: feature.cycleID, issueID: "C-1", state: .done, order: 1)
     let blocked = try insertCard(
-        journal, cycleID: feature.cycleID, issueID: "C-2", state: .blocked, blockReason: .hardFailure, order: 2
+        journal, cycleID: feature.cycleID, issueID: "C-2", state: .blocked, blockReason: .routeFailure, order: 2
     )
     try insertCard(journal, cycleID: feature.cycleID, issueID: "C-3", state: .todo, order: 3)
     let run = RunID()
@@ -290,7 +290,7 @@ func twoJournalsStaySeparate() throws {
     let alphaFeature = try insertFeature(alpha, issueID: "ALPHA-F")
     try insertCard(
         alpha, cycleID: alphaFeature.cycleID, issueID: "ALPHA-1",
-        repository: "a", state: .blocked, blockReason: .hardFailure
+        repository: "a", state: .blocked, blockReason: .routeFailure
     )
     let betaFeature = try insertFeature(beta, issueID: "BETA-F")
     try insertCard(beta, cycleID: betaFeature.cycleID, issueID: "BETA-1", repository: "b", state: .waitingOnYou)

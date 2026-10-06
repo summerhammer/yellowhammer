@@ -166,7 +166,7 @@ Every scenario starts from a reset Project. "Journal" means a read-only snapshot
 6. **`unanswered_nights_max` firing with a value of 1.** The only Card asks on Night 1 and nobody
    answers; the suite commits stand-in work so the Feature stays in flight. Night 2 counts one unanswered
    Night and blocks nothing; Night 3 fires `CardUnansweredBoundFired` and the Card is Blocked under Block
-   Reason `unanswered` on the board, still assigned to the Operator. *Stories:* `bounds/bound-unanswered-nights`.
+   Reason `reply overdue` on the board, still assigned to the Operator. *Stories:* `bounds/bound-unanswered-nights`.
 7. **Engine invocation killed mid-Card, then reclaimed.** `fixture-backend`'s Check holds once; the suite
    waits for it to start and kills the `yh build` holding the Card Lease. The Card is In Progress with an
    open Attempt. After the ten-minute TTL, the next build Act reclaims the Act Lease and the Card Lease,
