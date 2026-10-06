@@ -55,7 +55,7 @@ struct LaneHoleTests {
         let dispatch = IssueScriptedDispatch(failIssueID: "BACK-1")
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: dispatch, check: RecordingCheck(log: CallLog()),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 1,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 1,
             resetting: RecordingAttemptResetting()
         )
         let board = try #require(world.context.act.board)

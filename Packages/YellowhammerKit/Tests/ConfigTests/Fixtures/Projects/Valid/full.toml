@@ -27,8 +27,8 @@ check = "python -m pytest"
 
 [limits]
 review_rounds_max = 3
-attempts_per_card = 5
-unanswered_nights_max = 4
+attempts_per_work_card = 5
+overdue_nights_max = 4
 reselections_max = 3
 consecutive_refusals_max = 5
 failed_adoptions_max = 3
@@ -42,11 +42,11 @@ build_every_minutes = 20
 credential = "keychain:github-full"
 
 [[routing]]
-kind = "impl.boilerplate"
+work_kind = "impl.boilerplate"
 repo_role = "backend"
 route = "claude/sonnet/low"
 
 [[routing]]
-kind = "review"
+work_kind = "review"
 route = "claude/opus"
 fallbacks = ["codex/gpt-5.4/high"]

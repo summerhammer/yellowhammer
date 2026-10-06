@@ -246,7 +246,7 @@ comment on the Delta Read).
   - Read one TOML file per Project: `id`, `name`, `linear_project`, `[[repos]]` (`name`, `path`,
     `role`, required `check`, `protected_paths`), the single specification source (`spec_source`
     path, or a working repo with `role = "spec"`), `[limits]` (`review_rounds_max` default 2,
-    `attempts_per_card` default 3, `unanswered_nights_max` default 3, the three promotion and
+    `attempts_per_work_card` default 3, `overdue_nights_max` default 3, the three promotion and
     re-selection thresholds), optional per-Project routing overrides, and an optional per-Project
     GitHub credential.
   - Keep the Repo Role vocabulary open, with the four standard roles recognised.
@@ -264,7 +264,7 @@ comment on the Delta Read).
      that Project only.
   3. **Explicit `check`** on every working repo. A missing key is refused; it is never read as
      `none`.
-  4. **`unanswered_nights_max` is an integer ≥ 1.** Zero or negative is refused.
+  4. **`overdue_nights_max` is an integer ≥ 1.** Zero or negative is refused.
   5. **Adapter validation:** every route resolves to a declared CLI Adapter. A CLI in the Routing
      Table with no adapter is refused with an explicit error.
   6. **Declaration kind** is checked, not just the path: a Spec Source in Project A and a working
@@ -429,7 +429,7 @@ comment on the Delta Read).
   - At the first Act of a run, compare the Journal's Night and event timestamps against the
     Project's configured schedule. Log `AbsentNightDetected` with the missed intervals.
   - Hand the gap to the Night Summary (P12.1).
-  - Never charge `unanswered_nights_max` for missed Nights, and never auto-Block for them.
+  - Never charge `overdue_nights_max` for missed Nights, and never auto-Block for them.
 - **Spec** — risks.md OQ12 Surface 2, OQ47; `bounds/bound-unanswered-nights`.
 - **Depends on** — the schedule representation from P13.2.
 - **Agent** — Fable 5.1 Medium.
@@ -882,7 +882,7 @@ comment on the Delta Read).
 ### [x] P8.7 Attempts and hard failure
 - **Work**
   - A hard failure ends the Attempt. The retry is a fresh dispatch with route exclusion (P7.7).
-  - Bound Attempts by `attempts_per_card`. A Card blocks only when both budgets are exhausted, or
+  - Bound Attempts by `attempts_per_work_card`. A Card blocks only when both budgets are exhausted, or
     when no route remains.
   - Record how each Attempt was consumed, so the account can tell three failed routes from two
     reboots.
@@ -1046,7 +1046,7 @@ comment on the Delta Read).
 ### [x] P9.7 Refusal lifecycle at Feature level
 - **Work**
   - A refused Feature Issue sits in Waiting on You with its Refusal content.
-  - When `unanswered_nights_max` expires, convert to Blocked with Block Reason `unanswered`; the
+  - When `overdue_nights_max` expires, convert to Blocked with Block Reason `unanswered`; the
     roll-up follows to `blocked`.
   - Count consecutive refusals for the refusal-drift promotion bound (P11.6).
 - **Spec** — `feature-authoring/author-citable-definitions-of-done` (second story); glossary →
@@ -1062,7 +1062,7 @@ comment on the Delta Read).
     repositories undeterminable, a repository outside this Project, an unreadable contract. The
     thin-spec finding alone is a Refusal and alone carries the Refusal lifecycle. Neither type is
     named after the other.
-  - Clock a halt's position on `unanswered_nights_max` on the same terms as a Refusal's: it expires
+  - Clock a halt's position on `overdue_nights_max` on the same terms as a Refusal's: it expires
     to Blocked under Block Reason `unanswered` with the halt's content intact. Position only —
     nothing was spent. A halt never increments the consecutive-refusal count and is never promoted
     by `consecutive_refusals_max`.
@@ -1310,7 +1310,7 @@ comment on the Delta Read).
 - **Agent** — Fable 5.1 Medium or `gpt-6-astra medium`.
 - **Done when** — Rehearsal tests cover first and repeated banked replies.
 
-### [x] P11.4 `unanswered_nights_max`
+### [x] P11.4 `overdue_nights_max`
 - **Work**
   - Count that Project's Nights while a Card waits. Past the bound, auto-Block with `unanswered`
     (question) or `undecided` (divergence), keeping the assignment and full reporting.
@@ -1320,7 +1320,7 @@ comment on the Delta Read).
   - An auto-Blocked Card is not terminal and can be re-readied with counters preserved.
 - **Spec** — `bounds/bound-unanswered-nights`; DR8; risks.md OQ14, OQ47.
 - **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
-- **Done when** — Rehearsal-assertable bound arithmetic with `unanswered_nights_max = 1`, including
+- **Done when** — Rehearsal-assertable bound arithmetic with `overdue_nights_max = 1`, including
   the stopped-Project case (no Acts, no change).
 - **Amended 2026-09-27** — a Night whose Acts all halted on Linear authorization spends none of the
   bound (OQ93 item 13); corrected in P17.5.
@@ -1349,7 +1349,7 @@ comment on the Delta Read).
   - Every Bound is configured per Project; what each one counts is its own scope, and no Bound's
     counter is Project-scoped. `consecutive_refusals_max` counts one Feature's consecutive Refusals
     and resets on that Feature's clean authoring run. It counts Refusals only: an Authoring Halt
-    shares the `unanswered_nights_max` clock and never this count (P9.8).
+    shares the `overdue_nights_max` clock and never this count (P9.8).
   - Divergence promotion: consecutive failed adoptions past the bound make a standing item. Reset
     on a clean adoption.
   - Re-selection bound: ends the author Act's backlog walk for the Night.
@@ -1633,7 +1633,7 @@ comment on the Delta Read).
   3. Quiet Night: predecessor not merged; then merged; then partially merged.
   4. Mid-lane block with a Partial Landing announcement rendered.
   5. Waiting on You answered before landing; answered after landing (banked).
-  6. `unanswered_nights_max` firing with a value of 1.
+  6. `overdue_nights_max` firing with a value of 1.
   7. Engine invocation killed mid-Card, then reclaimed.
   8. Outbox replay after a killed run.
   9. Protected Path refusal.
@@ -1809,7 +1809,7 @@ depends on and that never shipped.
 ### [x] P17.5 Authorization halt
 - **Work** — An authorization failure halts the Act; accepted Outbox writes stay pending; the first
   such halt of a Night posts, later ones record only; a Night whose Acts all halted this way spends
-  none of `unanswered_nights_max`.
+  none of `overdue_nights_max`.
 - **Spec** — `board-projection/install-the-linear-app`; `bounds/bound-unanswered-nights`;
   `morning-report/notify-the-operator-of-exceptions`; risks.md OQ93 items 5, 12, 13.
 - **Amends** — P5.4, P11.4, P12.5.
@@ -2357,7 +2357,7 @@ production Night.
   Engine as a value or a renderer injected by the `EngineCommand` binding that already holds the
   `ProjectConfiguration` (`CardRunBinding`, `LandBinding`, `RootCommand` for `BuildAct`).
 - **Linear identifiers.** `Card.issueID` and `Feature.issueID` are Linear's opaque ids. The
-  `{key}` and `{card_key}` tokens are the human identifier (`YLH-42`, `BoardObject.key`); source it
+  `{key}` and `{work_card_key}` tokens are the human identifier (`YLH-42`, `BoardObject.key`); source it
   from the board or record it in the Journal, but never render the opaque id in its place.
 - **Journal schema.** A new event kind needs no migration (the `event` table's `type` and
   `payload` are free text). A new column or table edits `journal-schema-N` in place and bumps `N`
@@ -2452,11 +2452,11 @@ P19.7.
     reset seam and removal, and removal of a Project with a refused template and a non-string
     `change_type` writing the defaults. Not asserted: the Waiting on You trigger (P19.5 builds it).
 
-### [x] P19.4 Worker commit-message instruction and the `Yellowhammer-Card` record
+### [x] P19.4 Worker commit-message instruction and the `Yellowhammer-Work-Card` record
 - **Work**
   - The worker's instruction gains a section that states the Project's `[git] commit_message`
-    rendered with the Card's tokens (`{type}`, `{scope}`, `{card_key}`, `{card_title}`, `{key}`,
-    `{title}`, `{repository}`, `{story}`) and asks for a `Yellowhammer-Card: <card key>` trailer on
+    rendered with the Card's tokens (`{type}`, `{scope}`, `{work_card_key}`, `{work_card_title}`, `{key}`,
+    `{title}`, `{repository}`, `{story}`) and asks for a `Yellowhammer-Work-Card: <card key>` trailer on
     each commit. It is not part of the Architectural Brief.
   - After a worker reports a commit, the engine reads `last_known_good_commit..<commit>` with
     `git log` and records in the Journal each commit missing the trailer. It never changes the
@@ -2472,7 +2472,7 @@ P19.7.
   Repository and outside the Brief; `CommitTrailerReader` (Repositories) does the `git log` read.
   - `CardRun` takes `commitMessage` and `changeType` from `CardRunBinding`. Both default to the built-in
     template and `feat`, which Domain owns, so existing tests construct `CardRun` unchanged.
-  - `{card_key}`, `{key}` and `{title}` come from one board read in the Card run's `prepare` (the Delta
+  - `{work_card_key}`, `{key}` and `{title}` come from one board read in the Card run's `prepare` (the Delta
     Read's copy of the Card when it has one), via `BoardObjectLookup`, now shared with the land Act. With
     no board object the keys are empty and the trailer sentence is omitted; `{title}` falls back to the
     Feature's issue id, as in P19.2. `{story}` is the first story ID in clause order (`ClauseOrder`,

@@ -87,7 +87,7 @@ extension Instruction {
             """
     }
 
-    /// Worker pass only: the rendered commit-message template and the `Yellowhammer-Card` trailer. The
+    /// Worker pass only: the rendered commit-message template and the `Yellowhammer-Work-Card` trailer. The
     /// trailer sentence is omitted, never a placeholder, when the Card's key is unknown.
     private var commitMessagesSection: String? {
         guard pass == .worker, let request = commitMessage else { return nil }
@@ -95,9 +95,9 @@ extension Instruction {
         lines.append(contentsOf: request.message.split(separator: "\n", omittingEmptySubsequences: false).map {
             $0.isEmpty ? "" : "    \($0)"
         })
-        if let key = request.cardKey, !key.isEmpty {
+        if let key = request.workCardKey, !key.isEmpty {
             lines.append("")
-            lines.append("End each commit message with the git trailer `Yellowhammer-Card: \(key)`.")
+            lines.append("End each commit message with the git trailer `Yellowhammer-Work-Card: \(key)`.")
         }
         return lines.joined(separator: "\n")
     }

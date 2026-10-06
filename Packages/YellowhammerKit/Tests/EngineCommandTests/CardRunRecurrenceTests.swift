@@ -17,11 +17,11 @@ private func twoRouteResolver() -> RouteResolver {
     ]))
 }
 
-private func makeRun(worker: RehearsalResultFixture, attemptsPerCard: Int, log: CallLog = CallLog()) -> CardRun {
+private func makeRun(worker: RehearsalResultFixture, attemptsPerWorkCard: Int, log: CallLog = CallLog()) -> CardRun {
     CardRun(
         resolver: twoRouteResolver(), dispatch: LoggingDispatch(log: log, script: [.worker: worker]),
         check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2,
-        attemptsPerCard: attemptsPerCard, resetting: RecordingAttemptResetting()
+        attemptsPerWorkCard: attemptsPerWorkCard, resetting: RecordingAttemptResetting()
     )
 }
 
@@ -60,7 +60,7 @@ struct CardRunRecurrenceTests {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open(), withBoard: false)
 
-        try await makeRun(worker: .workerFailed, attemptsPerCard: 2).run("BACK-1", in: world)
+        try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 2).run("BACK-1", in: world)
 
         // Two Attempts failed of the same cause within one Night: one occurrence, not a recurrence.
         let cardID = try #require(world.cardIDs["BACK-1"])
@@ -77,12 +77,12 @@ struct CardRunRecurrenceTests {
     func recurrenceOnALaterNightPromotes() async throws {
         let fixture = try OutboxJournalFixture()
         let first = try await makeCardRunWorld(journal: try fixture.open(), withBoard: false)
-        try await makeRun(worker: .workerFailed, attemptsPerCard: 1).run("BACK-1", in: first)
+        try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 1).run("BACK-1", in: first)
         let attemptsOnFirstNight = try first.attempts("BACK-1").count
 
         let second = try first.onNextNight(recurrenceSecondNight, reReadying: "BACK-1")
         let log = CallLog()
-        try await makeRun(worker: .workerFailed, attemptsPerCard: 3, log: log).run("BACK-1", in: second)
+        try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 3, log: log).run("BACK-1", in: second)
 
         // One Attempt only: the fallback Route was never tried, although two Attempts remained.
         #expect(log.all == ["dispatch architect", "dispatch worker"])
@@ -106,11 +106,11 @@ struct CardRunRecurrenceTests {
     func aDifferentCauseDoesNotPromote() async throws {
         let fixture = try OutboxJournalFixture()
         let first = try await makeCardRunWorld(journal: try fixture.open(), withBoard: false)
-        try await makeRun(worker: .workerFailed, attemptsPerCard: 1).run("BACK-1", in: first)
+        try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 1).run("BACK-1", in: first)
 
         let second = try first.onNextNight(recurrenceSecondNight, reReadying: "BACK-1")
         let log = CallLog()
-        try await makeRun(worker: .workerMalformed, attemptsPerCard: 2, log: log).run("BACK-1", in: second)
+        try await makeRun(worker: .workerMalformed, attemptsPerWorkCard: 2, log: log).run("BACK-1", in: second)
 
         #expect(log.all.filter { $0 == "dispatch worker" }.count == 2)
         let cardID = try #require(second.cardIDs["BACK-1"])

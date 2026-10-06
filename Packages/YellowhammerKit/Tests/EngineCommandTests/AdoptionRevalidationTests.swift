@@ -138,7 +138,7 @@ struct AdoptionRevalidationTests {
         #expect(try journal.inFlightFeature() == nil)
     }
 
-    @Test("A refused Card is later auto-Blocked undecided once unanswered_nights_max is exceeded")
+    @Test("A refused Card is later auto-Blocked undecided once overdue_nights_max is exceeded")
     func refusedCardIsLaterAutoBlocked() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()

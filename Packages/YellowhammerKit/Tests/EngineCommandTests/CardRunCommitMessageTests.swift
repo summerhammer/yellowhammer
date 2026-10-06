@@ -6,11 +6,11 @@ import Synchronization
 import Testing
 
 // roadmap P19.4 (spec: graph-execution/run-a-card): the worker pass's instruction states the Project's
-// `commit_message` Message Template rendered with the Card's tokens and asks for a `Yellowhammer-Card`
+// `commit_message` Message Template rendered with the Card's tokens and asks for a `Yellowhammer-Work-Card`
 // trailer; after the worker reports a commit the engine records each commit missing that trailer, and
 // the record never changes the Card's outcome. Nothing here asserts what a model wrote.
 
-private let template = "{type}{scope}: {card_title} [{card_key}] {story} {repository}"
+private let template = "{type}{scope}: {work_card_title} [{work_card_key}] {story} {repository}"
 
 private func clause(_ cid: String, citing locationID: String) -> ClauseRecord {
     ClauseRecord(
@@ -38,7 +38,7 @@ struct CardRunCommitMessageTests {
         let log = CallLog()
         return CardRun(
             resolver: cardRunResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
             resetting: RecordingAttemptResetting(log: log), commitMessage: commitMessage, changeType: changeType
         )
     }
@@ -85,11 +85,11 @@ struct CardRunCommitMessageTests {
         let title = try world.card("BACK-1").title ?? "BACK-1"
         let worker = try #require(dispatch.requests.passes(.worker).first?.instruction.cardInstruction)
         #expect(worker.commitMessage == CommitMessageRequest(
-            message: "fix(auth): \(title) [YLH-7] auth/login backend", cardKey: "YLH-7"
+            message: "fix(auth): \(title) [YLH-7] auth/login backend", workCardKey: "YLH-7"
         ))
         let text = worker.render()
         #expect(text.contains("    fix(auth): \(title) [YLH-7] auth/login backend\n"))
-        #expect(text.contains("Yellowhammer-Card: YLH-7"))
+        #expect(text.contains("Yellowhammer-Work-Card: YLH-7"))
 
         for pass in [RunPass.architect, .reviewer] {
             let other = try #require(dispatch.requests.passes(pass).first?.instruction.cardInstruction)
@@ -125,19 +125,19 @@ struct CardRunCommitMessageTests {
         try await run(makeRun(dispatch: dispatch), in: world, readiness: readiness([]))
 
         let worker = try #require(dispatch.requests.passes(.worker).first?.instruction.cardInstruction)
-        #expect(worker.commitMessage?.cardKey == nil)
-        #expect(!worker.render().contains("Yellowhammer-Card"))
+        #expect(worker.commitMessage?.workCardKey == nil)
+        #expect(!worker.render().contains("Yellowhammer-Work-Card"))
         #expect(worker.render().contains("## Commit messages"))
     }
 
     @Test("WorkerCommitMessage fills every token; story picks the first story in clause order")
     func rendererUnit() throws {
         let inputs = WorkerCommitMessage.Inputs(
-            cardKey: "YLH-7", cardTitle: "Fix", featureKey: "YLH-1", featureTitle: "Login",
+            workCardKey: "YLH-7", workCardTitle: "Fix", featureKey: "YLH-1", featureTitle: "Login",
             repository: "backend", story: "auth/login"
         )
         let all = try MessageTemplate(
-            "{type}{scope}|{title}|{key}|{repository}|{card_key}|{card_title}|{story}", kind: .commitMessage
+            "{type}{scope}|{title}|{key}|{repository}|{work_card_key}|{work_card_title}|{story}", kind: .commitMessage
         )
         #expect(
             WorkerCommitMessage.render(template: all, changeType: .feat, inputs: inputs)
@@ -169,7 +169,7 @@ struct CardRunCommitMessageTests {
         let repo = GateGitFixture(name: "cardrun-trailer-\(UUID().uuidString)")
         await repo.initRepo()
         let base = try await repo.commit(filename: "a.txt", message: "initial")
-        _ = try await repo.commit(filename: "b.txt", message: "feat: tagged\n\nYellowhammer-Card: YLH-7")
+        _ = try await repo.commit(filename: "b.txt", message: "feat: tagged\n\nYellowhammer-Work-Card: YLH-7")
         let bare = try await repo.commit(filename: "c.txt", message: "feat: bare")
 
         let fixture = try OutboxJournalFixture()

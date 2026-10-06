@@ -92,7 +92,7 @@ public struct ManagedBlockMaintenance: Sendable {
         let doDClauses = try journal.clauses(issueID: card.issueID).map { DoDClause($0) }
         let laneLength = try journal.repoLaneLength(cycleID: card.cycleID, repository: card.repository)
         let scope = try journal.declaredScope(cardID: card.id)
-        // This maintenance holds no configuration, so `attempts_per_card` never reaches the Managed
+        // This maintenance holds no configuration, so `attempts_per_work_card` never reaches the Managed
         // Block's rendering (roadmap P8.7): the consumption account renders without a Bound to compare it
         // to, rather than plumbing configuration through a layer built to hold none.
         let consumption = attempts.isEmpty ? nil : history.consumption(inEpoch: card.budgetEpoch)

@@ -5,7 +5,7 @@ import Testing
 func messageTemplateDefaultsRender() throws {
     let values: [MessageTemplate.Token: String] = [
         .type: "feat", .scope: "(auth)", .partial: "partial landing: ", .title: "Add login",
-        .cardTitle: "Wire the form", .branch: "yh-alpha-login"
+        .workCardTitle: "Wire the form", .branch: "yh-alpha-login"
     ]
     for kind in MessageTemplate.Kind.allCases {
         _ = try MessageTemplate(kind.defaultText, kind: kind)
@@ -38,14 +38,14 @@ func messageTemplateRefusesForeignTokens() {
         }
     }
     let cases = [
-        Case(.pullRequestTitle, "{card_key}", "card_key"),
+        Case(.pullRequestTitle, "{work_card_key}", "card_key"),
         Case(.pullRequestTitle, "{story}", "story"),
         Case(.commitMessage, "{branch}", "branch"),
         Case(.commitMessage, "{partial}", "partial"),
         Case(.commitMessage, "{project}", "project"), // glossary:ignore GL001
         Case(.wipCommitMessage, "{title}", "title"),
         Case(.wipCommitMessage, "{scope}", "scope"),
-        Case(.wipCommitMessage, "{card_title}", "card_title"),
+        Case(.wipCommitMessage, "{work_card_title}", "card_title"),
         Case(.pullRequestTitle, "{nonsense}", "nonsense"),
         Case(.commitMessage, "{}", "")
     ]

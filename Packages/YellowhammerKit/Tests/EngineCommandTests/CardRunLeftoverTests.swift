@@ -81,7 +81,7 @@ struct CardRunLeftoverTests {
         let run = CardRun(
             resolver: cardRunResolver(),
             dispatch: LeftoverDispatch(log: log, pass: .worker, leftovers: [leftover], snapshot: leftoverSnapshot()),
-            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
             resetting: RecordingAttemptResetting(), normalExitFencing: fencing
         )
 
@@ -133,7 +133,7 @@ struct CardRunLeftoverTests {
         let run = CardRun(
             resolver: cardRunResolver(),
             dispatch: LeftoverDispatch(log: log, pass: .worker, leftovers: [], snapshot: leftoverSnapshot()),
-            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
             resetting: RecordingAttemptResetting(), normalExitFencing: fencing
         )
 
@@ -156,7 +156,7 @@ struct CardRunLeftoverTests {
 
         try await CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log),
-            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3,
+            check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
             resetting: RecordingAttemptResetting(), normalExitFencing: fencing
         ).run("BACK-1", in: world)
 

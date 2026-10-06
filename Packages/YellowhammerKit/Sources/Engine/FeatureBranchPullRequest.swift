@@ -190,8 +190,8 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
         // issue id → display name lookup to resolve them (issue #161; spec:
         // landing/announce-a-partial-landing).
         let report = try journal.featureVerification(cycleID: context.cycleID).map(VerificationReport.init(record:))
-        var cardTitles = Dictionary(uniqueKeysWithValues: cards.map { ($0.issueID, $0.displayTitle) })
-        cardTitles[context.feature.issueID] = featureTitle
+        var workCardTitles = Dictionary(uniqueKeysWithValues: cards.map { ($0.issueID, $0.displayTitle) })
+        workCardTitles[context.feature.issueID] = featureTitle
 
         let mergeVerdict = PullRequestBodyMergeVerdict(
             conflict: mergeOutcome?.conflict ?? false,
@@ -213,7 +213,7 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
             mergeVerdict: mergeVerdict,
             unmetClauses: unmetClauses,
             verificationReport: report,
-            cardTitles: cardTitles,
+            workCardTitles: workCardTitles,
             noPullRequestRepositories: noPullRequest
         )
         return (PullRequestBody.render(input), input.isPartialLanding)
@@ -260,7 +260,7 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
                     ? "\(clause.text) (invalidated: \(clause.invalidatedCause ?? "unspecified"))"
                     : clause.text
                 unmetClauses.append(
-                    PullRequestBodyUnmetClause(cardTitle: card.displayTitle, text: text, citation: clause.locationID)
+                    PullRequestBodyUnmetClause(workCardTitle: card.displayTitle, text: text, citation: clause.locationID)
                 )
             }
         }

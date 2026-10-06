@@ -49,12 +49,12 @@ public struct PullRequestBodyCard: Equatable, Sendable {
 
 /// One unmet Definition of Done clause, quoted with its Spec Citation location (roadmap P10.4).
 public struct PullRequestBodyUnmetClause: Equatable, Sendable {
-    public let cardTitle: String
+    public let workCardTitle: String
     public let text: String
     public let citation: String
 
-    public init(cardTitle: String, text: String, citation: String) {
-        self.cardTitle = cardTitle
+    public init(workCardTitle: String, text: String, citation: String) {
+        self.workCardTitle = workCardTitle
         self.text = text
         self.citation = citation
     }
@@ -105,7 +105,7 @@ public struct PullRequestBodyInput: Equatable, Sendable {
     /// Issue id → display name (a Card's title, or the Feature Issue's), for
     /// ``effectiveUnmetClauses`` to resolve the report's issue ids by (issue #161; spec:
     /// landing/announce-a-partial-landing). An id missing from this lookup renders as itself.
-    public let cardTitles: [String: String]
+    public let workCardTitles: [String: String]
     /// The repositories with a No-Pushed-Branch Outcome, shown as `[no pull request: <repo>]` notes beside
     /// the Partial Landing's Roll-up sentence (roadmap P19.7; risks OQ108). A complete landing has no
     /// Roll-up sentence, so it renders none.
@@ -116,7 +116,7 @@ public struct PullRequestBodyInput: Equatable, Sendable {
         repository: String, pushedRepositoryCount: Int, mergedCount: Int,
         cycleCards: [PullRequestBodyCard], mergeVerdict: PullRequestBodyMergeVerdict,
         unmetClauses: [PullRequestBodyUnmetClause], verificationReport: VerificationReport? = nil,
-        cardTitles: [String: String] = [:], noPullRequestRepositories: [String] = []
+        workCardTitles: [String: String] = [:], noPullRequestRepositories: [String] = []
     ) {
         self.featureTitle = featureTitle
         self.featureIssueURL = featureIssueURL
@@ -129,7 +129,7 @@ public struct PullRequestBodyInput: Equatable, Sendable {
         self.mergeVerdict = mergeVerdict
         self.unmetClauses = unmetClauses
         self.verificationReport = verificationReport
-        self.cardTitles = cardTitles
+        self.workCardTitles = workCardTitles
         self.noPullRequestRepositories = noPullRequestRepositories
     }
 
@@ -139,7 +139,7 @@ public struct PullRequestBodyInput: Equatable, Sendable {
         guard let verificationReport else { return unmetClauses }
         return verificationReport.unmetOrUnresolved.map {
             PullRequestBodyUnmetClause(
-                cardTitle: cardTitles[$0.issueID] ?? $0.issueID, text: $0.text, citation: $0.locationID
+                workCardTitle: workCardTitles[$0.issueID] ?? $0.issueID, text: $0.text, citation: $0.locationID
             )
         }
     }
@@ -303,7 +303,7 @@ public enum PullRequestBody {
         guard !clauses.isEmpty else { return "Definition of Done clauses unmet: none." }
         var lines = ["Definition of Done clauses unmet:"]
         for clause in clauses {
-            lines.append("- \(clause.cardTitle): \"\(clause.text)\" (\(clause.citation)) — unmet")
+            lines.append("- \(clause.workCardTitle): \"\(clause.text)\" (\(clause.citation)) — unmet")
         }
         return lines.joined(separator: "\n")
     }

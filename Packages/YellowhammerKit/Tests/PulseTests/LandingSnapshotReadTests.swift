@@ -455,7 +455,7 @@ func projectContainsSelection() throws {
         nextAct: nil,
         attempts: [
             RunningAttempt(
-                id: "attempt-1", cardID: "C-2", cardTitle: "Other", repo: "backend",
+                id: "attempt-1", cardID: "C-2", workCardTitle: "Other", repo: "backend",
                 route: "claude/sonnet/medium", startedAt: epoch, round: 1, status: nil
             )
         ]

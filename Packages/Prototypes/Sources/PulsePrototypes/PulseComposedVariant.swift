@@ -163,7 +163,7 @@ struct PulseComposedVariant: View {
         let matches = { (fields: [String]) in fields.contains { $0.localizedStandardContains(query) } }
         project.pulse.needsYou.cards = project.pulse.needsYou.cards.filter { matches([$0.id, $0.title, $0.repo]) }
         project.pulse.now.attempts = project.pulse.now.attempts.filter {
-            matches([$0.cardID, $0.cardTitle, $0.repo, $0.route])
+            matches([$0.cardID, $0.workCardTitle, $0.repo, $0.route])
         }
         return project
     }

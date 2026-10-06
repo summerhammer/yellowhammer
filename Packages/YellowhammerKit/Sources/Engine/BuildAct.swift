@@ -45,7 +45,7 @@ public struct BuildAct: Sendable {
     /// The Pre-Reclaim Quiescence Gate the lease-reclaim sweep runs before classifying or reposting a
     /// reclaimed Card (P8.10).
     public let worktreeFencer: ProcessFencer
-    /// The most Nights a Card's outstanding question may go unanswered (`unanswered_nights_max`),
+    /// The most Nights a Card's outstanding question may go unanswered (`overdue_nights_max`),
     /// shared with the Refusal and Authoring Halt clocks: the Silence countdown a remark's
     /// acknowledgement reports (roadmap P11.2) reads it too. Required in production
     /// (`RootCommand` passes `project.bounds.unansweredNightsMax`); the ruled default of 3 is what

@@ -129,7 +129,7 @@ struct ExpiredLeaseSweepIntegrationTests {
         let rehearsal = RehearsalDispatch()
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: rehearsal, check: RecordingCheck(log: CallLog()),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3, resetting: RecordingAttemptResetting()
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3, resetting: RecordingAttemptResetting()
         )
         let invocation = EngineInvocation(
             act: .build, mode: .rehearsal, nightStart: buildActNightStart, journal: journal, trigger: .scheduled,

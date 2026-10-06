@@ -239,13 +239,13 @@ extension CardRun {
         let message = WorkerCommitMessage.render(
             template: commitMessage, changeType: changeType,
             inputs: WorkerCommitMessage.Inputs(
-                cardKey: frame.cardObject?.key ?? "", cardTitle: frame.instructionCard.title,
+                workCardKey: frame.cardObject?.key ?? "", workCardTitle: frame.instructionCard.title,
                 featureKey: frame.featureObject?.key ?? "",
                 featureTitle: frame.featureObject?.title ?? frame.context.feature.issueID,
                 repository: frame.card.repository, story: story
             )
         )
-        return CommitMessageRequest(message: message, cardKey: frame.cardObject?.key)
+        return CommitMessageRequest(message: message, workCardKey: frame.cardObject?.key)
     }
 
     private static func step(of pass: RunPass) -> CardRunStep {

@@ -98,14 +98,14 @@ public struct PlannedCard: Codable, Equatable, Sendable {
 /// auditable rather than silent.
 public struct PlannedUncitableClause: Codable, Equatable, Sendable {
     public let level: String
-    public let cardTitle: String?
+    public let workCardTitle: String?
     public let text: String
     public let citation: String
     public let reason: String
 
-    public init(level: String, cardTitle: String?, text: String, citation: String, reason: String) {
+    public init(level: String, workCardTitle: String?, text: String, citation: String, reason: String) {
         self.level = level
-        self.cardTitle = cardTitle
+        self.workCardTitle = workCardTitle
         self.text = text
         self.citation = citation
         self.reason = reason

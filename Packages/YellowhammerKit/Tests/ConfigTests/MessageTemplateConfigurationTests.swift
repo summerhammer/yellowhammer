@@ -50,14 +50,14 @@ func allKeysDecode() throws {
         pull_request_title = "[{key}] {title}"
 
         [git]
-        commit_message = "{type}: {card_key} {card_title}"
+        commit_message = "{type}: {work_card_key} {work_card_title}"
         wip_commit_message = "wip {type} {repository}"
         """,
         top: "change_type = \"fix\"\n"
     )
     #expect(project.changeType.rawValue == "fix")
     #expect(project.pullRequestTitle.text == "[{key}] {title}")
-    #expect(project.commitMessage.text == "{type}: {card_key} {card_title}")
+    #expect(project.commitMessage.text == "{type}: {work_card_key} {work_card_title}")
     #expect(project.wipCommitMessage.text == "wip {type} {repository}")
 }
 
@@ -77,11 +77,11 @@ func badTemplatesRefused() {
     #expect(unknown?.line == 12)
     #expect(unknown?.reason == .unknownTemplateToken(
         name: "branch", key: "commit_message",
-        accepted: ["{type}", "{title}", "{key}", "{repository}", "{scope}", "{card_key}", "{card_title}", "{story}"]
+        accepted: ["{type}", "{title}", "{key}", "{repository}", "{scope}", "{work_card_key}", "{work_card_title}", "{story}"]
     ))
     #expect(unknown?.description.contains("names {branch}, which is not a commit_message token") == true)
 
-    #expect(refusal("[github]\npull_request_title = \"{card_key}\"")?.key == "github.pull_request_title")
+    #expect(refusal("[github]\npull_request_title = \"{work_card_key}\"")?.key == "github.pull_request_title")
     #expect(refusal("[git]\nwip_commit_message = \"{title}\"")?.key == "git.wip_commit_message")
     #expect(refusal("[git]\nwip_commit_message = \"\"")?.reason == .emptyString)
     #expect(refusal("[git]\nwip_commit_message = \"   \"")?.reason == .emptyString)
@@ -129,7 +129,7 @@ func roundTrip() throws {
         pull_request_title = "[{key}] {title}"
 
         [git]
-        commit_message = "{type}: {card_key}"
+        commit_message = "{type}: {work_card_key}"
         wip_commit_message = "wip {branch}"
         """,
         top: "change_type = \"fix\"\n"
@@ -149,7 +149,7 @@ func renderOnlyNonDefaults() throws {
     #expect(rendered.contains("[github]\npull_request_title = \"{title}\""))
     #expect(!rendered.contains("credential"))
     #expect(!rendered.contains("[git]"))
-    let explicitDefault = try parse("[git]\ncommit_message = \"{type}{scope}: {card_title}\"")
+    let explicitDefault = try parse("[git]\ncommit_message = \"{type}{scope}: {work_card_title}\"")
     #expect(!explicitDefault.renderedTOML.contains("[git]"))
     #expect(try parse("", top: "change_type = \"feat\"\n").renderedTOML.contains("change_type") == false)
 }

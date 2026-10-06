@@ -133,10 +133,10 @@ public struct CardManagedBlock: Equatable, Sendable {
     /// in it yet. Read straight from the Journal (``AttemptHistory/consumption(inEpoch:)``): nothing here
     /// is model-authored.
     public var attemptConsumption: AttemptConsumption?
-    /// The most Attempts one budget epoch may consume (`attempts_per_card`), when the block's builder
+    /// The most Attempts one budget epoch may consume (`attempts_per_work_card`), when the block's builder
     /// holds it; nil renders the consumption account without a Bound to compare it to, rather than
     /// plumbing configuration through a layer that otherwise holds none.
-    public var attemptsPerCard: Int?
+    public var attemptsPerWorkCard: Int?
     /// Set when Failure-Cause Recurrence promoted this Blocked Card to Triage (roadmap P8.8); nil for a
     /// first occurrence, which Blocks like any other.
     public var triagePromotion: TriagePromotion?
@@ -163,7 +163,7 @@ public struct CardManagedBlock: Equatable, Sendable {
         definitionOfDone: [DoDClause],
         attempts: [AttemptAccount],
         attemptConsumption: AttemptConsumption? = nil,
-        attemptsPerCard: Int? = nil,
+        attemptsPerWorkCard: Int? = nil,
         triagePromotion: TriagePromotion? = nil,
         adoptionRefusalNotice: AdoptionRefusalNotice? = nil,
         unadoptedStanding: UnadoptedStanding? = nil
@@ -179,7 +179,7 @@ public struct CardManagedBlock: Equatable, Sendable {
         self.definitionOfDone = definitionOfDone
         self.attempts = attempts
         self.attemptConsumption = attemptConsumption
-        self.attemptsPerCard = attemptsPerCard
+        self.attemptsPerWorkCard = attemptsPerWorkCard
         self.triagePromotion = triagePromotion
         self.adoptionRefusalNotice = adoptionRefusalNotice
         self.unadoptedStanding = unadoptedStanding
@@ -286,7 +286,7 @@ public struct CardManagedBlock: Equatable, Sendable {
             lines.append("_No Attempt yet._")
         } else {
             if let attemptConsumption {
-                let bound = attemptsPerCard.map { " of \($0) allowed" } ?? ""
+                let bound = attemptsPerWorkCard.map { " of \($0) allowed" } ?? ""
                 lines.append("- \(attemptConsumption.description)\(bound)")
             }
             for (index, attempt) in attempts.enumerated() {

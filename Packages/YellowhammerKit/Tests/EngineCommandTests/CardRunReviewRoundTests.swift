@@ -32,7 +32,7 @@ struct CardRunReviewRoundTests {
         reviewerScript: [RehearsalResultFixture],
         checkResults: [RepositoryCheckResult] = [.declaredNone],
         checks: [String: Check] = ["backend": .none],
-        reviewRoundsMax: Int, attemptsPerCard: Int,
+        reviewRoundsMax: Int, attemptsPerWorkCard: Int,
         resolver: RouteResolver = cardRunResolver()
     ) -> Run {
         let log = CallLog()
@@ -40,7 +40,7 @@ struct CardRunReviewRoundTests {
         let check = RecordingCheck(log: log, results: checkResults)
         let card = CardRun(
             resolver: resolver, dispatch: dispatch, check: check, checks: checks,
-            reviewRoundsMax: reviewRoundsMax, attemptsPerCard: attemptsPerCard,
+            reviewRoundsMax: reviewRoundsMax, attemptsPerWorkCard: attemptsPerWorkCard,
             resetting: RecordingAttemptResetting()
         )
         return Run(card: card, dispatch: dispatch, check: check, log: log)
@@ -53,7 +53,7 @@ struct CardRunReviewRoundTests {
         let run = makeRun(
             workerScript: [.workerCompleted, .workerCompleted],
             reviewerScript: [.reviewerChangesRequested, .reviewerApproved],
-            reviewRoundsMax: 2, attemptsPerCard: 3
+            reviewRoundsMax: 2, attemptsPerWorkCard: 3
         )
 
         try await run.card.run("BACK-1", in: world)
@@ -84,7 +84,7 @@ struct CardRunReviewRoundTests {
             workerScript: [.workerCompleted, .workerCompleted],
             reviewerScript: [.reviewerChangesRequested, .reviewerApproved],
             checkResults: [green, green], checks: ["backend": .command("make test")],
-            reviewRoundsMax: 2, attemptsPerCard: 3
+            reviewRoundsMax: 2, attemptsPerWorkCard: 3
         )
 
         try await run.card.run("BACK-1", in: world)
@@ -102,7 +102,7 @@ struct CardRunReviewRoundTests {
         let run = makeRun(
             workerScript: [.workerCompleted, .workerCompleted],
             reviewerScript: [.reviewerChangesRequested, .reviewerApproved],
-            reviewRoundsMax: 2, attemptsPerCard: 3
+            reviewRoundsMax: 2, attemptsPerWorkCard: 3
         )
 
         try await run.card.run("BACK-1", in: world)
@@ -114,12 +114,12 @@ struct CardRunReviewRoundTests {
         #expect(round.judgedCommit == reviewJudgedCommit)
     }
 
-    @Test("reviewRoundsMax=1, attemptsPerCard=1, reviewer always requests changes: rounds-exhausted, blocked reviewer")
+    @Test("reviewRoundsMax=1, attemptsPerWorkCard=1, reviewer always requests changes: rounds-exhausted, blocked reviewer")
     func reviewerAlwaysRequestingChangesBlocksTheCard() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
         let run = makeRun(
-            reviewerScript: [.reviewerChangesRequested], reviewRoundsMax: 1, attemptsPerCard: 1
+            reviewerScript: [.reviewerChangesRequested], reviewRoundsMax: 1, attemptsPerWorkCard: 1
         )
 
         try await run.card.run("BACK-1", in: world)
@@ -133,13 +133,13 @@ struct CardRunReviewRoundTests {
         #expect(card.blockReason == BlockReason.blockedByReviewer.rawValue)
     }
 
-    @Test("reviewRoundsMax=1, attemptsPerCard=1, the Check always fails: rounds-exhausted, blocked by check")
+    @Test("reviewRoundsMax=1, attemptsPerWorkCard=1, the Check always fails: rounds-exhausted, blocked by check")
     func checkAlwaysFailingBlocksTheCard() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
         let run = makeRun(
             reviewerScript: [.reviewerApproved], checkResults: [red], checks: ["backend": .command("make test")],
-            reviewRoundsMax: 1, attemptsPerCard: 1
+            reviewRoundsMax: 1, attemptsPerWorkCard: 1
         )
 
         try await run.card.run("BACK-1", in: world)
@@ -154,12 +154,12 @@ struct CardRunReviewRoundTests {
         #expect(run.dispatch.requests.passes(.reviewer).isEmpty)
     }
 
-    @Test("reviewRoundsMax=1, attemptsPerCard=2, a single Route: rounds-exhausted excludes it, and the retry Blocks")
+    @Test("reviewRoundsMax=1, attemptsPerWorkCard=2, a single Route: rounds-exhausted excludes it, and the retry Blocks")
     func roundBudgetAloneNeverBlocksTheCard() async throws {
         let fixture = try OutboxJournalFixture()
         let world = try await makeCardRunWorld(journal: try fixture.open())
         let run = makeRun(
-            reviewerScript: [.reviewerChangesRequested], reviewRoundsMax: 1, attemptsPerCard: 2
+            reviewerScript: [.reviewerChangesRequested], reviewRoundsMax: 1, attemptsPerWorkCard: 2
         )
 
         try await run.card.run("BACK-1", in: world)
@@ -177,7 +177,7 @@ struct CardRunReviewRoundTests {
         #expect(!(try cardRunLog(world.journal).contains(CardRunStep.attemptsExhausted.rawValue)))
     }
 
-    @Test("attemptsPerCard=2, two Routes: a consumed seed leaves one retry, a question leaves two, both Block")
+    @Test("attemptsPerWorkCard=2, two Routes: a consumed seed leaves one retry, a question leaves two, both Block")
     func earlierAttemptsInTheEpochCountTowardTheBudget() async throws {
         for (seedEnding, expectedTotalAttempts) in [
             (AttemptEnding.crashedUnknown(.signaled(9)), 2),
@@ -190,7 +190,7 @@ struct CardRunReviewRoundTests {
             try world.journal.endAttempt(attemptID: earlier.id, ending: seedEnding, runID: world.runID)
 
             let run = makeRun(
-                reviewerScript: [.reviewerChangesRequested], reviewRoundsMax: 1, attemptsPerCard: 2,
+                reviewerScript: [.reviewerChangesRequested], reviewRoundsMax: 1, attemptsPerWorkCard: 2,
                 resolver: cardRunResolver(
                     table: RoutingTable(entries: [
                         RoutingEntry(kind: Kind("card")!, route: cardRunOpus, fallbacks: [cardRunFallback])
@@ -215,7 +215,7 @@ struct CardRunReviewRoundTests {
         let run = makeRun(
             workerScript: [.workerCompleted, .workerCompleted],
             reviewerScript: [.reviewerChangesRequested], checkResults: [red, green],
-            checks: ["backend": .command("make test")], reviewRoundsMax: 2, attemptsPerCard: 1
+            checks: ["backend": .command("make test")], reviewRoundsMax: 2, attemptsPerWorkCard: 1
         )
 
         try await run.card.run("BACK-1", in: world)
@@ -232,7 +232,7 @@ struct CardRunReviewRoundTests {
     func reviewRoundCommentOnlyWithABoard() async throws {
         let boardFixture = try OutboxJournalFixture()
         let boardWorld = try await makeCardRunWorld(journal: try boardFixture.open())
-        try await makeRun(reviewerScript: [.reviewerChangesRequested], reviewRoundsMax: 1, attemptsPerCard: 1)
+        try await makeRun(reviewerScript: [.reviewerChangesRequested], reviewRoundsMax: 1, attemptsPerWorkCard: 1)
             .card.run("BACK-1", in: boardWorld)
         let bodies = try await #require(boardWorld.boards).writing.comments.map(\.body)
         #expect(bodies.count == 1)
@@ -243,7 +243,7 @@ struct CardRunReviewRoundTests {
 
         let noBoardFixture = try OutboxJournalFixture()
         let noBoardWorld = try await makeCardRunWorld(journal: try noBoardFixture.open(), withBoard: false)
-        try await makeRun(reviewerScript: [.reviewerChangesRequested], reviewRoundsMax: 1, attemptsPerCard: 1)
+        try await makeRun(reviewerScript: [.reviewerChangesRequested], reviewRoundsMax: 1, attemptsPerWorkCard: 1)
             .card.run("BACK-1", in: noBoardWorld)
         #expect(try #require(try noBoardWorld.attempts("BACK-1").first).rounds.count == 1)
     }

@@ -24,7 +24,7 @@ struct ConfigurationEditingRefusalTests {
     @Test("A non-numeric Bound is refused with the loader's typeMismatch message")
     func boundNonNumericIsRefused() throws {
         try expectProjectEditRefused(id: "boundabc") { draft in
-            draft.bounds.attemptsPerCard = "abc"
+            draft.bounds.attemptsPerWorkCard = "abc"
         } assertReason: { reason, _ in
             guard case .typeMismatch(let expected, _) = reason else {
                 Issue.record("expected .typeMismatch, got \(reason)")

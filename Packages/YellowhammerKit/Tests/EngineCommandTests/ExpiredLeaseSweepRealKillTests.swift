@@ -219,7 +219,7 @@ struct ExpiredLeaseSweepRealKillTests {
         let firstRun = CardRun(
             resolver: cardRunResolver(), dispatch: KillableWorkerDispatch(gate: killSwitch),
             check: RecordingCheck(log: CallLog()), checks: ["backend": .none], reviewRoundsMax: 2,
-            attemptsPerCard: 3, resetting: RecordingAttemptResetting()
+            attemptsPerWorkCard: 3, resetting: RecordingAttemptResetting()
         )
         let firstInvocation = EngineInvocation(
             act: .build, mode: .rehearsal, nightStart: buildActNightStart, journal: journal, runID: deadRunID,
@@ -291,7 +291,7 @@ struct ExpiredLeaseSweepRealKillTests {
         let retryRunID = RunID()
         let retryRun = CardRun(
             resolver: cardRunResolver(), dispatch: RehearsalDispatch(), check: RecordingCheck(log: CallLog()),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerCard: 3, resetting: RecordingAttemptResetting()
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3, resetting: RecordingAttemptResetting()
         )
         let fastFencer = ProcessFencer(pollInterval: .milliseconds(20), quiescenceTimeout: .seconds(5))
         let secondInvocation = EngineInvocation(

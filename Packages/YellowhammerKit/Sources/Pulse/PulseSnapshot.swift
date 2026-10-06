@@ -187,7 +187,7 @@ public struct RunningAttempt: Identifiable, Equatable, Sendable {
     public var cardID: String
     /// The running Card's readable identifier (e.g. `ENG-123`), recorded for display.
     public var cardIDForDisplay: String?
-    public var cardTitle: String
+    public var workCardTitle: String
     public var repo: String
     /// The route `(cli, model, effort)`, rendered as `Route.description` renders it.
     public var route: String
@@ -203,7 +203,7 @@ public struct RunningAttempt: Identifiable, Equatable, Sendable {
         id: String,
         cardID: String,
         cardIDForDisplay: String? = nil,
-        cardTitle: String,
+        workCardTitle: String,
         repo: String,
         route: String,
         startedAt: Date,
@@ -214,7 +214,7 @@ public struct RunningAttempt: Identifiable, Equatable, Sendable {
         self.id = id
         self.cardID = cardID
         self.cardIDForDisplay = cardIDForDisplay
-        self.cardTitle = cardTitle
+        self.workCardTitle = workCardTitle
         self.repo = repo
         self.route = route
         self.startedAt = startedAt
@@ -226,7 +226,7 @@ public struct RunningAttempt: Identifiable, Equatable, Sendable {
     public init(
         id: String,
         cardID: String,
-        cardTitle: String,
+        workCardTitle: String,
         repo: String,
         route: String,
         startedAt: Date,
@@ -238,7 +238,7 @@ public struct RunningAttempt: Identifiable, Equatable, Sendable {
             id: id,
             cardID: cardID,
             cardIDForDisplay: nil,
-            cardTitle: cardTitle,
+            workCardTitle: workCardTitle,
             repo: repo,
             route: route,
             startedAt: startedAt,

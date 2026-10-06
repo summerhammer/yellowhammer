@@ -183,7 +183,7 @@ struct AddProjectDraftStatusTests {
     func boundsProblems() {
         var draft = AddProjectDraft()
         #expect(draft.problems(in: .bounds).isEmpty)
-        draft.bounds.attemptsPerCard = 0
+        draft.bounds.attemptsPerWorkCard = 0
         #expect(draft.problems(in: .bounds) == ["Attempts per Card must be at least 1."])
     }
 

@@ -76,8 +76,8 @@ public final class RehearsalDispatch: AgentDispatch, Sendable {
 
     public func dispatch(_ request: AgentDispatchRequest) async throws -> AgentDispatchReport {
         requests.withLock { $0.append(request) }
-        let cardKey = CardPass(issueID: request.issueID, pass: request.pass)
-        guard let fixture = script.byCard[cardKey] ?? script.byPass[request.pass] else {
+        let workCardKey = CardPass(issueID: request.issueID, pass: request.pass)
+        guard let fixture = script.byCard[workCardKey] ?? script.byPass[request.pass] else {
             preconditionFailure("RehearsalDispatch has no fixture for pass \(request.pass)")
         }
         let outcome: RunOutcome
