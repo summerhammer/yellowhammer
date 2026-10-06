@@ -35,10 +35,12 @@ public struct FeatureRollUpMaintenance: Sendable {
         // to merge, so it is in neither the numerator nor the denominator.
         let pushedForMerge = try journal.pushedRepositories(featureID: feature.id)
         let mergedInN = Set(observation?.merged ?? []).intersection(pushedForMerge).count
+        let verification = try journal.featureVerification(cycleID: cycleID)
         let rollUp = FeatureRollUp(
             members: try members(feature: feature, cycleID: cycleID),
             lanesPushed: try journal.isCycleLanded(cycleID: cycleID),
-            verificationPassed: try verificationPassed(cycleID: cycleID),
+            verificationPassed: verification?.clauses.allSatisfy { $0.verdict == .met } ?? false,
+            unmetClauseCount: verification?.clauses.count { $0.verdict != .met },
             mergedFraction: MergedFraction(mergedCount: mergedInN, totalCount: pushedForMerge.count),
             conflictingRepositories: Array(conflicts.keys),
             noPullRequestRepositories: try journal.noPushedBranchRepositories(featureID: feature.id),
@@ -192,11 +194,6 @@ public struct FeatureRollUpMaintenance: Sendable {
             result[cardID] = previousFeatureIssueID
         }
         return result
-    }
-
-    private func verificationPassed(cycleID: Int64) throws -> Bool {
-        guard let verification = try journal.featureVerification(cycleID: cycleID) else { return false }
-        return verification.clauses.allSatisfy { $0.verdict == .met }
     }
 
     // MARK: - `maintainAll` candidates
