@@ -26,6 +26,7 @@ struct SettingsWindow: View {
     @State private var history = SettingsHistory()
     @State private var configured: ConfiguredProjects?
     @State private var linearWorkspaces = LinearWorkspacesModel()
+    @State private var highlightedBoardConnection: String?
     /// The last request token this window has applied. A new window starts at zero, so it applies the
     /// request that opened it.
     @State private var appliedRequest = 0
@@ -36,7 +37,9 @@ struct SettingsWindow: View {
         Binding(
             get: { history.current },
             set: { section in
-                if let section { history.visit(section) }
+                guard let section, section != history.current else { return }
+                highlightedBoardConnection = nil
+                history.visit(section)
             }
         )
     }
@@ -74,7 +77,10 @@ struct SettingsWindow: View {
                     .accessibilityIdentifier("settings-forward")
             }
         }
-        .environment(\.showSettingsSection) { history.visit($0) }
+        .environment(\.showSettingsSection) {
+            highlightedBoardConnection = nil
+            history.visit($0)
+        }
         .accessibilityIdentifier("settings-window")
         .onAppear(perform: applyRequest)
         .onChange(of: request.token) { applyRequest() }
@@ -91,7 +97,7 @@ struct SettingsWindow: View {
         case .general:
             GeneralSettingsPane()
         case .boards:
-            BoardsSettingsPane(model: linearWorkspaces)
+            BoardsSettingsPane(model: linearWorkspaces, highlightedBoardConnection: highlightedBoardConnection)
         case .agentCLIs:
             AgentCLIsPane()
         case .baseRoutingTable:
@@ -137,6 +143,7 @@ struct SettingsWindow: View {
     /// for General, and tells the other windows, so the main window drops it too.
     private func projectRemoved() {
         readConfiguration()
+        highlightedBoardConnection = nil
         history.visit(.general)
         projectListChanges.record()
     }
@@ -153,11 +160,17 @@ struct SettingsWindow: View {
     private func applyRequest() {
         guard request.token != appliedRequest else { return }
         appliedRequest = request.token
+        highlightedBoardConnection = request.boardConnection ?? resolveBoardConnection(for: request.project)
         if let section = request.section {
             history.visit(section)
         } else if let project = request.project {
             history.visit(.project(project))
         }
+    }
+
+    private func resolveBoardConnection(for project: ProjectID?) -> String? {
+        guard let project, request.section == .boards else { return nil }
+        return linearWorkspaces.workspaces.first { $0.projects.contains(project.rawValue) }?.name
     }
 
     /// Reads the configuration when the window opens, then each time the app becomes active. The loop is

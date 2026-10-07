@@ -14,12 +14,15 @@ final class SettingsRequest {
     private(set) var project: ProjectID?
     /// The section to open; nil to keep today's Project view.
     private(set) var section: SettingsSection?
+    /// The Board Connection to highlight and make visible; nil when opening generally.
+    private(set) var boardConnection: String?
     /// Changes with every request.
     private(set) var token = 0
 
-    func request(_ project: ProjectID?, section: SettingsSection? = nil) {
+    func request(_ project: ProjectID?, section: SettingsSection? = nil, boardConnection: String? = nil) {
         self.project = project
         self.section = section
+        self.boardConnection = boardConnection
         token += 1
     }
 }
