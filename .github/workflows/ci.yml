@@ -158,7 +158,7 @@ jobs:
       - name: Run tests
         timeout-minutes: 12
         env:
-          PROCESS_SUITES: ProcessTreeTests|AgentCLIProcess|ProcessFencer|WorktreeCheckTests|TerminationSignalsTests|ExpiredLeaseSweepIntegrationTests|WorktreeReconcilerContinuedTests
+          PROCESS_SUITES: ProcessTreeTests|AgentCLIProcess|ProcessFencer|WorktreeCheckTests|TerminationSignalsTests|ExpiredLeaseSweepIntegrationTests|WorktreeReconcilerContinuedTests|AgentModelDiscoveryProcessTests|InstallationRefreshLockProcessTests
         run: |
           mkdir -p build/test-results
           script -q /dev/null swift test --package-path Packages/YellowhammerKit --parallel --skip "$PROCESS_SUITES" --xunit-output build/test-results/tests.xml </dev/null 2>&1 | tee build/test-results/test.log
@@ -166,7 +166,7 @@ jobs:
       - name: Run process-timing tests
         timeout-minutes: 5
         env:
-          PROCESS_SUITES: ProcessTreeTests|AgentCLIProcess|ProcessFencer|WorktreeCheckTests|TerminationSignalsTests|ExpiredLeaseSweepIntegrationTests|WorktreeReconcilerContinuedTests
+          PROCESS_SUITES: ProcessTreeTests|AgentCLIProcess|ProcessFencer|WorktreeCheckTests|TerminationSignalsTests|ExpiredLeaseSweepIntegrationTests|WorktreeReconcilerContinuedTests|AgentModelDiscoveryProcessTests|InstallationRefreshLockProcessTests
         run: |
           script -q /dev/null swift test --package-path Packages/YellowhammerKit --no-parallel --filter "$PROCESS_SUITES" --xunit-output build/test-results/process-tests.xml </dev/null 2>&1 | tee build/test-results/process-test.log
 
