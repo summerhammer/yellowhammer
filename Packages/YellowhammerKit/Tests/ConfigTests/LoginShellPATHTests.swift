@@ -32,6 +32,14 @@ struct LoginShellPATHTests {
         #expect(LoginShellPATH.arguments(shell: "/bin/tcsh", command: "c") == ["-c", "c"])
     }
 
+    @Test("fish joins its PATH list with colons; other shells print $PATH as it is")
+    func shellCommand() {
+        #expect(LoginShellPATH.command(marker: "M", shell: "/bin/zsh")
+            == "printf '%s' 'M'; printf '%s' \"$PATH\"; printf '%s' 'M'")
+        #expect(LoginShellPATH.command(marker: "M", shell: "/opt/homebrew/bin/fish")
+            == "printf '%s' 'M'; string join ':' $PATH; printf '%s' 'M'")
+    }
+
     @Test("the operator's shell is an absolute executable path")
     func operatorShell() {
         let shell = LoginShellPATH.operatorShell()

@@ -48,8 +48,10 @@ public enum LoginShellPATH {
     }
 
     /// The shell command that prints `PATH` between two `marker`s, so rc-file noise around it can be ignored.
-    public static func command(marker: String) -> String {
-        "printf '%s' '\(marker)'; printf '%s' \"$PATH\"; printf '%s' '\(marker)'"
+    /// fish keeps `PATH` as a list that `"$PATH"` joins with spaces, so for fish it is joined with `:` instead.
+    public static func command(marker: String, shell: String = "/bin/zsh") -> String {
+        let path = (shell as NSString).lastPathComponent == "fish" ? "string join ':' $PATH" : "printf '%s' \"$PATH\""
+        return "printf '%s' '\(marker)'; \(path); printf '%s' '\(marker)'"
     }
 
     /// The `PATH` between the first `marker` in `output` and the next one, after ANSI escape sequences are
@@ -93,7 +95,7 @@ public enum LoginShellPATH {
 
         let pid: pid_t
         switch spawn(
-            shell: shell, arguments: arguments(shell: shell, command: command(marker: marker)),
+            shell: shell, arguments: arguments(shell: shell, command: command(marker: marker, shell: shell)),
             environment: env, outputPath: outputPath
         ) {
         case .success(let spawned): pid = spawned

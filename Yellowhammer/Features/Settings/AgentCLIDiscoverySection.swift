@@ -181,7 +181,7 @@ private struct AgentCLIDetectedRow: View {
                 .textSelection(.enabled)
                 .truncationMode(.middle)
                 .lineLimit(1)
-                .help(only.path)
+                .help(Self.help(only))
                 .accessibilityIdentifier("agent-cli-detected-path-\(cli)")
         } else {
             Picker("Path", selection: Binding(
@@ -191,6 +191,7 @@ private struct AgentCLIDetectedRow: View {
                 ForEach(discovery.selectable, id: \.path) { candidate in
                     Text("\(candidate.path)  (\(Self.tag(candidate.source)))")
                         .font(.callout.monospaced())
+                        .help(Self.help(candidate))
                         .tag(candidate.path)
                 }
             }
@@ -198,6 +199,13 @@ private struct AgentCLIDetectedRow: View {
             .labelsHidden()
             .accessibilityIdentifier("agent-cli-detected-path-\(cli)")
         }
+    }
+
+    /// The path as found, and the file it resolves to when that is somewhere else (a symlink into a versioned
+    /// install directory): the path as found is what is saved, since the resolved one goes when the CLI updates.
+    private static func help(_ candidate: CLICandidate) -> String {
+        guard candidate.resolvedPath != candidate.path else { return candidate.path }
+        return "\(candidate.path)\nResolves to \(candidate.resolvedPath)"
     }
 
     private static func tag(_ source: ExecutableSearchPath.Source) -> String {
