@@ -241,6 +241,88 @@ struct NightSummaryExceptionsTests {
         })
     }
 
+    @Test("Exceptions name a Feature Branch the ghost purge could not recover: Feature, repo, tip, Done Cards (OQ133)")
+    func exceptionsNameAnUnrecoveredFeatureBranch() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let cardID = try insertExceptionsCard(journal, issueID: "CARD-1", featureIssueID: "FEAT-1")
+        let cycleID = try journal.card(id: cardID).cycleID
+        let featureID = try journal.read { db in
+            try #require(try Int64.fetchOne(db, sql: "SELECT feature_id FROM cycle WHERE id = ?", arguments: [cycleID]))
+        }
+        let night = try await openNightForExceptionsTest(journal: journal, board: board) { context in
+            try journal.append(
+                .worktreeLost(
+                    featureID: featureID, repository: "backend", worktreeID: "wt-1", path: "/tmp/wt-1",
+                    pinnedCommit: nil, lostCommit: "abc123def", lostDoneCardIDs: [cardID]
+                ),
+                act: context.act, runID: context.runID, nightID: context.night.id
+            )
+        }
+
+        let lines = try NightSummary.exceptionLines(night: night, journal: journal)
+        #expect(lines.contains(
+            "Feature `FEAT-1`'s Worktree in `backend` was removed outside Yellowhammer, taking its Feature "
+                + "Branch, and nothing could be recovered. Last known-good commit: `abc123def` is gone from the "
+                + "repository. Done Work Cards whose commits are gone: `CARD-1`. Re-readying them is the "
+                + "Operator's gesture."
+        ))
+    }
+
+    @Test("A ghost purge that pinned a commit, or lost nothing, adds no line to Exceptions (OQ133)")
+    func exceptionsStaySilentWhenNothingIsLost() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let night = try await openNightForExceptionsTest(journal: journal, board: board) { context in
+            try journal.append(
+                .worktreeLost(
+                    featureID: 1, repository: "backend", worktreeID: "wt-1", path: "/tmp/wt-1", pinnedCommit: "abc123"
+                ),
+                act: context.act, runID: context.runID, nightID: context.night.id
+            )
+            // Pushed work survives on the remote: nothing recoverable, but nothing lost to name either.
+            try journal.append(
+                .worktreeLost(
+                    featureID: 1, repository: "frontend", worktreeID: "wt-2", path: "/tmp/wt-2", pinnedCommit: nil
+                ),
+                act: context.act, runID: context.runID, nightID: context.night.id
+            )
+        }
+
+        let lines = try NightSummary.exceptionLines(night: night, journal: journal)
+        #expect(!lines.contains { $0.contains("was removed outside Yellowhammer") })
+    }
+
+    @Test("A lane with no recorded tip names the Done Cards and says so (OQ133)")
+    func exceptionsNameLostDoneCardsWithoutARecordedTip() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let first = try insertExceptionsCard(journal, issueID: "CARD-1", featureIssueID: "FEAT-1")
+        let second = try insertExceptionsCard(journal, issueID: "CARD-2", featureIssueID: "FEAT-2")
+        let night = try await openNightForExceptionsTest(journal: journal, board: board) { context in
+            try journal.append(
+                .worktreeLost(
+                    featureID: 999, repository: "backend", worktreeID: "wt-1", path: "/tmp/wt-1",
+                    pinnedCommit: nil, lostCommit: nil, lostDoneCardIDs: [first, second]
+                ),
+                act: context.act, runID: context.runID, nightID: context.night.id
+            )
+        }
+
+        let lines = try NightSummary.exceptionLines(night: night, journal: journal)
+            .filter { $0.contains("was removed outside Yellowhammer") }
+        #expect(lines.count == 1)
+        #expect(lines[0].hasPrefix("Feature #999's Worktree in `backend`"))
+        #expect(lines[0].contains("Last known-good commit: none was recorded."))
+        #expect(lines[0].contains("`CARD-1`, `CARD-2`"))
+    }
+
     @Test("""
         Exceptions render boardWriteFailed, rateBudgetExhausted, mainlineFetchFailed, absentNightDetected, \
         notificationDeliveryFailed

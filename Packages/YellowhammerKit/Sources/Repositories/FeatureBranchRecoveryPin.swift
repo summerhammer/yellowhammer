@@ -11,6 +11,16 @@ public enum FeatureBranchTipLookup: Equatable, Sendable {
     case failed(String)
 }
 
+/// What a lookup of one commit object in the main repository found.
+public enum CommitObjectLookup: Equatable, Sendable {
+    /// The object store holds the commit (an unreachable one does until `git gc` prunes it).
+    case present
+    /// The repository is readable and holds no such commit.
+    case absent
+    /// git could not answer: the repository is missing or unreadable, or git failed. The reason says why.
+    case failed(String)
+}
+
 /// Pins a Feature Branch's tip under `refs/yellowhammer/recovery/<branch>` so it survives the removal of
 /// the Worktree that checked the branch out (OQ123).
 ///
@@ -48,6 +58,26 @@ public struct FeatureBranchRecoveryPin: Sendable {
             return .commit(sha)
         }
         if result.exitCode == 1, sha.isEmpty {
+            return .absent
+        }
+        return .failed(Self.reason(of: result, fallback: "git rev-parse exited \(result.exitCode)"))
+    }
+
+    /// Whether the commit `sha` is still in the object store of the repository at `repositoryPath`,
+    /// reachable or not (OQ133): the way a branch already deleted by Orca ADE may still be recovered from
+    /// the Journal's `last_known_good_commit`. The repository is verified first, as in ``tip(of:repositoryPath:)``,
+    /// so a missing or corrupt repository is `.failed` rather than a commit that looks pruned.
+    public func commitExists(_ sha: String, repositoryPath: String) async -> CommitObjectLookup {
+        let repository = await git.run(["-C", repositoryPath, "rev-parse", "--git-dir"])
+        guard repository.isSuccess else {
+            return .failed(Self.reason(of: repository, fallback: "\(repositoryPath) is not a git repository"))
+        }
+
+        let result = await git.run(["-C", repositoryPath, "rev-parse", "--verify", "--quiet", "\(sha)^{commit}"])
+        if result.isSuccess {
+            return .present
+        }
+        if result.exitCode == 1, result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return .absent
         }
         return .failed(Self.reason(of: result, fallback: "git rev-parse exited \(result.exitCode)"))

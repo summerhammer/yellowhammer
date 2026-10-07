@@ -45,8 +45,10 @@ func worktreeLostRoundTrips() throws {
 
     #expect(records.count == 1)
     guard
-        case .worktreeLost(let featureID, let repository, let worktreeID, let path, let pinnedCommit) =
-        records[0].event
+        case .worktreeLost(
+            let featureID, let repository, let worktreeID, let path, let pinnedCommit, let lostCommit,
+            let lostDoneCardIDs
+        ) = records[0].event
     else {
         Issue.record("Event is not worktreeLost")
         return
@@ -56,6 +58,33 @@ func worktreeLostRoundTrips() throws {
     #expect(worktreeID == "wt-1")
     #expect(path == "/tmp/wt-1")
     #expect(pinnedCommit == "abc123")
+    #expect(lostCommit == nil)
+    #expect(lostDoneCardIDs.isEmpty)
+}
+
+@Test("worktreeLost event with a lost tip and lost Done Cards round-trips (OQ133)")
+func worktreeLostWithLossRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+
+    try journal.append(
+        .worktreeLost(
+            featureID: 1, repository: "backend", worktreeID: "wt-1", path: "/tmp/wt-1", pinnedCommit: nil,
+            lostCommit: "def456", lostDoneCardIDs: [4, 7]
+        ),
+        act: .build, runID: RunID(), now: epoch
+    )
+
+    guard
+        case .worktreeLost(_, _, _, _, let pinnedCommit, let lostCommit, let lostDoneCardIDs) =
+        try journal.events()[0].event
+    else {
+        Issue.record("Event is not worktreeLost")
+        return
+    }
+    #expect(pinnedCommit == nil)
+    #expect(lostCommit == "def456")
+    #expect(lostDoneCardIDs == [4, 7])
 }
 
 @Test("worktreeFenced event round-trips")

@@ -22,13 +22,27 @@ extension WorktreeReconciler {
     /// the commits. Finally the Journal marks the Worktree lost and every in-progress Card of this
     /// repository, in the in-flight Cycle, returns to Todo so a later Act redispatches it into a fresh
     /// Worktree rather than assuming stale progress.
+    ///
+    /// A Feature Branch that is already gone (the Operator removed the Worktree in Orca ADE) is not a reason
+    /// to hold the lane (OQ133): the pin falls back to the lane's `last_known_good_commit`, and re-allocation
+    /// recovers from it like from a branch tip. Only when that object is gone too is the loss recorded on the
+    /// `worktreeLost` event — the lost tip and the Done Cards of the lane — for the Night Summary to name.
+    /// Nothing is named for work already pushed: it survives on the remote.
     func purgeGhost(_ record: WorktreeRecord, branch: FeatureBranch) async throws -> WorktreeReconciliationOutcome {
         var pinnedCommit: String?
+        var waitsForBranchDeletion = false
+        var unrecovered = false
+        var lostCommit: String?
         switch try await pinFeatureBranch(record, branch: branch) {
         case .pinned(let commit):
             pinnedCommit = commit
-        case .nothingToPin:
-            break
+            waitsForBranchDeletion = true
+        case .pinnedLastKnownGood(let commit):
+            // The branch was already gone, so Orca ADE has no deletion left to finish: nothing to wait for.
+            pinnedCommit = commit
+        case .nothingToPin(let lost):
+            unrecovered = record.pushedCommit == nil
+            lostCommit = unrecovered ? lost : nil
         case .held(let reason):
             try recordFailure(record, reason: reason)
             return .ghostKept(record, reason: reason)
@@ -41,7 +55,7 @@ extension WorktreeReconciler {
         } catch {
             // Tolerated: the Journal record is what matters here.
         }
-        if removed, pinnedCommit != nil, let configured = repositories?.repositoryPath(named: record.repository) {
+        if removed, waitsForBranchDeletion, let configured = repositories?.repositoryPath(named: record.repository) {
             _ = await recoveryPin.waitUntilBranchGone(
                 branch, repositoryPath: Self.expandedPath(configured),
                 timeout: branchDeletionTimeout, interval: branchDeletionPollInterval
@@ -49,21 +63,24 @@ extension WorktreeReconciler {
         }
 
         let lostRecord = try journal.recordWorktreeLost(id: record.id, runID: runID)
+        let cycleCards: [CardRecord]
+        if let cycleID = try journal.inFlightCycleID() {
+            cycleCards = try journal.cards().filter { $0.cycleID == cycleID && $0.repository == record.repository }
+        } else {
+            cycleCards = []
+        }
+        let lostDoneCardIDs = unrecovered ? cycleCards.filter { $0.state == .done }.map(\.id) : []
         try journal.append(
             .worktreeLost(
                 featureID: record.featureID, repository: record.repository,
-                worktreeID: record.worktreeID, path: record.path, pinnedCommit: pinnedCommit
+                worktreeID: record.worktreeID, path: record.path, pinnedCommit: pinnedCommit,
+                lostCommit: lostCommit, lostDoneCardIDs: lostDoneCardIDs
             ),
             act: act, runID: runID, nightID: nightID
         )
 
-        if let cycleID = try journal.inFlightCycleID() {
-            let strandedCards = try journal.cards().filter {
-                $0.cycleID == cycleID && $0.repository == record.repository && $0.state == .inProgress
-            }
-            for card in strandedCards {
-                try journal.transitionCard(cardID: card.id, to: .todo, runID: runID, act: act, nightID: nightID)
-            }
+        for card in cycleCards where card.state == .inProgress {
+            try journal.transitionCard(cardID: card.id, to: .todo, runID: runID, act: act, nightID: nightID)
         }
 
         return .lost(lostRecord)

@@ -167,7 +167,10 @@ extension JournalEvent {
                 }
                 return dict
             }()
-        case .worktreeLost(let featureID, let repository, let worktreeID, let path, let pinnedCommit):
+        case .worktreeLost(
+            let featureID, let repository, let worktreeID, let path, let pinnedCommit, let lostCommit,
+            let lostDoneCardIDs
+        ):
             {
                 var dict: [String: String] = [
                     "feature_id": String(featureID), "path": path,
@@ -175,6 +178,12 @@ extension JournalEvent {
                 ]
                 if let pinnedCommit {
                     dict["pinned_commit"] = pinnedCommit
+                }
+                if let lostCommit {
+                    dict["lost_commit"] = lostCommit
+                }
+                if !lostDoneCardIDs.isEmpty {
+                    dict["lost_done_card_ids"] = lostDoneCardIDs.map(String.init).joined(separator: ",")
                 }
                 return dict
             }()
