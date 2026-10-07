@@ -38,6 +38,7 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case cardRestated = "CardRestated"
     case humanCardComment = "HumanCardComment"
     case cardRemovedFromBoard = "CardRemovedFromBoard"
+    case cardRestoredToBoard = "CardRestoredToBoard"
     case authoringInvariantBroken = "AuthoringInvariantBroken"
     case deltaReadCompleted = "DeltaReadCompleted"
     case cardStateTransitioned = "CardStateTransitioned"

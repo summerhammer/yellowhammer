@@ -115,6 +115,10 @@ extension JournalMigrations {
             table.column("created_at", .text).notNull()
             // What state a Card held before being marked Shelved.
             table.column("shelved_from_state", .text)
+            // Set while the Card's issue is trashed, or archived while in play (OQ142); orthogonal to
+            // `state`, so restoring the issue clears it and leaves the Card exactly as it stood.
+            table.column("removed_from_board", .text)
+                .check(sql: "removed_from_board IN ('trashed','archived')")
             // Card-side state versioning for board projection (roadmap P5.8): `state_version` is bumped
             // by every Journal-side Card state transition, and `board_state_version` records the version
             // last confirmed applied on the board — nil until the first confirmed write. Together they

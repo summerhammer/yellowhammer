@@ -137,6 +137,9 @@ public enum JournalEvent: Equatable, Sendable {
     case humanCardComment(cardID: Int64, commentID: String, commentedAt: Date)
     /// The board no longer lists this Card; the Journal records how it was removed.
     case cardRemovedFromBoard(cardID: Int64, issueID: String, how: String)
+    /// The board restored a removed Card's issue (un-trashed or unarchived, OQ142): the Card is back
+    /// in play exactly as it stood. `how` is how it had been removed.
+    case cardRestoredToBoard(cardID: Int64, issueID: String, how: String)
     /// A Card violates an invariant that must hold for authoring to proceed; the Journal records
     /// what broke so no Act blindly retries.
     case authoringInvariantBroken(cardID: Int64, issueID: String, reason: String)

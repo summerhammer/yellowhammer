@@ -36,8 +36,12 @@ public struct DeltaReadReport: Equatable, Sendable {
     /// Journal-Blocked Cards read as Linear Todo with a known Block Reason and no pending write:
     /// accepted as the Operator's re-ready, with budgets reset or preserved by Block Reason.
     public var reReadied: [CardRecord]
-    /// Cards the Operator deleted or archived while the Journal still had them in play.
+    /// Cards the Operator trashed, or archived while the Journal still had them in play, newly set aside
+    /// by this read (OQ142). A Card already recorded as removed is not reported again.
     public var removed: [RemovedCard]
+    /// Removed Cards whose issue the board read as restored (un-trashed or unarchived): back in play
+    /// exactly as they stood.
+    public var restoredToBoard: [CardRecord]
     /// Cards whose board copy breaks the authoring invariant. Reported instead of dispatched.
     public var invariantBreaks: [InvariantBreak]
     /// Updated objects the Journal has no Card for: Feature Issues, Night Cards, the Operator's own issues.
@@ -64,6 +68,7 @@ public struct DeltaReadReport: Equatable, Sendable {
         restated: [RestatedCard] = [],
         reReadied: [CardRecord] = [],
         removed: [RemovedCard] = [],
+        restoredToBoard: [CardRecord] = [],
         invariantBreaks: [InvariantBreak] = [],
         unknownObjects: [BoardObject] = [],
         anomalies: [WaitingOnYouAnomaly] = [],
@@ -80,6 +85,7 @@ public struct DeltaReadReport: Equatable, Sendable {
         self.restated = restated
         self.reReadied = reReadied
         self.removed = removed
+        self.restoredToBoard = restoredToBoard
         self.invariantBreaks = invariantBreaks
         self.unknownObjects = unknownObjects
         self.anomalies = anomalies
@@ -184,9 +190,7 @@ public struct RestatedCard: Equatable, Sendable {
 }
 
 public struct RemovedCard: Equatable, Sendable {
-    public enum How: String, Sendable {
-        case trashed, archived
-    }
+    public typealias How = CardRemoval
 
     public var card: CardRecord
     public var how: How

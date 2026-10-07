@@ -124,7 +124,8 @@ extension JournalEvent {
         case .humanCardComment(let cardID, let commentID, let commentedAt):
             ["card_id": String(cardID), "comment_id": commentID,
              "commented_at": JournalStore.timestamp(commentedAt)]
-        case .cardRemovedFromBoard(let cardID, let issueID, let how):
+        case .cardRemovedFromBoard(let cardID, let issueID, let how),
+             .cardRestoredToBoard(let cardID, let issueID, let how):
             ["card_id": String(cardID), "how": how, "issue_id": issueID]
         case .authoringInvariantBroken(let cardID, let issueID, let reason):
             ["card_id": String(cardID), "issue_id": issueID, "reason": reason]
