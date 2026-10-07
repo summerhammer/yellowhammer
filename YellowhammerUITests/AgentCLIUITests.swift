@@ -37,7 +37,9 @@ final class AgentCLIUITests: XCTestCase {
 
     /// Writes `machineTOML` as `config.toml` — none at all when nil — then launches the app against it and
     /// the stub `yh`.
-    private func launch(machineTOML: String?) throws {
+    /// `discoveryHome`, when given, is the fixture home directory the pane's discovery searches instead of the
+    /// real machine (`-YellowhammerDiscoveryHome`); without it, discovery finds nothing.
+    private func launch(machineTOML: String?, discoveryHome: URL? = nil) throws {
         try machineTOML?.write(to: machineFile, atomically: true, encoding: .utf8)
         app = XCUIApplication()
         app.launchArguments = [
@@ -45,6 +47,9 @@ final class AgentCLIUITests: XCTestCase {
             "-YellowhammerEngineStub", stubURL.path(percentEncoded: false),
             "-ApplePersistenceIgnoreState", "YES"
         ]
+        if let discoveryHome {
+            app.launchArguments += ["-YellowhammerDiscoveryHome", discoveryHome.path(percentEncoded: false)]
+        }
         app.launch()
     }
 
@@ -138,6 +143,63 @@ final class AgentCLIUITests: XCTestCase {
         XCTAssertTrue(noRoute.waitForExistence(timeout: 5))
         window.buttons["agent-cli-open-routing-table"].click()
         XCTAssertTrue(app.windows["Base Routing Table"].waitForExistence(timeout: 10))
+    }
+
+    /// Discovery (#375) against a fixture home: `codex` is found in `~/.local/bin`, `claude` is already declared
+    /// at an explicit path with a space in it that discovery does not find, and `agy` is nowhere. Declaring the
+    /// found `codex` goes through the existing flow and writes its absolute path; the explicit `claude`
+    /// declaration and the one route stay exactly as they were, and no route is added.
+    func testDeclaringADetectedCLIKeepsExplicitPathsAndRoutes() throws {
+        let base = configurationDirectory.deletingLastPathComponent()
+        let home = base.appending(component: "home", directoryHint: .isDirectory)
+        let codex = try Self.writeExecutable(named: "codex", in: home.appending(path: ".local/bin"))
+        let claude = try Self.writeExecutable(named: "claude", in: base.appending(path: "Claude Install/bin"))
+        let claudePath = claude.path(percentEncoded: false)
+        let route = "route = \"claude/sonnet/medium\""
+        try launch(
+            machineTOML: Self.linearOnlyMachineTOML + """
+
+            [cli.claude]
+            executable = "\(claudePath)"
+
+            [[routing]]
+            \(route)
+            """,
+            discoveryHome: home
+        )
+        openAgentCLIsPane()
+        let window = app.windows["Agent CLIs"]
+        XCTAssertTrue(window.waitForExistence(timeout: 10), "The toolbar does not name the section")
+
+        let foundPath = window.staticTexts["agent-cli-detected-path-codex"]
+        XCTAssertTrue(foundPath.waitForExistence(timeout: 10), "The found codex is not listed")
+        XCTAssertEqual(foundPath.value as? String, codex.path(percentEncoded: false))
+        XCTAssertTrue(window.staticTexts["agent-cli-detected-not-found-agy"].exists)
+        XCTAssertTrue(window.staticTexts["agent-cli-detected-not-found-claude"].exists)
+        XCTAssertFalse(window.buttons["agent-cli-detected-use-claude"].exists)
+
+        window.buttons["agent-cli-detected-declare-codex"].click()
+
+        let probedAt = window.staticTexts["agent-cli-probed-at-codex"]
+        XCTAssertTrue(probedAt.waitForExistence(timeout: 10), "The declared CLI is not listed")
+        XCTAssertEqual(probedAt.value as? String, "Never probed")
+        XCTAssertFalse(window.staticTexts["agent-cli-declare-failure"].exists)
+
+        let written = try String(contentsOf: machineFile, encoding: .utf8)
+        XCTAssertTrue(written.contains("[cli.codex]") || written.contains("[cli.\"codex\"]"), written)
+        XCTAssertTrue(written.contains("executable = \"\(codex.path(percentEncoded: false))\""), written)
+        XCTAssertTrue(written.contains("executable = \"\(claudePath)\""), written)
+        XCTAssertEqual(written.components(separatedBy: "[[routing]]").count - 1, 1, written)
+        XCTAssertTrue(written.contains(route), written)
+    }
+
+    /// Writes a `sh` script named `name` into `directory`, mode 0755. Discovery only stats it; nothing runs it.
+    private static func writeExecutable(named name: String, in directory: URL) throws -> URL {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appending(component: name, directoryHint: .notDirectory)
+        try "#!/bin/sh\nexit 0\n".write(to: url, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path(percentEncoded: false))
+        return url
     }
 
     /// Every `argv: <arg>` line the stub echoed, in order.

@@ -54,6 +54,16 @@ final class AgentCLIModel {
     /// CLI's name; cleared by a successful load.
     private(set) var removeFailures: [String: String] = [:]
 
+    /// What discovery found on this Mac, nil until the first search. Never written to `config.toml`;
+    /// ``load()`` leaves it alone, only ``discover()`` replaces it.
+    private(set) var discoveries: [CLIDiscovery]?
+    private(set) var isDiscovering = false
+    /// Why the Operator's login-shell PATH could not be read, when it could not.
+    private(set) var loginShellFailure: String?
+    /// Why the last ``use(executable:for:)`` of each CLI did not write, keyed by the CLI's name; cleared by
+    /// a successful load.
+    private(set) var useFailures: [String: String] = [:]
+
     private(set) var probeLog: [String] = []
     private(set) var probeExitStatus: Int32?
     private(set) var isProbing = false
@@ -96,6 +106,7 @@ final class AgentCLIModel {
             loadFailure = nil
             declareFailure = nil
             removeFailures = [:]
+            useFailures = [:]
             rows = configuration.machine.cliAdapters.map { declaration in
                 var row = loadRow(declaration: declaration)
                 row.executableProblem = declaration.executableProblem
@@ -134,6 +145,43 @@ final class AgentCLIModel {
         }
     }
 
+    /// The declaration named `name`, nil when it is not declared.
+    func declaration(named name: String) -> CLIAdapterDeclaration? {
+        machine?.cliAdapters.first { $0.name == name }
+    }
+
+    /// Searches this Mac for agent CLIs: only when the pane appears or the Operator rescans. Looks at files
+    /// only and writes nothing.
+    func discover() async {
+        guard !isDiscovering else { return }
+        isDiscovering = true
+        defer { isDiscovering = false }
+        let seams = await AgentCLIDiscoverySeams.environment(directory: directory)
+        loginShellFailure = seams.loginShellFailure
+        let environment = seams.environment
+        discoveries = await Task.detached { CLIDiscoverer.discover(environment: environment) }.value
+    }
+
+    /// Points the declared `name` at `executable` and writes `config.toml` through the loader, then reloads.
+    /// An `executable` that cannot run is refused before anything is written.
+    func use(executable: String, for name: String) {
+        guard let machine else { return }
+        let updated = machine.settingExecutable(cliAdapter: name, executable: executable)
+        if let problem = updated.cliAdapters.first(where: { $0.name == name })?.executableProblem {
+            useFailures[name] = problem
+            return
+        }
+        do {
+            try Configuration.save(
+                updated.renderedTOML,
+                to: file, in: directory, replacing: originalText
+            )
+            load()
+        } catch {
+            useFailures[name] = error.description
+        }
+    }
+
     /// Whether a base route names `name`: removing it then needs that route changed first.
     func isRouted(_ name: String) -> Bool {
         machine?.baseRoutingTableNames(cliAdapter: name) ?? false
@@ -161,6 +209,7 @@ final class AgentCLIModel {
         loadFailure = nil
         declareFailure = nil
         removeFailures = [:]
+        useFailures = [:]
     }
 
     /// Reloads unless a Probe is running: a running Probe still has nothing to lose (a declaration being

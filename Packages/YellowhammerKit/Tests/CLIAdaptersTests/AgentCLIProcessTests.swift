@@ -229,19 +229,16 @@ struct AgentCLIProcessTests {
         let fixture = try StubAgentCLI.makeFixture(script: StubAgentCLI.cleanExit)
         defer { fixture.cleanUp() }
         var launch = fixture.launch()
-        launch.executable = fixture.tempDir.appendingPathComponent("does-not-exist").path
+        let missing = fixture.tempDir.appendingPathComponent("does-not-exist").path
+        launch.executable = missing
 
-        do {
+        // Compared by value, not by `guard case` on the caught error and then using it again: that shape
+        // crashed the Xcode 26.6 compiler's SIL ownership verifier.
+        let expected = AgentCLILaunchError.spawnFailed(errno: ENOENT, executable: missing)
+        await #expect(throws: expected) {
             _ = try await AgentCLIProcess().run(launch)
-            Issue.record("expected .spawnFailed")
-        } catch let error as AgentCLILaunchError {
-            guard case .spawnFailed(let errorCode, _) = error else {
-                Issue.record("expected .spawnFailed, got \(error)")
-                return
-            }
-            #expect(errorCode == ENOENT)
-            #expect(error.description.contains("No such file or directory"))
         }
+        #expect(expected.description.contains("No such file or directory"))
     }
 
     @Test("Output log captures both stdout and stderr")
