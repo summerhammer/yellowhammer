@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0](https://github.com/summerhammer/yellowhammer/compare/v0.8.0...v0.9.0) (2026-10-07)
+
+
+### Features
+
+* **settings:** autodetect Claude Code, Codex and Antigravity CLIs ([#379](https://github.com/summerhammer/yellowhammer/issues/379)) ([7248510](https://github.com/summerhammer/yellowhammer/commit/724851077de6bc0c97812e4162d46dfe5c46f7f4))
+
+
+### Bug Fixes
+
+* **app:** refuse and flag an agent CLI executable that cannot run ([5b1f13c](https://github.com/summerhammer/yellowhammer/commit/5b1f13c7c88e46d3ae24add77cd0c21908926988)), closes [#377](https://github.com/summerhammer/yellowhammer/issues/377)
+
 ## [0.8.0](https://github.com/summerhammer/yellowhammer/compare/v0.7.0...v0.8.0) (2026-10-07)
 
 
