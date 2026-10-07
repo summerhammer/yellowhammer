@@ -31,6 +31,10 @@ struct ModelDiscoveryProtocol {
     private var models: [AgentModel] = []
     private var cursors: Set<String> = []
 
+    init(vendor: Vendor) {
+        self.vendor = vendor
+    }
+
     var initialInput: String {
         switch vendor {
         case .claude:
