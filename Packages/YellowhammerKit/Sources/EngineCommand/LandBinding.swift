@@ -26,7 +26,8 @@ enum LandBinding {
     static func pullRequest(
         configuration: Configuration,
         project: ProjectConfiguration,
-        credentials store: KeychainCredentialStore = KeychainCredentialStore()
+        credentials store: KeychainCredentialStore = KeychainCredentialStore(),
+        scrub: @escaping @Sendable () -> NarrativeScrub = { .none }
     ) -> FeatureBranchPullRequest {
         let adapter = GitHubAdapter {
             let reference = configuration.machine.gitHubCredential(for: project)
@@ -34,7 +35,7 @@ enum LandBinding {
         }
         return FeatureBranchPullRequest(
             publication: adapter, titleTemplate: project.pullRequestTitle, changeType: project.changeType,
-            projectID: project.id.rawValue
+            projectID: project.id.rawValue, scrub: scrub
         )
     }
 

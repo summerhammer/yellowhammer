@@ -14,6 +14,8 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
     private let titleTemplate: MessageTemplate
     private let changeType: ChangeType
     private let projectID: String
+    /// The same scrub the Outbox applies (OQ146/OQ147, R23), applied above the Publication Port.
+    private let scrub: @Sendable () -> NarrativeScrub
 
     public init(
         publication: any Publication,
@@ -21,8 +23,10 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
         clock: @escaping @Sendable () -> Date = { Date() },
         titleTemplate: MessageTemplate = .default(.pullRequestTitle),
         changeType: ChangeType = .feat,
-        projectID: String = ""
+        projectID: String = "",
+        scrub: @escaping @Sendable () -> NarrativeScrub = { .none }
     ) {
+        self.scrub = scrub
         self.publication = publication
         self.slugResolver = slugResolver
         self.clock = clock
@@ -69,9 +73,10 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
             context: context, featureObject: featureObject, branch: branch, isPartial: isPartial
         )
         let base = await resolveDefaultBranch(context: context, repo: repo, path: path)
+        let narrativeScrub = scrub()
         let draft = PullRequestDraft(
             owner: slug.owner, repository: slug.repository, head: branch.name, base: base,
-            title: title, body: body
+            title: narrativeScrub.apply(title), body: narrativeScrub.apply(body)
         )
 
         do {
