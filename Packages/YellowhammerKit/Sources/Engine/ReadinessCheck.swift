@@ -156,8 +156,20 @@ public struct ReadinessCheck: Sendable {
 
         try await reconcileBoardCopy(card: card, context: context)
 
-        if let match = try protectedPathMatch(card: card, context: context) {
-            return try await recordRefusal(match: match, card: card, context: context)
+        let matches = try protectedPathMatches(card: card, context: context)
+        if let match = matches.first {
+            // Overreach retains precedence over all other readiness failures except Divergence.
+            if let repositories = context.act.repositories {
+                let blocks = try journal.transcriptionBlocks(cardID: card.id)
+                let report = await provenance.evaluate(
+                    blocks.map(\.block), projectRepositories: repositories, mainlines: context.act.mainlines
+                )
+                if report.hasDivergence {
+                    try recordOverlaps(matches, card: card, context: context)
+                    return try await recordDivergence(report: report, card: card, context: context)
+                }
+            }
+            return try await recordRefusal(match: match, overlaps: matches, card: card, context: context)
         }
 
         let prose = try journal.architecturalBriefProse(cardID: card.id)
@@ -190,20 +202,20 @@ public struct ReadinessCheck: Sendable {
         return .ready(CardReadiness(brief: brief, clauses: clauses))
     }
 
-    /// Tests the Card's declared scope against its repository's configured protected paths, after the
-    /// board copy is reconciled and before any other readiness work (P8.3).
-    private func protectedPathMatch(card: CardRecord, context: BuildActContext) throws -> ProtectedPathRefusal? {
+    /// Tests every declared path against this repository's configured Protected Paths.
+    private func protectedPathMatches(card: CardRecord, context: BuildActContext) throws -> [ProtectedPathRefusal] {
         let declaredScope = try context.act.journal.declaredScope(cardID: card.id)
-        guard !declaredScope.isEmpty else { return nil }
         let protectedPaths = context.act.repositories?.workingRepo(named: card.repository)?.protectedPaths ?? []
-        guard !protectedPaths.isEmpty,
-              let match = ProtectedPaths.match(declaredScope: declaredScope, protectedPaths: protectedPaths)
-        else {
-            return nil
+        return declaredScope.flatMap { path in
+            protectedPaths.compactMap { protectedPath in
+                guard let match = ProtectedPaths.match(declaredScope: [path], protectedPaths: [protectedPath]) else {
+                    return nil
+                }
+                return ProtectedPathRefusal(
+                    repository: card.repository, declaredPath: match.declaredPath, protectedPath: match.protectedPath
+                )
+            }
         }
-        return ProtectedPathRefusal(
-            repository: card.repository, declaredPath: match.declaredPath, protectedPath: match.protectedPath
-        )
     }
 
     /// Parses the board's current copy of the Card's Managed Block (from the Delta Read) and folds any
