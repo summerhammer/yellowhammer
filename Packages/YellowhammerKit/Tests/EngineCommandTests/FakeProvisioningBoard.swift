@@ -124,6 +124,16 @@ actor FakeProvisioningBoard: BoardProvisioning {
         states[team, default: []].append(BoardWorkflowState(id: mint(), name: name, category: category))
     }
 
+    /// Removes every workflow state named `name` from `team`, as an Operator deleting it in Linear would.
+    func remove(state name: String, team: BoardObjectID) {
+        states[team]?.removeAll { $0.name == name }
+    }
+
+    /// Removes every label named `name` from `team` — a group's own entry only; its children stay.
+    func remove(label name: String, team: BoardObjectID) {
+        teamLabels[team]?.removeAll { $0.name == name }
+    }
+
     func alwaysThrowScopeNotFound() { alwaysScopeNotFound = true }
 
     func linearProject() async throws(BoardError) -> BoardProjectScope {

@@ -18,13 +18,11 @@ let buildActEpoch = Date()
 let buildActBranch = FeatureBranch(rawValue: "yh-proj-feat")
 let buildActWorktreeName = WorktreeName(rawValue: buildActBranch.rawValue)
 
-/// Seeds the states `makeBoards()` does not: In Progress, Blocked and Waiting on You (mirroring
+/// Seeds the state `makeBoards()` does not: In Progress (mirroring
 /// BoardStateProjectionTests' `makeProjectionBoards`).
 func makeBuildActBoards() async throws -> NightCardTestBoards {
     let boards = try await makeBoards()
     await boards.provisioning.seed(state: "In Progress", team: teamID, category: .started)
-    await boards.provisioning.seed(state: "Blocked", team: teamID, category: .unstarted)
-    await boards.provisioning.seed(state: "Waiting on You", team: teamID, category: .unstarted)
     return boards
 }
 

@@ -45,6 +45,8 @@ extension JournalEvent {
             .notificationDeliveryFailed
         case .worktreeNameCollision:
             .worktreeNameCollision
+        case .boardScopeUnresolved:
+            .boardScopeUnresolved
         case .rateBudgetExhausted:
             .rateBudgetExhausted
         case .leaseReclaimed:

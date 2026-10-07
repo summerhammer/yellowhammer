@@ -252,7 +252,9 @@ public struct EngineInvocation: Sendable {
         var outbox: Outbox?
         var nightCard: NightCardMaintenance?
         do {
-            try await authorizationPreflight()
+            // Before the Night Card: a refused identity or an unresolved board scope halts the Act
+            // with no work done (roadmap P17.5; OQ85, OQ136).
+            try await boardPreflight()
             // The Night Card is created before the trigger is even evaluated (DR7): an idle Night
             // still opens one. An `open` failure propagates and is recorded as `ActIncomplete` by the
             // catch below, and no work runs.
@@ -292,8 +294,8 @@ public struct EngineInvocation: Sendable {
         }
     }
 
-    // `authorizationPreflight()` lives in EngineInvocation+ExceptionNotification.swift (P17.5), next to
-    // the notification logic it gates — split out for the file/type length limits.
+    // `boardPreflight()` lives in EngineInvocation+BoardPreflight.swift — split out for the file/type
+    // length limits.
 
     /// Ensures the Project's Night Card is live when a board is wired, replacing an archived card. Split out of
     /// `runUnderLease` to keep that function under the function body length limit; the caller re-reads

@@ -27,7 +27,9 @@ struct DoctorBoardProvisioningTests {
             await fixture.acme.seed(label: child, team: engineeringTeam.id, parent: objectType)
         }
         // Setup ran and reported the collision as an unfinished step.
-        _ = try await BoardProvisioner.provision(using: fixture.acme, projectName: "lp-alpha", createIn: nil)
+        _ = try await BoardProvisioner.provision(
+            using: fixture.acme, projectName: "lp-alpha", createIn: nil, routingTable: RoutingTable(entries: [])
+        )
         let createsAfterSetup = await fixture.acme.creates
 
         let findings = await fixture.doctor(projectFilter: ProjectID(rawValue: "alpha")).run()
@@ -50,9 +52,10 @@ struct DoctorBoardProvisioningTests {
         let findings = await fixture.doctor(projectFilter: ProjectID(rawValue: "alpha")).run()
 
         let failures = findings.linear("acme", subject: "provisioning").filter { $0.severity == .failure }
-        // Four workflow states and two label groups; a missing group's labels are covered by the group.
-        #expect(failures.count == 6)
+        // Four workflow states and three label groups; a missing group's labels are covered by the group.
+        #expect(failures.count == 7)
         #expect(failures.contains { $0.message.contains("group label `Card Type` (team ENG) is missing") })
+        #expect(failures.contains { $0.message.contains("group label `Override` (team ENG) is missing") })
         #expect(!failures.contains { $0.message.contains("Night Card") })
         #expect(failures.allSatisfy { $0.message.contains("run `yh setup`") })
         #expect(await fixture.acme.creates == 0)

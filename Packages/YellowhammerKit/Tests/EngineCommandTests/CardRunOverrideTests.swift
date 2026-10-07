@@ -19,11 +19,13 @@ private final class RejectingPreflight: RoutePreflighting {
     }
 }
 
-/// `world` with the team's `Override` group holding `label`, and the Delta Read having seen its Card
-/// carry that label.
+/// `world` with the team's `Override` group (seeded with the rest of the board scope by `makeBoards()`)
+/// holding `label`, and the Delta Read having seen its Card carry that label.
 private func pinning(_ label: String, on issueID: String, in world: CardRunWorld) async throws -> BuildActContext {
     let boards = try #require(world.boards)
-    let group = try await boards.provisioning.createLabel(name: "Override", team: teamID, isGroup: true, parent: nil)
+    let group = try #require(try await boards.provisioning.labels(team: teamID).first {
+        $0.name == "Override" && $0.isGroup
+    })
     _ = try await boards.provisioning.createLabel(name: label, team: teamID, isGroup: false, parent: group.id)
     let card = try world.card(issueID)
     let object = BoardObject(

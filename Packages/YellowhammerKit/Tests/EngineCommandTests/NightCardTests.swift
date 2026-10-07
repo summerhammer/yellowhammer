@@ -61,9 +61,22 @@ func seedDispositionLabels(
     return ids
 }
 
+/// Seeds the rest of the board scope an Act resolves before it does any work (OQ85, OQ136): the four
+/// provisioned `started` workflow states and the `Override` label group (presence only — its children
+/// are Routes, which no Act requires). ``seedDispositionLabels(on:team:includeNightCard:)`` seeds the
+/// remaining groups.
+func seedBoardScope(on board: FakeProvisioningBoard, team: BoardObjectID) async {
+    await board.seed(state: BoardProvisioner.waitingOnYouState, team: team, category: .started)
+    await board.seed(state: BoardProvisioner.blockedState, team: team, category: .started)
+    for value in SettleValue.allCases {
+        await board.seed(state: value.rawValue, team: team, category: .started)
+    }
+    await board.seed(label: BoardProvisioner.overrideGroup, team: team, isGroup: true)
+}
+
 /// The boards ``makeBoards()`` hands a test: a provisioning board seeded with every disposition
-/// label plus an unstarted "Todo" and a completed "Done" state, a Writing board with no issues yet,
-/// and the minted label ids, keyed by name.
+/// label and the rest of the board scope, plus an unstarted "Todo" and a completed "Done" state, a
+/// Writing board with no issues yet, and the minted label ids, keyed by name.
 struct NightCardTestBoards {
     let provisioning: FakeProvisioningBoard
     let writing: FakeWritingBoard
@@ -77,6 +90,7 @@ func makeBoards(includeNightCard: Bool = true) async throws -> NightCardTestBoar
     let ids = try await seedDispositionLabels(on: provisioning, team: teamID, includeNightCard: includeNightCard)
     await provisioning.seed(state: "Todo", team: teamID, category: .unstarted)
     await provisioning.seed(state: "Done", team: teamID, category: .completed)
+    await seedBoardScope(on: provisioning, team: teamID)
     return NightCardTestBoards(provisioning: provisioning, writing: FakeWritingBoard(), ids: ids)
 }
 
@@ -145,7 +159,7 @@ struct NightCardTests {
         #expect(await writing.liveIssues.count == 1)
     }
 
-    @Test("A build Act of a Night whose card already exists reads nothing from provisioning")
+    @Test("A build Act of a Night whose card already exists reads only the board scope from provisioning")
     func existingCardSkipsProvisioningReads() async throws {
         let fixture = try NightCardJournalFixture()
         let journal = try fixture.open()
@@ -162,14 +176,20 @@ struct NightCardTests {
         let readsAfterFirstAct = await provisioning.reads
         let createIssueCallsAfterFirstAct = await writing.createIssueCalls
 
+        // What one board-scope resolution (the Act's preflight, OQ85) costs, measured on the same board.
+        _ = try await BoardProvisioner.verify(
+            using: provisioning, projectName: "scope", routingTable: RoutingTable(entries: [])
+        )
+        let scopeReads = await provisioning.reads - readsAfterFirstAct
+
         try await EngineInvocation(
             act: .build, mode: .real, nightStart: nightCardNightStart, journal: journal,
             trigger: .forced, runID: RunID(), board: board, work: { _ in }
         ).run()
 
         // The card already exists: `open` returns `.alreadyRecorded` before it ever resolves the
-        // scope, so a build Act of an already-open Night makes zero provisioning reads.
-        #expect(await provisioning.reads == readsAfterFirstAct)
+        // scope, so a build Act of an already-open Night makes only the preflight's provisioning reads.
+        #expect(await provisioning.reads == readsAfterFirstAct + 2 * scopeReads)
         #expect(await writing.createIssueCalls == createIssueCallsAfterFirstAct)
     }
 
