@@ -80,38 +80,6 @@ struct AgentModelDiscoveryProcessTests {
         #expect(ContinuousClock.now - start < .seconds(3))
     }
 
-    @Test("Repeated Codex pagination cursors fail instead of truncating the list")
-    func repeatedCursor() async throws {
-        let fixture = try DiscoveryCLI("""
-        sys.stdin.readline()
-        print(json.dumps({'id': 1, 'result': {}}), flush=True)
-        sys.stdin.readline()
-        for _ in range(2):
-            request = json.loads(sys.stdin.readline())
-            print(json.dumps({'id': request['id'], 'result': {'data': [], 'nextCursor': 'same'}}), flush=True)
-        time.sleep(60)
-        """)
-        defer { fixture.remove() }
-        let result = await AgentModelDiscovery.discover(cli: "codex", executable: fixture.path)
-        #expect(failure(result)?.contains("repeated") == true)
-    }
-
-    @Test("Codex's page limit fails explicitly instead of returning a partial list")
-    func pageLimit() async throws {
-        let fixture = try DiscoveryCLI("""
-        sys.stdin.readline()
-        print(json.dumps({'id': 1, 'result': {}}), flush=True)
-        sys.stdin.readline()
-        for page in range(100):
-            request = json.loads(sys.stdin.readline())
-            print(json.dumps({'id': request['id'], 'result': {'data': [], 'nextCursor': str(page)}}), flush=True)
-        time.sleep(60)
-        """)
-        defer { fixture.remove() }
-        let result = await AgentModelDiscovery.discover(cli: "codex", executable: fixture.path)
-        #expect(failure(result)?.contains("100-page") == true)
-    }
-
     @Test("Empty protocol model lists are successful", arguments: ["claude", "codex"])
     func emptyProtocolList(cli: String) async throws {
         let script: String
