@@ -241,7 +241,7 @@ struct GhostWorktreeRecoveryTests {
         #expect(try scene.recoveryCommit() == tip)
         let lostEvents = try scene.lostEvents()
         #expect(lostEvents.count == 1)
-        guard case .worktreeLost(_, _, _, _, let pinnedCommit) = lostEvents[0] else {
+        guard case .worktreeLost(_, _, _, _, let pinnedCommit, _, _) = lostEvents[0] else {
             Issue.record("expected a worktreeLost event")
             return
         }
@@ -347,36 +347,6 @@ struct GhostWorktreeRecoveryTests {
         #expect(try scene.recoveryCommit() == nil)
         #expect(await scene.tip(of: "refs/heads/\(branch.name)") == tip)
         #expect(await scene.tip(of: scene.pinRef(for: branch)) == nil)
-    }
-
-    @Test("A branch already gone is purged without a pin, and the next allocation is based on nothing special")
-    func goneBranchIsPurgedWithoutAPin() async throws {
-        let fixture = try ReconcilerJournalFixture()
-        let scene = try await GhostScene(journal: try fixture.open())
-        let first = try await scene.allocate()
-        let branch = try scene.recordedBranch()
-        // The Operator removed the Worktree in Orca ADE: directory and branch are both gone.
-        try scene.removeDirectory(of: first)
-        _ = await scene.git.run(["-C", scene.repository.path, "worktree", "prune"])
-        _ = await scene.git.run(["-C", scene.repository.path, "branch", "-D", branch.name])
-        #expect(await scene.tip(of: "refs/heads/\(branch.name)") == nil)
-
-        guard case .lost = try await scene.reconcile() else {
-            Issue.record("expected the ghost Worktree to be purged as lost")
-            return
-        }
-        let lostEvents = try scene.lostEvents()
-        #expect(lostEvents.count == 1)
-        guard case .worktreeLost(_, _, _, _, let pinnedCommit) = lostEvents[0] else {
-            Issue.record("expected a worktreeLost event")
-            return
-        }
-        #expect(pinnedCommit == nil)
-        #expect(await scene.tip(of: scene.pinRef(for: branch)) == nil)
-        #expect(try scene.recoveryCommit() == nil)
-
-        _ = try await scene.allocate()
-        #expect(scene.workspace.createCalls.last?.baseBranch == nil)
     }
 
     @Test("A crash after recording the recovery commit but before pinning it resumes: pin, then purge")

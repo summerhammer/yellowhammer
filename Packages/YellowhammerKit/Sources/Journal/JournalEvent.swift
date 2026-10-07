@@ -156,8 +156,15 @@ public enum JournalEvent: Equatable, Sendable {
     /// Worktree's recorded path gone: a ghost Worktree. The loss of build state is noted in the
     /// Journal so the morning understands why it started cold. `pinnedCommit` is the Feature Branch tip
     /// the purge pinned at `refs/yellowhammer/recovery/<branch>` first (OQ123) — the tip the next
-    /// allocation recovers from; nil when there was no branch to pin.
-    case worktreeLost(featureID: Int64, repository: String, worktreeID: String, path: String, pinnedCommit: String?)
+    /// allocation recovers from: the branch's tip, or — with the branch already gone — the lane's
+    /// `last_known_good_commit` (OQ133); nil when nothing was recoverable. In that case `lostCommit` is the
+    /// `last_known_good_commit` whose object is gone too (nil when none was recorded) and `lostDoneCardIDs`
+    /// the Done Cards of the lane whose commits went with it — the loss the Night Summary names. Both are
+    /// empty when the lane's work was pushed, which survives on the remote.
+    case worktreeLost(
+        featureID: Int64, repository: String, worktreeID: String, path: String, pinnedCommit: String?,
+        lostCommit: String? = nil, lostDoneCardIDs: [Int64] = []
+    )
     /// Reconciliation's process fencing killed at least one process still holding a Worktree before
     /// reconciliation inspected or touched it.
     case worktreeFenced(featureID: Int64, repository: String, path: String, killed: Int)

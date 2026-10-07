@@ -5,13 +5,22 @@ import Foundation
 // (whose exhaustive switch still dispatches to them) to keep that file under the file length limit.
 
 extension JournalEvent {
+    /// `lost_commit` and `lost_done_card_ids` (OQ133) are absent from events written before they existed
+    /// and from a purge that lost nothing, so both are optional here.
     static func decodeWorktreeLost(_ reader: PayloadReader) throws -> JournalEvent {
-        .worktreeLost(
+        let rawLostDoneCardIDs = reader.payload?["lost_done_card_ids"] ?? ""
+        let lostDoneCardIDs: [Int64] = try rawLostDoneCardIDs.split(separator: ",").map {
+            guard let id = Int64($0) else { throw JournalError.eventUnreadable(id: reader.rowID) }
+            return id
+        }
+        return .worktreeLost(
             featureID: try reader.int64("feature_id"),
             repository: try reader.require("repository"),
             worktreeID: try reader.require("worktree_id"),
             path: try reader.require("path"),
-            pinnedCommit: reader.payload?["pinned_commit"]
+            pinnedCommit: reader.payload?["pinned_commit"],
+            lostCommit: reader.payload?["lost_commit"],
+            lostDoneCardIDs: lostDoneCardIDs
         )
     }
 
