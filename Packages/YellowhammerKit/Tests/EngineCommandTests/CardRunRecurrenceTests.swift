@@ -30,7 +30,7 @@ extension CardRunWorld {
     /// The same Project's Journal on a later Night: the earlier Act's Lease released, a new run holding
     /// a new one, a new Night opened, and the Blocked Card made ready again with a fresh budget epoch —
     /// what re-readying a Card Blocked by a failure does.
-    func onNextNight(_ nightStart: NightStart, reReadying issueID: String) throws -> CardRunWorld {
+    func onNextNight(_ nightStart: NightStart, reReadying issueID: String) async throws -> CardRunWorld {
         _ = try journal.releaseActLease(runID: runID)
         let nextRunID = RunID()
         guard case .claimed = try journal.claimActLease(act: .build, runID: nextRunID, mode: .rehearsal) else {
@@ -38,10 +38,13 @@ extension CardRunWorld {
         }
         let night = try journal.openNight(nightStart: nightStart, mode: .rehearsal, act: .build, runID: nextRunID).night
         let cardID = try #require(cardIDs[issueID])
-        try journal.transitionCard(cardID: cardID, to: .todo, runID: nextRunID, act: .build, nightID: night.id)
-        try journal.resetBudgetEpoch(
-            cardID: cardID, reason: "re-readied", runID: nextRunID, act: .build, nightID: night.id
-        )
+        let board = FakeReadingBoard([page(objects: [object(issueID, state: stateTodo)])])
+        let read = DeltaRead(journal: journal, board: board, runID: nextRunID, act: .build, nightID: night.id)
+        guard case .read(let report) = try await read.perform() else {
+            Issue.record("expected a read")
+            throw JournalError.cardUnknown(cardID: cardID)
+        }
+        #expect(report.reReadied.map(\.id) == [cardID])
         let actContext = ActContext(
             act: .build, mode: .rehearsal, trigger: .scheduled, runID: nextRunID, journal: journal, night: night,
             outbox: nil, board: nil
@@ -83,7 +86,7 @@ struct CardRunRecurrenceTests {
         try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 1).run("BACK-1", in: first)
         let attemptsOnFirstNight = try first.attempts("BACK-1").count
 
-        let second = try first.onNextNight(recurrenceSecondNight, reReadying: "BACK-1")
+        let second = try await first.onNextNight(recurrenceSecondNight, reReadying: "BACK-1")
         let log = CallLog()
         try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 3, log: log).run("BACK-1", in: second)
 
@@ -116,7 +119,7 @@ struct CardRunRecurrenceTests {
         #expect(try first.card("BACK-1").blockReason == BlockReason.routeFailure.rawValue)
 
         // One Attempt allowed: the only Attempt of the new epoch both recurs and spends the budget.
-        let second = try first.onNextNight(recurrenceSecondNight, reReadying: "BACK-1")
+        let second = try await first.onNextNight(recurrenceSecondNight, reReadying: "BACK-1")
         try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 1).run("BACK-1", in: second)
 
         let card = try second.card("BACK-1")
@@ -134,12 +137,12 @@ struct CardRunRecurrenceTests {
         let fixture = try OutboxJournalFixture()
         let first = try await makeCardRunWorld(journal: try fixture.open(), withBoard: false)
         try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 1).run("BACK-1", in: first)
-        let second = try first.onNextNight(recurrenceSecondNight, reReadying: "BACK-1")
+        let second = try await first.onNextNight(recurrenceSecondNight, reReadying: "BACK-1")
         try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 3).run("BACK-1", in: second)
         #expect(try second.card("BACK-1").blockReason == BlockReason.failureRecurrence.rawValue)
 
         // Re-readied without a change: a fresh epoch with three Attempts, but the cause has recurred already.
-        let third = try second.onNextNight(recurrenceThirdNight, reReadying: "BACK-1")
+        let third = try await second.onNextNight(recurrenceThirdNight, reReadying: "BACK-1")
         let log = CallLog()
         try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 3, log: log).run("BACK-1", in: third)
 
@@ -157,7 +160,7 @@ struct CardRunRecurrenceTests {
         let first = try await makeCardRunWorld(journal: try fixture.open(), withBoard: false)
         try await makeRun(worker: .workerFailed, attemptsPerWorkCard: 1).run("BACK-1", in: first)
 
-        let second = try first.onNextNight(recurrenceSecondNight, reReadying: "BACK-1")
+        let second = try await first.onNextNight(recurrenceSecondNight, reReadying: "BACK-1")
         let log = CallLog()
         try await makeRun(worker: .workerMalformed, attemptsPerWorkCard: 2, log: log).run("BACK-1", in: second)
 
