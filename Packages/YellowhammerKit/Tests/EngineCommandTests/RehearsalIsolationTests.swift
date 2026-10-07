@@ -125,9 +125,9 @@ struct RehearsalIsolationTests {
         // The rehearsal kept its own Night, in its own Journal at the declared path, under the same Night key.
         let rehearsalURL = directory.rehearsalJournal(id: "alpha")
         let rehearsal = try JournalStore.openReadOnly(at: rehearsalURL, projectID: projectID)
-        let rehearsalNights = try rehearsal.nights()
+        let rehearsalNights = try rehearsal.nights(mode: .rehearsal)
         #expect(rehearsalNights.count == 1)
-        #expect(rehearsalNights.first?.mode == .rehearsal)
+        #expect(try rehearsal.nights(mode: .real).isEmpty)
         #expect(rehearsalNights.first?.nightStart == realNight.nightStart)
         #expect(try rehearsal.inFlightFeature() == nil)
         let rehearsalAfterNight = try dump(rehearsal)
@@ -136,7 +136,8 @@ struct RehearsalIsolationTests {
         // row. An unforced author Act stands idle on the in-flight Work Card, so it dispatches nothing.
         try await command(.author, [])
             .makeInvocation(configurationDirectory: directory.url, now: now, bindBoard: bindBoard).run()
-        #expect(try real.nights().map(\.id) == [realNight.id])
+        #expect(try real.nights(mode: .real).map(\.id) == [realNight.id])
+        #expect(try real.nights(mode: .rehearsal).isEmpty)
         #expect(try real.currentNight()?.id == realNight.id)
         #expect(try dump(rehearsal) == rehearsalAfterNight)
     }
