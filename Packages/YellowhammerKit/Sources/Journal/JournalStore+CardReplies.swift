@@ -11,10 +11,10 @@ import GRDB
 
 /// The classification a human comment against a Card in Waiting on You resolved to (G-8): `answer` — a
 /// threaded reply to the latest recorded question — `remark` — any other comment against a `question`
-/// waiting reason — or `divergence` — any comment against a `divergence` waiting reason. Never decided
-/// from the comment's content.
+/// waiting reason — or `divergence` / `overreach` — comments against their respective waiting reasons.
+/// Classification never reads the comment's content.
 public enum CardReplyDisposition: String, Sendable, Equatable {
-    case answer, remark, divergence
+    case answer, remark, divergence, overreach
 }
 
 /// What ``JournalStore/recordCardReply(_:nightID:act:runID:now:)`` writes, bundled so the call stays
@@ -22,7 +22,7 @@ public enum CardReplyDisposition: String, Sendable, Equatable {
 public struct CardReplyDraft: Sendable {
     public let cardID: Int64
     public let issueID: String
-    /// The `card_question` this reply was classified against; nil for a Divergence reply, or a remark
+    /// The `card_question` this reply was classified against; nil for a Divergence or overreach reply, or a remark
     /// recorded against a Card with no recorded question at all.
     public let questionID: Int64?
     public let commentID: String
@@ -56,7 +56,7 @@ public struct CardReplyDraft: Sendable {
 public struct CardReplyRecord: Equatable, Sendable {
     public let id: Int64
     public let cardID: Int64
-    /// The `card_question` this reply was classified against; nil for a Divergence reply, or a remark
+    /// The `card_question` this reply was classified against; nil for a Divergence or overreach reply, or a remark
     /// recorded against a Card with no recorded question at all.
     public let questionID: Int64?
     public let commentID: String

@@ -235,8 +235,8 @@ public enum JournalEvent: Equatable, Sendable {
     /// A human comment on a Card in Waiting on You was classified and recorded (roadmap P11.2; spec:
     /// bounds/escalate-a-question-to-the-operator, board-projection/read-board-changes-by-delta):
     /// `disposition` is `answer` (a threaded reply to the latest recorded question), `remark` (any other
-    /// comment against a `question` waiting reason) or `divergence` (any comment against a `divergence`
-    /// waiting reason). Recorded inside the Delta Read's reconciliation, idempotent on the board comment
+    /// comment against a `question` waiting reason), or `divergence` / `overreach` (comments against
+    /// their respective waiting reasons). Recorded inside the Delta Read, idempotent on the board comment
     /// id: a replay appends no second event.
     case waitingOnYouReplyRecorded(cardID: Int64, issueID: String, commentID: String, disposition: String)
     /// A Card Reply was banked (roadmap P11.3): the Feature that put its Card in Waiting on You has

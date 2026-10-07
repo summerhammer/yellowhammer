@@ -19,10 +19,11 @@ extension DeltaRead {
             guard card.state == .waitingOnYou, let waitingReason = card.waitingReason else { continue }
 
             switch waitingReason {
-            case .divergence:
+            case .divergence, .overreach:
                 let draft = CardReplyDraft(
                     cardID: card.id, issueID: card.issueID, questionID: nil, commentID: human.comment.id.rawValue,
-                    body: human.comment.body, authorName: human.comment.author.name, disposition: .divergence,
+                    body: human.comment.body, authorName: human.comment.author.name,
+                    disposition: waitingReason == .overreach ? .overreach : .divergence,
                     commentedAt: human.comment.createdAt
                 )
                 try recordReply(draft, nightID: nightID, into: &report)
@@ -36,8 +37,6 @@ extension DeltaRead {
                     commentedAt: human.comment.createdAt
                 )
                 try recordReply(draft, nightID: nightID, into: &report)
-            case .overreach:
-                break
             }
         }
     }

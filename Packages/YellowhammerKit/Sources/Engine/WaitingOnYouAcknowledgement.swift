@@ -40,6 +40,23 @@ enum WaitingOnYouAcknowledgement {
         """
     }
 
+    /// (b) An overreach comment is recorded only; changing Scope or Protected Paths is the fix.
+    static func overreach(overlaps: [String], nightsRemaining: Int) -> String {
+        """
+        **Nothing changed; \(nightsRemaining) nights remain on the clock.**
+
+        Yellowhammer recorded your comment in the Journal. This Work Card remains in `Waiting on You` \
+        under `overreach`; a reply cannot resolve the overlap. Edit the `Scope` line or the Protected \
+        Paths configuration to fix it. This comment is never an answer, never banked, and never \
+        carried into an Adoption.
+
+        \(overlaps.joined(separator: "\n"))
+
+        **Silence countdown:** \(nightsRemaining) nights remaining before this Work Card is automatically \
+        converted to `Blocked` (`decision overdue`).
+        """
+    }
+
     /// (d) A reply to a Divergence notice: recorded and acknowledged only, never carried forward.
     static func divergence() -> String {
         """
