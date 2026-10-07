@@ -288,19 +288,23 @@ public struct EngineInvocation: Sendable {
     // `authorizationPreflight()` lives in EngineInvocation+ExceptionNotification.swift (P17.5), next to
     // the notification logic it gates — split out for the file/type length limits.
 
-    /// Creates the Project's Night Card when a board is wired and none is recorded yet. Split out of
+    /// Ensures the Project's Night Card is live when a board is wired, replacing an archived card. Split out of
     /// `runUnderLease` to keep that function under the function body length limit; the caller re-reads
     /// the Night afterwards, since `open` may have recorded its Night Card issue id.
     private func openNightCardIfNeeded(night: NightRecord) async throws -> (Outbox?, NightCardMaintenance?) {
         guard let board else { return (nil, nil) }
         let boxed = Outbox(
-            journal: journal, board: board.writing, runID: runID, act: act, nightID: night.id,
+            journal: journal, board: board.writing, reading: board.reading, runID: runID, act: act, nightID: night.id,
             installation: board.installation
         ) { [outboxKill] in outboxKill?.interrupt($0) }
         let maintenance = NightCardMaintenance(
             journal: journal, outbox: boxed, provisioning: board.provisioning, bounds: nightCardBounds
         )
-        _ = try await maintenance.open(night: night)
+        let opening = try await maintenance.open(night: night)
+        if !night.isOpen, case .opened = opening {
+            _ = try await maintenance.acceptCompletion(night: night)
+            _ = try await maintenance.deliverCompletion(night: night)
+        }
         return (boxed, maintenance)
     }
 

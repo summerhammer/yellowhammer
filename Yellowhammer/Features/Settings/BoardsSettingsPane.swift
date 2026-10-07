@@ -6,6 +6,7 @@ import SwiftUI
 /// and back neither recreates it nor kills a running install.
 struct BoardsSettingsPane: View {
     let model: LinearWorkspacesModel
+    var highlightedBoardConnection: String?
 
     var body: some View {
         SettingsPane(
@@ -13,7 +14,7 @@ struct BoardsSettingsPane: View {
             explanation: "The boards this Mac\u{2019}s Projects are driven from, and the workspaces Yellowhammer "
                 + "connects to on each."
         ) {
-            LinearBoardSection(model: model)
+            LinearBoardSection(model: model, highlightedBoardConnection: highlightedBoardConnection)
         }
         .onAppear { model.refreshStatusOnFirstAppearance() }
         .accessibilityElement(children: .contain)

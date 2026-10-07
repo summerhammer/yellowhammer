@@ -118,7 +118,7 @@ extension JournalStore {
     /// Records the Night Card's issue id, the first Act of the Night creating it before any work
     /// (DR7). One write transaction under the Act-scoped lease. A repeat of the same issue id is a
     /// no-op — the Outbox's replay after a crash resolves to the same create — and a different id
-    /// throws ``JournalError/nightCardAlreadyRecorded(id:issueID:)``, because one Night gets one card.
+    /// throws ``JournalError/nightCardAlreadyRecorded(id:issueID:)``, because changing the current card must retain its predecessor through `replaceNightCard`.
     @discardableResult
     public func recordNightCard(
         id: Int64,

@@ -155,3 +155,49 @@ func nightCardCompletedRoundTrips() throws {
     }
     #expect(readIssueID == "NIGHT-1")
 }
+
+@Test("Night Card replacement retains generations, clears stale display metadata and replays atomically")
+func replacementRetainsHistory() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+    _ = try journal.claimActLease(act: .author, runID: run, mode: .real, now: epoch)
+    let night = try journal.openNight(nightStart: nightStart, mode: .real, act: .author, runID: run, now: epoch).night
+    _ = try journal.recordNightCard(
+        id: night.id, issueID: "old", issueIDForDisplay: "ENG-1", act: .author, runID: run, now: epoch
+    )
+    _ = try journal.replaceNightCard(
+        id: night.id, predecessorIssueID: "old", issueID: "new", act: .author, runID: run, now: epoch
+    )
+    let replay = try journal.replaceNightCard(
+        id: night.id, predecessorIssueID: "old", issueID: "new", act: .author, runID: run, now: epoch
+    )
+    #expect(replay.nightCardIssueID == "new")
+    #expect(replay.nightCardIssueIDForDisplay == nil)
+    #expect(try journal.archivedNightCardIssueIDs(nightID: night.id) == ["old"])
+    #expect(try journal.events(ofType: .nightCardOpened).count == 2)
+    #expect(throws: JournalError.nightCardAlreadyRecorded(id: night.id, issueID: "new")) {
+        try journal.replaceNightCard(
+            id: night.id, predecessorIssueID: "old", issueID: "stale", act: .author, runID: run, now: epoch
+        )
+    }
+    #expect(try journal.night(id: night.id)?.nightCardIssueID == "new")
+}
+
+@Test("A released Act cannot replace its Night Card or append a predecessor")
+func replacementRequiresLease() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+    _ = try journal.claimActLease(act: .author, runID: run, mode: .real, now: epoch)
+    let night = try journal.openNight(nightStart: nightStart, mode: .real, act: .author, runID: run, now: epoch).night
+    _ = try journal.recordNightCard(id: night.id, issueID: "old", act: .author, runID: run, now: epoch)
+    try journal.releaseActLease(runID: run)
+    #expect(throws: JournalError.actLeaseLost(runID: run, holder: nil)) {
+        try journal.replaceNightCard(
+            id: night.id, predecessorIssueID: "old", issueID: "new", act: .author, runID: run, now: epoch
+        )
+    }
+    #expect(try journal.night(id: night.id)?.nightCardIssueID == "old")
+    #expect(try journal.archivedNightCardIssueIDs(nightID: night.id).isEmpty)
+}

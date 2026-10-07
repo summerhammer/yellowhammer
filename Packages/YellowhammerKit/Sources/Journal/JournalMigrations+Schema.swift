@@ -40,6 +40,16 @@ extension JournalMigrations {
         }
     }
 
+    static func createNightCardHistoryTable(_ db: Database) throws {
+        try db.create(table: "night_card_predecessor") { table in
+            table.column("night_id", .integer).notNull().references("night", column: "id")
+            table.column("issue_id", .text).notNull()
+            table.column("generation", .integer).notNull()
+            table.primaryKey(["night_id", "issue_id"])
+            table.uniqueKey(["night_id", "generation"])
+        }
+    }
+
     static func createFeatureTable(_ db: Database) throws {
         try db.create(table: "feature") { table in
             table.autoIncrementedPrimaryKey("id")

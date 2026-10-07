@@ -58,6 +58,7 @@ private struct ProjectConfigurationFormView: View {
     let onSaved: () -> Void
     let workspaceLabel: (String) -> String
     @Environment(\.showSettingsSection) private var showSettingsSection
+    @Environment(SettingsRequest.self) private var settingsRequest
 
     var body: some View {
         if let current = model.draft {
@@ -119,8 +120,14 @@ private struct ProjectConfigurationFormView: View {
                 HStack(spacing: 5) {
                     Image(systemName: "lock.fill").font(.caption).foregroundStyle(.secondary)
                         .accessibilityHidden(true)
-                    SettingsValueText(value: workspaceLabel(installation))
-                        .accessibilityIdentifier("project-linear-workspace") // glossary:ignore GL001
+                    Button {
+                        settingsRequest.request(draft.wrappedValue.id, section: .boards, boardConnection: installation)
+                    } label: {
+                        Text(workspaceLabel(installation))
+                    }
+                    .buttonStyle(.link)
+                    .accessibilityIdentifier("project-linear-workspace") // glossary:ignore GL001
+                    .accessibilityValue(workspaceLabel(installation))
                 }
             }
             Divider().padding(.leading, 12)
