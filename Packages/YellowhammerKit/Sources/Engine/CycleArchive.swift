@@ -65,7 +65,8 @@ public struct CycleArchive: CycleArchiving, Sendable {
     private func postBoardWrites(context: LandActFeatureContext) async throws -> Int {
         guard let outbox = context.act.outbox, let board = context.act.board else { return 0 }
         let cards = try context.act.journal.cards(cycleID: context.cycleID)
-        let blocked = cards.filter { $0.state == .blocked }
+        // A removed Card (OQ142) is set aside: Yellowhammer writes nothing to its issue, so it stays attached.
+        let blocked = cards.filter { $0.state == .blocked && !$0.isRemovedFromBoard }
 
         for card in blocked {
             let key = "land:\(context.cycleID):detach:\(card.issueID)"

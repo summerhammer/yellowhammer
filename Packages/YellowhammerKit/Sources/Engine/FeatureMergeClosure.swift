@@ -35,7 +35,8 @@ public struct FeatureMergeClosure: PostMergeClosure, Sendable {
         // Computed after the auto-Block, from Journal state, so a retry (closedBy already `merge`)
         // recomputes the same values rather than trusting anything held in memory.
         let mergedRepositories = try journal.pushedRepositories(featureID: feature.id)
-        let cards = try journal.cards(cycleID: cycleID)
+        // A removed Card (OQ142) is set aside: not named in the closure, not detached, nothing written to it.
+        let cards = try journal.cards(cycleID: cycleID).filter { !$0.isRemovedFromBoard }
         let blockedCards = cards.filter { $0.state == .blocked }
         let carriedForward = blockedCards.map(\.issueID).sorted()
         let acceptedCards = cards.filter { $0.state == .done }.map(\.issueID).sorted()

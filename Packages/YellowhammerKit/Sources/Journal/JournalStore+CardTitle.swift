@@ -55,7 +55,8 @@ extension CardRecord {
             failedAdoptions: failedAdoptions,
             divergenceStandingNightID: divergenceStandingNightID,
             issueKey: issueKey,
-            issueURL: issueURL
+            issueURL: issueURL,
+            removedFromBoard: removedFromBoard
         )
     }
 }

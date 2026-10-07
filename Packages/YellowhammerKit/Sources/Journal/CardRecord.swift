@@ -5,6 +5,10 @@ import Foundation
 
 public enum WaitingReason: String, Sendable { case question, divergence, overreach }
 
+/// How the Operator removed a Work Card's issue from the board (OQ142): trashed, or archived while
+/// the Card was in play. Orthogonal to ``CardState``: a removed Card keeps the state it stood in.
+public enum CardRemoval: String, Sendable { case trashed, archived }
+
 public struct CardRecord: Equatable, Sendable {
     public let id: Int64
     public let cycleID: Int64
@@ -52,6 +56,10 @@ public struct CardRecord: Equatable, Sendable {
     public internal(set) var issueKey: String?
     /// The Card issue's board URL as Linear gave it, recorded with ``issueKey``; nil until then.
     public internal(set) var issueURL: String?
+    /// Set while the Card's issue is trashed, or archived while the Card was in play (OQ142): the Card
+    /// is set aside — not work, not destroyed, and nothing is posted to it — until the board restores
+    /// the issue, which clears this and leaves every other column as it stood.
+    public internal(set) var removedFromBoard: CardRemoval?
 
     public init(
         id: Int64,
@@ -75,7 +83,8 @@ public struct CardRecord: Equatable, Sendable {
         failedAdoptions: Int,
         divergenceStandingNightID: Int64?,
         issueKey: String? = nil,
-        issueURL: String? = nil
+        issueURL: String? = nil,
+        removedFromBoard: CardRemoval? = nil
     ) {
         self.id = id
         self.cycleID = cycleID
@@ -99,6 +108,7 @@ public struct CardRecord: Equatable, Sendable {
         self.divergenceStandingNightID = divergenceStandingNightID
         self.issueKey = issueKey
         self.issueURL = issueURL
+        self.removedFromBoard = removedFromBoard
     }
 
     public init(
@@ -122,7 +132,8 @@ public struct CardRecord: Equatable, Sendable {
         failedAdoptions: Int,
         divergenceStandingNightID: Int64?,
         issueKey: String? = nil,
-        issueURL: String? = nil
+        issueURL: String? = nil,
+        removedFromBoard: CardRemoval? = nil
     ) {
         self.init(
             id: id,
@@ -146,13 +157,18 @@ public struct CardRecord: Equatable, Sendable {
             failedAdoptions: failedAdoptions,
             divergenceStandingNightID: divergenceStandingNightID,
             issueKey: issueKey,
-            issueURL: issueURL
+            issueURL: issueURL,
+            removedFromBoard: removedFromBoard
         )
     }
 
     /// The Card's title, or its display id / issue id when no title is recorded yet (not yet reconciled against
     /// the board). What the Roll-up and the partial-landing PR body name a
     /// Card by (issue #161; spec: landing/announce-a-partial-landing).
+    public var isRemovedFromBoard: Bool {
+        removedFromBoard != nil
+    }
+
     public var displayTitle: String {
         guard let title, !title.isEmpty else { return issueIDForDisplay ?? issueID }
         return title
@@ -162,6 +178,12 @@ public struct CardRecord: Equatable, Sendable {
 // MARK: - CardRecord helpers
 
 extension CardRecord {
+    func with(removedFromBoard: CardRemoval?) -> CardRecord {
+        var record = self
+        record.removedFromBoard = removedFromBoard
+        return record
+    }
+
     func with(state: CardState, shelvedFromState: CardState?) -> CardRecord {
         CardRecord(
             id: id,
@@ -185,7 +207,8 @@ extension CardRecord {
             failedAdoptions: failedAdoptions,
             divergenceStandingNightID: divergenceStandingNightID,
             issueKey: issueKey,
-            issueURL: issueURL
+            issueURL: issueURL,
+            removedFromBoard: removedFromBoard
         )
     }
 }

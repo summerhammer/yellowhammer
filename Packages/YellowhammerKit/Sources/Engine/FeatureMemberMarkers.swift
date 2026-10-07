@@ -21,7 +21,8 @@ public enum FeatureMemberMarkers {
     public static func derive(cycleID: Int64, journal: JournalStore) throws -> [Int64: Set<FeatureMemberMarker>] {
         let bankedCardIDs = try journal.cardIDsWithBankedReplies(cycleID: cycleID)
         var markers: [Int64: Set<FeatureMemberMarker>] = [:]
-        for card in try journal.cards(cycleID: cycleID) {
+        // A removed Card (OQ142) carries no marker: it is outside the Roll-up entirely.
+        for card in try journal.cards(cycleID: cycleID) where !card.isRemovedFromBoard {
             var cardMarkers: Set<FeatureMemberMarker> = []
             if bankedCardIDs.contains(card.id), card.state == .waitingOnYou || card.state == .blocked {
                 cardMarkers.insert(.bankedAnswer)

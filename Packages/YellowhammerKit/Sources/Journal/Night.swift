@@ -252,9 +252,11 @@ extension JournalStore {
         now: Date
     ) throws -> NightRecord {
         if reason == .nightEnd {
+            // A removed Card (OQ142) is set aside: its suspended clock and counters are not this Night's.
             let counters = try Row.fetchOne(
                 db,
-                sql: "SELECT MAX(unanswered_nights) AS unanswered, MAX(failed_adoptions) AS adoptions FROM card"
+                sql: "SELECT MAX(unanswered_nights) AS unanswered, MAX(failed_adoptions) AS adoptions "
+                    + "FROM card WHERE removed_from_board IS NULL"
             )
             let unanswered: Int = counters?["unanswered"] ?? 0
             let adoptions: Int = counters?["adoptions"] ?? 0

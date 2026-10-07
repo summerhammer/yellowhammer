@@ -73,7 +73,8 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
     public func settle(feature: FeatureRecord, cycleID: Int64, context: ActContext) async throws {
         guard let board = context.board, let outbox = context.outbox else { return }
 
-        let cards = try context.journal.cards(cycleID: cycleID)
+        // A removed Card (OQ142) is set aside: it takes no part in what is offered, accepted or carried forward.
+        let cards = try context.journal.cards(cycleID: cycleID).filter { !$0.isRemovedFromBoard }
         let offered = try Self.offeredValues(cards: cards, context: context)
 
         let issue = BoardObjectID(rawValue: feature.issueID)
@@ -163,7 +164,7 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
         try await CardAutoBlock.releasedActive(cycleID: cycleID, context: context)
 
         // Recomputed after the auto-Block, from Journal state.
-        let refreshedCards = try journal.cards(cycleID: cycleID)
+        let refreshedCards = try journal.cards(cycleID: cycleID).filter { !$0.isRemovedFromBoard }
         let blockedCards = refreshedCards.filter { $0.state == .blocked }
         let carriedForward = blockedCards.map(\.issueID).sorted()
         let acceptedCards = refreshedCards.filter { $0.state == .done }.map(\.issueID).sorted()

@@ -131,7 +131,7 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
         )
         _ = try? await outbox.post(featureWrite)
 
-        for card in laneContext.lane.cards where card.state == .done {
+        for card in laneContext.lane.cards where card.state == .done && !card.isRemovedFromBoard {
             let key = "land:\(cycleID):\(repository):pull-request:\(card.issueID)"
             let write = OutboxWrite(
                 key: key,
@@ -179,7 +179,8 @@ public struct FeatureBranchPullRequest: PullRequestOpening, Sendable {
     ) async throws -> (body: String, isPartial: Bool) {
         let journal = context.act.journal
         let repository = context.lane.repository
-        let cards = try journal.cards(cycleID: context.cycleID)
+        // A removed Card (OQ142) is set aside: the body neither names it nor lists its clauses.
+        let cards = try journal.cards(cycleID: context.cycleID).filter { !$0.isRemovedFromBoard }
         let pushed = try journal.pushedRepositories(featureID: context.feature.id)
         let noPullRequest = try journal.noPushedBranchRepositories(featureID: context.feature.id)
         let landings = try journal.landings(featureID: context.feature.id)

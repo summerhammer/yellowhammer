@@ -99,6 +99,11 @@ extension JournalEvent {
             )
         case .cardRemovedFromBoard:
             try Self.decodeCardRemovedFromBoard(reader)
+        case .cardRestoredToBoard:
+            .cardRestoredToBoard(
+                cardID: try reader.int64("card_id"), issueID: try reader.require("issue_id"),
+                how: try reader.require("how")
+            )
         case .authoringInvariantBroken:
             try Self.decodeAuthoringInvariantBroken(reader)
         case .deltaReadCompleted:

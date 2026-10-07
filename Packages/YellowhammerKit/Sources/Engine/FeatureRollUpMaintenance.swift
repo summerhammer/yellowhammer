@@ -166,9 +166,11 @@ public struct FeatureRollUpMaintenance: Sendable {
     }
 
     /// The Cycle's Cards as ``RollUpMember``s: markers from ``FeatureMemberMarkers``, adoption from the
-    /// latest `cardAdopted` event landing each Card in `feature`.
+    /// latest `cardAdopted` event landing each Card in `feature`. A removed Card (trashed, or archived
+    /// while in play; OQ142) is left out entirely: it is no member of the Roll-up, neither a lane Card
+    /// nor in the Shelved group.
     private func members(feature: FeatureRecord, cycleID: Int64) throws -> [RollUpMember] {
-        let cards = try journal.cards(cycleID: cycleID)
+        let cards = try journal.cards(cycleID: cycleID).filter { !$0.isRemovedFromBoard }
         let markers = try FeatureMemberMarkers.derive(cycleID: cycleID, journal: journal)
         let adoptions = try latestAdoptions(newFeatureIssueID: feature.issueID)
         return cards.map { card in

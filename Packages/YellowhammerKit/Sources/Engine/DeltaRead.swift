@@ -169,6 +169,15 @@ public struct DeltaRead: Sendable {
         return report
     }
 
+    /// How the board removed this Card's issue, or nil when it is on the board. A trashed issue is always
+    /// removed; an archived one only while the Card is in play, or was already recorded as removed.
+    static func removal(of object: BoardObject, card: CardRecord) -> CardRemoval? {
+        if object.isTrashed { return .trashed }
+        guard object.archivedAt != nil else { return nil }
+        if let recorded = card.removedFromBoard { return recorded }
+        return card.state.isInPlay ? .archived : nil
+    }
+
     /// One known Card: removal, then Shelved either way, then a re-stated board copy, then the
     /// description. Each finding is recorded in the event log as it is made.
     private func reconcile(
@@ -188,10 +197,25 @@ public struct DeltaRead: Sendable {
             card = try journal.updateCardTitle(cardID: card.id, title: object.title, runID: runID, now: clock())
         }
 
-        if object.isTrashed || (object.archivedAt != nil && card.state.isInPlay) {
-            let how: RemovedCard.How = object.isTrashed ? .trashed : .archived
-            report.removed.append(RemovedCard(card: card, how: how))
-            try append(.cardRemovedFromBoard(cardID: card.id, issueID: card.issueID, how: how.rawValue))
+        if let how = Self.removal(of: object, card: card) {
+            // Set aside (OQ142): nothing is reconciled, restated or posted for a removed Card — the
+            // Journal keeps it exactly as it stood until the board restores the issue.
+            if !card.isRemovedFromBoard {
+                card = try journal.markCardRemovedFromBoard(
+                    cardID: card.id, how: how, runID: runID, act: act, nightID: nightID, now: clock()
+                )
+                try journal.abortPendingOutboxEntries(
+                    issueID: card.issueID, reason: "the Card's issue is \(how.rawValue); nothing is posted to it"
+                )
+                report.removed.append(RemovedCard(card: card, how: how))
+            }
+            return
+        }
+        if card.isRemovedFromBoard {
+            card = try journal.restoreCardToBoard(
+                cardID: card.id, runID: runID, act: act, nightID: nightID, now: clock()
+            )
+            report.restoredToBoard.append(card)
         }
 
         let stateDiffers = try reconcileState(

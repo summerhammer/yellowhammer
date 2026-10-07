@@ -79,6 +79,8 @@ extension JournalEvent {
             .humanCardComment
         case .cardRemovedFromBoard:
             .cardRemovedFromBoard
+        case .cardRestoredToBoard:
+            .cardRestoredToBoard
         case .authoringInvariantBroken:
             .authoringInvariantBroken
         case .deltaReadCompleted:

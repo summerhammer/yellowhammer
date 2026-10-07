@@ -13,9 +13,10 @@ public struct RepoLane: Equatable, Sendable {
         self.cards = cards
     }
 
-    /// The Cards this lane still has to run: Todo only.
+    /// The Cards this lane still has to run: Todo only, and never a removed one (trashed, or archived
+    /// while in play; OQ142) — it is set aside, not work.
     public var runnable: [CardRecord] {
-        cards.filter { $0.state == .todo }
+        cards.filter { $0.state == .todo && !$0.isRemovedFromBoard }
     }
 
     /// Groups `cards` into Repo Lanes: one lane per repository, ordered by repository name, each

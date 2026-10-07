@@ -129,6 +129,26 @@ func cardRemovedFromBoardEventRoundTrips() throws {
     #expect(how == "archived")
 }
 
+@Test("cardRestoredToBoard event round-trips")
+func cardRestoredToBoardEventRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+
+    _ = try journal.append(
+        .cardRestoredToBoard(cardID: 42, issueID: "ISSUE-1", how: "trashed"), act: .build, runID: RunID(), now: epoch
+    )
+
+    let records = try journal.events(ofType: .cardRestoredToBoard)
+    #expect(records.count == 1)
+    guard case .cardRestoredToBoard(let cardID, let issueID, let how) = records[0].event else {
+        Issue.record("Event is not cardRestoredToBoard")
+        return
+    }
+    #expect(cardID == 42)
+    #expect(issueID == "ISSUE-1")
+    #expect(how == "trashed")
+}
+
 @Test("authoringInvariantBroken event round-trips")
 func authoringInvariantBrokenEventRoundTrips() throws {
     let fixture = try JournalFixture()
