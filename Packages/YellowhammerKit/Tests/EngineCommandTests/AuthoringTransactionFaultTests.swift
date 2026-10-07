@@ -121,7 +121,7 @@ struct AuthoringTransactionFaultTests {
         )
         try journal.append(.featureAuthoringAccepted(plan), act: .author, runID: run, nightID: night.id)
 
-        try maintenance.recordAuthoring(night: night)
+        try await maintenance.recordAuthoring(night: night)
         _ = try await outbox.deliverPending()
 
         let pendingIssue = try #require(await boards.writing.liveIssues.first { $0.title.hasPrefix("Night ") })
@@ -138,7 +138,7 @@ struct AuthoringTransactionFaultTests {
         )
         try journal.append(.featureAuthored(authored), act: .author, runID: run, nightID: night.id)
 
-        try maintenance.recordAuthoring(night: night)
+        try await maintenance.recordAuthoring(night: night)
         _ = try await outbox.deliverPending()
 
         let finalIssue = try #require(await boards.writing.liveIssues.first { $0.title.hasPrefix("Night ") })

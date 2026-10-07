@@ -62,8 +62,30 @@ actor FakeReadingBoard: Board {
         objectReplies = replies
     }
 
+    private var issueReadAction: (number: Int, perform: @Sendable () -> Void)?
+    private var issueReads = 0
+
+    func onIssueRead(number: Int, perform: @escaping @Sendable () -> Void) {
+        issueReadAction = (number, perform)
+    }
+
     func issue(_ id: BoardObjectID) async throws(BoardError) -> BoardObject? {
-        seededIssues[id]
+        issueReads += 1
+        if let action = issueReadAction, action.number == issueReads {
+            issueReadAction = nil
+            action.perform()
+        }
+        if let link = writeThrough, let found = await link.board.issue(id) {
+            return BoardObject(
+                id: found.id, key: found.id.rawValue, title: found.title, description: found.description,
+                workflowState: link.states.first { $0.id == found.workflowState }
+                    ?? BoardWorkflowState(id: BoardObjectID(rawValue: "todo"), name: "Todo"),
+                labels: [], parent: found.parent, url: "https://linear.app/issue/\(id.rawValue)",
+                createdAt: found.updatedAt, updatedAt: found.updatedAt,
+                archivedAt: found.archived ? found.updatedAt : nil
+            )
+        }
+        return seededIssues[id]
     }
 
     func deltaRead(

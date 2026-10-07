@@ -167,6 +167,7 @@ let project2 = try #require(ProjectID(rawValue: "project-2"))
             "lease",
             "managed_block",
             "night",
+            "night_card_predecessor",
             "operator_abort_request",
             "outbox",
             "project_state",

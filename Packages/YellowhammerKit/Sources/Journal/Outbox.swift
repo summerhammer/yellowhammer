@@ -233,12 +233,12 @@ extension JournalStore {
         }
     }
 
-    /// pending → aborted (never sent: lease lost / broken delimiters / group rolled back); sets
-    /// last_error = reason. Returns the updated entry.
+    /// pending → aborted: never delivered (including archive races); retains a created id for recovery.
     @discardableResult
     public func markOutboxAborted(
         id: Int64,
         reason: String,
+        result: String? = nil,
         now: Date = Date()
     ) throws -> OutboxEntry {
         try write { db in
@@ -250,8 +250,8 @@ extension JournalStore {
             }
 
             try db.execute(
-                sql: "UPDATE outbox SET state = ?, last_error = ? WHERE id = ?",
-                arguments: [OutboxEntryState.aborted.rawValue, reason, id]
+                sql: "UPDATE outbox SET state = ?, last_error = ?, result = ? WHERE id = ?",
+                arguments: [OutboxEntryState.aborted.rawValue, reason, result, id]
             )
 
             guard let updated = try Self.fetchOutboxByID(db, id: id) else {

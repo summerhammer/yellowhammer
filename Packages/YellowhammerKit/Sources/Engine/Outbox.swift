@@ -19,6 +19,8 @@ public struct Outbox: Sendable {
     // swiftlint:disable:previous type_body_length
     public let journal: JournalStore
     public let board: any BoardWriting
+    /// Live reads for archive validation; Engine invocations always wire the reading half.
+    public let reading: (any Board)?
     public let runID: RunID
     /// Stamped on every event the Outbox records.
     public let act: Act?
@@ -42,6 +44,7 @@ public struct Outbox: Sendable {
     public init(
         journal: JournalStore,
         board: any BoardWriting,
+        reading: (any Board)? = nil,
         runID: RunID,
         act: Act? = nil,
         nightID: Int64? = nil,
@@ -49,7 +52,8 @@ public struct Outbox: Sendable {
         clock: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.init(
-            journal: journal, board: board, runID: runID, act: act, nightID: nightID, installation: installation,
+            journal: journal, board: board, reading: reading, runID: runID, act: act, nightID: nightID,
+            installation: installation,
             clock: clock
         ) { _ in }
     }
@@ -57,6 +61,7 @@ public struct Outbox: Sendable {
     init(
         journal: JournalStore,
         board: any BoardWriting,
+        reading: (any Board)? = nil,
         runID: RunID,
         act: Act? = nil,
         nightID: Int64? = nil,
@@ -66,6 +71,7 @@ public struct Outbox: Sendable {
     ) {
         self.journal = journal
         self.board = board
+        self.reading = reading
         self.runID = runID
         self.installation = installation
         self.act = act
@@ -164,7 +170,9 @@ public struct Outbox: Sendable {
         return OutboxDeliveryReport(deliveries: deliveries)
     }
 
-    /// One entry: Lease check, the board call, then the record — in that order, always.
+    // One entry: Lease check, the board call, then the record — in that order, always.
+    // Archive and lease refusals each preserve their specific replay semantics.
+    // swiftlint:disable:next cyclomatic_complexity
     func deliver(_ entry: OutboxEntry) async throws -> OutboxDelivery {
         do {
             try journal.revalidateOutboxLeases(for: entry, runID: runID, now: clock())
@@ -188,9 +196,30 @@ public struct Outbox: Sendable {
         }
 
         do {
+            let archivedBefore = try await archivedTarget(write)
+            try journal.revalidateOutboxLeases(for: entry, runID: runID, now: clock())
+            if let archivedBefore { return try abortArchived(entry, issue: archivedBefore) }
             let outcome = try await perform(write, for: entry)
             try interrupt(entry)
+            let archivedAfter = try await archivedTarget(write, performed: outcome)
+            try journal.revalidateOutboxLeases(for: entry, runID: runID, now: clock())
+            if let archived = archivedAfter {
+                let result: String?
+                if case .created(let receipt) = outcome, case .createIssue = write {
+                    result = receipt.id.rawValue
+                } else { result = nil }
+                return try abortArchived(entry, issue: archived, result: result)
+            }
             return try await record(outcome, for: entry, write: write)
+        } catch let error as JournalError {
+            switch error {
+            case .cardLeaseLost:
+                return OutboxDelivery(entry: entry, outcome: .deferred(.cardLeaseNotHeld(String(describing: error))))
+            case .actLeaseLost: throw OutboxError.staleRun(error)
+            default: throw error
+            }
+        } catch OutboxError.archivedIssue(let issue) {
+            return try abortArchived(entry, issue: issue)
         } catch let error as BoardError {
             return try refused(entry, write: write, error: error)
         } catch OutboxError.parentNotApplied(let entryID, let parentKey) {
@@ -219,9 +248,9 @@ public struct Outbox: Sendable {
         case .attachLink(let issue, let url, let title):
             return .created(try await board.attachLink(to: issue, url: url, title: title, clientID: entry.clientID))
         case .rewriteManagedBlock(let issue, let rendered):
-            return try await performManagedBlock(issue: issue, rendered: rendered)
+            return try await performManagedBlock(issue: issue, rendered: rendered, entry: entry)
         case .updateManagedBlockLine(let issue, let prefix, let line):
-            return try await performManagedBlock(issue: issue, rendered: line, replacingPrefix: prefix)
+            return try await performManagedBlock(issue: issue, rendered: line, replacingPrefix: prefix, entry: entry)
         case .updateIssue(let issue, let change, _):
             _ = try await board.updateIssue(issue, change)
             return .updated

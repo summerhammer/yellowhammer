@@ -67,6 +67,9 @@ actor FakeWritingBoard: BoardWriting {
     private(set) var updateCalls = 0
     private(set) var archiveCalls = 0
 
+    private var archiveAfterUpdate = false
+    func archiveAfterNextUpdate() { archiveAfterUpdate = true }
+
     private var nextID = 0
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
 
@@ -209,6 +212,10 @@ actor FakeWritingBoard: BoardWriting {
         guard let found = issues[issue] else { throw .scopeNotFound("no such issue") }
         let updated = Self.applying(change, to: found, now: now)
         issues[issue] = updated
+        if archiveAfterUpdate {
+            archiveAfterUpdate = false
+            issues[issue]?.archived = true
+        }
         writeLog.append((issue, .update(change)))
         return BoardDescriptionSnapshot(id: issue, description: updated.description, updatedAt: updated.updatedAt)
     }

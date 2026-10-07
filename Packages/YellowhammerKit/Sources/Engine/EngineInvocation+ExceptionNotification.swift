@@ -35,7 +35,15 @@ extension EngineInvocation {
     func closeNightIfNeeded(
         _ night: NightRecord, card: NightCardMaintenance?, outbox: Outbox?
     ) async throws {
-        guard closesNight, night.isOpen else { return }
+        guard night.isOpen else {
+            if let card, let current = try journal.night(id: night.id),
+               try !journal.archivedNightCardIssueIDs(nightID: night.id).isEmpty {
+                _ = try await card.acceptCompletion(night: current)
+                _ = try await card.deliverCompletion(night: current)
+            }
+            return
+        }
+        guard closesNight else { return }
         try journal.closeNight(id: night.id, reason: .nightEnd, act: act, runID: runID)
         // Completion needs the closed Night's completedAt and verdict.
         if let card, let closed = try journal.night(id: night.id) {
@@ -83,7 +91,11 @@ extension EngineInvocation {
         reason: String, night: NightRecord, nightCard: NightCardMaintenance?, outbox: Outbox?
     ) async {
         guard board != nil else { return }
-        guard let outbox, nightCard != nil, let issueID = night.nightCardIssueID else {
+        guard let outbox, let nightCard else {
+            await notify(.haltedUnrecorded, notification: "halted", night: night)
+            return
+        }
+        guard let issueID = await currentNightCardIssueID(night: night, card: nightCard) else {
             await notify(.haltedUnrecorded, notification: "halted", night: night)
             return
         }
@@ -163,7 +175,8 @@ extension EngineInvocation {
         case .firstThisNight:
             await notifyHalted(reason: reason, night: night, nightCard: nightCard, outbox: outbox)
         case .repeatedThisNight:
-            guard board != nil, let outbox, nightCard != nil, let issueID = night.nightCardIssueID else { return }
+            guard board != nil, let outbox, let nightCard,
+                  let issueID = await currentNightCardIssueID(night: night, card: nightCard) else { return }
             _ = await recordHaltedComment(reason: reason, issueID: issueID, night: night, outbox: outbox)
         }
     }
@@ -184,13 +197,20 @@ extension EngineInvocation {
             + "Re-connect that workspace: " + fixes
     }
 
+    private func currentNightCardIssueID(night: NightRecord, card: NightCardMaintenance) async -> String? {
+        do {
+            _ = try await card.open(night: night)
+            return try journal.night(id: night.id)?.nightCardIssueID
+        } catch { return nil }
+    }
+
     /// Writes the halted comment through the Outbox. `true` once the write is at least accepted —
     /// applied, already applied, or left pending for a later Act to replay — which is what "recorded
     /// on the Night Card first" means for a write that goes through the Outbox at all.
     private func recordHaltedComment(
         reason: String, issueID: String, night: NightRecord, outbox: Outbox
     ) async -> Bool {
-        let key = NightCardMaintenance.haltedKey(nightStart: nightStart, runID: runID)
+        let key = NightCardMaintenance.haltedKey(nightStart: nightStart, issueID: issueID, runID: runID)
         let body = "**Night halted:** the `\(act.rawValue)` Act did not complete: \(reason)"
         let write = OutboxWrite(key: key, write: .createComment(issue: BoardObjectID(rawValue: issueID), body: body))
         do {
