@@ -170,12 +170,12 @@ struct FeatureRollUpTests {
 
     // MARK: - Absent
 
-    @Test("Every member Card Cancelled: absent, even under an awaiting-you zero-Card standing")
-    func absentWhenAllCancelled() {
+    @Test("Every member Card Shelved: absent, even under an awaiting-you zero-Card standing")
+    func absentWhenAllShelved() {
         let rollUp = FeatureRollUp(
             members: [
-                member("A", order: 0, state: .cancelled), member("B", order: 1, state: .cancelled),
-                member("C", order: 2, state: .cancelled)
+                member("A", order: 0, state: .shelved), member("B", order: 1, state: .shelved),
+                member("C", order: 2, state: .shelved)
             ],
             lanesPushed: false, verificationPassed: false, mergedFraction: noMerge(),
             issueStanding: .awaitingYou(.refusal)
@@ -184,14 +184,14 @@ struct FeatureRollUpTests {
         #expect(rollUp.sentence == "no live Cards · 3 shelved")
     }
 
-    // MARK: - Cancelled excluded from the denominator
+    // MARK: - Shelved excluded from the denominator
 
-    @Test("Cancelled Cards are excluded from k and N")
-    func cancelledExcludedFromDenominator() {
+    @Test("Shelved Cards are excluded from k and N")
+    func shelvedExcludedFromDenominator() {
         let rollUp = FeatureRollUp(
             members: [
                 member("A", order: 0, state: .done), member("B", order: 1, state: .done),
-                member("C", order: 2, state: .done), member("D", order: 3, state: .cancelled)
+                member("C", order: 2, state: .done), member("D", order: 3, state: .shelved)
             ],
             lanesPushed: false, verificationPassed: false, mergedFraction: noMerge(), issueStanding: .authoring
         )

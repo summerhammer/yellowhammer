@@ -215,7 +215,7 @@ struct FeatureRollUpMaintenanceTests {
         #expect(afterSentence.hasPrefix(beforeSentence))
     }
 
-    @Test("The live set alone reposts: a Card cancelled drops the denominator, 2 of 3 to 2 of 2")
+    @Test("The live set alone reposts: a Card shelved drops the denominator, 2 of 3 to 2 of 2")
     func repostsOnLiveSetChange() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
@@ -231,7 +231,7 @@ struct FeatureRollUpMaintenanceTests {
         try insertRollUpCard(
             journal, cycleID: cycleID, .init(issueID: "BACK-2", repository: "backend", order: 2, state: .done)
         )
-        let toCancel = try insertRollUpCard(
+        let toShelve = try insertRollUpCard(
             journal, cycleID: cycleID, .init(issueID: "BACK-3", repository: "backend", order: 3, state: .todo)
         )
         let feature = try #require(try journal.feature(issueID: "FEAT-1"))
@@ -245,7 +245,7 @@ struct FeatureRollUpMaintenanceTests {
         let beforeDescription = try #require(await world.board.issue(BoardObjectID(rawValue: "FEAT-1"))?.description)
         #expect(beforeDescription.contains("2 of 3 Cards landed"))
 
-        try setCardState(journal, cardID: toCancel, state: .cancelled)
+        try setCardState(journal, cardID: toShelve, state: .shelved)
         let after = try await maintenance.maintain(feature: feature, cycleID: cycleID)
         guard case .posted = after else {
             Issue.record("expected posted, got \(after)")

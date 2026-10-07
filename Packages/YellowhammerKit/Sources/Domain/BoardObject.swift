@@ -70,11 +70,11 @@ public struct BoardWorkflowState: Hashable, Sendable {
         self.category = category
     }
 
-    /// True when the board itself says this state is cancelled — by category, or (a team may have
+    /// True when the board itself says this state is shelved — by category, or (a team may have
     /// renamed its state without changing its type) by the exact name Yellowhammer provisions,
-    /// `Cancelled`. The one shared predicate every Cancelled comparison routes through.
-    public var isCancelled: Bool {
-        category == .cancelled || name == CardState.cancelled.rawValue
+    /// `Shelved`. The one shared predicate every Shelved comparison routes through.
+    public var isShelved: Bool {
+        category == .shelved || name == CardState.shelved.rawValue
     }
 }
 
@@ -87,5 +87,5 @@ public enum BoardWorkflowStateCategory: String, Sendable, CaseIterable {
     case unstarted
     case started
     case completed
-    case cancelled
+    case shelved
 }

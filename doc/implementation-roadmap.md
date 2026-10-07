@@ -407,7 +407,7 @@ comment on the Delta Read).
 - **Work**
   - The author Act does work when the Project has no ready Cards, or when forced.
   - The build Act does work repeatedly through the Night.
-  - The land Act does work when the in-flight Feature's Cycle has no unfinished Cards. Cancelled
+  - The land Act does work when the in-flight Feature's Cycle has no unfinished Cards. Shelved
     Cards do not count as unfinished.
   - When a predicate is false, the Act records an idle tick and exits 0.
 - **Spec** — `shift-scheduling/fire-an-act-on-schedule`; risks.md OQ13 Facet 2.
@@ -523,7 +523,7 @@ comment on the Delta Read).
   - Persist the last sync point in the Journal.
   - Filter out Yellowhammer's own comments by identity.
   - Surface Operator edits to brief, DoD, links, labels, assignment and state (including
-    `Cancelled`) before dispatch decisions.
+    `Shelved`) before dispatch decisions.
   - Detect human changes that break the authoring invariant (a Card moved to another repository)
     and report them instead of dispatching.
   - Reconcile deleted or manually re-stated Cards against the Journal.
@@ -544,11 +544,11 @@ comment on the Delta Read).
   - Keep disposition labels in step, including a Block Reason that tells blocked-by-check from
     blocked-by-reviewer. No label carries the Project.
   - Hash the **rendered** block and skip the write when the hash equals the last-posted hash.
-  - Stop maintaining a Cancelled Card's block from the Act boundary where cancellation is read.
+  - Stop maintaining a Shelved Card's block from the Act boundary where shelving is read.
 - **Spec** — `board-projection/maintain-the-managed-block` (first story).
 - **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests show hash-skip, label-group exclusivity, and no writes to a
-  Cancelled Card.
+  Shelved Card.
 - **Amended 2026-09-20** — the fence must not match a Managed Block delimiter inside a
   Transcription Block; corrected in P9.10.
 
@@ -571,13 +571,13 @@ comment on the Delta Read).
 - **Work**
   - Workflow-state transitions Yellowhammer owns: Ready, in progress, Blocked (with Block Reason),
     Waiting on You (with assignment to the Operator as delivery), Done.
-  - Read `Cancelled` and never write it. Treat it as taking effect at the next Act boundary, never
+  - Read `Shelved` and never write it. Treat it as taking effect at the next Act boundary, never
     as deletion.
   - Report a Waiting on You Card with no Journal record behind it as an anomaly on the Night Card,
     and never dispatch it.
   - Repost Card board state from the Journal after a crash.
 - **Spec** — board-projection/overview; `bounds/escalate-a-question-to-the-operator`; glossary →
-  Cancelled.
+  Shelved.
 - **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests cover each transition and the anomaly case.
 
@@ -799,7 +799,7 @@ comment on the Delta Read).
   2. Refreshes mainlines (P6.1).
   3. Reclaims expired leases (P8.10), then reconciles Worktrees (P6.9), then reposts board state
      from the Journal (P5.8).
-  4. Performs the Delta Read (P5.5) and applies Cancelled, edits and answers.
+  4. Performs the Delta Read (P5.5) and applies Shelved, edits and answers.
   5. Derives Repo Lanes from the in-flight Feature's Cards.
   6. Runs lanes concurrently, and each lane's Cards one at a time in authored order.
   7. Writes back and exits.
@@ -901,17 +901,17 @@ comment on the Delta Read).
 - **Agent** — Fable 5.1 Medium.
 - **Done when** — Rehearsal tests over multiple Nights promote on recurrence, not on first occurrence.
 
-### [x] P8.9 Block mid-lane and Cancelled Cards
+### [x] P8.9 Block mid-lane and Shelved Cards
 - **Work**
   - A Blocked or Waiting on You Card does not halt its lane. Later Cards run with their own budgets.
   - Record the blocked Card as a hole for landing (P10.4).
   - Report a later Card that needed the blocked Card's work as an authoring invariant violation.
-  - A Card cancelled in Linear drops out at the next Act boundary. The running agent is not
+  - A Card shelved in Linear drops out at the next Act boundary. The running agent is not
     interrupted. No Attempt consumed. Nothing posted to it. No Worktree released early. Commits
     stand. Journal row intact. Reopening restores it with no budget reset.
 - **Spec** — `graph-execution/handle-a-block-mid-graph`; `graph-execution/run-a-card` (fourth story).
 - **Agent** — Fable 5.1 Medium.
-- **Done when** — Rehearsal tests: a lane continues past a block; cancel and reopen round-trips with
+- **Done when** — Rehearsal tests: a lane continues past a block; shelve and reopen round-trips with
   counters unchanged.
 
 ### [x] P8.10 Lease reclaim
@@ -980,7 +980,7 @@ comment on the Delta Read).
     before, what follows, why the seam falls there).
   - Determine and record the repositories it touches, from the specification and Repo Roles.
   - Consider Blocked Cards left by closed Features for Adoption (P11.5). Never select or adopt a
-    Cancelled Card.
+    Shelved Card.
   - Support forced authoring for a Feature the Operator names.
   - Refuse, as Waiting on You before any dispatch: a Feature whose split cannot fall on a
     backward-compatible seam (naming the seam), a Feature whose repositories cannot be determined,
@@ -1314,7 +1314,7 @@ comment on the Delta Read).
 - **Work**
   - Count that Project's Nights while a Card waits. Past the bound, auto-Block with `unanswered`
     (question) or `undecided` (divergence), keeping the assignment and full reporting.
-  - The clock halts on an answer, is suspended while Cancelled, restarts from zero on an adoption
+  - The clock halts on an answer, is suspended while Shelved, restarts from zero on an adoption
     refusal, and is never advanced by a timer, calendar count or catch-up sweep.
   - Before any Worktree release, push the Feature Branch and record the ref.
   - An auto-Blocked Card is not terminal and can be re-readied with counters preserved.
@@ -1379,7 +1379,7 @@ comment on the Delta Read).
   - Pull requests opened per repository, Partial Landing flags.
   - One line per answer arriving on a landed Card, on the Night it arrived.
   - Standing line: every un-adopted Card, individually, with its closed Feature, Block Reason and
-    elapsed Nights (also rendered on the Card detail header). Cancelled Cards leave the line.
+    elapsed Nights (also rendered on the Card detail header). Shelved Cards leave the line.
   - Standing line: the unmerged in-flight Feature, Nights held, `k of N` merged, Mainline Conflicts
     with paths.
   - Crashes and reclaims, permanent write failures, workspace-wide rate-limit events,
@@ -1409,8 +1409,8 @@ comment on the Delta Read).
     `no live Cards · <c> shelved` absence case, and Mainline Conflicts beside the sentence. The
     zero-Card templates cover the Authoring Halt forms as well as the Refusal ones, and the word
     `refusal` is never rendered for a halt.
-  - State-sorted member list grouped by Repo Lane, with adopted, banked-answer and Cancelled
-    markers; Cancelled at the bottom.
+  - State-sorted member list grouped by Repo Lane, with adopted, banked-answer and Shelved
+    markers; Shelved at the bottom.
   - A single Blocked Card always dominates and is counted.
   - Hash-skip over the rendered block.
 - **Spec** — `board-projection/maintain-the-managed-block` (second story); glossary → Roll-up;
@@ -1638,7 +1638,7 @@ comment on the Delta Read).
   8. Outbox replay after a killed run.
   9. Protected Path refusal.
   10. Divergence at dispatch; Adoption success and refusal.
-  11. Cancelled Card and reopen.
+  11. Shelved Card and reopen.
   12. Two Projects concurrently on one Mac sharing the scratch team, showing no cross-Project reads
       or writes.
   13. Configuration with two conflicting Projects plus one valid Project.
@@ -2105,7 +2105,7 @@ stays as a temporary second window, opened from a menu item, until P18.14 retire
     renders from the landing snapshot alone (no new read of its own) and opens from its Pulse
     destination: the Feature title, an Attempt row, and a Feature-group Repo lane or Sidebar Repo row.
   - `RepoLaneSnapshot` gains `cards: [LaneCard]`, the lane's member Cards, filled by the existing
-    `PulseSnapshot.read` (Cancelled Cards left out, as the lane counts do; `PulseReadTests` covers it).
+    `PulseSnapshot.read` (Shelved Cards left out, as the lane counts do; `PulseReadTests` covers it).
     This is the Feature detail's member list that P18.8 left to this step. A member that is a decision
     Card opens its Card detail; any other is a plain row, since the Inspector has no detail for it.
   - Stated unknowns, as in the Pulse: Feature `state` and `rollup_state`, and an Attempt's status line,

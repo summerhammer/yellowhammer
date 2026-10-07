@@ -125,8 +125,8 @@ struct LinearProvisioningTests {
         #expect(state.id == BoardObjectID(rawValue: "state-new"))
     }
 
-    @Test("A cancelled category is sent as Linear's canceled type")
-    func createWorkflowStateSendsCancelledAsCanceled() async throws {
+    @Test("A shelved category is sent as Linear's canceled type")
+    func createWorkflowStateSendsShelvedAsCanceled() async throws {
         let json = """
             {"data":{"workflowStateCreate":{"success":true,"workflowState":{"id":"state-new","name":"Dropped"}}}}
             """
@@ -135,7 +135,7 @@ struct LinearProvisioningTests {
 
         _ = try await adapter.createWorkflowState(
             name: "Dropped",
-            category: .cancelled,
+            category: .shelved,
             team: BoardObjectID(rawValue: "team-1")
         )
 

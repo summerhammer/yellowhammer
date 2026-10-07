@@ -6,8 +6,8 @@ import Testing
 @testable import Journal
 
 // board-projection (P5.8): a Journal-side Card state transition persists state and reasons and bumps
-// state_version; a no-op transition (same state, same reasons) bumps nothing and logs nothing; Cancelled
-// is refused both as a target and as a source (glossary → Cancelled: Yellowhammer reads it and never
+// state_version; a no-op transition (same state, same reasons) bumps nothing and logs nothing; Shelved
+// is refused both as a target and as a source (glossary → Shelved: Yellowhammer reads it and never
 // writes it); Waiting on You and Blocked each require the reason that backs them; leaving either clears
 // its column; cardsWithUnpostedState and recordCardBoardState round-trip the board's confirmation.
 
@@ -120,27 +120,27 @@ struct CardTransitionTests {
         #expect(try journal.events(ofType: .cardStateTransitioned).count == 1)
     }
 
-    @Test("Cancelled is refused as a target")
-    func cancelledTargetThrows() throws {
+    @Test("Shelved is refused as a target")
+    func shelvedTargetThrows() throws {
         let fixture = try JournalFixture()
         let journal = try fixture.open()
         let (cardID, runID) = try fixtureCard(journal)
 
-        #expect(throws: JournalError.cancelledIsNeverWritten(cardID: cardID)) {
+        #expect(throws: JournalError.shelvedIsNeverWritten(cardID: cardID)) {
             try journal.transitionCard(
-                cardID: cardID, to: .cancelled, runID: runID, act: .build, nightID: nil, now: epoch
+                cardID: cardID, to: .shelved, runID: runID, act: .build, nightID: nil, now: epoch
             )
         }
     }
 
-    @Test("A cancelled Card cannot be transitioned")
-    func cancelledCardThrows() throws {
+    @Test("A shelved Card cannot be transitioned")
+    func shelvedCardThrows() throws {
         let fixture = try JournalFixture()
         let journal = try fixture.open()
         let (cardID, runID) = try fixtureCard(journal)
-        _ = try journal.markCardCancelled(cardID: cardID, runID: runID, act: .build, nightID: nil, now: epoch)
+        _ = try journal.markCardShelved(cardID: cardID, runID: runID, act: .build, nightID: nil, now: epoch)
 
-        #expect(throws: JournalError.cardAlreadyCancelled(cardID: cardID)) {
+        #expect(throws: JournalError.cardAlreadyShelved(cardID: cardID)) {
             try journal.transitionCard(cardID: cardID, to: .todo, runID: runID, act: .build, nightID: nil, now: epoch)
         }
     }
@@ -248,15 +248,15 @@ struct CardTransitionTests {
         #expect(try journal.card(id: cardID).boardStateVersion == 1)
     }
 
-    @Test("A Cancelled Card never appears among cards with unposted state")
-    func cancelledCardExcludedFromUnpostedState() throws {
+    @Test("A Shelved Card never appears among cards with unposted state")
+    func shelvedCardExcludedFromUnpostedState() throws {
         let fixture = try JournalFixture()
         let journal = try fixture.open()
         let (cardID, runID) = try fixtureCard(journal)
         _ = try journal.transitionCard(
             cardID: cardID, to: .inProgress, runID: runID, act: .build, nightID: nil, now: epoch
         )
-        _ = try journal.markCardCancelled(cardID: cardID, runID: runID, act: .build, nightID: nil, now: epoch)
+        _ = try journal.markCardShelved(cardID: cardID, runID: runID, act: .build, nightID: nil, now: epoch)
 
         #expect(try journal.cardsWithUnpostedState().isEmpty)
     }

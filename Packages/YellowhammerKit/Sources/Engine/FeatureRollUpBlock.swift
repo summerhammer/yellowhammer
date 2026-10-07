@@ -3,7 +3,7 @@ import Domain
 /// Renders a ``FeatureRollUp`` as the Feature Issue's Managed Block (roadmap P12.3; spec: board-
 /// projection/maintain-the-managed-block, second story): the bold sentence (with any Mainline
 /// Conflicts, then any No-Pushed-Branch Outcomes, beside it), then the member Cards grouped by Repo
-/// Lane, worst-severity lane first, with a trailing `#### Cancelled` group. A zero-Card Feature renders only the sentence line.
+/// Lane, worst-severity lane first, with a trailing `#### Shelved` group. A zero-Card Feature renders only the sentence line.
 public struct FeatureRollUpBlock {
     public let rollUp: FeatureRollUp
 
@@ -19,12 +19,12 @@ public struct FeatureRollUpBlock {
         lines.append("")
         lines.append("### Cards")
         lines.append(contentsOf: renderLanes())
-        lines.append(contentsOf: renderCancelledGroup())
+        lines.append(contentsOf: renderShelvedGroup())
         return lines.joined(separator: "\n")
     }
 
     /// Most severe first: a Card Waiting on You holds up a lane worse than a Blocked one, and so on
-    /// down to Done. Cancelled never reaches here — cancelled Cards are excluded from every lane.
+    /// down to Done. Shelved never reaches here — shelved Cards are excluded from every lane.
     private static func severityRank(_ state: CardState) -> Int {
         switch state {
         case .waitingOnYou: 0
@@ -32,12 +32,12 @@ public struct FeatureRollUpBlock {
         case .inProgress: 2
         case .todo: 3
         case .done: 4
-        case .cancelled: 5
+        case .shelved: 5
         }
     }
 
     private func renderLanes() -> [String] {
-        let live = rollUp.members.filter { $0.state != .cancelled }
+        let live = rollUp.members.filter { $0.state != .shelved }
         let byRepository = Dictionary(grouping: live, by: { $0.repository })
         let orderedRepositories = byRepository.keys.sorted { lhs, rhs in
             let lhsSeverity = worstSeverity(byRepository[lhs] ?? [])
@@ -96,8 +96,8 @@ public struct FeatureRollUpBlock {
         return ""
     }
 
-    /// Adopted first, then banked answer — the order this brief specifies. ``FeatureMemberMarker/cancelled``
-    /// is never rendered here: the `#### Cancelled` group it names is the marker.
+    /// Adopted first, then banked answer — the order this brief specifies. ``FeatureMemberMarker/shelved``
+    /// is never rendered here: the `#### Shelved` group it names is the marker.
     private func markerSuffix(_ card: RollUpMember) -> String {
         var suffix = ""
         if let previousFeatureIssueID = card.adoptedFromFeatureIssueID {
@@ -109,19 +109,19 @@ public struct FeatureRollUpBlock {
         return suffix
     }
 
-    private func renderCancelledGroup() -> [String] {
-        let cancelled = rollUp.members
-            .filter { $0.state == .cancelled }
+    private func renderShelvedGroup() -> [String] {
+        let shelved = rollUp.members
+            .filter { $0.state == .shelved }
             .sorted { lhs, rhs in
                 lhs.repository != rhs.repository
                     ? lhs.repository < rhs.repository
                     : lhs.authoredOrder < rhs.authoredOrder
             }
-        guard !cancelled.isEmpty else { return [] }
+        guard !shelved.isEmpty else { return [] }
 
-        var lines = ["", "#### Cancelled"]
-        for card in cancelled {
-            lines.append("- \(Self.name(card)) [`\(card.repository)`] — Cancelled\(markerSuffix(card))")
+        var lines = ["", "#### Shelved"]
+        for card in shelved {
+            lines.append("- \(Self.name(card)) [`\(card.repository)`] — Shelved\(markerSuffix(card))")
         }
         return lines
     }

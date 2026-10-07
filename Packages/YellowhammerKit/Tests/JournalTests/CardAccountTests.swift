@@ -260,7 +260,7 @@ func readOnlyOpenAndReadsDoNotModifyTheFile() throws {
     var writeThrew = false
     do {
         try readOnly.write { db in
-            try db.execute(sql: "INSERT INTO event (type, occurred_at) VALUES ('card-cancelled', ?)", arguments: [
+            try db.execute(sql: "INSERT INTO event (type, occurred_at) VALUES ('card-shelved', ?)", arguments: [
                 JournalStore.timestamp(epoch)
             ])
         }

@@ -122,8 +122,8 @@ struct NightSummaryStandingLinesTests {
         #expect(lines.contains { $0.contains("`CARD-B`") && $0.contains("`FEAT-B`") })
     }
 
-    @Test("A Cancelled Card is absent; reopened, it returns with its count still running")
-    func cancelledCardAbsentReopenedReturns() async throws {
+    @Test("A Shelved Card is absent; reopened, it returns with its count still running")
+    func shelvedCardAbsentReopenedReturns() async throws {
         let fixture = try NightCardJournalFixture()
         let journal = try fixture.open()
         let boards = try await makeBoards()
@@ -138,15 +138,15 @@ struct NightSummaryStandingLinesTests {
             act: .author, mode: .real, nightStart: nightCardNightStart, journal: journal,
             trigger: .forced, runID: RunID(), board: board,
             work: { context in
-                try journal.markCardCancelled(
+                try journal.markCardShelved(
                     cardID: seeded.cardID, runID: context.runID, act: context.act, nightID: nil
                 )
             }
         ).run()
         night = try #require(try journal.currentNight())
 
-        let cancelledLines = try NightSummary.unadoptedCardLines(night: night, journal: journal)
-        #expect(!cancelledLines.contains { $0.contains("`CARD-1`") })
+        let shelvedLines = try NightSummary.unadoptedCardLines(night: night, journal: journal)
+        #expect(!shelvedLines.contains { $0.contains("`CARD-1`") })
 
         try journal.releaseActLease(runID: RunID())
         let secondNightStart = try #require(NightStart(rawValue: "2026-09-16"))
@@ -154,7 +154,7 @@ struct NightSummaryStandingLinesTests {
             act: .author, mode: .real, nightStart: secondNightStart, journal: journal,
             trigger: .forced, runID: RunID(), board: board,
             work: { context in
-                try journal.restoreCancelledCard(
+                try journal.restoreShelvedCard(
                     cardID: seeded.cardID, runID: context.runID, act: context.act, nightID: nil
                 )
             }

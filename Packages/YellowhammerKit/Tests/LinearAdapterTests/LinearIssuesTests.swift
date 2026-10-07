@@ -76,8 +76,8 @@ struct LinearIssuesTests {
         #expect(page.nextCursor == nil)
     }
 
-    @Test("A state's vendor type 'canceled' decodes to the cancelled category")
-    func cancelledCategoryDecodes() async throws {
+    @Test("A state's vendor type 'canceled' decodes to the shelved category")
+    func shelvedCategoryDecodes() async throws {
         let nodes = """
             {"id":"issue-1","identifier":"ENG-123","title":"Add the thing","description":"Body",
              "url":"https://linear.app/acme/issue/ENG-123","createdAt":"2026-09-01T10:00:00.000Z",
@@ -90,8 +90,8 @@ struct LinearIssuesTests {
 
         let card = try #require(page.objects.first)
         #expect(card.workflowState.name == "Canceled")
-        #expect(card.workflowState.category == .cancelled)
-        #expect(card.workflowState.isCancelled)
+        #expect(card.workflowState.category == .shelved)
+        #expect(card.workflowState.isShelved)
     }
 
     @Test("The issues query requests the workflow state's vendor type")

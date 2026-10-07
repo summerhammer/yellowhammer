@@ -13,11 +13,11 @@ let deltaEpoch = outboxEpoch
 let humanAuthor = BoardCommentAuthor(id: BoardObjectID(rawValue: "user-max"), name: "Max", isYellowhammer: false)
 let stateTodo = BoardWorkflowState(id: BoardObjectID(rawValue: "s-todo"), name: "Todo")
 let stateBlocked = BoardWorkflowState(id: BoardObjectID(rawValue: "s-blocked"), name: "Blocked")
-let stateCancelled = BoardWorkflowState(id: BoardObjectID(rawValue: "s-cancelled"), name: "Cancelled")
-/// A real Linear team's own cancelled state: named `Canceled`, category `.cancelled` — not the
-/// glossary spelling `Cancelled` Yellowhammer provisions, so only the category resolves it.
+let stateShelved = BoardWorkflowState(id: BoardObjectID(rawValue: "s-shelved"), name: "Shelved")
+/// A real Linear team's own cancelled state: named `Canceled`, category `.shelved` — not the
+/// glossary spelling `Shelved` Yellowhammer provisions, so only the category resolves it.
 let stateCanceledByCategory = BoardWorkflowState(
-    id: BoardObjectID(rawValue: "s-canceled"), name: "Canceled", category: .cancelled
+    id: BoardObjectID(rawValue: "s-canceled"), name: "Canceled", category: .shelved
 )
 let stateWaiting = BoardWorkflowState(id: BoardObjectID(rawValue: "s-waiting"), name: "Waiting on You")
 

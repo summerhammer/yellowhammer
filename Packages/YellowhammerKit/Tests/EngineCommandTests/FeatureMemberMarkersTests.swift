@@ -54,18 +54,18 @@ struct FeatureMemberMarkersTests {
         #expect(markers[cardID] == nil)
     }
 
-    @Test("A Cancelled Card is marked cancelled")
-    func cancelledCardIsMarked() throws {
+    @Test("A Shelved Card is marked shelved")
+    func shelvedCardIsMarked() throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let featureID = try insertReconcilerFeature(journal, issueID: "FEAT-1")
         let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
         let cardID = try insertReconcilerCard(
-            journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .cancelled
+            journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .shelved
         )
 
         let markers = try FeatureMemberMarkers.derive(cycleID: cycleID, journal: journal)
-        #expect(markers[cardID] == [.cancelled])
+        #expect(markers[cardID] == [.shelved])
     }
 
     @Test("A Card with no banked replies carries no marker, and the Card's own state is unchanged")

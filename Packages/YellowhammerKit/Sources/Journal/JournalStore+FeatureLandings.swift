@@ -11,7 +11,7 @@ import GRDB
 extension JournalStore {
     /// The distinct, sorted repository names `featureID`'s Cycle touches, as recorded at selection
     /// time in `feature_repository` — never derived from `card` rows, which can lose a repository
-    /// (a Card cancelled or adopted elsewhere) long after the Feature that touched it stops being
+    /// (a Card shelved or adopted elsewhere) long after the Feature that touched it stops being
     /// in flight.
     public func touchedRepositories(featureID: Int64) throws -> [String] {
         try read { db in try Self.touchedRepositories(db, featureID: featureID) }

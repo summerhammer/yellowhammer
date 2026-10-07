@@ -155,45 +155,45 @@ struct FeatureRollUpBlockTests {
         #expect(rendered.contains("- `A` — Blocked (check failure)"))
     }
 
-    @Test("Cancelled Cards render in a trailing group, sorted by repository then authoredOrder")
-    func cancelledGroupAtTheBottom() {
+    @Test("Shelved Cards render in a trailing group, sorted by repository then authoredOrder")
+    func shelvedGroupAtTheBottom() {
         let rollUp = FeatureRollUp(
             members: [
                 member("A", repo: "backend", order: 0, state: .done),
-                member("W-2", repo: "web", order: 1, state: .cancelled),
-                member("W-1", repo: "web", order: 0, state: .cancelled),
-                member("B-1", repo: "backend", order: 1, state: .cancelled)
+                member("W-2", repo: "web", order: 1, state: .shelved),
+                member("W-1", repo: "web", order: 0, state: .shelved),
+                member("B-1", repo: "backend", order: 1, state: .shelved)
             ],
             lanesPushed: false, verificationPassed: false, mergedFraction: noMerge(), issueStanding: .authoring
         )
         let rendered = FeatureRollUpBlock(rollUp: rollUp).render()
 
-        #expect(rendered.contains("#### Cancelled"))
-        let cancelledHeadingIndex = rendered.range(of: "#### Cancelled")!.lowerBound
+        #expect(rendered.contains("#### Shelved"))
+        let shelvedHeadingIndex = rendered.range(of: "#### Shelved")!.lowerBound
         let backendLaneIndex = rendered.range(of: "#### `backend`")!.lowerBound
-        #expect(backendLaneIndex < cancelledHeadingIndex)
+        #expect(backendLaneIndex < shelvedHeadingIndex)
 
         let expectedTail = [
-            "#### Cancelled",
-            "- `B-1` [`backend`] — Cancelled",
-            "- `W-1` [`web`] — Cancelled",
-            "- `W-2` [`web`] — Cancelled"
+            "#### Shelved",
+            "- `B-1` [`backend`] — Shelved",
+            "- `W-1` [`web`] — Shelved",
+            "- `W-2` [`web`] — Shelved"
         ].joined(separator: "\n")
         #expect(rendered.hasSuffix(expectedTail))
     }
 
-    @Test("A lane with only Cancelled Cards gets no lane group")
-    func laneWithOnlyCancelledGetsNoGroup() {
+    @Test("A lane with only Shelved Cards gets no lane group")
+    func laneWithOnlyShelvedGetsNoGroup() {
         let rollUp = FeatureRollUp(
             members: [
                 member("A", repo: "backend", order: 0, state: .done),
-                member("W-1", repo: "web", order: 0, state: .cancelled)
+                member("W-1", repo: "web", order: 0, state: .shelved)
             ],
             lanesPushed: false, verificationPassed: false, mergedFraction: noMerge(), issueStanding: .authoring
         )
         let rendered = FeatureRollUpBlock(rollUp: rollUp).render()
         #expect(!rendered.contains("#### `web`"))
-        #expect(rendered.contains("- `W-1` [`web`] — Cancelled"))
+        #expect(rendered.contains("- `W-1` [`web`] — Shelved"))
     }
 
     @Test("A Blocked Card with a title renders by title, not issue id, with its reason")
@@ -212,18 +212,18 @@ struct FeatureRollUpBlockTests {
         #expect(!rendered.contains("`A`"))
     }
 
-    @Test("The Cancelled group renders by title, falling back to issue id when untitled")
-    func cancelledGroupRendersByTitle() {
+    @Test("The Shelved group renders by title, falling back to issue id when untitled")
+    func shelvedGroupRendersByTitle() {
         let rollUp = FeatureRollUp(
             members: [
-                member("W-1", title: "Deprecated widget", repo: "web", order: 0, state: .cancelled),
-                member("W-2", repo: "web", order: 1, state: .cancelled)
+                member("W-1", title: "Deprecated widget", repo: "web", order: 0, state: .shelved),
+                member("W-2", repo: "web", order: 1, state: .shelved)
             ],
             lanesPushed: false, verificationPassed: false, mergedFraction: noMerge(), issueStanding: .authoring
         )
         let rendered = FeatureRollUpBlock(rollUp: rollUp).render()
-        #expect(rendered.contains("- Deprecated widget [`web`] — Cancelled"))
-        #expect(rendered.contains("- `W-2` [`web`] — Cancelled"))
+        #expect(rendered.contains("- Deprecated widget [`web`] — Shelved"))
+        #expect(rendered.contains("- `W-2` [`web`] — Shelved"))
     }
 
     @Test("Conflicts render on the header line, beside the bold sentence")

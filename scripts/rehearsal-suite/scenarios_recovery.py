@@ -500,13 +500,13 @@ def scenario_10(env, checks):
     checks.expect(returncode == 0, f"N2 land exits 0 (got {returncode}); see {log_path}")
 
 
-# MARK: - 11. Cancelled Card and reopen
+# MARK: - 11. Shelved Card and reopen
 
 
-@scenario(11, "Cancelled Card and reopen", needs_operator=True)
+@scenario(11, "Shelved Card and reopen", needs_operator=True)
 def scenario_11(env, checks):
     project_id = "rehearsal-suite-a"
-    slug = "11-cancelled-card-and-reopen"
+    slug = "11-shelved-card-and-reopen"
 
     manifest = suite_env.reset_project(env, project_id)
     suite_env.write_scenario_project_file(env, project_id, manifest)
@@ -534,20 +534,20 @@ def scenario_11(env, checks):
     checks.require(returncode == 0, f"build exits 0 (got {returncode}); see {log_path}")
 
     snap_after_build1 = env.snapshot(slug, project_id, "after-build-1")
-    cancelled = [
-        e for e in snap_after_build1.events(type="CardCancelled") if e["payload"].get("issue_id") == w_card["issue_id"]
+    shelved = [
+        e for e in snap_after_build1.events(type="CardShelved") if e["payload"].get("issue_id") == w_card["issue_id"]
     ]
-    checks.require(len(cancelled) >= 1, "CardCancelled recorded for W")
+    checks.require(len(shelved) >= 1, "CardShelved recorded for W")
     checks.expect(
-        cancelled[0]["payload"].get("previous_state") == "Todo",
-        f"previous_state is Todo (got {cancelled[0]['payload'].get('previous_state')!r})",
+        shelved[0]["payload"].get("previous_state") == "Todo",
+        f"previous_state is Todo (got {shelved[0]['payload'].get('previous_state')!r})",
     )
-    w_after_cancel = next(c for c in snap_after_build1.cards() if c["id"] == w_card["id"])
+    w_after_shelve = next(c for c in snap_after_build1.cards() if c["id"] == w_card["id"])
     checks.expect(
-        w_after_cancel["state"] == "Cancelled" and w_after_cancel.get("cancelled_from_state") == "Todo",
-        f"W is Cancelled with cancelled_from_state Todo (got {w_after_cancel})",
+        w_after_shelve["state"] == "Shelved" and w_after_shelve.get("shelved_from_state") == "Todo",
+        f"W is Shelved with shelved_from_state Todo (got {w_after_shelve})",
     )
-    w_attempts = snap_after_build1.rows("SELECT * FROM attempt WHERE card_id = ?", (w_after_cancel["id"],))
+    w_attempts = snap_after_build1.rows("SELECT * FROM attempt WHERE card_id = ?", (w_after_shelve["id"],))
     checks.expect(not w_attempts, f"no attempt for W (found {w_attempts})")
     backend_after = [
         c for c in snap_after_build1.cards() if c["issue_id"] in {c2["issue_id"] for c2 in backend_cards}

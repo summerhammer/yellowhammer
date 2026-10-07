@@ -698,7 +698,7 @@ class OperatorClient:
 
     def move_to_state_of_type(self, issue_id, state_type):
         """Moves an issue to the team's workflow state of this Linear state *type* (e.g.
-        `"canceled"`, which Linear names `Canceled`, not the glossary's `Cancelled`)."""
+        `"canceled"`, which Linear names `Canceled`, not the glossary's `Shelved`)."""
         states = self._team_states(issue_id)
         match = next((entry for entry in states if entry["type"] == state_type), None)
         return self._move_to_matched_state(issue_id, match, f"of type {state_type!r}")

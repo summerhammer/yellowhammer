@@ -109,7 +109,7 @@ extension ExpiredLeaseSweep {
 
     /// Reposts an In Progress Card back to Ready (or Done, on a classified success) with the reclaim
     /// comment. A Card that is not In Progress — already Done, Blocked, Waiting on You, Todo or
-    /// Cancelled — is left exactly as it is; only the reclaim is recorded.
+    /// Shelved — is left exactly as it is; only the reclaim is recorded.
     private func repost(
         card: CardRecord, context reclaim: ReclaimContext, outcome: ReclaimEnding, now: Date
     ) async throws {

@@ -67,8 +67,8 @@ extension JournalEvent {
             .boardWriteFailed
         case .outboxGroupRolledBack:
             .outboxGroupRolledBack
-        case .cardCancelled:
-            .cardCancelled
+        case .cardShelved:
+            .cardShelved
         case .cardReopened:
             .cardReopened
         case .cardRestated:

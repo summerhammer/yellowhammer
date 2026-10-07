@@ -103,8 +103,8 @@ extension JournalMigrations {
             table.column("failed_adoptions", .integer).notNull().defaults(to: 0)
             table.column("unanswered_nights", .integer).notNull().defaults(to: 0)
             table.column("created_at", .text).notNull()
-            // What state a Card held before being marked Cancelled.
-            table.column("cancelled_from_state", .text)
+            // What state a Card held before being marked Shelved.
+            table.column("shelved_from_state", .text)
             // Card-side state versioning for board projection (roadmap P5.8): `state_version` is bumped
             // by every Journal-side Card state transition, and `board_state_version` records the version
             // last confirmed applied on the board — nil until the first confirmed write. Together they

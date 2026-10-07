@@ -8,7 +8,7 @@ import Testing
 // board-projection (P5.8): a Card transition is written to the Journal and posted through the Outbox
 // under a key derived from its own state_version; the workflow state and disposition labels move
 // together; the Operator's board identity is assigned only entering Waiting on You and retained
-// afterward on every other transition; Cancelled is refused (glossary → Cancelled: Yellowhammer reads
+// afterward on every other transition; Shelved is refused (glossary → Shelved: Yellowhammer reads
 // it and never writes it); a crashed run's board projection is reposted from state_version and
 // board_state_version alone, and a killed run's already-applied entry is recorded, not re-sent.
 
@@ -82,8 +82,8 @@ struct BoardStateProjectionTests {
         #expect(record.stateVersion == 6)
     }
 
-    @Test("Cancelled Card: the projection throws and nothing is posted")
-    func cancelledCardThrowsAndPostsNothing() async throws {
+    @Test("Shelved Card: the projection throws and nothing is posted")
+    func shelvedCardThrowsAndPostsNothing() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let boards = try await makeProjectionBoards()
@@ -94,12 +94,12 @@ struct BoardStateProjectionTests {
         let outbox = try outbox(journal, board: boards.writing, runID: runID)
         _ = try journal.claimCardLease(cardID: cardID, runID: runID, now: outboxEpoch)
         let projection = BoardStateProjection(journal: journal, outbox: outbox, scope: scope)
-        let cancelled = try journal.markCardCancelled(
+        let shelved = try journal.markCardShelved(
             cardID: cardID, runID: runID, act: .build, nightID: nil, now: outboxEpoch
         )
 
-        await #expect(throws: JournalError.cardAlreadyCancelled(cardID: cardID)) {
-            try await projection.transition(card: cancelled, to: .ready)
+        await #expect(throws: JournalError.cardAlreadyShelved(cardID: cardID)) {
+            try await projection.transition(card: shelved, to: .ready)
         }
         #expect(await boards.writing.updateCalls == 0)
     }
@@ -133,8 +133,8 @@ struct BoardStateProjectionTests {
         #expect(issueState.workflowState == scope.states[.done])
     }
 
-    @Test("Cancelled is refused for the Feature Issue")
-    func cancelledRefusedForFeatureIssue() async throws {
+    @Test("Shelved is refused for the Feature Issue")
+    func shelvedRefusedForFeatureIssue() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let boards = try await makeProjectionBoards()
@@ -144,8 +144,8 @@ struct BoardStateProjectionTests {
         let outbox = try outbox(journal, board: boards.writing, runID: runID)
         let projection = BoardStateProjection(journal: journal, outbox: outbox, scope: scope)
 
-        await #expect(throws: BoardStateScopeError.cancelledIsNeverWritten) {
-            try await projection.transition(featureIssue: issue, to: .cancelled)
+        await #expect(throws: BoardStateScopeError.shelvedIsNeverWritten) {
+            try await projection.transition(featureIssue: issue, to: .shelved)
         }
     }
 

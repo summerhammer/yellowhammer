@@ -42,7 +42,7 @@ final class FakeSettleWorkspace: Workspace, Sendable {
     }
 }
 
-/// A Feature → Cycle → four Cards world (Done, Waiting on You, Blocked, Cancelled), with a real board
+/// A Feature → Cycle → four Cards world (Done, Waiting on You, Blocked, Shelved), with a real board
 /// and Workspace Port wired — for ``FeatureSettleGesture``'s own seam tests.
 final class SettleWorld {
     let fixture: OutboxJournalFixture
@@ -56,12 +56,12 @@ final class SettleWorld {
     let doneCardID: Int64
     let waitingCardID: Int64
     let blockedCardID: Int64
-    let cancelledCardID: Int64
+    let shelvedCardID: Int64
 
     init(
         fixture: consuming OutboxJournalFixture, journal: JournalStore, boards: NightCardTestBoards,
         reading: FakeReadingBoard, workspace: FakeSettleWorkspace, featureID: Int64, cycleID: Int64,
-        previousNightID: Int64, doneCardID: Int64, waitingCardID: Int64, blockedCardID: Int64, cancelledCardID: Int64
+        previousNightID: Int64, doneCardID: Int64, waitingCardID: Int64, blockedCardID: Int64, shelvedCardID: Int64
     ) {
         self.fixture = fixture
         self.journal = journal
@@ -74,7 +74,7 @@ final class SettleWorld {
         self.doneCardID = doneCardID
         self.waitingCardID = waitingCardID
         self.blockedCardID = blockedCardID
-        self.cancelledCardID = cancelledCardID
+        self.shelvedCardID = shelvedCardID
     }
 
     /// Builds a fresh `ActContext` for an author Act firing on `nightStart`: claims the Act Lease,
@@ -163,7 +163,7 @@ final class SettleWorld {
 /// ``JournalStore/inFlightLandedFeature()`` reads it: `landed: true` with `inFlight: true` is a Partial
 /// Landing, the one shape the settle gesture's offered set narrows for.
 func makeSettleWorld(
-    inFlight: Bool = true, landed: Bool = false, allCancelled: Bool = false
+    inFlight: Bool = true, landed: Bool = false, allShelved: Bool = false
 ) async throws -> SettleWorld {
     let fixture = try OutboxJournalFixture()
     let journal = try fixture.open()
@@ -182,40 +182,40 @@ func makeSettleWorld(
         inFlight: inFlight, landed: landed
     )
     let cycleID = try gateCycleID(journal, featureID: featureID)
-    let cards = try insertSettleCards(journal, cycleID: cycleID, allCancelled: allCancelled)
+    let cards = try insertSettleCards(journal, cycleID: cycleID, allShelved: allShelved)
     let previousNightID = try openAndCloseSettleNight(journal, nightStart: settlePreviousNightStart)
 
     return SettleWorld(
         fixture: fixture, journal: journal, boards: boards, reading: FakeReadingBoard([]),
         workspace: FakeSettleWorkspace(), featureID: featureID, cycleID: cycleID, previousNightID: previousNightID,
         doneCardID: cards.doneCardID, waitingCardID: cards.waitingCardID, blockedCardID: cards.blockedCardID,
-        cancelledCardID: cards.cancelledCardID
+        shelvedCardID: cards.shelvedCardID
     )
 }
 
-/// The four Cards ``makeSettleWorld(inFlight:landed:allCancelled:)`` inserts, split out to keep that
+/// The four Cards ``makeSettleWorld(inFlight:landed:allShelved:)`` inserts, split out to keep that
 /// function under the function-body-length limit.
 private struct SettleCardIDs {
     let doneCardID: Int64
     let waitingCardID: Int64
     let blockedCardID: Int64
-    let cancelledCardID: Int64
+    let shelvedCardID: Int64
 }
 
-private func insertSettleCards(_ journal: JournalStore, cycleID: Int64, allCancelled: Bool) throws -> SettleCardIDs {
-    guard !allCancelled else {
+private func insertSettleCards(_ journal: JournalStore, cycleID: Int64, allShelved: Bool) throws -> SettleCardIDs {
+    guard !allShelved else {
         return SettleCardIDs(
             doneCardID: try insertMergeCard(
-                journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .cancelled
+                journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .shelved
             ),
             waitingCardID: try insertMergeCard(
-                journal, cycleID: cycleID, issueID: "MOB-1", repository: "mobile", state: .cancelled
+                journal, cycleID: cycleID, issueID: "MOB-1", repository: "mobile", state: .shelved
             ),
             blockedCardID: try insertMergeCard(
-                journal, cycleID: cycleID, issueID: "BACK-2", repository: "backend", state: .cancelled
+                journal, cycleID: cycleID, issueID: "BACK-2", repository: "backend", state: .shelved
             ),
-            cancelledCardID: try insertMergeCard(
-                journal, cycleID: cycleID, issueID: "MOB-2", repository: "mobile", state: .cancelled
+            shelvedCardID: try insertMergeCard(
+                journal, cycleID: cycleID, issueID: "MOB-2", repository: "mobile", state: .shelved
             )
         )
     }
@@ -230,8 +230,8 @@ private func insertSettleCards(_ journal: JournalStore, cycleID: Int64, allCance
             journal, cycleID: cycleID, issueID: "BACK-2", repository: "backend", state: .blocked,
             blockReason: .reviewerRejection
         ),
-        cancelledCardID: try insertMergeCard(
-            journal, cycleID: cycleID, issueID: "MOB-2", repository: "mobile", state: .cancelled
+        shelvedCardID: try insertMergeCard(
+            journal, cycleID: cycleID, issueID: "MOB-2", repository: "mobile", state: .shelved
         )
     )
 }

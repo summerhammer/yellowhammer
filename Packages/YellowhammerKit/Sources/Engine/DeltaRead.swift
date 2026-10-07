@@ -8,7 +8,7 @@ import Journal
 /// The read is scoped to the Project's Linear project by the Board Port it was handed, and to the
 /// Project's Journal by construction, so a sibling Project's Card can be neither read nor matched.
 /// Yellowhammer's own comments are filtered out by identity. The Journal stays authoritative for loop
-/// state: a Card the board re-stated is reported, not adopted; the one exception is Cancelled, which
+/// state: a Card the board re-stated is reported, not adopted; the one exception is Shelved, which
 /// Yellowhammer reads and never writes, and which takes effect here, at the Act boundary. When the
 /// board refuses for its rate budget the read degrades — nothing read is acted on, no sync point
 /// moves — and the degradation is recorded as installation-wide, because the budget is the App
@@ -169,7 +169,7 @@ public struct DeltaRead: Sendable {
         return report
     }
 
-    /// One known Card: removal, then Cancelled either way, then a re-stated board copy, then the
+    /// One known Card: removal, then Shelved either way, then a re-stated board copy, then the
     /// description. Each finding is recorded in the event log as it is made.
     private func reconcile(
         card: CardRecord,
@@ -221,7 +221,7 @@ public struct DeltaRead: Sendable {
         report.cardChanges.append(change)
     }
 
-    /// Reconciles Cancelled, Operator re-ready and re-stated board copies. Returns true when the
+    /// Reconciles Shelved, Operator re-ready and re-stated board copies. Returns true when the
     /// board must be restated from the Journal and no write to the issue is pending.
     private func reconcileState(
         card: inout CardRecord,
@@ -229,21 +229,21 @@ public struct DeltaRead: Sendable {
         pendingWrites: Set<String>,
         into report: inout DeltaReadReport
     ) throws -> Bool {
-        let boardSaysCancelled = boardState.isCancelled
-        switch (card.state, boardSaysCancelled) {
-        case (.cancelled, true):
+        let boardSaysShelved = boardState.isShelved
+        switch (card.state, boardSaysShelved) {
+        case (.shelved, true):
             return false
         case (_, true):
-            card = try journal.markCardCancelled(
+            card = try journal.markCardShelved(
                 cardID: card.id, runID: runID, act: act, nightID: nightID, now: clock()
             )
             try journal.abortPendingOutboxEntries(
-                issueID: card.issueID, reason: "the Card is Cancelled; nothing is posted to it"
+                issueID: card.issueID, reason: "the Card is Shelved; nothing is posted to it"
             )
-            report.cancelled.append(card)
+            report.shelved.append(card)
             return false
-        case (.cancelled, false):
-            card = try journal.restoreCancelledCard(
+        case (.shelved, false):
+            card = try journal.restoreShelvedCard(
                 cardID: card.id, runID: runID, act: act, nightID: nightID, now: clock()
             )
             report.reopened.append(card)
@@ -356,12 +356,12 @@ public struct DeltaRead: Sendable {
 }
 
 extension CardState {
-    /// A Card the Operator can still act on: everything but Done and Cancelled. An archived Card in one
+    /// A Card the Operator can still act on: everything but Done and Shelved. An archived Card in one
     /// of these states was removed from the board while the Journal still had it in play.
     var isInPlay: Bool {
         switch self {
         case .todo, .inProgress, .blocked, .waitingOnYou: true
-        case .done, .cancelled: false
+        case .done, .shelved: false
         }
     }
 }

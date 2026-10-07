@@ -84,7 +84,7 @@ struct FeatureSettleGestureTests {
         #expect(waiting.blockReason == BlockReason.replyOverdue.rawValue)
         #expect(waiting.budgetEpoch == 2)
 
-        // Both Blocked Cards are detached; Done and Cancelled are untouched.
+        // Both Blocked Cards are detached; Done and Shelved are untouched.
         let waitingIssue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: "MOB-1")))
         #expect(waitingIssue.parent == nil)
         let blockedIssue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: "BACK-2")))
@@ -183,11 +183,11 @@ struct FeatureSettleGestureTests {
     }
 
     @Test(
-        "kept in flight is not honoured where only abandoned is offered: a Partial Landing, or every Card Cancelled",
+        "kept in flight is not honoured where only abandoned is offered: a Partial Landing, or every Card Shelved",
         arguments: [(true, false), (true, true), (false, true)]
     )
-    func keptInFlightNotHonouredWhereOnlyAbandonedIsOffered(landed: Bool, allCancelled: Bool) async throws {
-        let world = try await makeSettleWorld(landed: landed, allCancelled: allCancelled)
+    func keptInFlightNotHonouredWhereOnlyAbandonedIsOffered(landed: Bool, allShelved: Bool) async throws {
+        let world = try await makeSettleWorld(landed: landed, allShelved: allShelved)
         await world.seedFeatureIssueState(SettleValue.keptInFlight.rawValue)
         let context = try world.makeContext()
         let feature = try inFlightFeature(world)

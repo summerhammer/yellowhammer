@@ -7,7 +7,7 @@ import Testing
 @testable import Journal
 
 // board-projection/read-board-changes-by-delta: each Act reads what changed since the last read in one
-// request; Yellowhammer's own comments are filtered by identity; Cancelled is read and never written;
+// request; Yellowhammer's own comments are filtered by identity; Shelved is read and never written;
 // deleted or re-stated Cards are reconciled against the Journal, which stays authoritative; a Card
 // moved to another repository is reported rather than dispatched; a rate-budget refusal degrades the
 // read and is recorded as workspace-wide. These run against an in-memory Linear stand-in.
@@ -131,16 +131,16 @@ struct DeltaReadTests {
         #expect(report.humanComments.allSatisfy { $0.card == nil })
     }
 
-    // MARK: - Cancelled
+    // MARK: - Shelved
 
-    @Test("Cancelled is read and recorded at the Act boundary, and reopening restores the state held")
-    func cancelledRoundTrip() async throws {
+    @Test("Shelved is read and recorded at the Act boundary, and reopening restores the state held")
+    func shelvedRoundTrip() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let cardID = try insertCard(journal, issueID: "card-1", state: .blocked)
         let board = FakeReadingBoard([
-            page(objects: [object("card-1", state: stateCancelled, updatedAt: 1)]),
-            page(objects: [object("card-1", state: stateCancelled, updatedAt: 2)]),
+            page(objects: [object("card-1", state: stateShelved, updatedAt: 1)]),
+            page(objects: [object("card-1", state: stateShelved, updatedAt: 2)]),
             page(objects: [object("card-1", state: stateTodo, updatedAt: 3)])
         ])
         let (read, _) = try deltaRead(journal, board: board)
@@ -149,16 +149,16 @@ struct DeltaReadTests {
             Issue.record("expected a read")
             return
         }
-        #expect(first.cancelled.map(\.id) == [cardID])
+        #expect(first.shelved.map(\.id) == [cardID])
         #expect(first.restated.isEmpty)
-        #expect(try journal.card(id: cardID).state == .cancelled)
-        #expect(try journal.card(id: cardID).cancelledFromState == .blocked)
+        #expect(try journal.card(id: cardID).state == .shelved)
+        #expect(try journal.card(id: cardID).shelvedFromState == .blocked)
 
         guard case .read(let again) = try await read.perform() else {
             Issue.record("expected a read")
             return
         }
-        #expect(again.cancelled.isEmpty, "a Card already cancelled is not cancelled twice")
+        #expect(again.shelved.isEmpty, "a Card already shelved is not shelved twice")
 
         guard case .read(let reopened) = try await read.perform() else {
             Issue.record("expected a read")
@@ -167,13 +167,13 @@ struct DeltaReadTests {
         #expect(reopened.reopened.map(\.id) == [cardID])
         #expect(reopened.restated.isEmpty, "the restored Journal state wins over the board's reopen state")
         #expect(try journal.card(id: cardID).state == .blocked)
-        #expect(try journal.card(id: cardID).cancelledFromState == nil)
-        #expect(try journal.events(ofType: .cardCancelled).count == 1)
+        #expect(try journal.card(id: cardID).shelvedFromState == nil)
+        #expect(try journal.events(ofType: .cardShelved).count == 1)
         #expect(try journal.events(ofType: .cardReopened).count == 1)
     }
 
-    @Test("A board state named 'Canceled' of category .cancelled marks the Card Cancelled; Todo reopens it")
-    func cancelledByCategoryRoundTrip() async throws {
+    @Test("A board state named 'Canceled' of category .shelved marks the Card Shelved; Todo reopens it")
+    func shelvedByCategoryRoundTrip() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let cardID = try insertCard(journal, issueID: "card-1", state: .blocked)
@@ -187,8 +187,8 @@ struct DeltaReadTests {
             Issue.record("expected a read")
             return
         }
-        #expect(first.cancelled.map(\.id) == [cardID])
-        #expect(try journal.card(id: cardID).state == .cancelled)
+        #expect(first.shelved.map(\.id) == [cardID])
+        #expect(try journal.card(id: cardID).state == .shelved)
 
         guard case .read(let reopened) = try await read.perform() else {
             Issue.record("expected a read")

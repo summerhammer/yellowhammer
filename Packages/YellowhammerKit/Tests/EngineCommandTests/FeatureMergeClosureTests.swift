@@ -87,8 +87,8 @@ struct FeatureMergeClosureTests {
         let waitingOnBoard = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: "MOB-1")))
         #expect(waitingOnBoard.workflowState == (try scope.id(for: .blocked)))
 
-        // Cancelled, Done and the already-Blocked Card are untouched.
-        #expect(try world.journal.card(id: world.cancelledCardID).state == .cancelled)
+        // Shelved, Done and the already-Blocked Card are untouched.
+        #expect(try world.journal.card(id: world.shelvedCardID).state == .shelved)
         #expect(try world.journal.card(id: world.doneCardID).state == .done)
         let alreadyBlocked = try world.journal.card(id: world.blockedCardID)
         #expect(alreadyBlocked.state == .blocked)
@@ -101,8 +101,8 @@ struct FeatureMergeClosureTests {
         #expect(blockedIssue.parent == nil)
         let doneIssue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: "BACK-1")))
         #expect(doneIssue.parent == BoardObjectID(rawValue: "FEAT-1"))
-        let cancelledIssue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: "MOB-2")))
-        #expect(cancelledIssue.parent == BoardObjectID(rawValue: "FEAT-1"))
+        let shelvedIssue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: "MOB-2")))
+        #expect(shelvedIssue.parent == BoardObjectID(rawValue: "FEAT-1"))
 
         // The Feature Issue is archived, never moved to Done.
         let featureIssue = try #require(await world.boards.writing.issue(BoardObjectID(rawValue: "FEAT-1")))

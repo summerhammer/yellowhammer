@@ -21,8 +21,8 @@ public struct CardRecord: Equatable, Sendable {
     public let state: CardState
     public let waitingReason: WaitingReason?
     public let blockReason: String?
-    /// The state the Card held before the board said Cancelled; nil unless state is cancelled.
-    public let cancelledFromState: CardState?
+    /// The state the Card held before the board said Shelved; nil unless state is shelved.
+    public let shelvedFromState: CardState?
     /// Bumped by ``JournalStore/resetBudgetEpoch(cardID:reason:runID:act:nightID:now:)`` when an
     /// Override pinned in triage supersedes the exclusions an earlier epoch recorded
     /// (routing/exclude-tried-routes-on-retry, P7.7).
@@ -65,7 +65,7 @@ public struct CardRecord: Equatable, Sendable {
         state: CardState,
         waitingReason: WaitingReason?,
         blockReason: String?,
-        cancelledFromState: CardState?,
+        shelvedFromState: CardState?,
         budgetEpoch: Int,
         createdAt: Date,
         stateVersion: Int,
@@ -88,7 +88,7 @@ public struct CardRecord: Equatable, Sendable {
         self.state = state
         self.waitingReason = waitingReason
         self.blockReason = blockReason
-        self.cancelledFromState = cancelledFromState
+        self.shelvedFromState = shelvedFromState
         self.budgetEpoch = budgetEpoch
         self.createdAt = createdAt
         self.stateVersion = stateVersion
@@ -112,7 +112,7 @@ public struct CardRecord: Equatable, Sendable {
         state: CardState,
         waitingReason: WaitingReason?,
         blockReason: String?,
-        cancelledFromState: CardState?,
+        shelvedFromState: CardState?,
         budgetEpoch: Int,
         createdAt: Date,
         stateVersion: Int,
@@ -136,7 +136,7 @@ public struct CardRecord: Equatable, Sendable {
             state: state,
             waitingReason: waitingReason,
             blockReason: blockReason,
-            cancelledFromState: cancelledFromState,
+            shelvedFromState: shelvedFromState,
             budgetEpoch: budgetEpoch,
             createdAt: createdAt,
             stateVersion: stateVersion,
@@ -162,7 +162,7 @@ public struct CardRecord: Equatable, Sendable {
 // MARK: - CardRecord helpers
 
 extension CardRecord {
-    func with(state: CardState, cancelledFromState: CardState?) -> CardRecord {
+    func with(state: CardState, shelvedFromState: CardState?) -> CardRecord {
         CardRecord(
             id: id,
             cycleID: cycleID,
@@ -175,7 +175,7 @@ extension CardRecord {
             state: state,
             waitingReason: waitingReason,
             blockReason: blockReason,
-            cancelledFromState: cancelledFromState,
+            shelvedFromState: shelvedFromState,
             budgetEpoch: budgetEpoch,
             createdAt: createdAt,
             stateVersion: stateVersion,

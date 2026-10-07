@@ -37,7 +37,7 @@ public struct RollUpMember: Equatable, Sendable {
     public var waitingReason: WaitingReason?
     public var blockReason: String?
     /// Read-time markers (roadmap P11.3) — only ``FeatureMemberMarker/bankedAnswer`` is rendered here;
-    /// ``FeatureMemberMarker/cancelled`` is redundant with `state` and is not consulted.
+    /// ``FeatureMemberMarker/shelved`` is redundant with `state` and is not consulted.
     public var markers: Set<FeatureMemberMarker>
     /// The previous Feature Issue this Card was adopted from, nil when not adopted. Carried separately
     /// from `markers` because it holds data (roadmap P12.3).
@@ -96,7 +96,7 @@ public struct FeatureRollUp: Sendable {
     public let pushedRepositories: Set<String>
     public let issueStanding: FeatureIssueStanding
 
-    /// The word, or nil ("absent") when every member Card is Cancelled.
+    /// The word, or nil ("absent") when every member Card is Shelved.
     public let state: RollUpState?
     /// The rendered sentence, without the bold markdown and without the conflicts or no-pull-request suffixes.
     public let sentence: String
@@ -155,7 +155,7 @@ public struct FeatureRollUp: Sendable {
         guard !members.isEmpty else {
             return zeroCard(issueStanding)
         }
-        let live = members.filter { $0.state != .cancelled }
+        let live = members.filter { $0.state != .shelved }
         guard !live.isEmpty else {
             return (nil, "no live Cards · \(members.count) shelved")
         }

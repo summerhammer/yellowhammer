@@ -6,7 +6,7 @@ import Testing
 @testable import Journal
 
 // roadmap P9.3: `blockedCardsLeftByClosedFeatures`, the read behind feature selection's adoption
-// candidates (feature-authoring/select-the-next-feature, first story). A Cancelled Card is never
+// candidates (feature-authoring/select-the-next-feature, first story). A Shelved Card is never
 // Blocked, so it is never returned without a rule of its own; a Blocked Card in the open Cycle is not
 // left behind by a *closed* Feature, so it is excluded too.
 
@@ -94,13 +94,13 @@ func returnsBlockedCardFromArchivedCycle() throws {
     #expect(candidates[0].issueID == "BACK-1")
 }
 
-@Test("A Cancelled Card is never returned, even in an archived Cycle")
-func excludesCancelledCard() throws {
+@Test("A Shelved Card is never returned, even in an archived Cycle")
+func excludesShelvedCard() throws {
     let fixture = try AdoptionJournalFixture()
     let journal = try fixture.open()
     let (_, cycleID) = try insertAdoptionFeature(journal, issueID: "FEAT-1", archived: true)
     try insertAdoptionCard(
-        journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .cancelled
+        journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", state: .shelved
     )
 
     let candidates = try journal.blockedCardsLeftByClosedFeatures()

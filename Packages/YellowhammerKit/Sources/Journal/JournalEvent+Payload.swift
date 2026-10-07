@@ -100,7 +100,7 @@ extension JournalEvent {
             }()
         case .outboxGroupRolledBack(let groupID, let reason):
             ["group_id": groupID, "reason": reason]
-        case .cardCancelled(let cardID, let issueID, let previousState):
+        case .cardShelved(let cardID, let issueID, let previousState):
             [
                 "card_id": String(cardID),
                 "issue_id": issueID,

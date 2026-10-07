@@ -7,8 +7,8 @@ import GRDB
 
 extension JournalStore {
     /// A Journal-side Card state transition: the board projection's write path. One write transaction
-    /// under the Act-scoped Lease, in this order — Cancelled is refused both ways (it is read and never
-    /// written), an already-cancelled Card is refused (Cancelled takes effect only at the Act boundary
+    /// under the Act-scoped Lease, in this order — Shelved is refused both ways (it is read and never
+    /// written), an already-shelved Card is refused (Shelved takes effect only at the Act boundary
     /// and is never itself transitioned away from here), Waiting on You requires a waiting reason and
     /// Blocked requires a Block Reason (the Journal record is what backs each), leaving either clears
     /// its reason column. A transition to the same state with the same reasons is a no-op: it returns
@@ -27,8 +27,8 @@ extension JournalStore {
         nightID: Int64?,
         now: Date = Date()
     ) throws -> CardRecord {
-        guard state != .cancelled else {
-            throw JournalError.cancelledIsNeverWritten(cardID: cardID)
+        guard state != .shelved else {
+            throw JournalError.shelvedIsNeverWritten(cardID: cardID)
         }
         let now = JournalStore.stored(now)
         return try write { db in
@@ -39,8 +39,8 @@ extension JournalStore {
             }
             let record = try Self.cardRecord(from: row)
 
-            guard record.state != .cancelled else {
-                throw JournalError.cardAlreadyCancelled(cardID: cardID)
+            guard record.state != .shelved else {
+                throw JournalError.cardAlreadyShelved(cardID: cardID)
             }
             if state == .waitingOnYou, waitingReason == nil {
                 throw JournalError.waitingOnYouUnbacked(cardID: cardID)
@@ -145,13 +145,13 @@ extension JournalStore {
         }
     }
 
-    /// Every Card whose board projection has not caught up with its Journal state: not Cancelled,
+    /// Every Card whose board projection has not caught up with its Journal state: not Shelved,
     /// transitioned at least once, and either never confirmed on the board or confirmed at an earlier
     /// version. Ordered by id, which is what ``BoardStateProjection/repost()`` replays after a crash.
     ///
     /// A Card at `state_version` 0 never transitioned in the Journal: its authoring group created it on
     /// the board in Todo, so it has no write of its own to post. Reposting Todo for it would overwrite
-    /// whatever the Operator did to it on the board before the first build Act read it — a Cancel
+    /// whatever the Operator did to it on the board before the first build Act read it — a Shelve
     /// among them, which the Delta Read would then never see.
     public func cardsWithUnpostedState() throws -> [CardRecord] {
         try read { db in
@@ -163,7 +163,7 @@ extension JournalStore {
                   AND (board_state_version IS NULL OR board_state_version < state_version)
                 ORDER BY id ASC
                 """,
-                arguments: [CardState.cancelled.rawValue]
+                arguments: [CardState.shelved.rawValue]
             )
             return try rows.map { try Self.cardRecord(from: $0) }
         }

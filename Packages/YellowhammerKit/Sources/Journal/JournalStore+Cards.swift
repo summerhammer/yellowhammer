@@ -36,8 +36,8 @@ extension JournalStore {
         }
     }
 
-    /// How many of one Cycle's Cards are unfinished. A Cancelled Card is not unfinished, which is
-    /// what lets cancelling the last stuck Card release the Cycle to land.
+    /// How many of one Cycle's Cards are unfinished. A Shelved Card is not unfinished, which is
+    /// what lets shelving the last stuck Card release the Cycle to land.
     public func unfinishedCardCount(cycleID: Int64) throws -> Int {
         try read { db in
             try Self.countUnfinished(
@@ -115,15 +115,15 @@ extension JournalStore {
         let rawWaitingReason: String? = row["waiting_reason"]
         let waitingReason = rawWaitingReason.flatMap { WaitingReason(rawValue: $0) }
 
-        let rawCancelledFromState: String? = row["cancelled_from_state"]
-        let cancelledFromState: CardState?
-        if let rawCancelledFromState {
-            guard let state = CardState(rawValue: rawCancelledFromState) else {
-                throw JournalError.unknownCardState(cardID: id, state: rawCancelledFromState)
+        let rawShelvedFromState: String? = row["shelved_from_state"]
+        let shelvedFromState: CardState?
+        if let rawShelvedFromState {
+            guard let state = CardState(rawValue: rawShelvedFromState) else {
+                throw JournalError.unknownCardState(cardID: id, state: rawShelvedFromState)
             }
-            cancelledFromState = state
+            shelvedFromState = state
         } else {
-            cancelledFromState = nil
+            shelvedFromState = nil
         }
 
         let createdAtText: String = row["created_at"]
@@ -141,7 +141,7 @@ extension JournalStore {
             state: state,
             waitingReason: waitingReason,
             blockReason: row["block_reason"],
-            cancelledFromState: cancelledFromState,
+            shelvedFromState: shelvedFromState,
             budgetEpoch: row["budget_epoch"],
             createdAt: createdAt,
             stateVersion: row["state_version"],
@@ -169,12 +169,12 @@ extension JournalStore {
 
     // MARK: - Card state changes
 
-    /// The board read the Card as Cancelled. Sets state = Cancelled,
-    /// cancelled_from_state = the previous state, appends `.cardCancelled` in the same
+    /// The board read the Card as Shelved. Sets state = Shelved,
+    /// shelved_from_state = the previous state, appends `.cardShelved` in the same
     /// write transaction, under the Act-scoped lease.
-    /// Throws JournalError.cardAlreadyCancelled(cardID:) when it already is.
+    /// Throws JournalError.cardAlreadyShelved(cardID:) when it already is.
     @discardableResult
-    public func markCardCancelled(
+    public func markCardShelved(
         cardID: Int64,
         runID: RunID,
         act: Act?,
@@ -192,20 +192,20 @@ extension JournalStore {
 
             let record = try Self.cardRecord(from: row)
 
-            // Check if already cancelled
-            guard record.state != .cancelled else {
-                throw JournalError.cardAlreadyCancelled(cardID: cardID)
+            // Check if already shelved
+            guard record.state != .shelved else {
+                throw JournalError.cardAlreadyShelved(cardID: cardID)
             }
 
-            // Update card: set state to Cancelled and cancelled_from_state to previous state
+            // Update card: set state to Shelved and shelved_from_state to previous state
             try db.execute(
-                sql: "UPDATE card SET state = ?, cancelled_from_state = ? WHERE id = ?",
-                arguments: [CardState.cancelled.rawValue, record.state.rawValue, cardID]
+                sql: "UPDATE card SET state = ?, shelved_from_state = ? WHERE id = ?",
+                arguments: [CardState.shelved.rawValue, record.state.rawValue, cardID]
             )
 
             let stamp = EventStamp(act: act, runID: runID, nightID: nightID, now: now)
 
-            // The running agent is not interrupted (spec: "A Card cancelled while it is running") — but
+            // The running agent is not interrupted (spec: "A Card shelved while it is running") — but
             // any open Attempt this Card holds is not resumable state worth a budget, so it ends
             // `cancelled` in the same write: consumes no Attempt, excludes no Route, writes no
             // failure-cause row and touches no worktree, Feature Branch, round, budget_epoch or
@@ -236,7 +236,7 @@ extension JournalStore {
             }
 
             // Append event
-            let event = JournalEvent.cardCancelled(
+            let event = JournalEvent.cardShelved(
                 cardID: cardID,
                 issueID: record.issueID,
                 previousState: record.state
@@ -245,16 +245,16 @@ extension JournalStore {
 
             // Return updated record
             return try Self.cardRecord(from: row)
-                .with(state: .cancelled, cancelledFromState: record.state)
+                .with(state: .shelved, shelvedFromState: record.state)
         }
     }
 
-    /// The board read a Journal-cancelled Card as reopened. Restores state from
-    /// cancelled_from_state (or `todo` if that column is null), clears the column,
+    /// The board read a Journal-shelved Card as reopened. Restores state from
+    /// shelved_from_state (or `todo` if that column is null), clears the column,
     /// appends `.cardReopened` in the same transaction, under the Act lease.
-    /// Throws JournalError.cardNotCancelled(cardID:) when it is not cancelled.
+    /// Throws JournalError.cardNotShelved(cardID:) when it is not shelved.
     @discardableResult
-    public func restoreCancelledCard(
+    public func restoreShelvedCard(
         cardID: Int64,
         runID: RunID,
         act: Act?,
@@ -272,17 +272,17 @@ extension JournalStore {
 
             let record = try Self.cardRecord(from: row)
 
-            // Check if not cancelled
-            guard record.state == .cancelled else {
-                throw JournalError.cardNotCancelled(cardID: cardID)
+            // Check if not shelved
+            guard record.state == .shelved else {
+                throw JournalError.cardNotShelved(cardID: cardID)
             }
 
-            // Determine restored state: use cancelled_from_state or default to todo
-            let restoredState = record.cancelledFromState ?? .todo
+            // Determine restored state: use shelved_from_state or default to todo
+            let restoredState = record.shelvedFromState ?? .todo
 
-            // Update card: set state to restored state and clear cancelled_from_state
+            // Update card: set state to restored state and clear shelved_from_state
             try db.execute(
-                sql: "UPDATE card SET state = ?, cancelled_from_state = NULL WHERE id = ?",
+                sql: "UPDATE card SET state = ?, shelved_from_state = NULL WHERE id = ?",
                 arguments: [restoredState.rawValue, cardID]
             )
 
@@ -297,7 +297,7 @@ extension JournalStore {
 
             // Return updated record
             return try Self.cardRecord(from: row)
-                .with(state: restoredState, cancelledFromState: nil)
+                .with(state: restoredState, shelvedFromState: nil)
         }
     }
 }

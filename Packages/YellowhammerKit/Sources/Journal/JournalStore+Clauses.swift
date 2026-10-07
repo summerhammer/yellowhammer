@@ -167,7 +167,7 @@ extension JournalStore {
         }
     }
 
-    /// How many Cards of a Cycle are in a repository, in authored order. Cancelled Cards still count.
+    /// How many Cards of a Cycle are in a repository, in authored order. Shelved Cards still count.
     public func repoLaneLength(cycleID: Int64, repository: String) throws -> Int {
         try read { db in
             guard let count = try Int.fetchOne(

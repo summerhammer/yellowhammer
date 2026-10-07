@@ -266,8 +266,8 @@ struct CardUnansweredClockTests {
         #expect(try world.card().state == .waitingOnYou)
     }
 
-    @Test("Cancelled suspends the clock: unchanged across Nights, resumes (not resets) on reopening")
-    func cancelledSuspendsTheClock() throws {
+    @Test("Shelved suspends the clock: unchanged across Nights, resumes (not resets) on reopening")
+    func shelvedSuspendsTheClock() throws {
         let fixture = try JournalFixture()
         let world = try ClockWorld(try fixture.open())
 
@@ -277,7 +277,7 @@ struct CardUnansweredClockTests {
         )
         #expect(try world.card().unansweredNights == 1)
 
-        _ = try world.journal.markCardCancelled(
+        _ = try world.journal.markCardShelved(
             cardID: world.cardID, runID: world.runID, act: .build, nightID: night2,
             now: epoch.addingTimeInterval(86_400)
         )
@@ -288,16 +288,16 @@ struct CardUnansweredClockTests {
         let night4 = try world.openNight(
             NightStart(rawValue: "2026-09-23")!, now: epoch.addingTimeInterval(3 * 86_400)
         )
-        // Cancelled Cards are not Waiting on You, so the clock's own query never selects them.
+        // Shelved Cards are not Waiting on You, so the clock's own query never selects them.
         _ = try world.journal.advanceCardUnansweredClocks(
             cycleIDs: [world.cycleID], nightID: night3, unansweredNightsMax: 1, act: .build, runID: world.runID
         )
         _ = try world.journal.advanceCardUnansweredClocks(
             cycleIDs: [world.cycleID], nightID: night4, unansweredNightsMax: 1, act: .build, runID: world.runID
         )
-        #expect(try world.card().unansweredNights == 1, "unchanged while Cancelled")
+        #expect(try world.card().unansweredNights == 1, "unchanged while Shelved")
 
-        _ = try world.journal.restoreCancelledCard(
+        _ = try world.journal.restoreShelvedCard(
             cardID: world.cardID, runID: world.runID, act: .build, nightID: night4,
             now: epoch.addingTimeInterval(3 * 86_400)
         )

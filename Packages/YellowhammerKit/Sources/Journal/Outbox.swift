@@ -263,7 +263,7 @@ extension JournalStore {
 
     /// Aborts every pending Outbox entry for `issueID` (graph-execution/handle-a-block-mid-graph and
     /// run-a-card, P8.9): shared by ``ManagedBlockMaintenance`` (a Card the Journal already holds
-    /// Cancelled) and ``DeltaRead`` (the Act that just read the Card as Cancelled), so both write the
+    /// Shelved) and ``DeltaRead`` (the Act that just read the Card as Shelved), so both write the
     /// same "nothing is posted to it" record rather than each looping over `pendingOutboxEntries()`.
     public func abortPendingOutboxEntries(issueID: String, reason: String) throws {
         for entry in try pendingOutboxEntries() where entry.issueID == issueID {

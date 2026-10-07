@@ -11,8 +11,8 @@ public enum FeatureMemberMarker: Hashable, Sendable {
     /// Adoption by a successor Feature (roadmap P11.5, joined at `AuthoringTransaction`/
     /// `AdoptionRevalidation`, `CardRun+Frame`'s dispatch payload, and here as a read-time marker).
     case bankedAnswer
-    /// The Card is Cancelled.
-    case cancelled
+    /// The Card is Shelved.
+    case shelved
 }
 
 /// Derives ``FeatureMemberMarker``s for a Cycle's member Cards, keyed by Card id and containing only
@@ -26,8 +26,8 @@ public enum FeatureMemberMarkers {
             if bankedCardIDs.contains(card.id), card.state == .waitingOnYou || card.state == .blocked {
                 cardMarkers.insert(.bankedAnswer)
             }
-            if card.state == .cancelled {
-                cardMarkers.insert(.cancelled)
+            if card.state == .shelved {
+                cardMarkers.insert(.shelved)
             }
             if !cardMarkers.isEmpty {
                 markers[card.id] = cardMarkers

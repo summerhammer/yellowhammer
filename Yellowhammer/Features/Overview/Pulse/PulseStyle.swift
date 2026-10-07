@@ -25,7 +25,7 @@ extension CardState {
         case .done: .success
         case .blocked: .error
         case .waitingOnYou: .attention
-        case .todo, .cancelled: .neutral
+        case .todo, .shelved: .neutral
         }
         return style
     }

@@ -7,7 +7,7 @@ import Foundation
 ///
 /// Posted once while the Feature is running and once more when it becomes a Partial Landing, because
 /// the offered set can change between the two (only *abandoned* is offered once every Card is
-/// Cancelled) — the author Act keys the Outbox write on the Cycle id and the offered set so each shape
+/// Shelved) — the author Act keys the Outbox write on the Cycle id and the offered set so each shape
 /// posts exactly once.
 public struct SettleGestureComment: Equatable, Sendable {
     /// What the settle gesture offers this pass, ascending by ``SettleValue/rawValue``.
