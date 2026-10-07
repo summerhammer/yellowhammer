@@ -32,7 +32,7 @@ struct ProjectConfigurationDecoder {
             path: nil,
             allowed: [
                 "id", "name", "board", "spec_source", "change_type", "repos", "limits", "schedule",
-                "github", "git", "routing"
+                "github", "git", "routing", "rehearsal"
             ]
         )
         var unvalidated = UnvalidatedTemplateValues()
@@ -49,7 +49,9 @@ struct ProjectConfigurationDecoder {
             bounds: try bounds(in: root),
             schedule: try schedule(in: root),
             routingOverrides: try decoding.routingTable(in: root),
-            changeType: try changeType(in: root, unvalidated: &unvalidated)
+            changeType: try changeType(in: root, unvalidated: &unvalidated),
+            rehearsalLinearProject: board.rehearsalProject,
+            rehearsalJournal: try rehearsalJournal(in: root)
         )
         try applyGitHub(in: root, to: &configuration, unvalidated: &unvalidated)
         try applyGit(in: root, to: &configuration, unvalidated: &unvalidated)
@@ -311,12 +313,14 @@ extension ProjectConfigurationDecoder {
     fileprivate struct LinearBoard {
         let connection: String
         let project: String
+        let rehearsalProject: String?
         let connectionLine: Int
     }
 
     /// `[board.linear]`: the Board Connection this Project selects by name and the Linear project it
-    /// projects onto. Exactly one vendor table is accepted, so a second `[board.<vendor>]`, or a vendor
-    /// other than `linear`, is an unknown key.
+    /// projects onto, and optionally the Linear project its Rehearsal Nights project onto. Exactly one
+    /// vendor table is accepted, so a second `[board.<vendor>]`, or a vendor other than `linear`, is an
+    /// unknown key.
     private func linearBoard(in root: TOMLTable) throws(ConfigurationError) -> LinearBoard {
         guard let boardValue = root["board"] else {
             throw decoding.error(line: 1, key: "board", .missingTable)
@@ -327,12 +331,26 @@ extension ProjectConfigurationDecoder {
             throw decoding.error(line: board.line, key: "board.linear", .missingTable)
         }
         let linear = try decoding.table(linearValue, key: "board.linear")
-        try decoding.rejectUnknownKeys(in: linear, path: "board.linear", allowed: ["connection", "project"])
+        try decoding.rejectUnknownKeys(
+            in: linear, path: "board.linear", allowed: ["connection", "project", "rehearsal_project"]
+        )
         return LinearBoard(
             connection: try decoding.requiredString("connection", in: linear, path: "board.linear"),
             project: try decoding.requiredString("project", in: linear, path: "board.linear"),
+            rehearsalProject: try decoding.optionalString("rehearsal_project", in: linear, path: "board.linear"),
             connectionLine: linear["connection"]?.line ?? linear.line
         )
+    }
+
+    /// `[rehearsal] journal`: the path of this Project's rehearsal Journal, as written; nil when the table
+    /// or the key is absent. Only its shape is checked here: whether it counts as defined is
+    /// ``ProjectConfiguration/rehearsalContext(realJournal:)``'s call, so a rehearsal-only value never
+    /// makes the Project unloadable for its real Nights.
+    private func rehearsalJournal(in root: TOMLTable) throws(ConfigurationError) -> String? {
+        guard let value = root["rehearsal"] else { return nil }
+        let table = try decoding.table(value, key: "rehearsal")
+        try decoding.rejectUnknownKeys(in: table, path: "rehearsal", allowed: ["journal"])
+        return try decoding.optionalString("journal", in: table, path: "rehearsal")
     }
 
     /// Refuses a `connection` the machine file's registry does not declare, when

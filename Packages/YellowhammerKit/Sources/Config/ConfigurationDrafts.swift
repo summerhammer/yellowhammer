@@ -121,9 +121,10 @@ public struct BoundsDraft: Equatable, Sendable {
 /// A Project file's fields, editable through the app's form: the Operator edits every field but the
 /// identity (``id``) and the Spec Source (``specSource``, shown read-only — the app never edits it),
 /// as strings, and ``renderedTOML`` is handed to the loader (``Configuration/save(_:to:in:replacing:)``)
-/// to validate. ``schedule``, ``gitHubCredential``, ``changeType`` and the Message Templates are carried
-/// through untouched: this slice of the app does not edit them. A key whose value is its default is not
-/// written back (``renderedTOML``).
+/// to validate. ``schedule``, ``gitHubCredential``, ``changeType``, the Message Templates and the
+/// rehearsal declarations (``rehearsalLinearProject``, ``rehearsalJournal``) are carried through
+/// untouched: this slice of the app does not edit them, and saving any other field must never drop
+/// them. A key whose value is its default is not written back (``renderedTOML``).
 public struct ProjectFileDraft: Equatable, Sendable {
     public let id: ProjectID
     public var name: String
@@ -141,6 +142,8 @@ public struct ProjectFileDraft: Equatable, Sendable {
     var pullRequestTitle: MessageTemplate
     var commitMessage: MessageTemplate
     var wipCommitMessage: MessageTemplate
+    var rehearsalLinearProject: String?
+    var rehearsalJournal: String?
 
     public init(_ project: ProjectConfiguration) {
         id = project.id
@@ -157,6 +160,8 @@ public struct ProjectFileDraft: Equatable, Sendable {
         pullRequestTitle = project.pullRequestTitle
         commitMessage = project.commitMessage
         wipCommitMessage = project.wipCommitMessage
+        rehearsalLinearProject = project.rehearsalLinearProject
+        rehearsalJournal = project.rehearsalJournal
     }
 }
 
@@ -178,11 +183,18 @@ extension ProjectFileDraft {
         }
         sections.append(top.joined(separator: "\n"))
 
-        sections.append([
+        var board = [
             "[board.linear]",
             "connection = \(ConfigurationRendering.quoted(linearInstallationName))",
             "project = \(ConfigurationRendering.quoted(linearProject))" // glossary:ignore GL001
-        ].joined(separator: "\n"))
+        ]
+        if let rehearsalLinearProject {
+            board.append("rehearsal_project = \(ConfigurationRendering.quoted(rehearsalLinearProject))")
+        }
+        sections.append(board.joined(separator: "\n"))
+        if let rehearsalJournal {
+            sections.append("[rehearsal]\njournal = \(ConfigurationRendering.quoted(rehearsalJournal))")
+        }
 
         var github: [String] = []
         if let gitHubCredential {
