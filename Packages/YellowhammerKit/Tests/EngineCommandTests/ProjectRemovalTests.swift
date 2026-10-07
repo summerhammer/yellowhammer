@@ -251,7 +251,7 @@ func fullRehearsalRemovalSucceeds() async throws {
     let pinned = await repo.run(["rev-parse", "refs/yellowhammer/removed/\(removalBranch.name)"])
     #expect(pinned.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == headCommit)
 
-    let night = try #require(try journal.nights().first)
+    let night = try #require(try journal.nights(mode: .rehearsal).first)
     #expect(night.closeReason == .projectRemoved)
     let events = try journal.events()
     #expect(events.contains { $0.type == .projectRemoved })

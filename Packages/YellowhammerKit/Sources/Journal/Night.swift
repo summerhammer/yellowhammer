@@ -220,13 +220,13 @@ extension JournalStore {
         }
     }
 
-    /// Every Night of this Project, oldest first.
-    public func nights() throws -> [NightRecord] {
+    /// Every Night of this Project in the specified mode, oldest first.
+    public func nights(mode: NightMode) throws -> [NightRecord] {
         try read { db in
             let rows = try Row.fetchAll(
                 db,
-                sql: "SELECT * FROM night WHERE project_id = ? ORDER BY night_start ASC",
-                arguments: [projectID.rawValue]
+                sql: "SELECT * FROM night WHERE project_id = ? AND mode = ? ORDER BY night_start ASC",
+                arguments: [projectID.rawValue, mode.rawValue]
             )
             return try rows.map(Self.decodeNight)
         }
