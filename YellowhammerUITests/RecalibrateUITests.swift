@@ -37,7 +37,9 @@ final class RecalibrateUITests: XCTestCase {
             to: configurationDirectory.appending(component: "config.toml", directoryHint: .notDirectory),
             atomically: true, encoding: .utf8
         )
-        try Self.demoProjectTOML.write(
+        // A Project declares its rehearsal context (OQ149) except in the test that asserts what one that
+        // declares none is shown.
+        try Self.demoProjectTOML(rehearsal: !name.contains("Unavailable")).write(
             to: projectsDirectory.appending(component: "demo.toml", directoryHint: .notDirectory),
             atomically: true, encoding: .utf8
         )
@@ -94,6 +96,17 @@ final class RecalibrateUITests: XCTestCase {
         XCTAssertTrue(showLog.waitForExistence(timeout: 5))
     }
 
+    /// A Project that declares no rehearsal context gets no *Run a rehearsal Night*: the button is
+    /// disabled and says which declarations are missing, in `yh rehearse`'s words (OQ149).
+    func testRehearsalUnavailableWithoutARehearsalContext() throws {
+        let unavailable = app.staticTexts["recalibrate-rehearsal-unavailable"]
+        XCTAssertTrue(unavailable.waitForExistence(timeout: 10))
+        let text = (unavailable.value as? String) ?? unavailable.label
+        XCTAssertTrue(text.contains("[board.linear] rehearsal_project"), text)
+        XCTAssertTrue(text.contains("[rehearsal] journal"), text)
+        XCTAssertFalse(app.buttons["recalibrate-run-rehearsal"].isEnabled)
+    }
+
     private static let machineTOML = """
     [board.linear.connections.acme]
     credential = "keychain:linear"
@@ -108,21 +121,27 @@ final class RecalibrateUITests: XCTestCase {
     route = "claude/sonnet/medium"
     """
 
-    private static let demoProjectTOML = """
-    id = "demo"
-    name = "Demo"
-    spec_source = "~/dev/demo-spec"
+    /// With `rehearsal`, the Project also declares its rehearsal context: its own Linear project and a
+    /// Journal outside `journals/` (the file need not exist).
+    private static func demoProjectTOML(rehearsal: Bool) -> String {
+        let rehearsalProject = rehearsal ? "rehearsal_project = \"DEMO-REHEARSAL\"\n" : ""
+        let rehearsalTable = rehearsal ? "\n[rehearsal]\njournal = \"~/dev/demo-rehearsal.db\"\n" : ""
+        return """
+        id = "demo"
+        name = "Demo"
+        spec_source = "~/dev/demo-spec"
 
-    [board.linear]
-    connection = "acme"
-    project = "DEMO"
-
-    [[repos]]
-    name = "backend"
-    path = "~/dev/demo-backend"
-    role = "backend"
-    check = "swift test"
-    """
+        [board.linear]
+        connection = "acme"
+        project = "DEMO"
+        \(rehearsalProject)\(rehearsalTable)
+        [[repos]]
+        name = "backend"
+        path = "~/dev/demo-backend"
+        role = "backend"
+        check = "swift test"
+        """
+    }
 
     /// The canned `yh recalibrate --json` line: `review_rounds_max` carries a Night's proximity (2 of
     /// its value 3); the rest carry no Night, which the model must show as "no Night recorded" without
