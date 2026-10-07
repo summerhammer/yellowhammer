@@ -63,6 +63,8 @@ extension JournalEvent {
                 requested: try reader.require("requested"),
                 reported: try reader.require("reported")
             )
+        case .boardScopeUnresolved:
+            .boardScopeUnresolved(steps: try reader.require("steps"))
         case .rateBudgetExhausted:
             try Self.decodeRateBudgetExhausted(reader)
         case .leaseReclaimed:

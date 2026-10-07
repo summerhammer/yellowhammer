@@ -15,8 +15,6 @@ import Testing
 private func makeReplayBoards() async throws -> NightCardTestBoards {
     let boards = try await makeBoards()
     await boards.provisioning.seed(state: "In Progress", team: teamID, category: .started)
-    await boards.provisioning.seed(state: "Blocked", team: teamID, category: .unstarted)
-    await boards.provisioning.seed(state: "Waiting on You", team: teamID, category: .unstarted)
     return boards
 }
 

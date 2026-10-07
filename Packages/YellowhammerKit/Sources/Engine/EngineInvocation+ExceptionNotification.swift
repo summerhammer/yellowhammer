@@ -15,20 +15,6 @@ extension EngineInvocation {
         }
     }
 
-    /// The Act's first Linear call, before the Night Card, the trigger, or any work (roadmap P17.5) —
-    /// so a refused identity halts before any board work is attempted, and this Night spends none of
-    /// `overdue_nights_max` (no clock has advanced yet). A non-auth failure here (network, etc.) is
-    /// not treated as a halt: it is ignored, and the Night Card open right after this call meets the
-    /// same error on its own terms.
-    func authorizationPreflight() async throws {
-        guard let board else { return }
-        do {
-            _ = try await board.reading.identity()
-        } catch {
-            if error.isLinearAuthorizationFailure { throw error }
-        }
-    }
-
     /// Closes the Night and completes its Night Card when this Act closes it, then posts `.closed` —
     /// only once that completion is recorded on the Night Card, and before anything later can throw,
     /// so a Night whose close is followed by a failure is reported both closed and halted.
@@ -127,9 +113,12 @@ extension EngineInvocation {
         let reason = String(describing: error)
         // Read before the collision event is appended, so this Act's own event does not count.
         let collision = recordWorktreeNameCollision(error, night: night)
+        let unresolved = recordBoardScopeUnresolved(error, night: night)
         appendClosing(.actIncomplete(reason: reason), night: night)
         if error.isLinearAuthorizationFailure {
             await notifyLinearAuthorizationHalted(night: night)
+        } else if let unresolved {
+            await notifyBoardScopeUnresolvedHalted(unresolved, night: night)
         } else if let collision {
             await notifyWorktreeNameCollisionHalted(
                 collision, reason: reason, night: night, nightCard: nightCard, outbox: outbox
@@ -137,6 +126,38 @@ extension EngineInvocation {
         } else {
             await notifyHalted(reason: reason, night: night, nightCard: nightCard, outbox: outbox)
         }
+    }
+
+    /// This Act's board-scope refusal, and whether it is the first this Night, for
+    /// ``notifyBoardScopeUnresolvedHalted(_:night:)``.
+    struct BoardScopeRefusal {
+        var error: BoardScopeUnresolved
+        var isFirstThisNight: Bool
+    }
+
+    /// When `error` is an unresolved board scope (OQ85, OQ136), appends `.boardScopeUnresolved` naming
+    /// every unresolved item and says whether an earlier Act this Night already recorded one. Called
+    /// before `.actIncomplete`, so the event precedes it; nil for every other error.
+    func recordBoardScopeUnresolved(_ error: any Error, night: NightRecord) -> BoardScopeRefusal? {
+        guard let unresolved = error as? BoardScopeUnresolved else { return nil }
+        let isFirst = (try? journal.events(ofType: .boardScopeUnresolved))?
+            .allSatisfy { $0.nightID != night.id } ?? true
+        _ = try? journal.append(
+            .boardScopeUnresolved(steps: unresolved.steps.joined(separator: "; ")),
+            act: act, runID: runID, nightID: night.id
+        )
+        return BoardScopeRefusal(error: unresolved, isFirstThisNight: isFirst)
+    }
+
+    /// An unresolved board scope never attempts the halted Night Card comment: the Act did no work, and
+    /// a refused first Act has no Night Card to write on. The notification is the ordinary *halted*
+    /// one, not OQ71's "unrecorded" copy — it names the unresolved items, which is what the Operator
+    /// needs either way. Posts once per Night: a later refused Act this Night only records.
+    func notifyBoardScopeUnresolvedHalted(_ refusal: BoardScopeRefusal, night: NightRecord) async {
+        guard refusal.isFirstThisNight else { return }
+        await notify(
+            .halted(reason: Self.collapsed(refusal.error.notificationReason)), notification: "halted", night: night
+        )
     }
 
     /// Whether this Act's collision is the first this Night, for

@@ -53,9 +53,12 @@ struct DoctorLinearFixture: ~Copyable {
         let scope = BoardProjectScope(id: BoardObjectID(rawValue: project), name: project, teams: [engineeringTeam])
         let board = await makeBoard(project: scope, members: [operatorMember])
         await board.setWorkspace(BoardWorkspace(id: "ws", name: workspaceName, urlKey: "ws"))
-        // Healthy means provisioned: setup has run, so Check 4's provisioning verification passes.
+        // Healthy means provisioned: setup has run (with a Routing Table, so the `Override` group exists
+        // too), so Check 4's provisioning verification passes.
         if provisioned {
-            _ = try? await BoardProvisioner.provision(using: board, projectName: project, createIn: nil)
+            _ = try? await BoardProvisioner.provision(
+                using: board, projectName: project, createIn: nil, routingTable: RoutingTable(entries: [])
+            )
         }
         return board
     }

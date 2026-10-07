@@ -94,6 +94,9 @@ public enum JournalEvent: Equatable, Sendable {
     /// Act halted. `requested` is the branch Yellowhammer expected (the recorded Feature Branch when one is
     /// recorded, else the requested Worktree name); `reported` is what Orca ADE made.
     case worktreeNameCollision(repository: String, requested: String, reported: String)
+    /// An Act found part of the Project's board scope unresolved (missing, or a name collision) and did
+    /// no work (OQ85, OQ136). `steps` names every unresolved item, joined with "; ".
+    case boardScopeUnresolved(steps: String)
     /// The board's request budget was exhausted and the Act did less work. The budget is the
     /// Board Connection's, shared by every Project on that installation, so the record names it
     /// installation-wide (and the workspace, when known) and never attributes the exhaustion to this
