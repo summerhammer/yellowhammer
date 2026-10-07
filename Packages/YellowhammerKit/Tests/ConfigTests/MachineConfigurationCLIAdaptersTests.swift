@@ -177,7 +177,7 @@ struct MachineConfigurationCLIAdaptersTests {
         let typo = try #require(CLIAdapterDeclaration(name: "claude", executable: missing).executableProblem)
         #expect(typo.contains("No file at \(missing)"))
         let notExecutable = try #require(CLIAdapterDeclaration(name: "claude", executable: plain).executableProblem)
-        #expect(notExecutable.contains("not executable"))
+        #expect(notExecutable.contains("not an executable file"))
         let relative = try #require(CLIAdapterDeclaration(name: "claude", executable: "bin/claude").executableProblem)
         #expect(relative.contains("absolute path"))
     }
@@ -190,5 +190,39 @@ struct MachineConfigurationCLIAdaptersTests {
         #expect(!configuration.hasRouteToRunnableCLI)
         configuration.routingTable = try machine(adapters: [], routes: [("claude", ["agy"])]).routingTable
         #expect(configuration.hasRouteToRunnableCLI)
+    }
+
+    @Test("settingExecutable sets, trims and clears the named executable and leaves the rest untouched")
+    func settingExecutable() throws {
+        let base = try machine(adapters: ["claude", "codex"], routes: [("claude", ["codex"])])
+        let set = base.settingExecutable(cliAdapter: "claude", executable: " /opt/bin/claude ")
+        #expect(set.cliAdapters == [
+            CLIAdapterDeclaration(name: "claude", executable: "/opt/bin/claude"),
+            CLIAdapterDeclaration(name: "codex")
+        ])
+        #expect(set.routingTable == base.routingTable)
+        let cleared = set.settingExecutable(cliAdapter: "claude", executable: "  ")
+        #expect(cleared.cliAdapters == base.cliAdapters)
+        #expect(base.settingExecutable(cliAdapter: "agy", executable: "/x").cliAdapters == base.cliAdapters)
+    }
+
+    @Test("A directory with the execute bit is not an executable file")
+    func directoryIsRefused() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(component: UUID().uuidString)
+        let folder = directory.appending(component: "claude")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let path = folder.path(percentEncoded: false)
+        let problem = try #require(CLIAdapterDeclaration(name: "claude", executable: path).executableProblem)
+        #expect(problem.contains("is not an executable file"))
+    }
+
+    @Test("A declared path containing a space survives rendering and parsing")
+    func pathWithSpaceRoundTrips() throws {
+        let path = "/Users/some one/.local/bin/claude"
+        let rendered = try machine(adapters: [])
+            .declaring(cliAdapter: "claude", executable: path).renderedTOML
+        let parsed = try MachineConfiguration.parse(rendered, file: "config.toml")
+        #expect(parsed.cliAdapters == [CLIAdapterDeclaration(name: "claude", executable: path)])
     }
 }

@@ -10,6 +10,16 @@ enum ConfigurationDirectory {
     /// persist through `defaults write`.
     static let argument = "YellowhammerConfigurationDirectory"
 
+    /// The launch argument that gives the Agent CLIs pane's discovery a fixture home directory under a UI test
+    /// (`-YellowhammerDiscoveryHome <path>`), so it never reads the real machine. Only the argument domain is
+    /// read, and only while ``isOverridden``.
+    static let discoveryHomeArgument = "YellowhammerDiscoveryHome"
+
+    /// The fixture home directory for discovery, nil when no UI test gave one.
+    static var discoveryHomePath: String? {
+        UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)[discoveryHomeArgument] as? String
+    }
+
     /// Whether the app is pointed at another configuration directory than the one `yh` reads.
     static var isOverridden: Bool { overridePath != nil }
 

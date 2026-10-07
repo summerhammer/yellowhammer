@@ -30,6 +30,18 @@ extension MachineConfiguration {
         return copy
     }
 
+    /// A copy whose declaration named `name` runs `executable` (trimmed; blank becomes nil, so `yh` looks the
+    /// CLI up on PATH). Every other declaration and the whole Routing Table are unchanged. No other
+    /// validation: the loader is the single validator, run when the result is saved.
+    public func settingExecutable(cliAdapter name: String, executable: String) -> MachineConfiguration {
+        var copy = self
+        let trimmed = executable.trimmingCharacters(in: .whitespacesAndNewlines)
+        for index in copy.cliAdapters.indices where copy.cliAdapters[index].name == name {
+            copy.cliAdapters[index].executable = trimmed.isEmpty ? nil : trimmed
+        }
+        return copy
+    }
+
     /// A copy with every declaration of `name` removed. No other validation: the loader is the single
     /// validator, run when the result is saved, so a route still naming `name` — in the base Routing Table
     /// or a Project's — refuses the save.
@@ -74,13 +86,12 @@ extension CLIAdapterDeclaration {
         guard executable.hasPrefix("/") else {
             return "\(name)\u{2019}s executable must be an absolute path, not \(executable)."
         }
-        let files = FileManager.default
-        guard files.fileExists(atPath: executable) else {
+        guard FileManager.default.fileExists(atPath: executable) else {
             return "No file at \(executable), so \(name) cannot run. Fix the path, or leave it empty to look "
                 + "\(name) up on PATH."
         }
-        guard files.isExecutableFile(atPath: executable) else {
-            return "\(executable) is not executable, so \(name) cannot run."
+        guard ExecutableFile.isRunnable(atPath: executable) else {
+            return "\(executable) is not an executable file, so \(name) cannot run."
         }
         return nil
     }

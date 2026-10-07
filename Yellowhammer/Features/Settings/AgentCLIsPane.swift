@@ -70,6 +70,7 @@ private struct AgentCLIListView: View {
             if !model.probeLog.isEmpty || model.probeExitStatus != nil {
                 probeLogBlock
             }
+            AgentCLIDiscoverySection(model: model)
             if !model.declarableNames.isEmpty {
                 declareBlock
             }
