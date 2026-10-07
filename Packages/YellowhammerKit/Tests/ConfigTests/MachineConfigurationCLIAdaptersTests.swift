@@ -158,4 +158,37 @@ struct MachineConfigurationCLIAdaptersTests {
         }
         #expect(try String(contentsOf: file, encoding: .utf8) == handWritten)
     }
+
+    @Test("An executable that cannot run is named, with why; none at all is looked up on PATH")
+    func executableProblem() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(component: UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let runnable = directory.appending(component: "claude").path(percentEncoded: false)
+        let plain = directory.appending(component: "notes").path(percentEncoded: false)
+        #expect(FileManager.default.createFile(atPath: runnable, contents: Data("#!/bin/sh\n".utf8)))
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runnable)
+        #expect(FileManager.default.createFile(atPath: plain, contents: Data()))
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: plain)
+        let missing = directory.appending(component: "claud").path(percentEncoded: false)
+
+        #expect(CLIAdapterDeclaration(name: "claude").executableProblem == nil)
+        #expect(CLIAdapterDeclaration(name: "claude", executable: runnable).executableProblem == nil)
+        let typo = try #require(CLIAdapterDeclaration(name: "claude", executable: missing).executableProblem)
+        #expect(typo.contains("No file at \(missing)"))
+        let notExecutable = try #require(CLIAdapterDeclaration(name: "claude", executable: plain).executableProblem)
+        #expect(notExecutable.contains("not executable"))
+        let relative = try #require(CLIAdapterDeclaration(name: "claude", executable: "bin/claude").executableProblem)
+        #expect(relative.contains("absolute path"))
+    }
+
+    @Test("A route counts as runnable only when it names a CLI whose executable can run")
+    func runnableRoute() throws {
+        var configuration = try machine(adapters: ["claude", "agy"], routes: [("claude", [])])
+        configuration.cliAdapters[0].executable = "/nonexistent/claud"
+        #expect(configuration.hasRouteToDeclaredCLI)
+        #expect(!configuration.hasRouteToRunnableCLI)
+        configuration.routingTable = try machine(adapters: [], routes: [("claude", ["agy"])]).routingTable
+        #expect(configuration.hasRouteToRunnableCLI)
+    }
 }

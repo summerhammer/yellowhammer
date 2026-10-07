@@ -48,9 +48,40 @@ extension MachineConfiguration {
 
     /// Whether some base Routing Table entry's route, or one of its fallbacks, names a declared CLI.
     public var hasRouteToDeclaredCLI: Bool {
-        let declared = Set(cliAdapters.map(\.name))
-        return routingTable.contains { entry in
-            declared.contains(entry.route.cli) || entry.fallbacks.contains { declared.contains($0.cli) }
+        hasRoute(toAnyOf: Set(cliAdapters.map(\.name)))
+    }
+
+    /// Whether some base Routing Table entry's route, or one of its fallbacks, names a declared CLI whose
+    /// executable can run: one with no ``CLIAdapterDeclaration/executableProblem``.
+    public var hasRouteToRunnableCLI: Bool {
+        hasRoute(toAnyOf: Set(cliAdapters.filter { $0.executableProblem == nil }.map(\.name)))
+    }
+
+    private func hasRoute(toAnyOf clis: Set<String>) -> Bool {
+        routingTable.contains { entry in
+            clis.contains(entry.route.cli) || entry.fallbacks.contains { clis.contains($0.cli) }
         }
+    }
+}
+
+extension CLIAdapterDeclaration {
+    /// Why the declared `executable` cannot run, in words for the Operator; nil when it names an executable
+    /// file, or when there is none and the CLI is looked up on `PATH`. Not a loader check: `yh doctor` and
+    /// setup must still load a machine file whose CLI has moved, to report it. Checked when the app declares
+    /// a CLI, and shown on each declared one.
+    public var executableProblem: String? {
+        guard let executable else { return nil }
+        guard executable.hasPrefix("/") else {
+            return "\(name)\u{2019}s executable must be an absolute path, not \(executable)."
+        }
+        let files = FileManager.default
+        guard files.fileExists(atPath: executable) else {
+            return "No file at \(executable), so \(name) cannot run. Fix the path, or leave it empty to look "
+                + "\(name) up on PATH."
+        }
+        guard files.isExecutableFile(atPath: executable) else {
+            return "\(executable) is not executable, so \(name) cannot run."
+        }
+        return nil
     }
 }

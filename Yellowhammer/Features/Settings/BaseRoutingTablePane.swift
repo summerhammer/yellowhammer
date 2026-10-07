@@ -42,7 +42,12 @@ private struct BaseRoutingTableFormView: View {
                         + "Role, with fallbacks in order. Every Project on this Mac reads this table; a "
                         + "Project\u{2019}s own entry for the same Kind and Repo Role replaces the one here."
                 ) {
-                    RoutingSections(table: table, proxy: proxy)
+                    VStack(alignment: .leading, spacing: 22) {
+                        if !model.executableProblems.isEmpty {
+                            executableProblems
+                        }
+                        RoutingSections(table: table, proxy: proxy)
+                    }
                 } footer: {
                     SettingsSaveFooter(
                         note: "Saving rewrites \(model.file.path(percentEncoded: false)); comments and layout in "
@@ -58,6 +63,18 @@ private struct BaseRoutingTableFormView: View {
             .environment(\.routingCatalog, model.catalog)
         } else {
             SettingsUnavailable(message: "The base Routing Table could not be loaded.")
+        }
+    }
+
+    /// A route naming a CLI that cannot run never dispatches, so say so above the table (#377).
+    private var executableProblems: some View {
+        SettingsCard(hasProblem: true) {
+            ForEach(model.executableProblems, id: \.self) { problem in
+                SettingsFailureText(text: problem, identifier: "routing-table-executable-problem")
+            }
+            Text("Fix it under Agent CLIs: remove the CLI and declare it again with the right path.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 }

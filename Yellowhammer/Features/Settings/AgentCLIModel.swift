@@ -31,6 +31,8 @@ final class AgentCLIModel {
         /// result or nothing regressed.
         var drift: ProbeDrift?
         var eligibility: RouteTargetEligibility?
+        /// Why the declared `executable` cannot run, nil when it can or when the CLI is looked up on PATH.
+        var executableProblem: String?
         /// The Ledger's own words, when its history could not be read for a reason other than
         /// "never probed" (e.g. a schema newer than this build knows).
         var ledgerFailure: String?
@@ -94,7 +96,11 @@ final class AgentCLIModel {
             loadFailure = nil
             declareFailure = nil
             removeFailures = [:]
-            rows = configuration.machine.cliAdapters.map(loadRow(declaration:))
+            rows = configuration.machine.cliAdapters.map { declaration in
+                var row = loadRow(declaration: declaration)
+                row.executableProblem = declaration.executableProblem
+                return row
+            }
         } catch {
             clear()
             loadFailure = error.description
@@ -108,12 +114,18 @@ final class AgentCLIModel {
     var hasRoute: Bool { machine?.hasRouteToDeclaredCLI ?? false }
 
     /// Declares `name` (with an optional `executable`) and writes `config.toml` through the loader, then
-    /// reloads. Declaring does not probe.
+    /// reloads. Declaring does not probe, but an `executable` that cannot run is refused before anything is
+    /// written (#377): a typo there is otherwise silent until a Probe or a Night.
     func declare(name: String, executable: String) {
         guard let machine else { return }
+        let declared = machine.declaring(cliAdapter: name, executable: executable)
+        if let problem = declared.cliAdapters.last?.executableProblem {
+            declareFailure = problem
+            return
+        }
         do {
             try Configuration.save(
-                machine.declaring(cliAdapter: name, executable: executable).renderedTOML,
+                declared.renderedTOML,
                 to: file, in: directory, replacing: originalText
             )
             load()

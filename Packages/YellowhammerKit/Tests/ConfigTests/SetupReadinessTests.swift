@@ -67,6 +67,17 @@ struct SetupReadinessTests {
         #expect(undeclared.missing == [.agentCLIRoute])
     }
 
+    @Test("A route to a CLI whose executable cannot run does not count, and says why")
+    func unrunnableExecutable() throws {
+        var configuration = try machine()
+        configuration.cliAdapters[0].executable = "/nonexistent/claud"
+        let readiness = SetupReadiness(machine: configuration)
+        #expect(readiness.missing == [.agentCLIRoute])
+        #expect(readiness.executableProblems.count == 1)
+        #expect(readiness.executableProblems.first?.contains("/nonexistent/claud") == true)
+        #expect(SetupReadiness(machine: try machine()).executableProblems.isEmpty)
+    }
+
     @Test("Every prerequisite has a title")
     func titles() {
         #expect(SetupReadiness.Prerequisite.allCases.map(\.title) == ["An agent CLI with a route"])

@@ -28,6 +28,9 @@ struct SetupReadinessPanel: View {
                         case .agentCLIRoute:
                             Text("Declare an agent CLI and give it a route in the base Routing Table.")
                                 .foregroundStyle(.secondary)
+                            ForEach(readiness.executableProblems, id: \.self) { problem in
+                                SettingsFailureText(text: problem)
+                            }
                             Button("Open Settings \u{2192} Agent CLIs\u{2026}") {
                                 settingsRequest.request(nil, section: .agentCLIs)
                                 openWindow(id: SettingsWindow.windowID)

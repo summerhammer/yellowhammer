@@ -49,7 +49,7 @@ public enum AgentCLILaunchError: Error, Equatable, Sendable, CustomStringConvert
         case .worktreeMissing(let path):
             "worktree missing: \(path)"
         case .spawnFailed(let errno, let executable):
-            "posix_spawn failed for \(executable): errno \(errno)"
+            "posix_spawn failed for \(executable): \(String(cString: strerror(errno))) (errno \(errno))"
         }
     }
 }

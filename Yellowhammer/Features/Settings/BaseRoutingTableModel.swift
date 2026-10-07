@@ -32,6 +32,11 @@ final class BaseRoutingTableModel {
         load()
     }
 
+    /// Why each declared CLI whose executable cannot run cannot (#377): a route naming one never dispatches.
+    var executableProblems: [String] {
+        machine?.cliAdapters.compactMap(\.executableProblem) ?? []
+    }
+
     var isDirty: Bool {
         guard let saved, let routingTable else { return false }
         return saved != routingTable

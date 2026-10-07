@@ -23,6 +23,9 @@ struct AgentCLICard: View {
                 probeButton
                 removeButton
             }
+            if let problem = row.executableProblem {
+                SettingsFailureText(text: problem, identifier: "agent-cli-executable-problem-\(row.name)")
+            }
             if let failure = model.removeFailures[row.name] {
                 SettingsFailureText(text: failure, identifier: "agent-cli-remove-failure-\(row.name)")
             }

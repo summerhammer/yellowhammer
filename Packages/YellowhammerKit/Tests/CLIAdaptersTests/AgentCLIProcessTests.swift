@@ -240,6 +240,7 @@ struct AgentCLIProcessTests {
                 return
             }
             #expect(errorCode == ENOENT)
+            #expect(error.description.contains("No such file or directory"))
         }
     }
 
