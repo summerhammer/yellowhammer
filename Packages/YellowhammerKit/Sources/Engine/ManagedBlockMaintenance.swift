@@ -120,7 +120,7 @@ public struct ManagedBlockMaintenance: Sendable {
     /// same `JournalStore.unadoptedCards(asOf:)` derivation the Night Summary's standing line uses, so
     /// the two figures can never disagree. Nil for every Card the derivation does not return.
     private func unadoptedStanding(card: CardRecord) throws -> UnadoptedStanding? {
-        guard let latest = try journal.nights().last else { return nil }
+        guard let latest = try journal.nights(mode: .real).last else { return nil }
         guard let match = try journal.unadoptedCards(asOf: latest.nightStart).first(where: { $0.card.id == card.id })
         else {
             return nil

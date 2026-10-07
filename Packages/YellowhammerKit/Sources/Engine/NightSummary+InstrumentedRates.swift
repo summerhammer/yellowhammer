@@ -8,10 +8,16 @@ extension NightSummary {
     public static func instrumentedRateLines(
         night: NightRecord, journal: JournalStore, bounds: NightCardMaintenance.Bounds
     ) throws -> [String] {
-        let nights = try journal.nights().filter { $0.nightStart <= night.nightStart }
+        let scope = try RateScope(night: night, journal: journal)
+        return try instrumentedRateLines(scope: scope, night: night, journal: journal, bounds: bounds)
+    }
+
+    public static func instrumentedRateLines(
+        scope: RateScope, night: NightRecord, journal: JournalStore, bounds: NightCardMaintenance.Bounds
+    ) throws -> [String] {
+        let nights = scope.nights
         let events = try journal.events()
-        let priorNightIDs = Set(nights.map(\.id))
-        let relevant = events.filter { $0.nightID.map(priorNightIDs.contains) ?? false }
+        let relevant = events.filter { $0.nightID.map(scope.nightIDs.contains) ?? false }
         let accepted = acceptedCards(events: relevant)
         let greenCards = Set(relevant.compactMap { record -> String? in
             if case .cardStateTransitioned(_, let issueID, _, .done, _, _) = record.event { return issueID }
@@ -34,7 +40,7 @@ extension NightSummary {
             }
             return !touched.isEmpty && touched.isSubset(of: opened)
         }
-        let readyCounts = try journal.openingReadyCounts(through: night.nightStart)
+        let readyCounts = try journal.openingReadyCounts(through: night.nightStart, mode: scope.mode)
         let retries = relevant.compactMap { record -> Bool? in
             if case .routeRetried(_, _, _, _, let different) = record.event { return different }
             return nil
@@ -53,7 +59,9 @@ extension NightSummary {
             "Retries on a different route: \(ratio(differentRetries, retries.count)); " +
                 "every retry different: \(everyRetry).",
             "`author_supplied_citation_count`: \(citationCount) (at this Night's close)."
-        ] + boundProximityLines(try boundProximity(night: night, events: relevant, journal: journal, bounds: bounds))
+        ] + boundProximityLines(
+            try boundProximity(scope: scope, night: night, events: relevant, journal: journal, bounds: bounds)
+        )
     }
 
     private static func ratio(_ numerator: Int, _ denominator: Int) -> String {
