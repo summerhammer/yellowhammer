@@ -110,6 +110,9 @@ public struct EngineInvocation: Sendable {
     /// Rehearsal-only (P15.3): when given, this run's `Outbox` kills its own process at the n-th
     /// applied entry the switch names — never wired outside a rehearsal Night's `--rehearsal`.
     public let outboxKill: RehearsalOutboxKill?
+    /// The one scrub every narrative this invocation's Outbox posts passes (OQ146/OQ147, R23), built by
+    /// `EngineCommand` from the credentials it holds. `.none` by default.
+    public let narrativeScrub: @Sendable () -> NarrativeScrub
     /// Not `private`: the module-internal notification extension reads it (roadmap P12.5).
     let journal: JournalStore
     private let work: ActWork
@@ -131,8 +134,10 @@ public struct EngineInvocation: Sendable {
         openingReadiness: ReadinessCheck? = nil,
         operatorIdentity: OperatorIdentity = .none,
         notifier: ExceptionNotifier = .silent,
-        outboxKill: RehearsalOutboxKill? = nil
+        outboxKill: RehearsalOutboxKill? = nil,
+        narrativeScrub: @escaping @Sendable () -> NarrativeScrub = { .none }
     ) {
+        self.narrativeScrub = narrativeScrub
         self.act = act
         self.mode = mode
         self.trigger = trigger
@@ -175,8 +180,10 @@ public struct EngineInvocation: Sendable {
         operatorIdentity: OperatorIdentity = .none,
         notifier: ExceptionNotifier = .silent,
         outboxKill: RehearsalOutboxKill? = nil,
+        narrativeScrub: @escaping @Sendable () -> NarrativeScrub = { .none },
         work: @escaping ActWork
     ) {
+        self.narrativeScrub = narrativeScrub
         self.act = act
         self.mode = mode
         self.trigger = trigger
@@ -295,7 +302,7 @@ public struct EngineInvocation: Sendable {
         guard let board else { return (nil, nil) }
         let boxed = Outbox(
             journal: journal, board: board.writing, reading: board.reading, runID: runID, act: act, nightID: night.id,
-            installation: board.installation
+            installation: board.installation, scrub: narrativeScrub
         ) { [outboxKill] in outboxKill?.interrupt($0) }
         let maintenance = NightCardMaintenance(
             journal: journal, outbox: boxed, provisioning: board.provisioning, bounds: nightCardBounds

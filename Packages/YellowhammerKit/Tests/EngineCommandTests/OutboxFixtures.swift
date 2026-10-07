@@ -62,7 +62,8 @@ func outbox(
     runID: RunID = RunID(),
     clock: ManualClock = ManualClock(),
     installation: AppInstallationLabel? = nil,
-    interrupt: @escaping @Sendable (OutboxEntry) throws -> Void = { _ in }
+    interrupt: @escaping @Sendable (OutboxEntry) throws -> Void = { _ in },
+    scrub: @escaping @Sendable () -> NarrativeScrub = { .none }
 ) throws -> Outbox {
     let claim = try journal.claimActLease(act: .build, runID: runID, mode: .rehearsal, now: clock.read())
     guard case .claimed = claim else {
@@ -70,7 +71,7 @@ func outbox(
     }
     return Outbox(
         journal: journal, board: board, runID: runID, act: .build, installation: installation, clock: clock.read,
-        interrupt: interrupt
+        scrub: scrub, interrupt: interrupt
     )
 }
 

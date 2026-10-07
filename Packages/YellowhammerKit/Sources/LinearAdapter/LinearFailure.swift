@@ -151,7 +151,7 @@ struct LinearFailure {
     }
 
     func scrub(_ message: String) -> String {
-        secrets.filter { !$0.isEmpty }.reduce(message) { $0.replacingOccurrences(of: $1, with: "<redacted>") }
+        NarrativeScrub(credentials: secrets).apply(message)
     }
 
     private struct OAuthError: Decodable {

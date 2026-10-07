@@ -33,6 +33,9 @@ public struct Outbox: Sendable {
     public let installation: AppInstallationLabel?
 
     let clock: @Sendable () -> Date
+    /// The one scrub every narrative passes (OQ146/OQ147, R23), applied when a write is accepted so the
+    /// Journal's payload is already scrubbed. Resolved per acceptance, so a refreshed token is matched.
+    let scrub: @Sendable () -> NarrativeScrub
     /// Serialises deliveries: the build Act's Repo Lanes run concurrently and each posts board state
     /// through this one Outbox, and two overlapping `deliverPending` calls would both read the same
     /// pending entry and deliver it twice. Shared by every copy of this value.
@@ -49,12 +52,12 @@ public struct Outbox: Sendable {
         act: Act? = nil,
         nightID: Int64? = nil,
         installation: AppInstallationLabel? = nil,
-        clock: @escaping @Sendable () -> Date = { Date() }
+        clock: @escaping @Sendable () -> Date = { Date() },
+        scrub: @escaping @Sendable () -> NarrativeScrub = { .none }
     ) {
         self.init(
             journal: journal, board: board, reading: reading, runID: runID, act: act, nightID: nightID,
-            installation: installation,
-            clock: clock
+            installation: installation, clock: clock, scrub: scrub
         ) { _ in }
     }
 
@@ -67,8 +70,10 @@ public struct Outbox: Sendable {
         nightID: Int64? = nil,
         installation: AppInstallationLabel? = nil,
         clock: @escaping @Sendable () -> Date = { Date() },
+        scrub: @escaping @Sendable () -> NarrativeScrub = { .none },
         interrupt: @escaping @Sendable (OutboxEntry) throws -> Void
     ) {
+        self.scrub = scrub
         self.journal = journal
         self.board = board
         self.reading = reading
@@ -128,7 +133,8 @@ public struct Outbox: Sendable {
         }
         let encoder = JSONEncoder()
         encoder.outputFormatting = .sortedKeys
-        let payload = String(data: try encoder.encode(write.write), encoding: .utf8) ?? ""
+        let scrubbed = write.write.scrubbed(by: scrub())
+        let payload = String(data: try encoder.encode(scrubbed), encoding: .utf8) ?? ""
         return OutboxDraft(
             clientID: clientID(for: write.key),
             issueID: write.write.issueID?.rawValue,
