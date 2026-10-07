@@ -9,19 +9,26 @@ import SwiftUI
 struct LinearWorkspaceCard: View {
     let model: LinearWorkspacesModel
     let workspace: LinearWorkspacesModel.Workspace
+    var isHighlighted = false
     @State private var isConfirmingRemoval = false
     @State private var isConfirmingOrphanRemoval = false
 
     private var name: String { workspace.name }
 
     var body: some View {
-        SettingsCard {
+        SettingsCard(isHighlighted: isHighlighted) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Image(systemName: DomainSymbol.appInstallation).foregroundStyle(.accent)
                     .accessibilityHidden(true)
                 Text(model.label(for: workspace))
                     .font(.headline)
                     .accessibilityIdentifier("settings-linear-workspace-\(name)")
+                if isHighlighted {
+                    Text("Highlighted")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("settings-linear-highlighted-\(name)")
+                }
                 Spacer()
                 removal
             }
@@ -59,6 +66,8 @@ struct LinearWorkspaceCard: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("settings-linear-row-\(name)")
+        .accessibilityValue(isHighlighted ? "highlighted" : "")
+        .accessibilityAddTraits(isHighlighted ? .isSelected : [])
         .confirmationDialog(
             "Remove the Linear workspace \(model.label(for: workspace))?", isPresented: $isConfirmingRemoval,
             titleVisibility: .visible

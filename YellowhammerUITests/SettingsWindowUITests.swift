@@ -145,4 +145,33 @@ final class SettingsWindowUITests: XCTestCase {
         XCTAssertTrue(element("project-linear-workspace-caption").exists)
         XCTAssertEqual(element("project-linear-project").elementType, .textField)
     }
+
+    /// Clicking the workspace label on a Project's Configuration tab opens Settings on the boards section
+    /// with that Project's Board Connection's card visible and highlighted (OQ145).
+    func testClickingWorkspaceLabelOpensBoardsSectionWithHighlightedCard() {
+        showSettings()
+        XCTAssertTrue(element("settings-project-pane-archive").waitForExistence(timeout: 5))
+
+        // The Project tab offers no connect, re-connect or remove action for the board connection.
+        XCTAssertFalse(element("settings-linear-connect").exists)
+        XCTAssertFalse(element("settings-linear-reconnect-acme").exists)
+
+        let link = element("project-linear-workspace")
+        XCTAssertTrue(link.waitForExistence(timeout: 5), "project-linear-workspace link is missing")
+        XCTAssertEqual(link.value as? String ?? link.label, "acme")
+        XCTAssertNotEqual(link.elementType, .textField, "workspace label must not be editable")
+
+        app.activate()
+        link.click()
+
+        let boards = element("settings-boards-pane")
+        XCTAssertTrue(boards.waitForExistence(timeout: 5), "Clicking the workspace label did not open Boards")
+        let acmeCard = element("settings-linear-row-acme")
+        XCTAssertTrue(acmeCard.waitForExistence(timeout: 5), "acme card is missing")
+        XCTAssertTrue(
+            element("settings-linear-highlighted-acme").waitForExistence(timeout: 5),
+            "acme card is not highlighted"
+        )
+        XCTAssertTrue(element("settings-linear-reconnect-acme").exists, "re-connect button is missing on the card")
+    }
 }

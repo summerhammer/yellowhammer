@@ -5,30 +5,51 @@ import SwiftUI
 /// Boards is here or in the views it draws, so another board vendor's section is a sibling of this one.
 struct LinearBoardSection: View {
     let model: LinearWorkspacesModel
+    var highlightedBoardConnection: String?
     @State private var isConnecting = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Linear").font(.headline)
-            Text(
-                "Yellowhammer connects to Linear through its own app, approved once by a workspace admin "
-                    + "\u{2014} on this Mac, or remotely through a link you send them."
-            )
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-            if let loadFailure = model.loadFailure {
-                SettingsFailureText(text: loadFailure, identifier: "settings-linear-load-failure")
+        ScrollViewReader { proxy in
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Linear").font(.headline)
+                Text(
+                    "Yellowhammer connects to Linear through its own app, approved once by a workspace admin "
+                        + "\u{2014} on this Mac, or remotely through a link you send them."
+                )
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                if let loadFailure = model.loadFailure {
+                    SettingsFailureText(text: loadFailure, identifier: "settings-linear-load-failure")
+                }
+                ForEach(model.workspaces) { workspace in
+                    LinearWorkspaceCard(
+                        model: model, workspace: workspace,
+                        isHighlighted: highlightedBoardConnection == workspace.name
+                    )
+                    .id(workspace.name)
+                }
+                if !model.removalMessage.isEmpty {
+                    WizardNote(text: model.removalMessage.joined(separator: "\n"))
+                        .textSelection(.enabled)
+                        .accessibilityIdentifier("settings-linear-removed")
+                }
+                connect
             }
-            ForEach(model.workspaces) { workspace in
-                LinearWorkspaceCard(model: model, workspace: workspace)
+            .onAppear {
+                if let target = highlightedBoardConnection {
+                    Task { @MainActor in
+                        proxy.scrollTo(target, anchor: .center)
+                    }
+                }
             }
-            if !model.removalMessage.isEmpty {
-                WizardNote(text: model.removalMessage.joined(separator: "\n"))
-                    .textSelection(.enabled)
-                    .accessibilityIdentifier("settings-linear-removed")
+            .onChange(of: highlightedBoardConnection) { _, target in
+                if let target {
+                    withAnimation {
+                        proxy.scrollTo(target, anchor: .center)
+                    }
+                }
             }
-            connect
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("settings-linear-section")
