@@ -114,7 +114,8 @@ extension ExpiredLeaseSweep {
         card: CardRecord, context reclaim: ReclaimContext, outcome: ReclaimEnding, now: Date
     ) async throws {
         let currentCard = try journal.card(id: card.id)
-        guard currentCard.state == .inProgress else { return }
+        // A removed Card (OQ142) is set aside: nothing is written to it, in the Journal or on the board.
+        guard currentCard.state == .inProgress, !currentCard.isRemovedFromBoard else { return }
 
         // An abort the dead run never got to honour Blocks the Card `operator abort` rather than
         // returning it to Ready: the Operator stopped it, and only a re-ready resumes it.

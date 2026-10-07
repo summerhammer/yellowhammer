@@ -145,8 +145,9 @@ extension JournalStore {
         }
     }
 
-    /// Every Card whose board projection has not caught up with its Journal state: not Shelved,
-    /// transitioned at least once, and either never confirmed on the board or confirmed at an earlier
+    /// Every Card whose board projection has not caught up with its Journal state: not Shelved, not
+    /// removed from the board (trashed, or archived while in play; OQ142 — nothing is posted to it, and
+    /// its pending write stays recorded for a restore), transitioned at least once, and either never confirmed on the board or confirmed at an earlier
     /// version. Ordered by id, which is what ``BoardStateProjection/repost()`` replays after a crash.
     ///
     /// A Card at `state_version` 0 never transitioned in the Journal: its authoring group created it on
@@ -159,7 +160,7 @@ extension JournalStore {
                 db,
                 sql: """
                 SELECT * FROM card
-                WHERE state != ? AND state_version > 0
+                WHERE state != ? AND state_version > 0 AND removed_from_board IS NULL
                   AND (board_state_version IS NULL OR board_state_version < state_version)
                 ORDER BY id ASC
                 """,

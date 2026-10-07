@@ -176,9 +176,8 @@ public struct Outbox: Sendable {
         return OutboxDeliveryReport(deliveries: deliveries)
     }
 
-    // One entry: Lease check, the board call, then the record — in that order, always.
-    // Archive and lease refusals each preserve their specific replay semantics.
-    // swiftlint:disable:next cyclomatic_complexity
+    // One entry: Lease check, the board call, then the record — in that order, always. A write to a
+    // removed Card's issue (OQ142) is aborted once the Lease holds, with no board call.
     func deliver(_ entry: OutboxEntry) async throws -> OutboxDelivery {
         do {
             try journal.revalidateOutboxLeases(for: entry, runID: runID, now: clock())
@@ -193,7 +192,15 @@ public struct Outbox: Sendable {
                 throw error
             }
         }
+        if let removed = try removedTarget(entry) {
+            return try abortRemoved(entry, issueID: removed)
+        }
+        return try await deliverToBoard(entry)
+    }
 
+    // Archive and lease refusals each preserve their specific replay semantics.
+    // swiftlint:disable:next cyclomatic_complexity
+    private func deliverToBoard(_ entry: OutboxEntry) async throws -> OutboxDelivery {
         let write: BoardWrite
         do {
             write = try JSONDecoder().decode(BoardWrite.self, from: Data(entry.payload.utf8))

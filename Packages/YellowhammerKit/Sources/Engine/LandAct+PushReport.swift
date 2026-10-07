@@ -41,7 +41,7 @@ extension LandAct {
         let resolved = try? context.journal.resolvedFeatureBranch(feature: laneContext.feature, repository: repository)
         let branchName = resolved?.name ?? repository
         let body = "Pushed Feature Branch `\(branchName)` for `\(repository)` at `\(commit)`."
-        for card in laneContext.lane.cards where card.state == .done {
+        for card in laneContext.lane.cards where card.state == .done && !card.isRemovedFromBoard {
             let key = "land:\(laneContext.cycleID):\(repository):push:\(card.issueID)"
             let write = OutboxWrite(
                 key: key, write: .createComment(issue: BoardObjectID(rawValue: card.issueID), body: body)

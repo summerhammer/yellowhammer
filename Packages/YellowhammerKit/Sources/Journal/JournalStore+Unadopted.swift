@@ -29,7 +29,7 @@ extension JournalStore {
     }
 
     /// Nights elapsed since a Blocked, un-adopted Card's closing Night, up to and including
-    /// `nightStart`; nil when the Card is not un-adopted — not Blocked, or its Cycle not archived, the
+    /// `nightStart`; nil when the Card is not un-adopted — not Blocked, removed from the board, or its Cycle not archived, the
     /// same predicate `blockedCardsLeftByClosedFeatures()` filters on.
     ///
     /// The closing Night is the latest Night whose `opened_at` is at or before the Card's Cycle's
@@ -39,10 +39,12 @@ extension JournalStore {
     public func unadoptedNights(cardID: Int64, asOf nightStart: NightStart) throws -> Int? {
         try read { db in
             guard let cardRow = try Row.fetchOne(
-                db, sql: "SELECT state, cycle_id FROM card WHERE id = ?", arguments: [cardID]
+                db, sql: "SELECT state, cycle_id, removed_from_board FROM card WHERE id = ?", arguments: [cardID]
             ) else {
                 throw JournalError.cardUnknown(cardID: cardID)
             }
+            // A removed Card (OQ142) is not un-adopted work: its count is suspended, not elapsed.
+            guard (cardRow["removed_from_board"] as String?) == nil else { return nil }
             guard (cardRow["state"] as String) == CardState.blocked.rawValue else { return nil }
             let cycleID: Int64 = cardRow["cycle_id"]
             guard

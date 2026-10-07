@@ -22,6 +22,8 @@ public struct ManagedBlockMaintenance: Sendable {
 
     public enum NotMaintained: Equatable, Sendable {
         case shelved
+        /// The Card's issue is trashed, or archived while the Card was in play (OQ142).
+        case removedFromBoard
     }
 
     /// Renders the Card's block from the Journal and hashes the rendered output. Compares the hash to the
@@ -38,7 +40,9 @@ public struct ManagedBlockMaintenance: Sendable {
     /// means an unchanged disposition.
     ///
     /// When the Card is Shelved, renders nothing and reads nothing from the board. Instead, aborts
-    /// every pending outbox entry for this issue and returns `.notMaintained(.shelved)`.
+    /// every pending outbox entry for this issue and returns `.notMaintained(.shelved)`. A removed Card
+    /// (trashed, or archived while in play; OQ142) is treated the same way, returning
+    /// `.notMaintained(.removedFromBoard)`: nothing is posted to it.
     public func maintain(card: CardRecord, brief: ArchitecturalBrief) async throws -> Outcome {
         // Shelved: abort pending entries and return early
         if card.state == .shelved {
@@ -46,6 +50,12 @@ public struct ManagedBlockMaintenance: Sendable {
                 issueID: card.issueID, reason: "the Card is Shelved; nothing is posted to it"
             )
             return .notMaintained(.shelved)
+        }
+        if card.isRemovedFromBoard {
+            try journal.abortPendingOutboxEntries(
+                issueID: card.issueID, reason: "the Card's issue was removed from the board; nothing is posted to it"
+            )
+            return .notMaintained(.removedFromBoard)
         }
 
         let rendered = try renderManagedBlock(card: card, brief: brief)

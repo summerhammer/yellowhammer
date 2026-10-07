@@ -26,6 +26,9 @@ enum WaitingOnYouReplies {
         _ reply: CardReplyRecord, context: ActContext, unansweredNightsMax: Int
     ) async throws {
         let card = try context.journal.card(id: reply.cardID)
+        // A removed Card (trashed, or archived while in play; OQ142) is set aside: no transition and no
+        // acknowledgement is posted to it. The reply stays unapplied, and a restore picks it up as it stood.
+        guard !card.isRemovedFromBoard else { return }
         switch reply.disposition {
         case .answer:
             try await applyAnswer(reply: reply, card: card, context: context)

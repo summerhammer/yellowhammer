@@ -79,7 +79,8 @@ extension WorktreeReconciler {
             act: act, runID: runID, nightID: nightID
         )
 
-        for card in cycleCards where card.state == .inProgress {
+        // A removed Card (OQ142) keeps the state it stood in, so a restore finds it as it was.
+        for card in cycleCards where card.state == .inProgress && !card.isRemovedFromBoard {
             try journal.transitionCard(cardID: card.id, to: .todo, runID: runID, act: act, nightID: nightID)
         }
 

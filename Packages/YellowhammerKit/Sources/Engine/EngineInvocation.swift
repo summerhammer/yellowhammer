@@ -359,7 +359,8 @@ public struct EngineInvocation: Sendable {
         guard let openingReadiness else { return cards.isEmpty && !unbackedCard ? .zero : .unknown }
         let byID = Dictionary(uniqueKeysWithValues: objects.map { ($0.id.rawValue, $0) })
         var unknown = unbackedCard
-        for card in cards where card.state == .todo {
+        // A removed Todo Card (OQ142) is set aside, not ready work.
+        for card in cards where card.state == .todo && !card.isRemovedFromBoard {
             guard let object = byID[card.issueID] else { unknown = true; continue }
             switch try await openingReadiness.inspectAtOpening(
                 card: card, object: object, journal: journal, repositories: repositories, mainlines: mainlines

@@ -73,12 +73,14 @@ extension NightSummary {
 
     /// The `**Dispositions:**` section: the Blocked/Waiting-on-You count over Cards touched this
     /// Night, then which of this Night's `failureCauseRecorded` events on those Cards were a
-    /// recurrence (`recurrenceCount > 1`) versus a first occurrence, each naming its Card. Empty when
-    /// no Card was touched.
+    /// recurrence (`recurrenceCount > 1`) versus a first occurrence, each naming its Card, then each
+    /// Work Card removed from the board this Night (``removedCardLines(events:journal:)``). Empty when
+    /// no Card was touched or removed.
     public static func dispositionLines(night: NightRecord, journal: JournalStore) throws -> [String] {
         let events = try nightEvents(night: night, journal: journal)
         let cards = try touchedCards(events: events, journal: journal)
-        guard !cards.isEmpty else { return [] }
+        let removed = try removedCardLines(events: events, journal: journal)
+        guard !cards.isEmpty else { return removed }
         let touchedIDs = Set(cards.map(\.id))
         let blocked = cards.filter { $0.state == .blocked }.count
         let waiting = cards.filter { $0.state == .waitingOnYou }.count
@@ -97,6 +99,35 @@ extension NightSummary {
                     "and excluding no Route. It stays Blocked (`operator abort`) until re-ready."
             )
         }
-        return lines
+        return lines + removed
+    }
+
+    /// One line per Work Card whose issue was trashed, or archived while in play, this Night (OQ142),
+    /// however many Acts saw it: named once, with how it was removed, and whether the board restored it
+    /// before the Night ended.
+    static func removedCardLines(events: [JournalEventRecord], journal: JournalStore) throws -> [String] {
+        var order: [Int64] = []
+        var how: [Int64: String] = [:]
+        var restored: Set<Int64> = []
+        for record in events {
+            switch record.event {
+            case .cardRemovedFromBoard(let cardID, _, let removal):
+                if how.updateValue(removal, forKey: cardID) == nil { order.append(cardID) }
+                restored.remove(cardID)
+            case .cardRestoredToBoard(let cardID, _, _) where how[cardID] != nil:
+                restored.insert(cardID)
+            default:
+                continue
+            }
+        }
+        return try order.map { cardID in
+            let card = try journal.card(id: cardID)
+            let name = card.issueIDForDisplay ?? card.issueID
+            let removal = how[cardID] ?? CardRemoval.trashed.rawValue
+            let after = restored.contains(cardID)
+                ? "The issue was restored this Night, and the Card is back in play as it stood."
+                : "It is set aside with nothing posted to it, and resumes as it stood if the issue is restored."
+            return "`\(name)` was \(removal) on the board. \(after)"
+        }
     }
 }

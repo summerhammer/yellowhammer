@@ -34,6 +34,15 @@ enum AdoptionRevalidation {
             guard let card = try journal.card(issueID: issueID) else {
                 throw AuthoringTransactionError.adoptedCardUnknown(issueID: issueID)
             }
+            // A removed Card (trashed, or archived while in play; OQ142) is set aside: not adopted, and its
+            // failed-adoption and divergence counters neither advance nor reset.
+            if card.isRemovedFromBoard {
+                try recordNotAdopted(
+                    card: card, reasons: ["the Card's issue was removed from the board"],
+                    feature: selection.name, context: context
+                )
+                continue
+            }
             let blocks = try journal.transcriptionBlocks(cardID: card.id).map(\.block)
             let report = await provenance.evaluate(
                 blocks, projectRepositories: repositories, mainlines: context.mainlines

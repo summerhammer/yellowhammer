@@ -149,7 +149,7 @@ extension JournalStore {
                 sql: """
                 SELECT COUNT(*) FROM card
                 JOIN cycle ON cycle.id = card.cycle_id
-                WHERE card.state = ? AND cycle.landed_at IS NOT NULL
+                WHERE card.state = ? AND cycle.landed_at IS NOT NULL AND card.removed_from_board IS NULL
                 """,
                 arguments: [CardState.waitingOnYou.rawValue]
             ) ?? 0

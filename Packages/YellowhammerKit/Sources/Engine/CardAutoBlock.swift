@@ -42,9 +42,13 @@ enum CardAutoBlock {
     /// The shared Card Lease dance every auto-Block seam uses: claim, write (through the board
     /// projection when one is wired, Journal-only otherwise), release. `reason` is evaluated per Card so
     /// a single call can carry a mix of Block Reasons.
+    ///
+    /// A removed Card (trashed, or archived while in play; OQ142) is never blocked here: it is set aside
+    /// and nothing is written to its issue, so its state stays exactly as it stood for a restore.
     private static func block(
-        cards: [CardRecord], reason: @escaping (CardRecord) -> BlockReason, context: ActContext
+        cards allCards: [CardRecord], reason: @escaping (CardRecord) -> BlockReason, context: ActContext
     ) async throws {
+        let cards = allCards.filter { !$0.isRemovedFromBoard }
         guard !cards.isEmpty else { return }
         let journal = context.journal
 

@@ -87,6 +87,9 @@ struct CardRunFrame: Sendable {
     func transition(_ transition: CardTransition) async throws {
         try revalidateLease()
         let current = try journal.card(id: card.id)
+        // A Card removed from the board mid-run (OQ142) is set aside: the run's outcome is not written to
+        // it, in the Journal or on the board, so a restore finds it as it stood.
+        guard !current.isRemovedFromBoard else { return }
         if let projection {
             _ = try await projection.transition(card: current, to: transition)
         } else {

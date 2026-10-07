@@ -8,7 +8,9 @@ import GRDB
 // Cycles this call names (a Project's Cards, never a sibling Project's). A banked reply halts the clock
 // exactly as an unbanked one does — an answer already read is not silence — so a Card with a banked
 // reply is excluded from the advance entirely, the same way the author Act already checks before
-// spending a Delta Read (``JournalStore/hasWaitingOnYouCardInLandedCycle()``).
+// spending a Delta Read (``JournalStore/hasWaitingOnYouCardInLandedCycle()``). A removed Card (trashed,
+// or archived while in play; OQ142) is excluded the same way: its clock is suspended — neither advanced
+// nor reset, so a restore resumes from the count it held — and no Bound fires for it.
 
 extension JournalStore {
     /// Advances one Night's worth of the unanswered-Nights clock for every Card, in `cycleIDs`, that is
@@ -37,6 +39,7 @@ extension JournalStore {
                 sql: """
                 SELECT card.* FROM card
                 WHERE card.cycle_id IN (\(placeholders)) AND card.state = ?
+                  AND card.removed_from_board IS NULL
                   AND (card.unanswered_last_counted_night_id IS NULL
                        OR card.unanswered_last_counted_night_id != ?)
                   AND NOT EXISTS (
@@ -123,6 +126,7 @@ extension JournalStore {
                 SELECT DISTINCT cycle.id FROM cycle
                 JOIN card ON card.cycle_id = cycle.id
                 WHERE (cycle.landed_at IS NOT NULL OR cycle.archived_at IS NOT NULL) AND card.state = ?
+                  AND card.removed_from_board IS NULL
                 ORDER BY cycle.id ASC
                 """,
                 arguments: [CardState.waitingOnYou.rawValue]
@@ -143,6 +147,7 @@ extension JournalStore {
                 sql: """
                 SELECT * FROM card
                 WHERE cycle_id IN (\(placeholders)) AND state = ? AND unanswered_nights > ?
+                  AND removed_from_board IS NULL
                 ORDER BY id ASC
                 """,
                 arguments: StatementArguments(cycleIDs) + [CardState.waitingOnYou.rawValue, unansweredNightsMax]

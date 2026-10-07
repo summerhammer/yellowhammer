@@ -48,7 +48,15 @@ public struct BoardStateProjection: Sendable {
     /// Writes `transition` to the Journal, then posts the board write it implies. Never throws for a
     /// deferral — the Journal transition stands regardless, and ``repost()`` replays it — but a
     /// Shelved target or an already-shelved Card propagates the Journal's own refusal.
+    ///
+    /// A removed Card (trashed, or archived while in play; OQ142) is set aside: nothing is written to the
+    /// Journal or posted, and the Card comes back `.unchanged` so a restore finds it as it stood. The
+    /// check reads the Journal's own record, since the `card` the caller holds may predate the removal.
     public func transition(card: CardRecord, to transition: CardTransition) async throws -> Outcome {
+        let current = try journal.card(id: card.id)
+        guard !current.isRemovedFromBoard else {
+            return .unchanged(current)
+        }
         var assignee: BoardObjectID?
         if case .waitingOnYou(_, let operatorID) = transition {
             assignee = operatorID
@@ -92,10 +100,11 @@ public struct BoardStateProjection: Sendable {
     /// Act, mirroring ``Outbox/deliverPendingExclusively()``. Never touches the assignee: the operator's
     /// board identity is not stored in the Journal, so the assignment a Waiting on You transition wrote
     /// originally is left exactly as the board holds it, because nothing here clears it. Never reposts a
-    /// Shelved Card — `cardsWithUnpostedState` excludes it.
+    /// Shelved Card — `cardsWithUnpostedState` excludes it — nor a removed one (OQ142), which an explicit
+    /// `cards` list is filtered of too.
     public func repost(_ cards: [CardRecord]? = nil, reclaimingExpiredLeases: Bool = true) async throws -> [Outcome] {
         var outcomes: [Outcome] = []
-        for record in try cards ?? journal.cardsWithUnpostedState() {
+        for record in try cards ?? journal.cardsWithUnpostedState() where !record.isRemovedFromBoard {
             switch try journal.claimCardLease(
                 cardID: record.id, runID: outbox.runID, reclaimingExpired: reclaimingExpiredLeases,
                 now: outbox.clock()

@@ -11,7 +11,7 @@ extension JournalStore {
     public func unfinishedCardCount() throws -> Int {
         try read { db in
             try Self.countUnfinished(
-                try Row.fetchAll(db, sql: "SELECT id, state FROM card")
+                try Row.fetchAll(db, sql: "SELECT id, state FROM card WHERE removed_from_board IS NULL")
             )
         }
     }
@@ -37,11 +37,16 @@ extension JournalStore {
     }
 
     /// How many of one Cycle's Cards are unfinished. A Shelved Card is not unfinished, which is
-    /// what lets shelving the last stuck Card release the Cycle to land.
+    /// what lets shelving the last stuck Card release the Cycle to land. Neither is a removed Card
+    /// (trashed, or archived while in play; OQ142): it is set aside, so it never holds the Cycle open.
     public func unfinishedCardCount(cycleID: Int64) throws -> Int {
         try read { db in
             try Self.countUnfinished(
-                try Row.fetchAll(db, sql: "SELECT id, state FROM card WHERE cycle_id = ?", arguments: [cycleID])
+                try Row.fetchAll(
+                    db,
+                    sql: "SELECT id, state FROM card WHERE cycle_id = ? AND removed_from_board IS NULL",
+                    arguments: [cycleID]
+                )
             )
         }
     }
@@ -166,9 +171,11 @@ extension JournalStore {
 
     /// Every Card of this Cycle that is a hole in the Feature (graph-execution/handle-a-block-mid-graph,
     /// P8.9): Blocked or Waiting on You, sorted by repository then authored order, so the Partial
-    /// Landing announcement (P10.4) can name them in a stable, readable order.
+    /// Landing announcement (P10.4) can name them in a stable, readable order. A removed Card is set
+    /// aside (OQ142), not a hole.
     public func laneHoles(cycleID: Int64) throws -> [CardRecord] {
-        try cards(cycleID: cycleID).filter { $0.state == .blocked || $0.state == .waitingOnYou }
+        try cards(cycleID: cycleID)
+            .filter { !$0.isRemovedFromBoard && ($0.state == .blocked || $0.state == .waitingOnYou) }
             .sorted { lhs, rhs in
                 lhs.repository == rhs.repository
                     ? lhs.authoredOrder < rhs.authoredOrder
