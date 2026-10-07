@@ -122,14 +122,14 @@ func authorMetAllDone() throws {
     #expect(outcome == .met)
 }
 
-@Test("author trigger: met when all Cards are in finished states (Blocked, Waiting on You, Cancelled)")
+@Test("author trigger: met when all Cards are in finished states (Blocked, Waiting on You, Shelved)")
 func authorMetAllFinished() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
 
     _ = try insertFixtureCard(journal, issueID: "CARD-1", state: .blocked)
     _ = try insertFixtureCard(journal, issueID: "CARD-2", state: .waitingOnYou)
-    _ = try insertFixtureCard(journal, issueID: "CARD-3", state: .cancelled)
+    _ = try insertFixtureCard(journal, issueID: "CARD-3", state: .shelved)
 
     let outcome = try ActTriggerPredicate.evaluate(act: .author, trigger: .scheduled, journal: journal)
 
@@ -203,7 +203,7 @@ func buildNotMetAllFinished() throws {
 
     let cycleID = try insertFixtureCard(journal, issueID: "CARD-1", state: .done).cycleID
     _ = try insertFixtureCard(journal, issueID: "CARD-2", state: .blocked, cycleID: cycleID)
-    _ = try insertFixtureCard(journal, issueID: "CARD-3", state: .cancelled, cycleID: cycleID)
+    _ = try insertFixtureCard(journal, issueID: "CARD-3", state: .shelved, cycleID: cycleID)
 
     let outcome = try ActTriggerPredicate.evaluate(act: .build, trigger: .scheduled, journal: journal)
 
@@ -225,12 +225,12 @@ func landMetAllFinished() throws {
     #expect(outcome == .met)
 }
 
-@Test("land trigger: met when open Cycle has only Cancelled Cards (reclaimable)")
-func landMetAllCancelled() throws {
+@Test("land trigger: met when open Cycle has only Shelved Cards (reclaimable)")
+func landMetAllShelved() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
 
-    _ = try insertFixtureCard(journal, issueID: "CARD-1", state: .cancelled)
+    _ = try insertFixtureCard(journal, issueID: "CARD-1", state: .shelved)
 
     let outcome = try ActTriggerPredicate.evaluate(act: .land, trigger: .scheduled, journal: journal)
 

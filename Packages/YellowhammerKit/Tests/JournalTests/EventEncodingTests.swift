@@ -37,7 +37,7 @@ func eventTypeRawValues() {
         "ManagedBlockDelimiterBroken", "NotificationDeliveryFailed", "RateBudgetExhausted",
         "LeaseReclaimed", "CardLeaseReclaimed", "NightOpened", "NightClosed", "NightOpenedAndDied",
         "ManagedBlockWritten", "NightCardOpened", "NightCardCompleted", "BoardWriteFailed", "OutboxGroupRolledBack",
-        "CardCancelled", "CardReopened", "CardRestated", "CardRemovedFromBoard",
+        "CardShelved", "CardReopened", "CardRestated", "CardRemovedFromBoard",
         "AuthoringInvariantBroken", "DeltaReadCompleted", "CardStateTransitioned", "WaitingOnYouUnbacked",
         "WorktreeLost", "WorktreeFenced", "WorktreeNotQuiescent", "WorktreeWIPCommitted",
         "WorktreeReconciliationFailed", "RouteExhausted", "OverrideRefused", "RoutePreflightRan",

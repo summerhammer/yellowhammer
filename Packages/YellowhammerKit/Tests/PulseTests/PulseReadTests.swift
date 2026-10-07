@@ -66,7 +66,7 @@ func needsYou() throws {
     try insertCard(journal, cycleID: feature.cycleID, issueID: "C-4", state: .waitingOnYou, order: 4)
     try insertCard(journal, cycleID: feature.cycleID, issueID: "C-5", state: .todo, order: 5)
     try insertCard(journal, cycleID: feature.cycleID, issueID: "C-6", state: .done, order: 6)
-    try insertCard(journal, cycleID: feature.cycleID, issueID: "C-7", state: .cancelled, order: 7)
+    try insertCard(journal, cycleID: feature.cycleID, issueID: "C-7", state: .shelved, order: 7)
 
     let needsYou = try PulseSnapshot.read(from: journal, status: .idle).needsYou
 
@@ -197,7 +197,7 @@ func featureLanes() throws {
     try insertCard(journal, cycleID: cycle, issueID: "C-2", repository: "c", state: .todo, order: 2)
     try insertCard(journal, cycleID: cycle, issueID: "D-1", repository: "d", state: .inProgress, order: 1)
     try insertCard(journal, cycleID: cycle, issueID: "D-2", repository: "d", state: .done, order: 2)
-    try insertCard(journal, cycleID: cycle, issueID: "D-3", repository: "d", state: .cancelled, order: 3)
+    try insertCard(journal, cycleID: cycle, issueID: "D-3", repository: "d", state: .shelved, order: 3)
     _ = try journal.recordLanding(featureID: feature.featureID, repository: "a", mainlineCommit: "abc", now: epoch)
     let run = RunID()
     _ = try journal.claimActLease(act: .land, runID: run, mode: .real, now: epoch)
@@ -225,11 +225,11 @@ func featureLanes() throws {
     #expect(lanes["a"]?.cardsDone == 1)
     #expect(lanes["a"]?.cardsTotal == 2)
     #expect(lanes["d"]?.cardsDone == 1)
-    #expect(lanes["d"]?.cardsTotal == 2)  // the Cancelled Card is out of the lane
+    #expect(lanes["d"]?.cardsTotal == 2)  // the Shelved Card is out of the lane
     #expect(lanes["a"]?.pullRequest == (try pullRequestChip42()))
     #expect(lanes["b"]?.pullRequest == nil)
     #expect(lanes["a"]?.cards.map(\.id) == ["A-1", "A-2"])
-    #expect(lanes["d"]?.cards.map(\.id) == ["D-1", "D-2"])  // the Cancelled Card is not a member
+    #expect(lanes["d"]?.cards.map(\.id) == ["D-1", "D-2"])  // the Shelved Card is not a member
     #expect(lanes["c"]?.pullRequest == nil)
 }
 

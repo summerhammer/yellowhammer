@@ -45,7 +45,7 @@ extension CardRecord {
             state: state,
             waitingReason: waitingReason,
             blockReason: blockReason,
-            cancelledFromState: cancelledFromState,
+            shelvedFromState: shelvedFromState,
             budgetEpoch: budgetEpoch,
             createdAt: createdAt,
             stateVersion: stateVersion,

@@ -12,7 +12,7 @@ public enum DeltaReadOutcome: Equatable, Sendable {
 
 /// Everything an Act learns from one Delta Read, before any dispatch decision. The Journal stays
 /// authoritative for loop state: what is reported here was reconciled against it, never adopted from
-/// the board — except Cancelled, the one state Yellowhammer reads and never writes.
+/// the board — except Shelved, the one state Yellowhammer reads and never writes.
 public struct DeltaReadReport: Equatable, Sendable {
     /// The sync point the read started from; nil for a first read.
     public var since: Date?
@@ -27,9 +27,9 @@ public struct DeltaReadReport: Equatable, Sendable {
     public var humanComments: [HumanComment]
     /// How many of Yellowhammer's own comments were filtered out.
     public var ownComments: Int
-    /// Cards the board read as Cancelled that the Journal did not have as cancelled; now recorded.
-    public var cancelled: [CardRecord]
-    /// Journal-cancelled Cards the board read as reopened; restored to the state they held.
+    /// Cards the board read as Shelved that the Journal did not have as shelved; now recorded.
+    public var shelved: [CardRecord]
+    /// Journal-shelved Cards the board read as reopened; restored to the state they held.
     public var reopened: [CardRecord]
     /// Cards whose board state the Journal did not write. Reported, never adopted.
     public var restated: [RestatedCard]
@@ -59,7 +59,7 @@ public struct DeltaReadReport: Equatable, Sendable {
         cardChanges: [CardChange] = [],
         humanComments: [HumanComment] = [],
         ownComments: Int = 0,
-        cancelled: [CardRecord] = [],
+        shelved: [CardRecord] = [],
         reopened: [CardRecord] = [],
         restated: [RestatedCard] = [],
         reReadied: [CardRecord] = [],
@@ -75,7 +75,7 @@ public struct DeltaReadReport: Equatable, Sendable {
         self.cardChanges = cardChanges
         self.humanComments = humanComments
         self.ownComments = ownComments
-        self.cancelled = cancelled
+        self.shelved = shelved
         self.reopened = reopened
         self.restated = restated
         self.reReadied = reReadied

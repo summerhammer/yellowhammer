@@ -5,7 +5,7 @@ import GRDB
 @testable import Journal
 import Testing
 
-// The Feature Roll-up's zero-Card standing, Cancelled-Card write absence, and `maintainAll` (roadmap
+// The Feature Roll-up's zero-Card standing, Shelved-Card write absence, and `maintainAll` (roadmap
 // P12.3; spec: board-projection/maintain-the-managed-block, second story). Split out of
 // FeatureRollUpMaintenanceTests.swift for the type/file length limits; fixtures live in
 // FeatureRollUpMaintenanceFixtures.swift. `OutboxJournalFixture` is created inside every @Test.
@@ -68,8 +68,8 @@ struct FeatureRollUpMaintenanceZeroCardTests {
         #expect(!description.contains("refusal"))
     }
 
-    @Test("A Cancelled Card receives no write of its own: no Outbox entry ever targets its issue")
-    func cancelledCardReceivesNoWrite() async throws {
+    @Test("A Shelved Card receives no write of its own: no Outbox entry ever targets its issue")
+    func shelvedCardReceivesNoWrite() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let world = try makeRollUpWorld(journal)
@@ -82,7 +82,7 @@ struct FeatureRollUpMaintenanceZeroCardTests {
             journal, cycleID: cycleID, .init(issueID: "BACK-1", repository: "backend", order: 1, state: .done)
         )
         try insertRollUpCard(
-            journal, cycleID: cycleID, .init(issueID: "BACK-2", repository: "backend", order: 2, state: .cancelled)
+            journal, cycleID: cycleID, .init(issueID: "BACK-2", repository: "backend", order: 2, state: .shelved)
         )
         let feature = try #require(try journal.feature(issueID: "FEAT-1"))
         let maintenance = FeatureRollUpMaintenance(journal: journal, outbox: world.outbox)

@@ -25,14 +25,14 @@ struct VerificationCandidate: Sendable {
 }
 
 extension FeatureVerification {
-    /// The Feature-level clauses, then each non-Cancelled Card's in authored order (Card creation order),
-    /// straight from the Journal's `clause` table. A Cancelled Card's clauses are not judged at all.
+    /// The Feature-level clauses, then each non-Shelved Card's in authored order (Card creation order),
+    /// straight from the Journal's `clause` table. A Shelved Card's clauses are not judged at all.
     func gatherClauses(_ context: LandActFeatureContext) throws -> [VerificationCandidate] {
         let journal = context.act.journal
         var candidates = try journal.clauses(issueID: context.feature.issueID)
             .map { VerificationCandidate(clause: $0, cardState: nil) }
         let cards = try journal.cards(cycleID: context.cycleID).sorted { $0.id < $1.id }
-        for card in cards where card.state != .cancelled {
+        for card in cards where card.state != .shelved {
             candidates += try journal.clauses(issueID: card.issueID)
                 .map { VerificationCandidate(clause: $0, cardState: card.state) }
         }

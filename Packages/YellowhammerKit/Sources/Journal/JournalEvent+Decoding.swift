@@ -84,8 +84,8 @@ extension JournalEvent {
             try Self.decodeBoardWriteFailed(reader)
         case .outboxGroupRolledBack:
             try Self.decodeOutboxGroupRolledBack(reader)
-        case .cardCancelled:
-            try Self.decodeCardCancelled(reader)
+        case .cardShelved:
+            try Self.decodeCardShelved(reader)
         case .cardReopened:
             try Self.decodeCardReopened(reader)
         case .cardRestated:
@@ -346,8 +346,8 @@ extension JournalEvent {
         )
     }
 
-    private static func decodeCardCancelled(_ reader: PayloadReader) throws -> JournalEvent {
-        .cardCancelled(
+    private static func decodeCardShelved(_ reader: PayloadReader) throws -> JournalEvent {
+        .cardShelved(
             cardID: try reader.int64("card_id"),
             issueID: try reader.require("issue_id"),
             previousState: try reader.cardState("previous_state")

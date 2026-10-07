@@ -5,8 +5,8 @@ import Testing
 
 // board-projection (P5.8): the board state scope resolves a workflow state id for every writable Card
 // state — by exact name first, falling back to category for Todo/In Progress/Done, but never for
-// Blocked or Waiting on You, which are provisioned by name only — and refuses Cancelled outright
-// (glossary → Cancelled: Yellowhammer reads it and never writes it).
+// Blocked or Waiting on You, which are provisioned by name only — and refuses Shelved outright
+// (glossary → Shelved: Yellowhammer reads it and never writes it).
 
 private let scopeTeam = BoardTeam(id: BoardObjectID(rawValue: "team-1"), key: "ENG", name: "Engineering")
 
@@ -85,8 +85,8 @@ struct BoardStateScopeTests {
         }
     }
 
-    @Test("Cancelled is refused")
-    func cancelledIsRefused() async throws {
+    @Test("Shelved is refused")
+    func shelvedIsRefused() async throws {
         let provisioning = board()
         try await seedDispositionLabels(on: provisioning, team: scopeTeam.id)
         await provisioning.seed(state: "Todo", team: scopeTeam.id, category: .unstarted)
@@ -96,8 +96,8 @@ struct BoardStateScopeTests {
         await provisioning.seed(state: "Waiting on You", team: scopeTeam.id)
         let scope = try await BoardStateScope.resolve(using: provisioning)
 
-        #expect(throws: BoardStateScopeError.cancelledIsNeverWritten) {
-            try scope.id(for: .cancelled)
+        #expect(throws: BoardStateScopeError.shelvedIsNeverWritten) {
+            try scope.id(for: .shelved)
         }
     }
 

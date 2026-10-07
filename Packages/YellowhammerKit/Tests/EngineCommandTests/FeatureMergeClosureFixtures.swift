@@ -44,7 +44,7 @@ func insertMergeCard(
     }
 }
 
-/// A Feature → Cycle → four Cards world (Done, Waiting on You, Blocked, Cancelled), with two touched
+/// A Feature → Cycle → four Cards world (Done, Waiting on You, Blocked, Shelved), with two touched
 /// repositories (`backend`, `mobile`) backed by real fixture git repositories, and a real board wired —
 /// for ``FeatureMergeClosure``'s own seam tests and the gate's end-to-end integration.
 final class MergeWorld {
@@ -60,13 +60,13 @@ final class MergeWorld {
     let doneCardID: Int64
     let waitingCardID: Int64
     let blockedCardID: Int64
-    let cancelledCardID: Int64
+    let shelvedCardID: Int64
 
     init(
         fixture: consuming OutboxJournalFixture, journal: JournalStore, boards: NightCardTestBoards,
         backend: consuming GateGitFixture, mobile: consuming GateGitFixture, featureID: Int64, cycleID: Int64,
         landingNightID: Int64, observingNightID: Int64, doneCardID: Int64, waitingCardID: Int64,
-        blockedCardID: Int64, cancelledCardID: Int64
+        blockedCardID: Int64, shelvedCardID: Int64
     ) {
         self.fixture = fixture
         self.journal = journal
@@ -80,7 +80,7 @@ final class MergeWorld {
         self.doneCardID = doneCardID
         self.waitingCardID = waitingCardID
         self.blockedCardID = blockedCardID
-        self.cancelledCardID = cancelledCardID
+        self.shelvedCardID = shelvedCardID
     }
 
     /// Builds a fresh `ActContext` for a new author Act firing on the observing Night: claims the Act
@@ -145,8 +145,8 @@ func makeMergeWorld(
         journal, cycleID: cycleID, issueID: "BACK-2", repository: "backend", state: .blocked,
         blockReason: .reviewerRejection
     )
-    let cancelledCardID = try insertMergeCard(
-        journal, cycleID: cycleID, issueID: "MOB-2", repository: "mobile", state: .cancelled
+    let shelvedCardID = try insertMergeCard(
+        journal, cycleID: cycleID, issueID: "MOB-2", repository: "mobile", state: .shelved
     )
 
     let landingNightID = try landMergeCycle(journal, cycleID: cycleID, inObservingNight: landInObservingNight)
@@ -155,7 +155,7 @@ func makeMergeWorld(
         fixture: fixture, journal: journal, boards: boards, backend: backend, mobile: mobile, featureID: featureID,
         cycleID: cycleID, landingNightID: landingNightID,
         observingNightID: landInObservingNight ? landingNightID : -1, doneCardID: doneCardID,
-        waitingCardID: waitingCardID, blockedCardID: blockedCardID, cancelledCardID: cancelledCardID
+        waitingCardID: waitingCardID, blockedCardID: blockedCardID, shelvedCardID: shelvedCardID
     )
 }
 

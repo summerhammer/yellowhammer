@@ -4,10 +4,10 @@ import Foundation
 @testable import Journal
 import Testing
 
-// graph-execution/run-a-card, "A Card cancelled while it is running" (P8.9): the Delta Read applies
-// Cancelled at the Act boundary. An open Attempt is not resumable state worth a budget, so it ends
+// graph-execution/run-a-card, "A Card shelved while it is running" (P8.9): the Delta Read applies
+// Shelved at the Act boundary. An open Attempt is not resumable state worth a budget, so it ends
 // `cancelled` — no Attempt consumed, no Route excluded — and nothing more is posted to the Card.
-// Nothing else about the Card is touched: a Cancel/reopen round trip buys no budget reset.
+// Nothing else about the Card is touched: a shelve/reopen round trip buys no budget reset.
 
 private let cancelRoute = Route(cli: "claude", model: "opus", effort: "high")!
 
@@ -22,14 +22,14 @@ private func acceptPendingWrite(_ journal: JournalStore, issueID: String, runID:
     return try #require(entries.first)
 }
 
-@Suite("Delta Read: a Card cancelled while it is running (P8.9)")
+@Suite("Delta Read: a Card shelved while it is running (P8.9)")
 struct DeltaReadCancelledAttemptTests {
-    @Test("Cancel ends the open Attempt `cancelled`, excludes no Route, and aborts pending Outbox entries")
-    func cancelEndsOpenAttemptAndAbortsOutbox() async throws {
+    @Test("Shelve ends the open Attempt `cancelled`, excludes no Route, and aborts pending Outbox entries")
+    func shelveEndsOpenAttemptAndAbortsOutbox() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let cardID = try insertCard(journal, issueID: "card-1", state: .inProgress)
-        let board = FakeReadingBoard([page(objects: [object("card-1", state: stateCancelled, updatedAt: 1)])])
+        let board = FakeReadingBoard([page(objects: [object("card-1", state: stateShelved, updatedAt: 1)])])
         let (read, runID) = try deltaRead(journal, board: board)
 
         let attempt = try journal.recordAttempt(cardID: cardID, route: cancelRoute, runID: runID)
@@ -39,7 +39,7 @@ struct DeltaReadCancelledAttemptTests {
             Issue.record("expected a read")
             return
         }
-        #expect(report.cancelled.map(\.id) == [cardID])
+        #expect(report.shelved.map(\.id) == [cardID])
 
         let history = try journal.attemptHistory(cardID: cardID)
         #expect(history.attempts.count == 1)
@@ -56,7 +56,7 @@ struct DeltaReadCancelledAttemptTests {
 
         let entry = try #require(try journal.outboxEntry(id: pending.id))
         #expect(entry.state == .aborted)
-        #expect(entry.lastError == "the Card is Cancelled; nothing is posted to it")
+        #expect(entry.lastError == "the Card is Shelved; nothing is posted to it")
 
         // A following lane run does not dispatch it: only Todo Cards are runnable.
         let card = try journal.card(id: cardID)
@@ -91,7 +91,7 @@ struct DeltaReadCancelledAttemptTests {
             Issue.record("expected a read")
             return
         }
-        #expect(cancelled.cancelled.map(\.id) == [cardID])
+        #expect(cancelled.shelved.map(\.id) == [cardID])
 
         guard case .read(let reopened) = try await read.perform() else {
             Issue.record("expected a read")
@@ -104,7 +104,7 @@ struct DeltaReadCancelledAttemptTests {
         #expect(afterCard.state == beforeCard.state)
         #expect(afterCard.blockReason == beforeCard.blockReason)
         #expect(afterCard.budgetEpoch == beforeCard.budgetEpoch)
-        #expect(afterCard.cancelledFromState == nil)
+        #expect(afterCard.shelvedFromState == nil)
 
         let afterHistory = try journal.attemptHistory(cardID: cardID)
         #expect(afterHistory.attempts.map(\.id) == beforeHistory.attempts.map(\.id))

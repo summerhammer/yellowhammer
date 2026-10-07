@@ -125,7 +125,7 @@ stands in for the Operator merging pull requests; `transcription-path-touched` f
 moving a transcribed contract.
 
 The Operator's board gestures use the Operator credential: a threaded reply to the Engine's question
-comment, moving a Card to the team's cancelled state and back to Todo, and declaring a Card's scope
+comment, moving a Card to the team's shelved state and back to Todo, and declaring a Card's scope
 with a `**Scope:**` line in its Managed Block — replacing the one the Engine rendered, or adding it
 to a freshly authored Card's block, which carries only its Architectural Brief and Definition of Done.
 
@@ -189,8 +189,8 @@ Every scenario starts from a reset Project. "Journal" means a read-only snapshot
     Feature 2's Cycle) and, its Attempt budget untouched by asking, runs to Done; the web Card's Adoption
     is refused (`AdoptionRefused`, back to Waiting on You under `divergence`, `failed_adoptions` 1). An
     adopted Card keeps the Attempts it spent, so a Card that had failed its last Attempt would Block again. *Stories:* `board-projection/check-card-readiness-at-dispatch`, `feature-authoring/author-the-cycle-and-card-dag`.
-11. **Cancelled Card and reopen.** After authoring two Cards, the Operator cancels the `fixture-web` Card;
-    the build Act records `CardCancelled`, does not run it, and runs the other. The Operator moves it
+11. **Shelved Card and reopen.** After authoring two Cards, the Operator shelves the `fixture-web` Card;
+    the build Act records `CardShelved`, does not run it, and runs the other. The Operator moves it
     back to Todo; the next build Act records `CardReopened`, restores its state and runs it to Done. *Stories:* `board-projection/read-board-changes-by-delta`.
 12. **Two Projects concurrently on one Mac sharing the scratch team.** Projects A and B rehearse the same
     Night at the same time. Both finish; each Journal names only its own Project; every issue id either

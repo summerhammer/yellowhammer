@@ -113,7 +113,7 @@ struct BuildActTests {
         for issueID in ["BACK-1", "BACK-2", "BACK-3", "MOB-1", "MOB-2"] {
             await boards.writing.seed(issue: issueID, description: nil)
         }
-        let reading = FakeReadingBoard([page(objects: [object("MOB-2", state: stateCancelled)])])
+        let reading = FakeReadingBoard([page(objects: [object("MOB-2", state: stateShelved)])])
         let board = ActBoard(reading: reading, writing: boards.writing, provisioning: boards.provisioning)
 
         let recorder = RecordingCardRunner()
@@ -126,7 +126,7 @@ struct BuildActTests {
 
         let events = try journal.events()
         let relevantTypes: Set<JournalEventType> = [
-            .cardLeaseReclaimed, .expiredCardLeasesSwept, .boardStateReposted, .cardCancelled,
+            .cardLeaseReclaimed, .expiredCardLeasesSwept, .boardStateReposted, .cardShelved,
             .deltaReadCompleted, .repoLanesDerived, .repoLaneStarted, .repoLaneEnded, .actEnded
         ]
         let relevant = events.filter { relevantTypes.contains($0.type) }
@@ -137,7 +137,7 @@ struct BuildActTests {
         #expect(index(of: .cardLeaseReclaimed) != nil)
         #expect(index(of: .expiredCardLeasesSwept) != nil)
         #expect(index(of: .boardStateReposted) != nil)
-        #expect(index(of: .cardCancelled) != nil)
+        #expect(index(of: .cardShelved) != nil)
         #expect(index(of: .deltaReadCompleted) != nil)
         #expect(index(of: .repoLanesDerived) != nil)
         #expect(order.filter { $0 == .repoLaneStarted }.count == 2)
@@ -146,8 +146,8 @@ struct BuildActTests {
         // Order: lease sweep before repost, repost before the Delta Read, the Delta Read before lanes.
         #expect(index(of: .cardLeaseReclaimed)! < index(of: .expiredCardLeasesSwept)!)
         #expect(index(of: .expiredCardLeasesSwept)! < index(of: .boardStateReposted)!)
-        #expect(index(of: .boardStateReposted)! < index(of: .cardCancelled)!)
-        #expect(index(of: .cardCancelled)! < index(of: .deltaReadCompleted)!)
+        #expect(index(of: .boardStateReposted)! < index(of: .cardShelved)!)
+        #expect(index(of: .cardShelved)! < index(of: .deltaReadCompleted)!)
         #expect(index(of: .deltaReadCompleted)! < index(of: .repoLanesDerived)!)
         #expect(index(of: .repoLanesDerived)! < order.firstIndex(of: .repoLaneStarted)!)
         #expect(order.last == .actEnded)
@@ -182,7 +182,7 @@ struct BuildActTests {
         #expect(lanes == ["backend", "mobile"])
 
         // The runner saw backend #1 then backend #2, and nothing from mobile (mobile #1 is Blocked,
-        // mobile #2 was cancelled by the Delta Read).
+        // mobile #2 was shelved by the Delta Read).
         #expect(recorder.seen.map(\.issueID) == ["BACK-1", "BACK-2"])
 
         guard let mobileEnded = events.first(where: {

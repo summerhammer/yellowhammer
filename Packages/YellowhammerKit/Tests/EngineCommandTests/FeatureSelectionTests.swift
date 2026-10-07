@@ -109,7 +109,7 @@ struct FeatureSelectionTests {
         #expect(!events.contains(.featureSelected))
     }
 
-    @Test("A Cancelled Card named as adopted is dropped, and a non-candidate id is dropped")
+    @Test("A Shelved Card named as adopted is dropped, and a non-candidate id is dropped")
     func nonCandidateAdoptionIsDropped() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
@@ -123,7 +123,7 @@ struct FeatureSelectionTests {
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 arguments: [
-                    cycleID, "BACK-3", "backend", "card", 3, CardState.cancelled.rawValue, 0,
+                    cycleID, "BACK-3", "backend", "card", 3, CardState.shelved.rawValue, 0,
                     JournalStore.timestamp(Date())
                 ]
             )

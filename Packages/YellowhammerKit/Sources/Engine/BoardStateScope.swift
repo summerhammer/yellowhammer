@@ -4,11 +4,11 @@ import Domain
 /// from the board's provisioning surface: the team, a workflow state id for every writable
 /// ``CardState``, and the disposition label catalogue.
 ///
-/// Cancelled is the one Card state Yellowhammer reads and never writes, so it is never in `states` and
+/// Shelved is the one Card state Yellowhammer reads and never writes, so it is never in `states` and
 /// every lookup for it throws rather than silently resolving to something.
 public struct BoardStateScope: Equatable, Sendable {
     public let team: BoardObjectID
-    /// A workflow state id for every writable ``CardState`` — everything but `.cancelled`.
+    /// A workflow state id for every writable ``CardState`` — everything but `.shelved`.
     public let states: [CardState: BoardObjectID]
     public let labels: DispositionLabels
 
@@ -18,11 +18,11 @@ public struct BoardStateScope: Equatable, Sendable {
         self.labels = labels
     }
 
-    /// The workflow state id for `state`. Throws ``BoardStateScopeError/cancelledIsNeverWritten`` for
-    /// `.cancelled`.
+    /// The workflow state id for `state`. Throws ``BoardStateScopeError/shelvedIsNeverWritten`` for
+    /// `.shelved`.
     public func id(for state: CardState) throws -> BoardObjectID {
-        guard state != .cancelled else {
-            throw BoardStateScopeError.cancelledIsNeverWritten
+        guard state != .shelved else {
+            throw BoardStateScopeError.shelvedIsNeverWritten
         }
         guard let id = states[state] else {
             throw BoardStateScopeError.stateNotProvisioned(name: state.rawValue, team: team)
@@ -89,15 +89,15 @@ public struct BoardStateScope: Equatable, Sendable {
 }
 
 public enum BoardStateScopeError: Error, Equatable, CustomStringConvertible {
-    /// Cancelled is the one Card state Yellowhammer reads and never writes.
-    case cancelledIsNeverWritten
+    /// Shelved is the one Card state Yellowhammer reads and never writes.
+    case shelvedIsNeverWritten
     /// No workflow state in the team resolved to this Card state, by name or by category.
     case stateNotProvisioned(name: String, team: BoardObjectID)
 
     public var description: String {
         switch self {
-        case .cancelledIsNeverWritten:
-            "Cancelled is the one Card state Yellowhammer reads and never writes"
+        case .shelvedIsNeverWritten:
+            "Shelved is the one Card state Yellowhammer reads and never writes"
         case .stateNotProvisioned(let name, let team):
             "team \(team) has no workflow state provisioned for '\(name)'"
         }

@@ -123,9 +123,9 @@ public enum JournalEvent: Equatable, Sendable {
     /// An all-or-nothing group of writes (the authoring transaction) failed part-way and its applied
     /// creates were archived.
     case outboxGroupRolledBack(groupID: String, reason: String)
-    /// The board read the Card as Cancelled; the Journal records its previous state for reopening.
-    case cardCancelled(cardID: Int64, issueID: String, previousState: CardState)
-    /// The board read a Journal-cancelled Card as reopened; the Journal restores its previous state.
+    /// The board read the Card as Shelved; the Journal records its previous state for reopening.
+    case cardShelved(cardID: Int64, issueID: String, previousState: CardState)
+    /// The board read a Journal-shelved Card as reopened; the Journal restores its previous state.
     case cardReopened(cardID: Int64, issueID: String, restoredState: CardState)
     /// The board moved a Card to a state the Journal did not write; the Journal stays authoritative
     /// and records the discrepancy.
@@ -419,8 +419,8 @@ public enum JournalEvent: Equatable, Sendable {
         abandonedRepositories: [String], triagedNightID: Int64
     )
     /// The settle gesture read a value the offered set did not include for this pass (roadmap P10.9) —
-    /// e.g. *kept in flight* read on a Partial Landing (or with every Card Cancelled), where only
-    /// *released* is offered. Not honoured: treated as unsettled, and nothing else is written.
+    /// e.g. *kept in flight* read on a Partial Landing (or with every Card Shelved), where only
+    /// *abandoned* is offered. Not honoured: treated as unsettled, and nothing else is written.
     case settleValueNotHonoured(featureIssueID: String, value: String, reason: String)
     /// A Card's unanswered-Nights clock exceeded `bound` (bounds/bound-unanswered-nights): it is being
     /// auto-Blocked. `blockReason` is `reply overdue` on the `question` route, `decision overdue` on `divergence`.

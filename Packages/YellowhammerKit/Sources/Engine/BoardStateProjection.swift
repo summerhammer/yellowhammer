@@ -6,7 +6,7 @@ import Journal
 /// (roadmap P5.8: board state writes for Cards and Features).
 ///
 /// A transition is first written to the Journal — the Journal record is what backs Waiting on You and
-/// Blocked, and Cancelled is refused there too, not only here — and only then posted through the
+/// Blocked, and Shelved is refused there too, not only here — and only then posted through the
 /// Outbox, keyed on the Journal's own `state_version` so a crashed and resumed run replays the same
 /// write rather than sending a stale one. The Journal transition stands even when the board write is
 /// deferred: ``repost(_:reclaimingExpiredLeases:)`` replays it on a later Act, from `state_version` and
@@ -47,7 +47,7 @@ public struct BoardStateProjection: Sendable {
 
     /// Writes `transition` to the Journal, then posts the board write it implies. Never throws for a
     /// deferral — the Journal transition stands regardless, and ``repost()`` replays it — but a
-    /// Cancelled target or an already-cancelled Card propagates the Journal's own refusal.
+    /// Shelved target or an already-shelved Card propagates the Journal's own refusal.
     public func transition(card: CardRecord, to transition: CardTransition) async throws -> Outcome {
         var assignee: BoardObjectID?
         if case .waitingOnYou(_, let operatorID) = transition {
@@ -92,7 +92,7 @@ public struct BoardStateProjection: Sendable {
     /// Act, mirroring ``Outbox/deliverPendingExclusively()``. Never touches the assignee: the operator's
     /// board identity is not stored in the Journal, so the assignment a Waiting on You transition wrote
     /// originally is left exactly as the board holds it, because nothing here clears it. Never reposts a
-    /// Cancelled Card — `cardsWithUnpostedState` excludes it.
+    /// Shelved Card — `cardsWithUnpostedState` excludes it.
     public func repost(_ cards: [CardRecord]? = nil, reclaimingExpiredLeases: Bool = true) async throws -> [Outcome] {
         var outcomes: [Outcome] = []
         for record in try cards ?? journal.cardsWithUnpostedState() {
@@ -136,8 +136,8 @@ public struct BoardStateProjection: Sendable {
     }
 
     /// Projects the Feature Issue's board-writing state: it shares the team's workflow states, so no
-    /// Journal Card row backs it — the Outbox entry, keyed on the target state, is the record. `.cancelled`
-    /// is refused (``BoardStateScopeError/cancelledIsNeverWritten``); Waiting on You requires the
+    /// Journal Card row backs it — the Outbox entry, keyed on the target state, is the record. `.shelved`
+    /// is refused (``BoardStateScopeError/shelvedIsNeverWritten``); Waiting on You requires the
     /// Operator's board identity and Blocked requires a Block Reason.
     @discardableResult
     public func transition(
@@ -146,8 +146,8 @@ public struct BoardStateProjection: Sendable {
         blockReason: BlockReason? = nil,
         `operator`: BoardObjectID? = nil
     ) async throws -> OutboxDelivery {
-        guard state != .cancelled else {
-            throw BoardStateScopeError.cancelledIsNeverWritten
+        guard state != .shelved else {
+            throw BoardStateScopeError.shelvedIsNeverWritten
         }
         if state == .blocked, blockReason == nil {
             throw BoardStateProjectionError.blockReasonRequired

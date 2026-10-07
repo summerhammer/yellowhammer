@@ -228,14 +228,14 @@ extension LinearAdapter: BoardProvisioning {
     /// with the issue queries' `boardObject(_:)` mapping so both translate `type` the same way.
     static func category(of type: String?) -> BoardWorkflowStateCategory? {
         guard let type else { return nil }
-        if type == "canceled" { return .cancelled }
+        if type == "canceled" { return .shelved }
         return BoardWorkflowStateCategory(rawValue: type)
     }
 
     /// Translates Yellowhammer's category into Linear's vendor `type` string, the inverse of
     /// `category(of:)`. Linear spells its cancelled type `canceled`.
     private static func vendorType(for category: BoardWorkflowStateCategory) -> String {
-        if category == .cancelled { return "canceled" }
+        if category == .shelved { return "canceled" }
         return category.rawValue
     }
 

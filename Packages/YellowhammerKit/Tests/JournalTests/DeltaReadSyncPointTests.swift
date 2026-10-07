@@ -142,7 +142,7 @@ func cardByIssueID() throws {
     #expect(card?.id == cardID)
     #expect(card?.issueID == "CARD-123")
     #expect(card?.state == .todo)
-    #expect(card?.cancelledFromState == nil)
+    #expect(card?.shelvedFromState == nil)
     #expect(card?.waitingReason == nil)
 }
 
@@ -156,10 +156,10 @@ func cardByIDThrowsUnknown() throws {
     }
 }
 
-// MARK: - Card Cancellation Tests
+// MARK: - Card Shelving Tests
 
-@Test("markCardCancelled on a Blocked Card yields cancelled state with previousState")
-func markCardCancelledSetsState() throws {
+@Test("markCardShelved on a Blocked Card yields shelved state with previousState")
+func markCardShelvedSetsState() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
     let runID = RunID()
@@ -172,17 +172,17 @@ func markCardCancelledSetsState() throws {
         act: .author, runID: runID, mode: .real, now: epoch
     )
 
-    let result = try journal.markCardCancelled(
+    let result = try journal.markCardShelved(
         cardID: cardID, runID: runID, act: .author, nightID: nil, now: epoch
     )
 
-    #expect(result.state == .cancelled)
-    #expect(result.cancelledFromState == .blocked)
+    #expect(result.state == .shelved)
+    #expect(result.shelvedFromState == .blocked)
 
-    let events = try journal.events(ofType: .cardCancelled)
+    let events = try journal.events(ofType: .cardShelved)
     #expect(events.count == 1)
-    guard case .cardCancelled(let eCardID, let issueID, let prevState) = events[0].event else {
-        Issue.record("Event is not cardCancelled")
+    guard case .cardShelved(let eCardID, let issueID, let prevState) = events[0].event else {
+        Issue.record("Event is not cardShelved")
         return
     }
     #expect(eCardID == cardID)
@@ -190,8 +190,8 @@ func markCardCancelledSetsState() throws {
     #expect(prevState == .blocked)
 }
 
-@Test("markCardCancelled twice throws cardAlreadyCancelled")
-func markCardCancelledTwiceThrows() throws {
+@Test("markCardShelved twice throws cardAlreadyShelved")
+func markCardShelvedTwiceThrows() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
     let runID = RunID()
@@ -201,12 +201,12 @@ func markCardCancelledTwiceThrows() throws {
     )
     _ = try journal.claimActLease(act: .author, runID: runID, mode: .real, now: epoch)
 
-    _ = try journal.markCardCancelled(
+    _ = try journal.markCardShelved(
         cardID: cardID, runID: runID, act: .author, nightID: nil, now: epoch
     )
 
-    #expect(throws: JournalError.cardAlreadyCancelled(cardID: cardID)) {
-        try journal.markCardCancelled(
+    #expect(throws: JournalError.cardAlreadyShelved(cardID: cardID)) {
+        try journal.markCardShelved(
             cardID: cardID,
             runID: runID,
             act: .author,
@@ -216,8 +216,8 @@ func markCardCancelledTwiceThrows() throws {
     }
 }
 
-@Test("restoreCancelledCard yields previous state with cleared column")
-func restoreCancelledCardRestoresState() throws {
+@Test("restoreShelvedCard yields previous state with cleared column")
+func restoreShelvedCardRestoresState() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
     let runID = RunID()
@@ -229,17 +229,17 @@ func restoreCancelledCardRestoresState() throws {
         act: .author, runID: runID, mode: .real, now: epoch
     )
 
-    _ = try journal.markCardCancelled(
+    _ = try journal.markCardShelved(
         cardID: cardID, runID: runID, act: .author, nightID: nil, now: epoch
     )
 
-    let restored = try journal.restoreCancelledCard(
+    let restored = try journal.restoreShelvedCard(
         cardID: cardID, runID: runID, act: .author, nightID: nil,
         now: epoch.addingTimeInterval(1)
     )
 
     #expect(restored.state == .blocked)
-    #expect(restored.cancelledFromState == nil)
+    #expect(restored.shelvedFromState == nil)
 
     let events = try journal.events(ofType: .cardReopened)
     #expect(events.count == 1)
@@ -252,8 +252,8 @@ func restoreCancelledCardRestoresState() throws {
     #expect(restoredState == .blocked)
 }
 
-@Test("restoreCancelledCard on non-cancelled Card throws cardNotCancelled")
-func restoreNonCancelledThrows() throws {
+@Test("restoreShelvedCard on non-shelved Card throws cardNotShelved")
+func restoreNonShelvedThrows() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
     let runID = RunID()
@@ -263,15 +263,15 @@ func restoreNonCancelledThrows() throws {
     )
     _ = try journal.claimActLease(act: .author, runID: runID, mode: .real, now: epoch)
 
-    #expect(throws: JournalError.cardNotCancelled(cardID: cardID)) {
-        try journal.restoreCancelledCard(
+    #expect(throws: JournalError.cardNotShelved(cardID: cardID)) {
+        try journal.restoreShelvedCard(
             cardID: cardID, runID: runID, act: .author, nightID: nil, now: epoch
         )
     }
 }
 
-@Test("markCardCancelled without Act lease throws actLeaseLost")
-func markCardCancelledWithoutLease() throws {
+@Test("markCardShelved without Act lease throws actLeaseLost")
+func markCardShelvedWithoutLease() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
     let runID = RunID()
@@ -279,7 +279,7 @@ func markCardCancelledWithoutLease() throws {
     let cardID = try insertFixtureCard(journal, issueID: "CARD-1")
 
     #expect(throws: JournalError.actLeaseLost(runID: runID, holder: nil)) {
-        try journal.markCardCancelled(
+        try journal.markCardShelved(
             cardID: cardID, runID: runID, act: .author, nightID: nil, now: epoch
         )
     }

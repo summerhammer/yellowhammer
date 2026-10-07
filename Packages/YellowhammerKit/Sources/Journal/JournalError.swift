@@ -80,16 +80,16 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
     case outboxEntryUnreadable(id: Int64)
     /// The `card` row does not decode; the Journal was written by something other than the engine.
     case cardUnreadable(id: Int64)
-    /// The Card is already in cancelled state and cannot be cancelled again.
-    case cardAlreadyCancelled(cardID: Int64)
-    /// The Card is not in cancelled state and cannot be reopened.
-    case cardNotCancelled(cardID: Int64)
+    /// The Card is already in shelved state and cannot be shelved again.
+    case cardAlreadyShelved(cardID: Int64)
+    /// The Card is not in shelved state and cannot be reopened.
+    case cardNotShelved(cardID: Int64)
     /// The `board_sync` row does not decode; the Journal was written by something other than the engine.
     case boardSyncUnreadable
     /// The `clause` row does not decode; the Journal was written by something other than the engine.
     case clauseUnreadable(issueID: String, cid: String)
-    /// Cancelled is the one Card state Yellowhammer reads and never writes; the Journal refuses it too.
-    case cancelledIsNeverWritten(cardID: Int64)
+    /// Shelved is the one Card state Yellowhammer reads and never writes; the Journal refuses it too.
+    case shelvedIsNeverWritten(cardID: Int64)
     /// A transition to Waiting on You without a waiting reason: the Journal record is what backs the state.
     case waitingOnYouUnbacked(cardID: Int64)
     /// A transition to Blocked without a Block Reason.
@@ -207,16 +207,16 @@ public enum JournalError: Error, Equatable, CustomStringConvertible {
             "The Journal's outbox row \(id) cannot be read"
         case .cardUnreadable(let id):
             "The Journal's card row \(id) cannot be read"
-        case .cardAlreadyCancelled(let cardID):
-            "Card \(cardID) is already cancelled and cannot be cancelled again"
-        case .cardNotCancelled(let cardID):
-            "Card \(cardID) is not cancelled and cannot be reopened"
+        case .cardAlreadyShelved(let cardID):
+            "Card \(cardID) is already shelved and cannot be shelved again"
+        case .cardNotShelved(let cardID):
+            "Card \(cardID) is not shelved and cannot be reopened"
         case .boardSyncUnreadable:
             "The Journal's board_sync row cannot be read"
         case .clauseUnreadable(let issueID, let cid):
             "The Journal's clause row (issue_id=\(issueID), cid=\(cid)) cannot be read"
-        case .cancelledIsNeverWritten(let cardID):
-            "Card \(cardID) cannot be transitioned to Cancelled: Yellowhammer reads it and never writes it"
+        case .shelvedIsNeverWritten(let cardID):
+            "Card \(cardID) cannot be transitioned to Shelved: Yellowhammer reads it and never writes it"
         case .waitingOnYouUnbacked(let cardID):
             "Card \(cardID) cannot transition to Waiting on You without a waiting reason"
         case .blockReasonRequired(let cardID):

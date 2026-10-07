@@ -9,7 +9,7 @@ import Testing
 // board-projection/maintain-the-managed-block (P5.6): the Card's block is rendered from the Journal
 // and posted through the Outbox; a rewrite is not issued when the hash of the rendered block equals
 // the hash of what was last posted; disposition labels stay in step with the block and their groups
-// stay mutually exclusive; nothing is posted to a Cancelled Card. Rehearsal-assertable against the
+// stay mutually exclusive; nothing is posted to a Shelved Card. Rehearsal-assertable against the
 // in-memory board.
 
 @Suite("Managed Block maintenance")
@@ -160,10 +160,10 @@ struct ManagedBlockMaintenanceTests {
         #expect(operations == ["descriptionRewrite"])
     }
 
-    // MARK: - Cancelled
+    // MARK: - Shelved
 
-    @Test("Nothing is posted to a Cancelled Card, and a write already pending for it is aborted")
-    func cancelledCardIsNotMaintained() async throws {
+    @Test("Nothing is posted to a Shelved Card, and a write already pending for it is aborted")
+    func shelvedCardIsNotMaintained() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let board = FakeWritingBoard()
@@ -173,12 +173,12 @@ struct ManagedBlockMaintenanceTests {
         let earlier = try outbox.accept(OutboxWrite(
             key: "comment:issue-1:earlier", write: .createComment(issue: issue, body: "from before"), cardID: cardID
         ))
-        try setCard(journal, cardID, state: .cancelled, blockReason: nil)
+        try setCard(journal, cardID, state: .shelved, blockReason: nil)
         let maintenance = ManagedBlockMaintenance(journal: journal, outbox: outbox, labels: labels)
 
         let outcome = try await maintenance.maintain(card: try journal.card(id: cardID), brief: brief)
 
-        #expect(outcome == .notMaintained(.cancelled))
+        #expect(outcome == .notMaintained(.shelved))
         #expect(await board.updateCalls == 0)
         #expect(await board.descriptionReads == 0)
         #expect(await board.comments.isEmpty)

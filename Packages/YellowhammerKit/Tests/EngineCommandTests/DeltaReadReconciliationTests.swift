@@ -7,7 +7,7 @@ import Testing
 @testable import Journal
 
 // board-projection/read-board-changes-by-delta: each Act reads what changed since the last read in one
-// request; Yellowhammer's own comments are filtered by identity; Cancelled is read and never written;
+// request; Yellowhammer's own comments are filtered by identity; Shelved is read and never written;
 // deleted or re-stated Cards are reconciled against the Journal, which stays authoritative; a Card
 // moved to another repository is reported rather than dispatched; a rate-budget refusal degrades the
 // read and is recorded as installation-wide. These run against an in-memory Linear stand-in.
@@ -116,7 +116,7 @@ struct DeltaReadReconciliationTests {
         let cardID = try insertCard(journal, issueID: "card-1", state: .todo)
         let board = FakeReadingBoard([
             page(
-                objects: [object("card-1", state: stateCancelled, updatedAt: 1)],
+                objects: [object("card-1", state: stateShelved, updatedAt: 1)],
                 nextObjectCursor: BoardCursor(rawValue: "o-2")
             ),
             .failure(.rateLimited(retryAfter: .seconds(30), budget: nil))
@@ -130,7 +130,7 @@ struct DeltaReadReconciliationTests {
 
         #expect(reason.contains("2 request(s)"))
         let state = try journal.card(id: cardID).state
-        #expect(state == .todo, "a Cancelled seen on a page before the refusal is not applied")
+        #expect(state == .todo, "a Shelved seen on a page before the refusal is not applied")
         #expect(try journal.boardSyncPoint() == nil)
         let events = try journal.events(ofType: .rateBudgetExhausted)
         #expect(events.count == 1)

@@ -310,7 +310,7 @@ public struct RepoLaneSnapshot: Identifiable, Equatable, Sendable {
     public var cardsTotal: Int
     /// The lane's pull request chip; nil until the land Act opens one.
     public var pullRequest: PullRequestChip?
-    /// The lane's member Cards in lane order, Cancelled ones left out as they are from the counts. The
+    /// The lane's member Cards in lane order, Shelved ones left out as they are from the counts. The
     /// Feature and Repo detail list them.
     public var cards: [LaneCard]
 

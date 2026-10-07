@@ -23,7 +23,7 @@ public protocol FeatureSettle: Sendable {
 /// further Journal write here.
 ///
 /// On a Partial Landing (``JournalStore/inFlightLandedFeature()`` non-nil), and when the Roll-up is
-/// absent (Cards exist and every one is Cancelled), only *abandoned* is offered — a *kept in flight* read there is not honoured
+/// absent (Cards exist and every one is Shelved), only *abandoned* is offered — a *kept in flight* read there is not honoured
 /// (``JournalEvent/settleValueNotHonoured(featureIssueID:value:reason:)``, treated as unsettled).
 /// Otherwise both values are offered.
 ///
@@ -106,11 +106,11 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
     }
 
     /// Both values, unless this is a Partial Landing or the Roll-up is absent (Cards exist and every one
-    /// is Cancelled) — then only *abandoned* is offered (glossary: Roll-up, Partial Landing).
+    /// is Shelved) — then only *abandoned* is offered (glossary: Roll-up, Partial Landing).
     private static func offeredValues(cards: [CardRecord], context: ActContext) throws -> [SettleValue] {
-        let allCancelled = !cards.isEmpty && cards.allSatisfy { $0.state == .cancelled }
+        let allShelved = !cards.isEmpty && cards.allSatisfy { $0.state == .shelved }
         let landed = try context.journal.inFlightLandedFeature() != nil
-        if allCancelled || landed { return [.abandoned] }
+        if allShelved || landed { return [.abandoned] }
         return [.keptInFlight, .abandoned]
     }
 

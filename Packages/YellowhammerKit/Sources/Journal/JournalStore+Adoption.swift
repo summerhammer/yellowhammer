@@ -7,7 +7,7 @@ import GRDB
 
 extension JournalStore {
     /// Every Card whose state is exactly Blocked and whose Cycle is archived — left behind by a closed
-    /// Feature, and a candidate this Night's selection may adopt. A Cancelled Card is never returned
+    /// Feature, and a candidate this Night's selection may adopt. A Shelved Card is never returned
     /// (it is not Blocked, so it never satisfies this filter); a Blocked Card in the open Cycle is
     /// never returned (its Cycle is not yet archived). Ordered by repository then authored order, for
     /// a stable, readable candidate list.

@@ -121,7 +121,7 @@ struct FeatureVerificationTests {
         let world = try await VerificationWorld(cards: [
             VerificationCard("BACK-1", "backend", .done), VerificationCard("BACK-2", "backend", .blocked),
             VerificationCard("MOB-1", "mobile", .waitingOnYou),
-            VerificationCard("MOB-2", "mobile", .cancelled)
+            VerificationCard("MOB-2", "mobile", .shelved)
         ])
         try world.addClause(issue: "BACK-1", cid: "c1")
         try world.addClause(issue: "BACK-2", cid: "c1")
@@ -137,7 +137,7 @@ struct FeatureVerificationTests {
         #expect(!verdict.allClausesMet)
         #expect(verdict.unmetClauses == ["BACK-2 c1", "MOB-1 c1"])
         let recorded = try #require(try world.journal.featureVerification(cycleID: world.cycleID))
-        // The Cancelled Card's clause is not judged at all.
+        // The Shelved Card's clause is not judged at all.
         #expect(recorded.clauses.map { "\($0.issueID) \($0.cid)" } == ["BACK-1 c1", "BACK-2 c1", "MOB-1 c1"])
         let blocked = try #require(recorded.clauses.first { $0.issueID == "BACK-2" })
         #expect(blocked.judgedBy == .engine)

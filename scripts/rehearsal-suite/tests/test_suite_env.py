@@ -577,15 +577,15 @@ class OperatorClientTests(unittest.TestCase):
     def test_move_to_state_resolves_state_by_exact_name(self):
         transport = FakeTransport([
             (200, json.dumps({"data": {"issue": {"team": {"id": "team-1", "states": {"nodes": [
-                {"id": "state-todo", "name": "Todo"}, {"id": "state-cancelled", "name": "Cancelled"},
+                {"id": "state-todo", "name": "Todo"}, {"id": "state-shelved", "name": "Shelved"},
             ]}}}}})),
             (200, json.dumps({"data": {"issueUpdate": {"success": True}}})),
         ])
         client = suite_env.OperatorClient(transport, "key")
-        ok = client.move_to_state("ISSUE-1", "Cancelled")
+        ok = client.move_to_state("ISSUE-1", "Shelved")
         self.assertTrue(ok)
         second_variables = transport.calls[1]["payload"]["variables"]
-        self.assertEqual(second_variables["stateId"], "state-cancelled")
+        self.assertEqual(second_variables["stateId"], "state-shelved")
 
     def test_move_to_state_unknown_name_raises(self):
         transport = FakeTransport([

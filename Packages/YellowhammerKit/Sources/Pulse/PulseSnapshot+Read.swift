@@ -181,8 +181,8 @@ extension PulseSnapshot {
         repo: String,
         context: FeatureLaneContext
     ) -> RepoLaneSnapshot {
-        // A Cancelled Card is out of the lane: it counts toward neither done nor total.
-        let laneCards = context.cards.filter { $0.repository == repo && $0.state != .cancelled }
+        // A Shelved Card is out of the lane: it counts toward neither done nor total.
+        let laneCards = context.cards.filter { $0.repository == repo && $0.state != .shelved }
         let state: LaneState =
             if context.landed[repo] != nil {
                 .landed

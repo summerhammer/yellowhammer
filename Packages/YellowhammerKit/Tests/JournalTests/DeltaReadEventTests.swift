@@ -28,23 +28,23 @@ private let epoch = Date(timeIntervalSince1970: 1_800_000_000)
 
 // MARK: - Event Round-trip Tests
 
-@Test("cardCancelled event round-trips")
-func cardCancelledEventRoundTrips() throws {
+@Test("cardShelved event round-trips")
+func cardShelvedEventRoundTrips() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
     let runID = RunID()
 
     _ = try journal.append(
-        .cardCancelled(cardID: 42, issueID: "ISSUE-1", previousState: .blocked),
+        .cardShelved(cardID: 42, issueID: "ISSUE-1", previousState: .blocked),
         act: .author,
         runID: runID,
         now: epoch
     )
 
-    let records = try journal.events(ofType: .cardCancelled)
+    let records = try journal.events(ofType: .cardShelved)
     #expect(records.count == 1)
-    guard case .cardCancelled(let cardID, let issueID, let prevState) = records[0].event else {
-        Issue.record("Event is not cardCancelled")
+    guard case .cardShelved(let cardID, let issueID, let prevState) = records[0].event else {
+        Issue.record("Event is not cardShelved")
         return
     }
     #expect(cardID == 42)

@@ -100,7 +100,7 @@ extension NightSummary {
                let acceptedAt = accepted[issueIDs[cardID] ?? ""], record.occurredAt <= acceptedAt {
                 reopened.insert(cardID)
             }
-            if case .cardCancelled(let cardID, let issueID, let previous) = record.event, previous == .done,
+            if case .cardShelved(let cardID, let issueID, let previous) = record.event, previous == .done,
                record.occurredAt <= (accepted[issueID] ?? .distantPast) {
                 reopened.insert(cardID)
             }

@@ -296,7 +296,7 @@ struct PredecessorGateLandingTests {
         let cycleID = try gateCycleID(journal, featureID: featureID)
         try insertGateCard(journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend")
 
-        // The Card disappears (cancelled, adopted elsewhere) — its row is removed entirely.
+        // The Card disappears (shelved, adopted elsewhere) — its row is removed entirely.
         try journal.write { db in
             try db.execute(sql: "DELETE FROM card WHERE issue_id = ?", arguments: ["BACK-1"])
         }

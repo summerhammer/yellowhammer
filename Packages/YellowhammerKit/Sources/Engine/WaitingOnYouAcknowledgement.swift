@@ -67,7 +67,7 @@ enum WaitingOnYouAcknowledgement {
         question, and cannot be resolved by replying to this thread.
 
         Your comment has been recorded in the Journal, but no build Act will resume and this comment \
-        will not be carried into future Adoption dispatches. To proceed, either cancel this Card or \
+        will not be carried into future Adoption dispatches. To proceed, either shelve this Card or \
         author replacement work in a new Feature.
         """
     }

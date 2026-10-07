@@ -121,7 +121,7 @@ extension FeatureVerification {
             throw VerificationFault(reason: "this Project has no single specification source to verify against")
         }
         var names = Set(try act.journal.touchedRepositories(featureID: context.feature.id))
-        for card in try act.journal.cards(cycleID: context.cycleID) where card.state != .cancelled {
+        for card in try act.journal.cards(cycleID: context.cycleID) where card.state != .shelved {
             names.insert(card.repository)
         }
         let touched = try names.sorted().map { name -> VerificationRepository in
