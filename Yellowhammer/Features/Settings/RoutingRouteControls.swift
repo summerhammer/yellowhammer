@@ -84,8 +84,8 @@ struct RouteButton: View {
     }
 }
 
-/// The three parts of a Route as Form rows in a popover: a CLI from those declared, a model with the
-/// ones this Mac names for that CLI suggested, and an effort from those its adapter accepts.
+/// The three parts of a Route as Form rows in a popover: a CLI from those declared, discovered models, and
+/// an effort from those its adapter accepts.
 struct RouteEditor: View {
     @Binding var route: RouteDraft
     let table: [RoutingEntryDraft]
@@ -100,8 +100,7 @@ struct RouteEditor: View {
                     Text("\(route.cli) (not declared)").tag(route.cli)
                 }
             }
-            TextField("Model", text: $route.model, prompt: Text(modelPrompt))
-                .textInputSuggestions(models, id: \.self) { Text($0).textInputCompletion($0) }
+            RouteModelPicker(cli: route.cli, model: $route.model)
             effort
             Text("Agent CLIs are declared in the Agent CLIs pane; each one\u{2019}s adapter decides its efforts.")
                 .font(.caption)
@@ -127,17 +126,114 @@ struct RouteEditor: View {
         }
     }
 
-    private var models: [String] { catalog.models(for: route.cli, in: table) }
-    private var modelPrompt: String { models.first.map { "e.g. \($0)" } ?? "model" }
-
     /// Changing the CLI keeps the effort when the new CLI's adapter accepts it.
     private var cliBinding: Binding<String> {
         Binding {
             route.cli
         } set: { cli in
+            guard cli != route.cli else { return }
             route.effort = catalog.effort(route.effort.isEmpty ? "medium" : route.effort, carriedTo: cli)
-            route.cli = cli
+            route.selectCLI(cli)
         }
+    }
+}
+
+/// A model choice scoped to one CLI. A stored identifier absent from discovery remains visible and untouched
+/// until the Operator explicitly selects a replacement. Every refresh is a one-shot bounded CLI request.
+struct RouteModelPicker: View {
+    let cli: String
+    @Binding var model: String
+    @Environment(\.routingCatalog) private var catalog
+    @Environment(\.routeModelDiscovery) private var sharedDiscovery
+    @State private var localDiscovery = RouteModelDiscoveryState()
+    @State private var lastTaskKey: String?
+
+    private var discovery: RouteModelDiscoveryState { sharedDiscovery ?? localDiscovery }
+    private var result: AgentModelDiscoveryResult? { discovery.result(for: cli) }
+    private var isLoading: Bool { discovery.isLoading(cli: cli) }
+
+    private var models: [AgentModel] {
+        switch result {
+        case .live(let models): models
+        case .unsupported, .failed, .none: []
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Picker("Model", selection: $model) {
+                Text("Choose a model").tag("")
+                if !model.isEmpty && !models.contains(where: { $0.id == model }) {
+                    Text("\(model) (unavailable or unverified)").tag(model)
+                }
+                ForEach(models) { choice in Text(choice.label).tag(choice.id) }
+            }
+            .disabled(cli.isEmpty || isLoading)
+            .accessibilityIdentifier("route-model-picker")
+            status
+        }
+        .task(id: taskKey) {
+            let key = taskKey
+            let changed = lastTaskKey != nil && lastTaskKey != key
+            lastTaskKey = key
+            if changed { await refresh() } else { await loadIfNeeded() }
+        }
+    }
+
+    private var taskKey: String { "\(cli)\u{0}\(catalog.cli(named: cli)?.executable ?? "")" }
+
+    @ViewBuilder private var status: some View {
+        if isLoading {
+            Label("Loading models…", systemImage: "arrow.triangle.2.circlepath")
+                .font(.caption).foregroundStyle(.secondary)
+        } else {
+            switch result {
+            case .live(let models) where models.isEmpty:
+                HStack {
+                    statusMessage("No models are available for this CLI.")
+                    refreshButton("Refresh")
+                }
+            case .live:
+                refreshButton("Refresh models")
+            case .unsupported(let message):
+                HStack {
+                    statusMessage(message)
+                    refreshButton("Retry")
+                }
+            case .failed(let message):
+                HStack {
+                    Text(message).font(.caption).foregroundStyle(.secondary)
+                    refreshButton("Retry")
+                }
+            case .none:
+                HStack {
+                    statusMessage(cli.isEmpty ? "Choose a CLI first." : "Model choices have not loaded.")
+                    if !cli.isEmpty { refreshButton("Retry") }
+                }
+            }
+        }
+    }
+
+    private func statusMessage(_ message: String) -> some View {
+        Text(message).font(.caption).foregroundStyle(.secondary)
+    }
+
+    private func refreshButton(_ title: String) -> some View {
+        Button(title) { Task { await refresh() } }
+            .font(.caption).buttonStyle(.link).disabled(isLoading)
+    }
+
+    @MainActor private func loadIfNeeded() async {
+        guard !cli.isEmpty else { return }
+        guard let declaration = catalog.cli(named: cli) else {
+            await discovery.refresh(cli: cli, executable: nil)
+            return
+        }
+        await discovery.loadIfNeeded(cli: cli, executable: declaration.executable)
+    }
+
+    @MainActor private func refresh() async {
+        await discovery.refresh(cli: cli, executable: catalog.cli(named: cli)?.executable)
     }
 }
 

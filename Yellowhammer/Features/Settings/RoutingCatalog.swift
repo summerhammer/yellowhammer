@@ -6,36 +6,35 @@ import SwiftUI
 /// loaded with: the declared agent CLIs and the efforts each one's adapter accepts, the Repo Roles and
 /// Kinds this Mac's files already name, and which base entries a Project replaces with its own.
 ///
-/// Everything here is a suggestion: the loader stays the single validator, so a Route naming a CLI that is
-/// not declared, or a Kind no file names yet, is still drawn and refused only on save.
+/// It supplies declared CLI controls and file-backed suggestions for Kind/Repo Role; the loader remains
+/// the configuration validator, and model choices come from live CLI discovery.
 struct RoutingCatalog {
     /// A declared agent CLI: its name and its adapter's efforts, least first.
     struct DeclaredCLI: Identifiable {
         let name: String
         let efforts: [String]
+        let executable: String?
+
+        init(name: String, efforts: [String], executable: String? = nil) {
+            self.name = name
+            self.efforts = efforts
+            self.executable = executable
+        }
 
         var id: String { name }
     }
 
-    static let empty = RoutingCatalog(clis: [], repoRoles: [], kinds: [], models: [:], replacedIn: [:])
+    static let empty = RoutingCatalog(clis: [], repoRoles: [], kinds: [], replacedIn: [:])
 
     let clis: [DeclaredCLI]
     /// Every Repo Role a Project on this Mac declares or a Routing Entry names, sorted.
     let repoRoles: [String]
     /// Every Kind a Routing Entry on this Mac names, but the reserved authoring Kind, sorted.
     let kinds: [String]
-    /// Every model a Route on this Mac names, by CLI, in the order first named.
-    let models: [String: [String]]
     /// The Projects whose own entry replaces the base entry with that key.
     let replacedIn: [RoutingEntry.Key: [String]]
 
     func cli(named name: String) -> DeclaredCLI? { clis.first { $0.name == name } }
-
-    /// The models to suggest for `cli`: those named with it anywhere on this Mac, then those `table` names.
-    func models(for cli: String, in table: [RoutingEntryDraft]) -> [String] {
-        let named = table.flatMap(\.chain).filter { $0.cli == cli && !$0.model.isEmpty }.map(\.model)
-        return (models[cli, default: []] + named).uniqued()
-    }
 
     /// Every Kind worth offering for `table`: the catalog's and every valid Kind the table names, sorted.
     func kinds(in table: [RoutingEntryDraft]) -> [String] {
@@ -55,16 +54,8 @@ struct RoutingCatalog {
         return efforts.contains("medium") ? "medium" : efforts[0]
     }
 
-    /// A Route none of `taken` is, for a new verifier: a declared CLI with a model this Mac already names
-    /// for it, at `high` where its adapter accepts it. When every such Route is taken, or none exists, the
-    /// first declared CLI with no model, for the Operator to finish.
-    func route(avoiding taken: [RouteDraft]) -> RouteDraft {
-        let offered = clis.flatMap { cli in
-            models[cli.name, default: []].map {
-                RouteDraft(cli: cli.name, model: $0, effort: effort("high", carriedTo: cli.name))
-            }
-        }
-        if let free = offered.first(where: { !taken.contains($0) }) { return free }
+    /// An incomplete Route for the Operator to finish with a discovered model choice.
+    func newRoute() -> RouteDraft {
         let cli = clis.first?.name ?? ""
         return RouteDraft(cli: cli, model: "", effort: effort("high", carriedTo: cli))
     }
@@ -83,9 +74,11 @@ extension RoutingCatalog {
     /// The catalog for a machine file and the Projects loaded beside it.
     init(machine: MachineConfiguration, projects: [ProjectConfiguration]) {
         let entries = machine.routingTable + projects.flatMap(\.routingOverrides)
-        let routes = entries.flatMap { [$0.route] + $0.fallbacks }
         clis = machine.cliAdapters.map {
-            DeclaredCLI(name: $0.name, efforts: RegisteredCLIAdapters.supportedEfforts[$0.name] ?? [])
+            DeclaredCLI(
+                name: $0.name, efforts: RegisteredCLIAdapters.supportedEfforts[$0.name] ?? [],
+                executable: $0.executable
+            )
         }
         let declaredRoles = projects.flatMap(\.repos).map(\.role.rawValue)
         let namedRoles = entries.compactMap { entry -> String? in
@@ -94,7 +87,6 @@ extension RoutingCatalog {
         }
         repoRoles = (declaredRoles + namedRoles).uniqued().sorted()
         kinds = Self.cardKinds(entries.map(\.kind.description)).sorted()
-        models = Dictionary(grouping: routes, by: \.cli).mapValues { $0.map(\.model).uniqued() }
         var replacedIn: [RoutingEntry.Key: [String]] = [:]
         let baseKeys = Set(machine.routingTable.map(\.key))
         for project in projects {
@@ -107,8 +99,10 @@ extension RoutingCatalog {
 }
 
 extension EnvironmentValues {
-    /// What the base Routing Table pane's controls offer: its CLIs, efforts, models, Repo Roles and Kinds.
+    /// What Routing Table controls offer: declared CLIs, efforts, Repo Roles and Kinds.
     @Entry var routingCatalog = RoutingCatalog.empty
+    /// Form-scoped one-shot model discovery and save validation state.
+    @Entry var routeModelDiscovery: RouteModelDiscoveryState?
 }
 
 extension Array where Element: Hashable {

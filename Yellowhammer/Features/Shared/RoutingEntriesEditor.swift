@@ -10,6 +10,7 @@ import SwiftUI
 /// leaves the field empty rather than typing `*`.
 struct RoutingEntriesEditor: View {
     @Binding var entries: [RoutingEntryDraft]
+    @Environment(\.routingCatalog) private var catalog
     /// Shown in place of the cards while there is no Routing Entry.
     var emptyText = "No Routing Entry yet."
 
@@ -101,9 +102,26 @@ struct RoutingEntriesEditor: View {
     /// A route's three parts as bordered fields, each named by its prompt and accessibility label.
     private func routeFields(cli: Binding<String>, model: Binding<String>, effort: Binding<String>) -> some View {
         HStack {
-            TextField("CLI", text: cli, prompt: Text("cli"))
-            TextField("Model", text: model, prompt: Text("model"))
+            Picker("CLI", selection: cliSelection(cli, model: model)) {
+                Text("Choose a CLI").tag("")
+                ForEach(catalog.clis) { Text($0.name).tag($0.name) }
+                if !cli.wrappedValue.isEmpty, catalog.cli(named: cli.wrappedValue) == nil {
+                    Text("\(cli.wrappedValue) (not declared)").tag(cli.wrappedValue)
+                }
+            }
+            RouteModelPicker(cli: cli.wrappedValue, model: model)
             TextField("Effort", text: effort, prompt: Text("effort"))
+        }
+    }
+
+    /// A user-selected CLI invalidates its model; parent reloads and Revert remain ordinary binding writes.
+    private func cliSelection(_ cli: Binding<String>, model: Binding<String>) -> Binding<String> {
+        Binding {
+            cli.wrappedValue
+        } set: { selection in
+            guard selection != cli.wrappedValue else { return }
+            cli.wrappedValue = selection
+            model.wrappedValue = ""
         }
     }
 }

@@ -7,6 +7,7 @@ import SwiftUI
 /// `[[routing]]`, shared by every Project.
 struct BaseRoutingTablePane: View {
     @State private var model = BaseRoutingTableModel()
+    @State private var modelDiscovery = RouteModelDiscoveryState()
 
     var body: some View {
         content
@@ -17,7 +18,7 @@ struct BaseRoutingTablePane: View {
 
     @ViewBuilder private var content: some View {
         if model.routingTable != nil {
-            BaseRoutingTableFormView(model: model)
+            BaseRoutingTableFormView(model: model, modelDiscovery: modelDiscovery)
         } else {
             unavailable
         }
@@ -32,6 +33,7 @@ struct BaseRoutingTablePane: View {
 /// unwrapped once here via `Binding($model.routingTable)`.
 private struct BaseRoutingTableFormView: View {
     @Bindable var model: BaseRoutingTableModel
+    let modelDiscovery: RouteModelDiscoveryState
 
     var body: some View {
         if let table = Binding($model.routingTable) {
@@ -54,6 +56,7 @@ private struct BaseRoutingTableFormView: View {
                             + "it are not kept. Editing the file directly stays supported.",
                         failure: model.failure,
                         isDirty: model.isDirty,
+                        canSave: modelDiscovery.isValid(table.wrappedValue, preserving: model.saved ?? []),
                         identifierPrefix: "routing-table",
                         onRevert: { model.revert() },
                         onSave: { model.save() }
@@ -61,6 +64,7 @@ private struct BaseRoutingTableFormView: View {
                 }
             }
             .environment(\.routingCatalog, model.catalog)
+            .environment(\.routeModelDiscovery, modelDiscovery)
         } else {
             SettingsUnavailable(message: "The base Routing Table could not be loaded.")
         }
@@ -119,7 +123,8 @@ private struct RoutingSections: View {
 
     /// Gives the author Act and Verification an entry of their own, starting from the catch-all's Routes.
     private func addAuthoringEntry() {
-        let chain = catchAll?.chain ?? [catalog.route(avoiding: [])]
+        var chain = catchAll?.chain ?? [catalog.newRoute()]
+        for index in chain.indices { chain[index].model = "" }
         table.append(RoutingEntryDraft(kind: "authoring", route: chain[0], fallbacks: Array(chain.dropFirst())))
     }
 
@@ -246,8 +251,7 @@ private struct RoutingSections: View {
 
     private func addVerifier() {
         guard let index = authoringIndex else { return }
-        let taken = table.workerRoutes + table[index].chain
-        table[index].fallbacks.append(catalog.route(avoiding: taken))
+        table[index].fallbacks.append(catalog.newRoute())
     }
 
     private func ordinal(_ place: Int) -> some View {
@@ -309,7 +313,7 @@ private struct RoutingSections: View {
 // MARK: - Previews
 
 private extension RoutingCatalog {
-    /// Two declared agent CLIs and the Repo Roles, Kinds and models a Mac with two Projects would name.
+    /// Two declared agent CLIs and the Repo Roles and Kinds a Mac with two Projects would name.
     static let preview = RoutingCatalog(
         clis: [
             DeclaredCLI(name: "claude", efforts: ["low", "medium", "high", "xhigh", "max"]),
@@ -317,7 +321,6 @@ private extension RoutingCatalog {
         ],
         repoRoles: ["backend", "mobile", "spec", "web"],
         kinds: ["arch", "impl", "impl.boilerplate"],
-        models: ["claude": ["sonnet", "opus", "haiku"], "codex": ["gpt-5-codex", "gpt-5-mini"]],
         replacedIn: RoutingEntryDraft(kind: "impl", repoRole: "backend", route: previewRoute("", "", ""))
             .key.map { [$0: ["Yellowhammer"]] } ?? [:]
     )

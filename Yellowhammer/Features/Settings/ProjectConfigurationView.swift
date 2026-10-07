@@ -40,6 +40,7 @@ struct ProjectConfigurationView: View {
     @ViewBuilder private var content: some View {
         if model.draft != nil {
             ProjectConfigurationFormView(model: model, onSaved: onSaved, workspaceLabel: workspaceLabel)
+                .environment(\.routingCatalog, model.routingCatalog)
         } else {
             unavailable
         }
@@ -55,6 +56,7 @@ struct ProjectConfigurationView: View {
 /// reload clears the draft while a field still reads it, as can happen mid-teardown.
 private struct ProjectConfigurationFormView: View {
     @Bindable var model: ProjectConfigurationModel
+    @State private var modelDiscovery = RouteModelDiscoveryState()
     let onSaved: () -> Void
     let workspaceLabel: (String) -> String
     @Environment(\.showSettingsSection) private var showSettingsSection
@@ -78,11 +80,15 @@ private struct ProjectConfigurationFormView: View {
                         + "are not kept. Editing the file directly stays supported.",
                     failure: model.failure,
                     isDirty: model.isDirty,
+                    canSave: modelDiscovery.isValid(
+                        draft.wrappedValue.routingOverrides, preserving: model.saved?.routingOverrides ?? []
+                    ),
                     identifierPrefix: "configuration",
                     onRevert: { model.revert() },
                     onSave: { if model.save() { onSaved() } }
                 )
             }
+            .environment(\.routeModelDiscovery, modelDiscovery)
         } else {
             SettingsUnavailable(message: "This Project could not be loaded.")
         }

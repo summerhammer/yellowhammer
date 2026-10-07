@@ -40,6 +40,7 @@ struct SettingsSaveFooter: View {
     var note: String?
     let failure: String?
     let isDirty: Bool
+    var canSave = true
     let identifierPrefix: String
     let onRevert: () -> Void
     let onSave: () -> Void
@@ -64,7 +65,7 @@ struct SettingsSaveFooter: View {
                 Button("Save", action: onSave)
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut("s")
-                    .disabled(!isDirty)
+                    .disabled(!isDirty || !canSave)
                     .accessibilityIdentifier("\(identifierPrefix)-save")
             }
         }
