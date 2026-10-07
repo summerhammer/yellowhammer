@@ -13,13 +13,15 @@ extension JournalStore {
     /// Blocked requires a Block Reason (the Journal record is what backs each), leaving either clears
     /// its reason column. A transition to the same state with the same reasons is a no-op: it returns
     /// the current record unchanged, bumps nothing, and logs nothing. Otherwise `state_version` is
-    /// bumped by one and `.cardStateTransitioned` is appended in the same transaction.
+    /// bumped by one and `.cardStateTransitioned` is appended in the same transaction. An optional
+    /// `resetBudgetReason` also resets the budget epoch atomically; a no-op never resets it.
     @discardableResult
     public func transitionCard(
         cardID: Int64,
         to state: CardState,
         waitingReason: WaitingReason? = nil,
         blockReason: BlockReason? = nil,
+        resetBudgetReason: String? = nil,
         runID: RunID,
         act: Act?,
         nightID: Int64?,
@@ -53,6 +55,13 @@ extension JournalStore {
             if record.state == state, record.waitingReason == newWaitingReason,
                record.blockReason == newBlockReason?.rawValue {
                 return record
+            }
+
+            if let resetBudgetReason {
+                try Self.resetBudgetEpoch(
+                    db, record: record, reason: resetBudgetReason,
+                    stamp: EventStamp(act: act, runID: runID, nightID: nightID, now: now)
+                )
             }
 
             try Self.writeCardTransition(
