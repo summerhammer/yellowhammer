@@ -56,7 +56,9 @@ struct DoctorProjectFilterTests {
 
         let launchdFindings = findings.filter { $0.check == .launchd }
         #expect(!launchdFindings.isEmpty)
-        #expect(launchdFindings.allSatisfy { $0.subject.contains("alpha") })
+        #expect(!launchdFindings.contains { $0.subject.contains("beta") })
+        #expect(launchdFindings.contains { $0.subject.contains("alpha") })
+        #expect(launchdFindings.contains { $0.projectID == nil })
         #expect(findings.contains { $0.check == .configuration && $0.subject == "alpha" })
         #expect(!findings.contains { $0.check == .configuration && $0.subject == "beta" })
     }

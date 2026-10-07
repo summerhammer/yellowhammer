@@ -36,9 +36,9 @@ struct DoctorLaunchdTests {
         let doctor = makeDoctor(directory: directory, checks: [.configuration, .launchd])
         let findings = await doctor.run()
 
-        let launchdFindings = findings.filter { $0.check == .launchd }
-        #expect(launchdFindings.count == 3)
-        #expect(launchdFindings.allSatisfy { $0.severity == .warning })
+        let projectFindings = findings.filter { $0.check == .launchd && $0.projectID != nil }
+        #expect(projectFindings.count == 3)
+        #expect(projectFindings.allSatisfy { $0.severity == .warning })
     }
 
     @Test("A present but unloaded plist warns, not fails")

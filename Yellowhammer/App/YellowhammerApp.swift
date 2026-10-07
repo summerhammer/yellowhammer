@@ -31,6 +31,8 @@ struct YellowhammerApp: App {
     @State private var projectListChanges = ProjectListChanges()
     /// The ids links have named, so a main window can tell a linked unknown id from a stale one.
     @State private var deepLinkedProjects = DeepLinkedProjects()
+    /// State and actions for the Command Line Tool symlink at `/usr/local/bin/yh`.
+    @State private var commandLineTool = CommandLineToolModel()
 
     init() {
         // Never under a UI test (`-YellowhammerEngineStub`, the same override `SetupEngine` reads):
@@ -60,6 +62,14 @@ struct YellowhammerApp: App {
                 .environment(settingsRequest)
                 .environment(projectListChanges)
                 .environment(deepLinkedProjects)
+                .environment(commandLineTool)
+                .commandLineToolDialogs(model: commandLineTool)
+                .onAppear {
+                    commandLineTool.checkOnLaunch()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                    commandLineTool.refresh()
+                }
         }
         // Room for the three columns at their ideal widths. The minimum comes from the columns' own.
         .defaultSize(width: 1180, height: 760)
@@ -72,6 +82,7 @@ struct YellowhammerApp: App {
             }
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesMenuCommand(updater: updaterController.updater)
+                CommandLineToolMenuCommand(model: commandLineTool)
             }
         }
 
@@ -81,6 +92,8 @@ struct YellowhammerApp: App {
                 .addProjectSheet()
                 .environment(settingsRequest)
                 .environment(projectListChanges)
+                .environment(commandLineTool)
+                .commandLineToolDialogs(model: commandLineTool)
         }
         .defaultSize(width: 860, height: 620)
         .handlesExternalEvents(matching: [])

@@ -16,6 +16,10 @@ enum SetupMode: Equatable {
     /// `--install-linear`: runs only the Linear step (install, store, confirm), then the Operator
     /// identity choice if none is configured, and exits — never touches Project files or jobs.
     case installLinear
+    /// `--install-cli`: installs or repoints the `/usr/local/bin/yh` symlink and exits.
+    case installCLI
+    /// `--uninstall-cli`: removes `/usr/local/bin/yh` if it points to `yh` and exits.
+    case uninstallCLI
 }
 
 /// The scheduled-jobs format `--export-jobs` writes.
@@ -115,6 +119,17 @@ struct SetupOptions {
     }
 
     private static func parseMode(_ command: SetupCommand) throws -> SetupMode {
+        if command.installCLI && command.uninstallCLI {
+            throw ValidationError("--install-cli and --uninstall-cli are mutually exclusive")
+        }
+        if command.installCLI {
+            try validateStandaloneCLIMode(command, flag: "--install-cli")
+            return .installCLI
+        }
+        if command.uninstallCLI {
+            try validateStandaloneCLIMode(command, flag: "--uninstall-cli")
+            return .uninstallCLI
+        }
         if command.printChoices {
             try validatePrintChoicesScope(command)
             return .printChoices
@@ -323,6 +338,42 @@ struct SetupOptions {
 }
 
 extension SetupOptions {
+    /// `--install-cli` and `--uninstall-cli` are standalone modes exclusive with everything that generates,
+    /// adopts or provisions configuration.
+    private static func validateStandaloneCLIMode(_ command: SetupCommand, flag: String) throws {
+        let forbidden: [(Bool, String)] = [
+            (command.initialize, "--init"),
+            (command.config != nil, "--config"),
+            (command.printChoices, "--print-choices"),
+            (command.installLinear, "--install-linear"),
+            (command.installJobs, "--install-jobs"),
+            (command.exportJobs != nil, "--export-jobs"),
+            (command.cron, "--cron"),
+            (command.project != nil, "--project"), // glossary:ignore GL001
+            (command.projectName != nil, "--project-name"), // glossary:ignore GL001
+            (command.linearProject != nil, "--linear-project"), // glossary:ignore GL001
+            (command.linearTeam != nil, "--linear-team"),
+            (command.specSource != nil, "--spec-source"),
+            (command.nightStart != nil, "--night-start"),
+            (command.nightEnd != nil, "--night-end"),
+            (command.buildEveryMinutes != nil, "--build-every-minutes"),
+            (!command.repo.isEmpty, "--repo"),
+            (!command.cli.isEmpty, "--cli"),
+            (command.route != nil, "--route"),
+            (!command.fallback.isEmpty, "--fallback"),
+            (command.boardConnection != nil, "--board-connection"),
+            (command.boardConnectionName != nil, "--board-connection-name"),
+            (command.operatorID != nil, "--operator"),
+            (command.githubCredential != nil, "--github-credential")
+        ]
+        let present = forbidden.filter(\.0).map(\.1)
+        guard present.isEmpty else {
+            throw ValidationError(
+                "\(flag) cannot be combined with " + present.joined(separator: ", ") // glossary:ignore GL001
+            )
+        }
+    }
+
     /// `--print-choices` is exclusive with everything that generates or adopts configuration; it only
     /// takes the options that reach the Linear client, exactly as `--init` would.
     private static func validatePrintChoicesScope(_ command: SetupCommand) throws {
@@ -345,7 +396,9 @@ extension SetupOptions {
             (command.exportJobs != nil, "--export-jobs"),
             (command.cron, "--cron"),
             (command.installLinear, "--install-linear"),
-            (command.boardConnectionName != nil, "--board-connection-name")
+            (command.boardConnectionName != nil, "--board-connection-name"),
+            (command.installCLI, "--install-cli"),
+            (command.uninstallCLI, "--uninstall-cli")
         ]
         let present = forbidden.filter(\.0).map(\.1)
         guard present.isEmpty else {

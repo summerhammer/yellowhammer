@@ -304,11 +304,14 @@ func makeSetup(
     linearInstallationStore: @escaping (LinearInstallation) -> LinearInstallationStore =
         ThrowawayInstallationStores().store,
     linearInstallEvents: @escaping @Sendable (LinearInstallEvent) -> Void = { _ in },
-    onBind: @escaping @Sendable (LinearInstallation) -> Void = { _ in }
+    onBind: @escaping @Sendable (LinearInstallation) -> Void = { _ in },
+    commandLineToolLink: CommandLineToolLink = CommandLineToolLink(),
+    isTTY: @escaping () -> Bool = { isatty(STDIN_FILENO) != 0 },
+    runSudo: @escaping (String) throws -> Int32 = Setup.defaultRunSudo
 ) throws -> Setup {
     let command = try SetupCommand.parse(arguments)
     let options = try SetupOptions(command: command)
-    return Setup(
+    var setup = Setup(
         options: options,
         configurationDirectory: directory.url,
         output: { output.record($0) },
@@ -328,4 +331,8 @@ func makeSetup(
         linearInstallationStore: linearInstallationStore,
         linearInstallEvents: linearInstallEvents
     )
+    setup.commandLineToolLink = commandLineToolLink
+    setup.isTTY = isTTY
+    setup.runSudo = runSudo
+    return setup
 }

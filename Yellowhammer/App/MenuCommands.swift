@@ -1,3 +1,4 @@
+import Config
 import Sparkle
 import SwiftUI
 
@@ -30,3 +31,43 @@ struct CheckForUpdatesMenuCommand: View {
             .onReceive(updater.publisher(for: \.canCheckForUpdates)) { canCheckForUpdates = $0 }
     }
 }
+
+/// Menu command to install, update, or uninstall the Command Line Tool symlink at `/usr/local/bin/yh`.
+struct CommandLineToolMenuCommand: View {
+    @Bindable var model: CommandLineToolModel
+
+    var body: some View {
+        Button(title) {
+            switch model.state {
+            case .notInstalled:
+                model.promptInstall()
+            case .dangling(_), .mismatched(_):
+                model.promptUpdate()
+            case .installed:
+                model.promptUninstall()
+            }
+        }
+        .disabled(!isEnabled)
+    }
+
+    private var isEnabled: Bool {
+        switch model.state {
+        case .notInstalled, .installed, .dangling(_):
+            true
+        case .mismatched(_):
+            model.isSymlink
+        }
+    }
+
+    private var title: String {
+        switch model.state {
+        case .notInstalled:
+            "Install Command Line Tool…"
+        case .dangling(_), .mismatched(_):
+            "Update Command Line Tool…"
+        case .installed:
+            "Uninstall Command Line Tool…"
+        }
+    }
+}
+

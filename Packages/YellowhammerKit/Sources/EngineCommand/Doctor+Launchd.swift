@@ -13,6 +13,7 @@ extension Doctor {
                 findings.append(await launchdFinding(projectID: project.id, act: act))
             }
         }
+        findings.append(commandLineToolFinding())
         return findings
     }
 
@@ -39,4 +40,82 @@ extension Doctor {
             project: projectID
         )
     }
+
+    private func commandLineToolFinding() -> DoctorFinding {
+        let subject = commandLineToolLink.linkPath
+        let state = commandLineToolLink.inspect(runningExecutable: runningExecutablePath)
+        switch state {
+        case .installed:
+            return finding(
+                .launchd, subject: subject, .pass,
+                "Command Line Tool symlink \(subject) resolves to running yh"
+            )
+        case .notInstalled:
+            return finding(
+                .launchd, subject: subject, .info,
+                "Command Line Tool is not installed at \(subject); install via Yellowhammer → Install Command Line Tool… or yh setup --install-cli"
+            )
+        case .dangling(let target):
+            if fix {
+                if commandLineToolLink.isParentDirectoryWritable {
+                    do {
+                        try commandLineToolLink.install(target: runningExecutablePath)
+                        return finding(
+                            .launchd, subject: subject, .pass,
+                            "repointed Command Line Tool symlink \(subject) -> \(runningExecutablePath)"
+                        )
+                    } catch {
+                        return finding(
+                            .launchd, subject: subject, .warning,
+                            "Command Line Tool symlink \(subject) is dangling (target \(target) does not exist)"
+                        )
+                    }
+                } else {
+                    output("sudo ln -sfh '\(runningExecutablePath)' \(subject)")
+                    output("sudo chmod -h 0755 \(subject)")
+                    output("or update via Yellowhammer → Update Command Line Tool…")
+                    return finding(
+                        .launchd, subject: subject, .warning,
+                        "Command Line Tool symlink \(subject) is dangling (target \(target) does not exist)"
+                    )
+                }
+            } else {
+                return finding(
+                    .launchd, subject: subject, .warning,
+                    "Command Line Tool symlink \(subject) is dangling (target \(target) does not exist)"
+                )
+            }
+        case .mismatched(let target):
+            if fix && commandLineToolLink.isSymlink {
+                if commandLineToolLink.isParentDirectoryWritable {
+                    do {
+                        try commandLineToolLink.install(target: runningExecutablePath)
+                        return finding(
+                            .launchd, subject: subject, .pass,
+                            "repointed Command Line Tool symlink \(subject) -> \(runningExecutablePath)"
+                        )
+                    } catch {
+                        return finding(
+                            .launchd, subject: subject, .warning,
+                            "Command Line Tool symlink \(subject) resolves to \(target), not running yh (\(runningExecutablePath))"
+                        )
+                    }
+                } else {
+                    output("sudo ln -sfh '\(runningExecutablePath)' \(subject)")
+                    output("sudo chmod -h 0755 \(subject)")
+                    output("or update via Yellowhammer → Update Command Line Tool…")
+                    return finding(
+                        .launchd, subject: subject, .warning,
+                        "Command Line Tool symlink \(subject) resolves to \(target), not running yh (\(runningExecutablePath))"
+                    )
+                }
+            } else {
+                return finding(
+                    .launchd, subject: subject, .warning,
+                    "Command Line Tool symlink \(subject) resolves to \(target), not running yh (\(runningExecutablePath))"
+                )
+            }
+        }
+    }
 }
+
