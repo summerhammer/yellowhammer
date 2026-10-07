@@ -221,8 +221,8 @@ public struct DeltaRead: Sendable {
         report.cardChanges.append(change)
     }
 
-    /// Cancelled either way, or a re-stated board copy. Returns true when the board's state is one the
-    /// Journal did not write and no write to the issue is pending.
+    /// Reconciles Cancelled, Operator re-ready and re-stated board copies. Returns true when the
+    /// board must be restated from the Journal and no write to the issue is pending.
     private func reconcileState(
         card: inout CardRecord,
         boardState: BoardWorkflowState,
@@ -250,7 +250,7 @@ public struct DeltaRead: Sendable {
             return false
         case (_, false):
             guard boardState.name != card.state.rawValue, !pendingWrites.contains(card.issueID) else { return false }
-            if try reReadyIfUnansweredBlock(card: &card, boardState: boardState, into: &report) {
+            if try reReadyIfBlocked(card: &card, boardState: boardState, into: &report) {
                 return false
             }
             // The board moved the Card to a state the Journal did not write. The Journal is

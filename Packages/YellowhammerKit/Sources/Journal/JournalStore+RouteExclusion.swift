@@ -132,26 +132,35 @@ extension JournalStore {
             }
             let record = try Self.cardRecord(from: row)
 
-            if let openRow = try Row.fetchOne(
-                db, sql: "SELECT id FROM attempt WHERE card_id = ? AND ended_at IS NULL", arguments: [cardID]
-            ) {
-                throw JournalError.attemptStillOpen(cardID: cardID, attemptID: openRow["id"])
-            }
-
-            let from = record.budgetEpoch
-            let to = from + 1
-            try db.execute(sql: "UPDATE card SET budget_epoch = ? WHERE id = ?", arguments: [to, cardID])
-
-            let stamp = EventStamp(act: act, runID: runID, nightID: nightID, now: now)
-            let event = JournalEvent.budgetEpochReset(
-                cardID: cardID, issueID: record.issueID, from: from, to: to, reason: reason
+            try Self.resetBudgetEpoch(
+                db, record: record, reason: reason,
+                stamp: EventStamp(act: act, runID: runID, nightID: nightID, now: now)
             )
-            _ = try Self.insertEvent(db, event, stamp: stamp)
 
             guard let updated = try Row.fetchOne(db, sql: "SELECT * FROM card WHERE id = ?", arguments: [cardID]) else {
                 throw JournalError.cardUnknown(cardID: cardID)
             }
             return try Self.cardRecord(from: updated)
         }
+    }
+
+    /// Shared by explicit epoch resets and state transitions so re-ready commits both atomically.
+    static func resetBudgetEpoch(
+        _ db: Database, record: CardRecord, reason: String, stamp: EventStamp
+    ) throws {
+        if let openRow = try Row.fetchOne(
+            db, sql: "SELECT id FROM attempt WHERE card_id = ? AND ended_at IS NULL", arguments: [record.id]
+        ) {
+            throw JournalError.attemptStillOpen(cardID: record.id, attemptID: openRow["id"])
+        }
+
+        let from = record.budgetEpoch
+        let to = from + 1
+        try db.execute(sql: "UPDATE card SET budget_epoch = ? WHERE id = ?", arguments: [to, record.id])
+
+        let event = JournalEvent.budgetEpochReset(
+            cardID: record.id, issueID: record.issueID, from: from, to: to, reason: reason
+        )
+        _ = try Self.insertEvent(db, event, stamp: stamp)
     }
 }
