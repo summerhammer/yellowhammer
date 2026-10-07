@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.8.0](https://github.com/summerhammer/yellowhammer/compare/v0.7.0...v0.8.0) (2026-10-07)
+
+
+### Features
+
+* **app:** the Project's workspace label links to its Board Connection (OQ145) ([#370](https://github.com/summerhammer/yellowhammer/issues/370)) ([eebb560](https://github.com/summerhammer/yellowhammer/commit/eebb560ab5b1ea06b8750f475af7554b38f8c8f8))
+* **engine:** a trashed or archived Work Card is set aside, never recreated, and named in the Night Summary (OQ142) ([#374](https://github.com/summerhammer/yellowhammer/issues/374)) ([40a8254](https://github.com/summerhammer/yellowhammer/commit/40a8254d20c35c81ac17409f5c180ec9d3991fea))
+* **engine:** Cancelled → Shelved in the Work Card state, the Roll-up member group and the Journal values (OQ128, OQ144) ([#371](https://github.com/summerhammer/yellowhammer/issues/371)) ([3348f7e](https://github.com/summerhammer/yellowhammer/commit/3348f7e18a46dfa8e21688e29c4224bde60a3c27))
+* **engine:** recover a Feature Branch that is already gone, and name the loss in the Night Summary (OQ133) ([e4399a8](https://github.com/summerhammer/yellowhammer/commit/e4399a8383b3bf6558757024d31b17fc0a6f0c61)), closes [#355](https://github.com/summerhammer/yellowhammer/issues/355)
+* **engine:** replace archived Night Cards without unarchiving ([6cca544](https://github.com/summerhammer/yellowhammer/commit/6cca5442505f5020427d8d57bb2031f3b1a2ad2b)), closes [#354](https://github.com/summerhammer/yellowhammer/issues/354)
+* **engine:** resolve the board scope before any work; a refused Night spends no overdue_nights_max (OQ85, OQ136) ([#373](https://github.com/summerhammer/yellowhammer/issues/373)) ([c21bc77](https://github.com/summerhammer/yellowhammer/commit/c21bc77d6bb815e4e5e52fa629db0207ba73efb8))
+* **engine:** scrub narrative text before it leaves the Mac (OQ146, OQ147) ([8663b64](https://github.com/summerhammer/yellowhammer/commit/8663b64c198d130d069290230d82e021ba8ccf6a)), closes [#358](https://github.com/summerhammer/yellowhammer/issues/358)
+
+
+### Bug Fixes
+
+* **engine:** a Rehearsal Night runs in its Project's own rehearsal Journal and Linear project (OQ149) ([#367](https://github.com/summerhammer/yellowhammer/issues/367)) ([1ea49b2](https://github.com/summerhammer/yellowhammer/commit/1ea49b26eb9496f0193051963d534cad5aba5c1a))
+* **engine:** accept re-ready for every Block Reason ([9c2f44b](https://github.com/summerhammer/yellowhammer/commit/9c2f44b80ee818350db6259f2c9b56c0ebfc892c)), closes [#352](https://github.com/summerhammer/yellowhammer/issues/352)
+* **engine:** acknowledge overreach replies and prioritize Divergence ([#363](https://github.com/summerhammer/yellowhammer/issues/363)) ([34b027d](https://github.com/summerhammer/yellowhammer/commit/34b027d220b5ea8ee30a57b2afdb317d34d50a42))
+* **engine:** exclude rehearsal Nights from instrumented rates (OQ140) ([#365](https://github.com/summerhammer/yellowhammer/issues/365)) ([fec94b3](https://github.com/summerhammer/yellowhammer/commit/fec94b367598041164bc3d905e6bf14c83e5793a))
+* **setup:** a collision on a provisioned label is an unfinished step, and `yh doctor` fails on it ([#366](https://github.com/summerhammer/yellowhammer/issues/366)) ([a70dca1](https://github.com/summerhammer/yellowhammer/commit/a70dca15fa75171ea0017cce502622e006d622c0))
+
 ## [0.7.0](https://github.com/summerhammer/yellowhammer/compare/v0.6.0...v0.7.0) (2026-10-06)
 
 
