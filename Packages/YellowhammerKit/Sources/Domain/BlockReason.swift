@@ -29,4 +29,14 @@ public enum BlockReason: String, CaseIterable, Sendable {
     /// it replaces the reason that Attempt's ending would have given, and wins over a spent Attempt
     /// budget on the same Attempt.
     case failureRecurrence = "failure recurrence"
+
+    /// Re-ready restarts automatic effort, while blocks unrelated to spent effort preserve it.
+    /// Failure-cause recurrence is held separately and never resets with this budget.
+    public var resetsBudgetOnReReady: Bool {
+        switch self {
+        case .reviewerRejection, .checkFailure, .routeFailure, .hostCrash,
+             .engineFault, .operatorAbort, .failureRecurrence: true
+        case .replyOverdue, .decisionOverdue, .featureAbandoned: false
+        }
+    }
 }

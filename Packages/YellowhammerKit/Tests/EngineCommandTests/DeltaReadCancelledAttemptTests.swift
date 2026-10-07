@@ -64,13 +64,13 @@ struct DeltaReadCancelledAttemptTests {
         #expect(lane.runnable.isEmpty)
     }
 
-    @Test("Cancel/reopen round trip: attempt history, consumption, budget_epoch and block_reason are unchanged")
-    func cancelReopenRoundTripPreservesEverything() async throws {
+    @Test("Shelve/reopen round trip: attempt history, consumption, budget_epoch and block_reason are unchanged")
+    func shelveReopenRoundTripPreservesEverything() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let cardID = try insertCard(journal, issueID: "card-1", state: .blocked)
         let board = FakeReadingBoard([
-            page(objects: [object("card-1", state: stateCancelled, updatedAt: 1)]),
+            page(objects: [object("card-1", state: stateCanceledByCategory, updatedAt: 1)]),
             page(objects: [object("card-1", state: stateTodo, updatedAt: 2)])
         ])
         let (read, runID) = try deltaRead(journal, board: board)
@@ -98,6 +98,7 @@ struct DeltaReadCancelledAttemptTests {
             return
         }
         #expect(reopened.reopened.map(\.id) == [cardID])
+        #expect(reopened.reReadied.isEmpty)
 
         let afterCard = try journal.card(id: cardID)
         #expect(afterCard.state == beforeCard.state)

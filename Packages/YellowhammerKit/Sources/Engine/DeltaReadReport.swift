@@ -33,9 +33,8 @@ public struct DeltaReadReport: Equatable, Sendable {
     public var reopened: [CardRecord]
     /// Cards whose board state the Journal did not write. Reported, never adopted.
     public var restated: [RestatedCard]
-    /// A Journal-Blocked Card, Blocked under `reply overdue` or `decision overdue` (roadmap P11.4), read on the
-    /// board as Todo: accepted as the Operator's re-ready rather than restated, with its counters
-    /// untouched. Every other Block Reason keeps the restate behavior above.
+    /// Journal-Blocked Cards read as Linear Todo with a known Block Reason and no pending write:
+    /// accepted as the Operator's re-ready, with budgets reset or preserved by Block Reason.
     public var reReadied: [CardRecord]
     /// Cards the Operator deleted or archived while the Journal still had them in play.
     public var removed: [RemovedCard]
