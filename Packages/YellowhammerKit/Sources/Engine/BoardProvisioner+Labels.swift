@@ -3,7 +3,7 @@ import Domain
 /// Label-group provisioning, split out of `BoardProvisioner.swift` to stay under the file-length limit.
 extension BoardProvisioner {
     static func provisionGroup(
-        board: any BoardProvisioning,
+        board: Target,
         group: LabelGroupDeclaration,
         team: BoardTeam,
         existingLabels: [BoardLabel],
@@ -16,12 +16,25 @@ extension BoardProvisioner {
         if let collision = groupCollision {
             entries.append(ProvisioningEntry(
                 subject: .labelGroup(group.name, team: team),
-                outcome: .collision(scopeDescription(collision.team))
+                outcome: .collision(scopeDescription(collision.team)),
+                collidesWith: describe(collision, among: existingLabels)
             ))
             for child in group.children {
                 entries.append(ProvisioningEntry(
                     subject: .label(child, group: group.name, team: team),
                     outcome: .blocked("group name collision")
+                ))
+            }
+            return
+        }
+        let groupExists = existingLabels.contains { $0.name.lowercased() == group.name.lowercased() && $0.isGroup }
+        guard groupExists || board.createsMissing else {
+            entries.append(ProvisioningEntry(
+                subject: .labelGroup(group.name, team: team), outcome: .missing(notProvisioned)
+            ))
+            for child in group.children {
+                entries.append(ProvisioningEntry(
+                    subject: .label(child, group: group.name, team: team), outcome: .missing(notProvisioned)
                 ))
             }
             return
@@ -77,7 +90,7 @@ extension BoardProvisioner {
     }
 
     static func provisionChildLabel(
-        board: any BoardProvisioning,
+        board: Target,
         childName: String,
         context: ChildLabelContext,
         existingLabels: [BoardLabel],
@@ -95,7 +108,13 @@ extension BoardProvisioner {
         }
         if let collision {
             let outcome = ProvisioningEntry.Outcome.collision(scopeDescription(collision.team))
-            entries.append(ProvisioningEntry(subject: subject, outcome: outcome))
+            entries.append(ProvisioningEntry(
+                subject: subject, outcome: outcome, collidesWith: describe(collision, among: existingLabels)
+            ))
+            return
+        }
+        guard board.createsMissing else {
+            entries.append(ProvisioningEntry(subject: subject, outcome: .missing(notProvisioned)))
             return
         }
         do {
@@ -114,8 +133,22 @@ extension BoardProvisioner {
         }
     }
 
+    /// The existing label holding a provisioned name, as the Operator would find it in Linear: with its
+    /// parent group, so a label left by an earlier build (`Object Type › Night Card`) is named by both.
+    static func describe(_ label: BoardLabel, among existingLabels: [BoardLabel]) -> String {
+        let kind = label.team == nil ? "workspace label" : "label"
+        if label.isGroup {
+            return "\(kind) group `\(label.name)`"
+        }
+        guard let parent = label.parent else {
+            return "\(kind) `\(label.name)` (not in a group)"
+        }
+        let parentName = existingLabels.first { $0.id == parent }?.name
+        return "\(kind) `\(label.name)` in group `\(parentName ?? "another group")`"
+    }
+
     static func ensureGroupExists(
-        board: any BoardProvisioning,
+        board: Target,
         groupName: String,
         team: BoardTeam,
         existingLabels: [BoardLabel],

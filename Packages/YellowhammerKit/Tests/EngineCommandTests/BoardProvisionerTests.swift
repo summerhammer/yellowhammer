@@ -208,9 +208,14 @@ struct BoardProvisionerTests {
             #expect(blocked.count == BlockReason.allCases.count)
             // Waiting on You, Blocked, Kept in Flight, Released, Card Type and its three labels
             #expect(await board.creates == 8)
-            // An ordinary name collision is never a create-by-hand item: renaming the colliding label
-            // is the fix, not creating anything (P17.2 must not conflate this with a permission refusal).
-            #expect(!report.hasUnfinishedSteps)
+            // A collision is an unfinished step (#361), but never a create-by-hand item: renaming the
+            // colliding label is the fix (P17.2 must not conflate this with a permission refusal), and
+            // the group's one line covers the labels it blocks.
+            #expect(report.hasUnfinishedSteps)
+            #expect(report.createByHandGuideline == nil)
+            let guideline = try #require(report.collisionGuideline)
+            #expect(guideline.split(separator: "\n").count == 2)
+            #expect(guideline.contains("label group `Block Reason`"))
         }
     }
 

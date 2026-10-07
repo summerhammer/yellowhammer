@@ -83,6 +83,21 @@ public struct BoardProvisioner {
         createIn team: BoardObjectID?,
         routingTable: RoutingTable? = nil
     ) async throws(BoardError) -> ProvisioningReport {
+        try await run(
+            using: board, projectName: projectName, createIn: team, routingTable: routingTable, createsMissing: true
+        )
+    }
+
+    /// Provisioning, or with `createsMissing` false its read-only verification (``verify(using:projectName:routingTable:)``):
+    /// the same presence and collision checks, with every create reported `.missing` instead. Internal, not
+    /// private: `verify` lives in `BoardProvisioner+Verify.swift`.
+    static func run(
+        using board: any BoardProvisioning,
+        projectName: String,
+        createIn team: BoardObjectID?,
+        routingTable: RoutingTable?,
+        createsMissing: Bool
+    ) async throws(BoardError) -> ProvisioningReport {
         var entries: [ProvisioningEntry] = []
         let groups = Self.labelGroups + (routingTable.map { [Self.overrideGroup(for: $0)] } ?? [])
 
@@ -119,14 +134,17 @@ public struct BoardProvisioner {
                 entries.append(ProvisioningEntry(subject: .team(team), outcome: .notAMember(team.key)))
                 continue
             }
-            try await provisionTeam(board: board, team: team, groups: groups, into: &entries)
+            try await provisionTeam(
+                board: Target(board: board, createsMissing: createsMissing), team: team, groups: groups,
+                into: &entries
+            )
         }
 
         return ProvisioningReport(entries: entries, linearProject: project)
     }
 
     private static func provisionTeam(
-        board: any BoardProvisioning,
+        board: Target,
         team: BoardTeam,
         groups: [LabelGroupDeclaration],
         into entries: inout [ProvisioningEntry]
@@ -146,7 +164,7 @@ public struct BoardProvisioner {
     }
 
     private static func provisionWorkflowState(
-        board: any BoardProvisioning,
+        board: Target,
         team: BoardTeam,
         existingStates: [BoardWorkflowState],
         into entries: inout [ProvisioningEntry]
@@ -163,17 +181,18 @@ public struct BoardProvisioner {
     /// cannot categorize — is a collision, and is never overwritten or reused.
     private static func provisionWorkflowState(
         named stateName: String,
-        board: any BoardProvisioning,
+        board: Target,
         team: BoardTeam,
         existingStates: [BoardWorkflowState],
         into entries: inout [ProvisioningEntry]
     ) async throws(BoardError) {
         let sameName = existingStates.filter { $0.name.lowercased() == stateName.lowercased() }
-        let foreignTyped = sameName.contains { $0.category != Self.provisionedStateCategory }
-        if foreignTyped {
+        if let foreign = sameName.first(where: { $0.category != Self.provisionedStateCategory }) {
+            let category = foreign.category.map { "category \($0.rawValue)" } ?? "an unknown category"
             entries.append(ProvisioningEntry(
                 subject: .workflowState(stateName, team: team),
-                outcome: .collision("team")
+                outcome: .collision("team"),
+                collidesWith: "workflow state `\(foreign.name)` of \(category)"
             ))
             return
         }
@@ -181,6 +200,12 @@ public struct BoardProvisioner {
             entries.append(ProvisioningEntry(
                 subject: .workflowState(stateName, team: team),
                 outcome: .present
+            ))
+            return
+        }
+        guard board.createsMissing else {
+            entries.append(ProvisioningEntry(
+                subject: .workflowState(stateName, team: team), outcome: .missing(notProvisioned)
             ))
             return
         }

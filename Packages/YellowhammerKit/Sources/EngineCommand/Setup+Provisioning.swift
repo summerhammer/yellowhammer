@@ -43,7 +43,9 @@ extension Setup {
     /// "Setup lists each unfinished step at the end": one consolidated list across every Project,
     /// printed as the last block of setup's output, followed by the create-by-hand guideline for the
     /// permission-refused items only — a not-a-member team gets the membership fix instead, since
-    /// nothing can be created by hand until the app is added.
+    /// nothing can be created by hand until the app is added — and then the rename-or-delete guideline
+    /// for each collision. A collision does not fail setup: the step is reported, and every other step,
+    /// the LaunchAgents included, still runs.
     func reportUnfinishedProvisioning(_ unfinished: [(ProjectID, ProvisioningReport)]) {
         guard !unfinished.isEmpty else { return }
         output("Unfinished provisioning steps:")
@@ -51,7 +53,11 @@ extension Setup {
             output("Project \(projectID):") // glossary:ignore GL001
             output(report.unfinishedDescription)
         }
-        for guideline in Set(unfinished.compactMap { $0.1.createByHandGuideline }) {
+        let guidelines = unfinished.compactMap { $0.1.createByHandGuideline }
+            + unfinished.compactMap { $0.1.collisionGuideline }
+        // Projects sharing a team report the same steps: each guideline is printed once, in order.
+        var printed: Set<String> = []
+        for guideline in guidelines where printed.insert(guideline).inserted {
             output(guideline)
         }
     }
