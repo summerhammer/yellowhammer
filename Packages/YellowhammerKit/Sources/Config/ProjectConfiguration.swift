@@ -33,6 +33,13 @@ public struct ProjectConfiguration: Sendable {
     public var commitMessage: MessageTemplate
     /// `[git] wip_commit_message`, or its built-in default.
     public var wipCommitMessage: MessageTemplate
+    /// The Linear project a Rehearsal Night of this Project projects onto (`[board.linear] rehearsal_project`),
+    /// as an opaque reference, reached through the same Board Connection. Nil when not declared; see
+    /// ``rehearsalContext(realJournal:)`` for when a declared value still does not count (OQ149).
+    public var rehearsalLinearProject: String?
+    /// The path of this Project's rehearsal Journal (`[rehearsal] journal`), as written. Declared, never
+    /// derived: a Project that declares none has no Rehearsal (OQ149).
+    public var rehearsalJournal: String?
     /// Set only by a lenient load (``Configuration/loadLeniently(directory:)``, used by `yh project remove`):
     /// what the template keys held, as written, and why each was refused. The typed template properties
     /// above then hold their defaults for every refused key. Not part of equality.
@@ -55,7 +62,9 @@ public struct ProjectConfiguration: Sendable {
         changeType: ChangeType = .feat,
         pullRequestTitle: MessageTemplate = .default(.pullRequestTitle),
         commitMessage: MessageTemplate = .default(.commitMessage),
-        wipCommitMessage: MessageTemplate = .default(.wipCommitMessage)
+        wipCommitMessage: MessageTemplate = .default(.wipCommitMessage),
+        rehearsalLinearProject: String? = nil,
+        rehearsalJournal: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -71,6 +80,8 @@ public struct ProjectConfiguration: Sendable {
         self.pullRequestTitle = pullRequestTitle
         self.commitMessage = commitMessage
         self.wipCommitMessage = wipCommitMessage
+        self.rehearsalLinearProject = rehearsalLinearProject
+        self.rehearsalJournal = rehearsalJournal
     }
 
     /// The Project's repositories expressed in Domain vocabulary, with home-directory tildes expanded
@@ -109,6 +120,8 @@ extension ProjectConfiguration: Equatable {
             && lhs.pullRequestTitle == rhs.pullRequestTitle
             && lhs.commitMessage == rhs.commitMessage
             && lhs.wipCommitMessage == rhs.wipCommitMessage
+            && lhs.rehearsalLinearProject == rhs.rehearsalLinearProject
+            && lhs.rehearsalJournal == rhs.rehearsalJournal
     }
 }
 

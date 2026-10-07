@@ -347,7 +347,7 @@ func makeInvocationDecidesClosesNightFromTheSchedule() throws {
 func makeInvocationWithNightOverridesIdentityNotClock() throws {
     let directory = ConfigurationDirectory()
     try directory.writeMachineFile()
-    try directory.writeValidProjectFile(id: "alpha")
+    try directory.writeValidProjectFile(id: "alpha", rehearsal: true)
 
     // now is fixed; only --night should decide nightStart, regardless of what now's own Night is.
     let now = try localDate(year: 2026, month: 9, day: 20, hour: 12)

@@ -138,7 +138,8 @@ private struct RecalibrateContentView: View {
         WizardBlock(
             title: "Rehearsal Night",
             footer: "A rehearsal never dispatches an agent CLI, never pushes and never opens a pull request. "
-                + "Its board writes to this Project\u{2019}s Linear project are real."
+                + "Its board writes go to this Project\u{2019}s rehearsal Linear project and are real; its "
+                + "loop state goes to its rehearsal Journal."
         ) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
@@ -146,6 +147,17 @@ private struct RecalibrateContentView: View {
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 12)
                     rehearsalButton
+                }
+                if let unavailable = model.rehearsalUnavailable {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Image(systemName: "exclamationmark.circle").foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
+                        Text(unavailable)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                            .accessibilityIdentifier("recalibrate-rehearsal-unavailable")
+                    }
                 }
                 if let note = model.rehearsalStartedNote {
                     HStack(spacing: 8) {
@@ -170,7 +182,7 @@ private struct RecalibrateContentView: View {
 
     private var rehearsalButton: some View {
         Button("Run a Rehearsal Night\u{2026}") { showingRehearsalConfirmation = true }
-            .disabled(model.isLaunchingRehearsal)
+            .disabled(model.isLaunchingRehearsal || model.rehearsalUnavailable != nil)
             .accessibilityIdentifier("recalibrate-run-rehearsal")
             .confirmationDialog(
                 "Run a Rehearsal Night?",
@@ -184,8 +196,8 @@ private struct RecalibrateContentView: View {
                 Text(
                     "Runs this Project\u{2019}s author, build and land Acts in rehearsal mode. It "
                         + "never dispatches an agent CLI, never pushes and never opens a pull "
-                        + "request. Its board writes to this Project\u{2019}s Linear project are "
-                        + "real. It keeps running if the app quits."
+                        + "request. Its board writes go to this Project\u{2019}s rehearsal "
+                        + "Linear project and are real. It keeps running if the app quits."
                 )
             }
     }

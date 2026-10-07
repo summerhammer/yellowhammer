@@ -22,6 +22,8 @@ final class ProjectConfigurationModel {
     /// The draft as loaded, unedited — compared against ``draft`` for ``isDirty``.
     private(set) var saved: ProjectFileDraft?
     var draft: ProjectFileDraft?
+    /// The Project as last loaded from disk: what a Night runs against, unsaved edits excluded.
+    private(set) var loaded: ProjectConfiguration?
 
     /// Why the Project could not be loaded, in the loader's own words: the file does not exist, the
     /// machine file (which every Project's load depends on) is broken, or this Project's own file was
@@ -57,9 +59,10 @@ final class ProjectConfigurationModel {
             let configuration = try Configuration.load(directory: directory, reading: file, as: text)
             if let project = configuration.projects.first(where: { $0.id == projectID }) {
                 originalText = text
-                let loaded = ProjectFileDraft(project)
-                saved = loaded
-                draft = loaded
+                loaded = project
+                let loadedDraft = ProjectFileDraft(project)
+                saved = loadedDraft
+                draft = loadedDraft
                 loadFailure = nil
                 failure = nil
             } else if let invalid = configuration.invalidProjects.first(where: {
@@ -107,6 +110,7 @@ final class ProjectConfigurationModel {
 
     private func clear(loadFailure: String) {
         originalText = nil
+        loaded = nil
         saved = nil
         draft = nil
         self.loadFailure = loadFailure

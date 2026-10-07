@@ -29,7 +29,7 @@ struct OutboxKillEnvironmentTests {
     func parsesWithRehearsal() throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
+        try directory.writeValidProjectFile(id: "alpha", rehearsal: true)
         let land = try LandCommand.parse(["--project", "alpha", "--rehearsal"])
 
         let invocation = try land.makeInvocation(
@@ -44,7 +44,7 @@ struct OutboxKillEnvironmentTests {
     func malformedValueRefusedWithRehearsal() throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
+        try directory.writeValidProjectFile(id: "alpha", rehearsal: true)
         let land = try LandCommand.parse(["--project", "alpha", "--rehearsal"])
 
         #expect(throws: (any Error).self) {
@@ -59,7 +59,7 @@ struct OutboxKillEnvironmentTests {
     func nilWhenUnset() throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
-        try directory.writeValidProjectFile(id: "alpha")
+        try directory.writeValidProjectFile(id: "alpha", rehearsal: true)
         let land = try LandCommand.parse(["--project", "alpha", "--rehearsal"])
 
         let invocation = try land.makeInvocation(
