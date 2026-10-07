@@ -114,8 +114,7 @@ public enum LoginShellPATH {
             }
             try? await Task.sleep(for: .milliseconds(25))
         }
-        let output = (try? String(contentsOfFile: outputPath, encoding: .utf8))
-            ?? ""
+        let output = (try? String(contentsOfFile: outputPath, encoding: .utf8)) ?? ""
         guard let path = parse(output: output, marker: marker) else { return .failed(.noPATHPrinted) }
         return .path(path)
     }

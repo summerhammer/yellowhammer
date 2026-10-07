@@ -63,12 +63,30 @@ struct LoginShellPATHTests {
     func readTimeout() async throws {
         let fixture = try CLIDiscoveryFixture()
         defer { fixture.remove() }
-        let shell = try fixture.file("slow-sh", contents: "#!/bin/sh\nsleep 30\n")
+        let shell = try fixture.file("slow-sh", contents: "#!/bin/sh\nsleep 60\n")
         let started = ContinuousClock.now
         let result = await LoginShellPATH.read(
             shell: shell, timeout: .milliseconds(500), environment: ["PATH": "/bin:/usr/bin"]
         )
         #expect(result == .failed(.timedOut(.milliseconds(500))))
-        #expect(ContinuousClock.now - started < .seconds(5))
+        // Killed, not waited out. How soon `read` returns after its deadline is up to the concurrency pool: a busy
+        // CI runner took 17 s to resume it, so the bound is the shell's own run time, not a tight one.
+        #expect(ContinuousClock.now - started < .seconds(45))
+    }
+
+    @Test("read kills the shell and returns when its task is cancelled")
+    func readCancelled() async throws {
+        let fixture = try CLIDiscoveryFixture()
+        defer { fixture.remove() }
+        let shell = try fixture.file("slow-sh", contents: "#!/bin/sh\nsleep 60\n")
+        let started = ContinuousClock.now
+        let reading = Task {
+            await LoginShellPATH.read(shell: shell, timeout: .seconds(60), environment: ["PATH": "/bin:/usr/bin"])
+        }
+        try await Task.sleep(for: .milliseconds(300))
+        reading.cancel()
+        #expect(await reading.value == .failed(.cancelled))
+        // Killed, not waited out, as in the timeout test.
+        #expect(ContinuousClock.now - started < .seconds(45))
     }
 }
