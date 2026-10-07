@@ -147,3 +147,68 @@ func scopeEditedOnBoardIsReconciled() async throws {
     let refused = try scenario.journal.events(ofType: .protectedPathRefused)
     #expect(refused.count == 1)
 }
+
+@Test("Divergence wins over all protected overlaps, which are recorded and rechecked next dispatch")
+func divergenceWinsOverOverreach() async throws {
+    let scenario = try await makeReadinessScenario()
+    defer { cleanup(scenario) }
+    try makeReadyCardOne(scenario)
+    try scenario.journal.recordDeclaredScope(cardID: scenario.cardOne, paths: ["Secrets/", "Secrets/other"])
+    try scenario.journal.recordTranscriptionBlocks(cardID: scenario.cardOne, [
+        TranscriptionBlock(
+            repository: "backend", paths: ["a.swift"], mainlineCommit: "deadbeef", content: "old content",
+            contentHash: ManagedBlockFence.sha256("old content"), authorSupplied: false
+        )
+    ])
+    let repositories = ProjectRepositories(workingRepos: [Repo(
+        name: "backend", path: "/nonexistent/backend", role: .backend, protectedPaths: ["Secrets/", "Secrets/nested"]
+    )])
+    let stale = ReadinessCheck(
+        provenance: FakeProvenanceTester(verdicts: ["backend": .stale(changedPaths: ["a.swift"])]),
+        citations: FakeCitationResolver()
+    )
+    let verdict = try await directEvaluate(
+        scenario, cardID: scenario.cardOne, readiness: stale, repositories: repositories
+    )
+    guard case .diverged = verdict else { Issue.record("expected Divergence"); return }
+    #expect(try scenario.journal.card(id: scenario.cardOne).waitingReason == .divergence)
+    #expect(try scenario.journal.events(ofType: .protectedPathRefused).count == 3)
+    #expect(try scenario.journal.consecutiveDivergences(cardID: scenario.cardOne) == 1)
+
+    let next = try await directEvaluate(
+        scenario, cardID: scenario.cardOne, readiness: makeReadinessCheck(), repositories: repositories
+    )
+    guard case .refused = next else { Issue.record("expected overreach on next clean dispatch"); return }
+    #expect(try scenario.journal.card(id: scenario.cardOne).waitingReason == .overreach)
+    #expect(try scenario.journal.events(ofType: .protectedPathRefused).count == 6)
+    #expect(try scenario.journal.consecutiveDivergences(cardID: scenario.cardOne) == 1)
+    #expect(try scenario.journal.attemptHistory(cardID: scenario.cardOne).attempts.isEmpty)
+}
+
+@Test("Overreach retains precedence over missing structure, bad citations and untestable provenance",
+      arguments: [false, true])
+func overreachKeepsOtherReadinessPriorities(withUntestableBlock: Bool) async throws {
+    let scenario = try await makeReadinessScenario()
+    defer { cleanup(scenario) }
+    try scenario.journal.recordDeclaredScope(cardID: scenario.cardOne, paths: ["Secrets/key"])
+    if withUntestableBlock {
+        try scenario.journal.recordTranscriptionBlocks(cardID: scenario.cardOne, [
+            TranscriptionBlock(repository: "backend", paths: ["a.swift"], mainlineCommit: "deadbeef",
+                               content: "old", contentHash: "hash", authorSupplied: false)
+        ])
+        try scenario.journal.insertClause(JournalStore.NewClause(
+            cid: "bad", issueID: scenario.issueOne, level: "card", text: "bad citation",
+            locationID: "missing/story", provenance: "Author-supplied", citationProvenance: "Author-supplied"
+        ))
+    }
+    let readiness = ReadinessCheck(
+        provenance: FakeProvenanceTester(verdicts: ["backend": .untestable(reason: "missing repository")]),
+        citations: FakeCitationResolver()
+    )
+    let verdict = try await directEvaluate(
+        scenario, cardID: scenario.cardOne, readiness: readiness, repositories: protectedRepositories
+    )
+    guard case .refused = verdict else { Issue.record("expected overreach"); return }
+    #expect(try scenario.journal.events(ofType: .readinessCheckFailed).isEmpty)
+    #expect(try scenario.journal.card(id: scenario.cardOne).waitingReason == .overreach)
+}

@@ -61,21 +61,14 @@ extension ReadinessCheck {
     /// A Card scoped onto a protected path is refused before dispatch: moved to Waiting on You,
     /// carrying `overreach` as its reason, with no Attempt recorded (P8.3; OQ89, OQ128).
     func recordRefusal(
-        match: ProtectedPathRefusal, card: CardRecord, context: BuildActContext
+        match: ProtectedPathRefusal, overlaps: [ProtectedPathRefusal], card: CardRecord, context: BuildActContext
     ) async throws -> ReadinessVerdict {
-        let journal = context.act.journal
         let record = try await transitionToWaitingOnYou(reason: .overreach, card: card, context: context)
 
-        try journal.append(
-            .protectedPathRefused(
-                cardID: card.id, issueID: card.issueID, repository: match.repository,
-                declaredPath: match.declaredPath, protectedPath: match.protectedPath
-            ),
-            act: context.act.act, runID: context.act.runID, nightID: context.act.night.id
-        )
+        try recordOverlaps(overlaps, card: card, context: context)
 
         if let outbox = context.act.outbox {
-            let body = refusalCommentBody(match: match)
+            let body = refusalCommentBody(overlaps: overlaps)
             let key = "protected-path:\(card.issueID):\(record.stateVersion)"
             let write = BoardWrite.createComment(issue: BoardObjectID(rawValue: card.issueID), body: body)
             _ = try await outbox.post(OutboxWrite(key: key, write: write, cardID: card.id))
@@ -84,14 +77,36 @@ extension ReadinessCheck {
         return .refused(match)
     }
 
-    private func refusalCommentBody(match: ProtectedPathRefusal) -> String {
-        [
-            "This Card was not dispatched and consumed no Attempt: its declared scope " +
-                "`\(match.declaredPath)` falls under the protected path `\(match.protectedPath)` of " +
-                "repository `\(match.repository)`. It was moved to Waiting on You — change the Card's " +
-                "scope or the repository's `protected_paths` to run it.",
-            ProtectedPaths.limitation
-        ].joined(separator: "\n")
+    /// Records overlap even when Divergence takes precedence; no state or clock changes here.
+    func recordOverlaps(
+        _ matches: [ProtectedPathRefusal], card: CardRecord, context: BuildActContext
+    ) throws {
+        let journal = context.act.journal
+        let now = Date()
+        for match in matches {
+            try journal.append(
+                .protectedPathRefused(
+                    cardID: card.id, issueID: card.issueID, repository: match.repository,
+                    declaredPath: match.declaredPath, protectedPath: match.protectedPath
+                ),
+                act: context.act.act, runID: context.act.runID, nightID: context.act.night.id, now: now
+            )
+        }
+    }
+
+    private func refusalCommentBody(overlaps: [ProtectedPathRefusal]) -> String {
+        let paths = overlaps.map {
+            "- `\($0.declaredPath)` overlaps `\($0.protectedPath)` in repository `\($0.repository)`."
+        }.joined(separator: "\n")
+        return """
+        This Work Card was not dispatched and consumed no Attempt: its declared scope overlaps Protected \
+        Paths. It was moved to Waiting on You — edit the `Scope` line or the Protected Paths configuration \
+        to run it.
+
+        \(paths)
+
+        \(ProtectedPaths.limitation)
+        """
     }
 
     private func divergenceCommentBody(staleResults: [RepoProvenanceResult], consecutiveDivergences: Int) -> String {
