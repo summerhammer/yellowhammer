@@ -192,6 +192,36 @@ struct SetupTests {
         #expect(output.lines[output.lines.count - 2].contains("category started"))
     }
 
+    @Test("A board from the previous build: the Night Card collision is an unfinished step, and setup completes")
+    func collisionFromPreviousBuildIsUnfinished() async throws {
+        let directory = ConfigurationDirectory()
+        let board = await makeBoard(
+            project: BoardProjectScope(id: BoardObjectID(rawValue: "proj-1"), name: "demo", teams: [engineeringTeam])
+        )
+        // The `Object Type` group an earlier build provisioned (#334 renamed it; #361).
+        let objectType = await board.seed(label: "Object Type", team: engineeringTeam.id, isGroup: true)
+        for child in ["Feature", "Card", "Night Card"] {
+            await board.seed(label: child, team: engineeringTeam.id, parent: objectType)
+        }
+        let arguments = makeArguments(
+            operatorID: "user-op", project: "demo", linearProject: "proj-1",
+            specSource: "~/dev/demo-spec", repo: ["backend,backend,~/dev/demo-backend,swift test"]
+        )
+        let output = RecordingOutput()
+        let setup = try makeSetup(arguments: arguments, directory: directory, board: board, output: output)
+
+        try await setup.run()
+
+        let consolidatedIndex = try #require(output.lines.firstIndex(of: "Unfinished provisioning steps:"))
+        let after = output.lines[(consolidatedIndex + 1)...]
+        #expect(after.contains { $0.contains("collision") && $0.contains("Night Card") })
+        #expect(after.contains {
+            $0.contains("rename or delete the label `Night Card` in group `Object Type` in team ENG")
+        })
+        #expect(!after.contains { $0.contains("To finish by hand") })
+        #expect(output.lines.last == "Setup complete.")
+    }
+
     @Test("An absent operator throws, listing the candidates, with no Project file and no provisioning")
     func absentOperatorThrows() async throws {
         let directory = ConfigurationDirectory()

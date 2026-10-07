@@ -111,9 +111,13 @@ actor FakeProvisioningBoard: BoardProvisioning {
         workspaceLabels.append(BoardLabel(id: mint(), name: name, isGroup: false, parent: nil, team: nil))
     }
 
-    func seed(label name: String, team: BoardObjectID, isGroup: Bool = false, parent: BoardObjectID? = nil) {
+    @discardableResult
+    func seed(
+        label name: String, team: BoardObjectID, isGroup: Bool = false, parent: BoardObjectID? = nil
+    ) -> BoardObjectID {
         let label = BoardLabel(id: mint(), name: name, isGroup: isGroup, parent: parent, team: team)
         teamLabels[team, default: []].append(label)
+        return label.id
     }
 
     func seed(state name: String, team: BoardObjectID, category: BoardWorkflowStateCategory? = nil) {

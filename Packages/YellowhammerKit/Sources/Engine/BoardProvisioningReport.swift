@@ -35,10 +35,14 @@ public struct ProvisioningEntry: Sendable {
 
     public var subject: Subject
     public var outcome: Outcome
+    /// For a `.collision`: the existing item that holds the name, as the Operator would find it in
+    /// Linear (e.g. label `Night Card` in group `Object Type`), so the fix can name it. Nil otherwise.
+    public var collidesWith: String?
 
-    public init(subject: Subject, outcome: Outcome) {
+    public init(subject: Subject, outcome: Outcome, collidesWith: String? = nil) {
         self.subject = subject
         self.outcome = outcome
+        self.collidesWith = collidesWith
     }
 }
 
@@ -79,16 +83,18 @@ public struct ProvisioningReport: Sendable {
         !changes.isEmpty
     }
 
-    /// The entries setup could not finish: not a member, or a permission refusal. Every other step
-    /// still ran (Refusals Ruling) — these are reported individually, and the create-by-hand guideline
-    /// follows for the missing items only. `.blocked` is excluded on purpose: it also covers an
-    /// ordinary name collision (rename the colliding label — not a create-by-hand item).
+    /// The entries setup could not finish: not a member, a permission refusal, or a name collision
+    /// (and the children it blocks). Every other step still ran (Refusals Ruling) — these are
+    /// reported individually. The create-by-hand guideline follows for the not-a-member and refused
+    /// items; a collision gets ``collisionGuideline`` instead, since creating it by hand would collide
+    /// too. Without this, a collision left setup "complete" while every Act failed on the label it
+    /// could not provision (#361).
     public var unfinished: [ProvisioningEntry] {
         entries.filter { entry in
             switch entry.outcome {
-            case .notAMember, .permissionRefused:
+            case .notAMember, .permissionRefused, .collision, .blocked:
                 true
-            case .present, .created, .collision, .missing, .blocked, .refused:
+            case .present, .created, .missing, .refused:
                 false
             }
         }
@@ -107,9 +113,17 @@ public struct ProvisioningReport: Sendable {
     /// category, each unfinished label group with its children, and the statement that setup
     /// re-verifies afterwards. Empty when nothing is unfinished.
     public var createByHandGuideline: String? {
-        guard hasUnfinishedSteps else { return nil }
+        let createByHand = unfinished.filter { entry in
+            switch entry.outcome {
+            case .notAMember, .permissionRefused:
+                true
+            default:
+                false
+            }
+        }
+        guard !createByHand.isEmpty else { return nil }
         var lines = ["To finish by hand in Linear, then re-run setup (it re-verifies afterwards):"]
-        for entry in unfinished {
+        for entry in createByHand {
             switch entry.subject {
             case .team(let team):
                 lines.append("- add Yellowhammer as a member in team \(team.key)'s Settings → Members")
@@ -131,24 +145,16 @@ extension ProvisioningReport: CustomStringConvertible {
     public var description: String {
         entries.map { entry in
             let subjectStr = subjectString(entry.subject)
-            let outcomeStr = outcomeString(entry.outcome)
+            var outcomeStr = outcomeString(entry.outcome)
+            if case .collision(let scope) = entry.outcome, let existing = entry.collidesWith {
+                outcomeStr = "collision (\(scope)-level, with \(existing))"
+            }
             return "\(outcomeStr)  \(subjectStr)"
         }.joined(separator: "\n")
     }
 
     private func subjectString(_ subject: ProvisioningEntry.Subject) -> String {
-        switch subject {
-        case .linearProject(let name):
-            "linear project `\(name)`" // glossary:ignore GL001
-        case .team(let team):
-            "team \(team.key)"
-        case .workflowState(let name, let team):
-            "workflow state `\(name)` (team \(team.key))"
-        case .labelGroup(let name, let team):
-            "group label `\(name)` (team \(team.key))"
-        case .label(let name, let group, let team):
-            "label `\(name)` in group `\(group)` (team \(team.key))"
-        }
+        subject.description
     }
 
     private func outcomeString(_ outcome: ProvisioningEntry.Outcome) -> String {
@@ -169,6 +175,24 @@ extension ProvisioningReport: CustomStringConvertible {
             "permission refused (\(reason))"
         case .refused(let reason):
             "refused  (\(reason))"
+        }
+    }
+}
+
+extension ProvisioningEntry.Subject: CustomStringConvertible {
+    /// The item as setup and `yh doctor` name it, e.g. label `Night Card` in group `Card Type` (team YLH).
+    public var description: String {
+        switch self {
+        case .linearProject(let name):
+            "linear project `\(name)`" // glossary:ignore GL001
+        case .team(let team):
+            "team \(team.key)"
+        case .workflowState(let name, let team):
+            "workflow state `\(name)` (team \(team.key))"
+        case .labelGroup(let name, let team):
+            "group label `\(name)` (team \(team.key))"
+        case .label(let name, let group, let team):
+            "label `\(name)` in group `\(group)` (team \(team.key))"
         }
     }
 }

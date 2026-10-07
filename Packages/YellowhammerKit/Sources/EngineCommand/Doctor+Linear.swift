@@ -96,6 +96,13 @@ extension Doctor {
             findings += await boardMembershipFindings(
                 project: project, installation: installation, workspaceName: workspaceName
             )
+            findings += await boardProvisioningFindings(
+                project: project, installation: installation,
+                scope: DoctorInstallationScope(
+                    name: installation.name, workspace: installation.workspace.rawValue,
+                    workspaceName: workspaceName, projects: [project.id]
+                )
+            )
         }
         return findings
     }

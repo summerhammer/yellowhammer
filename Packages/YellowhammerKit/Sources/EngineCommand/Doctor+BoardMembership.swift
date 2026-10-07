@@ -4,7 +4,7 @@ import Domain
 extension Doctor {
     /// The Yellowhammer identity's team membership in each team of `project`'s Linear project, read through the
     /// installation that serves the Project (Board Provisioning Ruling, OQ80). Provisioned items (states,
-    /// labels) are not verified here.
+    /// labels) are verified by ``boardProvisioningFindings(project:installation:scope:)``.
     func boardMembershipFindings(
         project: ProjectConfiguration, installation: LinearInstallation, workspaceName: String?
     ) async -> [DoctorFinding] {

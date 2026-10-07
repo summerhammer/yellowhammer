@@ -1,4 +1,5 @@
 import Domain
+import Engine
 @testable import EngineCommand
 
 /// Two Board Connections, `acme` (Projects alpha, gamma) and `globex` (Project beta), with a credential per
@@ -9,10 +10,12 @@ struct DoctorLinearFixture: ~Copyable {
     let globex: FakeProvisioningBoard
     let binds = DoctorBindLog()
 
-    /// `operators` maps installation name to its configured Operator identity, if any.
+    /// `operators` maps installation name to its configured Operator identity, if any. With
+    /// `provisionAcme` false, `acme`'s board is left as found, for the test to seed and provision.
     init(
         operators: [String: String] = ["acme": "user-op", "globex": "user-op"], extraMachine: String = "",
-        projects: [(id: String, installation: String)] = [("alpha", "acme"), ("gamma", "acme"), ("beta", "globex")]
+        projects: [(id: String, installation: String)] = [("alpha", "acme"), ("gamma", "acme"), ("beta", "globex")],
+        provisionAcme: Bool = true
     ) async throws {
         func entry(_ name: String, workspace: String) -> String {
             let operatorLine = operators[name].map { "operator = \"\($0)\"\n" } ?? ""
@@ -42,14 +45,18 @@ struct DoctorLinearFixture: ~Copyable {
                 check = "swift test"
                 """)
         }
-        acme = await Self.board(workspaceName: "Acme Inc", project: "lp-alpha")
+        acme = await Self.board(workspaceName: "Acme Inc", project: "lp-alpha", provisioned: provisionAcme)
         globex = await Self.board(workspaceName: "Globex Corp", project: "lp-beta")
     }
 
-    static func board(workspaceName: String, project: String) async -> FakeProvisioningBoard {
+    static func board(workspaceName: String, project: String, provisioned: Bool = true) async -> FakeProvisioningBoard {
         let scope = BoardProjectScope(id: BoardObjectID(rawValue: project), name: project, teams: [engineeringTeam])
         let board = await makeBoard(project: scope, members: [operatorMember])
         await board.setWorkspace(BoardWorkspace(id: "ws", name: workspaceName, urlKey: "ws"))
+        // Healthy means provisioned: setup has run, so Check 4's provisioning verification passes.
+        if provisioned {
+            _ = try? await BoardProvisioner.provision(using: board, projectName: project, createIn: nil)
+        }
         return board
     }
 
