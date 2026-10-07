@@ -159,7 +159,17 @@ actor FakeProvisioningBoard: BoardProvisioning {
         return state
     }
 
+    /// Errors thrown by the next call to ``labels(team:)``, in order, consumed before it answers.
+    private var labelsRefusals: [BoardError] = []
+
+    func refuseLabelsNext(_ error: BoardError) {
+        labelsRefusals.append(error)
+    }
+
     func labels(team: BoardObjectID) async throws(BoardError) -> [BoardLabel] {
+        if !labelsRefusals.isEmpty {
+            throw labelsRefusals.removeFirst()
+        }
         reads += 1
         return teamLabels[team, default: []] + workspaceLabels
     }

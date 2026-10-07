@@ -57,4 +57,28 @@ struct DoctorBoardProvisioningTests {
         #expect(failures.allSatisfy { $0.message.contains("run `yh setup`") })
         #expect(await fixture.acme.creates == 0)
     }
+
+    @Test("A board doctor cannot read fails the provisioning check, never passes it silently")
+    func unreadableBoardFails() async throws {
+        let fixture = try await DoctorLinearFixture()
+        await fixture.acme.refuseLabelsNext(.unreachable("timed out"))
+
+        let findings = await fixture.doctor(projectFilter: ProjectID(rawValue: "alpha")).run()
+
+        let provisioning = findings.linear("acme", subject: "provisioning")
+        #expect(provisioning.count == 1)
+        #expect(provisioning.first?.severity == .failure)
+        #expect(provisioning.first?.message.contains("could not be read") == true)
+    }
+
+    @Test("A team Yellowhammer is not a member of is reported by the membership check only")
+    func notAMemberIsNotReportedTwice() async throws {
+        let fixture = try await DoctorLinearFixture()
+        await fixture.acme.excludeMembership(of: engineeringTeam.id)
+
+        let findings = await fixture.doctor(projectFilter: ProjectID(rawValue: "alpha")).run()
+
+        #expect(findings.linear("acme", subject: "team").contains { $0.severity == .failure })
+        #expect(findings.linear("acme", subject: "provisioning").isEmpty)
+    }
 }

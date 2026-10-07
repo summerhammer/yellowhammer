@@ -93,9 +93,11 @@ extension Doctor {
             ))
         }
         for project in served {
-            findings += await boardMembershipFindings(
+            let membership = await boardMembershipFindings(
                 project: project, installation: installation, workspaceName: workspaceName
             )
+            findings += membership
+            guard membership.allSatisfy({ $0.severity == .pass }) else { continue }
             findings += await boardProvisioningFindings(
                 project: project, installation: installation,
                 scope: DoctorInstallationScope(

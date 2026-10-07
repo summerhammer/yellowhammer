@@ -6,9 +6,9 @@ extension Doctor {
     /// Every workflow state and label Yellowhammer provisions in each team of `project`'s Linear project,
     /// verified read-only through the same checks setup runs (Diagnose the Installation, Check 4: "every
     /// provisioned or mapped item exists"). A missing item or a collision is a failure until it is
-    /// fixed, so a board setup could not finish never passes (#361). A team Yellowhammer is not a member
-    /// of, or a Linear project it cannot read, is left to ``boardMembershipFindings`` — reported once,
-    /// there. The `Override` group is not verified: no Act depends on it.
+    /// fixed, so a board setup could not finish never passes (#361). Run only once the membership check
+    /// passed: a team Yellowhammer is not a member of, or a Linear project it cannot read, is reported
+    /// once, there. The `Override` group is not verified: no Act depends on it.
     func boardProvisioningFindings(
         project: ProjectConfiguration, installation: LinearInstallation, scope: DoctorInstallationScope
     ) async -> [DoctorFinding] {
@@ -20,8 +20,12 @@ extension Doctor {
         }
 
         let board = bindProvisioning(installation, project.linearProject)
-        guard let report = try? await BoardProvisioner.verify(using: board, projectName: project.name) else {
-            return []
+        let report: ProvisioningReport
+        do {
+            report = try await BoardProvisioner.verify(using: board, projectName: project.name)
+        } catch {
+            // Never silent: a board doctor cannot read is not a board that passes.
+            return [provisioning(.failure, "the team's workflow states and labels could not be read: \(error)")]
         }
         let failures = report.entries.compactMap { entry -> String? in
             Self.provisioningFailure(entry, in: report)
