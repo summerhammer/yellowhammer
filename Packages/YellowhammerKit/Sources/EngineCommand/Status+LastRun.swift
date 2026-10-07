@@ -28,7 +28,7 @@ extension Status {
 
         do {
             let (status, night) = try lastRunStatus(journal: journal)
-            let recordedNights = try journal.nights().map(\.nightStart)
+            let recordedNights = try journal.nights(mode: .real).map(\.nightStart)
             let journalFailures = try journal.events(ofType: .actIncomplete)
             return JournalStatus(
                 lastRun: status, lastNight: night, recordedNights: recordedNights, journalFailures: journalFailures
@@ -47,7 +47,7 @@ extension Status {
 
     /// The latest event carrying a run id: that run's Act, first event time, and how it ended.
     private func lastRunStatus(journal: JournalStore) throws -> (status: LastRunStatus, lastNight: NightRecord?) {
-        let lastNight = try journal.nights().last
+        let lastNight = try journal.nights(mode: .real).last
         let events = try journal.events()
         guard
             let latestEvent = events.last(where: { $0.runID != nil }),

@@ -28,14 +28,26 @@ extension NightSummary {
     public static func boundProximity(
         night: NightRecord, journal: JournalStore, bounds: NightCardMaintenance.Bounds
     ) throws -> [BoundProximity] {
-        let nights = try journal.nights().filter { $0.nightStart <= night.nightStart }
-        let priorNightIDs = Set(nights.map(\.id))
-        let events = try journal.events().filter { $0.nightID.map(priorNightIDs.contains) ?? false }
-        return try boundProximity(night: night, events: events, journal: journal, bounds: bounds)
+        let scope = try RateScope(night: night, journal: journal)
+        return try boundProximity(scope: scope, night: night, journal: journal, bounds: bounds)
+    }
+
+    public static func boundProximity(
+        scope: RateScope, night: NightRecord, journal: JournalStore, bounds: NightCardMaintenance.Bounds
+    ) throws -> [BoundProximity] {
+        let events = try journal.events().filter { $0.nightID.map(scope.nightIDs.contains) ?? false }
+        return try boundProximity(scope: scope, night: night, events: events, journal: journal, bounds: bounds)
     }
 
     /// The Project Bounds' proximity at this Night's close. Card counters come from the immutable
     /// closure snapshot, while Attempt histories are cut at close.
+    static func boundProximity(
+        scope: RateScope, night: NightRecord, events: [JournalEventRecord], journal: JournalStore,
+        bounds: NightCardMaintenance.Bounds
+    ) throws -> [BoundProximity] {
+        try boundProximity(night: night, events: events, journal: journal, bounds: bounds)
+    }
+
     static func boundProximity(
         night: NightRecord, events: [JournalEventRecord], journal: JournalStore,
         bounds: NightCardMaintenance.Bounds

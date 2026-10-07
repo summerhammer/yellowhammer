@@ -28,7 +28,7 @@ struct NightSummaryInstrumentedRatesTests {
             act: .author, mode: .real, nightStart: start, journal: journal,
             trigger: .forced, runID: RunID(), board: board, work: { _ in }
         ).run()
-        #expect(try journal.provenEmptyOpeningCount(through: start) == 1)
+        #expect(try journal.provenEmptyOpeningCount(through: start, mode: .real) == 1)
     }
 
     @Test("Opening Ready observations distinguish empty, non-ready Todo, ready, and read failure")
@@ -66,12 +66,13 @@ struct NightSummaryInstrumentedRatesTests {
         try await runNight(starts[2], pages: [.success(BoardPage(objects: cards, nextCursor: nil))])
         try await runNight(starts[3], pages: [.failure(.unreachable("board read failed"))])
 
-        let nights = try journal.nights()
+        let nights = try journal.nights(mode: .real)
         #expect(try journal.openingReadyState(nightID: nights[0].id) == .zero)
         #expect(try journal.openingReadyState(nightID: nights[1].id) == .zero)
         #expect(try journal.openingReadyState(nightID: nights[2].id) == .nonzero)
         #expect(try journal.openingReadyState(nightID: nights[3].id) == .unknown)
-        #expect(try journal.openingReadyCounts(through: starts[3]) == .init(zero: 2, nonzero: 1, unknown: 1))
+        let counts = try journal.openingReadyCounts(through: starts[3], mode: .real)
+        #expect(counts == .init(zero: 2, nonzero: 1, unknown: 1))
         #expect(try journal.currentCardLease(cardID: ids.first) == nil)
         #expect(try journal.events(ofType: .readinessCheckPassed).isEmpty)
     }
@@ -318,6 +319,230 @@ extension NightSummaryInstrumentedRatesTests {
         )
         #expect(firstLines.contains("`reselections_max`: 1 of 2."))
         #expect(firstLines.contains("`consecutive_refusals_max`: 2 of 3."))
+    }
+
+    @Test("A real Night followed by a rehearsal Night isolates every rate and proximity query (OQ140)")
+    // swiftlint:disable:next function_body_length
+    func realNightFollowedByRehearsalNightIsolatesEveryQuery() throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let run = RunID()
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+        _ = try journal.claimActLease(act: .author, runID: run, mode: .real, now: base)
+
+        // 1. Real Night (Day 1)
+        let day1 = try #require(NightStart(rawValue: "2026-09-23"))
+        let realNight = try journal.openNight(
+            nightStart: day1, mode: .real, act: .author, runID: run, now: base
+        ).night
+        try journal.recordOpeningReadyState(nightID: realNight.id, state: .zero)
+        let ids = try seedCards(journal, at: base)
+        try journal.append(.repoLaneStarted(repository: "backend", cards: 2), nightID: realNight.id, now: base)
+        try journal.recordPullRequest(
+            featureID: ids.feature, repository: "backend", url: "https://example.test/1",
+            nightID: realNight.id, runID: run, now: base
+        )
+        try journal.append(
+            .routeRetried(cardID: ids.first, issueID: "CARD-1", attemptID: 1,
+                          route: try #require(Route(cli: "codex", model: "m1", effort: "medium")),
+                          differentRoute: true), nightID: realNight.id, now: base
+        )
+        for (cardID, issueID) in [(ids.first, "CARD-1"), (ids.second, "CARD-2")] {
+            try journal.append(
+                .cardStateTransitioned(cardID: cardID, issueID: issueID, from: .todo, to: .done,
+                                       waitingReason: nil, blockReason: nil),
+                nightID: realNight.id, now: base.addingTimeInterval(1)
+            )
+        }
+        try journal.write { db in
+            try db.execute(sql: "UPDATE card SET state = 'Done' WHERE id IN (?, ?)", arguments: [ids.first, ids.second])
+        }
+        try journal.insertClause(.init(
+            cid: "c1", issueID: "CARD-1", level: "card", text: "Do it", locationID: "spec#1",
+            provenance: "Author-supplied", citationProvenance: "Author-supplied"
+        ), now: base.addingTimeInterval(1))
+        _ = try journal.closeNight(
+            id: realNight.id, reason: .nightEnd, act: .author, runID: run, now: base.addingTimeInterval(2)
+        )
+        _ = try journal.releaseActLease(runID: run)
+        let closedReal = try #require(try journal.night(id: realNight.id))
+
+        let bounds = NightCardMaintenance.Bounds()
+        let linesBeforeRehearsal = try NightSummary.instrumentedRateLines(
+            night: closedReal, journal: journal, bounds: bounds
+        )
+        let proximityBeforeRehearsal = try NightSummary.boundProximity(
+            night: closedReal, journal: journal, bounds: bounds
+        )
+
+        // 2. Rehearsal Night (Day 2) in the SAME Journal
+        let day2 = try #require(NightStart(rawValue: "2026-09-24"))
+        let rehearsalRun = RunID()
+        _ = try journal.claimActLease(
+            act: .author, runID: rehearsalRun, mode: .rehearsal, now: base.addingTimeInterval(10)
+        )
+        let rehearsalNight = try journal.openNight(
+            nightStart: day2, mode: .rehearsal, act: .author, runID: rehearsalRun, now: base.addingTimeInterval(10)
+        ).night
+        try journal.recordOpeningReadyState(nightID: rehearsalNight.id, state: .nonzero)
+        try journal.append(
+            .repoLaneStarted(repository: "web", cards: 1), nightID: rehearsalNight.id, now: base.addingTimeInterval(10)
+        )
+        // Rehearsal Night retries on same route, reselects, opens refusal, adds comment
+        try journal.append(
+            .routeRetried(cardID: ids.first, issueID: "CARD-1", attemptID: 2,
+                          route: try #require(Route(cli: "codex", model: "m1", effort: "medium")),
+                          differentRoute: false), nightID: rehearsalNight.id, now: base.addingTimeInterval(11)
+        )
+        try journal.append(
+            .featureReselected(depth: 3, afterRefusalOf: "FEAT-OLD", reselectionsMax: 2),
+            nightID: rehearsalNight.id, now: base.addingTimeInterval(11)
+        )
+        try journal.append(
+            .refusalOpened(feature: "FEAT-OLD", consecutiveRefusals: 5),
+            nightID: rehearsalNight.id, now: base.addingTimeInterval(11)
+        )
+        try journal.append(
+            .humanCardComment(cardID: ids.first, commentID: "comment-rehearsal",
+                              commentedAt: base.addingTimeInterval(12)),
+            nightID: rehearsalNight.id, now: base.addingTimeInterval(12)
+        )
+        _ = try journal.closeNight(
+            id: rehearsalNight.id, reason: .nightEnd, act: .author, runID: rehearsalRun,
+            now: base.addingTimeInterval(13)
+        )
+        _ = try journal.releaseActLease(runID: rehearsalRun)
+
+        // 3. Verify every query from the acceptance table:
+        // Row 1: journal.nights(mode:) filters by mode
+        let realNights = try journal.nights(mode: .real)
+        let rehearsalNights = try journal.nights(mode: .rehearsal)
+        #expect(realNights.map(\.id) == [realNight.id])
+        #expect(rehearsalNights.map(\.id) == [rehearsalNight.id])
+
+        // Row 2: journal.events() cut by RateScope excludes rehearsal night events
+        let realScope = try RateScope(night: closedReal, journal: journal)
+        #expect(realScope.nightIDs == [realNight.id])
+        let allEvents = try journal.events()
+        let scopedEvents = allEvents.filter { $0.nightID.map(realScope.nightIDs.contains) ?? false }
+        #expect(!scopedEvents.contains { $0.nightID == rehearsalNight.id })
+
+        // Row 3: journal.openingReadyCounts(through:mode:) excludes rehearsal Night
+        let realReadyCounts = try journal.openingReadyCounts(through: day2, mode: .real)
+        #expect(realReadyCounts == .init(zero: 1, nonzero: 0, unknown: 0))
+        let rehearsalReadyCounts = try journal.openingReadyCounts(through: day2, mode: .rehearsal)
+        #expect(rehearsalReadyCounts == .init(zero: 0, nonzero: 1, unknown: 0))
+
+        // Row 4: journal.authorSuppliedCitationCount() / closingAuthorSuppliedCitationCount
+        #expect(try journal.closingAuthorSuppliedCitationCount(nightID: realNight.id) == 1)
+
+        // Row 5: journal.pullRequests(nightID:) per night
+        #expect(try journal.pullRequests(nightID: rehearsalNight.id).isEmpty)
+        #expect(try journal.pullRequests(nightID: realNight.id).count == 1)
+
+        // Row 6: cycleID/cards repo touching isolated per night
+        // Row 7: journal.attemptHistory(cardID:) and bound proximity ignores rehearsal
+        let proximityAfterRehearsal = try NightSummary.boundProximity(
+            night: closedReal, journal: journal, bounds: bounds
+        )
+        #expect(proximityAfterRehearsal == proximityBeforeRehearsal)
+
+        // Summary rendered after rehearsal Night reports the exact same rates
+        let linesAfterRehearsal = try NightSummary.instrumentedRateLines(
+            night: closedReal, journal: journal, bounds: bounds
+        )
+        #expect(linesAfterRehearsal == linesBeforeRehearsal)
+    }
+
+    @Test("A Journal holding only rehearsal Nights reports each rate as unmeasured (0/0), never as 0%")
+    func journalHoldingOnlyRehearsalsReportsUnmeasuredRates() throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let run = RunID()
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+
+        // Two closed rehearsal Nights
+        let day1 = try #require(NightStart(rawValue: "2026-09-23"))
+        _ = try journal.claimActLease(act: .author, runID: run, mode: .rehearsal, now: base)
+        let r1 = try journal.openNight(
+            nightStart: day1, mode: .rehearsal, act: .author, runID: run, now: base
+        ).night
+        _ = try journal.closeNight(
+            id: r1.id, reason: .nightEnd, act: .land, runID: run, now: base.addingTimeInterval(1)
+        )
+
+        let day2 = try #require(NightStart(rawValue: "2026-09-24"))
+        _ = try journal.claimActLease(act: .author, runID: run, mode: .rehearsal, now: base.addingTimeInterval(2))
+        let r2 = try journal.openNight(
+            nightStart: day2, mode: .rehearsal, act: .author, runID: run, now: base.addingTimeInterval(2)
+        ).night
+        _ = try journal.closeNight(
+            id: r2.id, reason: .nightEnd, act: .land, runID: run, now: base.addingTimeInterval(3)
+        )
+
+        // Open a real Night
+        let day3 = try #require(NightStart(rawValue: "2026-09-25"))
+        _ = try journal.claimActLease(act: .author, runID: run, mode: .real, now: base.addingTimeInterval(4))
+        let realNight = try journal.openNight(
+            nightStart: day3, mode: .real, act: .author, runID: run, now: base.addingTimeInterval(4)
+        ).night
+
+        let lines = try NightSummary.instrumentedRateLines(night: realNight, journal: journal, bounds: .init())
+        #expect(lines.contains { $0.contains("Green Cards accepted") && $0.contains("unmeasured (0/0)") })
+        #expect(lines.contains { $0.contains("pull request in every touched repository: unmeasured (0/0)") })
+        #expect(lines.contains { $0.contains("Retries on a different route: unmeasured (0/0)") })
+        #expect(lines.contains { $0.contains("every retry different: unmeasured") })
+        #expect(lines.contains { $0.contains("Nights started with zero Ready Cards: 0 of 1; 0 nonzero, 1 unknown") })
+        #expect(!lines.contains { $0.contains("0%") })
+    }
+
+    @Test("A rehearsal Night's own Summary computes lines over rehearsal Nights without mixing modes")
+    func rehearsalNightSummaryComputesOverRehearsalNights() throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let run = RunID()
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+
+        // Closed real Night with a pull request
+        let day1 = try #require(NightStart(rawValue: "2026-09-23"))
+        _ = try journal.claimActLease(act: .author, runID: run, mode: .real, now: base)
+        let realNight = try journal.openNight(nightStart: day1, mode: .real, act: .author, runID: run, now: base).night
+        let ids = try seedCards(journal, at: base)
+        try journal.append(.repoLaneStarted(repository: "backend", cards: 2), nightID: realNight.id, now: base)
+        try journal.recordPullRequest(
+            featureID: ids.feature, repository: "backend", url: "https://example.test/1",
+            nightID: realNight.id, runID: run, now: base
+        )
+        _ = try journal.closeNight(
+            id: realNight.id, reason: .nightEnd, act: .land, runID: run, now: base.addingTimeInterval(1)
+        )
+
+        // Closed rehearsal Night with a retry
+        let day2 = try #require(NightStart(rawValue: "2026-09-24"))
+        _ = try journal.claimActLease(act: .author, runID: run, mode: .rehearsal, now: base.addingTimeInterval(2))
+        let rehearsalNight = try journal.openNight(
+            nightStart: day2, mode: .rehearsal, act: .author, runID: run, now: base.addingTimeInterval(2)
+        ).night
+        try journal.recordOpeningReadyState(nightID: rehearsalNight.id, state: .zero)
+        try journal.append(
+            .routeRetried(cardID: ids.first, issueID: "CARD-1", attemptID: 1,
+                          route: try #require(Route(cli: "codex", model: "m1", effort: "medium")),
+                          differentRoute: true), nightID: rehearsalNight.id, now: base.addingTimeInterval(2)
+        )
+        _ = try journal.closeNight(
+            id: rehearsalNight.id, reason: .nightEnd, act: .land, runID: run, now: base.addingTimeInterval(3)
+        )
+
+        let closedRehearsal = try #require(try journal.night(id: rehearsalNight.id))
+        let lines = try NightSummary.instrumentedRateLines(night: closedRehearsal, journal: journal, bounds: .init())
+
+        // Rehearsal Night summary computes over rehearsal Nights:
+        // Closed rehearsal nights = 1, pull requests = 0 (never opened in rehearsal) -> 0/1 (0%)
+        #expect(lines.contains { $0.contains("pull request in every touched repository: 0/1 (0%)") })
+        // Retries on different route = 1/1 (100%) from rehearsal night's own event
+        #expect(lines.contains { $0.contains("Retries on a different route: 1/1 (100%)") && $0.contains("yes") })
+        // Nights started with zero ready cards: 1 of 1 (the rehearsal night itself)
+        #expect(lines.contains { $0.contains("Nights started with zero Ready Cards: 1 of 1; 0 nonzero, 0 unknown") })
     }
 
     private func seedCards(_ journal: JournalStore, at date: Date) throws -> SeededIDs {

@@ -27,7 +27,7 @@ extension PulseSnapshot {
             status
         }
         let now = try now(journal, inFlight: inFlight, status: resolvedStatus, runningAct: runningAct)
-        let selectedNight = try journal.currentNight() ?? journal.nights().last
+        let selectedNight = try journal.currentNight() ?? journal.nights(mode: .real).last
         let events = try journal.pulseEvents(
             nightID: selectedNight?.id,
             unstampedFailuresSince: selectedNight?.openedAt ?? Date(timeIntervalSince1970: 0)
