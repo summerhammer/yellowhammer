@@ -6,13 +6,19 @@ import Journal
 // struct under the type body length limit.
 
 extension NightCardMaintenance {
-    public func recordAuthoring(night: NightRecord) throws {
+    public func recordAuthoring(night: NightRecord) async throws {
+        _ = try await open(night: night)
+        let night = try journal.night(id: night.id) ?? night
+        if !night.isOpen {
+            _ = try await acceptCompletion(night: night)
+            return
+        }
         guard let issueID = night.nightCardIssueID else { return }
         let findings = try authoringLines(night: night)
         let rendered = NightCardBlock.opened(night: night, projectID: journal.projectID, authoringFindings: findings)
         let hash = ManagedBlockFence.sha256(rendered)
         let write = OutboxWrite(
-            key: Self.authoringKey(nightStart: night.nightStart, hash: hash),
+            key: Self.authoringKey(nightStart: night.nightStart, issueID: issueID, hash: hash),
             write: .rewriteManagedBlock(issue: BoardObjectID(rawValue: issueID), rendered: rendered)
         )
         _ = try outbox.accept(write)

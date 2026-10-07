@@ -66,6 +66,7 @@ public enum OutboxError: Error, Equatable, Sendable, CustomStringConvertible {
     /// A create names a parent entry that is not applied: the group is out of order or broken.
     case parentNotApplied(entryID: Int64, parentKey: String)
     case payloadUnreadable(entryID: Int64)
+    case archivedIssue(BoardObjectID)
 
     public var description: String {
         switch self {
@@ -75,6 +76,8 @@ public enum OutboxError: Error, Equatable, Sendable, CustomStringConvertible {
             "write \(key) carries a description; a description is written only through rewriteManagedBlock"
         case .parentNotApplied(let entryID, let parentKey):
             "Outbox entry \(entryID) names parent \(parentKey), which is not applied"
+        case .archivedIssue(let issue):
+            "issue \(issue.rawValue) is archived"
         case .payloadUnreadable(let entryID):
             "Outbox entry \(entryID) has a payload that does not name its issue"
         }

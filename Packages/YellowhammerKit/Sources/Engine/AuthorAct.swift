@@ -222,7 +222,7 @@ public struct AuthorAct: Sendable {
     /// next Act's own replay) tries again later.
     private func writeBack(context: ActContext) async throws {
         if let nightCard = context.nightCard {
-            try nightCard.recordAuthoring(night: context.night)
+            try await nightCard.recordAuthoring(night: context.night)
         }
         try await DeferredCardStateReplay.run(context: context)
         guard let outbox = context.outbox else { return }

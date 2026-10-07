@@ -36,7 +36,7 @@ struct JournalReadOnlyTests {
 
         // Verify read succeeds
         let tables = try readOnlyJournal.tableNames()
-        #expect(tables.count == 33)
+        #expect(tables.count == 34)
 
         // Verify write fails
         var writeFailed = false
