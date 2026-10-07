@@ -57,7 +57,7 @@ struct Recalibrate {
 
     /// "This Night" = the most recent open Night if any, else the most recent Night by `nightStart`.
     private static func thisNight(journal: JournalStore) throws -> NightRecord? {
-        let nights = try journal.nights()
+        let nights = try journal.nights(mode: .real)
         if let openNight = nights.filter({ $0.completedAt == nil }).max(by: { $0.nightStart < $1.nightStart }) {
             return openNight
         }

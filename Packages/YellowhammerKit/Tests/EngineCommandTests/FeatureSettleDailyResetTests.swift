@@ -129,7 +129,7 @@ struct CloseNightSettleResetTests {
         try await invocation.run()
 
         #expect(try world.journal.currentNight() == nil)
-        let closedNight = try #require(try world.journal.nights().last)
+        let closedNight = try #require(try world.journal.nights(mode: .real).last)
         #expect(!closedNight.isOpen)
         #expect(closedNight.nightStart == settleObservingNightStart)
 
@@ -193,7 +193,7 @@ struct CloseNightSettleResetTests {
         try await invocation.run()
 
         #expect(try world.journal.currentNight() == nil)
-        let closedNight = try #require(try world.journal.nights().last)
+        let closedNight = try #require(try world.journal.nights(mode: .rehearsal).last)
         #expect(!closedNight.isOpen)
         #expect(closedNight.nightStart == settleObservingNightStart)
 
@@ -316,7 +316,7 @@ struct MultiNightInFlightWorkflowTests {
         ).run()
 
         #expect(try world.journal.currentNight() == nil)
-        let night2 = try #require(try world.journal.nights().last)
+        let night2 = try #require(try world.journal.nights(mode: .real).last)
         #expect(!night2.isOpen)
         #expect(night2.nightStart == night2Start)
 

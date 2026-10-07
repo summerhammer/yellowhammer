@@ -38,9 +38,9 @@ extension JournalStore {
         }
     }
 
-    /// Counts this Project's opening observations through the named Night. Older Nights with no
-    /// snapshot are unknown, as are reads that explicitly failed.
-    public func openingReadyCounts(through nightStart: NightStart) throws -> OpeningReadyCounts {
+    /// Counts this Project's opening observations through the named Night in the specified mode.
+    /// Older Nights with no snapshot are unknown, as are reads that explicitly failed.
+    public func openingReadyCounts(through nightStart: NightStart, mode: NightMode) throws -> OpeningReadyCounts {
         try read { db in
             let row = try Row.fetchOne(
                 db,
@@ -48,9 +48,9 @@ extension JournalStore {
                 SELECT COUNT(*) AS total,
                        SUM(CASE WHEN opening_ready_state = 'zero' THEN 1 ELSE 0 END) AS zero_count,
                        SUM(CASE WHEN opening_ready_state = 'nonzero' THEN 1 ELSE 0 END) AS nonzero_count
-                FROM night WHERE project_id = ? AND night_start <= ?
+                FROM night WHERE project_id = ? AND mode = ? AND night_start <= ?
                 """,
-                arguments: [projectID.rawValue, nightStart.rawValue]
+                arguments: [projectID.rawValue, mode.rawValue, nightStart.rawValue]
             )
             let total: Int = row?["total"] ?? 0
             let zero: Int = row?["zero_count"] ?? 0
@@ -59,8 +59,8 @@ extension JournalStore {
         }
     }
 
-    public func provenEmptyOpeningCount(through nightStart: NightStart) throws -> Int {
-        try openingReadyCounts(through: nightStart).zero
+    public func provenEmptyOpeningCount(through nightStart: NightStart, mode: NightMode) throws -> Int {
+        try openingReadyCounts(through: nightStart, mode: mode).zero
     }
 
     /// The immutable Card-counter snapshot written in the same transaction as `night_end` closure.
