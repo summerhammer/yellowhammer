@@ -1,4 +1,5 @@
 import Config
+import Darwin
 import Domain
 @testable import LinearAdapter
 import Foundation
@@ -32,13 +33,15 @@ private final class CountingTokenEndpoint: HTTPTransport, Sendable {
 /// Another process's refresh: flocks `lockPath`, reports `locked`, holds it `holdSeconds`, then — when
 /// given one — writes `rotatedPair` to `pairPath` (its own token request and Keychain write) and exits,
 /// releasing the lock.
-private final class RefreshingChild: @unchecked Sendable {
-    private let process = Process()
-    private let outputPipe = Pipe()
+private final class RefreshingChild {
+    private let arguments: [String]
+    private let readinessPath: String
+    private var pid: pid_t?
 
     init(lockPath: URL, holdSeconds: Double, pairPath: URL? = nil, rotatedPair: String? = nil) {
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
-        process.arguments = [
+        readinessPath = lockPath.deletingLastPathComponent()
+            .appendingPathComponent("refresh-ready-\(UUID().uuidString)").path
+        arguments = [
             "-c",
             """
             import fcntl, sys, time
@@ -52,36 +55,116 @@ private final class RefreshingChild: @unchecked Sendable {
             """,
             lockPath.path, String(holdSeconds)
         ] + [pairPath?.path, rotatedPair].compactMap { $0 }
-        process.standardOutput = outputPipe
-        process.standardError = FileHandle.nullDevice
     }
 
-    var isRunning: Bool { process.isRunning }
+    var isRunning: Bool { !reapIfExited() }
 
-    /// Starts the child and blocks (bounded) until it reports holding the lock.
+    /// File-backed readiness keeps the ten-second deadline effective even if the child prints nothing.
     func startAndWaitUntilLocked(timeout: Duration = .seconds(10)) throws {
-        try process.run()
-        let handle = outputPipe.fileHandleForReading
-        let deadline = ContinuousClock.now + timeout
-        var buffer = Data()
-        while !buffer.contains(UInt8(ascii: "\n")) {
-            guard ContinuousClock.now < deadline else {
-                throw ChildFailure("the refreshing child never reported holding the lock")
-            }
-            let chunk = handle.availableData
-            if chunk.isEmpty {
+        let output = open(readinessPath, O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC, 0o600)
+        guard output >= 0 else { throw ChildFailure("could not create the refreshing child's readiness file") }
+        defer {
+            close(output)
+            unlink(readinessPath)
+        }
+        do {
+            pid = try spawn(output: output)
+            let deadline = ContinuousClock.now + timeout
+            while ContinuousClock.now < deadline {
+                if try hasReportedLock(output: output) { return }
+                guard !reapIfExited() else {
+                    throw ChildFailure("the refreshing child exited before reporting that it held the lock")
+                }
                 usleep(5_000)
-                continue
             }
-            buffer.append(chunk)
+            throw ChildFailure("the refreshing child never reported holding the lock within \(timeout)")
+        } catch {
+            // A failure happens before the test installs its defer, so this method owns that cleanup.
+            terminateAndWait()
+            throw error
         }
     }
 
+    /// Reap our exact PID directly; Foundation's shared Process bookkeeping cannot strand this fixture.
     func terminateAndWait() {
-        if process.isRunning {
-            process.terminate()
+        guard !reapIfExited(), let pid else { return }
+        kill(-pid, SIGTERM)
+        if waitUntilReaped(deadline: ContinuousClock.now + .milliseconds(150)) { return }
+        kill(-pid, SIGKILL)
+        if !waitUntilReaped(deadline: ContinuousClock.now + .seconds(1)) {
+            Issue.record("the refreshing child \(pid) could not be reaped after SIGKILL")
         }
-        process.waitUntilExit()
+    }
+
+    private func hasReportedLock(output: Int32) throws -> Bool {
+        var bytes = [UInt8](repeating: 0, count: 64)
+        let count = pread(output, &bytes, bytes.count, 0)
+        if count < 0 {
+            if errno == EINTR { return false }
+            throw ChildFailure("could not read the refreshing child's readiness file")
+        }
+        let output = bytes.prefix(count)
+        guard output.contains(UInt8(ascii: "\n")) else { return false }
+        guard String(bytes: output, encoding: .utf8) == "locked\n" else {
+            throw ChildFailure("the refreshing child returned an invalid readiness marker")
+        }
+        return true
+    }
+
+    private func reapIfExited() -> Bool {
+        guard let pid else { return true }
+        var status: Int32 = 0
+        let result = waitpid(pid, &status, WNOHANG)
+        if result == pid || (result < 0 && errno == ECHILD) {
+            self.pid = nil
+            return true
+        }
+        return false
+    }
+
+    private func waitUntilReaped(deadline: ContinuousClock.Instant) -> Bool {
+        while ContinuousClock.now < deadline {
+            if reapIfExited() { return true }
+            usleep(5_000)
+        }
+        return reapIfExited()
+    }
+
+    private func spawn(output: Int32) throws -> pid_t {
+        var actions: posix_spawn_file_actions_t?
+        try checked(posix_spawn_file_actions_init(&actions))
+        defer { posix_spawn_file_actions_destroy(&actions) }
+        try checked(posix_spawn_file_actions_addopen(&actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0))
+        try checked(posix_spawn_file_actions_adddup2(&actions, output, STDOUT_FILENO))
+        try checked(posix_spawn_file_actions_addopen(&actions, STDERR_FILENO, "/dev/null", O_WRONLY, 0))
+        try checked(posix_spawn_file_actions_addclose(&actions, output))
+        var attributes: posix_spawnattr_t?
+        try checked(posix_spawnattr_init(&attributes))
+        defer { posix_spawnattr_destroy(&attributes) }
+        let flags = POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_CLOEXEC_DEFAULT | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK
+        try checked(posix_spawnattr_setflags(&attributes, Int16(flags)))
+        try checked(posix_spawnattr_setpgroup(&attributes, 0))
+        var defaults = sigset_t()
+        sigfillset(&defaults)
+        try checked(posix_spawnattr_setsigdefault(&attributes, &defaults))
+        var mask = sigset_t()
+        sigemptyset(&mask)
+        try checked(posix_spawnattr_setsigmask(&attributes, &mask))
+        let argv = (["/usr/bin/python3"] + arguments).map { strdup($0) } + [nil]
+        let envp = ProcessInfo.processInfo.environment.map { strdup("\($0.key)=\($0.value)") } + [nil]
+        defer {
+            argv.forEach { free($0) }
+            envp.forEach { free($0) }
+        }
+        var pid: pid_t = 0
+        try checked(posix_spawn(&pid, "/usr/bin/python3", &actions, &attributes, argv, envp))
+        return pid
+    }
+
+    private func checked(_ result: Int32) throws {
+        if result != 0 {
+            throw ChildFailure("could not spawn the refreshing child: \(String(cString: strerror(result)))")
+        }
     }
 }
 
@@ -129,6 +212,22 @@ struct InstallationRefreshLockProcessTests {
         LinearTokenPair(
             accessToken: "access-stale", refreshToken: "refresh-stale", expiresAt: now.addingTimeInterval(3600)
         )
+    }
+
+    @Test("A readiness timeout cleans up the child waiting for the refresh lock")
+    func readinessTimeoutCleansChild() throws {
+        let home = try temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let lockPath = MachineLock.defaultFileURL(homeDirectory: home, installation: "acme")
+        let holder = RefreshingChild(lockPath: lockPath, holdSeconds: 300)
+        try holder.startAndWaitUntilLocked()
+        defer { holder.terminateAndWait() }
+        let waiter = RefreshingChild(lockPath: lockPath, holdSeconds: 300)
+        #expect(throws: ChildFailure.self) {
+            try waiter.startAndWaitUntilLocked(timeout: .milliseconds(100))
+        }
+        #expect(!waiter.isRunning)
+        #expect(holder.isRunning)
     }
 
     @Test("Two processes on one installation make one token request: the waiter re-reads the rotated pair")

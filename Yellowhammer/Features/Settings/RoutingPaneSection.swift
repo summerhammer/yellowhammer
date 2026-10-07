@@ -52,9 +52,11 @@ struct RoutingEmptyState: View {
 }
 
 extension [RoutingEntryDraft] {
-    /// A new entry for any Kind and any Repo Role, with the catch-all's Route when there is one.
+    /// A new entry for any Kind and any Repo Role, carrying the catch-all CLI/effort but requiring a model choice.
     mutating func appendEntry(catalog: RoutingCatalog) {
-        append(RoutingEntryDraft(route: first(where: \.isCatchAll)?.route ?? catalog.route(avoiding: [])))
+        var route = first(where: \.isCatchAll)?.route ?? catalog.newRoute()
+        route.model = ""
+        append(RoutingEntryDraft(route: route))
     }
 }
 

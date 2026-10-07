@@ -24,6 +24,8 @@ final class ProjectConfigurationModel {
     var draft: ProjectFileDraft?
     /// The Project as last loaded from disk: what a Night runs against, unsaved edits excluded.
     private(set) var loaded: ProjectConfiguration?
+    /// Declared CLIs and their configured executables, shared with the Project's Routing Entry editor.
+    private(set) var routingCatalog = RoutingCatalog.empty
 
     /// Why the Project could not be loaded, in the loader's own words: the file does not exist, the
     /// machine file (which every Project's load depends on) is broken, or this Project's own file was
@@ -60,6 +62,7 @@ final class ProjectConfigurationModel {
             if let project = configuration.projects.first(where: { $0.id == projectID }) {
                 originalText = text
                 loaded = project
+                routingCatalog = RoutingCatalog(machine: configuration.machine, projects: configuration.projects)
                 let loadedDraft = ProjectFileDraft(project)
                 saved = loadedDraft
                 draft = loadedDraft
@@ -111,6 +114,7 @@ final class ProjectConfigurationModel {
     private func clear(loadFailure: String) {
         originalText = nil
         loaded = nil
+        routingCatalog = .empty
         saved = nil
         draft = nil
         self.loadFailure = loadFailure

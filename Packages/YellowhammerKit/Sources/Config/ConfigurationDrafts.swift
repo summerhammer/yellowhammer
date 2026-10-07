@@ -18,6 +18,13 @@ public struct RouteDraft: Hashable, Sendable {
     public init(_ route: Route) {
         self.init(cli: route.cli, model: route.model, effort: route.effort)
     }
+
+    /// Selecting a different CLI invalidates the vendor-specific model identifier.
+    public mutating func selectCLI(_ cli: String) {
+        guard cli != self.cli else { return }
+        self.cli = cli
+        model = ""
+    }
 }
 
 /// One `[[routing]]` entry's fields as typed: `kind` and `repo_role` are `""` for "not set" (renders as
