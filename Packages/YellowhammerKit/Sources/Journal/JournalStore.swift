@@ -82,7 +82,7 @@ public final class JournalStore: Sendable {
 
     /// The engine's open, for the Project the invocation fires for: creates the file and its parent
     /// directory on first use and migrates forward to the current schema. It addresses a Journal by
-    /// Project id only, never by path. `linearWorkspace` is the Linear workspace of the Project's App
+    /// Project id only, never by path (a rehearsal Journal is ``open(rehearsalJournalAt:projectID:linearWorkspace:)``). `linearWorkspace` is the Linear workspace of the Project's App
     /// Installation; it is recorded only when this open creates the Journal. An existing Journal keeps the
     /// workspace it was created with: this open neither compares nor overwrites it.
     public static func open(
@@ -103,8 +103,19 @@ public final class JournalStore: Sendable {
         )
     }
 
+    /// The engine's open of a Project's rehearsal Journal (OQ149): the one Journal not addressed by
+    /// Project id, since its path is declared (`[rehearsal] journal`), never derived. Creates and
+    /// migrates exactly as ``open(configurationDirectory:projectID:linearWorkspace:)`` does. The caller
+    /// has already refused a path that is, or sits beside, a real Journal
+    /// (`ProjectConfiguration.rehearsalContext(realJournal:)`), so this never reaches a real one.
+    public static func open(
+        rehearsalJournalAt fileURL: URL, projectID: ProjectID, linearWorkspace: BoardObjectID
+    ) throws -> JournalStore {
+        try open(at: fileURL, projectID: projectID, linearWorkspace: linearWorkspace)
+    }
+
     /// Opens a Journal at an explicit path. Internal so that no module can address a Journal other
-    /// than by its Project's id; tests use it for fixtures.
+    /// than by its Project's id or, for a rehearsal, its declared path; tests use it for fixtures.
     static func open(at fileURL: URL, projectID: ProjectID, linearWorkspace: BoardObjectID) throws -> JournalStore {
         try openWritable(
             at: fileURL,

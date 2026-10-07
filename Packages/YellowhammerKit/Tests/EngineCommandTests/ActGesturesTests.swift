@@ -31,7 +31,7 @@ private func makeInvocationInDirectory(
     in directory: borrowing ConfigurationDirectory
 ) throws -> EngineInvocation {
     try directory.writeMachineFile()
-    try directory.writeValidProjectFile(id: project)
+    try directory.writeValidProjectFile(id: project, rehearsal: arguments.contains("--rehearsal"))
     var argv = [act.rawValue, "--project", project]
     argv.append(contentsOf: arguments)
     let parsed = try RootCommand.parseAsRoot(argv)
