@@ -59,13 +59,12 @@ extension ActCommand {
         notifier: ExceptionNotifier = .silent,
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) throws -> EngineInvocation {
-        let (configuration, project) = try ProjectResolution.resolve(
+        let (configuration, resolved) = try ProjectResolution.resolve(
             projectArgument: project, configurationDirectory: configurationDirectory
         )
-        // The one Journal this invocation is given; a creating open records the installation's workspace.
-        let journal = try JournalStore.open(
-            configurationDirectory: configurationDirectory, projectID: project.id,
-            linearWorkspace: BoardBinding.workspace(machine: configuration.machine, project: project)
+        // The board's Project and the one Journal: for a rehearsal, its own or refused before any write (OQ149).
+        let (project, journal) = try RehearsalBinding.bind(
+            resolved, rehearsal: rehearsal, machine: configuration.machine, in: configurationDirectory
         )
         let mode: NightMode = rehearsal ? .rehearsal : .real
         let trigger = try makeTrigger()
@@ -224,7 +223,8 @@ extension ActCommand {
 private let forceHelp: ArgumentHelp = "Run the Act even when its trigger is not met (Force an Act)."
 private let rehearsalHelp: ArgumentHelp = """
     Run this Act as part of a Rehearsal Night: the real Acts, but never dispatching an agent CLI, \
-    never pushing, and never opening a pull request.
+    never pushing, and never opening a pull request, against the Project's declared rehearsal \
+    Linear project and Journal. Refused when either is not defined.
     """
 private let featureHelp: ArgumentHelp = """
     Author the Feature named here instead of selecting one (Force authoring). Implies --force.

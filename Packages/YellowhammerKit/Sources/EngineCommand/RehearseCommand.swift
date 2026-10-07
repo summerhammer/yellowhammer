@@ -6,7 +6,9 @@ import Foundation
 
 /// `yh rehearse`: runs a Rehearsal Night for one Project — the author, build and land Acts, in that
 /// order, each exactly as `yh <act> --project <id> --force --rehearsal` would run it. It never
-/// dispatches an agent CLI, never pushes, and never opens a pull request; board writes are real.
+/// dispatches an agent CLI, never pushes, and never opens a pull request; board writes are real, to the
+/// Project's rehearsal Linear project, and loop state goes to its rehearsal Journal (OQ149). A Project
+/// that has not declared both is refused before any Act runs, naming what is missing.
 ///
 /// `--night` (rehearsal-only) lets one session run several successive Nights: a Night's identity is the
 /// calendar date of its `night_start`, and the Journal keys a Night on (project_id, night_start), so an
@@ -28,7 +30,10 @@ public struct RehearseCommand: AsyncParsableCommand {
             Runs the three Acts of a Rehearsal Night for one Project, each Act forced and in Rehearsal \
             mode. A Rehearsal Night never dispatches an agent CLI, never pushes, and never opens a pull \
             request — those three boundaries are the only difference from a real Night. Board writes are \
-            real: it does not stub Linear or Worktrees.
+            real: it does not stub Linear or Worktrees. It runs against the Project's own rehearsal \
+            context, never its real one: the Linear project named by `[board.linear] rehearsal_project` \
+            and the Journal named by `[rehearsal] journal`. A Project that declares either not at all is \
+            refused before anything is written.
             """
     )
 
@@ -74,6 +79,8 @@ public struct RehearseCommand: AsyncParsableCommand {
         let (_, resolvedProject) = try ProjectResolution.resolveDefaultingToSoleProject(
             projectArgument: project, configurationDirectory: configurationDirectory
         )
+        // Refused here, before the first Act runs, as each Act's own `--rehearsal` would refuse (OQ149).
+        _ = try RehearsalBinding.context(project: resolvedProject, configurationDirectory: configurationDirectory)
         let rehearse = Rehearse(configurationDirectory: configurationDirectory, output: { print($0) })
         try await rehearse.run(
             projectID: resolvedProject.id.rawValue, resultFixtures: resultFixtures, night: night

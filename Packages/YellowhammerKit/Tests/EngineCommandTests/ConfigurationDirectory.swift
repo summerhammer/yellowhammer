@@ -30,13 +30,17 @@ struct ConfigurationDirectory: ~Copyable {
         try contents.write(to: projects.appending(component: "\(id).toml"), atomically: true, encoding: .utf8)
     }
 
-    /// A valid Project file declaring one working Repo at `repoPath`.
-    func writeValidProjectFile(id: String, repoPath: String? = nil) throws {
+    /// A valid Project file declaring one working Repo at `repoPath`. With `rehearsal`, it also declares
+    /// its rehearsal context (OQ149): the Linear project `<id>-rehearsal` and ``rehearsalJournal(id:)``.
+    func writeValidProjectFile(id: String, repoPath: String? = nil, rehearsal: Bool = false) throws {
+        let rehearsalProject = rehearsal ? ", rehearsal_project = \"\(id)-rehearsal\"" : ""
+        let rehearsalTable = rehearsal
+            ? "rehearsal = { journal = \"\(rehearsalJournal(id: id).path(percentEncoded: false))\" }\n" : ""
         try writeProjectFile(id: id, """
             id = "\(id)"
             name = "\(id)"
-            board = { linear = { connection = "acme", project = "\(id)" } }
-            spec_source = "~/Developer/\(id)-spec"
+            board = { linear = { connection = "acme", project = "\(id)"\(rehearsalProject) } }
+            \(rehearsalTable)spec_source = "~/Developer/\(id)-spec"
 
             [[repos]]
             name = "backend"
@@ -44,6 +48,12 @@ struct ConfigurationDirectory: ~Copyable {
             role = "backend"
             check = "swift test"
             """)
+    }
+
+    /// Where ``writeValidProjectFile(id:repoPath:rehearsal:)`` declares a Project's rehearsal Journal:
+    /// in this directory, outside `journals/`.
+    func rehearsalJournal(id: String) -> URL {
+        url.appending(components: "rehearsal", "\(id).db", directoryHint: .notDirectory)
     }
 
     static let machineFile = """

@@ -1,6 +1,7 @@
 import Config
 import Domain
 import Foundation
+import Journal
 import Observation
 
 /// The Recalibrate tab's model (P14.7): this Project's Bounds, this Night's proximity to each, and a way
@@ -27,6 +28,21 @@ final class RecalibrateModel {
     private(set) var rehearsalStartedNote: String?
     private(set) var rehearsalLogURL: URL?
     private(set) var rehearsalFailure: String?
+
+    /// Why *Run a rehearsal Night* is unavailable for this Project (OQ149), in the words `yh rehearse`
+    /// would refuse with: read from the Project's configuration as saved on disk, never by running `yh`.
+    /// Nil when Rehearsal is available, and while the Project has not loaded (the pane shows why).
+    var rehearsalUnavailable: String? {
+        guard let loaded = detail.loaded else { return nil }
+        do {
+            _ = try loaded.rehearsalContext(
+                realJournal: JournalStore.defaultFileURL(configurationDirectory: detail.directory, id: project)
+            )
+            return nil
+        } catch {
+            return error.description
+        }
+    }
 
     /// The same process-running seam the Overview window runs `yh doctor` through.
     private let engine = SetupEngine()
@@ -82,9 +98,11 @@ final class RecalibrateModel {
     }
 
     /// Launches `yh rehearse --project <id>` fully detached (P14.7's done-when: it survives the app
-    /// quitting). The button that triggers this is disabled only for the duration of the synchronous
-    /// spawn call below — nothing is tracked afterwards, no pid, no polling.
+    /// quitting). The button that triggers this is disabled while ``rehearsalUnavailable`` holds a
+    /// reason, and for the duration of the synchronous spawn call below — nothing is tracked
+    /// afterwards, no pid, no polling.
     func confirmRehearsal() {
+        guard rehearsalUnavailable == nil else { return }
         rehearsalFailure = nil
         rehearsalStartedNote = nil
         rehearsalLogURL = nil
