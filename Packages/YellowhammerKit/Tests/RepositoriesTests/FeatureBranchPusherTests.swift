@@ -21,7 +21,7 @@ struct FeatureBranchPusherTests {
         let repo = Repo(name: "app", path: local.path, role: .backend, defaultBranch: "main")
         let branch = FeatureBranch(name: "yh-project-feature")
         let pusher = FeatureBranchPusher()
-        let outcome = await pusher.push(branch: branch, in: repo, mode: .real, token: nil)
+        let outcome = await pusher.push(branch: branch, in: repo, mode: .real, credential: nil)
 
         guard case .pushed(let commit) = outcome else {
             Issue.record("expected .pushed, got \(outcome)")
@@ -54,7 +54,7 @@ struct FeatureBranchPusherTests {
         let repo = Repo(name: "app", path: local.path, role: .backend, defaultBranch: "main")
         let branch = FeatureBranch(name: "yh-project-feature")
         let pusher = FeatureBranchPusher()
-        let outcome = await pusher.push(branch: branch, in: repo, mode: .real, token: nil)
+        let outcome = await pusher.push(branch: branch, in: repo, mode: .real, credential: nil)
 
         guard case .refusedByBranchProtection(let repository, _) = outcome else {
             Issue.record("expected .refusedByBranchProtection, got \(outcome)")
@@ -79,7 +79,7 @@ struct FeatureBranchPusherTests {
         let repo = Repo(name: "app", path: local.path, role: .backend, defaultBranch: "main")
         let branch = FeatureBranch(name: "yh-project-feature")
         let pusher = FeatureBranchPusher()
-        let outcome = await pusher.push(branch: branch, in: repo, mode: .rehearsal, token: nil)
+        let outcome = await pusher.push(branch: branch, in: repo, mode: .rehearsal, credential: nil)
 
         #expect(outcome == .notPushedInRehearsal)
         await #expect(remote.revParse("refs/heads/yh-project-feature") == nil)
@@ -98,7 +98,7 @@ struct FeatureBranchPusherTests {
         let repo = Repo(name: "app", path: local.path, role: .backend, defaultBranch: "main")
         let branch = FeatureBranch(name: "main")
         let pusher = FeatureBranchPusher()
-        let outcome = await pusher.push(branch: branch, in: repo, mode: .real, token: nil)
+        let outcome = await pusher.push(branch: branch, in: repo, mode: .real, credential: nil)
 
         #expect(outcome == .refusedMainline)
         await #expect(remote.revParse("refs/heads/main") == nil)

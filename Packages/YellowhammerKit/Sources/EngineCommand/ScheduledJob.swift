@@ -143,13 +143,24 @@ extension ScheduledJob {
         return entries.joined(separator: ":")
     }
 
-    /// The tools among `git`, `orca` and `declaredCLIAdapters` that a bare `launchd` environment carrying
+    /// A `gh` CLI connection's need of `gh` at Act time: its declared absolute `executable`, if any, which
+    /// always resolves.
+    struct GitHubCLIRequirement: Equatable {
+        let declared: String?
+    }
+
+    /// The tools among `git`, `orca`, `declaredCLIAdapters` and (with a `gh` CLI connection) `gh` that a bare `launchd` environment carrying
     /// only `composedPATH` could not resolve: `fileExists` stands in for the filesystem, same seam as
     /// ``ProbeExecutable``. A declared adapter with an absolute `executable` always resolves (it never
     /// depends on `PATH`); one without falls back to a `PATH` search for its `name`, exactly as
     /// ``ProbeExecutable/resolve`` does at Act time.
+    ///
+    /// `gitHubCLI` is non-nil only when the machine registry holds a `gh` CLI connection (carrying its declared
+    /// `executable`, if any); `gh` is then checked like a declared tool, after the CLI adapters, and a Mac with
+    /// no such connection is never warned about it.
     static func unresolvableTools(
-        composedPATH: String, declaredCLIAdapters: [CLIAdapterDeclaration], fileExists: (String) -> Bool
+        composedPATH: String, declaredCLIAdapters: [CLIAdapterDeclaration],
+        gitHubCLI: GitHubCLIRequirement? = nil, fileExists: (String) -> Bool
     ) -> [String] {
         // git and orca are baseline tools every Act needs; a declared CLI adapter of the same name
         // overrides the baseline entry (its `executable`, when set, wins), so a Project cannot end up
@@ -163,12 +174,19 @@ extension ScheduledJob {
             declaredExecutables[adapter.name] = adapter.executable
         }
 
-        return order.compactMap { name in
+        var missing = order.compactMap { name -> String? in
             let resolved = ProbeExecutable.resolve(
                 name: name, declared: declaredExecutables[name].flatMap { $0 }, path: composedPATH,
                 fileExists: fileExists
             )
             return resolved == nil ? name : nil
         }
+        if let gitHubCLI, !missing.contains("gh"),
+           ProbeExecutable.resolve(
+               name: "gh", declared: gitHubCLI.declared, path: composedPATH, fileExists: fileExists
+           ) == nil {
+            missing.append("gh")
+        }
+        return missing
     }
 }

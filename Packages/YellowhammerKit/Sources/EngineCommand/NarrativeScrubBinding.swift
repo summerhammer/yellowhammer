@@ -23,9 +23,16 @@ enum NarrativeScrubBinding {
     ) -> @Sendable () -> NarrativeScrub {
         let installation = configuration.machine.linearInstallation(for: project)
         let gitHub = HeldCredential {
-            // A refusal (no usable Keychain token connection) contributes nothing.
+            // A refusal (a connection absent from the registry) contributes nothing.
             guard let credential = try? configuration.machine.codeHostingCredential(for: project) else { return nil }
-            return try? credentials.read(credential.reference)
+            switch credential {
+            case .keychainToken(_, let reference):
+                return try? credentials.read(reference)
+            case .githubCLI:
+                // A gh connection holds no GitHub credential: gh does, and Yellowhammer never reads it, so
+                // there is no value to scrub.
+                return nil
+            }
         }
         let roots = project.repositories.workingRepos.map { ($0.path as NSString).expandingTildeInPath }
         let home = homeDirectory.path

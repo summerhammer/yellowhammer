@@ -153,4 +153,72 @@ struct SetupScheduledJobsExportTests {
         #expect(output.lines.contains { $0.hasPrefix("Warning:") && $0.contains("orca") })
         #expect(output.lines.contains("Setup complete."))
     }
+
+    private static let withGitHubCLIConnection = ConfigurationDirectory.machineFile + """
+
+
+        [code_hosting.github.connections.gh]
+        type = "gh"
+        """
+
+    private func exportedPATH(
+        machine: String, setupTimePATH: String, fileExists: @escaping (String) -> Bool, output: RecordingOutput
+    ) async throws -> String {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile(machine)
+        try directory.writeValidProjectFile(id: "alpha")
+        let exportDirectory = freshExportDirectory()
+        let arguments = makeArguments(
+            operatorID: "user-op", exportJobs: exportDirectory.path(percentEncoded: false), installation: "acme"
+        )
+        let setup = try makeSetup(
+            arguments: arguments, directory: directory, board: await makeBoard(), output: output,
+            setupTimePATH: setupTimePATH, fileExists: fileExists
+        )
+
+        try await setup.run()
+
+        let plist = try decodePlist(at: exportDirectory.appending(component: "dev.yellowhammer.alpha.author.plist"))
+        let environment = try #require(plist["EnvironmentVariables"] as? [String: String])
+        return try #require(environment["PATH"])
+    }
+
+    @Test("A gh connection with gh in /opt/homebrew/bin, off the setup PATH, leads the plist PATH")
+    func gitHubCLIDirectoryLeadsThePATH() async throws {
+        let output = RecordingOutput()
+
+        let path = try await exportedPATH(
+            machine: Self.withGitHubCLIConnection, setupTimePATH: "/usr/bin",
+            fileExists: { $0 == "/opt/homebrew/bin/gh" }, output: output
+        )
+
+        #expect(path.hasPrefix("/opt/homebrew/bin:"))
+        #expect(!output.lines.contains { $0.hasPrefix("Warning:") && $0.contains("`gh`") })
+    }
+
+    @Test("A gh connection with no gh anywhere warns that gh is not on the PATH the jobs run with")
+    func missingGitHubCLIWarns() async throws {
+        let output = RecordingOutput()
+
+        let path = try await exportedPATH(
+            machine: Self.withGitHubCLIConnection, setupTimePATH: "/usr/bin", fileExists: { _ in false },
+            output: output
+        )
+
+        #expect(!path.contains("/opt/homebrew/bin"))
+        #expect(output.lines.contains { $0.hasPrefix("Warning:") && $0.contains("`gh`") })
+    }
+
+    @Test("Without a gh connection gh is neither put on the PATH nor warned about")
+    func noGitHubCLIConnectionMeansNoGitHubCLI() async throws {
+        let output = RecordingOutput()
+
+        let path = try await exportedPATH(
+            machine: ConfigurationDirectory.machineFile, setupTimePATH: "/usr/bin",
+            fileExists: { $0 == "/opt/homebrew/bin/gh" }, output: output
+        )
+
+        #expect(!path.contains("/opt/homebrew/bin"))
+        #expect(!output.lines.contains { $0.hasPrefix("Warning:") && $0.contains("`gh`") })
+    }
 }

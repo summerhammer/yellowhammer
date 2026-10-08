@@ -93,11 +93,7 @@ struct ProjectCodeHostingConnectionChange {
             )
         }
 
-        guard case .keychainToken(let reference) = connection.kind else {
-            throw SetupError(CodeHostingRefusal.githubCLINotSupported(connection: connectionName).description)
-        }
-
-        try await validatePushAccess(connectionName: connectionName, reference: reference, project: project)
+        try await validatePushAccess(connectionName: connectionName, kind: connection.kind, project: project)
         try saveProject(project: project, connectionName: connectionName)
 
         output("Code Hosting Connection for Project \(project.id.rawValue) set to \(connectionName).")
@@ -105,19 +101,27 @@ struct ProjectCodeHostingConnectionChange {
 
     private func validatePushAccess(
         connectionName: String,
-        reference: CredentialReference,
+        kind: CodeHostingConnection.Kind,
         project: ProjectConfiguration
     ) async throws {
         let workingRepos = project.repositories.workingRepos.filter { $0.role != .spec }
         let reposToCheck = workingRepos.map { (name: $0.name, path: $0.path) }
 
-        let secret = credentials.gitHubSecret(for: reference)
-        let report = await gitHub.report(
-            reference: reference,
-            secret: secret,
-            repos: reposToCheck,
-            connectionName: connectionName
-        )
+        let report: GitHubCredentialReport
+        switch kind {
+        case .githubCLI(let executable):
+            // A gh CLI connection holds no token: gh's active account is checked, read live.
+            report = await gitHub.reportGitHubCLI(
+                executable: executable, repos: reposToCheck, connectionName: connectionName
+            )
+        case .keychainToken(let reference):
+            report = await gitHub.report(
+                reference: reference,
+                secret: credentials.gitHubSecret(for: reference),
+                repos: reposToCheck,
+                connectionName: connectionName
+            )
+        }
 
         guard report.isValid else {
             if report.state != .resolves {

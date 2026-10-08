@@ -50,58 +50,51 @@ extension Doctor {
             return []
         }
 
-        switch connection.kind {
-        case .githubCLI:
-            return [cliConnectionFinding(scope, type: typeName)]
-
-        case .keychainToken(let reference):
-            return await keychainConnectionFindings(
-                connection: connection, reference: reference, scope: scope,
-                type: typeName, served: servedSorted
-            )
+        let source: CredentialSource = switch connection.kind {
+        case .githubCLI(let executable): .githubCLI(executable: executable)
+        case .keychainToken(let reference): .keychain(reference)
         }
-    }
-
-    private func cliConnectionFinding(
-        _ scope: DoctorCodeHostingScope, type: String
-    ) -> DoctorFinding {
-        let prefix = Self.connectionPrefix(scope, type: type, login: nil)
-        let refusal = CodeHostingRefusal.githubCLINotSupported(connection: scope.name)
-        if scope.projects.isEmpty {
-            return finding(
-                .github, subject: "credential", .info,
-                prefix + "\(refusal.description) No Project uses it yet.",
-                codeHosting: scope
-            )
-        }
-        return finding(
-            .github, subject: "credential", .failure,
-            prefix + "\(refusal.description) Select a Keychain token connection instead in Settings › Code Hosting, "
-                + "or connect one under a different name and select it in the Project file.",
-            codeHosting: scope
+        return await credentialFindings(
+            connection: connection, source: source, scope: scope, type: typeName, served: servedSorted
         )
     }
 
-    private func keychainConnectionFindings(
-        connection: CodeHostingConnection, reference: CredentialReference,
+    /// Where a connection's authority comes from: a Keychain token, or the Operator's `gh` CLI (which holds the
+    /// token; Yellowhammer holds none).
+    private enum CredentialSource {
+        case keychain(CredentialReference)
+        case githubCLI(executable: String?)
+    }
+
+    private func report(
+        _ source: CredentialSource, connection: CodeHostingConnection, repos: [(name: String, path: String)]
+    ) async -> GitHubCredentialReport {
+        switch source {
+        case .keychain(let reference):
+            return await gitHub.report(
+                reference: reference, secret: credentials.gitHubSecret(for: reference), repos: repos,
+                connectionName: connection.name
+            )
+        case .githubCLI(let executable):
+            return await gitHub.reportGitHubCLI(executable: executable, repos: repos, connectionName: connection.name)
+        }
+    }
+
+    private func credentialFindings(
+        connection: CodeHostingConnection, source: CredentialSource,
         scope: DoctorCodeHostingScope, type: String, served: [ProjectConfiguration]
     ) async -> [DoctorFinding] {
-        let secret = credentials.gitHubSecret(for: reference)
         if served.isEmpty {
-            let report = await gitHub.report(
-                reference: reference, secret: secret, repos: [], connectionName: connection.name
-            )
-            return [unreferencedFinding(report, scope: scope, type: type, reference: reference)]
+            let report = await report(source, connection: connection, repos: [])
+            return [unreferencedFinding(report, scope: scope, type: type, source: source)]
         }
 
         let activeProjects = served.filter { projectFilter == nil || $0.id == projectFilter }
         let allRepos = activeProjects.flatMap { workingRepos(of: $0) }
-        let report = await gitHub.report(
-            reference: reference, secret: secret, repos: allRepos, connectionName: connection.name
-        )
+        let report = await report(source, connection: connection, repos: allRepos)
 
         var findings = [
-            connectionFinding(report, scope: scope, type: type, reference: reference)
+            connectionFinding(report, scope: scope, type: type, source: source)
         ]
         guard report.state == .resolves else { return findings }
 
@@ -124,59 +117,54 @@ extension Doctor {
     }
 
     private func connectionFinding(
-        _ report: GitHubCredentialReport, scope: DoctorCodeHostingScope, type: String,
-        reference: CredentialReference
+        _ report: GitHubCredentialReport, scope: DoctorCodeHostingScope, type: String, source: CredentialSource
     ) -> DoctorFinding {
         let prefix = Self.connectionPrefix(scope, type: type, login: report.login)
-        switch report.state {
-        case .resolves:
+        if report.state == .resolves {
             return finding(.github, subject: "credential", .pass, prefix + report.message, codeHosting: scope)
-        case .unreachable:
+        }
+        if report.state == .unreachable {
             return finding(.github, subject: "credential", .warning, prefix + report.message, codeHosting: scope)
+        }
+        guard case .keychain(let reference) = source else {
+            // A gh failure names its own fix: install gh, or run `gh auth login`.
+            return finding(.github, subject: "credential", .failure, prefix + report.message, codeHosting: scope)
+        }
+        let detail: String
+        switch report.state {
         case .missing:
-            let detail = "no GitHub token found under reference \(reference.rawValue) in Keychain; "
+            detail = "no GitHub token found under reference \(reference.rawValue) in Keychain; "
                 + "replace it in Settings › Code Hosting or run "
                 + "`yh config replace-code-hosting-token \(scope.name) --token-stdin`"
-            return finding(.github, subject: "credential", .failure, prefix + detail, codeHosting: scope)
         case .unreadable:
-            let detail = "the Keychain item for \(reference.rawValue) could not be read; "
+            detail = "the Keychain item for \(reference.rawValue) could not be read; "
                 + "unlock the login Keychain, reconnect in Settings › Code Hosting, or replace it with "
                 + "`yh config replace-code-hosting-token \(scope.name) --token-stdin`"
-            return finding(.github, subject: "credential", .failure, prefix + detail, codeHosting: scope)
-        case .rejected:
-            let detail = "GitHub rejected the token in \(reference.rawValue): it is wrong, revoked or expired; "
+        default:
+            detail = "GitHub rejected the token in \(reference.rawValue): it is wrong, revoked or expired; "
                 + "replace it in Settings › Code Hosting or run "
                 + "`yh config replace-code-hosting-token \(scope.name) --token-stdin`"
-            return finding(.github, subject: "credential", .failure, prefix + detail, codeHosting: scope)
         }
+        return finding(.github, subject: "credential", .failure, prefix + detail, codeHosting: scope)
     }
 
     private func unreferencedFinding(
-        _ report: GitHubCredentialReport, scope: DoctorCodeHostingScope, type: String,
-        reference: CredentialReference
+        _ report: GitHubCredentialReport, scope: DoctorCodeHostingScope, type: String, source: CredentialSource
     ) -> DoctorFinding {
         let prefix = Self.connectionPrefix(scope, type: type, login: report.login)
-        switch report.state {
-        case .resolves:
-            return finding(
-                .github, subject: "credential", .info,
-                prefix + "\(report.message) No Project uses it yet.",
-                codeHosting: scope
-            )
-        case .missing:
+        if case .keychain(let reference) = source, report.state == .missing {
             return finding(
                 .github, subject: "credential", .info,
                 prefix + "no GitHub token found under reference \(reference.rawValue) in Keychain. "
                     + "No Project uses it yet.",
                 codeHosting: scope
             )
-        case .unreadable, .rejected, .unreachable:
-            return finding(
-                .github, subject: "credential", .info,
-                prefix + "\(report.message) No Project uses it yet.",
-                codeHosting: scope
-            )
         }
+        return finding(
+            .github, subject: "credential", .info,
+            prefix + "\(report.message) No Project uses it yet.",
+            codeHosting: scope
+        )
     }
 
     /// `Code Hosting Connection github (type "keychain"; login "octocat"; Projects alpha, beta): `

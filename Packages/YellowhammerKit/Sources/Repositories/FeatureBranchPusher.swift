@@ -24,12 +24,22 @@ public enum PushFailureClassification: Equatable, Sendable {
     case other
 }
 
+/// How a push authenticates to GitHub.
+public enum PushCredential: Sendable {
+    /// A token Yellowhammer holds, sent as a basic-auth `http.extraHeader`.
+    case token(GitHubToken)
+    /// The Operator's own GitHub CLI at `executable` (an absolute path) as git's credential helper
+    /// (`gh auth git-credential`): the token passes from `gh` to git and never enters this process.
+    case githubCLI(executable: String)
+}
+
 /// Pushes a Feature Branch to `origin` on GitHub.
 ///
 /// Rehearsal never pushes (`.notPushedInRehearsal`, no git command run). Mainline is never
-/// pushed (`.refusedMainline`, no git command run). A token, when given, is supplied to git
+/// pushed (`.refusedMainline`, no git command run). A credential, when given, is supplied to git
 /// entirely through environment-based config (`GIT_CONFIG_COUNT`/`_KEY_n`/`_VALUE_n`), never as
-/// a process argument, and the token itself never appears in an outcome.
+/// a process argument: a token becomes an `http.extraHeader`, a `gh` CLI becomes the
+/// `credential.helper`. The credential itself never appears in an outcome.
 public struct FeatureBranchPusher: Sendable {
     public let git: GitRunner
 
@@ -41,7 +51,7 @@ public struct FeatureBranchPusher: Sendable {
         branch: FeatureBranch,
         in repo: Repo,
         mode: NightMode,
-        token: GitHubToken?
+        credential: PushCredential?
     ) async -> PushOutcome {
         if mode == .rehearsal {
             return .notPushedInRehearsal
@@ -62,7 +72,7 @@ public struct FeatureBranchPusher: Sendable {
             return .refusedMainline
         }
 
-        let pushRunner = pushRunner(token: token)
+        let pushRunner = pushRunner(credential: credential)
         let refspec = "refs/heads/\(branch.name):refs/heads/\(branch.name)"
         let result = await pushRunner.run(["-C", path, "push", "--porcelain", "origin", refspec])
 
@@ -85,18 +95,14 @@ public struct FeatureBranchPusher: Sendable {
     }
 
     /// Builds the `GitRunner` used for the push: ambient environment plus a disabled terminal
-    /// prompt, and, when a token is given, config injected purely through the environment so the
-    /// token never appears in `ps`/process arguments.
-    private func pushRunner(token: GitHubToken?) -> GitRunner {
+    /// prompt, and, when a credential is given, config injected purely through the environment so
+    /// no credential appears in `ps`/process arguments.
+    private func pushRunner(credential: PushCredential?) -> GitRunner {
         var environment = git.environment
         environment["GIT_TERMINAL_PROMPT"] = "0"
 
-        if let token {
-            let basicCredential = Data("x-access-token:\(token.value)".utf8).base64EncodedString()
-            let configs: [(key: String, value: String)] = [
-                (key: "credential.helper", value: ""),
-                (key: "http.extraHeader", value: "Authorization: Basic \(basicCredential)")
-            ]
+        if let credential {
+            let configs = Self.configs(for: credential)
             environment["GIT_CONFIG_COUNT"] = "\(configs.count)"
             for (index, config) in configs.enumerated() {
                 environment["GIT_CONFIG_KEY_\(index)"] = config.key
@@ -105,6 +111,25 @@ public struct FeatureBranchPusher: Sendable {
         }
 
         return GitRunner(executablePath: git.executablePath, environment: environment)
+    }
+
+    /// The git config pairs for a credential. Both reset the inherited `credential.helper` list first.
+    private static func configs(for credential: PushCredential) -> [(key: String, value: String)] {
+        switch credential {
+        case .token(let token):
+            let basicCredential = Data("x-access-token:\(token.value)".utf8).base64EncodedString()
+            return [
+                (key: "credential.helper", value: ""),
+                (key: "http.extraHeader", value: "Authorization: Basic \(basicCredential)")
+            ]
+        case .githubCLI(let executable):
+            // A shell-run helper (leading `!`): the path is single-quoted, with `'` written as `'\''`.
+            let quoted = "'" + executable.replacingOccurrences(of: "'", with: "'\\''") + "'"
+            return [
+                (key: "credential.helper", value: ""),
+                (key: "credential.helper", value: "!\(quoted) auth git-credential")
+            ]
+        }
     }
 
     private func revParse(_ ref: String, in path: String) async -> String? {

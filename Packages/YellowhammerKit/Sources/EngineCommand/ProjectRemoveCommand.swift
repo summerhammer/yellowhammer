@@ -45,25 +45,27 @@ public struct ProjectRemoveCommand: AsyncParsableCommand {
         }
     }
 
-    /// The push seam, mirroring ``LandBinding/push(configuration:project:credentials:)``: the GitHub
-    /// token is resolved lazily, on each call, so a removal that never pushes never touches the
-    /// Keychain.
+    /// The push seam, mirroring ``LandBinding/push(configuration:project:credentials:gitHubCLI:)``: the GitHub
+    /// credential (a Keychain token, or the `gh` CLI found now) is resolved lazily, on each call, so a removal
+    /// that never pushes never touches the Keychain.
     static func push(
         configuration: Configuration,
         project: ProjectConfiguration,
-        credentials store: KeychainCredentialStore = KeychainCredentialStore()
+        credentials store: KeychainCredentialStore = KeychainCredentialStore(),
+        gitHubCLI: @escaping @Sendable (String?) throws -> String = GitHubCLIExecutable.production
     ) -> @Sendable (FeatureBranch, Repo, NightMode) async -> PushOutcome {
         { branch, repo, mode in
-            let token: GitHubToken?
+            let credential: PushCredential
             do {
-                let credential = try configuration.machine.codeHostingCredential(for: project)
-                token = GitHubToken(try store.read(credential.reference))
+                credential = try LandBinding.pushCredential(
+                    configuration: configuration, project: project, credentials: store, gitHubCLI: gitHubCLI
+                )
             } catch let refusal as CodeHostingRefusal {
                 return .credentialsMissingOrInsufficient(repository: repo.name, detail: refusal.description)
             } catch {
                 return .credentialsMissingOrInsufficient(repository: repo.name, detail: "\(error)")
             }
-            return await FeatureBranchPusher().push(branch: branch, in: repo, mode: mode, token: token)
+            return await FeatureBranchPusher().push(branch: branch, in: repo, mode: mode, credential: credential)
         }
     }
 }
