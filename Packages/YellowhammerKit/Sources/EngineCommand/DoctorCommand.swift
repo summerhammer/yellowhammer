@@ -85,7 +85,7 @@ public struct DoctorCommand: AsyncParsableCommand {
     }
 
     /// One compact JSON array of `DoctorFindingRow`s — no `projectID`; a finding scoped to an App
-    /// Installation also carries its name, workspace and Projects, and a GitHub finding its one Project.
+    /// Installation also carries its name, workspace and Projects, and a Code Hosting finding its connection and Projects.
     static func encodeFindingsJSON(_ findings: [DoctorFinding]) -> String {
         DoctorFindingRow.encodeLine(findings.map { finding in
             DoctorFindingRow(
@@ -93,8 +93,11 @@ public struct DoctorCommand: AsyncParsableCommand {
                 severity: severityString(finding.severity), message: finding.message,
                 installation: finding.installation?.name, workspace: finding.installation?.workspace,
                 workspaceName: finding.installation?.workspaceName,
-                projects: finding.installation?.projects.map(\.rawValue) ?? gitHubProjects(of: finding),
-                authorization: finding.authorization?.rawValue
+                projects: finding.installation?.projects.map(\.rawValue)
+                    ?? finding.codeHosting?.projects.map(\.rawValue)
+                    ?? gitHubProjects(of: finding),
+                authorization: finding.authorization?.rawValue,
+                connection: finding.codeHosting?.name
             )
         })
     }
