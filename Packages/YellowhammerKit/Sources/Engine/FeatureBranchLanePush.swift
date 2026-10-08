@@ -6,20 +6,20 @@ import Repositories
 /// ``FeatureBranchPusher`` for the git-level push (P6.6); this type adds the land-scoped policy in
 /// front of it: resolving the lane's Repo and Feature Branch, detecting a lane with no completed work
 /// so it is never pushed (signaling safe release of allocated Worktrees via ``LanePushOutcome/safeToReleaseWorktree``),
-/// and resolving the GitHub token lazily, once per call, only when a real push is about to run.
+/// and resolving the push credential lazily, once per call, only when a real push is about to run.
 public struct FeatureBranchLanePush: LanePushing, Sendable {
     private let pusher: FeatureBranchPusher
-    /// Returns the GitHub token to push with, or throws when it could not be resolved. Called only
+    /// Returns the credential to push with, or throws when it could not be resolved. Called only
     /// once a lane is known to have completed work — never eagerly, and never in rehearsal (the land
     /// Act never calls this seam in rehearsal mode).
-    private let token: @Sendable () throws -> GitHubToken?
+    private let credential: @Sendable () throws -> PushCredential?
 
     public init(
         pusher: FeatureBranchPusher = FeatureBranchPusher(),
-        token: @escaping @Sendable () throws -> GitHubToken?
+        credential: @escaping @Sendable () throws -> PushCredential?
     ) {
         self.pusher = pusher
-        self.token = token
+        self.credential = credential
     }
 
     public func push(_ context: LandActLaneContext) async throws -> LanePushOutcome {
@@ -46,16 +46,18 @@ public struct FeatureBranchLanePush: LanePushing, Sendable {
             }
         }
 
-        let resolvedToken: GitHubToken?
+        let resolvedCredential: PushCredential?
         do {
-            resolvedToken = try token()
+            resolvedCredential = try credential()
         } catch {
             return LanePushOutcome(kind: .credentialsMissingOrInsufficient(
                 detail: "GitHub credentials for \"\(repository)\" could not be resolved: \(error)"
             ))
         }
 
-        let outcome = await pusher.push(branch: branch, in: repo, mode: context.act.mode, token: resolvedToken)
+        let outcome = await pusher.push(
+            branch: branch, in: repo, mode: context.act.mode, credential: resolvedCredential
+        )
         return Self.map(outcome)
     }
 

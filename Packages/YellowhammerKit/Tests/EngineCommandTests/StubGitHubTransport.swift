@@ -80,8 +80,9 @@ final class StubGitHubTransport: Sendable {
     }
 
     /// A validation that talks to this stub. A Repo's slug is `acme/<last path component>`; the paths in
-    /// `notGitHub` have no GitHub `origin`.
-    func validation(notGitHub: Set<String> = []) -> GitHubCredentialValidation {
+    /// `notGitHub` have no GitHub `origin`. `gitHubCLI` is the `gh` executable the validation finds (a
+    /// ``StubGitHubCLI``'s path); by default none is found, so a test never reaches the real `gh`.
+    func validation(notGitHub: Set<String> = [], gitHubCLI: String? = nil) -> GitHubCredentialValidation {
         GitHubCredentialValidation(
             send: { try await self.send($0) },
             resolveSlug: { path in
@@ -89,7 +90,8 @@ final class StubGitHubTransport: Sendable {
                 return GitHubRepositorySlug(
                     owner: "acme", repository: (path as NSString).lastPathComponent
                 )
-            }
+            },
+            resolveGitHubCLI: { _ in gitHubCLI }
         )
     }
 }

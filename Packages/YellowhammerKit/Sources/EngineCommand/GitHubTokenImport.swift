@@ -10,19 +10,14 @@ enum GitHubTokenImport: Equatable, Sendable {
 }
 
 extension GitHubTokenImport {
-    /// Directories searched after `PATH`: `launchd` and the app run with a minimal `PATH`, where Homebrew's
-    /// `gh` would otherwise not be found.
-    static let fixedDirectories = ["/opt/homebrew/bin", "/usr/local/bin"]
-
     /// Runs `gh auth token --hostname github.com` and reads the token from its standard output. The token is
     /// never a process argument, and `gh`'s standard error is discarded.
     static func production(
         path: String?, fileExists: @escaping @Sendable (String) -> Bool
     ) -> @Sendable () async -> GitHubTokenImport {
         {
-            let searchPath = ([path].compactMap { $0 } + fixedDirectories).joined(separator: ":")
-            guard let executable = ProbeExecutable.resolve(
-                name: "gh", declared: nil, path: searchPath, fileExists: fileExists
+            guard let executable = GitHubCLIExecutable.resolve(
+                declared: nil, path: path, fileExists: fileExists
             ) else {
                 return .unavailable("the GitHub CLI (gh) was not found on PATH, /opt/homebrew/bin or /usr/local/bin")
             }
