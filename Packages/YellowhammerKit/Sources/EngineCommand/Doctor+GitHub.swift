@@ -3,65 +3,190 @@ import Domain
 import Foundation
 
 extension Doctor {
-    /// Check: the GitHub credential. Each valid Project's Code Hosting Connection is resolved through the one
-    /// resolver. A refusal (a connection that cannot give a credential) is one `credential` failure for that
-    /// Project, naming the connection. The rest are grouped by connection and the token is read once per
-    /// connection; each Project then gets one `credential` finding and one finding per working Repo (a Repo
-    /// whose role is `spec` is skipped: the Spec Source is read-only, so nothing is pushed to it). Every
-    /// finding is scoped to its Project. A refused Project whose connection is missing from the registry gets
-    /// a `project` failure naming both fixes.
+    /// Check 5 (shift-scheduling/diagnose-the-installation): Code Hosting Connections (`github`).
+    /// Runs once per Code Hosting Connection in the registry, in registry order. Each connection reports its
+    /// local name, its type, its live Code Hosting identity (for GitHub, the login), and the Projects that select
+    /// it. A refused connection fails ([FAIL]) naming the connection, the Projects it serves, and the fix:
+    /// Settings › Code Hosting.
     ///
-    /// With no valid Project there is nothing to publish yet, so every connection in the registry is checked
-    /// on its own and reported as context (`info`) when it resolves or is absent; an empty registry says how
-    /// to connect one.
+    /// An unreferenced connection (no Project names it) is reported as context (info).
+    ///
+    /// If the connection resolves, the push check runs per Project and per working Repo (spec-role Repos
+    /// are skipped; unverifiable fine-grained tokens are reported as unverified passes).
+    ///
+    /// A Project naming a connection not in the registry fails ([FAIL]) for that Project, naming the Project
+    /// and the missing name.
     func runGitHubCheck(configuration: Configuration) async -> [DoctorFinding] {
+        let connections = configuration.machine.codeHostingConnections
         let missing = missingConnectionFindings(configuration: configuration)
-        guard !configuration.projects.isEmpty else {
-            return await registryFindings(configuration: configuration, hasRefusedProjects: !missing.isEmpty) + missing
+        guard !connections.isEmpty else {
+            guard configuration.projects.isEmpty, missing.isEmpty else { return missing }
+            return [finding(
+                .github, subject: "credential", .info,
+                "No Code Hosting Connection is connected; connect one with `yh setup --install-github`."
+            )]
         }
 
-        let selected = configuration.projects.filter { projectFilter == nil || $0.id == projectFilter }
-        var groups: [ConnectionGroup] = []
         var findings: [DoctorFinding] = []
-        for entry in selected {
-            do {
-                let credential = try configuration.machine.codeHostingCredential(for: entry)
-                if let index = groups.firstIndex(where: { $0.connection == credential.connection }) {
-                    groups[index].projects.append(entry)
-                } else {
-                    groups.append(ConnectionGroup(
-                        connection: credential.connection, reference: credential.reference, projects: [entry]
-                    ))
-                }
-            } catch {
-                findings.append(finding(
-                    .github, subject: "credential", .failure,
-                    Self.prefix(entry.id, connection: entry.codeHostingConnectionName) + error.description,
-                    project: entry.id
-                ))
-            }
-        }
-
-        for group in groups {
-            let secret = credentials.gitHubSecret(for: group.reference)
-            for entry in group.projects {
-                let report = await gitHub.report(
-                    reference: group.reference, secret: secret, repos: workingRepos(of: entry)
-                )
-                findings += gitHubFindings(report, id: entry.id, connection: group.connection)
-            }
+        for connection in connections {
+            let served = configuration.projects.filter { $0.codeHostingConnectionName == connection.name }
+            findings += await connectionFindings(connection, serving: served)
         }
         return findings + missing
     }
 
-    /// The valid Projects that select one connection, and the Keychain reference it resolved to.
-    private struct ConnectionGroup {
-        let connection: String
-        let reference: CredentialReference
-        var projects: [ProjectConfiguration]
+    private func connectionFindings(
+        _ connection: CodeHostingConnection, serving served: [ProjectConfiguration]
+    ) async -> [DoctorFinding] {
+        let servedSorted = served.sorted { $0.id.rawValue < $1.id.rawValue }
+        let servedIDs = servedSorted.map(\.id)
+        let scope = DoctorCodeHostingScope(name: connection.name, projects: servedIDs)
+        let typeName = switch connection.kind {
+        case .githubCLI: "gh"
+        case .keychainToken: "keychain"
+        }
+
+        if let projectFilter, !served.isEmpty, !served.contains(where: { $0.id == projectFilter }) {
+            return []
+        }
+
+        switch connection.kind {
+        case .githubCLI:
+            return [cliConnectionFinding(scope, type: typeName)]
+
+        case .keychainToken(let reference):
+            return await keychainConnectionFindings(
+                connection: connection, reference: reference, scope: scope,
+                type: typeName, served: servedSorted
+            )
+        }
     }
 
-    private static func prefix(_ id: ProjectID, connection: String) -> String {
+    private func cliConnectionFinding(
+        _ scope: DoctorCodeHostingScope, type: String
+    ) -> DoctorFinding {
+        let prefix = Self.connectionPrefix(scope, type: type, login: nil)
+        let refusal = CodeHostingRefusal.githubCLINotSupported(connection: scope.name)
+        if scope.projects.isEmpty {
+            return finding(
+                .github, subject: "credential", .info,
+                prefix + "\(refusal.description) No Project uses it yet.",
+                codeHosting: scope
+            )
+        }
+        return finding(
+            .github, subject: "credential", .failure,
+            prefix + "\(refusal.description) Select a Keychain token connection instead in Settings › Code Hosting.",
+            codeHosting: scope
+        )
+    }
+
+    private func keychainConnectionFindings(
+        connection: CodeHostingConnection, reference: CredentialReference,
+        scope: DoctorCodeHostingScope, type: String, served: [ProjectConfiguration]
+    ) async -> [DoctorFinding] {
+        let secret = credentials.gitHubSecret(for: reference)
+        if served.isEmpty {
+            let report = await gitHub.report(reference: reference, secret: secret, repos: [])
+            return [unreferencedFinding(report, scope: scope, type: type, reference: reference)]
+        }
+
+        let activeProjects = served.filter { projectFilter == nil || $0.id == projectFilter }
+        let allRepos = activeProjects.flatMap { workingRepos(of: $0) }
+        let report = await gitHub.report(reference: reference, secret: secret, repos: allRepos)
+
+        var findings = [
+            connectionFinding(report, scope: scope, type: type, reference: reference)
+        ]
+        guard report.state == .resolves else { return findings }
+
+        for project in activeProjects {
+            let projectRepos = workingRepos(of: project)
+            for repo in projectRepos {
+                guard let result = report.repos.first(where: { $0.path == repo.path && $0.name == repo.name }) else {
+                    continue
+                }
+                let repoPrefix = Self.repoPrefix(project.id, connection: connection.name)
+                findings.append(finding(
+                    .github, subject: "repo \(repo.name)", repoSeverity(result.status),
+                    repoPrefix + result.message,
+                    project: project.id,
+                    codeHosting: DoctorCodeHostingScope(name: connection.name, projects: [project.id])
+                ))
+            }
+        }
+        return findings
+    }
+
+    private func connectionFinding(
+        _ report: GitHubCredentialReport, scope: DoctorCodeHostingScope, type: String,
+        reference: CredentialReference
+    ) -> DoctorFinding {
+        let prefix = Self.connectionPrefix(scope, type: type, login: report.login)
+        switch report.state {
+        case .resolves:
+            return finding(.github, subject: "credential", .pass, prefix + report.message, codeHosting: scope)
+        case .unreachable:
+            return finding(.github, subject: "credential", .warning, prefix + report.message, codeHosting: scope)
+        case .missing:
+            let detail = "no GitHub token found under reference \(reference.rawValue) in Keychain; "
+                + "connect it in Settings › Code Hosting, or run "
+                + "`yh setup --install-github --code-hosting-connection \(scope.name)`"
+            return finding(.github, subject: "credential", .failure, prefix + detail, codeHosting: scope)
+        case .unreadable:
+            let detail = "the Keychain item for \(reference.rawValue) could not be read; "
+                + "unlock the login Keychain or reconnect in Settings › Code Hosting"
+            return finding(.github, subject: "credential", .failure, prefix + detail, codeHosting: scope)
+        case .rejected:
+            let detail = "GitHub rejected the token in \(reference.rawValue): it is wrong, revoked or expired; "
+                + "reconnect or replace the token in Settings › Code Hosting, "
+                + "or run `yh setup --install-github --code-hosting-connection \(scope.name)`"
+            return finding(.github, subject: "credential", .failure, prefix + detail, codeHosting: scope)
+        }
+    }
+
+    private func unreferencedFinding(
+        _ report: GitHubCredentialReport, scope: DoctorCodeHostingScope, type: String,
+        reference: CredentialReference
+    ) -> DoctorFinding {
+        let prefix = Self.connectionPrefix(scope, type: type, login: report.login)
+        switch report.state {
+        case .resolves:
+            return finding(
+                .github, subject: "credential", .info,
+                prefix + "\(report.message) No Project uses it yet.",
+                codeHosting: scope
+            )
+        case .missing:
+            return finding(
+                .github, subject: "credential", .info,
+                prefix + "no GitHub token found under reference \(reference.rawValue) in Keychain. "
+                    + "No Project uses it yet.",
+                codeHosting: scope
+            )
+        case .unreadable, .rejected, .unreachable:
+            return finding(
+                .github, subject: "credential", .info,
+                prefix + "\(report.message) No Project uses it yet.",
+                codeHosting: scope
+            )
+        }
+    }
+
+    /// `Code Hosting Connection github (type "keychain"; login "octocat"; Projects alpha, beta): `
+    static func connectionPrefix(
+        _ scope: DoctorCodeHostingScope, type: String, login: String?
+    ) -> String {
+        var parts: [String] = ["type \"\(type)\""]
+        if let login {
+            parts.append("login \"\(login)\"")
+        }
+        let projectList = scope.projects.map(\.rawValue).joined(separator: ", ")
+        parts.append(scope.projects.isEmpty ? "no Projects" : "Projects " + projectList)
+        return "Code Hosting Connection \(scope.name) (\(parts.joined(separator: "; "))): "
+    }
+
+    static func repoPrefix(_ id: ProjectID, connection: String) -> String {
         "Project \(id.rawValue) (Code Hosting Connection \(connection)): " // glossary:ignore GL001
     }
 
@@ -84,39 +209,10 @@ extension Doctor {
                 named + ", which is not in the registry; "
                     + "connect it with `yh setup --install-github --code-hosting-connection \(name)`, "
                     + "or select another connection under [code_hosting] in the Project file",
-                project: id
+                project: id,
+                codeHosting: DoctorCodeHostingScope(name: name, projects: [id])
             )
         }
-    }
-
-    /// With no valid Project: each registry connection, credential-only. A `gh` CLI connection cannot be used by
-    /// this build yet, which is context rather than a fault while no Project selects it.
-    private func registryFindings(configuration: Configuration, hasRefusedProjects: Bool) async -> [DoctorFinding] {
-        let connections = configuration.machine.codeHostingConnections
-        guard !connections.isEmpty else {
-            guard !hasRefusedProjects else { return [] }
-            return [finding(
-                .github, subject: "credential", .info,
-                "No Code Hosting Connection is connected; connect one with `yh setup --install-github`."
-            )]
-        }
-        var findings: [DoctorFinding] = []
-        for connection in connections {
-            do {
-                let credential = try configuration.machine.codeHostingCredential(connectionNamed: connection.name)
-                let report = await gitHub.report(
-                    reference: credential.reference, secret: credentials.gitHubSecret(for: credential.reference),
-                    repos: []
-                )
-                findings.append(registryFinding(report, connection: connection.name))
-            } catch {
-                findings.append(finding(
-                    .github, subject: "credential", .info,
-                    "Code Hosting Connection \(connection.name): \(error.description) No Project uses it yet."
-                ))
-            }
-        }
-        return findings
     }
 
     /// The Repos a token must be able to publish: every declared Repo except the `spec` role.
@@ -124,41 +220,6 @@ extension Doctor {
         let home = homeDirectory.path(percentEncoded: false)
         return project.repos.filter { $0.role != .spec }.map {
             (name: $0.name, path: Doctor.expandTilde($0.path, homeDirectory: home))
-        }
-    }
-
-    private func gitHubFindings(
-        _ report: GitHubCredentialReport, id: ProjectID, connection: String
-    ) -> [DoctorFinding] {
-        let prefix = Self.prefix(id, connection: connection)
-        var findings = [finding(
-            .github, subject: "credential", credentialSeverity(report.state), prefix + report.message,
-            project: id
-        )]
-        for repo in report.repos {
-            findings.append(finding(
-                .github, subject: "repo \(repo.name)", repoSeverity(repo.status), prefix + repo.message,
-                project: id
-            ))
-        }
-        return findings
-    }
-
-    private func registryFinding(_ report: GitHubCredentialReport, connection: String) -> DoctorFinding {
-        let prefix = "Code Hosting Connection \(connection): "
-        switch report.state {
-        case .resolves, .missing:
-            return finding(.github, subject: "credential", .info, "\(prefix)\(report.message) No Project uses it yet.")
-        case .unreadable, .rejected, .unreachable:
-            return finding(.github, subject: "credential", credentialSeverity(report.state), prefix + report.message)
-        }
-    }
-
-    private func credentialSeverity(_ state: GitHubCredentialReport.State) -> DoctorSeverity {
-        switch state {
-        case .resolves: .pass
-        case .missing, .unreadable, .rejected: .failure
-        case .unreachable: .warning
         }
     }
 

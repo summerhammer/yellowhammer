@@ -46,6 +46,13 @@ private func gitHubFindings(_ findings: [DoctorFinding]) -> [DoctorFinding] {
     findings.filter { $0.check == .github }
 }
 
+private func projectID(_ raw: String) -> ProjectID {
+    guard let id = ProjectID(rawValue: raw) else {
+        preconditionFailure("Invalid ProjectID rawValue: \(raw)")
+    }
+    return id
+}
+
 @Suite("Doctor: GitHub credential check")
 struct DoctorGitHubTests {
     @Test("A valid token that can push to every working Repo passes, naming the login")
@@ -61,14 +68,19 @@ struct DoctorGitHubTests {
 
         #expect(findings.map(\.severity) == [.pass, .pass, .pass])
         #expect(findings.map(\.subject) == ["credential", "repo backend", "repo mobile"])
-        #expect(findings.allSatisfy { $0.projectID == ProjectID(rawValue: "alpha") })
+        #expect(findings[0].codeHosting?.name == "github")
+        #expect(findings[0].codeHosting?.projects == [projectID("alpha")])
+        #expect(findings[1].projectID == projectID("alpha"))
+        #expect(findings[2].projectID == projectID("alpha"))
         #expect(findings[0].message.contains("octocat"))
-        #expect(findings[0].message.hasPrefix("Project alpha (Code Hosting Connection github): "))
+        #expect(findings[0].message.hasPrefix(
+            "Code Hosting Connection github (type \"keychain\"; login \"octocat\"; Projects alpha): "
+        ))
         #expect(findings[1].message.contains("Repo backend (acme/alpha-backend)"))
         #expect(transport.paths == ["/user", "/repos/acme/alpha-backend", "/repos/acme/alpha-mobile"])
     }
 
-    @Test("A missing Keychain item fails, naming the reference, the item and the fix, and asks GitHub nothing")
+    @Test("A missing Keychain item fails, naming the connection, Projects, and fix in Settings › Code Hosting")
     func missingItem() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
@@ -83,14 +95,16 @@ struct DoctorGitHubTests {
         let failure = try #require(findings.first)
         #expect(findings.count == 1)
         #expect(failure.severity == .failure)
-        #expect(failure.projectID == ProjectID(rawValue: "alpha"))
+        #expect(failure.codeHosting?.name == "github")
+        #expect(failure.codeHosting?.projects == [projectID("alpha")])
+        #expect(failure.message.contains("Code Hosting Connection github"))
+        #expect(failure.message.contains("Projects alpha"))
         #expect(failure.message.contains("keychain:github"))
-        #expect(failure.message.contains("dev.yellowhammer"))
-        #expect(failure.message.contains("yh setup --install-github"))
+        #expect(failure.message.contains("Settings › Code Hosting"))
         #expect(transport.requests.isEmpty)
     }
 
-    @Test("A Keychain item that cannot be read fails")
+    @Test("A Keychain item that cannot be read fails, naming Settings › Code Hosting")
     func unreadableItem() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
@@ -103,11 +117,17 @@ struct DoctorGitHubTests {
         ).run())
 
         #expect(findings.map(\.severity) == [.failure])
+        #expect(findings[0].codeHosting?.name == "github")
+        #expect(findings[0].codeHosting?.projects == [projectID("alpha")])
         #expect(findings[0].message.contains("could not be read"))
+        #expect(findings[0].message.contains("Settings › Code Hosting"))
         #expect(transport.requests.isEmpty)
     }
 
-    @Test("A token GitHub rejects fails, without checking any Repo, and never prints the token")
+    @Test(
+        "A token GitHub rejects fails, without checking any Repo, "
+            + "naming Settings › Code Hosting, and never prints the token"
+    )
     func rejected() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
@@ -120,7 +140,10 @@ struct DoctorGitHubTests {
         let findings = gitHubFindings(await doctor.run())
 
         #expect(findings.map(\.severity) == [.failure])
+        #expect(findings[0].codeHosting?.name == "github")
+        #expect(findings[0].codeHosting?.projects == [projectID("alpha")])
         #expect(findings[0].message.contains("rejected"))
+        #expect(findings[0].message.contains("Settings › Code Hosting"))
         #expect(!findings[0].message.contains("ghp_test-secret"))
         #expect(transport.paths == ["/user"])
     }
@@ -236,12 +259,12 @@ struct DoctorGitHubTests {
             directory: directory, credentials: credentials, gitHub: transport.validation(), checks: [.github]
         ).run())
 
-        let alpha = findings.filter { $0.projectID == ProjectID(rawValue: "alpha") }
-        let beta = findings.filter { $0.projectID == ProjectID(rawValue: "beta") }
-        #expect(alpha.map(\.severity) == [.pass, .pass])
+        let github = findings.filter { $0.codeHosting?.name == "github" }
+        let beta = findings.filter { $0.codeHosting?.name == "beta" }
+        #expect(github.map(\.severity) == [.pass, .pass])
         #expect(beta.map(\.severity) == [.failure])
-        #expect(beta[0].message.hasPrefix("Project beta (Code Hosting Connection beta): "))
-        #expect(beta[0].message.contains("keychain:github-beta"))
+        #expect(beta[0].message.hasPrefix("Code Hosting Connection beta (type \"keychain\"; Projects beta): "))
+        #expect(beta[0].message.contains("Settings › Code Hosting"))
         #expect(!transport.paths.contains("/repos/acme/beta-backend"))
     }
 
@@ -259,14 +282,30 @@ struct DoctorGitHubTests {
             directory: directory, credentials: credentials, gitHub: transport.validation(), checks: [.github]
         ).run()
 
-        #expect(transport.requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == "Bearer ghp_beta" })
-        #expect(!transport.requests.isEmpty)
+        let betaRequests = transport.requests.filter {
+            $0.value(forHTTPHeaderField: "Authorization") == "Bearer ghp_beta"
+        }
+        #expect(!betaRequests.isEmpty)
+        #expect(transport.paths.contains("/repos/acme/beta-backend"))
+        #expect(transport.requests.contains {
+            $0.url?.path == "/repos/acme/beta-backend"
+                && $0.value(forHTTPHeaderField: "Authorization") == "Bearer ghp_beta"
+        })
     }
 
     @Test("A Project selecting a gh CLI connection fails, naming the connection, and asks GitHub nothing")
     func githubCLIConnectionFails() async throws {
         let directory = ConfigurationDirectory()
-        try directory.writeMachineFile(machineWithMoreConnections)
+        let machine = """
+            [board.linear.connections.acme]
+            credential = "keychain:linear"
+            workspace = "workspace-1"
+            yellowhammer_identity = "app-user-1"
+
+            [code_hosting.github.connections.gh]
+            type = "gh"
+            """
+        try directory.writeMachineFile(machine)
         try writeProject(directory, id: "alpha", connection: "gh")
         let transport = StubGitHubTransport.passing()
 
@@ -274,11 +313,13 @@ struct DoctorGitHubTests {
             directory: directory, gitHub: transport.validation(), checks: [.github]
         ).run())
 
-        #expect(findings.map(\.severity) == [.failure])
-        #expect(findings[0].subject == "credential")
-        #expect(findings[0].projectID == ProjectID(rawValue: "alpha"))
-        #expect(findings[0].message.hasPrefix("Project alpha (Code Hosting Connection gh): "))
-        #expect(findings[0].message.contains("gh CLI"))
+        let gh = try #require(findings.first { $0.codeHosting?.name == "gh" })
+        #expect(gh.severity == .failure)
+        #expect(gh.subject == "credential")
+        #expect(gh.codeHosting?.projects == [projectID("alpha")])
+        #expect(gh.message.hasPrefix("Code Hosting Connection gh (type \"gh\"; Projects alpha): "))
+        #expect(gh.message.contains("gh CLI"))
+        #expect(gh.message.contains("Settings › Code Hosting"))
         #expect(transport.requests.isEmpty)
     }
 
@@ -294,30 +335,33 @@ struct DoctorGitHubTests {
             directory: directory, gitHub: transport.validation(), checks: [.github]
         ).run())
 
-        let stray = try #require(findings.first { $0.projectID == ProjectID(rawValue: "stray") })
+        let stray = try #require(findings.first { $0.projectID == projectID("stray") })
         #expect(stray.severity == .failure)
         #expect(stray.subject == "project") // glossary:ignore GL001
+        #expect(stray.codeHosting?.name == "ghost")
+        #expect(stray.codeHosting?.projects == [projectID("stray")])
         #expect(stray.message.contains("Code Hosting Connection ghost"))
         #expect(stray.message.contains("yh setup --install-github --code-hosting-connection ghost"))
         #expect(stray.message.contains("[code_hosting]"))
-        #expect(findings.filter { $0.projectID == ProjectID(rawValue: "alpha") }.map(\.severity) == [.pass, .pass])
+        #expect(findings.filter { $0.codeHosting?.name == "github" }.map(\.severity) == [.pass, .pass])
     }
 
-    @Test("Filtering to one Project keeps only its GitHub findings, and asks GitHub nothing for the other")
+    @Test("Filtering to one Project keeps only its findings, and asks GitHub nothing for sibling connections")
     func projectFilter() async throws {
         let directory = ConfigurationDirectory()
-        try directory.writeMachineFile()
+        try directory.writeMachineFile(machineWithMoreConnections)
         try writeProject(directory, id: "alpha")
-        try writeProject(directory, id: "beta")
+        try writeProject(directory, id: "beta", connection: "beta")
         let transport = StubGitHubTransport.passing()
 
         let findings = gitHubFindings(await makeDoctor(
-            directory: directory, gitHub: transport.validation(), checks: [.github],
-            projectFilter: ProjectID(rawValue: "alpha")
+            directory: directory, credentials: RecordingCredentialStore(seed: ["keychain:github": "ghp_default"]),
+            gitHub: transport.validation(), checks: [.github],
+            projectFilter: projectID("alpha")
         ).run())
 
         #expect(!findings.isEmpty)
-        #expect(findings.allSatisfy { $0.projectID == ProjectID(rawValue: "alpha") })
+        #expect(findings.allSatisfy { $0.codeHosting?.projects.contains(projectID("alpha")) == true })
         #expect(!transport.paths.contains("/repos/acme/beta-backend"))
     }
 
@@ -332,7 +376,9 @@ struct DoctorGitHubTests {
         #expect(resolving.map(\.severity) == [.info])
         #expect(resolving[0].projectID == nil)
         #expect(resolving[0].message.contains("No Project uses it yet"))
-        #expect(resolving[0].message.hasPrefix("Code Hosting Connection github: "))
+        #expect(resolving[0].message.hasPrefix(
+            "Code Hosting Connection github (type \"keychain\"; login \"octocat\"; no Projects): "
+        ))
 
         let absent = gitHubFindings(await makeDoctor(
             directory: directory, credentials: RecordingCredentialStore(),
@@ -340,12 +386,14 @@ struct DoctorGitHubTests {
         ).run())
         #expect(absent.map(\.severity) == [.info])
         #expect(absent[0].message.contains("keychain:github"))
+        #expect(absent[0].message.hasPrefix("Code Hosting Connection github (type \"keychain\"; no Projects): "))
 
         let rejected = gitHubFindings(await makeDoctor(
             directory: directory,
             gitHub: StubGitHubTransport.passing(routes: ["/user": .unauthorized]).validation(), checks: [.github]
         ).run())
-        #expect(rejected.map(\.severity) == [.failure])
+        #expect(rejected.map(\.severity) == [.info])
+        #expect(rejected[0].message.contains("No Project uses it yet"))
     }
 
     @Test("With no valid Project, every registry connection gets a row; a gh one is context, not a fault")
@@ -359,9 +407,11 @@ struct DoctorGitHubTests {
         ).run())
 
         #expect(findings.map(\.severity) == [.info, .info, .info])
-        #expect(findings[0].message.hasPrefix("Code Hosting Connection github: "))
-        #expect(findings[1].message.hasPrefix("Code Hosting Connection beta: "))
-        #expect(findings[2].message.hasPrefix("Code Hosting Connection gh: "))
+        #expect(findings[0].message.hasPrefix(
+            "Code Hosting Connection github (type \"keychain\"; login \"octocat\"; no Projects): "
+        ))
+        #expect(findings[1].message.hasPrefix("Code Hosting Connection beta (type \"keychain\"; no Projects): "))
+        #expect(findings[2].message.hasPrefix("Code Hosting Connection gh (type \"gh\"; no Projects): "))
         #expect(findings[2].message.contains("gh CLI"))
     }
 
@@ -379,7 +429,7 @@ struct DoctorGitHubTests {
         #expect(findings[0].message.contains("yh setup --install-github"))
     }
 
-    @Test("--json rows for GitHub findings carry their Project; other checks' rows do not")
+    @Test("--json rows for GitHub findings carry their Project and connection; other checks' rows do not")
     func jsonCarriesProjects() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
@@ -394,9 +444,39 @@ struct DoctorGitHubTests {
         let github = rows.filter { $0.check == "github" }
         #expect(github.count == 2)
         #expect(github.allSatisfy { $0.projects == ["alpha"] })
+        #expect(github.allSatisfy { $0.connection == "github" })
         let others = rows.filter { $0.check != "github" }
         #expect(!others.isEmpty)
         #expect(others.allSatisfy { $0.projects == nil })
+        #expect(others.allSatisfy { $0.connection == nil })
+    }
+
+    @Test("Multiple Projects selecting one connection share one connection row, followed by repo rows per Project")
+    func multipleProjectsShareConnectionRow() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+        try writeProject(directory, id: "alpha", repos: [("backend", "backend")])
+        try writeProject(directory, id: "beta", repos: [("backend", "backend")])
+        let transport = StubGitHubTransport.passing()
+
+        let findings = gitHubFindings(await makeDoctor(
+            directory: directory, gitHub: transport.validation(), checks: [.github]
+        ).run())
+
+        #expect(findings.count == 3)
+        #expect(findings.map(\.subject) == ["credential", "repo backend", "repo backend"])
+        #expect(findings[0].codeHosting?.name == "github")
+        #expect(findings[0].codeHosting?.projects == [projectID("alpha"), projectID("beta")])
+        #expect(findings[0].message.hasPrefix(
+            "Code Hosting Connection github (type \"keychain\"; login \"octocat\"; Projects alpha, beta): "
+        ))
+        #expect(findings[1].projectID == projectID("alpha"))
+        #expect(findings[2].projectID == projectID("beta"))
+
+        let rows = try #require(DoctorFindingRow.decodeLastLine([DoctorCommand.encodeFindingsJSON(findings)]))
+        let connectionRow = try #require(rows.first { $0.subject == "credential" })
+        #expect(connectionRow.connection == "github")
+        #expect(connectionRow.projects == ["alpha", "beta"])
     }
 
     @Test("--check github runs only the GitHub check")
