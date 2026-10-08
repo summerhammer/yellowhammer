@@ -200,6 +200,10 @@ struct OverviewWindow: View {
                 // The Board connections list is in Settings → Boards.
                 settingsRequest.request(scopedProject, section: .boards)
                 openWindow(id: SettingsWindow.windowID)
+            case .codeHosting:
+                // The Code Hosting connections list is in Settings → Code Hosting.
+                settingsRequest.request(scopedProject, section: .codeHosting)
+                openWindow(id: SettingsWindow.windowID)
             case let .nightCard(url), let .linearIssue(url), let .pullRequest(url):
                 openURL(url)
             }

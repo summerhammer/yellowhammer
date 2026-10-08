@@ -26,8 +26,7 @@ struct HealthGroup: View {
                     } else {
                         Button { openDestination(flag.destination) } label: { HealthFlagRow(flag: flag) }
                             .buttonStyle(.plain)
-                            .help(flag.destination == .linearWorkspaces
-                                ? "Open Settings → Boards" : "Open the Project's Settings")
+                            .help(help(for: flag.destination))
                             .accessibilityIdentifier("health-flag")
                     }
                 }
@@ -37,6 +36,17 @@ struct HealthGroup: View {
                 .accessibilityIdentifier("pulse-health-settings")
         }
         .accessibilityIdentifier("pulse-health")
+    }
+
+    private func help(for destination: PulseDestination) -> String {
+        switch destination {
+        case .linearWorkspaces:
+            "Open Settings → Boards"
+        case .codeHosting:
+            "Open Settings → Code Hosting"
+        default:
+            "Open the Project's Settings"
+        }
     }
 }
 
