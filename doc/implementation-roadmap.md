@@ -2625,7 +2625,7 @@ The Feature Branch Orca ADE reports, with its prefix (#318), is planned and trac
   spec-role Repos are skipped during push check, and interactive setup pre-selects `gh`.
 - **Status** — Done on 2026-10-08.
 
-### [ ] P21.3 The `gh` CLI Code Hosting Connection type
+### [x] P21.3 The `gh` CLI Code Hosting Connection type
 - **Work** — Reach GitHub through the Operator's own `gh` for a `gh` CLI connection: REST calls over a
   `gh api -i` transport, pushes with `gh auth git-credential` as git's credential helper, no token held.
   `yh config connect-code-hosting <name> --gh-cli`, live identity in the report and `yh doctor`, `gh` on the
@@ -2635,6 +2635,7 @@ The Feature Branch Orca ADE reports, with its prefix (#318), is planned and trac
 - **Done when** — Yellowhammer never runs `gh auth token` or changes `gh`'s state, a missing or logged-out `gh`
   refuses the connection without stopping the Project loading, the login is read live on each use, and a Mac
   holds at most one `gh` CLI connection.
+- **Status** — Done on 2026-10-08.
 
 ---
 
