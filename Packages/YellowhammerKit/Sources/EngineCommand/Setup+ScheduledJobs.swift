@@ -103,12 +103,32 @@ extension Setup {
                 resolvedToolPaths.append(path)
             }
         }
+        // A gh CLI connection needs gh at Act time: searched like at the time of use (PATH, then the Homebrew
+        // directories), so its directory leads the composed PATH even when setup's own PATH lacks it.
+        if let connection = gitHubCLIConnection(in: machine),
+           let path = GitHubCLIExecutable.resolve(
+               declared: connection.executable, path: setupTimePATH, fileExists: fileExists
+           ) {
+            resolvedToolPaths.append(path)
+        }
         return ScheduledJob.composePATH(setupTimePATH: setupTimePATH ?? "", resolvedToolPaths: resolvedToolPaths)
     }
 
+    /// The registry's `gh` CLI connection (a Mac holds at most one), carrying its declared executable.
+    private func gitHubCLIConnection(in machine: MachineConfiguration) -> (name: String, executable: String?)? {
+        for connection in machine.codeHostingConnections {
+            if case .githubCLI(let executable) = connection.kind { return (connection.name, executable) }
+        }
+        return nil
+    }
+
     private func reportUnresolvableTools(pathValue: String, machine: MachineConfiguration) {
+        let gitHubCLI = gitHubCLIConnection(in: machine).map {
+            ScheduledJob.GitHubCLIRequirement(declared: $0.executable)
+        }
         let missing = ScheduledJob.unresolvableTools(
-            composedPATH: pathValue, declaredCLIAdapters: machine.cliAdapters, fileExists: fileExists
+            composedPATH: pathValue, declaredCLIAdapters: machine.cliAdapters, gitHubCLI: gitHubCLI,
+            fileExists: fileExists
         )
         for tool in missing {
             output(

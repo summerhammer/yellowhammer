@@ -294,7 +294,7 @@ struct DoctorGitHubTests {
         })
     }
 
-    @Test("A Project selecting a gh CLI connection fails, naming the connection, and asks GitHub nothing")
+    @Test("A Project selecting a gh CLI connection whose gh is not found fails, naming the fix")
     func githubCLIConnectionFails() async throws {
         let directory = ConfigurationDirectory()
         let machine = """
@@ -319,9 +319,7 @@ struct DoctorGitHubTests {
         #expect(gh.subject == "credential")
         #expect(gh.codeHosting?.projects == [projectID("alpha")])
         #expect(gh.message.hasPrefix("Code Hosting Connection gh (type \"gh\"; Projects alpha): "))
-        #expect(gh.message.contains("gh CLI"))
-        #expect(gh.message.contains("Settings › Code Hosting"))
-        #expect(gh.message.contains("cannot use yet"))
+        #expect(gh.message.contains(GitHubCLIExecutable.notFoundMessage))
         #expect(transport.requests.isEmpty)
     }
 
@@ -414,7 +412,7 @@ struct DoctorGitHubTests {
         ))
         #expect(findings[1].message.hasPrefix("Code Hosting Connection beta (type \"keychain\"; no Projects): "))
         #expect(findings[2].message.hasPrefix("Code Hosting Connection gh (type \"gh\"; no Projects): "))
-        #expect(findings[2].message.contains("gh CLI"))
+        #expect(findings[2].message.contains(GitHubCLIExecutable.notFoundMessage))
     }
 
     @Test("With an empty registry and no Project, one info says how to connect a Code Hosting Connection")

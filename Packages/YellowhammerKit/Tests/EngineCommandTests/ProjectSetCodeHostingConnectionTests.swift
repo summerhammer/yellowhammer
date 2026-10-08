@@ -149,12 +149,36 @@ struct ProjectSetCodeHostingConnectionTests {
         #expect(output.lines.contains { $0.contains("Code Hosting Connection for Project alpha set to work.") })
     }
 
-    @Test("Refuses gh CLI connection with explanatory description")
-    func refusesGHCLIConnection() async throws {
+    @Test("A gh CLI connection is selected after gh's active account passes the push check")
+    func selectsGHCLIConnection() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile(Self.machineWithWork)
         try writeProject(directory, id: "alpha", connection: "github")
-        let transport = StubGitHubTransport.passing()
+        let gh = try StubGitHubCLI(login: "octocat")
+        defer { gh.remove() }
+        let output = RecordingOutput()
+
+        let command = try ProjectSetCodeHostingConnectionCommand.parse(["alpha", "gh"])
+        try await command.run(
+            configurationDirectory: directory.url,
+            credentials: Self.credentials(),
+            gitHub: gh.validation(),
+            output: output.record
+        )
+
+        let projectFile = directory.url.appending(components: "projects", "alpha.toml")
+        let parsed = try ProjectConfiguration.load(contentsOf: projectFile)
+        #expect(parsed.codeHostingConnectionName == "gh")
+        #expect(gh.calls.contains { $0.hasSuffix("/repos/acme/alpha-backend") })
+    }
+
+    @Test("A logged-out gh refuses the change and keeps the old selection")
+    func refusesLoggedOutGHCLIConnection() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile(Self.machineWithWork)
+        try writeProject(directory, id: "alpha", connection: "github")
+        let gh = try StubGitHubCLI(mode: .loggedOut)
+        defer { gh.remove() }
         let output = RecordingOutput()
 
         let command = try ProjectSetCodeHostingConnectionCommand.parse(["alpha", "gh"])
@@ -163,12 +187,12 @@ struct ProjectSetCodeHostingConnectionTests {
             try await command.run(
                 configurationDirectory: directory.url,
                 credentials: Self.credentials(),
-                gitHub: transport.validation(),
+                gitHub: gh.validation(),
                 output: output.record
             )
             Issue.record("expected refusal")
         } catch let error as SetupError {
-            #expect(error.message.contains("uses the gh CLI, which this build of Yellowhammer cannot use yet"))
+            #expect(error.message.contains("gh auth login"))
         }
 
         let projectFile = directory.url.appending(components: "projects", "alpha.toml")

@@ -26,6 +26,38 @@ struct CodeHostingConnectionManager {
         output("Code Hosting Connection \(name) is ready as GitHub user \(validation.login ?? "unknown").")
     }
 
+    /// Connects the GitHub CLI itself under `name`: it holds no token, so nothing is read or stored in the
+    /// Keychain. `gh` is resolved and asked who it is first, and the registry entry (`type = "gh"`, no
+    /// `executable`, since resolution stays live through `PATH`) is written only when that resolves.
+    func connectGitHubCLI(name: String) async throws {
+        let current = try load()
+        guard LinearInstallation.isValidLocalName(name) else {
+            throw SetupError("invalid Code Hosting Connection name \"\(name)\"")
+        }
+        let connections = current?.machine.codeHostingConnections ?? []
+        guard !connections.contains(where: { $0.name == name }) else {
+            throw SetupError("Code Hosting Connection \"\(name)\" already exists")
+        }
+        if let existing = connections.first(where: { if case .githubCLI = $0.kind { true } else { false } }) {
+            throw SetupError(
+                "this Mac already has a gh CLI connection, \(existing.name); a Mac holds at most one"
+            )
+        }
+        let validation = await gitHub.reportGitHubCLI(executable: nil, repos: [], connectionName: name)
+        guard validation.state == .resolves else { throw SetupError(validation.message, gitHub: true) }
+        do {
+            try saveConnection(
+                CodeHostingConnection(name: name, kind: .githubCLI(executable: nil)), configuration: current
+            )
+        } catch {
+            throw SetupError("could not update the Code Hosting Connection registry: \(error)")
+        }
+        output(
+            "Code Hosting Connection \(name) is ready: gh CLI, acting as GitHub user "
+                + "\(validation.login ?? "unknown")."
+        )
+    }
+
     private func credentialReference(
         name: String, replacing: Bool, configuration: Configuration?
     ) throws -> CredentialReference {
@@ -36,7 +68,7 @@ struct CodeHostingConnectionManager {
         if replacing {
             guard let existing else { throw SetupError("no Code Hosting Connection is named \"\(name)\"") }
             guard case .keychainToken(let reference) = existing.kind else {
-                throw SetupError(CodeHostingRefusal.githubCLINotSupported(connection: name).description)
+                throw SetupError("Code Hosting Connection \(name) is a gh CLI connection and holds no token")
             }
             return reference
         }
@@ -88,19 +120,18 @@ struct CodeHostingConnectionManager {
         }
         guard !replacing else { return }
         do {
-            try saveConnection(name: name, reference: reference, configuration: configuration)
+            try saveConnection(
+                CodeHostingConnection(name: name, kind: .keychainToken(reference)), configuration: configuration
+            )
         } catch {
             try? credentialDeleter.delete(reference)
             throw SetupError("could not update the Code Hosting Connection registry: \(error)")
         }
     }
 
-    private func saveConnection(
-        name: String, reference: CredentialReference, configuration: Configuration?
-    ) throws {
+    private func saveConnection(_ connection: CodeHostingConnection, configuration: Configuration?) throws {
         let machine = configuration?.machine ?? MachineConfiguration(cliAdapters: [], routingTable: [])
         let original = try? String(contentsOf: machineURL, encoding: .utf8)
-        let connection = CodeHostingConnection(name: name, kind: .keychainToken(reference))
         let edited = original.map { MachineConfiguration.settingCodeHostingConnection(connection, inFileText: $0) }
             ?? MachineConfiguration(
                 linearInstallations: machine.linearInstallations,
@@ -160,11 +191,14 @@ struct CodeHostingConnectionManager {
             let projects = configuration.projects.filter { $0.codeHostingConnectionName == connection.name }
                 .map { $0.id.rawValue }.sorted()
             switch connection.kind {
-            case .githubCLI:
+            case .githubCLI(let executable):
+                let result = await gitHub.reportGitHubCLI(
+                    executable: executable, repos: [], connectionName: connection.name
+                )
+                let ok = result.state == .resolves
                 reports.append(.init(
-                    name: connection.name, type: .gh, state: .refused,
-                    reason: CodeHostingRefusal.githubCLINotSupported(connection: connection.name).description,
-                    projects: projects
+                    name: connection.name, type: .gh, identity: result.login,
+                    state: ok ? .ok : .refused, reason: ok ? nil : result.message, projects: projects
                 ))
             case .keychainToken(let reference):
                 let result = await gitHub.report(
@@ -196,19 +230,17 @@ struct CodeHostingConnectionManager {
             output(report.encodeLine())
             return report
         }
-        guard case .keychainToken(let reference) = connection.kind else {
-            let report = GitHubCredentialReport(
-                reference: fallback.rawValue, state: .missing,
-                message: CodeHostingRefusal.githubCLINotSupported(connection: connectionName).description
-            )
-            output(report.encodeLine())
-            return report
-        }
         let repos = repoPaths.map { path in (name: URL(fileURLWithPath: path).lastPathComponent, path: path) }
-        let report = await gitHub.report(
-            reference: reference, secret: credentials.gitHubSecret(for: reference), repos: repos,
-            connectionName: connectionName
-        )
+        let report: GitHubCredentialReport
+        switch connection.kind {
+        case .githubCLI(let executable):
+            report = await gitHub.reportGitHubCLI(executable: executable, repos: repos, connectionName: connectionName)
+        case .keychainToken(let reference):
+            report = await gitHub.report(
+                reference: reference, secret: credentials.gitHubSecret(for: reference), repos: repos,
+                connectionName: connectionName
+            )
+        }
         output(report.encodeLine())
         return report
     }
@@ -221,17 +253,29 @@ struct CodeHostingConnectionManager {
 
 public struct ConfigConnectCodeHostingCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
-        commandName: "connect-code-hosting", abstract: "Connect a GitHub token under a local name."
+        commandName: "connect-code-hosting",
+        abstract: "Connect a GitHub token, or the GitHub CLI itself, under a local name."
     )
     @Argument public var name: String
     @Flag(name: .customLong("token-stdin")) public var tokenStdin = false
     @Flag(name: .customLong("from-gh")) public var fromGH = false
+    @Flag(
+        name: .customLong("gh-cli"),
+        help: "Connect the GitHub CLI itself; Yellowhammer holds no token."
+    ) public var ghCLI = false
     public init() {}
     public func validate() throws {
-        guard tokenStdin != fromGH else { throw ValidationError("choose exactly one of --token-stdin or --from-gh") }
+        guard [tokenStdin, fromGH, ghCLI].filter({ $0 }).count == 1 else {
+            throw ValidationError("choose exactly one of --token-stdin, --from-gh or --gh-cli")
+        }
     }
     public func run() async throws {
-        try await manager().connect(name: name, source: tokenStdin ? .standardInput : .githubCLI)
+        let manager = manager()
+        if ghCLI {
+            try await manager.connectGitHubCLI(name: name)
+        } else {
+            try await manager.connect(name: name, source: tokenStdin ? .standardInput : .githubCLI)
+        }
     }
 }
 

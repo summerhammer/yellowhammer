@@ -10,7 +10,7 @@ private func machine() throws -> MachineConfiguration {
     MachineConfiguration(
         codeHostingConnections: [
             CodeHostingConnection(name: "acme", kind: .keychainToken(try credential("keychain:github-acme"))),
-            CodeHostingConnection(name: "gh", kind: .githubCLI)
+            CodeHostingConnection(name: "gh", kind: .githubCLI(executable: nil))
         ],
         cliAdapters: [],
         routingTable: []
@@ -30,14 +30,25 @@ struct CodeHostingResolutionTests {
     func keychainConnectionResolves() throws {
         let resolved = try machine().codeHostingCredential(for: project(selecting: "acme"))
         let reference = try credential("keychain:github-acme")
-        #expect(resolved == CodeHostingCredential(connection: "acme", reference: reference))
+        #expect(resolved == .keychainToken(connection: "acme", reference: reference))
+        #expect(resolved.connection == "acme")
     }
 
-    @Test("A gh CLI connection is refused as not supported yet, naming the connection")
-    func githubCLIConnectionIsRefused() throws {
-        #expect(throws: CodeHostingRefusal.githubCLINotSupported(connection: "gh")) {
-            try machine().codeHostingCredential(for: project(selecting: "gh"))
-        }
+    @Test("A gh CLI connection resolves to the gh credential, with no Credential Reference")
+    func githubCLIConnectionResolves() throws {
+        let resolved = try machine().codeHostingCredential(for: project(selecting: "gh"))
+        #expect(resolved == .githubCLI(connection: "gh", executable: nil))
+        #expect(resolved.connection == "gh")
+    }
+
+    @Test("A gh CLI connection's declared executable is carried through")
+    func githubCLIDeclaredExecutable() throws {
+        let machine = MachineConfiguration(
+            codeHostingConnections: [CodeHostingConnection(name: "gh", kind: .githubCLI(executable: "/opt/gh/bin/gh"))],
+            cliAdapters: [], routingTable: []
+        )
+        #expect(try machine.codeHostingCredential(connectionNamed: "gh")
+            == .githubCLI(connection: "gh", executable: "/opt/gh/bin/gh"))
     }
 
     @Test("A selection absent from the registry is refused as not in the registry")
@@ -50,10 +61,10 @@ struct CodeHostingResolutionTests {
     @Test("The by-name variant resolves the same way")
     func byNameVariant() throws {
         let machine = try machine()
-        #expect(try machine.codeHostingCredential(connectionNamed: "acme").reference.rawValue == "keychain:github-acme")
-        #expect(throws: CodeHostingRefusal.githubCLINotSupported(connection: "gh")) {
-            try machine.codeHostingCredential(connectionNamed: "gh")
-        }
+        #expect(try machine.codeHostingCredential(connectionNamed: "acme")
+            == .keychainToken(connection: "acme", reference: credential("keychain:github-acme")))
+        #expect(try machine.codeHostingCredential(connectionNamed: "gh")
+            == .githubCLI(connection: "gh", executable: nil))
         #expect(throws: CodeHostingRefusal.notInRegistry(connection: "nope")) {
             try machine.codeHostingCredential(connectionNamed: "nope")
         }
@@ -64,8 +75,5 @@ struct CodeHostingResolutionTests {
         let missing = CodeHostingRefusal.notInRegistry(connection: "acme").description
         #expect(missing.contains("\"acme\""))
         #expect(missing.contains("yh config connect-code-hosting acme --token-stdin"))
-        let gh = CodeHostingRefusal.githubCLINotSupported(connection: "gh").description
-        #expect(gh.contains("\"gh\""))
-        #expect(gh.contains("gh CLI"))
     }
 }

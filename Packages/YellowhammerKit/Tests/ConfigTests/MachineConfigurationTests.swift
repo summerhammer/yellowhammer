@@ -110,7 +110,7 @@ func alternativeTableSpellings() throws {
     #expect(configuration.linearInstallations.first?.credential == (try credential("keychain:linear")))
     #expect(configuration.codeHostingConnections == [
         CodeHostingConnection(name: "github", kind: .keychainToken(try credential("keychain:github"))),
-        CodeHostingConnection(name: "gh", kind: .githubCLI)
+        CodeHostingConnection(name: "gh", kind: .githubCLI(executable: nil))
     ])
     #expect(configuration.routingTable == [RoutingEntry(route: try route("claude", "opus", "high"))])
 }
@@ -327,9 +327,9 @@ func codeHostingConnectionsDecodeInFileOrder() throws {
     let configuration = try MachineConfiguration.parse(text, file: "config.toml")
     #expect(configuration.codeHostingConnections == [
         CodeHostingConnection(name: "acme", kind: .keychainToken(try credential("keychain:github-acme"))),
-        CodeHostingConnection(name: "my gh", kind: .githubCLI)
+        CodeHostingConnection(name: "my gh", kind: .githubCLI(executable: nil))
     ])
-    #expect(configuration.codeHostingConnection(named: "my gh")?.kind == .githubCLI)
+    #expect(configuration.codeHostingConnection(named: "my gh")?.kind == .githubCLI(executable: nil))
     #expect(configuration.codeHostingConnection(named: "nope") == nil)
 
     func project(_ connection: String) throws -> ProjectConfiguration {
@@ -347,4 +347,44 @@ func codeHostingDefaults() {
     #expect(CodeHostingConnection.defaultName == "github")
     #expect(CodeHostingConnection.defaultCredentialReference(for: "github").rawValue == "keychain:github")
     #expect(CodeHostingConnection.defaultCredentialReference(for: "acme").rawValue == "keychain:acme")
+}
+
+@Test("A gh entry may declare an executable, and the declaration survives a render and parse")
+func githubCLIExecutableRoundTrips() throws {
+    let text = """
+        [code_hosting.github.connections.gh]
+        type = "gh"
+        executable = "/opt/homebrew/bin/gh"
+        """
+    let parsed = try MachineConfiguration.parse(text, file: "config.toml")
+    let entry = CodeHostingConnection(name: "gh", kind: .githubCLI(executable: "/opt/homebrew/bin/gh"))
+    #expect(parsed.codeHostingConnections == [entry])
+
+    let rendered = MachineConfiguration(codeHostingConnections: [entry], cliAdapters: [], routingTable: []).renderedTOML
+    #expect(rendered.contains("executable = \"/opt/homebrew/bin/gh\""))
+    #expect(try MachineConfiguration.parse(rendered, file: "config.toml").codeHostingConnections == [entry])
+}
+
+@Test("An empty gh executable is refused, and a Keychain entry may not declare one")
+func executableIsRefusedWhereItMeansNothing() {
+    func refusal(_ text: String) -> ConfigurationError? {
+        do {
+            _ = try MachineConfiguration.parse(text, file: "config.toml")
+            return nil
+        } catch {
+            return error
+        }
+    }
+    let empty = refusal("[code_hosting.github.connections.gh]\ntype = \"gh\"\nexecutable = \"\"\n")
+    #expect(empty?.reason == .emptyString)
+    let keychain = refusal(
+        "[code_hosting.github.connections.acme]\ntype = \"keychain\"\ncredential = \"keychain:a\"\n"
+            + "executable = \"/opt/homebrew/bin/gh\"\n"
+    )
+    #expect(keychain?.reason == .unknownKey)
+    #expect(keychain?.key == "code_hosting.github.connections.acme.executable")
+    let credential = refusal(
+        "[code_hosting.github.connections.gh]\ntype = \"gh\"\ncredential = \"keychain:a\"\n"
+    )
+    #expect(credential?.reason == .unknownKey)
 }

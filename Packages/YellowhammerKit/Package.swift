@@ -95,7 +95,10 @@ let package = Package(
         ),
         .target(
             name: "GitHubAdapter",
-            dependencies: ["Domain"]
+            dependencies: [
+                "Domain",
+                .product(name: "Subprocess", package: "swift-subprocess")
+            ]
         ),
         .target(
             name: "CLIAdapters",

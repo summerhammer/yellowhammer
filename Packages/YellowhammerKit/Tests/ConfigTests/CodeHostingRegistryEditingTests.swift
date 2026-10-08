@@ -46,7 +46,12 @@ struct CodeHostingRegistryEditingTests {
 
     @Test("Applying it twice equals applying it once")
     func idempotent() throws {
-        for entry in [try keychain("github", "keychain:github"), CodeHostingConnection(name: "gh", kind: .githubCLI)] {
+        let entries = [
+            try keychain("github", "keychain:github"),
+            CodeHostingConnection(name: "gh", kind: .githubCLI(executable: nil)),
+            CodeHostingConnection(name: "gh2", kind: .githubCLI(executable: "/opt/homebrew/bin/gh"))
+        ]
+        for entry in entries {
             let once = MachineConfiguration.settingCodeHostingConnection(entry, inFileText: withBoard)
             #expect(MachineConfiguration.settingCodeHostingConnection(entry, inFileText: once) == once)
         }
@@ -75,7 +80,7 @@ struct CodeHostingRegistryEditingTests {
     @Test("Turning a Keychain entry into a gh entry drops its credential")
     func keychainToGitHubCLI() throws {
         let text = "[code_hosting.github.connections.work]\ntype = \"keychain\"\ncredential = \"keychain:work\"\n"
-        let entry = CodeHostingConnection(name: "work", kind: .githubCLI)
+        let entry = CodeHostingConnection(name: "work", kind: .githubCLI(executable: nil))
         let result = MachineConfiguration.settingCodeHostingConnection(entry, inFileText: text)
         #expect(!result.contains("credential"))
         #expect(try MachineConfiguration.parse(result, file: "config.toml").codeHostingConnections == [entry])
@@ -86,6 +91,28 @@ struct CodeHostingRegistryEditingTests {
         let text = "[code_hosting.github.connections.work]\ntype = \"keychain\"\n"
         let entry = try keychain("work", "keychain:work")
         let result = MachineConfiguration.settingCodeHostingConnection(entry, inFileText: text)
+        #expect(try MachineConfiguration.parse(result, file: "config.toml").codeHostingConnections == [entry])
+    }
+
+    @Test("A gh entry's executable is set, replaced and removed in place")
+    func githubCLIExecutableEditing() throws {
+        let text = "[code_hosting.github.connections.work]\ntype = \"gh\"\n"
+        let declared = CodeHostingConnection(name: "work", kind: .githubCLI(executable: "/opt/homebrew/bin/gh"))
+        let withPath = MachineConfiguration.settingCodeHostingConnection(declared, inFileText: text)
+        #expect(try MachineConfiguration.parse(withPath, file: "config.toml").codeHostingConnections == [declared])
+
+        let undeclared = CodeHostingConnection(name: "work", kind: .githubCLI(executable: nil))
+        let without = MachineConfiguration.settingCodeHostingConnection(undeclared, inFileText: withPath)
+        #expect(!without.contains("executable"))
+        #expect(try MachineConfiguration.parse(without, file: "config.toml").codeHostingConnections == [undeclared])
+    }
+
+    @Test("Turning a gh entry with an executable into a Keychain entry drops the executable")
+    func githubCLIToKeychain() throws {
+        let text = "[code_hosting.github.connections.work]\ntype = \"gh\"\nexecutable = \"/opt/gh\"\n"
+        let entry = try keychain("work", "keychain:work")
+        let result = MachineConfiguration.settingCodeHostingConnection(entry, inFileText: text)
+        #expect(!result.contains("executable"))
         #expect(try MachineConfiguration.parse(result, file: "config.toml").codeHostingConnections == [entry])
     }
 }

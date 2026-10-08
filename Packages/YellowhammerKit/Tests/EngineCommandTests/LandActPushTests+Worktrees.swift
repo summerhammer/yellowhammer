@@ -26,7 +26,7 @@ extension LandActPushTests {
         let (feature, cycleID) = try env.setUpFeature()
         try env.recordHeldWorktree(featureID: feature.id, repository: "backend", worktreeID: "wt-backend")
 
-        let land = LandAct(push: FeatureBranchLanePush(token: { nil }))
+        let land = LandAct(push: FeatureBranchLanePush(credential: { nil }))
         let failure = await land.run(
             lane: RepoLane(repository: "backend", cards: try env.journal.cards(cycleID: cycleID)),
             feature: feature, cycleID: cycleID, context: env.context
@@ -63,7 +63,7 @@ extension LandActPushTests {
         let (feature, cycleID) = try env.setUpFeature()
         try env.recordHeldWorktree(featureID: feature.id, repository: "backend", worktreeID: "wt-backend")
 
-        let land = LandAct(push: FeatureBranchLanePush(token: { nil }))
+        let land = LandAct(push: FeatureBranchLanePush(credential: { nil }))
         let failure = await land.run(
             lane: RepoLane(repository: "backend", cards: try env.journal.cards(cycleID: cycleID)),
             feature: feature, cycleID: cycleID, context: env.context
@@ -110,7 +110,7 @@ extension LandActPushTests {
         let (feature, cycleID) = try env.setUpFeature()
         try env.recordHeldWorktree(featureID: feature.id, repository: "backend", worktreeID: "wt-backend")
 
-        let land = LandAct(push: FeatureBranchLanePush(token: { nil }))
+        let land = LandAct(push: FeatureBranchLanePush(credential: { nil }))
         let failure = await land.run(
             lane: RepoLane(repository: "backend", cards: try env.journal.cards(cycleID: cycleID)),
             feature: feature, cycleID: cycleID, context: env.context
