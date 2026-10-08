@@ -13,7 +13,7 @@ enum EngineStub {
         let script = "#!/bin/sh\nall_args=\"$*\"\n" + waitForGate + "shift\ncase \"$1\" in\n"
             + printChoicesCase + initCase + checkCase + installLinearCase + printCodeHostingCases
             + operatorCase
-            + removeInstallationCase + projectRemoveCase
+            + removeInstallationCase + projectRemoveCase + projectSetCodeHostingCase
             + "  *)\n    exit 1\n    ;;\nesac\n"
         let stubURL = directory.appending(component: "yh.sh", directoryHint: .notDirectory)
         try script.write(to: stubURL, atomically: true, encoding: .utf8)
@@ -283,6 +283,21 @@ enum EngineStub {
             echo "unloading the LaunchAgents of Project $2"
             wait_for_gate project-removed
             echo "Project $2 removed. Its Journal was kept."
+            exit 0
+            ;;
+
+        """
+
+    /// `yh project set-code-hosting-connection <id> <connection>`: appends the full argument vector to
+    /// `YH_STUB_ARGV_LOG` when set. Exits 0 unless `YH_STUB_CODE_HOSTING_CHANGE_REFUSE` is set.
+    static let projectSetCodeHostingCase = """
+          set-code-hosting-connection)
+            if [ -n "$YH_STUB_ARGV_LOG" ]; then echo "$all_args" >> "$YH_STUB_ARGV_LOG"; fi
+            if [ -n "$YH_STUB_CODE_HOSTING_CHANGE_REFUSE" ]; then
+              echo "$YH_STUB_CODE_HOSTING_CHANGE_REFUSE"
+              exit 1
+            fi
+            echo "Code Hosting Connection for Project $2 set to $3."
             exit 0
             ;;
 

@@ -13,7 +13,7 @@ public struct ConfigCommand: AsyncParsableCommand {
             ConfigOperatorCommand.self, ConfigRemoveBoardConnectionCommand.self,
             ConfigConnectCodeHostingCommand.self, ConfigReplaceCodeHostingTokenCommand.self,
             ConfigRemoveCodeHostingConnectionCommand.self, ConfigPrintCodeHostingConnectionsCommand.self,
-            ConfigCheckCodeHostingCredentialCommand.self
+            ConfigCheckCodeHostingCredentialCommand.self, ProjectSetCodeHostingConnectionCommand.self
         ],
         defaultSubcommand: nil
     )
