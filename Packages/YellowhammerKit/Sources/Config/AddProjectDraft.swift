@@ -25,7 +25,7 @@ public struct AddProjectDraft: Equatable, Sendable {
             case .project: "Project"
             case .board: "Board"
             case .repos: "Repos"
-            case .github: "GitHub"
+            case .github: "Code Hosting"
             case .specSource: "Spec Source"
             case .bounds: "Bounds"
             case .jobs: "Scheduled jobs" // glossary:ignore GL001
@@ -37,7 +37,7 @@ public struct AddProjectDraft: Equatable, Sendable {
             case .project: "Project"
             case .board: "Board"
             case .repos: "Repos"
-            case .github: "GitHub"
+            case .github: "Code Hosting"
             case .specSource: "Spec Source"
             case .bounds: "Bounds"
             case .jobs: "Schedule"
@@ -55,7 +55,7 @@ public struct AddProjectDraft: Equatable, Sendable {
             case .repos:
                 "The working Repos this Project builds in. A working Repo belongs to exactly one Project."
             case .github:
-                "The GitHub token Yellowhammer pushes Feature Branches and opens pull requests with. "
+                "Choose the Code Hosting Connection Yellowhammer pushes Feature Branches and opens pull requests with. "
                     + "It is checked against every working Repo."
             case .specSource:
                 "Yellowhammer cites one specification when it authors a Feature. It reads it and never writes to it."
@@ -191,7 +191,9 @@ public struct AddProjectDraft: Equatable, Sendable {
     // Repos
     public var repos: [Repo] = []
 
-    // GitHub
+    // Code Hosting
+    public var codeHostingConnectionName: String?
+    public var codeHostingCheckedConnectionName: String?
     /// What `yh config check-code-hosting-credential` last reported for ``workingRepoPaths``; nil until a check ran.
     public var gitHubReport: GitHubCredentialReport?
     /// The working Repo paths (as the draft had them) that `gitHubReport` was checked against.

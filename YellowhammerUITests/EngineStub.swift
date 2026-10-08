@@ -297,6 +297,11 @@ enum EngineStub {
               echo "$YH_STUB_CODE_HOSTING_CHANGE_REFUSE"
               exit 1
             fi
+            if [ "$3" = "$YH_STUB_CODE_HOSTING_CHANGE_REFUSED_CONNECTION" ]; then
+              echo "GitHub refused push permission for Repo backend; Project $2 still selects github."
+              exit 1
+            fi
+            if [ -n "$YH_STUB_CODE_HOSTING_CHANGE_GATES" ]; then wait_for_gate code-hosting-changed; fi
             echo "Code Hosting Connection for Project $2 set to $3."
             exit 0
             ;;

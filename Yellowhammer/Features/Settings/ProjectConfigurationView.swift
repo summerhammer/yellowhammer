@@ -9,8 +9,8 @@ import SwiftUI
 /// Configuration tab of a Project's entry in the Settings window, a single screen and not a wizard: the
 /// Setup wizard runs only when a Project is added.
 ///
-/// The app writes configuration only through ``Config/Configuration/save(_:to:in:replacing:)`` — the
-/// loader is the only validator, so a refusal here is always shown in the loader's own words.
+/// Form saves use ``Config/Configuration/save(_:to:in:replacing:)``; changing the Code Hosting Connection
+/// runs the engine's checked selection command. Refusals are shown in the loader's or engine's own words.
 struct ProjectConfigurationView: View {
     let model: ProjectConfigurationModel
     /// Called after a save wrote the file, so the window can read its configuration again: the Project's
@@ -68,6 +68,7 @@ private struct ProjectConfigurationFormView: View {
             SettingsPane {
                 projectBlock(draft)
                 linearBlock(draft)
+                codeHostingBlock
                 if let specSource = draft.wrappedValue.specSource {
                     specSourceBlock(specSource)
                 }
@@ -80,7 +81,7 @@ private struct ProjectConfigurationFormView: View {
                         + "are not kept. Editing the file directly stays supported.",
                     failure: model.failure,
                     isDirty: model.isDirty,
-                    canSave: modelDiscovery.isValid(
+                    canSave: !model.isChangingCodeHosting && modelDiscovery.isValid(
                         draft.wrappedValue.routingOverrides, preserving: model.saved?.routingOverrides ?? []
                     ),
                     identifierPrefix: "configuration",
@@ -151,6 +152,35 @@ private struct ProjectConfigurationFormView: View {
                     .accessibilityIdentifier("project-linear-project") // glossary:ignore GL001
             }
         }
+    }
+
+    private var codeHostingBlock: some View {
+        WizardBlock(title: "Code Hosting") {
+            VStack(alignment: .leading, spacing: 12) {
+                Picker("Connection", selection: $model.selectedCodeHostingConnection) {
+                    ForEach(model.codeHosting.connections) { connection in
+                        Text("\(connection.name) · \(connection.typeLabel) · "
+                            + model.codeHosting.label(for: connection))
+                            .tag(connection.name)
+                    }
+                }
+                .accessibilityIdentifier("project-code-hosting-picker") // glossary:ignore GL001
+                .disabled(model.isChangingCodeHosting)
+                Button("Change connection") {
+                    Task { if await model.changeCodeHostingConnection() { onSaved() } }
+                }
+                .disabled(model.isChangingCodeHosting
+                    || model.selectedCodeHostingConnection == model.saved?.codeHostingConnectionName)
+                .accessibilityIdentifier("project-code-hosting-change") // glossary:ignore GL001
+                if model.isChangingCodeHosting { ProgressView("Checking push access…") }
+                if let failure = model.codeHostingFailure {
+                    Text(failure).textSelection(.enabled)
+                        .accessibilityIdentifier("project-code-hosting-failure") // glossary:ignore GL001
+                }
+            }
+            .padding(12)
+        }
+        .task { await model.codeHosting.refreshReport() }
     }
 
     private func specSourceBlock(_ specSource: String) -> some View {
