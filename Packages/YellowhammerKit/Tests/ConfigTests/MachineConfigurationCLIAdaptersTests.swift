@@ -7,7 +7,9 @@ import Testing
 struct MachineConfigurationCLIAdaptersTests {
     private func machine(adapters: [String], routes: [(String, [String])] = []) throws -> MachineConfiguration {
         MachineConfiguration(
-            gitHubCredential: try editingCredential("keychain:github"),
+            codeHostingConnections: [
+                CodeHostingConnection(name: "github", kind: .keychainToken(try editingCredential("keychain:github")))
+            ],
             cliAdapters: adapters.map { CLIAdapterDeclaration(name: $0) },
             routingTable: try routes.map { cli, fallbacks in
                 RoutingEntry(
@@ -104,7 +106,8 @@ struct MachineConfigurationCLIAdaptersTests {
         defer { cleanupEditingDirectory(directory) }
         let file = editingMachineFileURL(directory)
         let text = """
-            [github]
+            [code_hosting.github.connections.github]
+            type = "keychain"
             credential = "keychain:github"
             """
         try text.write(to: file, atomically: true, encoding: .utf8)
@@ -134,7 +137,7 @@ struct MachineConfigurationCLIAdaptersTests {
 
         let reloaded = try MachineConfiguration.load(contentsOf: file)
         #expect(reloaded.cliAdapters == [CLIAdapterDeclaration(name: "claude")])
-        #expect(reloaded.gitHubCredential.rawValue == MachineConfiguration.defaultGitHubCredential)
+        #expect(reloaded.codeHostingConnections.isEmpty)
         #expect(reloaded.linearInstallations.isEmpty)
     }
 
@@ -146,7 +149,8 @@ struct MachineConfigurationCLIAdaptersTests {
         defer { cleanupEditingDirectory(directory) }
         let file = editingMachineFileURL(directory)
         let handWritten = """
-            [github]
+            [code_hosting.github.connections.github]
+            type = "keychain"
             credential = "keychain:github"
             """
         try handWritten.write(to: file, atomically: true, encoding: .utf8)

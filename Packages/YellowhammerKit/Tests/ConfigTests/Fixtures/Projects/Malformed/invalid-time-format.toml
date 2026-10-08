@@ -10,3 +10,6 @@ check = "test"
 
 [schedule]
 night_end = "9:00"
+
+[code_hosting]
+connection = "github"

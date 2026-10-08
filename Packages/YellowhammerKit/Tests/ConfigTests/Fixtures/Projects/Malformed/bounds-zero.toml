@@ -10,3 +10,6 @@ check = "test"
 
 [limits]
 overdue_nights_max = 0
+
+[code_hosting]
+connection = "github"

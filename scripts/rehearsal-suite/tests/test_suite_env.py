@@ -25,6 +25,7 @@ FRESH_APP_PAIR = {
 MACHINE_CONFIG = (
     '[board.linear.connections.scratch]\n'
     'credential = "keychain:linear-scratch"\nworkspace = "ws-1"\nyellowhammer_identity = "app-1"\noperator = "user-123"\n'
+    '\n[code_hosting.github.connections.github]\ntype = "keychain"\ncredential = "keychain:github"\n'
 )
 
 # MARK: - Project TOML rendering
@@ -35,7 +36,8 @@ class RenderProjectTomlTests(unittest.TestCase):
         text = suite_env.render_project_toml(
             project_id="rehearsal-suite-a",
             name="Rehearsal Suite A",
-            installation="scratch", linear_project="11111111-1111-4111-8111-111111111111",
+            installation="scratch", code_hosting_connection="github",
+            linear_project="11111111-1111-4111-8111-111111111111",
             spec_source="/tmp/spec",
             repos=[
                 {"name": "fixture-backend", "path": "/tmp/backend", "role": "backend"},
@@ -47,6 +49,7 @@ class RenderProjectTomlTests(unittest.TestCase):
         self.assertEqual(data["name"], "Rehearsal Suite A")
         self.assertEqual(data["board"]["linear"]["project"], "11111111-1111-4111-8111-111111111111")
         self.assertEqual(data["board"]["linear"]["connection"], "scratch")
+        self.assertEqual(data["code_hosting"], {"connection": "github"})
         self.assertNotIn("linear_project", data)
         self.assertEqual(data["spec_source"], "/tmp/spec")
         self.assertEqual(len(data["repos"]), 2)
@@ -62,7 +65,7 @@ class RenderProjectTomlTests(unittest.TestCase):
         text = suite_env.render_project_toml(
             project_id="rehearsal-suite-a",
             name="A",
-            installation="scratch", linear_project="lp",
+            installation="scratch", code_hosting_connection="github", linear_project="lp",
             spec_source="/tmp/spec",
             repos=[
                 {
@@ -87,7 +90,7 @@ class RenderProjectTomlTests(unittest.TestCase):
         text = suite_env.render_project_toml(
             project_id="p",
             name='Name with "quotes" and \\backslash',
-            installation="scratch", linear_project="lp",
+            installation="scratch", code_hosting_connection="github", linear_project="lp",
             spec_source="/tmp/spec",
             repos=[{"name": "r", "path": "/tmp/r", "role": "backend"}],
         )
@@ -468,7 +471,8 @@ class InstallationTests(unittest.TestCase):
         (self.config_dir / "config.toml").write_text(MACHINE_CONFIG)
         path = suite_env.project_file_path(self.config_dir, "rehearsal-suite-a")
         path.write_text(
-            'id = "rehearsal-suite-a"\n\n[board.linear]\nconnection = "my-ws"\nproject = "lp-a"\n'
+            'id = "rehearsal-suite-a"\n\n[board.linear]\nconnection = "my-ws"\nproject = "lp-a"\n\n'
+            '[code_hosting]\nconnection = "work"\n'
         )
         env = self.make_env()
         manifest = {"spec_source": "/tmp/spec", "repos": []}
@@ -476,15 +480,103 @@ class InstallationTests(unittest.TestCase):
             suite_env.write_scenario_project_file(env, "rehearsal-suite-a", manifest)
         data = tomllib.loads(path.read_text())
         self.assertEqual(data["board"]["linear"], {"connection": "my-ws", "project": "lp-a"})
+        self.assertEqual(data["code_hosting"], {"connection": "work"})
         self.assertNotIn("linear_project", data)
 
     def test_rendered_table_precedes_repos(self):
         text = suite_env.render_project_toml(
-            project_id="p", name="p", installation="scratch", linear_project="lp", spec_source="/tmp/spec",
+            project_id="p", name="p", installation="scratch", code_hosting_connection="github",
+            linear_project="lp", spec_source="/tmp/spec",
             repos=[{"name": "r", "path": "/tmp/r", "role": "backend"}],
         )
-        self.assertLess(text.index("[board.linear]"), text.index("[[repos]]"))
+        self.assertLess(text.index("[board.linear]"), text.index("[code_hosting]"))
+        self.assertLess(text.index("[code_hosting]"), text.index("[[repos]]"))
         self.assertLess(text.index("spec_source"), text.index("[board.linear]"))
+
+
+class CodeHostingConnectionTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / "root"
+        self.config_dir = Path(self.tmp.name) / "config"
+        (self.config_dir / "projects").mkdir(parents=True)
+        self.second = '\n[code_hosting.github.connections.work]\ntype = "gh"\n'
+
+    def make_env(self, code_hosting_connection=None):
+        return suite_env.make_environment(
+            app=Path(self.tmp.name) / "App.app", team="YLH", root=self.root,
+            work_directory=Path(self.tmp.name) / "work", configuration_directory=self.config_dir,
+            act_timeout=60, transport=mock.Mock(), installation="scratch",
+            code_hosting_connection=code_hosting_connection,
+        )
+
+    def test_sole_entry_is_resolved_and_stored(self):
+        (self.config_dir / "config.toml").write_text(MACHINE_CONFIG)
+        env = self.make_env()
+        self.assertIsNone(env.code_hosting_connection)
+        self.assertEqual(suite_env.resolve_code_hosting_connection(env), "github")
+        self.assertEqual(env.code_hosting_connection, "github")
+
+    def test_named_entry_is_picked_among_several(self):
+        (self.config_dir / "config.toml").write_text(MACHINE_CONFIG + self.second)
+        self.assertEqual(suite_env.resolve_code_hosting_connection(self.make_env("work")), "work")
+
+    def test_several_entries_need_a_name(self):
+        (self.config_dir / "config.toml").write_text(MACHINE_CONFIG + self.second)
+        with self.assertRaises(suite_env.SetupFailed) as ctx:
+            suite_env.resolve_code_hosting_connection(self.make_env())
+        self.assertIn("--code-hosting-connection <name>", str(ctx.exception))
+
+    def test_unknown_name_lists_the_registered_names(self):
+        (self.config_dir / "config.toml").write_text(MACHINE_CONFIG)
+        with self.assertRaises(suite_env.SetupFailed) as ctx:
+            suite_env.resolve_code_hosting_connection(self.make_env("nope"))
+        self.assertIn("'nope'", str(ctx.exception))
+        self.assertIn("registered: github", str(ctx.exception))
+
+    def test_no_entries_points_at_install_github(self):
+        (self.config_dir / "config.toml").write_text(
+            '[board.linear.connections.scratch]\ncredential = "keychain:linear-scratch"\n'
+        )
+        with self.assertRaises(suite_env.SetupFailed) as ctx:
+            suite_env.resolve_code_hosting_connection(self.make_env())
+        self.assertIn("yh setup --install-github", str(ctx.exception))
+
+    def test_missing_config_file_has_no_entries(self):
+        with self.assertRaises(suite_env.SetupFailed) as ctx:
+            suite_env.resolve_code_hosting_connection(self.make_env())
+        self.assertIn("yh setup --install-github", str(ctx.exception))
+
+    def test_ensure_project_passes_the_connection_to_setup_init(self):
+        (self.config_dir / "config.toml").write_text(MACHINE_CONFIG + self.second)
+        env = self.make_env("work")
+        env.yh = mock.Mock()
+        env.yh.run_setup.return_value = (0, "", Path("/dev/null"))
+        manifest = {"spec_source": "/tmp/spec", "repos": []}
+        with mock.patch.object(suite_env, "build_fixture_tree", return_value=manifest), \
+             mock.patch.object(suite_env, "default_repo_declarations", return_value=[]):
+            suite_env.ensure_project(env, "rehearsal-suite-a")
+        args = env.yh.run_setup.call_args.args[1]
+        self.assertEqual(args[args.index("--code-hosting-connection") + 1], "work")
+        self.assertIn("--skip-github-check", args)
+
+    def test_read_project_code_hosting_connection(self):
+        path = suite_env.project_file_path(self.config_dir, "rehearsal-suite-a")
+        path.write_text('id = "rehearsal-suite-a"\n\n[code_hosting]\nconnection = "work"\n')
+        self.assertEqual(
+            suite_env.read_project_code_hosting_connection(self.config_dir, "rehearsal-suite-a"), "work"
+        )
+
+    def test_read_project_code_hosting_connection_refuses_a_missing_table(self):
+        path = suite_env.project_file_path(self.config_dir, "rehearsal-suite-a")
+        path.write_text('id = "rehearsal-suite-a"\n\n[board.linear]\nconnection = "scratch"\n')
+        with self.assertRaises(suite_env.scratch_linear.ProjectError):
+            suite_env.read_project_code_hosting_connection(self.config_dir, "rehearsal-suite-a")
+
+    def test_read_project_code_hosting_connection_refuses_a_missing_file(self):
+        with self.assertRaises(suite_env.scratch_linear.ProjectError):
+            suite_env.read_project_code_hosting_connection(self.config_dir, "rehearsal-suite-a")
 
 
 class StandInCommitTests(unittest.TestCase):
@@ -1177,7 +1269,8 @@ class TeardownProjectTests(unittest.TestCase):
         path = suite_env.project_file_path(self.config_dir, project_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
-            f'id = "{project_id}"\n\n[board.linear]\nconnection = "scratch"\nproject = "{linear_project_id}"\n'
+            f'id = "{project_id}"\n\n[board.linear]\nconnection = "scratch"\nproject = "{linear_project_id}"\n\n'
+            '[code_hosting]\nconnection = "github"\n'
         )
 
     def _write_fixture_tree(self, project_id):

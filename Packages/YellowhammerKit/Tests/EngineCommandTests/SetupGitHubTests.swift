@@ -31,12 +31,6 @@ struct SetupGitHubTests {
         )
     }
 
-    private static func configFileExists(_ directory: URL) -> Bool {
-        FileManager.default.fileExists(
-            atPath: directory.appending(component: "config.toml").path(percentEncoded: false)
-        )
-    }
-
     private func failure(_ setup: Setup) async -> SetupError? {
         do {
             try await setup.run()
@@ -140,24 +134,6 @@ struct SetupGitHubTests {
         #expect(!output.lines.contains { $0.contains("ghp_test") })
     }
 
-    @Test("--github-credential that differs from the kept config.toml is noted, and the kept one is used")
-    func initKeptConfigurationReferenceWins() async throws {
-        let directory = ConfigurationDirectory()
-        try directory.writeMachineFile()
-        let output = RecordingOutput()
-        let transport = StubGitHubTransport.passing()
-        let setup = try makeSetup(
-            arguments: Self.initArguments() + ["--board-connection", "acme", "--github-credential", "keychain:other"],
-            directory: directory, board: await makeBoard(project: nil), output: output,
-            gitHub: transport.validation()
-        )
-
-        try await setup.run()
-
-        #expect(output.lines.contains { $0.hasPrefix("note: ") && $0.contains("keychain:other") })
-        #expect(output.lines.contains { $0.contains("keychain:github is in the Keychain") })
-    }
-
     @Test("--init without --project runs no GitHub step") // glossary:ignore GL001
     func initWithoutProjectSkipsGitHub() async throws {
         let directory = ConfigurationDirectory()
@@ -190,7 +166,8 @@ struct SetupGitHubTests {
         let warnings = output.lines.filter { $0.contains("the GitHub check was skipped") }
         #expect(warnings == [
             "warning: the GitHub check was skipped (--skip-github-check): `land` cannot push or open pull "
-                + "requests for Project demo until `yh setup --install-github` passes for its Repos; "
+                + "requests for Project demo until "
+                + "`yh setup --install-github --code-hosting-connection github` passes for its Repos; "
                 + "`yh doctor` reports it."
         ])
     }
@@ -198,11 +175,14 @@ struct SetupGitHubTests {
     @Test("Interactive --skip-github-check asks for no token and checks nothing")
     func interactiveSkipGitHubCheck() async throws {
         let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
         let credentials = Self.withoutGitHub()
-        let console = ScriptedConsole(answers: Self.answers(github: []))
+        let console = ScriptedConsole(answers: ["1", "n"]) // the only connection, then no Project now
         let transport = StubGitHubTransport.passing()
         let setup = try makeSetup(
-            arguments: makeArguments(initialize: false, operatorID: "user-op") + ["--skip-github-check"],
+            arguments: makeArguments(
+                initialize: false, operatorID: "user-op", installation: "acme", omitCodeHostingConnection: true
+            ) + ["--skip-github-check"],
             directory: directory, board: await makeBoard(), console: console, credentials: credentials,
             gitHub: transport.validation()
         )
@@ -210,6 +190,7 @@ struct SetupGitHubTests {
         try await setup.run()
 
         #expect(!console.prompts.contains(Self.secretPrompt))
+        #expect(!console.prompts.contains { $0.contains("Connect a GitHub token") })
         #expect(transport.requests.isEmpty)
         #expect(credentials.storedSecrets.isEmpty)
     }
@@ -223,14 +204,15 @@ struct SetupGitHubTests {
         output: RecordingOutput = RecordingOutput(), directory: borrowing ConfigurationDirectory
     ) async throws -> Setup {
         try makeSetup(
-            arguments: makeArguments(initialize: false, operatorID: "user-op"), directory: directory,
+            arguments: makeArguments(initialize: false, operatorID: "user-op", omitCodeHostingConnection: true),
+            directory: directory,
             board: await makeBoard(), console: console, credentials: credentials, output: output,
             gitHub: transport.validation(), importGitHubToken: importer
         )
     }
 
-    /// GitHub credential, CLI Adapters and catch-all route, then (after the GitHub step) the Linear
-    /// install question, the local name, and "Declare a Project now?".
+    /// CLI Adapters, catch-all route and the new Code Hosting Connection's name (default `github`), then the
+    /// GitHub step's answers, then the Linear install question, the local name and "Declare a Project now?".
     private static func answers(github: [String?]) -> [String?] {
         ["", "", ""] + github + ["", "", "n"]
     }
@@ -281,7 +263,7 @@ struct SetupGitHubTests {
     func interactiveEOFCancels() async throws {
         let directory = ConfigurationDirectory()
         let credentials = Self.withoutGitHub()
-        let console = ScriptedConsole(answers: ["", "", "", nil])
+        let console = ScriptedConsole(answers: ["", "", "", nil]) // CLI, route, connection name, then EOF
         let setup = try await interactive(
             credentials: credentials, transport: StubGitHubTransport.passing(), console: console,
             directory: directory
@@ -357,7 +339,7 @@ struct SetupGitHubTests {
         )
     }
 
-    @Test("--install-github --token-stdin reads one line, validates, stores, and creates no config.toml")
+    @Test("--install-github --token-stdin reads one line, validates, stores, and connects github in config.toml")
     func installTokenStdin() async throws {
         let directory = ConfigurationDirectory()
         let credentials = Self.withoutGitHub()
@@ -373,7 +355,12 @@ struct SetupGitHubTests {
         #expect(credentials.storedSecrets == [.init(reference: "keychain:github", secret: "ghp_stdin")])
         #expect(console.prompts == [""])
         #expect(transport.paths.contains("/repos/acme/demo-backend"))
-        #expect(!Self.configFileExists(directory.url))
+        let machine = try MachineConfiguration.load(contentsOf: directory.url.appending(component: "config.toml"))
+        #expect(machine.codeHostingConnections == [
+            CodeHostingConnection(
+                name: "github", kind: .keychainToken(CodeHostingConnection.defaultCredentialReference(for: "github"))
+            )
+        ])
     }
 
     @Test("--install-github --token-stdin with an empty line fails and stores nothing")
@@ -429,7 +416,7 @@ struct SetupGitHubTests {
         let console = ScriptedConsole()
         let output = RecordingOutput()
         let setup = try await install(
-            ["--github-credential", "keychain:github"], credentials: credentials,
+            ["--code-hosting-connection", "github"], credentials: credentials,
             transport: StubGitHubTransport.passing(), console: console, output: output, directory: directory
         )
 
@@ -438,6 +425,7 @@ struct SetupGitHubTests {
         #expect(console.prompts.isEmpty)
         #expect(credentials.storedSecrets.isEmpty)
         #expect(output.lines.contains { $0.contains("is in the Keychain (GitHub user octocat)") })
+        #expect(output.lines.contains("Code Hosting Connection github is ready."))
     }
 
     @Test("--install-github --from-gh stores the imported token")
@@ -489,7 +477,7 @@ struct SetupGitHubTests {
         #expect(error.message.contains("Repo demo-mobile (acme/demo-mobile): not found or not accessible"))
     }
 
-    @Test("Without --github-repo, --install-github checks the working Repos of the Projects using the reference")
+    @Test("Without --github-repo, --install-github checks the working Repos of the Projects selecting the connection")
     func installChecksConfiguredProjects() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
@@ -509,6 +497,7 @@ struct SetupGitHubTests {
     @Test("--print-github prints one decodable line, never prompts, and stores nothing")
     func printGitHub() async throws {
         let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
         let credentials = RecordingCredentialStore.withGitHub()
         let console = ScriptedConsole()
         let output = RecordingOutput()
@@ -527,7 +516,6 @@ struct SetupGitHubTests {
         #expect(report.repos.map(\.status) == [.ok])
         #expect(console.prompts.isEmpty)
         #expect(credentials.storedSecrets.isEmpty)
-        #expect(!Self.configFileExists(directory.url))
     }
 
     @Test("--print-github exits 0 with an invalid report")
@@ -587,7 +575,10 @@ struct SetupGitHubTests {
         ["--install-cli", "--print-github"],
         ["--uninstall-cli", "--token-stdin"],
         ["--install-cli", "--github-repo", "~/dev/backend"],
-        ["--install-cli", "--skip-github-check"]
+        ["--install-cli", "--skip-github-check"],
+        ["--install-cli", "--code-hosting-connection", "x"],
+        ["--print-choices", "--code-hosting-connection", "x"],
+        ["--install-github", "--code-hosting-connection", ""]
     ])
     func combinationsRefused(arguments: [String]) {
         #expect(throws: (any Error).self) { try SetupOptions(command: try SetupCommand.parse(arguments)) }
@@ -598,7 +589,7 @@ struct SetupGitHubTests {
         for arguments in [
             ["--install-github"],
             ["--install-github", "--token-stdin", "--replace", "--github-repo", "~/a"],
-            ["--install-github", "--from-gh", "--github-credential", "keychain:x"],
+            ["--install-github", "--from-gh", "--code-hosting-connection", "x"],
             ["--print-github"],
             ["--print-github", "--github-repo", "~/a", "--github-repo", "~/b"],
             ["--skip-github-check"],

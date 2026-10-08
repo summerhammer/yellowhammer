@@ -48,7 +48,7 @@ public struct ProjectRemoveCommand: AsyncParsableCommand {
     /// The push seam, mirroring ``LandBinding/push(configuration:project:credentials:)``: the GitHub
     /// token is resolved lazily, on each call, so a removal that never pushes never touches the
     /// Keychain.
-    private static func push(
+    static func push(
         configuration: Configuration,
         project: ProjectConfiguration,
         credentials store: KeychainCredentialStore = KeychainCredentialStore()
@@ -56,8 +56,10 @@ public struct ProjectRemoveCommand: AsyncParsableCommand {
         { branch, repo, mode in
             let token: GitHubToken?
             do {
-                let reference = configuration.machine.gitHubCredential(for: project)
-                token = GitHubToken(try store.read(reference))
+                let credential = try configuration.machine.codeHostingCredential(for: project)
+                token = GitHubToken(try store.read(credential.reference))
+            } catch let refusal as CodeHostingRefusal {
+                return .credentialsMissingOrInsufficient(repository: repo.name, detail: refusal.description)
             } catch {
                 return .credentialsMissingOrInsufficient(repository: repo.name, detail: "\(error)")
             }

@@ -15,3 +15,6 @@ route = "claude/sonnet"
 [[routing]]
 work_kind = "impl"
 route = "codex/gpt-5.4"
+
+[code_hosting]
+connection = "github"

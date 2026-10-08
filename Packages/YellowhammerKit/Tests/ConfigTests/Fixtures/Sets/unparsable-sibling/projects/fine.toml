@@ -8,3 +8,6 @@ name = "fine"
 path = "~/dev/fine"
 role = "backend"
 check = "swift test"
+
+[code_hosting]
+connection = "github"

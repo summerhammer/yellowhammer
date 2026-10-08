@@ -38,9 +38,6 @@ night_start = "23:00"
 night_end = "07:00"
 build_every_minutes = 20
 
-[github]
-credential = "keychain:github-full"
-
 [[routing]]
 work_kind = "impl.boilerplate"
 repo_role = "backend"
@@ -50,3 +47,6 @@ route = "claude/sonnet/low"
 work_kind = "review"
 route = "claude/opus"
 fallbacks = ["codex/gpt-5.4/high"]
+
+[code_hosting]
+connection = "github-full"

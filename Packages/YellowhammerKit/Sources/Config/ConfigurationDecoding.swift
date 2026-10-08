@@ -34,21 +34,6 @@ struct ConfigurationDecoding {
         return table
     }
 
-    /// A `[<table>]` holding one non-empty `credential`.
-    func credential(in root: TOMLTable, table name: String) throws(ConfigurationError) -> CredentialReference {
-        guard let value = root[name] else {
-            throw error(line: 1, key: name, .missingTable)
-        }
-        let table = try table(value, key: name)
-        try rejectUnknownKeys(in: table, path: name, allowed: ["credential"])
-        let string = try requiredString("credential", in: table, path: name)
-        guard let reference = CredentialReference(string) else {
-            let line = table["credential"]?.line ?? table.line
-            throw error(line: line, key: TOMLKey.path(name, "credential"), .emptyString)
-        }
-        return reference
-    }
-
     /// A Message Template of `kind` at `key` in `table`, or nil when the key is absent. An empty (or
     /// whitespace-only) template, an unknown token and an unterminated `{` are refused here. The lenient
     /// removal path catches these refusals instead of failing the load.

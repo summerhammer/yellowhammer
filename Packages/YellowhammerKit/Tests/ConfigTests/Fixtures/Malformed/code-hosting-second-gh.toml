@@ -1,0 +1,5 @@
+[code_hosting.github.connections.gh]
+type = "gh"
+
+[code_hosting.github.connections.work-gh]
+type = "gh"

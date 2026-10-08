@@ -8,3 +8,6 @@ name = "gamma"
 path = "~/dev/gamma"
 role = "backend"
 check = "swift test"
+
+[code_hosting]
+connection = "github"

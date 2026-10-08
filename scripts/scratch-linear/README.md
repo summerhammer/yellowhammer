@@ -47,13 +47,16 @@ points at are P15.2's concern, not this tool's.
      which collides with Linear's default `Feature` workspace label (OQ125).
 
 3. For each rehearsing Project, generate its configuration and provision its Linear project inside
-   the scratch team with `yh setup --init --board-connection <name>` (`Packages/YellowhammerKit/Sources/EngineCommand/
-   SetupCommand.swift`, `SetupOptions.swift`). Repos and Spec Source point at throwaway checkouts
+   the scratch team with `yh setup --init --board-connection <name> --code-hosting-connection <name>`
+   (`Packages/YellowhammerKit/Sources/EngineCommand/
+   SetupCommand.swift`, `SetupOptions.swift`). The Code Hosting Connection must be in `config.toml`'s
+   registry. Repos and Spec Source point at throwaway checkouts
    (P15.2); the paths below are placeholders:
 
    ```sh
    yh setup --init \
      --board-connection <scratch-installation-name> \
+     --code-hosting-connection <code-hosting-connection-name> \
      --cli claude \
      --route claude/sonnet/medium \
      --operator <operator-linear-user-id> \

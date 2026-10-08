@@ -1,3 +1,6 @@
 id = "missing-repos"
 name = "No Repos"
 board = { linear = { connection = "acme", project = "NR" } }
+
+[code_hosting]
+connection = "github"

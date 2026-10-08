@@ -13,15 +13,15 @@ struct MachineConfigurationDecoder {
     /// The base Routing Table is checked against this file's own `[cli]` declarations: every route
     /// must name a declared CLI Adapter.
     func decode(_ root: TOMLTable) throws(ConfigurationError) -> MachineConfiguration {
-        try decoding.rejectUnknownKeys(in: root, path: nil, allowed: ["board", "github", "cli", "routing"])
+        try decoding.rejectUnknownKeys(in: root, path: nil, allowed: ["board", "code_hosting", "cli", "routing"])
         let linearInstallations = try linearInstallations(in: root)
-        let gitHubCredential = try decoding.credential(in: root, table: "github")
+        let codeHostingConnections = try codeHostingConnections(in: root)
         let cliAdapters = try cliAdapters(in: root)
         var routingDecoding = decoding
         routingDecoding.declaredCLIAdapters = Set(cliAdapters.map(\.name))
         return MachineConfiguration(
             linearInstallations: linearInstallations,
-            gitHubCredential: gitHubCredential,
+            codeHostingConnections: codeHostingConnections,
             cliAdapters: cliAdapters,
             routingTable: try routingDecoding.routingTable(in: root)
         )
@@ -88,6 +88,72 @@ struct MachineConfigurationDecoder {
             appUser: BoardObjectID(rawValue: appUser),
             operatorIdentity: operatorString.flatMap { $0.isEmpty ? nil : BoardObjectID(rawValue: $0) }
         )
+    }
+
+    /// `[code_hosting.github.connections.<name>]`, zero or more: the registry of Code Hosting Connections.
+    /// Each carries a required `type`, `"gh"` or `"keychain"`; a `keychain` entry also carries a required
+    /// `credential`, which a `gh` entry may not (it holds no token). The Mac holds at most one `gh` entry.
+    ///
+    /// `[code_hosting]`, `[code_hosting.github]` and `[code_hosting.github.connections]` may each be absent
+    /// or empty.
+    private func codeHostingConnections(in root: TOMLTable) throws(ConfigurationError) -> [CodeHostingConnection] {
+        guard let codeHostingValue = root["code_hosting"] else { return [] }
+        let codeHosting = try decoding.table(codeHostingValue, key: "code_hosting")
+        try decoding.rejectUnknownKeys(in: codeHosting, path: "code_hosting", allowed: ["github"])
+        guard let githubValue = codeHosting["github"] else { return [] }
+        let github = try decoding.table(githubValue, key: "code_hosting.github")
+        try decoding.rejectUnknownKeys(in: github, path: "code_hosting.github", allowed: ["connections"])
+        guard let registryValue = github["connections"] else { return [] }
+        let registryPath = "code_hosting.github.connections"
+        let registry = try decoding.table(registryValue, key: registryPath)
+
+        var connections: [CodeHostingConnection] = []
+        var firstGitHubCLI: (connection: String, line: Int)?
+        for entry in registry.entries {
+            let path = TOMLKey.path(registryPath, entry.key)
+            let table = try decoding.table(entry.value, key: path)
+            guard !entry.key.isEmpty else {
+                throw decoding.error(line: entry.value.line, key: path, .emptyString)
+            }
+            let connection = try codeHostingConnection(named: entry.key, in: table, path: path)
+            if case .githubCLI = connection.kind {
+                let typeLine = table["type"]?.line ?? table.line
+                if let first = firstGitHubCLI {
+                    throw decoding.error(
+                        line: typeLine, key: TOMLKey.path(path, "type"),
+                        .duplicateGitHubCLIConnection(firstConnection: first.connection, firstLine: first.line)
+                    )
+                }
+                firstGitHubCLI = (entry.key, typeLine)
+            }
+            connections.append(connection)
+        }
+        return connections
+    }
+
+    private func codeHostingConnection(
+        named name: String, in table: TOMLTable, path: String
+    ) throws(ConfigurationError) -> CodeHostingConnection {
+        try decoding.rejectUnknownKeys(in: table, path: path, allowed: ["type", "credential"])
+        let type = try decoding.requiredString("type", in: table, path: path)
+        let typeLine = table["type"]?.line ?? table.line
+        switch type {
+        case "gh":
+            // A `gh` connection holds no token, so a credential has nothing to refer to.
+            if let credential = table["credential"] {
+                throw decoding.error(line: credential.line, key: TOMLKey.path(path, "credential"), .unknownKey)
+            }
+            return CodeHostingConnection(name: name, kind: .githubCLI)
+        case "keychain":
+            let credentialString = try decoding.requiredString("credential", in: table, path: path)
+            guard let credential = CredentialReference(credentialString) else {
+                let line = table["credential"]?.line ?? table.line
+                throw decoding.error(line: line, key: TOMLKey.path(path, "credential"), .emptyString)
+            }
+            return CodeHostingConnection(name: name, kind: .keychainToken(credential))
+        default:
+            throw decoding.error(line: typeLine, key: TOMLKey.path(path, "type"), .invalidCodeHostingType(type))
+        }
     }
 
     private func cliAdapters(in root: TOMLTable) throws(ConfigurationError) -> [CLIAdapterDeclaration] {

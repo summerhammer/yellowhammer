@@ -18,6 +18,7 @@ struct DoctorProjectFilterTests {
             id = "alpha"
             name = "alpha"
             board = { linear = { connection = "acme", project = "alpha" } }
+            code_hosting = { connection = "github" }
             spec_source = "\(fixture.path)"
 
             [[repos]]

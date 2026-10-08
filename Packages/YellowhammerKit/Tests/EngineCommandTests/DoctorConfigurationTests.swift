@@ -41,6 +41,7 @@ struct DoctorConfigurationTests {
             id = "broken"
             name = "broken"
             board = { linear = { connection = "acme", project = "broken" } }
+            code_hosting = { connection = "github" }
             spec_source = "~/Developer/broken-spec"
 
             [[repos]]
@@ -87,7 +88,8 @@ struct DoctorConfigurationTests {
             workspace = "workspace-1"
             yellowhammer_identity = "app-user-1"
 
-            [github]
+            [code_hosting.github.connections.github]
+            type = "keychain"
             credential = "keychain:github"
 
             [cli.claude]

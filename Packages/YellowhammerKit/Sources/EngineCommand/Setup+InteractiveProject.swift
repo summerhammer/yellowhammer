@@ -7,17 +7,21 @@ extension Setup {
     /// "Declare a Project now? [y/N]", looped: on success, offers another; on a validation or Linear
     /// error, prints it and restarts that Project's own prompts rather than moving on.
     func interactiveProjectLoop(
-        machine: MachineConfiguration, installation: LinearInstallation, board: any BoardProvisioning
+        machine: MachineConfiguration, installation: LinearInstallation, codeHostingConnection: String,
+        board: any BoardProvisioning
     ) async throws {
         guard askYesNo("Declare a Project now? [y/N] ") else { return }
         while true {
             let declaration = try await askProjectDeclaration(board: board)
             do {
-                try await writeProject(declaration, machine: machine, installation: installation, board: board)
+                try await writeProject(
+                    declaration, machine: machine, installation: installation,
+                    codeHostingConnection: codeHostingConnection, board: board
+                )
             } catch {
                 output("\(error)")
                 if let failure = error as? SetupError, failure.isGitHubFailure {
-                    try await offerGitHubReplacement(machine: machine)
+                    try await offerGitHubReplacement(machine: machine, connection: codeHostingConnection)
                 }
                 continue
             }

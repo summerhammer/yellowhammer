@@ -8,3 +8,6 @@ name = "reader"
 path = "~/dev/reader"
 role = "mobile"
 check = "xcodebuild test"
+
+[code_hosting]
+connection = "github"

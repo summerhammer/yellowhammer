@@ -27,6 +27,7 @@ func projectDefaultsRoundTrip() throws {
         name: "Round Trip",
         linearInstallationName: "acme",
         linearProject: "RT",
+        codeHostingConnectionName: "github",
         specSource: "~/dev/roundtrip-spec",
         repos: [
             RepoDeclaration(name: "only-repo", path: "~/dev/roundtrip", role: .backend, check: .command("swift test"))
@@ -36,13 +37,14 @@ func projectDefaultsRoundTrip() throws {
     #expect(parsed == project)
 }
 
-@Test("A Project with repos, protected paths, a spec role, a GitHub override, routing overrides and a quoted check")
+@Test("A Project with repos, a spec role, a Code Hosting selection, a PR title, routing overrides and a quoted check")
 func projectFullRoundTrip() throws {
     let project = ProjectConfiguration(
         id: try projectID("full-roundtrip"),
         name: "Full Round Trip",
         linearInstallationName: "acme",
         linearProject: "FRT",
+        codeHostingConnectionName: "github-full",
         repos: [
             RepoDeclaration(
                 name: "backend",
@@ -67,7 +69,6 @@ func projectFullRoundTrip() throws {
             nightEnd: try #require(TimeOfDay(hour: 7, minute: 0)),
             buildEveryMinutes: 20
         ),
-        gitHubCredential: try credential("keychain:github-full"),
         routingOverrides: [
             RoutingEntry(
                 kind: try kind("impl.boilerplate"),
@@ -76,7 +77,8 @@ func projectFullRoundTrip() throws {
                 fallbacks: [try route("codex", "gpt-5.4", "high"), try route("claude", "haiku", "low")]
             ),
             RoutingEntry(kind: try kind("review"), route: try route("claude", "opus", "high"))
-        ]
+        ],
+        pullRequestTitle: try MessageTemplate("[{key}] {title}", kind: .pullRequestTitle)
     )
     let parsed = try ProjectConfiguration.parse(project.renderedTOML, file: "full-roundtrip.toml")
     #expect(parsed == project)
@@ -89,6 +91,7 @@ func projectRendersExplicitDefaultBounds() throws {
         name: "Bounds Default",
         linearInstallationName: "acme",
         linearProject: "BD",
+        codeHostingConnectionName: "github",
         repos: [RepoDeclaration(name: "only-repo", path: "~/dev/bd", role: .backend, check: .none)]
     )
     #expect(project.renderedTOML.contains("overdue_nights_max = 3"))
@@ -98,16 +101,12 @@ func projectRendersExplicitDefaultBounds() throws {
 
 @Test("A minimal machine file (no Board Connections, no CLI adapters, no routing) round-trips")
 func machineMinimalRoundTrip() throws {
-    let machine = MachineConfiguration(
-        gitHubCredential: try credential("keychain:github"),
-        cliAdapters: [],
-        routingTable: []
-    )
+    let machine = MachineConfiguration(cliAdapters: [], routingTable: [])
     let parsed = try MachineConfiguration.parse(machine.renderedTOML, file: "config.toml")
     #expect(parsed == machine)
 }
 
-@Test("A full machine file with two Board Connections, CLI tables with/without executable, and routing fallbacks")
+@Test("A full machine file with Board and Code Hosting Connections, CLI tables and routing fallbacks")
 func machineFullRoundTrip() throws {
     let machine = MachineConfiguration(
         linearInstallations: [
@@ -125,7 +124,11 @@ func machineFullRoundTrip() throws {
                 appUser: BoardObjectID(rawValue: "app-user-2")
             )
         ],
-        gitHubCredential: try credential("keychain:github"),
+        codeHostingConnections: [
+            CodeHostingConnection(name: "github", kind: .keychainToken(try credential("keychain:github"))),
+            CodeHostingConnection(name: "work gh", kind: .githubCLI),
+            CodeHostingConnection(name: "acme", kind: .keychainToken(try credential("keychain:github-acme")))
+        ],
         cliAdapters: [
             CLIAdapterDeclaration(name: "claude", executable: "/opt/homebrew/bin/claude"),
             CLIAdapterDeclaration(name: "codex"),
@@ -161,7 +164,8 @@ private let registryText = """
     yellowhammer_identity = "app-user-2"
     operator = "corp-user"
 
-    [github]
+    [code_hosting.github.connections.github]
+    type = "keychain"
     credential = "keychain:github"
     """
 
@@ -196,14 +200,17 @@ func settingOperatorInserts() throws {
         workspace = "workspace-1"
         yellowhammer_identity = "app-user-1"
 
-        [github]
+        [code_hosting.github.connections.github]
+        type = "keychain"
         credential = "keychain:github"
         """
     let result = MachineConfiguration.settingOperator(
         BoardObjectID(rawValue: "user-1"), installation: "acme", inFileText: text
     )
     #expect(try operatorOf(result, "acme") == BoardObjectID(rawValue: "user-1"))
-    #expect(result.contains("yellowhammer_identity = \"app-user-1\"\noperator = \"user-1\"\n\n[github]"))
+    #expect(result.contains(
+        "yellowhammer_identity = \"app-user-1\"\noperator = \"user-1\"\n\n[code_hosting.github.connections.github]"
+    ))
 }
 
 @Test("settingOperator matches a quoted-but-bare-safe header and a header with a trailing comment")
@@ -214,7 +221,7 @@ func settingOperatorHeaderSpellings() throws {
         "[board.linear.connections.acme] # note"
     ] {
         let text = header + "\ncredential = \"c\"\nworkspace = \"w\"\nyellowhammer_identity = \"a\"\n"
-            + "\n[github]\ncredential = \"g\"\n"
+            + "\n[code_hosting.github.connections.github]\ntype = \"keychain\"\ncredential = \"g\"\n"
         let result = MachineConfiguration.settingOperator(
             BoardObjectID(rawValue: "u"), installation: "acme", inFileText: text
         )
@@ -245,7 +252,8 @@ private func installation(
 @Test("settingLinearInstallation appends a new entry after [[routing]] and the result parses")
 func settingInstallationAppends() throws {
     let text = """
-        [github]
+        [code_hosting.github.connections.github]
+        type = "keychain"
         credential = "keychain:github"
 
         [cli.claude]
@@ -272,7 +280,8 @@ func settingInstallationReplaces() throws {
         workspace = "old-ws"
         operator = "kept-user"
 
-        [github]
+        [code_hosting.github.connections.github]
+        type = "keychain"
         credential = "keychain:github"
         """
     let entry = try installation("acme", workspace: "new-ws")
@@ -299,9 +308,8 @@ func settingInstallationReplacesOperator() throws {
 @Test("settingLinearInstallation adds a second entry beside an existing one, and quotes a name that needs it")
 func settingInstallationSecondAndQuoted() throws {
     let first = try installation("acme", workspace: "ws-1")
-    let withFirst = MachineConfiguration.settingLinearInstallation(
-        first, inFileText: "[github]\ncredential = \"keychain:github\"\n"
-    )
+    let hosting = "[code_hosting.github.connections.github]\ntype = \"keychain\"\ncredential = \"keychain:github\"\n"
+    let withFirst = MachineConfiguration.settingLinearInstallation(first, inFileText: hosting)
     let second = try installation("acme corp", workspace: "ws-2")
     let result = MachineConfiguration.settingLinearInstallation(second, inFileText: withFirst)
     #expect(result.contains("[board.linear.connections.\"acme corp\"]"))
@@ -324,8 +332,12 @@ func routingSaveKeepsRegistry() throws {
     ])
     let reparsed = try MachineConfiguration.parse(rendered, file: "config.toml")
     #expect(reparsed.linearInstallations == original.linearInstallations)
+    #expect(reparsed.codeHostingConnections == original.codeHostingConnections)
     #expect(reparsed.linearInstallations.first?.operatorIdentity == BoardObjectID(rawValue: "old-user"))
-    let order = ["[board.linear.connections.acme]", "[board.linear.connections.\"acme corp\"]", "[github]"]
+    let order = [
+        "[board.linear.connections.acme]", "[board.linear.connections.\"acme corp\"]",
+        "[code_hosting.github.connections.github]"
+    ]
     let positions = order.compactMap { rendered.range(of: $0)?.lowerBound }
     #expect(positions.count == order.count)
     #expect(positions == positions.sorted())
@@ -381,4 +393,78 @@ func configurationSaveRefusesUnregisteredInstallation() throws {
         #expect(errors.map(\.reason) == [.undeclaredLinearInstallation("missing")])
         #expect(errors.first?.key == "board.linear.connection")
     }
+}
+
+@Test("a Configuration save keeps [code_hosting] and the registry; a draft edit carries the selection through")
+func configurationSaveKeepsCodeHosting() throws {
+    let project = try testEditingProject(id: "keepcode")
+    var draft = ProjectFileDraft(project)
+    #expect(draft.codeHostingConnectionName == "github")
+    #expect(draft.renderedTOML.contains("[code_hosting]\nconnection = \"github\""))
+    #expect(!draft.renderedTOML.contains("[github]"))
+    let reparsed = try ProjectConfiguration.parse(draft.renderedTOML, file: "keepcode.toml")
+    #expect(reparsed.codeHostingConnectionName == "github")
+
+    let directory = try makeEditingDirectory(machine: try testEditingMachine(), projects: [project])
+    defer { cleanupEditingDirectory(directory) }
+    let file = editingProjectFileURL(directory, "keepcode")
+    let originalText = try String(contentsOf: file, encoding: .utf8)
+    draft.name = "Renamed"
+    try Configuration.save(draft.renderedTOML, to: file, in: directory, replacing: originalText)
+    let loaded = try #require(Configuration.load(directory: directory).projects.first)
+    #expect(loaded.name == "Renamed")
+    #expect(loaded.codeHostingConnectionName == "github")
+}
+
+@Test("a Configuration save of a Project naming an unregistered Code Hosting Connection is refused")
+func configurationSaveRefusesUnregisteredCodeHostingConnection() throws {
+    let project = try testEditingProject(id: "straycode")
+    let directory = try makeEditingDirectory(machine: try testEditingMachine(), projects: [project])
+    defer { cleanupEditingDirectory(directory) }
+    let file = editingProjectFileURL(directory, "straycode")
+    let originalText = try String(contentsOf: file, encoding: .utf8)
+    var draft = ProjectFileDraft(project)
+    draft.codeHostingConnectionName = "missing"
+    do {
+        try Configuration.save(draft.renderedTOML, to: file, in: directory, replacing: originalText)
+        Issue.record("expected the save to be refused")
+    } catch {
+        guard case .refused(let errors) = error else {
+            Issue.record("expected .refused, got \(error)")
+            return
+        }
+        #expect(errors.map(\.reason) == [.undeclaredCodeHostingConnection("missing")])
+        #expect(errors.first?.key == "code_hosting.connection")
+    }
+}
+
+@Test("a draft with a non-default pull_request_title renders [github] with the title and nothing else")
+func draftRendersTitleOnlyGitHubTable() throws {
+    var project = try testEditingProject(id: "titled")
+    project.pullRequestTitle = try MessageTemplate("[{key}] {title}", kind: .pullRequestTitle)
+    let rendered = ProjectFileDraft(project).renderedTOML
+    #expect(rendered.contains("[github]\npull_request_title = \"[{key}] {title}\"\n"))
+    #expect(!rendered.contains("credential"))
+    let reparsed = try ProjectConfiguration.parse(rendered, file: "titled.toml")
+    #expect(reparsed == project)
+}
+
+@Test("the registry renders one table per connection: a gh entry holds no credential")
+func registryRendersOneTablePerConnection() throws {
+    let machine = MachineConfiguration(
+        codeHostingConnections: [
+            CodeHostingConnection(name: "acme", kind: .keychainToken(try credential("keychain:github-acme"))),
+            CodeHostingConnection(name: "my gh", kind: .githubCLI)
+        ],
+        cliAdapters: [], routingTable: []
+    )
+    #expect(machine.renderedTOML == """
+        [code_hosting.github.connections.acme]
+        type = "keychain"
+        credential = "keychain:github-acme"
+
+        [code_hosting.github.connections."my gh"]
+        type = "gh"
+
+        """)
 }

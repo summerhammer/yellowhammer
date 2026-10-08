@@ -1,7 +1,7 @@
 [board.linear.connections.acme]
 credential = "keychain:linear"
-[github]
-credential = "keychain:github"
+[code_hosting.github.connections]
+github = { type = "keychain", credential = "keychain:github" }
 
 [[routing]]
 route = { cli = "claude", model = "opus", }

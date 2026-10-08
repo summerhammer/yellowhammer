@@ -11,3 +11,6 @@ name = "only-repo"
 path = "~/dev/minimal"
 role = "backend"
 check = "swift test"
+
+[code_hosting]
+connection = "github"

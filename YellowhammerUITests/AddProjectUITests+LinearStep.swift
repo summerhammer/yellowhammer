@@ -11,7 +11,8 @@ import XCTest
 extension AddProjectUITests {
     /// Zero installations is a valid machine file: the Linear step then goes straight to connecting.
     static let noInstallationMachineTOML = """
-    [github]
+    [code_hosting.github.connections.github]
+    type = "keychain"
     credential = "keychain:github"
 
     [cli.claude]
@@ -27,7 +28,8 @@ extension AddProjectUITests {
     workspace = "workspace-1"
     yellowhammer_identity = "app-user-1"
     operator = "user-op"
-    [github]
+    [code_hosting.github.connections.github]
+    type = "keychain"
     credential = "keychain:github"
 
     [cli.claude]
@@ -47,7 +49,8 @@ extension AddProjectUITests {
     workspace = "workspace-2"
     yellowhammer_identity = "app-user-2"
     operator = "user-op"
-    [github]
+    [code_hosting.github.connections.github]
+    type = "keychain"
     credential = "keychain:github"
 
     [cli.claude]

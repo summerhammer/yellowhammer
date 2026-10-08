@@ -85,7 +85,8 @@ def git_tree_dirty(repo_root=REPO_ROOT):
 
 
 def run_suite(
-    app, team, work_directory, scenario_numbers=None, act_timeout=None, python_executable=None, installation=None
+    app, team, work_directory, scenario_numbers=None, act_timeout=None, python_executable=None, installation=None,
+    code_hosting_connection=None,
 ):
     """Runs `rehearsal_suite.py run` as a subprocess, tee'ing every line to stdout as it arrives.
     Returns (returncode, lines) — `lines` is every line of combined stdout/stderr, in order."""
@@ -96,6 +97,8 @@ def run_suite(
     ]
     if installation is not None:
         command += ["--board-connection", installation]
+    if code_hosting_connection is not None:
+        command += ["--code-hosting-connection", code_hosting_connection]
     for number in scenario_numbers or []:
         command += ["--scenario", str(number)]
     if act_timeout is not None:
@@ -282,7 +285,7 @@ def record_command(args):
     returncode, lines = run_suite(
         app=args.app, team=args.team, work_directory=work_directory,
         scenario_numbers=args.scenario, act_timeout=args.act_timeout,
-        installation=args.installation,
+        installation=args.installation, code_hosting_connection=args.code_hosting_connection,
     )
 
     log_text = "\n".join(lines)
@@ -392,6 +395,10 @@ def parse_arguments(argv):
     record_parser.add_argument(
         "--board-connection", dest="installation", metavar="NAME", default=None,
         help="the Board Connection in config.toml, passed to the suite (default: the sole one)",
+    )
+    record_parser.add_argument(
+        "--code-hosting-connection", dest="code_hosting_connection", metavar="NAME", default=None,
+        help="the Code Hosting Connection in config.toml's registry, passed to the suite (default: the sole one)",
     )
 
     check_parser = subparsers.add_parser("check", help="exit 0 only if the evidence is a clean green")

@@ -67,6 +67,7 @@ func refusedTemplateWritesDefaultWIPCommit() async throws {
         id = "alpha"
         name = "alpha"
         board = { linear = { connection = "acme", project = "alpha" } }
+        code_hosting = { connection = "github" }
         spec_source = "~/Developer/alpha-spec"
         change_type = 7
 
@@ -277,6 +278,9 @@ func removalWithUndeclaredInstallationSkipsTheComment() async throws {
         [board.linear]
         connection = "gone"
         project = "alpha"
+
+        [code_hosting]
+        connection = "github"
 
         [[repos]]
         name = "backend"

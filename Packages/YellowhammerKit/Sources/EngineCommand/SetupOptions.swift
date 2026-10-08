@@ -20,9 +20,9 @@ enum SetupMode: Equatable {
     case installCLI
     /// `--uninstall-cli`: removes `/usr/local/bin/yh` if it points to `yh` and exits.
     case uninstallCLI
-    /// `--install-github`: runs only the GitHub step (capture, check, store the token), validates the
-    /// token against the Repos, and exits — never touches Linear, Project files or jobs, and never creates
-    /// `config.toml`.
+    /// `--install-github`: runs only the GitHub step (capture, check, store the token, add the Code Hosting
+    /// Connection to `config.toml`), validates the token against the Repos, and exits — never touches Linear,
+    /// Project files or jobs.
     case installGitHub
     /// `--print-github`: never prompts, writes nothing; prints the GitHub credential report as one line.
     case printGitHub
@@ -50,8 +50,6 @@ enum JobsRequest: Equatable {
 /// to their default — so interactive mode can tell "given" from "default" and skip the prompt only for
 /// the former.
 struct SetupOptions {
-    static let defaultGitHubCredential = MachineConfiguration.defaultGitHubCredential
-
     let mode: SetupMode
     /// `--events json`: emits `LinearInstallEvent` NDJSON on stdout instead of prompting or printing
     /// human text for the Linear step. Only meaningful with `--install-linear`; implies non-interactive.
@@ -66,7 +64,9 @@ struct SetupOptions {
     /// renames an existing one, so it cannot be combined with `--board-connection`; when Linear approves a
     /// workspace already in the registry the name is discarded (and the run says so).
     let installationName: String?
-    let githubCredential: CredentialReference?
+    /// `--code-hosting-connection`: the local name of the Code Hosting Connection the Project this run writes
+    /// selects, or that `--install-github` / `--print-github` act on.
+    let codeHostingConnection: String?
     /// `--token-stdin`, `--from-gh`, `--replace` and `--github-repo`; only meaningful with `--install-github`
     /// or `--print-github`.
     let gitHub: GitHubStepOptions
@@ -93,7 +93,7 @@ struct SetupOptions {
         remoteApproval = try Self.parseRemoteApproval(command)
         installation = try Self.parseInstallation(command.boardConnection)
         installationName = try Self.parseInstallationName(command)
-        githubCredential = try Self.parseCredential(command.githubCredential, option: "--github-credential")
+        codeHostingConnection = try Self.parseCodeHostingConnection(command.codeHostingConnection)
         gitHub = try GitHubStepOptions(command: command)
         operatorID = command.operatorID.map { BoardObjectID(rawValue: $0) }
 
@@ -195,12 +195,12 @@ struct SetupOptions {
         return raw
     }
 
-    private static func parseCredential(_ raw: String?, option: String) throws -> CredentialReference? {
+    private static func parseCodeHostingConnection(_ raw: String?) throws -> String? {
         guard let raw else { return nil }
-        guard let reference = CredentialReference(raw) else {
-            throw ValidationError("\(option) must not be empty")
+        guard !raw.trimmingCharacters(in: .whitespaces).isEmpty else {
+            throw ValidationError("--code-hosting-connection must not be empty")
         }
-        return reference
+        return raw
     }
 
     private static func parseProjectID(_ raw: String) throws -> ProjectID {

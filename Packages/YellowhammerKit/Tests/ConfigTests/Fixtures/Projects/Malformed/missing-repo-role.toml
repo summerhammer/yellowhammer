@@ -6,3 +6,6 @@ board = { linear = { connection = "acme", project = "RNR" } }
 name = "repo"
 path = "~/path"
 check = "test"
+
+[code_hosting]
+connection = "github"

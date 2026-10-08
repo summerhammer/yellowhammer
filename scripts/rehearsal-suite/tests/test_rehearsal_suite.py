@@ -270,6 +270,18 @@ class ParseArgumentsTests(unittest.TestCase):
         )
         self.assertEqual(teardown.installation, "my-ws")
 
+    def test_code_hosting_connection_flag_is_optional_on_run_and_refused_on_teardown(self):
+        run = rehearsal_suite.parse_arguments(["run", "--app", "/tmp/App.app", "--team", "YLH"])
+        self.assertIsNone(run.code_hosting_connection)
+        run = rehearsal_suite.parse_arguments(
+            ["run", "--app", "/tmp/App.app", "--team", "YLH", "--code-hosting-connection", "work"]
+        )
+        self.assertEqual(run.code_hosting_connection, "work")
+        with self.assertRaises(SystemExit):
+            rehearsal_suite.parse_arguments(
+                ["teardown", "--app", "/tmp/App.app", "--team", "YLH", "--code-hosting-connection", "work"]
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

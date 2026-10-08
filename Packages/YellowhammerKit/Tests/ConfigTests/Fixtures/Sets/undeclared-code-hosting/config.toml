@@ -1,0 +1,16 @@
+[board.linear.connections.acme]
+credential = "keychain:linear-acme"
+workspace = "workspace-1"
+yellowhammer_identity = "app-user-1"
+
+[code_hosting.github.connections.github]
+type = "keychain"
+credential = "keychain:github"
+
+[code_hosting.github.connections.gh]
+type = "gh"
+
+[cli.claude]
+
+[[routing]]
+route = "claude/sonnet"

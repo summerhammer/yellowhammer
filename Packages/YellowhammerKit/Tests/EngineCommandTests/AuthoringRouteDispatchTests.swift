@@ -92,7 +92,7 @@ struct AuthoringRouteDispatchTests {
         try FileManager.default.createDirectory(at: spec, withIntermediateDirectories: true)
         let configuration = ProjectConfiguration(
             id: try #require(ProjectID(rawValue: "home-paths")), name: "Home paths",
-            linearInstallationName: "acme", linearProject: "HOME",
+            linearInstallationName: "acme", linearProject: "HOME", codeHostingConnectionName: "github",
             specSource: specRepo ? nil : "~/\(name)/spec",
             repos: [RepoDeclaration(name: "backend", path: "~/\(name)/backend", role: .backend, check: .none)]
                 + (specRepo ? [RepoDeclaration(name: "spec", path: "~/\(name)/spec", role: .spec, check: .none)] : [])

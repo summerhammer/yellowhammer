@@ -25,6 +25,7 @@ struct RehearsalConfigurationTests {
     private static func text(boardExtra: String = "", rehearsal: String = "") -> String {
         head
             + "\n[board.linear]\nconnection = \"acme\"\nproject = \"ALP\"\n" + boardExtra
+            + "\n[code_hosting]\nconnection = \"github\"\n"
             + repos + "\n" + rehearsal + "\n"
     }
 

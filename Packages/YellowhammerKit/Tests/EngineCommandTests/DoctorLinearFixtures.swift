@@ -29,13 +29,14 @@ struct DoctorLinearFixture: ~Copyable {
         }
         try directory.writeMachineFile(
             entry("acme", workspace: "ws-acme") + "\n" + entry("globex", workspace: "ws-globex") + "\n"
-                + extraMachine + "\n[github]\ncredential = \"keychain:github\"\n"
+                + extraMachine + "\n" + ConfigurationDirectory.githubOnly
         )
         for project in projects {
             try directory.writeProjectFile(id: project.id, """
                 id = "\(project.id)"
                 name = "\(project.id)"
                 board = { linear = { connection = "\(project.installation)", project = "lp-\(project.id)" } }
+                code_hosting = { connection = "github" }
                 spec_source = "~/Developer/\(project.id)-spec"
 
                 [[repos]]

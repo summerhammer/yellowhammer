@@ -8,3 +8,6 @@ path = "~/path"
 role = "backend"
 check = "test"
 protected_paths = ["Secrets/", 7]
+
+[code_hosting]
+connection = "github"

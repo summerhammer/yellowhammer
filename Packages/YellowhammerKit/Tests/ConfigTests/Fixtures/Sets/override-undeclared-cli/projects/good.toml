@@ -12,3 +12,6 @@ check = "swift test"
 [[routing]]
 work_kind = "review"
 route = "codex/gpt-5.4/high"
+
+[code_hosting]
+connection = "github"

@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import shutil
 import subprocess
@@ -146,6 +148,31 @@ class BuildTests(unittest.TestCase):
                 run(["build", "--root", str(nested_root), "--project", "rehearsal-a"]), 2
             )
             self.assertFalse(nested_root.exists())
+
+
+class PrintedSetupCommandTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name) / "fixtures-root"
+
+    def build_and_capture(self, *extra):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = run(["build", "--root", str(self.root), "--project", "rehearsal-a", *extra])
+        self.assertEqual(code, 0)
+        return out.getvalue()
+
+    def test_printed_setup_command_defaults_to_the_github_connection(self):
+        output = self.build_and_capture()
+        setup_line = next(line for line in output.splitlines() if line.startswith("yh setup --init"))
+        self.assertIn("--code-hosting-connection github", setup_line)
+        self.assertIn("--skip-github-check", setup_line)
+
+    def test_printed_setup_command_names_the_chosen_connection(self):
+        output = self.build_and_capture("--code-hosting-connection", "work")
+        setup_line = next(line for line in output.splitlines() if line.startswith("yh setup --init"))
+        self.assertIn("--code-hosting-connection work", setup_line)
 
 
 class ApplyTests(unittest.TestCase):

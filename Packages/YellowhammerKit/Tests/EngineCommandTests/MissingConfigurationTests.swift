@@ -73,6 +73,7 @@ func malformedMachineFile(_ act: Act) async throws {
     try directory.writeMachineFile(
         "[board.linear.connections.acme]\ncredential = \"keychain:linear\"\n"
             + "workspace = \"workspace-1\"\nyellowhammer_identity = \"app-user-1\"\n"
+            + "[github]\ncredential = \"keychain:github\"\n"
     )
     try directory.writeValidProjectFile(id: "yellowhammer")
 
@@ -82,7 +83,7 @@ func malformedMachineFile(_ act: Act) async throws {
         Issue.record("Expected an invalid machine-wide configuration, got \(error)")
         return
     }
-    #expect(cause.reason == .missingTable)
+    #expect(cause.reason == .unknownKey)
     #expect(message.contains(cause.description))
     #expect(message.contains("No Act was run"))
     #expect(message.contains("`yh setup`"))
@@ -142,6 +143,7 @@ func invalidatedProject(_ act: Act) async throws {
         id = "yellowhammer"
         name = "Yellowhammer"
         board = { linear = { connection = "acme", project = "yellowhammer" } }
+        code_hosting = { connection = "github" }
 
         [[repos]]
         name = "backend"

@@ -13,7 +13,7 @@ struct SetupInvocationContractTests {
     func fullInitInvocationParsesBack() throws {
         let invocation = SetupInvocation(
             boardConnection: "main",
-            githubCredential: "keychain:github",
+            codeHostingConnection: "acme",
             cliAdapters: ["claude"],
             route: "claude/sonnet/medium",
             fallbacks: ["claude/opus/high"],
@@ -34,7 +34,7 @@ struct SetupInvocationContractTests {
 
         #expect(options.mode == .initialize)
         #expect(options.installation == "main")
-        #expect(options.githubCredential == CredentialReference("keychain:github"))
+        #expect(options.codeHostingConnection == "acme")
         #expect(options.cliAdapters == [CLIAdapterDeclaration(name: "claude")])
         #expect(options.route?.route == Route(cli: "claude", model: "sonnet", effort: "medium"))
         #expect(options.route?.fallbacks ?? [] == [Route(cli: "claude", model: "opus", effort: "high")])
@@ -93,16 +93,14 @@ struct SetupInvocationContractTests {
 
     @Test("choicesArguments parses back as --print-choices, no Project or generating options") // glossary:ignore GL001
     func choicesArgumentsParsesBack() throws {
-        let arguments = Array(SetupInvocation.choicesArguments(
-            boardConnection: "main", githubCredential: "keychain:github"
-        ).dropFirst())
+        let arguments = Array(SetupInvocation.choicesArguments(boardConnection: "main").dropFirst())
 
         let command = try SetupCommand.parse(arguments)
         let options = try SetupOptions(command: command)
 
         #expect(options.mode == .printChoices)
         #expect(options.installation == "main")
-        #expect(options.githubCredential == CredentialReference("keychain:github"))
+        #expect(options.codeHostingConnection == nil)
         #expect(options.projectID == nil)
         #expect(options.linearProjectID == nil)
     }
@@ -110,7 +108,7 @@ struct SetupInvocationContractTests {
     @Test("choicesArguments with linearProject parses back with linearProjectID") // glossary:ignore GL001
     func choicesArgumentsWithLinearProjectParsesBack() throws {
         let arguments = Array(SetupInvocation.choicesArguments(
-            boardConnection: "main", githubCredential: nil, linearProject: "proj-1"
+            boardConnection: "main", linearProject: "proj-1"
         ).dropFirst())
 
         let command = try SetupCommand.parse(arguments)
@@ -125,23 +123,23 @@ struct SetupInvocationContractTests {
     @Test("printGitHubArguments parses back as --print-github with its Repos")
     func printGitHubParsesBack() throws {
         let built = SetupInvocation.printGitHubArguments(
-            githubCredential: "keychain:github-work", repoPaths: ["~/dev/backend", "/srv/web"]
+            codeHostingConnection: "work", repoPaths: ["~/dev/backend", "/srv/web"]
         )
 
         let options = try SetupOptions(command: try SetupCommand.parse(Array(built.dropFirst())))
 
         #expect(options.mode == .printGitHub)
-        #expect(options.githubCredential == CredentialReference("keychain:github-work"))
+        #expect(options.codeHostingConnection == "work")
         #expect(options.gitHubRepoPaths == ["~/dev/backend", "/srv/web"])
     }
 
     @Test("installGitHubArguments parses back as --install-github for each token source")
     func installGitHubParsesBack() throws {
         let stdin = SetupInvocation.installGitHubArguments(
-            githubCredential: nil, source: .standardInput, replace: true, repoPaths: ["~/dev/backend"]
+            codeHostingConnection: nil, source: .standardInput, replace: true, repoPaths: ["~/dev/backend"]
         )
         let fromGH = SetupInvocation.installGitHubArguments(
-            githubCredential: "keychain:github", source: .githubCLI, replace: false, repoPaths: []
+            codeHostingConnection: "github", source: .githubCLI, replace: false, repoPaths: []
         )
 
         let stdinOptions = try SetupOptions(command: try SetupCommand.parse(Array(stdin.dropFirst())))
@@ -151,10 +149,10 @@ struct SetupInvocationContractTests {
         #expect(stdinOptions.gitHubTokenSource == .standardInput)
         #expect(stdinOptions.replaceGitHubToken)
         #expect(stdinOptions.gitHubRepoPaths == ["~/dev/backend"])
-        #expect(stdinOptions.githubCredential == nil)
+        #expect(stdinOptions.codeHostingConnection == nil)
         #expect(ghOptions.mode == .installGitHub)
         #expect(ghOptions.gitHubTokenSource == .githubCLI)
         #expect(!ghOptions.replaceGitHubToken)
-        #expect(ghOptions.githubCredential == CredentialReference("keychain:github"))
+        #expect(ghOptions.codeHostingConnection == "github")
     }
 }

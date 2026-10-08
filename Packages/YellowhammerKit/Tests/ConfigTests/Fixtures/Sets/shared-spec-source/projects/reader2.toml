@@ -8,3 +8,6 @@ name = "reader2"
 path = "~/dev/reader2"
 role = "web"
 check = "npm test"
+
+[code_hosting]
+connection = "github"

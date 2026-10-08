@@ -8,16 +8,27 @@ extension Setup {
     /// ``ProjectDeclaration`` from the options under `--init`, or loops interactive prompts, and writes
     /// each through the one shared path.
     func writeProjectsIfNeeded(
-        machine: MachineConfiguration, installation: LinearInstallation, board: any BoardProvisioning
+        machine: MachineConfiguration, installation: LinearInstallation, codeHostingConnection: String?,
+        board: any BoardProvisioning
     ) async throws {
         switch options.mode {
         case .config, .printChoices, .installLinear, .installCLI, .uninstallCLI, .installGitHub, .printGitHub:
             return
         case .initialize:
             guard let declaration = try optionProjectDeclaration() else { return }
-            try await writeProject(declaration, machine: machine, installation: installation, board: board)
+            guard let codeHostingConnection else {
+                throw SetupError("Project \(declaration.id.rawValue) needs --code-hosting-connection")
+            }
+            try await writeProject(
+                declaration, machine: machine, installation: installation,
+                codeHostingConnection: codeHostingConnection, board: board
+            )
         case .interactive:
-            try await interactiveProjectLoop(machine: machine, installation: installation, board: board)
+            guard let codeHostingConnection else { return }
+            try await interactiveProjectLoop(
+                machine: machine, installation: installation, codeHostingConnection: codeHostingConnection,
+                board: board
+            )
         }
     }
 
@@ -39,12 +50,12 @@ extension Setup {
 
     /// Keeps an existing Project file untouched; otherwise refuses a reused Project id whose kept Journal
     /// names another Linear workspace, validates its shape first (a bad declaration
-    /// must not leave an orphan Linear project), checks the GitHub token can push to its working Repos
+    /// must not leave an orphan Linear project), checks the Code Hosting Connection's token can push to its working Repos
     /// (likewise before any Linear write), resolves the Linear project — creating it in a team
     /// when asked — and writes the file.
     func writeProject(
         _ declaration: ProjectDeclaration, machine: MachineConfiguration, installation: LinearInstallation,
-        board: any BoardProvisioning
+        codeHostingConnection: String, board: any BoardProvisioning
     ) async throws {
         let installationName = installation.name
         let projectFileURL = configurationDirectory.appending(
@@ -59,20 +70,20 @@ extension Setup {
         // Before any Linear write: a refusal must not leave an orphan Linear project behind.
         try refuseReusedProjectID(declaration.id, installation: installation)
 
-        let declaredCLIAdapters = Set(machine.cliAdapters.map(\.name))
         try validateProjectShape(
-            declaration, installationName: installationName, machine: machine,
-            declaredCLIAdapters: declaredCLIAdapters, at: path
+            declaration, installationName: installationName, codeHostingConnection: codeHostingConnection,
+            machine: machine, at: path
         )
 
         // Also before any Linear write: a token that cannot push to a Repo is a Night that fails at `land`.
-        try await validateGitHub(for: declaration, machine: machine)
+        try await validateGitHub(for: declaration, machine: machine, connection: codeHostingConnection)
 
         let linearProjectID = try await resolveLinearProjectID(
             declaration.linearProject, name: declaration.name, board: board
         )
         let project = makeProjectConfiguration(
-            declaration, installationName: installationName, linearProject: linearProjectID
+            declaration, installationName: installationName, codeHostingConnection: codeHostingConnection,
+            linearProject: linearProjectID
         )
         do {
             try FileManager.default.createDirectory(
@@ -86,27 +97,30 @@ extension Setup {
     }
 
     private func makeProjectConfiguration(
-        _ declaration: ProjectDeclaration, installationName: String, linearProject: String
+        _ declaration: ProjectDeclaration, installationName: String, codeHostingConnection: String,
+        linearProject: String
     ) -> ProjectConfiguration {
         ProjectConfiguration(
             id: declaration.id, name: declaration.name, linearInstallationName: installationName,
-            linearProject: linearProject,
+            linearProject: linearProject, codeHostingConnectionName: codeHostingConnection,
             specSource: declaration.specSource, repos: declaration.repos, bounds: Bounds(),
             schedule: declaration.schedule
         )
     }
 
     private func validateProjectShape(
-        _ declaration: ProjectDeclaration, installationName: String, machine: MachineConfiguration,
-        declaredCLIAdapters: Set<String>, at path: String
+        _ declaration: ProjectDeclaration, installationName: String, codeHostingConnection: String,
+        machine: MachineConfiguration, at path: String
     ) throws {
         let placeholder = makeProjectConfiguration(
-            declaration, installationName: installationName, linearProject: "placeholder"
+            declaration, installationName: installationName, codeHostingConnection: codeHostingConnection,
+            linearProject: "placeholder"
         )
         do {
             _ = try ProjectConfiguration.parse(
-                placeholder.renderedTOML, file: path, declaredCLIAdapters: declaredCLIAdapters,
-                declaredLinearInstallations: Set(machine.linearInstallations.map(\.name))
+                placeholder.renderedTOML, file: path, declaredCLIAdapters: Set(machine.cliAdapters.map(\.name)),
+                declaredLinearInstallations: Set(machine.linearInstallations.map(\.name)),
+                declaredCodeHostingConnections: Set(machine.codeHostingConnections.map(\.name))
             )
         } catch {
             throw SetupError("Project \(declaration.id): \(error)")

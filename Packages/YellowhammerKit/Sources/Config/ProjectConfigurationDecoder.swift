@@ -15,12 +15,17 @@ struct ProjectConfigurationDecoder {
     /// When set, the Project's `[board.linear] installation` must be one of these; nil skips the check.
     private let declaredLinearInstallations: Set<String>?
 
+    /// When set, the Project's `[code_hosting] connection` must be one of these; nil skips the check.
+    private let declaredCodeHostingConnections: Set<String>?
+
     init(
         file: String, fileStem: String?, declaredCLIAdapters: Set<String>? = nil,
-        declaredLinearInstallations: Set<String>? = nil, lenientTemplates: Bool = false
+        declaredLinearInstallations: Set<String>? = nil, declaredCodeHostingConnections: Set<String>? = nil,
+        lenientTemplates: Bool = false
     ) {
         decoding = ConfigurationDecoding(file: file, declaredCLIAdapters: declaredCLIAdapters)
         self.declaredLinearInstallations = declaredLinearInstallations
+        self.declaredCodeHostingConnections = declaredCodeHostingConnections
         self.fileStem = fileStem
         self.lenientTemplates = lenientTemplates
     }
@@ -31,19 +36,21 @@ struct ProjectConfigurationDecoder {
             in: root,
             path: nil,
             allowed: [
-                "id", "name", "board", "spec_source", "change_type", "repos", "limits", "schedule",
-                "github", "git", "routing", "rehearsal"
+                "id", "name", "board", "code_hosting", "spec_source", "change_type", "repos", "limits",
+                "schedule", "github", "git", "routing", "rehearsal"
             ]
         )
         var unvalidated = UnvalidatedTemplateValues()
         let id = try projectID(in: root)
         let name = try decoding.requiredString("name", in: root, path: nil)
         let board = try linearBoard(in: root)
+        let codeHosting = try codeHostingSelection(in: root)
         var configuration = ProjectConfiguration(
             id: id,
             name: name,
             linearInstallationName: board.connection,
             linearProject: board.project,
+            codeHostingConnectionName: codeHosting.connection,
             specSource: try decoding.optionalString("spec_source", in: root, path: nil),
             repos: try repos(in: root),
             bounds: try bounds(in: root),
@@ -61,6 +68,7 @@ struct ProjectConfigurationDecoder {
         configuration.repoPathLines = repoPathLines(in: root)
         try requireExactlyOneSpecificationSource(in: root)
         try requireDeclaredInstallation(board)
+        try requireDeclaredCodeHostingConnection(codeHosting)
         return configuration
     }
 
@@ -195,22 +203,14 @@ struct ProjectConfigurationDecoder {
 
     // MARK: - GitHub, git and templates
 
-    /// `[github]` in a Project file: an optional `credential` override and the `pull_request_title`
-    /// template. Either may stand alone, so a `[github]` with only a title means no credential override.
-    /// (The machine file's `[github]` stays credential-only: ``ConfigurationDecoding/credential(in:table:)``.)
+    /// `[github]` in a Project file: the `pull_request_title` template. Which GitHub identity a Project
+    /// pushes with is its `[code_hosting] connection`, not a key here, so a `credential` is an unknown key.
     private func applyGitHub(
         in root: TOMLTable, to configuration: inout ProjectConfiguration, unvalidated: inout UnvalidatedTemplateValues
     ) throws(ConfigurationError) {
         guard let value = root["github"] else { return }
         let table = try decoding.table(value, key: "github")
-        try decoding.rejectUnknownKeys(in: table, path: "github", allowed: ["credential", "pull_request_title"])
-        if let string = try decoding.optionalString("credential", in: table, path: "github") {
-            guard let reference = CredentialReference(string) else {
-                let line = table["credential"]?.line ?? table.line
-                throw decoding.error(line: line, key: "github.credential", .emptyString)
-            }
-            configuration.gitHubCredential = reference
-        }
+        try decoding.rejectUnknownKeys(in: table, path: "github", allowed: ["pull_request_title"])
         configuration.pullRequestTitle = try template(
             .pullRequestTitle, in: table, path: "github", unvalidated: &unvalidated
         )
@@ -342,6 +342,25 @@ extension ProjectConfigurationDecoder {
         )
     }
 
+    fileprivate struct CodeHostingSelection {
+        let connection: String
+        let connectionLine: Int
+    }
+
+    /// `[code_hosting]`: the Code Hosting Connection this Project selects by name. Required, as the Board
+    /// Connection is. The one selection covers every Repo the Project declares.
+    private func codeHostingSelection(in root: TOMLTable) throws(ConfigurationError) -> CodeHostingSelection {
+        guard let value = root["code_hosting"] else {
+            throw decoding.error(line: 1, key: "code_hosting", .missingTable)
+        }
+        let table = try decoding.table(value, key: "code_hosting")
+        try decoding.rejectUnknownKeys(in: table, path: "code_hosting", allowed: ["connection"])
+        return CodeHostingSelection(
+            connection: try decoding.requiredString("connection", in: table, path: "code_hosting"),
+            connectionLine: table["connection"]?.line ?? table.line
+        )
+    }
+
     /// `[rehearsal] journal`: the path of this Project's rehearsal Journal, as written; nil when the table
     /// or the key is absent. Only its shape is checked here: whether it counts as defined is
     /// ``ProjectConfiguration/rehearsalContext(realJournal:)``'s call, so a rehearsal-only value never
@@ -363,6 +382,18 @@ extension ProjectConfigurationDecoder {
         throw decoding.error(
             line: board.connectionLine, key: "board.linear.connection",
             .undeclaredLinearInstallation(board.connection)
+        )
+    }
+
+    /// Refuses a `connection` the machine file's registry does not declare, when
+    /// ``declaredCodeHostingConnections`` is set. Runs after ``requireDeclaredInstallation(_:)``.
+    private func requireDeclaredCodeHostingConnection(_ selection: CodeHostingSelection) throws(ConfigurationError) {
+        guard let declaredCodeHostingConnections, !declaredCodeHostingConnections.contains(selection.connection) else {
+            return
+        }
+        throw decoding.error(
+            line: selection.connectionLine, key: "code_hosting.connection",
+            .undeclaredCodeHostingConnection(selection.connection)
         )
     }
 }

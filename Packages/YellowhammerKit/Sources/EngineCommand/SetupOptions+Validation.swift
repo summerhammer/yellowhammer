@@ -27,7 +27,7 @@ extension SetupOptions {
             (command.boardConnection != nil, "--board-connection"),
             (command.boardConnectionName != nil, "--board-connection-name"),
             (command.operatorID != nil, "--operator"),
-            (command.githubCredential != nil, "--github-credential"),
+            (command.codeHostingConnection != nil, "--code-hosting-connection"),
             (command.installGitHub, "--install-github"),
             (command.printGitHub, "--print-github"),
             (command.tokenStdin, "--token-stdin"),
@@ -67,6 +67,7 @@ extension SetupOptions {
             (command.cron, "--cron"),
             (command.installLinear, "--install-linear"),
             (command.boardConnectionName != nil, "--board-connection-name"),
+            (command.codeHostingConnection != nil, "--code-hosting-connection"),
             (command.installCLI, "--install-cli"),
             (command.uninstallCLI, "--uninstall-cli")
         ]

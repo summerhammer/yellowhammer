@@ -124,7 +124,9 @@ func makeArguments(
     events: String? = nil,
     remote: Bool = false,
     installation: String? = nil,
-    installationName: String? = nil
+    installationName: String? = nil,
+    codeHostingConnection: String? = nil,
+    omitCodeHostingConnection: Bool = false
 ) -> [String] {
     var arguments: [String] = []
     if initialize { arguments.append("--init") }
@@ -134,6 +136,13 @@ func makeArguments(
     if remote { arguments.append("--remote") }
     appendOption(&arguments, "--board-connection", installation)
     appendOption(&arguments, "--board-connection-name", installationName)
+    // A Project selects a Code Hosting Connection; `github` is the one `seedGitHubConnection` registers. An
+    // interactive run (neither --init, --install-linear nor --config) would otherwise ask which to use.
+    let interactive = !initialize && !installLinear && config == nil
+    if !omitCodeHostingConnection {
+        let fallback = project != nil || interactive ? "github" : nil
+        appendOption(&arguments, "--code-hosting-connection", codeHostingConnection ?? fallback)
+    }
     appendOption(&arguments, "--events", events)
     appendOption(&arguments, "--config", config)
     appendOption(&arguments, "--route", route)
@@ -304,6 +313,24 @@ final class ThrowawayInstallationStores: Sendable {
     }
 }
 
+/// `makeSetup` seeds the registry a first `yh setup --install-github` leaves behind (the `github` Keychain
+/// token connection) when an `--init` run that writes a Project finds no `config.toml`, since a Project can
+/// only select a connection that is already connected. The file is what `--init` would have written, plus
+/// that entry.
+private func seedMachineFile(options: SetupOptions, directory: borrowing ConfigurationDirectory) throws {
+    guard case .initialize = options.mode, options.projectID != nil else { return }
+    let path = directory.url.appending(component: "config.toml")
+    guard !FileManager.default.fileExists(atPath: path.path(percentEncoded: false)) else { return }
+    let github = CodeHostingConnection(
+        name: "github", kind: .keychainToken(CodeHostingConnection.defaultCredentialReference(for: "github"))
+    )
+    let machine = MachineConfiguration(
+        codeHostingConnections: [github], cliAdapters: options.cliAdapters,
+        routingTable: options.route.map { [$0] } ?? []
+    )
+    try directory.writeMachineFile(machine.renderedTOML)
+}
+
 func makeSetup(
     arguments: [String],
     directory: borrowing ConfigurationDirectory,
@@ -329,10 +356,12 @@ func makeSetup(
     onBind: @escaping @Sendable (LinearInstallation) -> Void = { _ in },
     commandLineToolLink: CommandLineToolLink = CommandLineToolLink(),
     isTTY: @escaping () -> Bool = { isatty(STDIN_FILENO) != 0 },
-    runSudo: @escaping (String) throws -> Int32 = Setup.defaultRunSudo
+    runSudo: @escaping (String) throws -> Int32 = Setup.defaultRunSudo,
+    seedGitHubConnection: Bool = true
 ) throws -> Setup {
     let command = try SetupCommand.parse(arguments)
     let options = try SetupOptions(command: command)
+    if seedGitHubConnection { try seedMachineFile(options: options, directory: directory) }
     var setup = Setup(
         options: options,
         configurationDirectory: directory.url,

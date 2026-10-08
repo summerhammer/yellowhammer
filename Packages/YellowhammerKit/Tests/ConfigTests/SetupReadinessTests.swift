@@ -18,7 +18,9 @@ struct SetupReadinessTests {
                     operatorIdentity: operatorIdentity.flatMap { BoardObjectID(rawValue: $0) }
                 )
             ],
-            gitHubCredential: try editingCredential("keychain:github"),
+            codeHostingConnections: [
+                CodeHostingConnection(name: "github", kind: .keychainToken(try editingCredential("keychain:github")))
+            ],
             cliAdapters: adapters.map { CLIAdapterDeclaration(name: $0) },
             routingTable: [
                 RoutingEntry(

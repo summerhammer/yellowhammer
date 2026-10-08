@@ -104,7 +104,8 @@ struct SetupLinearInstallTests {
             yellowhammer_identity = "app-user-1"
             operator = "user-op"
 
-            [github]
+            [code_hosting.github.connections.github]
+            type = "keychain"
             credential = "keychain:github"
             """)
         try directory.writeValidProjectFile(id: "demo")

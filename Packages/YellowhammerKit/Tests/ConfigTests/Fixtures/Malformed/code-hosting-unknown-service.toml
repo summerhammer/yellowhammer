@@ -1,0 +1,3 @@
+[code_hosting.gitlab.connections.acme]
+type = "keychain"
+credential = "keychain:gitlab-acme"

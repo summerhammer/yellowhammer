@@ -34,7 +34,8 @@ private func configuration(table: RoutingTable, for projectID: ProjectID) throws
         workspace = "workspace-1"
         yellowhammer_identity = "app-user-1"
 
-        [github]
+        [code_hosting.github.connections.github]
+        type = "keychain"
         credential = "keychain:github"
         """, file: "config.toml")
     return Configuration(machine: machine, projects: [], invalidProjects: [], routingTables: [projectID: table])

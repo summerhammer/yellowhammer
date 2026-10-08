@@ -119,7 +119,8 @@ struct SetupReusedProjectIDTests {
         )
         let output = RecordingOutput()
         let setup = try makeSetup(
-            arguments: makeArguments(initialize: false, operatorID: "user-op"), directory: directory,
+            arguments: makeArguments(initialize: false, operatorID: "user-op", omitCodeHostingConnection: true),
+            directory: directory,
             board: board, console: console, output: output
         )
 

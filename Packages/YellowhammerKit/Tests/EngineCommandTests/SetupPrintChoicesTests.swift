@@ -103,7 +103,8 @@ struct SetupPrintChoicesTests {
             yellowhammer_identity = "app-user-1"
             operator = "user-op"
 
-            [github]
+            [code_hosting.github.connections.github]
+            type = "keychain"
             credential = "keychain:github"
             """)
         let board = await makeBoard(members: [operatorMember], teams: [engineeringTeam])
@@ -130,7 +131,8 @@ struct SetupPrintChoicesTests {
             yellowhammer_identity = "app-user-1"
             operator = "user-dead"
 
-            [github]
+            [code_hosting.github.connections.github]
+            type = "keychain"
             credential = "keychain:github"
             """)
         let board = await makeBoard(members: [operatorMember, deactivatedMember], teams: [engineeringTeam])
@@ -190,7 +192,8 @@ struct SetupPrintChoicesTests {
             workspace = "workspace-1"
             yellowhammer_identity = "app-user-1"
 
-            [github]
+            [code_hosting.github.connections.github]
+            type = "keychain"
             credential = "keychain:github"
             """)
         let bound = Mutex<[String]>([])
@@ -217,7 +220,7 @@ struct SetupPrintChoicesTests {
 
     @Test("No --board-connection and no entries, or no config.toml, prints an empty registry") // glossary:ignore GL001
     func noFlagWithoutEntriesPrintsEmptyRegistry() async throws {
-        for machineFile in [nil, "[github]\ncredential = \"keychain:github\"\n"] as [String?] {
+        for machineFile in [nil, ConfigurationDirectory.githubOnly] as [String?] {
             let directory = ConfigurationDirectory()
             if let machineFile { try directory.writeMachineFile(machineFile) }
             let output = RecordingOutput()
@@ -247,7 +250,8 @@ struct SetupPrintChoicesTests {
             workspace = "workspace-2"
             yellowhammer_identity = "app-user-2"
 
-            [github]
+            [code_hosting.github.connections.github]
+            type = "keychain"
             credential = "keychain:github"
             """)
         let output = RecordingOutput()
@@ -297,7 +301,7 @@ struct SetupPrintChoicesTests {
     func printChoicesAllowsLinearOptions() throws {
         let command = try SetupCommand.parse([
             "--print-choices",
-            "--board-connection", "main", "--github-credential", "keychain:github"
+            "--board-connection", "main"
         ])
         let options = try SetupOptions(command: command)
 

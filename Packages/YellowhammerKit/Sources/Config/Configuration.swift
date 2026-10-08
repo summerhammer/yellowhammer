@@ -94,9 +94,10 @@ extension Configuration {
     /// Loads `directory` as ``load(directory:)`` does, except that no Project's `change_type` or Message
     /// Template is validated: a refused one is recorded in ``ProjectConfiguration/unvalidatedTemplates``
     /// and its default stands in. For `yh project remove`, which validates only what it uses
-    /// (spec: Configuration schema; OQ103(f)). It also accepts a Project whose `[board.linear] installation`
-    /// names no registry entry (OQ109 item 10), so such a Project can still be removed; a Project with
-    /// no `installation` key is still refused. Everything else is checked as usual.
+    /// (spec: Configuration schema; OQ103(f)). It also accepts a Project whose `[board.linear] connection`
+    /// names no registry entry (OQ109 item 10), or whose `[code_hosting] connection` names none, so such a
+    /// Project can still be removed; a Project with no `connection` key is still refused. Everything else
+    /// is checked as usual.
     public static func loadLeniently(directory: URL) throws(ConfigurationError) -> Configuration {
         try load(directory: directory, substitution: nil, lenientTemplates: true)
     }
@@ -107,9 +108,11 @@ extension Configuration {
         let machineFileURL = directory.appending(component: "config.toml", directoryHint: .notDirectory)
         let machine = try loadMachine(at: machineFileURL, substitution: substitution)
         let declaredCLIAdapters = Set(machine.cliAdapters.map(\.name))
-        // The lenient removal load accepts an installation name missing from the registry.
+        // The lenient removal load accepts a connection name missing from either registry.
         let declaredLinearInstallations: Set<String>? = lenientTemplates
             ? nil : Set(machine.linearInstallations.map(\.name))
+        let declaredCodeHostingConnections: Set<String>? = lenientTemplates
+            ? nil : Set(machine.codeHostingConnections.map(\.name))
 
         var decoded: [(file: String, configuration: ProjectConfiguration)] = []
         var invalid: [InvalidProject] = []
@@ -117,9 +120,12 @@ extension Configuration {
             let file = url.path(percentEncoded: false)
             do {
                 let configuration = try loadProject(
-                    at: url, declaredCLIAdapters: declaredCLIAdapters,
-                    declaredLinearInstallations: declaredLinearInstallations, substitution: substitution,
-                    lenientTemplates: lenientTemplates
+                    at: url,
+                    declared: DeclaredNames(
+                        cliAdapters: declaredCLIAdapters, linearInstallations: declaredLinearInstallations,
+                        codeHostingConnections: declaredCodeHostingConnections
+                    ),
+                    substitution: substitution, lenientTemplates: lenientTemplates
                 )
                 decoded.append((file, configuration))
             } catch {
@@ -163,24 +169,33 @@ extension Configuration {
         return try MachineConfiguration.load(contentsOf: url)
     }
 
+    /// What the machine file declares, for a Project file to be checked against. A nil registry skips its
+    /// check.
+    private struct DeclaredNames {
+        let cliAdapters: Set<String>
+        let linearInstallations: Set<String>?
+        let codeHostingConnections: Set<String>?
+    }
+
     /// Reads `url`, or parses `substitution`'s text in its place when `url` is the substituted file.
     private static func loadProject(
-        at url: URL, declaredCLIAdapters: Set<String>, declaredLinearInstallations: Set<String>?,
-        substitution: (file: URL, text: String)?, lenientTemplates: Bool
+        at url: URL, declared: DeclaredNames, substitution: (file: URL, text: String)?, lenientTemplates: Bool
     ) throws(ConfigurationError) -> ProjectConfiguration {
         if let substitution, samePath(substitution.file, url) {
             return try ProjectConfiguration.parse(
                 substitution.text,
                 file: url.path(percentEncoded: false),
                 fileStem: url.deletingPathExtension().lastPathComponent,
-                declaredCLIAdapters: declaredCLIAdapters,
-                declaredLinearInstallations: declaredLinearInstallations,
+                declaredCLIAdapters: declared.cliAdapters,
+                declaredLinearInstallations: declared.linearInstallations,
+                declaredCodeHostingConnections: declared.codeHostingConnections,
                 lenientTemplates: lenientTemplates
             )
         }
         return try ProjectConfiguration.load(
-            contentsOf: url, declaredCLIAdapters: declaredCLIAdapters,
-            declaredLinearInstallations: declaredLinearInstallations, lenientTemplates: lenientTemplates
+            contentsOf: url, declaredCLIAdapters: declared.cliAdapters,
+            declaredLinearInstallations: declared.linearInstallations,
+            declaredCodeHostingConnections: declared.codeHostingConnections, lenientTemplates: lenientTemplates
         )
     }
 

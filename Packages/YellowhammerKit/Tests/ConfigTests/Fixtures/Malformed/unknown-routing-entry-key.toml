@@ -1,7 +1,7 @@
 # No Linear Board Connections are declared;
 # the registry may be empty.
-[github]
-credential = "keychain:github"
+[code_hosting.github.connections]
+github = { type = "keychain", credential = "keychain:github" }
 
 [[routing]]
 repo-role = "backend"

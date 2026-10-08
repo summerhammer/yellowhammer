@@ -682,12 +682,16 @@ def scenario_13(env, checks):
     shared_repo = conflict_manifest["repos"][0]
 
     conflict_paths = []
+    # The conflict Projects are written here, not by `yh setup --init`, so they select the same Code
+    # Hosting Connection as the suite Project above.
+    code_hosting_connection = suite_env.read_project_code_hosting_connection(env.configuration_directory, project_id)
     try:
         for conflict_id in (conflict_a, conflict_b):
             text = suite_env.render_project_toml(
                 project_id=conflict_id,
                 name=conflict_id,
                 installation=suite_env.resolve_installation(env).name,
+                code_hosting_connection=code_hosting_connection,
                 linear_project="00000000-0000-4000-8000-000000000000",
                 spec_source=conflict_manifest["spec_source"],
                 repos=[{

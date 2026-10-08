@@ -8,3 +8,6 @@ name = "only"
 path = "~/dev/only"
 role = "backend"
 check = "swift test"
+
+[code_hosting]
+connection = "github"

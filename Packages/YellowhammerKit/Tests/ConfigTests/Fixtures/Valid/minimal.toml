@@ -1,2 +1,3 @@
-[github]
+[code_hosting.github.connections.github]
+type = "keychain"
 credential = "keychain:github"

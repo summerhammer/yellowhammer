@@ -10,3 +10,6 @@ check = "test"
 
 [schedule]
 build_every_minutes = 0
+
+[code_hosting]
+connection = "github"

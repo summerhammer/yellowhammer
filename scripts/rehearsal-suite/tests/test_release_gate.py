@@ -241,6 +241,32 @@ class RecordCommandTests(unittest.TestCase):
             self.assertEqual(verdict["scenarios_selected"], [1])
 
 
+class RecordForwardsConnectionsTests(unittest.TestCase):
+    def test_record_forwards_the_code_hosting_connection_to_the_suite(self):
+        with tempfile.TemporaryDirectory() as evidence_directory:
+            args = mock.Mock(
+                app=Path("/Applications/Yellowhammer.app"), team="YLH",
+                evidence_directory=Path(evidence_directory), scenario=None, act_timeout=None,
+                installation=None, code_hosting_connection="work",
+            )
+            lines = make_summary_lines(all_scenarios_summary())
+            with mock.patch.object(release_gate, "git_commit_sha", return_value="deadbeef"), \
+                 mock.patch.object(release_gate, "git_tree_dirty", return_value=False), \
+                 mock.patch("subprocess.Popen", return_value=FakeProcess(lines, 0)) as popen, \
+                 mock.patch.object(release_gate, "write_evidence"):
+                release_gate.record_command(args)
+        command = popen.call_args.args[0]
+        self.assertEqual(command[command.index("--code-hosting-connection") + 1], "work")
+        self.assertNotIn("--board-connection", command)
+
+    def test_run_suite_omits_the_flag_when_no_connection_is_named(self):
+        with mock.patch("subprocess.Popen", return_value=FakeProcess([], 0)) as popen:
+            release_gate.run_suite(app=Path("/A.app"), team="YLH", work_directory=Path("/w"))
+        command = popen.call_args.args[0]
+        self.assertNotIn("--code-hosting-connection", command)
+        self.assertNotIn("--board-connection", command)
+
+
 class CheckCommandTests(unittest.TestCase):
     def _write_verdict(self, evidence_directory, **overrides):
         verdict = {

@@ -106,7 +106,8 @@ def prepare(directory):
 credential = "keychain:linear"
 workspace = "workspace-1"
 yellowhammer_identity = "app-user-1"
-[github]
+[code_hosting.github.connections.github]
+type = "keychain"
 credential = "keychain:github"
 [cli.claude]
 [[routing]]
@@ -120,6 +121,8 @@ spec_source = "~/dev/spec"
 [board.linear]
 connection = "acme"
 project = "{project.upper()}"
+[code_hosting]
+connection = "github"
 [[repos]]
 name = "{project}"
 path = "~/dev/{project}"

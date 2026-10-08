@@ -1,0 +1,4 @@
+[code_hosting.github.connections.acme]
+type = "keychain"
+credential = "keychain:github-acme"
+token = "ghp_not_a_secret_here"

@@ -76,15 +76,20 @@ other real repository by mistake.
 
 ```sh
 yh setup --init --project rehearsal-a \
-  --spec-source /private/tmp/claude-501/p152-fixtures/rehearsal-a/spec --skip-github-check \
+  --spec-source /private/tmp/claude-501/p152-fixtures/rehearsal-a/spec \
+  --code-hosting-connection github --skip-github-check \
   --repo 'fixture-backend,backend,/private/tmp/claude-501/p152-fixtures/rehearsal-a/repos/fixture-backend,true' \
   --repo 'fixture-web,web,/private/tmp/claude-501/p152-fixtures/rehearsal-a/repos/fixture-web,true' \
   --repo 'fixture-mobile,mobile,/private/tmp/claude-501/p152-fixtures/rehearsal-a/repos/fixture-mobile,true'
 ```
 
+`--code-hosting-connection NAME` (default `github`) names the Code Hosting Connection in `config.toml`'s registry
+that the Project selects; `yh setup --init` refuses the name unless the registry holds it. Connect one with
+`yh setup --install-github`. The printed command omits `--board-connection` and `--linear-team`; add them yourself.
+
 `--skip-github-check` is there because the fixture repositories' `origin` is a local bare repository, with no
 GitHub token behind it: without the flag `yh setup` refuses the Project. A rehearsal Night never pushes, so
-nothing is lost; `yh doctor` still reports the missing GitHub check.
+nothing is lost, and the selected connection's token is never used; `yh doctor` still reports the missing GitHub check.
 
 `project-repos.toml` in the built tree holds the same information as TOML, ready to paste into
 the Project file (add the scratch Linear team/project fields yourself — see

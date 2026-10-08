@@ -32,28 +32,13 @@ extension Setup {
     }
 
     private func buildMachineConfigurationFromOptions(path: String) throws -> MachineConfiguration {
-        MachineConfiguration(
-            gitHubCredential: options.githubCredential ?? Self.defaultGitHubCredential,
-            cliAdapters: options.cliAdapters,
-            routingTable: options.route.map { [$0] } ?? []
-        )
+        MachineConfiguration(cliAdapters: options.cliAdapters, routingTable: options.route.map { [$0] } ?? [])
     }
 
     private func buildMachineConfigurationInteractively() throws -> MachineConfiguration {
-        let githubCredential = try options.githubCredential ?? askCredential(
-            "GitHub credential reference [\(SetupOptions.defaultGitHubCredential)]: ",
-            default: SetupOptions.defaultGitHubCredential
-        )
         let cliAdapters = try options.cliAdapters.isEmpty ? askCLIAdapters() : options.cliAdapters
         let route = try options.route ?? askRoute(declaredNames: Set(cliAdapters.map(\.name)))
-        return MachineConfiguration(
-            gitHubCredential: githubCredential, cliAdapters: cliAdapters, routingTable: route.map { [$0] } ?? []
-        )
-    }
-
-    private static var defaultGitHubCredential: CredentialReference {
-        // Non-empty literal: never fails.
-        CredentialReference(SetupOptions.defaultGitHubCredential)!
+        return MachineConfiguration(cliAdapters: cliAdapters, routingTable: route.map { [$0] } ?? [])
     }
 
     func askRequired(_ prompt: String) throws -> String {
@@ -64,19 +49,6 @@ extension Setup {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if !trimmed.isEmpty { return trimmed }
         }
-    }
-
-    /// `nil` from `console.ask` (EOF) always cancels; an empty answer takes `defaultValue`.
-    private func askCredential(_ prompt: String, default defaultValue: String) throws -> CredentialReference {
-        guard let line = console.ask(prompt) else {
-            throw SetupError("setup was cancelled")
-        }
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        let value = trimmed.isEmpty ? defaultValue : trimmed
-        guard let reference = CredentialReference(value) else {
-            throw SetupError("a credential reference must not be empty")
-        }
-        return reference
     }
 
     private func askCLIAdapters() throws -> [CLIAdapterDeclaration] {

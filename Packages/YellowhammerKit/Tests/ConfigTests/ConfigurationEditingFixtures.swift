@@ -62,7 +62,9 @@ func testEditingMachine(cliAdapters: [String] = ["claude", "codex"]) throws -> M
                 appUser: BoardObjectID(rawValue: "app-user-1")
             )
         ],
-        gitHubCredential: try editingCredential("keychain:github"),
+        codeHostingConnections: [
+            CodeHostingConnection(name: "github", kind: .keychainToken(try editingCredential("keychain:github")))
+        ],
         cliAdapters: cliAdapters.map { CLIAdapterDeclaration(name: $0) },
         routingTable: [RoutingEntry(route: try editingRoute("claude", "sonnet", "medium"))]
     )
@@ -77,6 +79,7 @@ func testEditingProject(
         name: name,
         linearInstallationName: "acme",
         linearProject: linearProject,
+        codeHostingConnectionName: "github",
         specSource: "~/dev/\(id)-spec",
         repos: repos ?? [
             RepoDeclaration(name: "backend", path: "~/dev/\(id)-backend", role: .backend, check: .none)

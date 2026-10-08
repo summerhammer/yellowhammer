@@ -23,8 +23,9 @@ enum NarrativeScrubBinding {
     ) -> @Sendable () -> NarrativeScrub {
         let installation = configuration.machine.linearInstallation(for: project)
         let gitHub = HeldCredential {
-            let reference = configuration.machine.gitHubCredential(for: project)
-            return try? credentials.read(reference)
+            // A refusal (no usable Keychain token connection) contributes nothing.
+            guard let credential = try? configuration.machine.codeHostingCredential(for: project) else { return nil }
+            return try? credentials.read(credential.reference)
         }
         let roots = project.repositories.workingRepos.map { ($0.path as NSString).expandingTildeInPath }
         let home = homeDirectory.path
