@@ -216,7 +216,7 @@ struct SetupCodeHostingTests {
         #expect(output.lines.contains("  3) gh — gh CLI"))
         #expect(output.lines.contains("  4) Connect a GitHub token (Keychain)…"))
         #expect(credentials.storedSecrets.isEmpty)
-        #expect(console.prompts.filter { $0 == "Choose [1-4]: " }.count == 3)
+        #expect(console.prompts.filter { $0 == "Choose [1-4] [3]: " }.count == 3)
     }
 
     @Test("Interactive: choosing a gh CLI connection is refused with its description and asks again")
@@ -237,7 +237,7 @@ struct SetupCodeHostingTests {
         try await setup.run()
 
         #expect(output.lines.contains(CodeHostingRefusal.githubCLINotSupported(connection: "gh").description))
-        #expect(console.prompts.filter { $0 == "Choose [1-4]: " }.count == 2)
+        #expect(console.prompts.filter { $0 == "Choose [1-4] [3]: " }.count == 2)
     }
 
     @Test("Interactive: a new connection is named, its token stored, and the entry added after GitHub accepts it")
@@ -344,5 +344,52 @@ struct SetupCodeHostingTests {
         let error = try #require(await failure(setup))
 
         #expect(error.message.contains("nope is not a connected Code Hosting Connection"))
+    }
+
+    @Test("Interactive: gh CLI connection is pre-selected when in the registry")
+    func preselectionWithGHEntry() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile(Self.registry)
+        let console = ScriptedConsole(answers: ["", "n"]) // Enter picks pre-selected gh, then no Project
+        let output = RecordingOutput()
+        let setup = try makeSetup(
+            arguments: makeArguments(
+                initialize: false, operatorID: "user-op", installation: "acme", omitCodeHostingConnection: true
+            ) + ["--skip-github-check"],
+            directory: directory, board: await makeBoard(), console: console,
+            credentials: Self.credentials(), output: output,
+            gitHub: StubGitHubTransport.passing().validation()
+        )
+
+        try await setup.run()
+
+        #expect(console.prompts.contains("Choose [1-3] [3]: "))
+    }
+
+    @Test("Interactive: no pre-selection when no gh CLI connection is in the registry")
+    func preselectionWithoutGHEntry() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile(ConfigurationDirectory.machineFile + """
+
+
+            [code_hosting.github.connections.work]
+            type = "keychain"
+            credential = "keychain:github-work"
+            """)
+        let credentials = Self.credentials(["keychain:github-work": "ghp_work"])
+        let console = ScriptedConsole(answers: ["", "2", "n"]) // empty re-asks, 2 chooses work, then no Project
+        let output = RecordingOutput()
+        let setup = try makeSetup(
+            arguments: makeArguments(
+                initialize: false, operatorID: "user-op", installation: "acme", omitCodeHostingConnection: true
+            ),
+            directory: directory, board: await makeBoard(), console: console, credentials: credentials,
+            output: output, gitHub: StubGitHubTransport.passing().validation()
+        )
+
+        try await setup.run()
+
+        #expect(console.prompts.filter { $0 == "Choose [1-3]: " }.count == 2)
+        #expect(console.prompts.allSatisfy { !$0.contains("[3]") })
     }
 }

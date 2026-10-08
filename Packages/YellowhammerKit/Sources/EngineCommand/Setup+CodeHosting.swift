@@ -98,9 +98,13 @@ extension Setup {
         }
         let connectNumber = listCodeHostingConnections(entries, offeringToConnect: canConnect)
         let last = canConnect ? connectNumber : entries.count
+        let defaultChoice = entries.firstIndex(where: { $0.kind == .githubCLI }).map { $0 + 1 }
+        let prompt = defaultChoice.map { "Choose [1-\(last)] [\($0)]: " } ?? "Choose [1-\(last)]: "
         while true {
-            guard let line = console.ask("Choose [1-\(last)]: ") else { throw SetupError("setup was cancelled") }
-            guard let number = Int(line.trimmingCharacters(in: .whitespaces)), (1...last).contains(number) else {
+            guard let line = console.ask(prompt) else { throw SetupError("setup was cancelled") }
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let number = trimmed.isEmpty ? defaultChoice : Int(trimmed)
+            guard let number, (1...last).contains(number) else {
                 continue
             }
             if canConnect && number == connectNumber {

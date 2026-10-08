@@ -198,6 +198,13 @@ public struct SetupInvocation: Equatable, Sendable {
 
     public static let codeHostingConnectionsArguments = ["config", "print-code-hosting-connections"]
 
+    /// Selects or changes a Project's Code Hosting Connection (`yh project set-code-hosting-connection <project> <connection>`).
+    public static func setProjectCodeHostingConnectionArguments(
+        project: String, connection: String
+    ) -> [String] {
+        ["project", "set-code-hosting-connection", project, connection]
+    }
+
     /// `"name,role,path,check"`. `name`, `role` and `path` may not contain a comma — `--repo` splits on
     /// the first three only, so a comma there would silently corrupt a later field — and none of the
     /// four may be empty.

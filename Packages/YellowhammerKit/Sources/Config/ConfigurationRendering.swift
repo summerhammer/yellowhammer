@@ -308,7 +308,7 @@ extension MachineConfiguration {
 
     /// Sets `key = "value"` in the table whose header is at `header`: replaces the key's line, or inserts
     /// it after the table's last key line (right after the header when it has none).
-    private static func setKey(_ key: String, to value: String, tableAt header: Int, in lines: inout [String]) {
+    fileprivate static func setKey(_ key: String, to value: String, tableAt header: Int, in lines: inout [String]) {
         let newLine = "\(key) = \(ConfigurationRendering.quoted(value))"
         var end = header + 1
         var lastKey = header
@@ -367,12 +367,12 @@ extension MachineConfiguration {
         return segments[prefix.count]
     }
 
-    private static func skipSpaces(_ characters: [Character], _ index: inout Int) {
+    fileprivate static func skipSpaces(_ characters: [Character], _ index: inout Int) {
         while index < characters.count, characters[index] == " " || characters[index] == "\t" { index += 1 }
     }
 
     /// One bare or basic-quoted (`\"` and `\\` escapes) key segment at `index`.
-    private static func keySegment(_ characters: [Character], _ index: inout Int) -> String? {
+    fileprivate static func keySegment(_ characters: [Character], _ index: inout Int) -> String? {
         var segment = ""
         guard index < characters.count else { return nil }
         if characters[index] == "\"" {
@@ -402,7 +402,7 @@ extension MachineConfiguration {
         return trimmed.hasPrefix("[")
     }
 
-    private static func isKeyAssignment(_ line: String, key: String) -> Bool {
+    fileprivate static func isKeyAssignment(_ line: String, key: String) -> Bool {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         guard let equalsIndex = trimmed.firstIndex(of: "=") else { return false }
         let lhs = trimmed[trimmed.startIndex..<equalsIndex].trimmingCharacters(in: .whitespaces)
@@ -417,5 +417,54 @@ extension ProjectConfiguration {
     /// overrides.
     public var renderedTOML: String {
         ProjectFileDraft(self).renderedTOML
+    }
+
+    /// A textual edit of an existing Project file: preserves every other line, including comments.
+    /// Sets `[code_hosting] connection` to `connectionName`. When the table exists, `connection` is set in
+    /// place. When an inline `code_hosting = { ... }` table exists, it is replaced in place. When neither exists,
+    /// a new `[code_hosting]` table is appended at the end of the file.
+    public static func settingCodeHostingConnection(
+        named connectionName: String, inFileText text: String
+    ) -> String {
+        var lines = text.components(separatedBy: "\n")
+        if let header = lines.firstIndex(where: { isCodeHostingHeader($0) }) {
+            MachineConfiguration.setKey("connection", to: connectionName, tableAt: header, in: &lines)
+            return lines.joined(separator: "\n")
+        }
+        if let inlineIndex = lines.firstIndex(where: {
+            MachineConfiguration.isKeyAssignment($0, key: "code_hosting")
+        }) {
+            let indent = lines[inlineIndex].prefix(while: { $0 == " " || $0 == "\t" })
+            let quoted = ConfigurationRendering.quoted(connectionName)
+            lines[inlineIndex] = "\(indent)code_hosting = { connection = \(quoted) }"
+            return lines.joined(separator: "\n")
+        }
+        var result = text
+        if !result.isEmpty {
+            if !result.hasSuffix("\n") { result += "\n" }
+            result += "\n"
+        }
+        return result + "[code_hosting]\nconnection = \(ConfigurationRendering.quoted(connectionName))\n"
+    }
+
+    private static func isCodeHostingHeader(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("["), !trimmed.hasPrefix("[[") else { return false }
+        let characters = Array(trimmed.dropFirst())
+        var index = 0
+        var segments: [String] = []
+        while true {
+            MachineConfiguration.skipSpaces(characters, &index)
+            guard let segment = MachineConfiguration.keySegment(characters, &index) else { return false }
+            segments.append(segment)
+            MachineConfiguration.skipSpaces(characters, &index)
+            guard index < characters.count else { return false }
+            index += 1
+            if characters[index - 1] == "]" { break }
+            guard characters[index - 1] == "." else { return false }
+        }
+        MachineConfiguration.skipSpaces(characters, &index)
+        guard index == characters.count || characters[index] == "#" else { return false }
+        return segments == ["code_hosting"]
     }
 }
