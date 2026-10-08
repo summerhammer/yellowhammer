@@ -41,7 +41,7 @@ struct CommandLineToolMenuCommand: View {
             switch model.state {
             case .notInstalled:
                 model.promptInstall()
-            case .dangling(_), .mismatched(_):
+            case .dangling, .mismatched:
                 model.promptUpdate()
             case .installed:
                 model.promptUninstall()
@@ -52,9 +52,9 @@ struct CommandLineToolMenuCommand: View {
 
     private var isEnabled: Bool {
         switch model.state {
-        case .notInstalled, .installed, .dangling(_):
+        case .notInstalled, .installed, .dangling:
             true
-        case .mismatched(_):
+        case .mismatched:
             model.isSymlink
         }
     }
@@ -63,11 +63,10 @@ struct CommandLineToolMenuCommand: View {
         switch model.state {
         case .notInstalled:
             "Install Command Line Tool…"
-        case .dangling(_), .mismatched(_):
+        case .dangling, .mismatched:
             "Update Command Line Tool…"
         case .installed:
             "Uninstall Command Line Tool…"
         }
     }
 }
-

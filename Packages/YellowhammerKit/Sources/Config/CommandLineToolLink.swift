@@ -187,7 +187,8 @@ public struct CommandLineToolLink: Sendable {
         let link = Self.shellQuote(linkPath)
         let tgt = Self.shellQuote(target)
         if parentDirectory == Self.defaultDirectory && linkPath == Self.defaultPath {
-            return "/bin/mkdir -p -m 0755 /usr/local/bin && /bin/ln -sfh \(tgt) /usr/local/bin/yh && /bin/chmod -h 0755 /usr/local/bin/yh"
+            return "/bin/mkdir -p -m 0755 /usr/local/bin && /bin/ln -sfh \(tgt) /usr/local/bin/yh"
+                + " && /bin/chmod -h 0755 /usr/local/bin/yh"
         }
         return "/bin/mkdir -p -m 0755 \(parent) && /bin/ln -sfh \(tgt) \(link) && /bin/chmod -h 0755 \(link)"
     }

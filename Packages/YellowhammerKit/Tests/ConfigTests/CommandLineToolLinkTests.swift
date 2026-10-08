@@ -159,10 +159,10 @@ struct CommandLineToolLinkTests {
         // Eligible even if dangling as long as destination path ends in /Contents/MacOS/yh
         let target = "/Applications/Yellowhammer.app/Contents/MacOS/yh"
         try link.install(target: target)
-        #expect(FileManager.default.fileExists(atPath: linkPath))
+        #expect((try? FileManager.default.attributesOfItem(atPath: linkPath)) != nil)
 
         try link.uninstall()
-        #expect(!FileManager.default.fileExists(atPath: linkPath))
+        #expect((try? FileManager.default.attributesOfItem(atPath: linkPath)) == nil)
     }
 
     @Test("uninstall: refuses non-symlink regular file")
@@ -177,7 +177,7 @@ struct CommandLineToolLinkTests {
         #expect(throws: CommandLineToolLinkError.refusedNonSymlink(linkPath)) {
             try link.uninstall()
         }
-        #expect(FileManager.default.fileExists(atPath: linkPath))
+        #expect((try? FileManager.default.attributesOfItem(atPath: linkPath)) != nil)
     }
 
     @Test("uninstall: refuses symlink pointing to an ineligible target")
@@ -195,7 +195,7 @@ struct CommandLineToolLinkTests {
         #expect(throws: CommandLineToolLinkError.refusedIneligibleSymlink(path: linkPath, target: target)) {
             try link.uninstall()
         }
-        #expect(FileManager.default.fileExists(atPath: linkPath))
+        #expect((try? FileManager.default.attributesOfItem(atPath: linkPath)) != nil)
     }
 
     @Test("privileged commands: correct quoting for path with spaces and single quotes")

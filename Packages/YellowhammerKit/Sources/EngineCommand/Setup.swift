@@ -67,18 +67,7 @@ struct Setup {
     /// on any failure that stops setup; step 6's per-Project failures are printed and accumulate into
     /// the final throw instead.
     func run() async throws {
-        if case .printChoices = options.mode {
-            try await printChoices()
-            return
-        }
-        if case .installCLI = options.mode {
-            try runInstallCLI()
-            return
-        }
-        if case .uninstallCLI = options.mode {
-            try runUninstallCLI()
-            return
-        }
+        if try await runStandaloneMode() { return }
         if case .config(let source) = options.mode {
             try installPreparedConfiguration(from: source)
         }
@@ -90,16 +79,7 @@ struct Setup {
             selected = try await authorizeLinear(request, machine: &machine)
         } catch {
             guard case .installLinear = options.mode else {
-                // No Linear installation: the steps that need none still run (configuration validation,
-                // notification registration, routing warnings) before the Linear failure is the final
-                // error. Project file writing, provisioning and scheduled jobs need Linear (or its
-                // provisioning) and are skipped.
-                let configuration = try validateConfiguration()
-                await reportNotifications()
-                reportRoutingWarnings(configuration: configuration, machine: machine)
-                throw SetupError(
-                    "setup finished without a Board Connection; run yh setup --install-linear (\(error))"
-                )
+                try await finishWithoutBoardConnection(machine: machine, error: error)
             }
             throw error
         }
@@ -138,6 +118,34 @@ struct Setup {
         output("Setup complete.")
     }
 
+    /// Runs the modes that do not touch Linear or the Projects; returns whether one of them ran.
+    private func runStandaloneMode() async throws -> Bool {
+        switch options.mode {
+        case .printChoices:
+            try await printChoices()
+        case .installCLI:
+            try runInstallCLI()
+        case .uninstallCLI:
+            try runUninstallCLI()
+        case .interactive, .initialize, .config, .installLinear:
+            return false
+        }
+        return true
+    }
+
+    /// No Linear installation: the steps that need none still run (configuration validation,
+    /// notification registration, routing warnings) before the Linear failure is the final
+    /// error. Project file writing, provisioning and scheduled jobs need Linear (or its
+    /// provisioning) and are skipped.
+    private func finishWithoutBoardConnection(machine: MachineConfiguration, error: any Error) async throws -> Never {
+        let configuration = try validateConfiguration()
+        await reportNotifications()
+        reportRoutingWarnings(configuration: configuration, machine: machine)
+        throw SetupError(
+            "setup finished without a Board Connection; run yh setup --install-linear (\(error))"
+        )
+    }
+
     func runInstallCLI() throws {
         let state = commandLineToolLink.inspect(runningExecutable: yhExecutablePath)
         switch state {
@@ -150,7 +158,10 @@ struct Setup {
             if commandLineToolLink.isParentDirectoryWritable {
                 do {
                     try commandLineToolLink.install(target: yhExecutablePath)
-                    output("Installed Command Line Tool symlink at \(commandLineToolLink.linkPath) -> \(yhExecutablePath)")
+                    output(
+                        "Installed Command Line Tool symlink at "
+                            + "\(commandLineToolLink.linkPath) -> \(yhExecutablePath)"
+                    )
                 } catch {
                     throw SetupError("could not install Command Line Tool symlink: \(error)")
                 }
@@ -161,7 +172,10 @@ struct Setup {
                     guard status == 0 else {
                         throw SetupError("sudo failed with exit status \(status)")
                     }
-                    output("Installed Command Line Tool symlink at \(commandLineToolLink.linkPath) -> \(yhExecutablePath)")
+                    output(
+                        "Installed Command Line Tool symlink at "
+                            + "\(commandLineToolLink.linkPath) -> \(yhExecutablePath)"
+                    )
                 } else {
                     output("sudo /bin/sh -c \(CommandLineToolLink.shellQuote(privilegedCommand))")
                     throw ExitCode(1)
@@ -212,4 +226,3 @@ struct Setup {
         return process.terminationStatus
     }
 }
-

@@ -70,7 +70,8 @@ struct GeneralSettingsPane: View {
         case .notInstalled:
             WizardBlockRow(
                 label: "Not installed",
-                detail: "Creates a symlink at \(commandLineToolModel.linkPath) pointing to \(commandLineToolModel.runningExecutablePath).",
+                detail: "Creates a symlink at \(commandLineToolModel.linkPath) pointing to "
+                    + "\(commandLineToolModel.runningExecutablePath).",
                 labelIdentifier: "command-line-tool-status"
             ) {
                 Button("Install…") {

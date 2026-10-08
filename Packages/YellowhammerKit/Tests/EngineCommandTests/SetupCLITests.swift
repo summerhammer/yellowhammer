@@ -238,7 +238,7 @@ struct SetupCLITests {
         let linkURL = tempDir.appending(component: "yh")
         let link = CommandLineToolLink(path: linkURL.path)
         try link.install(target: "/Applications/Yellowhammer.app/Contents/MacOS/yh")
-        #expect(FileManager.default.fileExists(atPath: linkURL.path))
+        #expect((try? FileManager.default.attributesOfItem(atPath: linkURL.path)) != nil)
 
         let directory = ConfigurationDirectory()
         let board = await makeBoard()
@@ -254,7 +254,7 @@ struct SetupCLITests {
 
         try await setup.run()
         #expect(output.lines.contains { $0.contains("Removed Command Line Tool symlink") })
-        #expect(!FileManager.default.fileExists(atPath: linkURL.path))
+        #expect((try? FileManager.default.attributesOfItem(atPath: linkURL.path)) == nil)
     }
 
     @Test("uninstall-cli: ineligible symlink is refused")
@@ -286,6 +286,6 @@ struct SetupCLITests {
         } catch let error as SetupError {
             #expect(error.message.contains("refusing to remove"))
         }
-        #expect(FileManager.default.fileExists(atPath: linkURL.path))
+        #expect((try? FileManager.default.attributesOfItem(atPath: linkURL.path)) != nil)
     }
 }

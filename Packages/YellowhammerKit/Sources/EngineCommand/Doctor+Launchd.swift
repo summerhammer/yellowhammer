@@ -53,69 +53,43 @@ extension Doctor {
         case .notInstalled:
             return finding(
                 .launchd, subject: subject, .info,
-                "Command Line Tool is not installed at \(subject); install via Yellowhammer → Install Command Line Tool… or yh setup --install-cli"
+                "Command Line Tool is not installed at \(subject); "
+                    + "install via Yellowhammer → Install Command Line Tool… or yh setup --install-cli"
             )
         case .dangling(let target):
-            if fix {
-                if commandLineToolLink.isParentDirectoryWritable {
-                    do {
-                        try commandLineToolLink.install(target: runningExecutablePath)
-                        return finding(
-                            .launchd, subject: subject, .pass,
-                            "repointed Command Line Tool symlink \(subject) -> \(runningExecutablePath)"
-                        )
-                    } catch {
-                        return finding(
-                            .launchd, subject: subject, .warning,
-                            "Command Line Tool symlink \(subject) is dangling (target \(target) does not exist)"
-                        )
-                    }
-                } else {
-                    output("sudo ln -sfh '\(runningExecutablePath)' \(subject)")
-                    output("sudo chmod -h 0755 \(subject)")
-                    output("or update via Yellowhammer → Update Command Line Tool…")
-                    return finding(
-                        .launchd, subject: subject, .warning,
-                        "Command Line Tool symlink \(subject) is dangling (target \(target) does not exist)"
-                    )
-                }
-            } else {
-                return finding(
-                    .launchd, subject: subject, .warning,
-                    "Command Line Tool symlink \(subject) is dangling (target \(target) does not exist)"
-                )
-            }
+            return repointedOrWarning(
+                subject: subject, canRepoint: fix,
+                warning: "Command Line Tool symlink \(subject) is dangling (target \(target) does not exist)"
+            )
         case .mismatched(let target):
-            if fix && commandLineToolLink.isSymlink {
-                if commandLineToolLink.isParentDirectoryWritable {
-                    do {
-                        try commandLineToolLink.install(target: runningExecutablePath)
-                        return finding(
-                            .launchd, subject: subject, .pass,
-                            "repointed Command Line Tool symlink \(subject) -> \(runningExecutablePath)"
-                        )
-                    } catch {
-                        return finding(
-                            .launchd, subject: subject, .warning,
-                            "Command Line Tool symlink \(subject) resolves to \(target), not running yh (\(runningExecutablePath))"
-                        )
-                    }
-                } else {
-                    output("sudo ln -sfh '\(runningExecutablePath)' \(subject)")
-                    output("sudo chmod -h 0755 \(subject)")
-                    output("or update via Yellowhammer → Update Command Line Tool…")
-                    return finding(
-                        .launchd, subject: subject, .warning,
-                        "Command Line Tool symlink \(subject) resolves to \(target), not running yh (\(runningExecutablePath))"
-                    )
-                }
-            } else {
-                return finding(
-                    .launchd, subject: subject, .warning,
-                    "Command Line Tool symlink \(subject) resolves to \(target), not running yh (\(runningExecutablePath))"
-                )
-            }
+            return repointedOrWarning(
+                subject: subject, canRepoint: fix && commandLineToolLink.isSymlink,
+                warning: "Command Line Tool symlink \(subject) resolves to \(target), "
+                    + "not running yh (\(runningExecutablePath))"
+            )
+        }
+    }
+
+    /// With `--fix`, repoints a dangling or mismatched symlink; otherwise (or when the repoint cannot
+    /// be done) reports `warning`, printing the manual commands when the parent directory is read-only.
+    private func repointedOrWarning(subject: String, canRepoint: Bool, warning: String) -> DoctorFinding {
+        guard canRepoint else {
+            return finding(.launchd, subject: subject, .warning, warning)
+        }
+        guard commandLineToolLink.isParentDirectoryWritable else {
+            output("sudo ln -sfh '\(runningExecutablePath)' \(subject)")
+            output("sudo chmod -h 0755 \(subject)")
+            output("or update via Yellowhammer → Update Command Line Tool…")
+            return finding(.launchd, subject: subject, .warning, warning)
+        }
+        do {
+            try commandLineToolLink.install(target: runningExecutablePath)
+            return finding(
+                .launchd, subject: subject, .pass,
+                "repointed Command Line Tool symlink \(subject) -> \(runningExecutablePath)"
+            )
+        } catch {
+            return finding(.launchd, subject: subject, .warning, warning)
         }
     }
 }
-
