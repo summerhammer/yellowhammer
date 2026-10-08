@@ -29,6 +29,11 @@ func completeAddProjectDraft() -> AddProjectDraft {
     draft.addRepo(path: "/work/acme-backend")
     draft.repos[0].check = "make test"
     draft.useSpecSource("/work/acme-spec")
+    draft.codeHostingConnectionName = "github"
+    draft.codeHostingCheckedConnectionName = "github"
+    draft.context.codeHostingConnections = [
+            CodeHostingConnection(name: "github", kind: .keychainToken(.init("keychain:github")!))
+        ]
     draft.gitHubReport = validGitHubReport(repoPaths: draft.workingRepoPaths)
     draft.gitHubCheckedRepoPaths = draft.workingRepoPaths
     // Bounds and the Schedule are complete at their defaults once opened.

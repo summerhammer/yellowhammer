@@ -32,7 +32,8 @@ struct AddProjectDraftNavigationTests {
     func stillNeededAndReady() {
         var draft = AddProjectDraft()
         #expect(draft.readyCount == 0)
-        #expect(draft.stillNeeded == "Still needed: Project, Board, Repos, GitHub, Spec Source, Bounds, and Schedule")
+        #expect(draft.stillNeeded
+            == "Still needed: Project, Board, Repos, Code Hosting, Spec Source, Bounds, and Schedule")
         draft = completeAddProjectDraft()
         #expect(draft.readyCount == 7)
         #expect(draft.stillNeeded == nil)

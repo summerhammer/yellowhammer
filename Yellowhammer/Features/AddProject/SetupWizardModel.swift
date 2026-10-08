@@ -11,9 +11,9 @@ import Observation
 /// comes from running `yh`. The agent CLI route lives in Settings → Agent CLIs, and ``readiness`` blocks Add
 /// Project until it is there. The Linear workspace and its Operator identity are chosen in the Linear step
 /// through ``linearWorkspaces``; a workspace connected there is machine configuration, not the Project's, so
-/// it stays in `config.toml` when the sheet is cancelled and nothing undoes it. The GitHub step works the same
-/// way through ``gitHub``: a token stored there is machine-wide (like a Board Connection) and stays in the
-/// Keychain when the sheet is cancelled; nothing else is written until the run.
+/// it stays in `config.toml` when the sheet is cancelled and nothing undoes it. The Code Hosting step works the same
+/// way through ``codeHosting``: a connection created there is machine-wide and stays in the
+/// registry when the sheet is cancelled; nothing else is written until the run.
 @MainActor
 @Observable
 final class SetupWizardModel {
@@ -25,9 +25,10 @@ final class SetupWizardModel {
     var machineConfiguration: MachineConfiguration?
     /// The Board connections list the Linear step chooses from, and connects another to.
     let linearWorkspaces: LinearWorkspacesModel
-    /// The GitHub step's credential: checked against the draft's working Repos, with each report written into
+    /// The Code Hosting step checks the selected connection against the working Repos, with each report written into
     /// the draft.
-    let gitHub = GitHubCredentialModel()
+    let codeHosting: CodeHostingConnectionsModel
+    let codeHostingCheck = CodeHostingCheckModel()
     var isFetchingTeams = false
     /// `yh --print-choices`'s output when it could not list the teams; the Linear project step still takes
     /// an existing Linear project's id without them.
@@ -58,13 +59,20 @@ final class SetupWizardModel {
     init(configurationDirectory: URL = ConfigurationDirectory.current) {
         self.configurationDirectory = configurationDirectory
         linearWorkspaces = LinearWorkspacesModel(directory: configurationDirectory)
+        codeHosting = CodeHostingConnectionsModel(directory: configurationDirectory)
+        codeHosting.onConnected = { [weak self] name in
+            self?.loadContext()
+            self?.draft.codeHostingConnectionName = name
+            self?.draft.gitHubReport = nil
+        }
         linearWorkspaces.onConnected = { [weak self] name in
             guard let self else { return }
             loadContext()
             Task { await self.selectLinearInstallation(name) }
         }
         linearWorkspaces.onChanged = { [weak self] in self?.loadContext() }
-        gitHub.onReport = { [weak self] report, repoPaths in
+        codeHostingCheck.onReport = { [weak self] report, connection, repoPaths in
+            self?.draft.codeHostingCheckedConnectionName = connection
             self?.draft.gitHubReport = report
             self?.draft.gitHubCheckedRepoPaths = repoPaths
         }
@@ -106,6 +114,10 @@ final class SetupWizardModel {
         let teams = draft.context.teams
         let linearProjects = draft.context.linearProjects
         linearWorkspaces.reloadIfClean()
+        codeHosting.reloadIfClean()
+        if draft.codeHostingConnectionName == nil, codeHosting.connections.contains(where: { $0.kind == .gh }) {
+            draft.codeHostingConnectionName = codeHosting.connections.first { $0.kind == .gh }?.name
+        }
         if let configuration = try? Configuration.load(directory: configurationDirectory) {
             machineConfiguration = configuration.machine
             draft.context = AddProjectContext(
@@ -153,7 +165,8 @@ final class SetupWizardModel {
     /// survive it.
     func terminateRun() {
         linearWorkspaces.terminate()
-        gitHub.terminate()
+        codeHosting.terminate()
+        codeHostingCheck.terminate()
         teamsEngine.terminate()
         verifyEngine.terminate()
         engine.terminate()

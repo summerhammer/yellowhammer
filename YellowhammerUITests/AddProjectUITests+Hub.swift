@@ -39,7 +39,7 @@ extension AddProjectUITests {
         fillLinearStep(in: sheet, installation: choosesInstallation ? installation : nil)
 
         chooseSpecRepo()
-        visitGitHubStep()
+        visitCodeHostingStep()
 
         // Bounds and the Schedule are complete at their defaults, but only once opened: until then the
         // footer offers to continue, not to add.
@@ -112,7 +112,7 @@ extension AddProjectUITests {
     ) { // glossary:ignore GL001
         XCTAssertTrue(recorded.contains("--init"))
         XCTAssertEqual(value(after: "--board-connection", in: recorded), installation)
-        // The GitHub step checks the default Code Hosting Connection, so the Project selects it.
+        // The Code Hosting step selects the registry's default connection.
         XCTAssertEqual(value(after: "--code-hosting-connection", in: recorded), "github")
         XCTAssertEqual(value(after: "--project", in: recorded), "demo") // glossary:ignore GL001
         XCTAssertEqual(value(after: "--project-name", in: recorded), "Demo") // glossary:ignore GL001
@@ -144,11 +144,19 @@ extension AddProjectUITests {
         specRepo.click()
     }
 
-    /// GitHub: the stored token resolves. Its Repos are the working ones; the drive's one Repo is the Spec
-    /// Source, so the check is of the credential alone.
-    func visitGitHubStep() {
+    /// The Code Hosting step runs the engine check for the selected registry connection.
+    func visitCodeHostingStep(connection: String? = "github") {
         element("setup-step-github").click()
-        XCTAssertTrue(waitForText(of: element("github-credential-state"), containing: "Stored"))
+        if let connection {
+            let picker = element("setup-code-hosting-picker")
+            XCTAssertTrue(picker.waitForExistence(timeout: 5))
+            picker.click()
+            let option = app.menuItems.matching(NSPredicate(format: "title BEGINSWITH %@", "\(connection) ·"))
+                .firstMatch
+            XCTAssertTrue(option.waitForExistence(timeout: 5))
+            option.click()
+        }
+        XCTAssertTrue(waitForText(of: element("setup-code-hosting-report"), containing: "octocat"))
     }
 
     /// Polls until `element`'s text contains `fragment`.

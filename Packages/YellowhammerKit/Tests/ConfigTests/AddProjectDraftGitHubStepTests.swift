@@ -25,8 +25,8 @@ struct AddProjectDraftGitHubStepTests {
     @Test("The GitHub step follows Repos, and is described")
     func stepOrder() {
         #expect(AddProjectDraft.Step.allCases == [.project, .board, .repos, .github, .specSource, .bounds, .jobs])
-        #expect(AddProjectDraft.Step.github.title == "GitHub")
-        #expect(AddProjectDraft.Step.github.shortTitle == "GitHub")
+        #expect(AddProjectDraft.Step.github.title == "Code Hosting")
+        #expect(AddProjectDraft.Step.github.shortTitle == "Code Hosting")
         #expect(AddProjectDraft.Step.github.explanation.contains("pull requests"))
     }
 
@@ -39,11 +39,16 @@ struct AddProjectDraftGitHubStepTests {
     @Test("With only a spec-role Repo there is nothing to push to: the credential alone is checked")
     func onlySpecRepo() {
         var draft = AddProjectDraft()
+        draft.codeHostingConnectionName = "github"
+        draft.codeHostingCheckedConnectionName = "github"
+        draft.context.codeHostingConnections = [
+            CodeHostingConnection(name: "github", kind: .keychainToken(.init("keychain:github")!))
+        ]
         draft.addRepo(path: "/work/spec")
         draft.repos[0].role = "spec"
         #expect(draft.workingRepoPaths.isEmpty)
-        #expect(draft.problems(in: .github) == ["Check the GitHub token."])
-        draft.gitHubReport = Self.report()
+        #expect(draft.problems(in: .github) == ["Check the Code Hosting Connection."])
+        draft.gitHubReport = validGitHubReport(repoPaths: draft.workingRepoPaths)
         draft.gitHubCheckedRepoPaths = []
         #expect(draft.problems(in: .github).isEmpty)
         draft.gitHubReport = Self.report(.missing, message: "no token")
@@ -53,8 +58,13 @@ struct AddProjectDraftGitHubStepTests {
     @Test("An unchecked token is a problem")
     func unchecked() {
         var draft = AddProjectDraft()
+        draft.codeHostingConnectionName = "github"
+        draft.codeHostingCheckedConnectionName = "github"
+        draft.context.codeHostingConnections = [
+            CodeHostingConnection(name: "github", kind: .keychainToken(.init("keychain:github")!))
+        ]
         draft.addRepo(path: "/work/backend")
-        #expect(draft.problems(in: .github) == ["Check the GitHub token."])
+        #expect(draft.problems(in: .github) == ["Check the Code Hosting Connection."])
         #expect(draft.summary(of: .github) == "Not checked")
     }
 
@@ -62,7 +72,7 @@ struct AddProjectDraftGitHubStepTests {
     func valid() {
         let draft = completeAddProjectDraft()
         #expect(draft.problems(in: .github).isEmpty)
-        #expect(draft.summary(of: .github) == "GitHub user octocat")
+        #expect(draft.summary(of: .github) == "github · GitHub user octocat")
     }
 
     @Test("Changing the working Repos after the check makes it stale", arguments: ["add", "remove", "move"])
@@ -76,17 +86,22 @@ struct AddProjectDraftGitHubStepTests {
         if change == "remove" {
             #expect(draft.problems(in: .github) == ["Add a working Repo first."])
         } else {
-            #expect(draft.problems(in: .github) == ["Check the GitHub token."])
+            #expect(draft.problems(in: .github) == ["Check the Code Hosting Connection."])
         }
     }
 
     @Test("Paths compare normalized and sorted: ~ and trailing slashes do not make a check stale")
     func normalizedComparison() {
         var draft = AddProjectDraft()
+        draft.codeHostingConnectionName = "github"
+        draft.codeHostingCheckedConnectionName = "github"
+        draft.context.codeHostingConnections = [
+            CodeHostingConnection(name: "github", kind: .keychainToken(.init("keychain:github")!))
+        ]
         draft.addRepo(path: "~/dev/a")
         draft.addRepo(path: "/work/b/")
         let paths = draft.workingRepoPaths
-        draft.gitHubReport = Self.report()
+        draft.gitHubReport = validGitHubReport(repoPaths: draft.workingRepoPaths)
         draft.gitHubCheckedRepoPaths = [
             AddProjectContext.normalizedPath("/work/b"), AddProjectContext.normalizedPath("~/dev/a")
         ]
@@ -116,10 +131,38 @@ struct AddProjectDraftGitHubStepTests {
     func failingRepos() {
         var draft = completeAddProjectDraft()
         draft.gitHubReport = Self.report(repos: [
-            Self.repo("a", .ok), Self.repo("b", .okUnverified), Self.repo("c", .noPushPermission),
+            Self.repo("acme-backend", .ok), Self.repo("b", .okUnverified), Self.repo("c", .noPushPermission),
             Self.repo("d", .notFound)
         ])
         #expect(draft.problems(in: .github) == ["Repo c: noPushPermission", "Repo d: notFound"])
         #expect(draft.summary(of: .github) == "Cannot push to every Repo")
+    }
+    @Test("A missing selection blocks Add, and changing a checked connection invalidates its verdict")
+    func selectionRequiredAndCurrent() {
+        var draft = completeAddProjectDraft()
+        draft.codeHostingConnectionName = nil
+        #expect(draft.problems(in: .github) == ["Choose a Code Hosting Connection."])
+        draft.context.codeHostingConnections.append(
+            CodeHostingConnection(name: "gh", kind: .githubCLI(executable: nil))
+        )
+        draft.codeHostingConnectionName = "gh"
+        #expect(draft.problems(in: .github) == ["Check the Code Hosting Connection."])
+        #expect(!draft.isComplete)
+    }
+
+    @Test("A connection removed from the registry cannot reuse a green report")
+    func removedSelection() {
+        var draft = completeAddProjectDraft()
+        draft.context.codeHostingConnections = []
+        #expect(draft.problems(in: .github) == ["github is not a connected Code Hosting Connection."])
+    }
+
+    @Test("A resolving report must cover each working Repo, while unverified push is accepted")
+    func completeRepoCoverage() {
+        var draft = completeAddProjectDraft()
+        draft.gitHubReport = Self.report()
+        #expect(draft.problems(in: .github) == ["Check push access to every working Repo."])
+        draft.gitHubReport = Self.report(repos: [Self.repo("acme-backend", .okUnverified)])
+        #expect(draft.problems(in: .github).isEmpty)
     }
 }

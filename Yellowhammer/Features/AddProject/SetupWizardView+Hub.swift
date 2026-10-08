@@ -38,7 +38,7 @@ struct SetupWizardHub: View {
                         step: model.draft.step, draft: $model.draft, linearWorkspaces: model.linearWorkspaces,
                         onSelectInstallation: { name in Task { await model.selectLinearInstallation(name) } },
                         onVerifyLinearProject: { Task { await model.verifyLinearProject() } },
-                        gitHub: model.gitHub
+                        codeHosting: model.codeHosting, codeHostingCheck: model.codeHostingCheck
                     )
                 }
             }
