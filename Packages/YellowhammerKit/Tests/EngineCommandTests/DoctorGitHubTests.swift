@@ -80,7 +80,7 @@ struct DoctorGitHubTests {
         #expect(transport.paths == ["/user", "/repos/acme/alpha-backend", "/repos/acme/alpha-mobile"])
     }
 
-    @Test("A missing Keychain item fails, naming the connection, Projects, and fix in Settings › Code Hosting")
+    @Test("A missing Keychain item fails, naming the connection, Projects, and both repair paths")
     func missingItem() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
@@ -101,10 +101,11 @@ struct DoctorGitHubTests {
         #expect(failure.message.contains("Projects alpha"))
         #expect(failure.message.contains("keychain:github"))
         #expect(failure.message.contains("Settings › Code Hosting"))
+        #expect(failure.message.contains("yh config replace-code-hosting-token github --token-stdin"))
         #expect(transport.requests.isEmpty)
     }
 
-    @Test("A Keychain item that cannot be read fails, naming Settings › Code Hosting")
+    @Test("A Keychain item that cannot be read fails with both repair paths")
     func unreadableItem() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
@@ -121,13 +122,11 @@ struct DoctorGitHubTests {
         #expect(findings[0].codeHosting?.projects == [projectID("alpha")])
         #expect(findings[0].message.contains("could not be read"))
         #expect(findings[0].message.contains("Settings › Code Hosting"))
+        #expect(findings[0].message.contains("yh config replace-code-hosting-token github --token-stdin"))
         #expect(transport.requests.isEmpty)
     }
 
-    @Test(
-        "A token GitHub rejects fails, without checking any Repo, "
-            + "naming Settings › Code Hosting, and never prints the token"
-    )
+    @Test("A rejected token names both repair paths, skips Repos, and never prints the token")
     func rejected() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
@@ -144,6 +143,7 @@ struct DoctorGitHubTests {
         #expect(findings[0].codeHosting?.projects == [projectID("alpha")])
         #expect(findings[0].message.contains("rejected"))
         #expect(findings[0].message.contains("Settings › Code Hosting"))
+        #expect(findings[0].message.contains("yh config replace-code-hosting-token github --token-stdin"))
         #expect(!findings[0].message.contains("ghp_test-secret"))
         #expect(transport.paths == ["/user"])
     }
@@ -265,6 +265,7 @@ struct DoctorGitHubTests {
         #expect(beta.map(\.severity) == [.failure])
         #expect(beta[0].message.hasPrefix("Code Hosting Connection beta (type \"keychain\"; Projects beta): "))
         #expect(beta[0].message.contains("Settings › Code Hosting"))
+        #expect(beta[0].message.contains("yh config replace-code-hosting-token beta --token-stdin"))
         #expect(!transport.paths.contains("/repos/acme/beta-backend"))
     }
 
@@ -320,6 +321,7 @@ struct DoctorGitHubTests {
         #expect(gh.message.hasPrefix("Code Hosting Connection gh (type \"gh\"; Projects alpha): "))
         #expect(gh.message.contains("gh CLI"))
         #expect(gh.message.contains("Settings › Code Hosting"))
+        #expect(gh.message.contains("cannot use yet"))
         #expect(transport.requests.isEmpty)
     }
 
@@ -341,7 +343,7 @@ struct DoctorGitHubTests {
         #expect(stray.codeHosting?.name == "ghost")
         #expect(stray.codeHosting?.projects == [projectID("stray")])
         #expect(stray.message.contains("Code Hosting Connection ghost"))
-        #expect(stray.message.contains("yh setup --install-github --code-hosting-connection ghost"))
+        #expect(stray.message.contains("yh config connect-code-hosting ghost --token-stdin"))
         #expect(stray.message.contains("[code_hosting]"))
         #expect(findings.filter { $0.codeHosting?.name == "github" }.map(\.severity) == [.pass, .pass])
     }
@@ -426,7 +428,7 @@ struct DoctorGitHubTests {
 
         #expect(findings.map(\.severity) == [.info])
         #expect(findings[0].message.contains("No Code Hosting Connection is connected"))
-        #expect(findings[0].message.contains("yh setup --install-github"))
+        #expect(findings[0].message.contains("yh config connect-code-hosting github --token-stdin"))
     }
 
     @Test("--json rows for GitHub findings carry their Project and connection; other checks' rows do not")

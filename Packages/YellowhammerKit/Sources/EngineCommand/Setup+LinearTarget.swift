@@ -37,7 +37,7 @@ extension Setup {
                 throw SetupError("--operator needs --board-connection <name> when Board connections are connected")
             }
             return .skip
-        case .installLinear, .printChoices, .installCLI, .uninstallCLI, .installGitHub, .printGitHub:
+        case .installLinear, .printChoices, .installCLI, .uninstallCLI:
             return .skip
         }
     }

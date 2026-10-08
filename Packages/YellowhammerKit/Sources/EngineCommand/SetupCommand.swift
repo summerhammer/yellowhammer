@@ -45,7 +45,7 @@ public struct SetupCommand: AsyncParsableCommand {
 
     @Option(
         name: .customLong("code-hosting-connection"),
-        help: "The Code Hosting Connection the written Project selects, or that --install-github connects."
+        help: "The Code Hosting Connection the written Project selects."
     )
     public var codeHostingConnection: String?
 
@@ -134,37 +134,10 @@ public struct SetupCommand: AsyncParsableCommand {
     public var uninstallCLI: Bool = false
 
     @Flag(
-        name: .customLong("install-github"),
-        help: "Run only the GitHub step (capture, check, store the token), and exit."
-    )
-    public var installGitHub: Bool = false
-
-    @Flag(
-        name: .customLong("print-github"),
-        help: "Print the GitHub credential report as one JSON line and exit; never prompts, writes nothing."
-    )
-    public var printGitHub: Bool = false
-
-    @Flag(name: .customLong("token-stdin"), help: "With --install-github, read the token from one line of stdin.")
-    public var tokenStdin: Bool = false
-
-    @Flag(name: .customLong("from-gh"), help: "With --install-github, import the token from the GitHub CLI (gh).")
-    public var fromGH: Bool = false
-
-    @Flag(name: .customLong("replace"), help: "With --install-github, capture a new token even if one works.")
-    public var replace: Bool = false
-
-    @Flag(
         name: .customLong("skip-github-check"),
         help: "With --init and a Project, or interactively, write the Project without checking the GitHub token."
     )
     public var skipGitHubCheck: Bool = false
-
-    @Option(
-        name: .customLong("github-repo"),
-        help: "With --install-github or --print-github, a Repo path to check the token against."
-    )
-    public var githubRepo: [String] = []
 
     public init() {}
 

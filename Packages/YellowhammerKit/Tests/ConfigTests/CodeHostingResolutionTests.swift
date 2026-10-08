@@ -63,7 +63,7 @@ struct CodeHostingResolutionTests {
     func refusalsDescribeThemselves() {
         let missing = CodeHostingRefusal.notInRegistry(connection: "acme").description
         #expect(missing.contains("\"acme\""))
-        #expect(missing.contains("yh setup --install-github --code-hosting-connection acme"))
+        #expect(missing.contains("yh config connect-code-hosting acme --token-stdin"))
         let gh = CodeHostingRefusal.githubCLINotSupported(connection: "gh").description
         #expect(gh.contains("\"gh\""))
         #expect(gh.contains("gh CLI"))

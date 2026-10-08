@@ -39,12 +39,14 @@ struct GitHubCredentialValidation: Sendable {
     /// Project's Spec Source) because the Spec Source is read-only — nothing is ever pushed to it, so its
     /// access is not the credential's business.
     func report(
-        reference: CredentialReference, secret: SecretLookup, repos: [(name: String, path: String)]
+        reference: CredentialReference, secret: SecretLookup, repos: [(name: String, path: String)],
+        connectionName: String? = nil
     ) async -> GitHubCredentialReport {
+        let name = connectionName ?? Self.account(of: reference)
         let token: String
         switch secret {
         case .absent:
-            return Self.unusable(reference, .missing, Self.missingMessage(reference))
+            return Self.unusable(reference, .missing, Self.missingMessage(reference, connectionName: name))
         case .unreadable(let detail):
             return Self.unusable(
                 reference, .unreadable,
@@ -61,7 +63,7 @@ struct GitHubCredentialValidation: Sendable {
             return Self.unusable(
                 reference, .rejected,
                 "GitHub rejected the token in \(reference.rawValue): it is wrong, revoked or expired. "
-                    + "Replace it with `yh setup --install-github`, or Settings › General › Replace token…."
+                    + "Replace it with `yh config replace-code-hosting-token \(name) --token-stdin`."
             )
         case .unavailable(let detail):
             return Self.unusable(
@@ -128,11 +130,11 @@ struct GitHubCredentialValidation: Sendable {
             ? String(reference.rawValue.dropFirst("keychain:".count)) : reference.rawValue
     }
 
-    private static func missingMessage(_ reference: CredentialReference) -> String {
+    private static func missingMessage(_ reference: CredentialReference, connectionName: String) -> String {
         let account = account(of: reference)
         return "No GitHub token is stored for \(reference.rawValue): the Keychain has no item with service "
             + "\(KeychainCredentialStore.service) and account \(account). Store it with "
-            + "`yh setup --install-github`, or Settings › General › Replace token…."
+            + "`yh config replace-code-hosting-token \(connectionName) --token-stdin`."
     }
 }
 

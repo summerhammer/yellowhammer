@@ -541,12 +541,12 @@ class CodeHostingConnectionTests(unittest.TestCase):
         )
         with self.assertRaises(suite_env.SetupFailed) as ctx:
             suite_env.resolve_code_hosting_connection(self.make_env())
-        self.assertIn("yh setup --install-github", str(ctx.exception))
+        self.assertIn("yh config connect-code-hosting github --token-stdin", str(ctx.exception))
 
     def test_missing_config_file_has_no_entries(self):
         with self.assertRaises(suite_env.SetupFailed) as ctx:
             suite_env.resolve_code_hosting_connection(self.make_env())
-        self.assertIn("yh setup --install-github", str(ctx.exception))
+        self.assertIn("yh config connect-code-hosting github --token-stdin", str(ctx.exception))
 
     def test_ensure_project_passes_the_connection_to_setup_init(self):
         (self.config_dir / "config.toml").write_text(MACHINE_CONFIG + self.second)

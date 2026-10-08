@@ -166,7 +166,7 @@ public struct SetupInvocation: Equatable, Sendable {
         return arguments
     }
 
-    /// Where `--install-github` reads the token from when the app runs it headless.
+    /// The token source for a Code Hosting Connection.
     public enum GitHubTokenSource: Equatable, Sendable {
         /// `--token-stdin`: one line on standard input, which the app writes and closes.
         case standardInput
@@ -174,31 +174,29 @@ public struct SetupInvocation: Equatable, Sendable {
         case githubCLI
     }
 
-    /// `["setup", "--print-github", ...]`: never prompts, writes nothing; its output is one line, a
-    /// ``GitHubCredentialReport``. `repoPaths` are the Repos to check the token against (none: the credential
-    /// only).
-    public static func printGitHubArguments(codeHostingConnection: String?, repoPaths: [String]) -> [String] {
-        var arguments = ["setup", "--print-github"]
-        appendOption(&arguments, "--code-hosting-connection", codeHostingConnection)
+    /// Checks the selected Keychain token and optional Repos; prints one ``GitHubCredentialReport`` line.
+    public static func checkCodeHostingCredentialArguments(
+        connection: String?, repoPaths: [String]
+    ) -> [String] {
+        var arguments = ["config", "check-code-hosting-credential"]
+        appendOption(&arguments, "--connection", connection)
         appendRepeated(&arguments, "--github-repo", repoPaths)
         return arguments
     }
 
-    /// `["setup", "--install-github", ...]`: the app's headless GitHub step — read the token from `source`,
-    /// check it, store it. `replace` captures even when the stored token works (Settings' "Replace token…").
-    public static func installGitHubArguments(
-        codeHostingConnection: String?, source: GitHubTokenSource, replace: Bool, repoPaths: [String]
+    /// Connects a new Keychain token under the given local name, or replaces that connection's token.
+    public static func codeHostingTokenArguments(
+        connection: String, source: GitHubTokenSource, replace: Bool
     ) -> [String] {
-        var arguments = ["setup", "--install-github"]
-        appendOption(&arguments, "--code-hosting-connection", codeHostingConnection)
+        var arguments = ["config", replace ? "replace-code-hosting-token" : "connect-code-hosting", connection]
         switch source {
         case .standardInput: arguments.append("--token-stdin")
         case .githubCLI: arguments.append("--from-gh")
         }
-        if replace { arguments.append("--replace") }
-        appendRepeated(&arguments, "--github-repo", repoPaths)
         return arguments
     }
+
+    public static let codeHostingConnectionsArguments = ["config", "print-code-hosting-connections"]
 
     /// `"name,role,path,check"`. `name`, `role` and `path` may not contain a comma — `--repo` splits on
     /// the first three only, so a comma there would silently corrupt a later field — and none of the

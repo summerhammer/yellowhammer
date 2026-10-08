@@ -40,7 +40,7 @@ wait out a real ten-minute Lease TTL.
   `--board-connection` names the scratch one.
 - A **Code Hosting Connection** in `config.toml`'s registry (`[code_hosting.github.connections.<name>]`).
   Each rehearsal Project selects one (`[code_hosting] connection`), so the registry must hold the one the suite
-  picks. Connect one with `yh setup --install-github`. Its token is never used: a rehearsal Night never pushes.
+  picks. Connect one with `yh config connect-code-hosting github --token-stdin`. Its token is never used: a rehearsal Night never pushes.
 - An **Operator credential** — a Linear personal API key of a human member of the scratch workspace,
   never the scratch app — for the Operator's own gestures on the board (replying to a question,
   Cancel and reopen, editing a Card's declared scope). The Engine tells a human's comment from its own

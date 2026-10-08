@@ -20,12 +20,6 @@ enum SetupMode: Equatable {
     case installCLI
     /// `--uninstall-cli`: removes `/usr/local/bin/yh` if it points to `yh` and exits.
     case uninstallCLI
-    /// `--install-github`: runs only the GitHub step (capture, check, store the token, add the Code Hosting
-    /// Connection to `config.toml`), validates the token against the Repos, and exits — never touches Linear,
-    /// Project files or jobs.
-    case installGitHub
-    /// `--print-github`: never prompts, writes nothing; prints the GitHub credential report as one line.
-    case printGitHub
 }
 
 /// The scheduled-jobs format `--export-jobs` writes.
@@ -65,11 +59,9 @@ struct SetupOptions {
     /// workspace already in the registry the name is discarded (and the run says so).
     let installationName: String?
     /// `--code-hosting-connection`: the local name of the Code Hosting Connection the Project this run writes
-    /// selects, or that `--install-github` / `--print-github` act on.
+    /// selects.
     let codeHostingConnection: String?
-    /// `--token-stdin`, `--from-gh`, `--replace` and `--github-repo`; only meaningful with `--install-github`
-    /// or `--print-github`.
-    let gitHub: GitHubStepOptions
+    let skipGitHubCheck: Bool
     /// In `--cli` order.
     let cliAdapters: [CLIAdapterDeclaration]
     /// The base Routing Table's one entry (kind `*`, repo_role `*`), built from `--route`/`--fallback`.
@@ -89,12 +81,13 @@ struct SetupOptions {
 
     init(command: SetupCommand) throws {
         mode = try Self.parseMode(command)
+        try Self.validateSkipGitHubCheck(command)
         eventsJSON = try Self.parseEventsJSON(command)
         remoteApproval = try Self.parseRemoteApproval(command)
         installation = try Self.parseInstallation(command.boardConnection)
         installationName = try Self.parseInstallationName(command)
         codeHostingConnection = try Self.parseCodeHostingConnection(command.codeHostingConnection)
-        gitHub = try GitHubStepOptions(command: command)
+        skipGitHubCheck = command.skipGitHubCheck
         operatorID = command.operatorID.map { BoardObjectID(rawValue: $0) }
 
         let (adapters, declaredNames) = try Self.parseCLIAdapters(command.cli)
@@ -140,11 +133,6 @@ struct SetupOptions {
             try validateStandaloneCLIMode(command, flag: "--uninstall-cli")
             return .uninstallCLI
         }
-        if command.installGitHub || command.printGitHub {
-            try validateGitHubScope(command)
-            return command.installGitHub ? .installGitHub : .printGitHub
-        }
-        try validateGitHubOptionsWithoutMode(command)
         if command.printChoices {
             try validatePrintChoicesScope(command)
             return .printChoices

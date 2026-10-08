@@ -955,7 +955,7 @@ def resolve_code_hosting_connection(env):
                 f"no Code Hosting Connection named {name!r} in config.toml (registered: {registered})"
             )
     elif not entries:
-        raise SetupFailed("no Code Hosting Connection in config.toml; run yh setup --install-github")
+        raise SetupFailed("no Code Hosting Connection in config.toml; run yh config connect-code-hosting github --token-stdin")
     elif len(entries) > 1:
         raise SetupFailed(
             f"config.toml has several Code Hosting Connections ({', '.join(sorted(entries))}); "

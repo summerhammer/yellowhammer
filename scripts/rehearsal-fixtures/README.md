@@ -85,7 +85,7 @@ yh setup --init --project rehearsal-a \
 
 `--code-hosting-connection NAME` (default `github`) names the Code Hosting Connection in `config.toml`'s registry
 that the Project selects; `yh setup --init` refuses the name unless the registry holds it. Connect one with
-`yh setup --install-github`. The printed command omits `--board-connection` and `--linear-team`; add them yourself.
+`yh config connect-code-hosting github --token-stdin`. The printed command omits `--board-connection` and `--linear-team`; add them yourself.
 
 `--skip-github-check` is there because the fixture repositories' `origin` is a local bare repository, with no
 GitHub token behind it: without the flag `yh setup` refuses the Project. A rehearsal Night never pushes, so

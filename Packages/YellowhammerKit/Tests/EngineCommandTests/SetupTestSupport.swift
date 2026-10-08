@@ -313,7 +313,7 @@ final class ThrowawayInstallationStores: Sendable {
     }
 }
 
-/// `makeSetup` seeds the registry a first `yh setup --install-github` leaves behind (the `github` Keychain
+/// `makeSetup` seeds the registry a first `yh config connect-code-hosting github --token-stdin` leaves behind (the `github` Keychain
 /// token connection) when an `--init` run that writes a Project finds no `config.toml`, since a Project can
 /// only select a connection that is already connected. The file is what `--init` would have written, plus
 /// that entry.

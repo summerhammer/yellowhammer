@@ -1,10 +1,11 @@
+import Config
 import Domain
 import Foundation
 import Observation
 
 /// The GitHub credential's state, shared by the Setup wizard's GitHub step and the Settings window's General
-/// pane. The app never calls GitHub or reads the Keychain itself (ADR-001): every check is `yh setup
-/// --print-github` and every store is `yh setup --install-github`, decoded with ``GitHubCredentialReport``, so
+/// pane. The app never calls GitHub or reads the Keychain itself (ADR-001): every check and store goes through
+/// `yh config`, decoded with ``GitHubCredentialReport``, so
 /// the wording the Operator reads comes from `yh`.
 ///
 /// The token travels only over standard input: never an argument, never logged, and not kept here after
@@ -43,7 +44,7 @@ final class GitHubCredentialModel {
         !ConfigurationDirectory.isOverridden || SetupEngine.isStubbed
     }
 
-    /// `yh setup --print-github` for `repoPaths` (none: the credential only). The reference is the one in
+    /// `yh config check-code-hosting-credential` for `repoPaths` (none: the credential only). The reference is the one in
     /// `config.toml`.
     func check(repoPaths: [String]) async {
         // A store checks again when it ends, so a check asked for meanwhile would only supersede it.
@@ -53,7 +54,9 @@ final class GitHubCredentialModel {
         var lines: [String] = []
         do {
             let status = try await run.engine.run(
-                arguments: SetupInvocation.printGitHubArguments(codeHostingConnection: nil, repoPaths: repoPaths)
+                arguments: SetupInvocation.checkCodeHostingCredentialArguments(
+                    connection: CodeHostingConnection.defaultName, repoPaths: repoPaths
+                )
             ) { lines.append($0) }
             guard run.generation == generation else { return }
             if status == 0, let report = GitHubCredentialReport.decodeLastLine(lines) {
@@ -68,7 +71,7 @@ final class GitHubCredentialModel {
         }
     }
 
-    /// Stores `token` (one line on `yh setup --install-github --token-stdin --replace`'s standard input), then
+    /// Stores `token` (one line on the `yh config` command's standard input), then
     /// checks again. `yh` authenticates the token before it stores it, so a rejected one is never stored.
     func store(token: String, repoPaths: [String]) async {
         let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -76,7 +79,7 @@ final class GitHubCredentialModel {
         await install(source: .standardInput, standardInput: trimmed + "\n", repoPaths: repoPaths)
     }
 
-    /// Stores the GitHub CLI's token (`yh setup --install-github --from-gh --replace`), then checks again.
+    /// Copies the GitHub CLI's token once, then checks again.
     func importFromGitHubCLI(repoPaths: [String]) async {
         await install(source: .githubCLI, standardInput: nil, repoPaths: repoPaths)
     }
@@ -98,15 +101,25 @@ final class GitHubCredentialModel {
         var lines: [String] = []
         var failure: [String]?
         do {
+            let registryStatus = try await run.engine.run(arguments: SetupInvocation.codeHostingConnectionsArguments) {
+                lines.append($0)
+            }
+            guard run.generation == generation else { return }
+            guard registryStatus == 0,
+                  let registry = CodeHostingConnectionsReport.decodeLastLine(lines) else {
+                failure = lines.isEmpty ? ["yh could not read the Code Hosting Connection registry."] : lines
+                throw RegistryReadFailure()
+            }
+            let replacing = registry.connections.contains { $0.name == CodeHostingConnection.defaultName }
+            lines.removeAll()
             let status = try await run.engine.run(
-                arguments: SetupInvocation.installGitHubArguments(
-                    codeHostingConnection: nil, source: source, replace: true, repoPaths: repoPaths
-                ),
-                standardInput: standardInput
+                arguments: SetupInvocation.codeHostingTokenArguments(
+                    connection: CodeHostingConnection.defaultName, source: source, replace: replacing
+                ), standardInput: standardInput
             ) { lines.append($0) }
             if status != 0 { failure = lines.isEmpty ? ["yh exited \(status)."] : lines }
         } catch {
-            failure = ["\(error)"]
+            failure = failure ?? ["\(error)"]
         }
         guard run.generation == generation else { return }
         isStoring = false
@@ -114,6 +127,10 @@ final class GitHubCredentialModel {
         // Whatever happened, the report is what the Operator needs next: a token stored but refused by a
         // Repo, or one that was rejected and never stored.
         await check(repoPaths: repoPaths)
+    }
+
+    private struct RegistryReadFailure: Error, CustomStringConvertible {
+        var description: String { "could not read the Code Hosting Connection registry" }
     }
 
     /// Supersedes the current run with a new one on its own engine.

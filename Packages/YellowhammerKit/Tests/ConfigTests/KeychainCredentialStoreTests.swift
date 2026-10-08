@@ -12,7 +12,7 @@ struct KeychainCredentialStoreTests {
     func storeThenRead() throws {
         let store = KeychainCredentialStore()
         let reference = try credential("keychain:test-\(UUID().uuidString)")
-        defer { try? store.store("", for: reference) }
+        defer { try? store.delete(reference) }
 
         try store.store("s3cr3t", for: reference)
         #expect(try store.read(reference) == "s3cr3t")
@@ -22,7 +22,7 @@ struct KeychainCredentialStoreTests {
     func storeReplacesExisting() throws {
         let store = KeychainCredentialStore()
         let reference = try credential("keychain:test-\(UUID().uuidString)")
-        defer { try? store.store("", for: reference) }
+        defer { try? store.delete(reference) }
 
         try store.store("first", for: reference)
         try store.store("second", for: reference)
@@ -47,5 +47,17 @@ struct KeychainCredentialStoreTests {
         #expect(throws: KeychainError.self) {
             try store.read(reference)
         }
+    }
+
+    @Test("Deleting a Keychain token removes only its Yellowhammer item and is idempotent")
+    func deleteIsIdempotent() throws {
+        let store = KeychainCredentialStore()
+        let reference = try credential("keychain:test-\(UUID().uuidString)")
+        defer { try? store.delete(reference) }
+
+        try store.store("temporary-secret", for: reference)
+        try store.delete(reference)
+        #expect(throws: KeychainError.self) { try store.read(reference) }
+        try store.delete(reference)
     }
 }
