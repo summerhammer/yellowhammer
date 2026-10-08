@@ -33,7 +33,8 @@ extension SetupOptions {
             (command.tokenStdin, "--token-stdin"),
             (command.fromGH, "--from-gh"),
             (command.replace, "--replace"),
-            (!command.githubRepo.isEmpty, "--github-repo")
+            (!command.githubRepo.isEmpty, "--github-repo"),
+            (command.skipGitHubCheck, "--skip-github-check")
         ]
         let present = forbidden.filter(\.0).map(\.1)
         guard present.isEmpty else {

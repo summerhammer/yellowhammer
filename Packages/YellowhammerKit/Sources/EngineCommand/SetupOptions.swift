@@ -187,27 +187,6 @@ struct SetupOptions {
         return command.installJobs ? .install : .none
     }
 
-    /// `--events json` is only meaningful with `--install-linear`; any other value is a ValidationError.
-    private static func parseEventsJSON(_ command: SetupCommand) throws -> Bool {
-        guard let events = command.events else { return false }
-        guard events == "json" else {
-            throw ValidationError("--events must be \"json\", got \"\(events)\"")
-        }
-        guard command.installLinear else {
-            throw ValidationError("--events requires --install-linear")
-        }
-        return true
-    }
-
-    /// `--remote` is only meaningful with `--install-linear` (roadmap P17.9).
-    private static func parseRemoteApproval(_ command: SetupCommand) throws -> Bool {
-        guard command.remote else { return false }
-        guard command.installLinear else {
-            throw ValidationError("--remote requires --install-linear")
-        }
-        return true
-    }
-
     private static func parseInstallation(_ raw: String?) throws -> String? {
         guard let raw else { return nil }
         guard !raw.trimmingCharacters(in: .whitespaces).isEmpty else {
@@ -365,5 +344,28 @@ extension SetupOptions {
             )
         }
         return raw
+    }
+}
+
+extension SetupOptions {
+    /// `--events json` is only meaningful with `--install-linear`; any other value is a ValidationError.
+    private static func parseEventsJSON(_ command: SetupCommand) throws -> Bool {
+        guard let events = command.events else { return false }
+        guard events == "json" else {
+            throw ValidationError("--events must be \"json\", got \"\(events)\"")
+        }
+        guard command.installLinear else {
+            throw ValidationError("--events requires --install-linear")
+        }
+        return true
+    }
+
+    /// `--remote` is only meaningful with `--install-linear` (roadmap P17.9).
+    private static func parseRemoteApproval(_ command: SetupCommand) throws -> Bool {
+        guard command.remote else { return false }
+        guard command.installLinear else {
+            throw ValidationError("--remote requires --install-linear")
+        }
+        return true
     }
 }

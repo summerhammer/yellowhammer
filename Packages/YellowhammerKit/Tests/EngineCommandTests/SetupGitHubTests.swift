@@ -582,7 +582,12 @@ struct SetupGitHubTests {
         ["--skip-github-check", "--config", "/tmp/x"],
         ["--skip-github-check", "--install-linear"],
         ["--skip-github-check", "--print-choices"],
-        ["--init", "--skip-github-check"]
+        ["--init", "--skip-github-check"],
+        ["--install-cli", "--install-github"],
+        ["--install-cli", "--print-github"],
+        ["--uninstall-cli", "--token-stdin"],
+        ["--install-cli", "--github-repo", "~/dev/backend"],
+        ["--install-cli", "--skip-github-check"]
     ])
     func combinationsRefused(arguments: [String]) {
         #expect(throws: (any Error).self) { try SetupOptions(command: try SetupCommand.parse(arguments)) }
