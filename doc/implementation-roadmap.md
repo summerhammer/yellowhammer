@@ -2605,6 +2605,16 @@ OQ110). Planned and tracked in [the Linear per-Project roadmap](refactor-linear-
 
 The Feature Branch Orca ADE reports, with its prefix (#318), is planned and tracked in [the Feature Branch roadmap](refactor-feature-branch-roadmap.md) (B1.1–B2.2).
 
+## Phase 21 — Code Hosting Connections
+
+### [x] P21.1 Connect, replace, remove and report Code Hosting Connections
+- **Work** — Add the `yh config` token lifecycle commands, live registry report and the app's migrated
+  credential caller. Refuse removal while a Project selects the connection or a Project file is invalid.
+- **Spec** — `landing/connect-code-hosting` (S2, [issue #388](https://github.com/summerhammer/yellowhammer/issues/388)).
+- **Done when** — Token checks precede Keychain writes, replacement retains the prior token on refusal,
+  removal protects every Project file, and the app reads the new report contract.
+- **Status** — Done on 2026-10-08.
+
 ---
 
 ## Traceability: story → steps
@@ -2642,6 +2652,7 @@ The Feature Branch Orca ADE reports, with its prefix (#318), is planned and trac
 | `bounds/refuse-protected-paths-before-dispatch` | P8.3 |
 | `landing/open-one-pull-request-per-repository` | P10.1, P10.2, P10.3, P10.4, P19.2, P19.6, P19.7 |
 | `landing/announce-a-partial-landing` | P10.4, P10.8, P6.2, P19.6 |
+| `landing/connect-code-hosting` | P21.1 |
 | `verification/verify-a-feature-clause-by-clause` | P10.5 |
 | `verification/return-a-feature-with-unmet-clauses` | P10.6 |
 | `verification/archive-the-cycle-on-a-verified-feature` | P10.7 |
