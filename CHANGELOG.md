@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.10.0](https://github.com/summerhammer/yellowhammer/compare/v0.9.0...v0.10.0) (2026-10-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* **config:** Replace yh setup --install-github and --print-github with named yh config connection commands and check-code-hosting-credential.
+* **config:** `config.toml`'s `[github]` table and a Project file's `[github] credential` are refused. Reconnect with `yh setup --install-github` and add `[code_hosting] connection` to each Project file.
+
+### Features
+
+* **app:** Pulse Health flag for a refused Code Hosting Connection ([#394](https://github.com/summerhammer/yellowhammer/issues/394)) ([e204cfb](https://github.com/summerhammer/yellowhammer/commit/e204cfb4c2473228b2f4700ce1c3d4afef43e927))
+* **app:** wizard Code Hosting step and Configuration picker ([#403](https://github.com/summerhammer/yellowhammer/issues/403)) ([ec4b0b1](https://github.com/summerhammer/yellowhammer/commit/ec4b0b1ca53c330d10fc6dab171d8bd89ffceb99))
+* **cli:** install Command Line Tool symlink at /usr/local/bin/yh ([#382](https://github.com/summerhammer/yellowhammer/issues/382)) ([778f476](https://github.com/summerhammer/yellowhammer/commit/778f476682cb7ad515d0293baf78dda46e30fb7a))
+* **config:** Code Hosting Connection registry and Project selection ([8f14e41](https://github.com/summerhammer/yellowhammer/commit/8f14e415630ac7e19101fbf59182b5c04171836a))
+* **config:** gh CLI Code Hosting Connection type ([#391](https://github.com/summerhammer/yellowhammer/issues/391)) ([#401](https://github.com/summerhammer/yellowhammer/issues/401)) ([b3a4352](https://github.com/summerhammer/yellowhammer/commit/b3a4352d96dd9ffaf3e6cf3252fe11f06de5dbbb))
+* **config:** manage Code Hosting Connection tokens ([e287a4f](https://github.com/summerhammer/yellowhammer/commit/e287a4fa5a3343c6c9908a76c4178ac30cf252d9))
+* **doctor:** Check 5: Code Hosting Connections ([#390](https://github.com/summerhammer/yellowhammer/issues/390)) ([bd5ac4e](https://github.com/summerhammer/yellowhammer/commit/bd5ac4e893038227ab2a7dffd112a0062f4a0248))
+* **project:** select and change a Project's Code Hosting Connection ([#389](https://github.com/summerhammer/yellowhammer/issues/389)) ([#400](https://github.com/summerhammer/yellowhammer/issues/400)) ([39fc70b](https://github.com/summerhammer/yellowhammer/commit/39fc70bbd002284d73e94bc744a7edc1124adbc1))
+* **settings:** discover CLI models for Route dropdowns ([#380](https://github.com/summerhammer/yellowhammer/issues/380)) ([06c9f4f](https://github.com/summerhammer/yellowhammer/commit/06c9f4ffb27a5e42063fd5218a1f2dbd49ce2a6d))
+* **settings:** Settings › Code Hosting section ([#402](https://github.com/summerhammer/yellowhammer/issues/402)) ([74a1bdc](https://github.com/summerhammer/yellowhammer/commit/74a1bdc880e212bbf6055822c3e21829637b350a))
+* **setup:** capture and validate the GitHub credential ([#385](https://github.com/summerhammer/yellowhammer/issues/385)) ([c46967c](https://github.com/summerhammer/yellowhammer/commit/c46967cf0fac0d9b06b231fb8b5cf6feb08453c6))
+
 ## [0.9.0](https://github.com/summerhammer/yellowhammer/compare/v0.8.0...v0.9.0) (2026-10-07)
 
 
