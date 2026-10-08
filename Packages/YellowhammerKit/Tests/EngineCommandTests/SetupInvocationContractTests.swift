@@ -121,4 +121,40 @@ struct SetupInvocationContractTests {
         #expect(options.linearProjectID == "proj-1")
         #expect(options.projectID == nil)
     }
+
+    @Test("printGitHubArguments parses back as --print-github with its Repos")
+    func printGitHubParsesBack() throws {
+        let built = SetupInvocation.printGitHubArguments(
+            githubCredential: "keychain:github-work", repoPaths: ["~/dev/backend", "/srv/web"]
+        )
+
+        let options = try SetupOptions(command: try SetupCommand.parse(Array(built.dropFirst())))
+
+        #expect(options.mode == .printGitHub)
+        #expect(options.githubCredential == CredentialReference("keychain:github-work"))
+        #expect(options.gitHubRepoPaths == ["~/dev/backend", "/srv/web"])
+    }
+
+    @Test("installGitHubArguments parses back as --install-github for each token source")
+    func installGitHubParsesBack() throws {
+        let stdin = SetupInvocation.installGitHubArguments(
+            githubCredential: nil, source: .standardInput, replace: true, repoPaths: ["~/dev/backend"]
+        )
+        let fromGH = SetupInvocation.installGitHubArguments(
+            githubCredential: "keychain:github", source: .githubCLI, replace: false, repoPaths: []
+        )
+
+        let stdinOptions = try SetupOptions(command: try SetupCommand.parse(Array(stdin.dropFirst())))
+        let ghOptions = try SetupOptions(command: try SetupCommand.parse(Array(fromGH.dropFirst())))
+
+        #expect(stdinOptions.mode == .installGitHub)
+        #expect(stdinOptions.gitHubTokenSource == .standardInput)
+        #expect(stdinOptions.replaceGitHubToken)
+        #expect(stdinOptions.gitHubRepoPaths == ["~/dev/backend"])
+        #expect(stdinOptions.githubCredential == nil)
+        #expect(ghOptions.mode == .installGitHub)
+        #expect(ghOptions.gitHubTokenSource == .githubCLI)
+        #expect(!ghOptions.replaceGitHubToken)
+        #expect(ghOptions.githubCredential == CredentialReference("keychain:github"))
+    }
 }

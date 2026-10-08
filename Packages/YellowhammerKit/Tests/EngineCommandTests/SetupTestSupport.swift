@@ -53,6 +53,12 @@ final class RecordingCredentialStore: SetupCredentialStore {
         stores.withLock { $0.append(StoredSecret(reference: reference.rawValue, secret: secret)) }
     }
 
+    /// A store holding `keychain:github` (a token the passing GitHub stub accepts) plus `seed`, so a test of
+    /// another step never meets the GitHub step's capture prompt.
+    static func withGitHub(_ seed: [String: String] = [:], unreadable: Set<String> = []) -> RecordingCredentialStore {
+        RecordingCredentialStore(seed: ["keychain:github": "ghp_test"].merging(seed) { $1 }, unreadable: unreadable)
+    }
+
     /// One `store` call.
     struct StoredSecret: Equatable {
         let reference: String
@@ -304,7 +310,7 @@ func makeSetup(
     board: FakeProvisioningBoard,
     console: ScriptedConsole = ScriptedConsole(),
     credentials: RecordingCredentialStore = RecordingCredentialStore(
-        seed: ["keychain:linear": "test-secret", "keychain:linear-acme": "test-secret"]
+        seed: ["keychain:linear": "test-secret", "keychain:linear-acme": "test-secret", "keychain:github": "ghp_test"]
     ),
     output: RecordingOutput = RecordingOutput(),
     notifications: NotificationRegistrationStub = NotificationRegistrationStub(.allowed),
@@ -313,6 +319,8 @@ func makeSetup(
     yhExecutablePath: String = "/usr/local/bin/yh",
     setupTimePATH: String? = "/usr/bin:/bin",
     fileExists: @escaping (String) -> Bool = { _ in false },
+    gitHub: GitHubCredentialValidation = StubGitHubTransport.passing().validation(),
+    importGitHubToken: @escaping @Sendable () async -> GitHubTokenImport = { .unavailable("gh is not installed") },
     launchAgents: any LaunchAgentControl = RecordingLaunchAgentControl(),
     linearInstallSeams: LinearInstallSeams = defaultLinearInstallSeams(),
     linearInstallationStore: @escaping (LinearInstallation) -> LinearInstallationStore =
@@ -340,6 +348,8 @@ func makeSetup(
         yhExecutablePath: yhExecutablePath,
         setupTimePATH: setupTimePATH,
         fileExists: fileExists,
+        gitHub: gitHub,
+        importGitHubToken: importGitHubToken,
         launchAgents: launchAgents,
         linearInstallSeams: linearInstallSeams,
         linearInstallationStore: linearInstallationStore,

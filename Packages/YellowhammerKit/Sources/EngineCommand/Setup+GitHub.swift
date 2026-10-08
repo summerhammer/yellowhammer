@@ -1,0 +1,275 @@
+import Config
+import Domain
+import Foundation
+
+/// Where the GitHub step gets a token it does not find in the Keychain.
+enum GitHubCapture: Equatable {
+    /// Offer the GitHub CLI's token, else ask with hidden input.
+    case interactive
+    /// One line from standard input (`--token-stdin`).
+    case standardInput
+    /// `gh auth token` (`--from-gh`).
+    case githubCLI
+    /// Never capture: a missing or rejected token is an error (`--init`).
+    case never
+}
+
+extension Setup {
+    /// The GitHub step's credential half: reuses a stored token that GitHub accepts, otherwise captures one,
+    /// authenticates it BEFORE storing, and stores it. Returns the GitHub user's login. The token is never
+    /// printed, logged, put in an error or passed as a process argument; a rejected token is never stored.
+    ///
+    /// A stored token that resolves is reused without asking (`replace` forces a capture). A missing or
+    /// rejected one is captured per `capture`; with `.never` it is an error carrying the report's message.
+    func ensureGitHubCredential(
+        reference: CredentialReference, capture: GitHubCapture, replace: Bool
+    ) async throws -> String {
+        if !replace {
+            let report = await gitHub.report(
+                reference: reference, secret: credentials.gitHubSecret(for: reference), repos: []
+            )
+            switch report.state {
+            case .resolves:
+                let login = report.login ?? ""
+                output("GitHub credential \(reference.rawValue) is in the Keychain (GitHub user \(login))")
+                return login
+            case .unreadable, .unreachable:
+                throw SetupError(report.message, gitHub: true)
+            case .missing, .rejected:
+                guard capture != .never else { throw SetupError(report.message, gitHub: true) }
+                if report.state == .rejected {
+                    output(report.message)
+                    if capture == .interactive,
+                       !(try confirm("Replace the stored GitHub token? [Y/n] ", defaultYes: true)) {
+                        throw SetupError("setup was cancelled")
+                    }
+                }
+            }
+        }
+        return try await captureGitHubToken(reference: reference, capture: capture)
+    }
+
+    /// The GitHub step's Repo half: checks the token can push to every Repo in `repos` (pass working Repos
+    /// only — a `spec` role Repo is read-only). Throws one SetupError listing every failing Repo and the
+    /// permission it lacks.
+    func validateGitHubRepos(reference: CredentialReference, repos: [(name: String, path: String)]) async throws {
+        guard !repos.isEmpty else { return }
+        let report = await gitHub.report(
+            reference: reference, secret: credentials.gitHubSecret(for: reference), repos: repos
+        )
+        guard report.state == .resolves else { throw SetupError(report.message, gitHub: true) }
+        let failing = report.repos.filter { $0.status != .ok && $0.status != .okUnverified }
+        guard failing.isEmpty else {
+            throw SetupError(
+                "GitHub credential \(reference.rawValue) cannot publish every Repo:\n"
+                    + failing.map { "  " + $0.message }.joined(separator: "\n"),
+                gitHub: true
+            )
+        }
+        for repo in report.repos { output(repo.message) }
+    }
+
+    /// Before a Project file is written (and before any Linear write): the token must resolve and push to
+    /// the declaration's working Repos.
+    func validateGitHub(for declaration: ProjectDeclaration, machine: MachineConfiguration) async throws {
+        let reference = machine.gitHubCredential
+        _ = try await ensureGitHubCredential(
+            reference: reference, capture: isInteractive ? .interactive : .never, replace: false
+        )
+        let repos = declaration.repos.filter { $0.role != .spec }.map { gitHubRepo(name: $0.name, path: $0.path) }
+        try await validateGitHubRepos(reference: reference, repos: repos)
+    }
+
+    /// Interactive setup captures and authenticates the machine-wide token right after `config.toml` is
+    /// loaded, before the Linear step, so even a run that adds no Project leaves a working credential.
+    func runGitHubStepIfInteractive(machine: MachineConfiguration) async throws {
+        let writesProject: Bool
+        switch options.mode {
+        case .interactive: writesProject = true
+        case .initialize: writesProject = options.projectID != nil
+        default: return
+        }
+        if writesProject, let given = options.githubCredential, given != machine.gitHubCredential {
+            output(
+                "note: --github-credential \(given.rawValue) was ignored; the kept config.toml names "
+                    + "\(machine.gitHubCredential.rawValue), which is the one used"
+            )
+        }
+        guard case .interactive = options.mode else { return }
+        _ = try await ensureGitHubCredential(reference: machine.gitHubCredential, capture: .interactive, replace: false)
+    }
+
+    /// Lets the Operator replace the token after the interactive loop's GitHub failure.
+    func offerGitHubReplacement(machine: MachineConfiguration) async throws {
+        guard try confirm("Replace the GitHub token and check again? [y/N] ", defaultYes: false) else { return }
+        _ = try await ensureGitHubCredential(reference: machine.gitHubCredential, capture: .interactive, replace: true)
+    }
+
+    // MARK: Standalone modes
+
+    /// `--install-github`: only the GitHub step. A rejected token is never stored; a stored token whose Repo
+    /// validation then fails stays stored (it is machine-wide) and the run fails naming each Repo.
+    func installGitHub() async throws {
+        let reference = standaloneGitHubReference()
+        let capture: GitHubCapture = switch options.gitHubTokenSource {
+        case .prompt: .interactive
+        case .standardInput: .standardInput
+        case .githubCLI: .githubCLI
+        }
+        _ = try await ensureGitHubCredential(
+            reference: reference, capture: capture, replace: options.replaceGitHubToken
+        )
+        try await validateGitHubRepos(reference: reference, repos: standaloneGitHubRepos(reference: reference))
+        output("GitHub credential \(reference.rawValue) is ready.")
+    }
+
+    /// `--print-github`: never prompts, writes nothing, prints one line for the app to decode. An invalid
+    /// report is still exit 0.
+    func printGitHub() async {
+        let reference = standaloneGitHubReference()
+        let repos = options.gitHubRepoPaths.map { gitHubRepo(name: Self.repoName(ofPath: $0), path: $0) }
+        let report = await gitHub.report(
+            reference: reference, secret: credentials.gitHubSecret(for: reference), repos: repos
+        )
+        output(report.encodeLine())
+    }
+
+    /// `--github-credential`, else `config.toml`'s `[github] credential` if it loads, else the default.
+    private func standaloneGitHubReference() -> CredentialReference {
+        if let given = options.githubCredential { return given }
+        if FileManager.default.fileExists(atPath: machineFileURL.path(percentEncoded: false)),
+           let machine = try? MachineConfiguration.load(contentsOf: machineFileURL) {
+            return machine.gitHubCredential
+        }
+        // Non-empty literal: never fails.
+        return CredentialReference(SetupOptions.defaultGitHubCredential)!
+    }
+
+    /// `--github-repo` paths, else the working Repos of every configured Project that uses `reference`.
+    private func standaloneGitHubRepos(reference: CredentialReference) -> [(name: String, path: String)] {
+        if !options.gitHubRepoPaths.isEmpty {
+            return options.gitHubRepoPaths.map { gitHubRepo(name: Self.repoName(ofPath: $0), path: $0) }
+        }
+        guard let configuration = try? Configuration.load(directory: configurationDirectory) else { return [] }
+        return configuration.projects
+            .filter { configuration.machine.gitHubCredential(for: $0) == reference }
+            .flatMap { project in
+                project.repos.filter { $0.role != .spec }.map { gitHubRepo(name: $0.name, path: $0.path) }
+            }
+    }
+
+    private static func repoName(ofPath path: String) -> String {
+        (path as NSString).lastPathComponent
+    }
+
+    private func gitHubRepo(name: String, path: String) -> (name: String, path: String) {
+        (name, Doctor.expandTilde(path, homeDirectory: homeDirectory.path(percentEncoded: false)))
+    }
+
+    // MARK: Capture
+
+    private enum Authentication {
+        case authenticated(login: String)
+        case rejected
+        case failed(String)
+    }
+
+    private func authenticate(_ token: String, reference: CredentialReference) async -> Authentication {
+        let report = await gitHub.report(reference: reference, secret: .present(token), repos: [])
+        switch report.state {
+        case .resolves: return .authenticated(login: report.login ?? "")
+        case .rejected: return .rejected
+        case .missing, .unreadable, .unreachable: return .failed(report.message)
+        }
+    }
+
+    private func captureGitHubToken(reference: CredentialReference, capture: GitHubCapture) async throws -> String {
+        let token: String
+        switch capture {
+        case .never:
+            throw SetupError("no GitHub token is available for \(reference.rawValue)", gitHub: true)
+        case .standardInput:
+            let line = console.ask("")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !line.isEmpty else { throw SetupError("no GitHub token was read from standard input") }
+            token = line
+        case .githubCLI:
+            switch await importGitHubToken() {
+            case .token(let imported): token = imported
+            case .unavailable(let reason):
+                throw SetupError("could not import a token from the GitHub CLI: \(reason)")
+            }
+        case .interactive:
+            return try await captureInteractively(reference: reference)
+        }
+        switch await authenticate(token, reference: reference) {
+        case .authenticated(let login):
+            try storeGitHubToken(token, reference: reference, login: login)
+            return login
+        case .rejected:
+            throw SetupError(Self.rejectedMessage, gitHub: true)
+        case .failed(let message):
+            throw SetupError(message, gitHub: true)
+        }
+    }
+
+    private static let rejectedMessage =
+        "GitHub rejected that token: it is wrong, revoked or expired. It was not stored."
+
+    /// Offers the GitHub CLI's token once, then asks with hidden input until GitHub accepts one. EOF cancels.
+    private func captureInteractively(reference: CredentialReference) async throws -> String {
+        var offerImport = true
+        while true {
+            var candidate: String?
+            if offerImport, case .token(let imported) = await importGitHubToken(),
+               try confirm("Use the token from the GitHub CLI (gh)? [Y/n] ", defaultYes: true) {
+                candidate = imported
+            }
+            offerImport = false
+            if candidate == nil {
+                guard let line = console.askSecret("GitHub token (input hidden): ") else {
+                    throw SetupError("setup was cancelled")
+                }
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { continue }
+                candidate = trimmed
+            }
+            guard let token = candidate else { continue }
+            switch await authenticate(token, reference: reference) {
+            case .authenticated(let login):
+                try storeGitHubToken(token, reference: reference, login: login)
+                return login
+            case .rejected:
+                output(Self.rejectedMessage)
+            case .failed(let message):
+                throw SetupError(message, gitHub: true)
+            }
+        }
+    }
+
+    private func storeGitHubToken(_ token: String, reference: CredentialReference, login: String) throws {
+        do {
+            try credentials.store(token, for: reference)
+        } catch {
+            throw SetupError("could not store the GitHub token for \(reference.rawValue) in the Keychain: \(error)")
+        }
+        let account = GitHubCredentialValidation.account(of: reference)
+        output(
+            "stored the GitHub token of \(login) in the Keychain (service \(KeychainCredentialStore.service), "
+                + "account \(account)) as \(reference.rawValue)"
+        )
+        output(
+            "Yellowhammer's yh reads it from launchd; if a different yh build reads it first, macOS may ask "
+                + "once — choose Always Allow."
+        )
+    }
+
+    /// A yes/no answer; an empty one takes the default and EOF cancels setup.
+    private func confirm(_ prompt: String, defaultYes: Bool) throws -> Bool {
+        guard let line = console.ask(prompt) else { throw SetupError("setup was cancelled") }
+        switch line.trimmingCharacters(in: .whitespaces).lowercased() {
+        case "": return defaultYes
+        case "y", "yes": return true
+        default: return false
+        }
+    }
+}

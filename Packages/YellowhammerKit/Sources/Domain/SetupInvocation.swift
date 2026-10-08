@@ -166,6 +166,40 @@ public struct SetupInvocation: Equatable, Sendable {
         return arguments
     }
 
+    /// Where `--install-github` reads the token from when the app runs it headless.
+    public enum GitHubTokenSource: Equatable, Sendable {
+        /// `--token-stdin`: one line on standard input, which the app writes and closes.
+        case standardInput
+        /// `--from-gh`: the GitHub CLI's `gh auth token`.
+        case githubCLI
+    }
+
+    /// `["setup", "--print-github", ...]`: never prompts, writes nothing; its output is one line, a
+    /// ``GitHubCredentialReport``. `repoPaths` are the Repos to check the token against (none: the credential
+    /// only).
+    public static func printGitHubArguments(githubCredential: String?, repoPaths: [String]) -> [String] {
+        var arguments = ["setup", "--print-github"]
+        appendOption(&arguments, "--github-credential", githubCredential)
+        appendRepeated(&arguments, "--github-repo", repoPaths)
+        return arguments
+    }
+
+    /// `["setup", "--install-github", ...]`: the app's headless GitHub step — read the token from `source`,
+    /// check it, store it. `replace` captures even when the stored token works (Settings' "Replace token…").
+    public static func installGitHubArguments(
+        githubCredential: String?, source: GitHubTokenSource, replace: Bool, repoPaths: [String]
+    ) -> [String] {
+        var arguments = ["setup", "--install-github"]
+        appendOption(&arguments, "--github-credential", githubCredential)
+        switch source {
+        case .standardInput: arguments.append("--token-stdin")
+        case .githubCLI: arguments.append("--from-gh")
+        }
+        if replace { arguments.append("--replace") }
+        appendRepeated(&arguments, "--github-repo", repoPaths)
+        return arguments
+    }
+
     /// `"name,role,path,check"`. `name`, `role` and `path` may not contain a comma — `--repo` splits on
     /// the first three only, so a comma there would silently corrupt a later field — and none of the
     /// four may be empty.

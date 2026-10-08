@@ -196,7 +196,7 @@ struct SetupLinearRemoteInstallTests {
         ])
         let clock = RemoteInstallClock()
         let seams = remoteSeams(transport: transport, clock: clock)
-        let credentials = RecordingCredentialStore()
+        let credentials = RecordingCredentialStore.withGitHub()
         let events = Mutex<[LinearInstallEvent]>([])
         let (store, _) = freshLinearInstallationStore()
         let arguments = makeArguments(
@@ -259,7 +259,7 @@ struct SetupLinearRemoteInstallTests {
             let transport = RelayRoutingTransport(scripts)
             let clock = RemoteInstallClock()
             let seams = remoteSeams(transport: transport, clock: clock)
-            let credentials = RecordingCredentialStore()
+            let credentials = RecordingCredentialStore.withGitHub()
             let events = Mutex<[LinearInstallEvent]>([])
             let arguments = makeArguments(initialize: false, installLinear: true, events: "json", remote: true)
             let setup = try makeSetup(
@@ -293,7 +293,7 @@ struct SetupLinearRemoteInstallTests {
         ])
         let clock = RemoteInstallClock()
         let seams = remoteSeams(transport: transport, clock: clock)
-        let credentials = RecordingCredentialStore()
+        let credentials = RecordingCredentialStore.withGitHub()
         let console = ScriptedConsole(answers: ["r"])
         let (store, _) = freshLinearInstallationStore()
         let arguments = makeArguments(initialize: false, operatorID: "user-op", installation: "acme")
@@ -323,7 +323,7 @@ struct SetupLinearRemoteInstallTests {
         let seams = remoteSeams(
             transport: transport, clock: clock, portBinder: loopback.portBinder, opener: loopback.opener
         )
-        let credentials = RecordingCredentialStore()
+        let credentials = RecordingCredentialStore.withGitHub()
         let console = ScriptedConsole(answers: ["r", "l"])
         let (store, _) = freshLinearInstallationStore()
         let arguments = makeArguments(initialize: false, operatorID: "user-op", installation: "acme")
@@ -352,7 +352,7 @@ struct SetupLinearRemoteInstallTests {
         ])
         let clock = RemoteInstallClock()
         let seams = remoteSeams(transport: transport, clock: clock)
-        let credentials = RecordingCredentialStore()
+        let credentials = RecordingCredentialStore.withGitHub()
         let console = ScriptedConsole(answers: ["r", "n"])
         let (store, _) = freshLinearInstallationStore()
         let arguments = makeArguments(initialize: false, operatorID: "user-op", installation: "acme")
@@ -380,7 +380,7 @@ struct SetupLinearRemoteInstallTests {
             .linearGraphQL: [linearGraphQLReply()]
         ])
         let clock = RemoteInstallClock()
-        let credentials = RecordingCredentialStore()
+        let credentials = RecordingCredentialStore.withGitHub()
         let output = RecordingOutput()
         let console = ScriptedConsole(answers: ["i", "r"])
         let (store, _) = freshLinearInstallationStore()

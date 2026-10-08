@@ -60,7 +60,7 @@ struct SetupInteractiveInstallationTests {
         let setup = try makeSetup(
             arguments: makeArguments(initialize: false), directory: directory,
             board: await makeBoard(members: [operatorMember]), console: console,
-            credentials: RecordingCredentialStore(seed: seededCredentials), output: output,
+            credentials: RecordingCredentialStore.withGitHub(seededCredentials), output: output,
             linearInstallSeams: happyPathSeams(opened: opened), linearInstallationStore: recorder.provide,
             onBind: recorder.bind
         )
@@ -112,7 +112,7 @@ struct SetupInteractiveInstallationTests {
         let setup = try makeSetup(
             arguments: makeArguments(initialize: false, operatorID: "user-op"), directory: directory,
             board: await makeBoard(members: [operatorMember]), console: console,
-            credentials: RecordingCredentialStore(seed: seededCredentials),
+            credentials: RecordingCredentialStore.withGitHub(seededCredentials),
             linearInstallSeams: happyPathSeams(
                 workspaceID: "workspace-new", workspaceName: "Gamma", workspaceURLKey: "gamma"
             ),
@@ -134,7 +134,7 @@ struct SetupInteractiveInstallationTests {
         let setup = try makeSetup(
             arguments: makeArguments(initialize: false), directory: directory,
             board: await makeBoard(members: [operatorMember]), console: console,
-            credentials: RecordingCredentialStore(seed: seededCredentials), onBind: recorder.bind
+            credentials: RecordingCredentialStore.withGitHub(seededCredentials), onBind: recorder.bind
         )
 
         try await setup.run()
@@ -189,7 +189,7 @@ struct SetupInteractiveInstallationTests {
         let setup = try makeSetup(
             arguments: makeArguments(initialize: false), directory: directory,
             board: await makeBoard(members: [operatorMember]), console: console,
-            credentials: RecordingCredentialStore(seed: seededCredentials),
+            credentials: RecordingCredentialStore.withGitHub(seededCredentials),
             linearInstallSeams: happyPathSeams(workspaceID: "workspace-1"),
             linearInstallationStore: recorder.provide
         )

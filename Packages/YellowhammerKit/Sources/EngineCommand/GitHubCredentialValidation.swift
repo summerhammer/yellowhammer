@@ -122,12 +122,30 @@ struct GitHubCredentialValidation: Sendable {
         GitHubCredentialReport(reference: reference.rawValue, state: state, message: message)
     }
 
-    private static func missingMessage(_ reference: CredentialReference) -> String {
-        let account = reference.rawValue.hasPrefix("keychain:")
+    /// The Keychain account behind `reference`: the reference without its `keychain:` scheme.
+    static func account(of reference: CredentialReference) -> String {
+        reference.rawValue.hasPrefix("keychain:")
             ? String(reference.rawValue.dropFirst("keychain:".count)) : reference.rawValue
+    }
+
+    private static func missingMessage(_ reference: CredentialReference) -> String {
+        let account = account(of: reference)
         return "No GitHub token is stored for \(reference.rawValue): the Keychain has no item with service "
             + "\(KeychainCredentialStore.service) and account \(account). Store it with "
             + "`yh setup --install-github`, or Settings › General › Replace token…."
+    }
+}
+
+extension SetupCredentialStore {
+    /// One read of the Keychain item behind `reference`, telling a miss from a locked Keychain by asking for
+    /// presence. Shared by `yh doctor` and `yh setup`.
+    func gitHubSecret(for reference: CredentialReference) -> GitHubCredentialValidation.SecretLookup {
+        if let token = secret(for: reference) { return .present(token) }
+        switch presence(of: reference) {
+        case .absent: return .absent
+        case .unreadable(let detail): return .unreadable(detail)
+        case .present: return .unreadable("the item could not be read")
+        }
     }
 }
 

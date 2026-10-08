@@ -162,7 +162,7 @@ struct SetupInstallationOptionTests {
         let recorder = InstallRecorder()
         let setup = try makeSetup(
             arguments: projectArguments(installation: "acme"), directory: directory, board: await demoBoard(),
-            credentials: RecordingCredentialStore(seed: seededCredentials), onBind: recorder.bind
+            credentials: RecordingCredentialStore.withGitHub(seededCredentials), onBind: recorder.bind
         )
 
         try await setup.run()
@@ -183,7 +183,7 @@ struct SetupInstallationOptionTests {
         let recorder = InstallRecorder()
         let setup = try makeSetup(
             arguments: projectArguments(), directory: directory, board: board,
-            credentials: RecordingCredentialStore(seed: seededCredentials), onBind: recorder.bind
+            credentials: RecordingCredentialStore.withGitHub(seededCredentials), onBind: recorder.bind
         )
 
         let error = await #expect(throws: SetupError.self) { try await setup.run() }
@@ -202,7 +202,7 @@ struct SetupInstallationOptionTests {
         let recorder = InstallRecorder()
         let setup = try makeSetup(
             arguments: projectArguments(installation: "nope"), directory: directory, board: await demoBoard(),
-            credentials: RecordingCredentialStore(seed: seededCredentials), onBind: recorder.bind
+            credentials: RecordingCredentialStore.withGitHub(seededCredentials), onBind: recorder.bind
         )
 
         let error = await #expect(throws: SetupError.self) { try await setup.run() }
@@ -222,7 +222,7 @@ struct SetupInstallationOptionTests {
         let output = RecordingOutput()
         let setup = try makeSetup(
             arguments: makeArguments(), directory: directory, board: await makeBoard(),
-            credentials: RecordingCredentialStore(seed: seededCredentials), output: output, onBind: recorder.bind
+            credentials: RecordingCredentialStore.withGitHub(seededCredentials), output: output, onBind: recorder.bind
         )
 
         try await setup.run()
@@ -233,7 +233,7 @@ struct SetupInstallationOptionTests {
 
         let refused = try makeSetup(
             arguments: makeArguments(operatorID: "user-op"), directory: directory, board: await makeBoard(),
-            credentials: RecordingCredentialStore(seed: seededCredentials)
+            credentials: RecordingCredentialStore.withGitHub(seededCredentials)
         )
         let error = await #expect(throws: SetupError.self) { try await refused.run() }
         #expect(error?.description.contains("--operator needs --board-connection") == true)
@@ -245,7 +245,7 @@ struct SetupInstallationOptionTests {
         try directory.writeMachineFile(twoEntries)
         let setup = try makeSetup(
             arguments: projectArguments(installation: "acme"), directory: directory, board: await demoBoard(),
-            credentials: RecordingCredentialStore()
+            credentials: RecordingCredentialStore.withGitHub()
         )
 
         let error = await #expect(throws: SetupError.self) { try await setup.run() }
@@ -263,7 +263,7 @@ struct SetupInstallationOptionTests {
         let setup = try makeSetup(
             arguments: ["--print-choices", "--board-connection", "main"], directory: directory,
             board: await makeBoard(members: [operatorMember]),
-            credentials: RecordingCredentialStore(seed: seededCredentials), output: output, onBind: recorder.bind
+            credentials: RecordingCredentialStore.withGitHub(seededCredentials), output: output, onBind: recorder.bind
         )
 
         try await setup.run()
@@ -292,7 +292,7 @@ struct SetupInstallationOptionTests {
             \(githubOnly)
             """)
         let destination = ConfigurationDirectory()
-        let credentials = RecordingCredentialStore(seed: seededCredentials)
+        let credentials = RecordingCredentialStore.withGitHub(seededCredentials)
         let arguments = makeArguments(
             initialize: false, config: prepared.path, operatorID: "user-op", installation: "main"
         )

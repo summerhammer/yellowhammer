@@ -12,8 +12,8 @@ struct Setup {
     let output: (String) -> Void
     /// Never called in `--init` or `--config` mode.
     let console: any SetupConsole
-    /// Presence-only: whether an Installation token pair exists in the Keychain — the Linear step's own
-    /// "is it installed at all" gate. Never reads or stores a secret.
+    /// The Keychain. The Linear step uses it for presence only (its own "is it installed at all" gate); the
+    /// GitHub step reads the token to call GitHub with it, and stores one the Operator supplied.
     let credentials: any SetupCredentialStore
     /// `linearProjectID` may be `""` for the workspace-level calls (`workspaceMembers()`, `teams()`,
     /// creation) — see ``BoardBinding/provisioning(installation:linearProjectID:credentials:homeDirectory:)``.
@@ -30,6 +30,11 @@ struct Setup {
     /// Whether a candidate tool path names an existing executable file, injected so PATH resolution
     /// (`ProbeExecutable`) never touches the real filesystem in tests.
     let fileExists: (String) -> Bool
+    /// Asks GitHub whether the token can push to each working Repo (the GitHub step).
+    let gitHub: GitHubCredentialValidation
+    /// Imports a token from the GitHub CLI (`gh auth token`). Never called unless the Operator accepts it
+    /// or passes `--from-gh`.
+    let importGitHubToken: @Sendable () async -> GitHubTokenImport
     /// `launchd`'s control surface for `--install-jobs`.
     let launchAgents: any LaunchAgentControl
     /// The Linear Board Connection browser flow's side effects (P17.6): port binding, the browser
@@ -56,7 +61,8 @@ struct Setup {
         switch options.mode {
         case .interactive: true
         case .installLinear: !options.eventsJSON
-        case .initialize, .config, .printChoices, .installCLI, .uninstallCLI: false
+        case .installGitHub: options.gitHubTokenSource == .prompt
+        case .initialize, .config, .printChoices, .installCLI, .uninstallCLI, .printGitHub: false
         }
     }
 
@@ -73,6 +79,7 @@ struct Setup {
         }
 
         var machine = try loadOrCreateMachineFile()
+        try await runGitHubStepIfInteractive(machine: machine)
         let request = try resolveLinearRequest(machine: machine)
         let selected: (members: [BoardMember], installation: LinearInstallation)?
         do {
@@ -127,6 +134,10 @@ struct Setup {
             try runInstallCLI()
         case .uninstallCLI:
             try runUninstallCLI()
+        case .printGitHub:
+            await printGitHub()
+        case .installGitHub:
+            try await installGitHub()
         case .interactive, .initialize, .config, .installLinear:
             return false
         }

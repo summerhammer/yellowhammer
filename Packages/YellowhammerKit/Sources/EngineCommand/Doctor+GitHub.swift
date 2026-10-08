@@ -15,7 +15,7 @@ extension Doctor {
         guard !configuration.projects.isEmpty else {
             let reference = configuration.machine.gitHubCredential
             let report = await gitHub.report(
-                reference: reference, secret: lookUpSecret(reference), repos: []
+                reference: reference, secret: credentials.gitHubSecret(for: reference), repos: []
             )
             return [defaultReferenceFinding(report)]
         }
@@ -29,7 +29,7 @@ extension Doctor {
 
         var findings: [DoctorFinding] = []
         for reference in references {
-            let secret = lookUpSecret(reference)
+            let secret = credentials.gitHubSecret(for: reference)
             for project in projects where configuration.machine.gitHubCredential(for: project) == reference {
                 let report = await gitHub.report(
                     reference: reference, secret: secret, repos: workingRepos(of: project)
@@ -45,16 +45,6 @@ extension Doctor {
         let home = homeDirectory.path(percentEncoded: false)
         return project.repos.filter { $0.role != .spec }.map {
             (name: $0.name, path: Doctor.expandTilde($0.path, homeDirectory: home))
-        }
-    }
-
-    /// One read of the Keychain item: a miss is told from a locked Keychain by asking for presence.
-    private func lookUpSecret(_ reference: CredentialReference) -> GitHubCredentialValidation.SecretLookup {
-        if let token = credentials.secret(for: reference) { return .present(token) }
-        switch credentials.presence(of: reference) {
-        case .absent: return .absent
-        case .unreadable(let detail): return .unreadable(detail)
-        case .present: return .unreadable("the item could not be read")
         }
     }
 

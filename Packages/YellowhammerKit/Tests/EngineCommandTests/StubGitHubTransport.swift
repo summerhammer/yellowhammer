@@ -34,18 +34,29 @@ final class StubGitHubTransport: Sendable {
 
     private let routes: [String: Reply]
     private let fallback: Reply
+    private let acceptedTokens: Set<String>?
     private let log = Mutex<[URLRequest]>([])
 
     /// `routes` maps a URL path (`/user`, `/repos/acme/backend`) to its reply; any other path gets `fallback`.
-    init(routes: [String: Reply] = [:], fallback: Reply = .notFound) {
+    /// With `acceptedTokens`, a request bearing any other token gets 401, as GitHub answers a wrong token.
+    init(routes: [String: Reply] = [:], fallback: Reply = .notFound, acceptedTokens: Set<String>? = nil) {
         self.routes = routes
         self.fallback = fallback
+        self.acceptedTokens = acceptedTokens
     }
 
     /// A token that GitHub accepts for `login` with the `repo` scope, and every repository it is asked
     /// about pushable. Pass `routes` to override single paths.
-    static func passing(routes: [String: Reply] = [:]) -> StubGitHubTransport {
-        StubGitHubTransport(routes: ["/user": .user()].merging(routes) { $1 }, fallback: .repo())
+    static func passing(routes: [String: Reply] = [:], acceptedTokens: Set<String>? = nil) -> StubGitHubTransport {
+        StubGitHubTransport(
+            routes: ["/user": .user()].merging(routes) { $1 }, fallback: .repo(), acceptedTokens: acceptedTokens
+        )
+    }
+
+    /// Every token this stub was shown, in order (for asserting the token was never sent anywhere else).
+    var bearerTokens: [String] {
+        requests.compactMap { $0.value(forHTTPHeaderField: "Authorization") }
+            .map { $0.replacingOccurrences(of: "Bearer ", with: "") }
     }
 
     var requests: [URLRequest] { log.withLock { $0 } }
@@ -56,7 +67,12 @@ final class StubGitHubTransport: Sendable {
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         log.withLock { $0.append(request) }
         let path = request.url?.path(percentEncoded: false) ?? ""
-        let reply = routes[path] ?? fallback
+        var reply = routes[path] ?? fallback
+        if let acceptedTokens {
+            let token = request.value(forHTTPHeaderField: "Authorization")?
+                .replacingOccurrences(of: "Bearer ", with: "") ?? ""
+            if !acceptedTokens.contains(token) { reply = .unauthorized }
+        }
         let response = HTTPURLResponse(
             url: request.url!, statusCode: reply.status, httpVersion: "HTTP/1.1", headerFields: reply.headers
         )!

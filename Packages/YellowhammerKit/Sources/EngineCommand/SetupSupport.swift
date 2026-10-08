@@ -5,9 +5,13 @@ import Security
 /// A `yh setup` failure, printed as-is and turned into a non-zero exit.
 struct SetupError: Error, CustomStringConvertible, Sendable {
     let message: String
+    /// Whether the GitHub step refused: interactive setup then offers to replace the token before it
+    /// re-asks the Project.
+    let isGitHubFailure: Bool
 
-    init(_ message: String) {
+    init(_ message: String, gitHub: Bool = false) {
         self.message = message
+        isGitHubFailure = gitHub
     }
 
     var description: String { message }
