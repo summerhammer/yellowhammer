@@ -17,7 +17,8 @@ struct ConfigurationRemovingInstallationTests {
         workspace = "ws-b"
         yellowhammer_identity = "app-b"
 
-        [github]
+        [code_hosting.github.connections.github]
+        type = "keychain"
         credential = "keychain:github"
 
         """
@@ -29,7 +30,7 @@ struct ConfigurationRemovingInstallationTests {
         #expect(updated.contains("# machine file"))
         #expect(updated.contains("# the second one"))
         #expect(updated.contains("[board.linear.connections.beta]"))
-        #expect(updated.contains("[github]"))
+        #expect(updated.contains("[code_hosting.github.connections.github]"))
         let machine = try MachineConfiguration.parse(updated, file: "config.toml")
         #expect(machine.linearInstallations.map(\.name) == ["beta"])
         #expect(!updated.contains("\n\n\n"))
@@ -40,7 +41,7 @@ struct ConfigurationRemovingInstallationTests {
         let updated = MachineConfiguration.removingLinearInstallation(named: "beta", inFileText: text)
         let machine = try MachineConfiguration.parse(updated, file: "config.toml")
         #expect(machine.linearInstallations.map(\.name) == ["alpha"])
-        #expect(updated.contains("[github]"))
+        #expect(updated.contains("[code_hosting.github.connections.github]"))
     }
 
     @Test("Unchanged when the entry is absent")

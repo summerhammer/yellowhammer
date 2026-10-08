@@ -10,3 +10,6 @@ check = "test"
 
 [limits]
 review_rounds_max = "2"
+
+[code_hosting]
+connection = "github"

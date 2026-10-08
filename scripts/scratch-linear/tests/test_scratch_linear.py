@@ -108,7 +108,8 @@ def write_machine_config_with(directory, tables):
 def write_project(directory, project_id, linear_project_id, installation="scratch"):
     write_toml(
         directory / "projects" / f"{project_id}.toml",
-        f'id = "{project_id}"\n\n[board.linear]\nconnection = "{installation}"\nproject = "{linear_project_id}"\n',
+        f'id = "{project_id}"\n\n[board.linear]\nconnection = "{installation}"\nproject = "{linear_project_id}"\n\n'
+        '[code_hosting]\nconnection = "github"\n',
     )
 
 

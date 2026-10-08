@@ -32,7 +32,8 @@ class HoldCheckCommandTests(unittest.TestCase):
     def test_renders_in_project_toml_as_a_literal_string_and_parses_back(self):
         command = suite_env.hold_check_command("/tmp/W")
         text = suite_env.render_project_toml(
-            project_id="rehearsal-suite-a", name="A", installation="scratch", linear_project="lp", spec_source="/tmp/spec",
+            project_id="rehearsal-suite-a", name="A", installation="scratch", code_hosting_connection="github",
+            linear_project="lp", spec_source="/tmp/spec",
             repos=[{
                 "name": "fixture-backend", "path": "/tmp/backend", "role": "backend",
                 "check": command, "check_literal": True,
@@ -48,7 +49,8 @@ class HoldCheckCommandTests(unittest.TestCase):
     def test_literal_string_rejects_an_embedded_single_quote(self):
         with self.assertRaises(ValueError):
             suite_env.render_project_toml(
-                project_id="p", name="p", installation="scratch", linear_project="lp", spec_source="/tmp/spec",
+                project_id="p", name="p", installation="scratch", code_hosting_connection="github",
+                linear_project="lp", spec_source="/tmp/spec",
                 repos=[{
                     "name": "r", "path": "/tmp/r", "role": "backend",
                     "check": "it's broken", "check_literal": True,
@@ -57,7 +59,8 @@ class HoldCheckCommandTests(unittest.TestCase):
 
     def test_non_literal_check_still_uses_a_basic_string(self):
         text = suite_env.render_project_toml(
-            project_id="p", name="p", installation="scratch", linear_project="lp", spec_source="/tmp/spec",
+            project_id="p", name="p", installation="scratch", code_hosting_connection="github",
+            linear_project="lp", spec_source="/tmp/spec",
             repos=[{"name": "r", "path": "/tmp/r", "role": "backend", "check": "npm test"}],
         )
         self.assertIn('check = "npm test"', text)

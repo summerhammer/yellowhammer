@@ -6,3 +6,6 @@ board = { linear = { connection = "acme", project = "RNP" } }
 name = "repo"
 role = "backend"
 check = "test"
+
+[code_hosting]
+connection = "github"

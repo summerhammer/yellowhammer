@@ -39,7 +39,12 @@ extension AddProjectDraft {
                 directory: exportDirectory.trimmingCharacters(in: .whitespacesAndNewlines), cron: exportUsesCron
             )
         }
-        return SetupInvocation(boardConnection: linearInstallationName, project: project, jobs: jobs)
+        // The GitHub step checks and stores the token of the default connection (`yh setup --print-github` and
+        // `--install-github` with no name), so the new Project selects that one.
+        return SetupInvocation(
+            boardConnection: linearInstallationName, codeHostingConnection: CodeHostingConnection.defaultName,
+            project: project, jobs: jobs
+        )
     }
 
     /// The Bounds to write after `yh setup --init` exited with `status`: nil unless it succeeded and

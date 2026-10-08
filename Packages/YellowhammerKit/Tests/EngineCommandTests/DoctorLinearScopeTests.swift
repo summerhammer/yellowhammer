@@ -69,7 +69,7 @@ struct DoctorLinearScopeTests {
     @Test("Zero installations: no Projects is one info; a Project naming a missing one is its failure, no info")
     func zeroInstallations() async throws {
         let empty = ConfigurationDirectory()
-        try empty.writeMachineFile("[github]\ncredential = \"keychain:github\"\n")
+        try empty.writeMachineFile(ConfigurationDirectory.githubOnly)
         let none = await makeDoctor(directory: empty, checks: [.configuration, .linear]).run()
         let linear = none.filter { $0.check == .linear }
         #expect(linear.count == 1)
@@ -78,7 +78,7 @@ struct DoctorLinearScopeTests {
         #expect(linear[0].message.contains("no Linear workspace is connected"))
 
         let withProject = ConfigurationDirectory()
-        try withProject.writeMachineFile("[github]\ncredential = \"keychain:github\"\n")
+        try withProject.writeMachineFile(ConfigurationDirectory.githubOnly)
         try withProject.writeValidProjectFile(id: "alpha")
         let findings = await makeDoctor(directory: withProject, checks: [.configuration, .linear]).run()
         let linearFindings = findings.filter { $0.check == .linear }

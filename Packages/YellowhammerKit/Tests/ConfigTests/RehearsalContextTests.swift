@@ -24,6 +24,7 @@ struct RehearsalContextTests {
             name: "Alpha",
             linearInstallationName: "acme",
             linearProject: linearProject,
+            codeHostingConnectionName: "github",
             repos: [RepoDeclaration(name: "backend", path: "~/backend", role: .backend, check: .none)],
             rehearsalLinearProject: rehearsalProject,
             rehearsalJournal: journal

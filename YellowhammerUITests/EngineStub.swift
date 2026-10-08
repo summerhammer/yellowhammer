@@ -79,11 +79,13 @@ enum EngineStub {
             read -r _
             project_id=""
             init_installation="acme"
+            init_code_hosting=""
             previous=""
             for arg in "$@"; do
               echo "argv: $arg"
               if [ "$previous" = "--project" ]; then project_id="$arg"; fi
               if [ "$previous" = "--board-connection" ]; then init_installation="$arg"; fi
+              if [ "$previous" = "--code-hosting-connection" ]; then init_code_hosting="$arg"; fi
               previous="$arg"
             done
             if [ -n "$YH_STUB_PROJECTS_DIR" ] && [ -n "$project_id" ]; then
@@ -95,6 +97,8 @@ enum EngineStub {
               echo '[board.linear]' >> "$project_file"
               echo 'connection = "'"$init_installation"'"' >> "$project_file"
               echo 'project = "proj-1"' >> "$project_file"
+              echo '[code_hosting]' >> "$project_file"
+              echo 'connection = "'"$init_code_hosting"'"' >> "$project_file"
               echo '[[repos]]' >> "$project_file"
               echo 'name = "backend"' >> "$project_file"
               echo 'path = "/tmp/acme-backend"' >> "$project_file"

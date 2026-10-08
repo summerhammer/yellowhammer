@@ -156,7 +156,8 @@ struct CardRunBindingTests {
             workspace = "workspace-1"
             yellowhammer_identity = "app-user-1"
 
-            [github]
+            [code_hosting.github.connections.github]
+            type = "keychain"
             credential = "keychain:github"
 
             [cli.claude]
@@ -164,6 +165,7 @@ struct CardRunBindingTests {
             """, file: "config.toml")
         let project = ProjectConfiguration(
             id: projectID, name: "P", linearInstallationName: "acme", linearProject: "P",
+            codeHostingConnectionName: "github",
             repos: [
                 RepoDeclaration(name: "backend", path: "/repos/backend", role: .backend, check: .none),
                 RepoDeclaration(name: "mobile", path: "/repos/mobile", role: .mobile, check: .command("make test"))

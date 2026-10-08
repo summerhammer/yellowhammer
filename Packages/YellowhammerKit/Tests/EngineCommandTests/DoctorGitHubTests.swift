@@ -7,11 +7,10 @@ import Testing
 /// Writes a Project whose Repos are `~/dev/<id>-<name>`, so the stub's slug for one is `acme/<id>-<name>`.
 private func writeProject(
     _ directory: borrowing ConfigurationDirectory, id: String,
-    repos: [(name: String, role: String)] = [("backend", "backend")], credential: String? = nil
+    repos: [(name: String, role: String)] = [("backend", "backend")], connection: String = "github"
 ) throws {
     // A Project declares exactly one specification source: a `spec` role Repo or a `spec_source`.
     let specSource = repos.contains { $0.role == "spec" } ? "" : "spec_source = \"~/Developer/\(id)-spec\"\n"
-    let github = credential.map { "\n[github]\ncredential = \"\($0)\"\n" } ?? ""
     let declarations = repos.map {
         """
 
@@ -26,9 +25,22 @@ private func writeProject(
         id = "\(id)"
         name = "\(id)"
         board = { linear = { connection = "acme", project = "\(id)" } }
-        \(specSource)\(github)\(declarations)
+        code_hosting = { connection = "\(connection)" }
+        \(specSource)\(declarations)
         """)
 }
+
+/// The default machine file plus a Keychain token connection called `beta` and a `gh` CLI one called `gh`.
+private let machineWithMoreConnections = ConfigurationDirectory.machineFile + """
+
+
+    [code_hosting.github.connections.beta]
+    type = "keychain"
+    credential = "keychain:github-beta"
+
+    [code_hosting.github.connections.gh]
+    type = "gh"
+    """
 
 private func gitHubFindings(_ findings: [DoctorFinding]) -> [DoctorFinding] {
     findings.filter { $0.check == .github }
@@ -51,6 +63,7 @@ struct DoctorGitHubTests {
         #expect(findings.map(\.subject) == ["credential", "repo backend", "repo mobile"])
         #expect(findings.allSatisfy { $0.projectID == ProjectID(rawValue: "alpha") })
         #expect(findings[0].message.contains("octocat"))
+        #expect(findings[0].message.hasPrefix("Project alpha (Code Hosting Connection github): "))
         #expect(findings[1].message.contains("Repo backend (acme/alpha-backend)"))
         #expect(transport.paths == ["/user", "/repos/acme/alpha-backend", "/repos/acme/alpha-mobile"])
     }
@@ -210,12 +223,12 @@ struct DoctorGitHubTests {
         #expect(!transport.paths.contains("/repos/acme/alpha-spec"))
     }
 
-    @Test("A Project's own credential reference is used; the other Project keeps the machine default")
-    func projectOverride() async throws {
+    @Test("A Project's own Code Hosting Connection is used; the other Project keeps the first")
+    func projectSelection() async throws {
         let directory = ConfigurationDirectory()
-        try directory.writeMachineFile()
+        try directory.writeMachineFile(machineWithMoreConnections)
         try writeProject(directory, id: "alpha")
-        try writeProject(directory, id: "beta", credential: "keychain:github-beta")
+        try writeProject(directory, id: "beta", connection: "beta")
         let credentials = RecordingCredentialStore(seed: ["keychain:github": "ghp_default"])
 
         let transport = StubGitHubTransport.passing()
@@ -227,15 +240,16 @@ struct DoctorGitHubTests {
         let beta = findings.filter { $0.projectID == ProjectID(rawValue: "beta") }
         #expect(alpha.map(\.severity) == [.pass, .pass])
         #expect(beta.map(\.severity) == [.failure])
+        #expect(beta[0].message.hasPrefix("Project beta (Code Hosting Connection beta): "))
         #expect(beta[0].message.contains("keychain:github-beta"))
         #expect(!transport.paths.contains("/repos/acme/beta-backend"))
     }
 
-    @Test("A Project's override token is the one sent to GitHub")
-    func overrideTokenIsSent() async throws {
+    @Test("A Project's connection's token is the one sent to GitHub")
+    func selectedTokenIsSent() async throws {
         let directory = ConfigurationDirectory()
-        try directory.writeMachineFile()
-        try writeProject(directory, id: "beta", credential: "keychain:github-beta")
+        try directory.writeMachineFile(machineWithMoreConnections)
+        try writeProject(directory, id: "beta", connection: "beta")
         let credentials = RecordingCredentialStore(
             seed: ["keychain:github": "ghp_default", "keychain:github-beta": "ghp_beta"]
         )
@@ -247,6 +261,46 @@ struct DoctorGitHubTests {
 
         #expect(transport.requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == "Bearer ghp_beta" })
         #expect(!transport.requests.isEmpty)
+    }
+
+    @Test("A Project selecting a gh CLI connection fails, naming the connection, and asks GitHub nothing")
+    func githubCLIConnectionFails() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile(machineWithMoreConnections)
+        try writeProject(directory, id: "alpha", connection: "gh")
+        let transport = StubGitHubTransport.passing()
+
+        let findings = gitHubFindings(await makeDoctor(
+            directory: directory, gitHub: transport.validation(), checks: [.github]
+        ).run())
+
+        #expect(findings.map(\.severity) == [.failure])
+        #expect(findings[0].subject == "credential")
+        #expect(findings[0].projectID == ProjectID(rawValue: "alpha"))
+        #expect(findings[0].message.hasPrefix("Project alpha (Code Hosting Connection gh): "))
+        #expect(findings[0].message.contains("gh CLI"))
+        #expect(transport.requests.isEmpty)
+    }
+
+    @Test("A Project naming a connection the registry lacks fails on its own row, naming both fixes")
+    func undeclaredConnectionFails() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+        try writeProject(directory, id: "alpha")
+        try writeProject(directory, id: "stray", connection: "ghost")
+        let transport = StubGitHubTransport.passing()
+
+        let findings = gitHubFindings(await makeDoctor(
+            directory: directory, gitHub: transport.validation(), checks: [.github]
+        ).run())
+
+        let stray = try #require(findings.first { $0.projectID == ProjectID(rawValue: "stray") })
+        #expect(stray.severity == .failure)
+        #expect(stray.subject == "project") // glossary:ignore GL001
+        #expect(stray.message.contains("Code Hosting Connection ghost"))
+        #expect(stray.message.contains("yh setup --install-github --code-hosting-connection ghost"))
+        #expect(stray.message.contains("[code_hosting]"))
+        #expect(findings.filter { $0.projectID == ProjectID(rawValue: "alpha") }.map(\.severity) == [.pass, .pass])
     }
 
     @Test("Filtering to one Project keeps only its GitHub findings, and asks GitHub nothing for the other")
@@ -267,7 +321,7 @@ struct DoctorGitHubTests {
         #expect(!transport.paths.contains("/repos/acme/beta-backend"))
     }
 
-    @Test("With no valid Project, the machine default is context: info when it resolves or is absent")
+    @Test("With no valid Project, each connection is context: info when it resolves or is absent")
     func noProjects() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
@@ -278,6 +332,7 @@ struct DoctorGitHubTests {
         #expect(resolving.map(\.severity) == [.info])
         #expect(resolving[0].projectID == nil)
         #expect(resolving[0].message.contains("No Project uses it yet"))
+        #expect(resolving[0].message.hasPrefix("Code Hosting Connection github: "))
 
         let absent = gitHubFindings(await makeDoctor(
             directory: directory, credentials: RecordingCredentialStore(),
@@ -291,6 +346,37 @@ struct DoctorGitHubTests {
             gitHub: StubGitHubTransport.passing(routes: ["/user": .unauthorized]).validation(), checks: [.github]
         ).run())
         #expect(rejected.map(\.severity) == [.failure])
+    }
+
+    @Test("With no valid Project, every registry connection gets a row; a gh one is context, not a fault")
+    func noProjectsListsEveryConnection() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile(machineWithMoreConnections)
+
+        let findings = gitHubFindings(await makeDoctor(
+            directory: directory, credentials: RecordingCredentialStore(seed: ["keychain:github": "ghp_default"]),
+            gitHub: StubGitHubTransport.passing().validation(), checks: [.github]
+        ).run())
+
+        #expect(findings.map(\.severity) == [.info, .info, .info])
+        #expect(findings[0].message.hasPrefix("Code Hosting Connection github: "))
+        #expect(findings[1].message.hasPrefix("Code Hosting Connection beta: "))
+        #expect(findings[2].message.hasPrefix("Code Hosting Connection gh: "))
+        #expect(findings[2].message.contains("gh CLI"))
+    }
+
+    @Test("With an empty registry and no Project, one info says how to connect a Code Hosting Connection")
+    func emptyRegistry() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile("")
+
+        let findings = gitHubFindings(await makeDoctor(
+            directory: directory, gitHub: StubGitHubTransport.passing().validation(), checks: [.github]
+        ).run())
+
+        #expect(findings.map(\.severity) == [.info])
+        #expect(findings[0].message.contains("No Code Hosting Connection is connected"))
+        #expect(findings[0].message.contains("yh setup --install-github"))
     }
 
     @Test("--json rows for GitHub findings carry their Project; other checks' rows do not")

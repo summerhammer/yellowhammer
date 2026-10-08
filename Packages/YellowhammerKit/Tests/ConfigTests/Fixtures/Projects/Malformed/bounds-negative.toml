@@ -10,3 +10,6 @@ check = "test"
 
 [limits]
 attempts_per_work_card = -1
+
+[code_hosting]
+connection = "github"

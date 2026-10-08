@@ -19,7 +19,8 @@ private let twoInstallations = """
     yellowhammer_identity = "app-b"
     operator = "user-op"
 
-    [github]
+    [code_hosting.github.connections.github]
+    type = "keychain"
     credential = "keychain:github"
     """
 
@@ -29,7 +30,8 @@ private let oneInstallation = """
     workspace = "ws-a"
     yellowhammer_identity = "app-a"
 
-    [github]
+    [code_hosting.github.connections.github]
+    type = "keychain"
     credential = "keychain:github"
     """
 
@@ -81,7 +83,7 @@ struct ConfigOperatorCommandTests {
     @Test("No installation configured is refused, naming the connect command")
     func zeroInstallations() async throws {
         let directory = ConfigurationDirectory()
-        try directory.writeMachineFile("[github]\ncredential = \"keychain:github\"\n")
+        try directory.writeMachineFile(ConfigurationDirectory.githubOnly)
         let result = try await runOperator(["user-second"], directory: directory, board: await makeBoard())
         #expect(!result.succeeded)
         #expect(result.lines.joined().contains("yh setup --install-linear"))

@@ -10,3 +10,6 @@ check = "swift test"
 
 [spec_source]
 path = "~/dev/spec"
+
+[code_hosting]
+connection = "github"

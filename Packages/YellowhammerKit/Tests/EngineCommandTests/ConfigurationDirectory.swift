@@ -40,6 +40,7 @@ struct ConfigurationDirectory: ~Copyable {
             id = "\(id)"
             name = "\(id)"
             board = { linear = { connection = "acme", project = "\(id)"\(rehearsalProject) } }
+            code_hosting = { connection = "github" }
             \(rehearsalTable)spec_source = "~/Developer/\(id)-spec"
 
             [[repos]]
@@ -56,13 +57,18 @@ struct ConfigurationDirectory: ~Copyable {
         url.appending(components: "rehearsal", "\(id).db", directoryHint: .notDirectory)
     }
 
+    /// A machine file holding only the `github` Keychain token connection.
+    static let githubOnly = "[code_hosting.github.connections.github]\ntype = \"keychain\"\n"
+        + "credential = \"keychain:github\"\n"
+
     static let machineFile = """
         [board.linear.connections.acme]
         credential = "keychain:linear"
         workspace = "workspace-1"
         yellowhammer_identity = "app-user-1"
 
-        [github]
+        [code_hosting.github.connections.github]
+        type = "keychain"
         credential = "keychain:github"
         """
 }

@@ -13,3 +13,6 @@ name = "repo"
 path = "~/path2"
 role = "web"
 check = "test"
+
+[code_hosting]
+connection = "github"

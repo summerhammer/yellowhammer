@@ -1,0 +1,7 @@
+[code_hosting.github.connections.acme]
+type = "keychain"
+credential = "keychain:github-acme"
+
+[code_hosting.github.connections.acme]
+type = "keychain"
+credential = "keychain:github-other"

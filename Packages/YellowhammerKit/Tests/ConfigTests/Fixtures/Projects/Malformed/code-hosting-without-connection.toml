@@ -1,0 +1,15 @@
+id = "code-hosting-without-connection"
+name = "Fixture"
+spec_source = "~/dev/spec"
+
+[board.linear]
+connection = "acme"
+project = "FIX"
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "swift test"
+
+[code_hosting]

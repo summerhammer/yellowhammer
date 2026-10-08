@@ -17,3 +17,6 @@ review_rounds_max = 4
 
 [schedule]
 build_every_minutes = 30
+
+[code_hosting]
+connection = "github"

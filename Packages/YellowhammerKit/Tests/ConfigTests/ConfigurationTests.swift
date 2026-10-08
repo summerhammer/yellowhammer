@@ -134,7 +134,7 @@ func invalidMachineFileFailsLoadIfSetUp() throws {
         Issue.record("expected the load to fail")
         return
     }
-    #expect(error.reason == .missingTable)
+    #expect(error.reason == .unknownKey)
 }
 
 @Test("A machine-wide file that does not load fails the whole load")
@@ -146,7 +146,7 @@ func invalidMachineFileFailsTheLoad() throws {
         return
     }
     #expect(error.key == "github")
-    #expect(error.reason == .missingTable)
+    #expect(error.reason == .unknownKey)
 }
 
 @Test("Every error names its file, line, key and the other Project when it prints")
@@ -227,4 +227,72 @@ func lenientLoadRefusesMissingInstallationKey() throws {
     let error = try #require(configuration.invalidProjects.first?.errors.first)
     #expect(error.key == "board.linear.connection")
     #expect(error.reason == .missingKey)
+}
+
+@Test("A Project naming a Code Hosting Connection missing from the registry is refused alone; its sibling loads")
+func undeclaredCodeHostingConnectionRefusesOneProject() throws {
+    let configuration = try Configuration.load(directory: set("undeclared-code-hosting"))
+    #expect(configuration.projects.map(\.id) == [try projectID("good")])
+    #expect(configuration.machine.codeHostingConnections.map(\.name) == ["github", "gh"])
+
+    let good = try #require(configuration.projects.first)
+    #expect(configuration.machine.codeHostingConnection(for: good)?.name == "github")
+
+    let badFile = try projectFile("undeclared-code-hosting", "bad")
+    #expect(configuration.invalidProjects == [
+        InvalidProject(
+            file: badFile,
+            id: nil,
+            errors: [
+                ConfigurationError(
+                    file: badFile, line: 10, key: "code_hosting.connection",
+                    reason: .undeclaredCodeHostingConnection("missing")
+                )
+            ]
+        )
+    ])
+}
+
+@Test("The lenient removal load accepts a Code Hosting Connection missing from the registry")
+func lenientLoadAcceptsUndeclaredCodeHostingConnection() throws {
+    let configuration = try Configuration.loadLeniently(directory: set("undeclared-code-hosting"))
+    #expect(configuration.projects.map(\.id.rawValue) == ["bad", "good"])
+    #expect(configuration.invalidProjects.isEmpty)
+    let bad = try #require(configuration.projects.first)
+    #expect(bad.codeHostingConnectionName == "missing")
+    #expect(configuration.machine.codeHostingConnection(for: bad) == nil)
+}
+
+@Test("The lenient removal load still refuses a Project with no [code_hosting] table")
+func lenientLoadRefusesMissingCodeHosting() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appending(component: "yh-lenient-code-\(UUID().uuidString)", directoryHint: .isDirectory)
+    let projects = directory.appending(component: "projects", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: projects, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let machineFile = try set("undeclared-code-hosting").appending(component: "config.toml")
+    let machine = try String(contentsOf: machineFile, encoding: .utf8)
+    try machine.write(to: directory.appending(component: "config.toml"), atomically: true, encoding: .utf8)
+    let project = """
+        id = "bare"
+        name = "Bare"
+        spec_source = "~/spec"
+
+        [board.linear]
+        connection = "acme"
+        project = "BR"
+
+        [[repos]]
+        name = "r"
+        path = "~/bare"
+        role = "backend"
+        check = "none"
+        """
+    try project.write(to: projects.appending(component: "bare.toml"), atomically: true, encoding: .utf8)
+
+    let configuration = try Configuration.loadLeniently(directory: directory)
+    #expect(configuration.projects.isEmpty)
+    let error = try #require(configuration.invalidProjects.first?.errors.first)
+    #expect(error.key == "code_hosting")
+    #expect(error.reason == .missingTable)
 }

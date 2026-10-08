@@ -122,6 +122,7 @@ def render_project_toml(
     project_id,
     name,
     installation,
+    code_hosting_connection,
     linear_project,
     spec_source,
     repos,
@@ -131,7 +132,8 @@ def render_project_toml(
     fallbacks=("claude/opus/high",),
 ):
     """Renders one Project's TOML file exactly as `ProjectConfigurationDecoder` expects it: id,
-    name, spec_source, [board.linear] (installation, project), [[repos]]
+    name, spec_source, [board.linear] (installation, project), [code_hosting] (connection, a name
+    in the machine's Code Hosting Connection registry), [[repos]]
     (path/role/check/protected_paths), [limits], [schedule], and a single [[routing]] override."""
     lines = [
         f"id = {_toml_string(project_id)}",
@@ -141,6 +143,9 @@ def render_project_toml(
         "[board.linear]",
         f"connection = {_toml_string(installation)}",
         f"project = {_toml_string(linear_project)}",
+        "",
+        "[code_hosting]",
+        f"connection = {_toml_string(code_hosting_connection)}",
         "",
     ]
     for repo in repos:
@@ -193,6 +198,21 @@ def read_linear_project(configuration_directory, project_id):
 def read_project_installation(configuration_directory, project_id):
     """The `[board.linear] installation` the earlier `yh setup --init` wrote, preserved likewise."""
     return scratch_linear.load_project_installation(configuration_directory, project_id)
+
+
+def read_project_code_hosting_connection(configuration_directory, project_id):
+    """The `[code_hosting] connection` the earlier `yh setup --init` wrote, preserved likewise.
+    Raises `scratch_linear.ProjectError` when the Project file or the key is missing, as
+    `read_project_installation` does."""
+    path = project_file_path(configuration_directory, project_id)
+    if not path.is_file():
+        raise scratch_linear.ProjectError(f"no Project file at {path}")
+    with path.open("rb") as handle:
+        data = tomllib.load(handle)
+    connection = data.get("code_hosting", {}).get("connection")
+    if not connection:
+        raise scratch_linear.ProjectError(f"Project {project_id!r} has no [code_hosting] connection")
+    return connection
 
 
 def write_project_file(configuration_directory, project_id, text):
@@ -860,6 +880,9 @@ class Environment:
     #: The Board Connection's local name: from `--board-connection`, else resolved to the sole entry
     #: by `resolve_installation` (which stores the resolved name back here).
     installation: str | None = None
+    #: The Code Hosting Connection's registry name: from `--code-hosting-connection`, else resolved
+    #: to the sole entry by `resolve_code_hosting_connection` (which stores the resolved name back here).
+    code_hosting_connection: str | None = None
     app_client: object = None
     team_id: str = None
     linear: LinearReader = None
@@ -881,13 +904,14 @@ class Environment:
 
 
 def make_environment(
-    app, team, root, work_directory, configuration_directory, act_timeout, transport=None, installation=None
+    app, team, root, work_directory, configuration_directory, act_timeout, transport=None, installation=None,
+    code_hosting_connection=None,
 ):
     transport = transport or scratch_linear.HTTPTransport()
     env = Environment(
         app=app, team=team, root=root, work_directory=work_directory,
         configuration_directory=configuration_directory, act_timeout=act_timeout, transport=transport,
-        installation=installation,
+        installation=installation, code_hosting_connection=code_hosting_connection,
     )
     env.yh = YhRunner(env.yh_executable, work_directory, act_timeout)
     return env
@@ -907,6 +931,42 @@ def resolve_installation(env):
     return machine
 
 
+def _code_hosting_registry(configuration_directory):
+    """The names in `[code_hosting.github.connections]` of `config.toml`; empty when the file or the
+    registry is absent. Read-only."""
+    path = configuration_directory / "config.toml"
+    if not path.is_file():
+        return {}
+    with path.open("rb") as handle:
+        data = tomllib.load(handle)
+    return data.get("code_hosting", {}).get("github", {}).get("connections", {})
+
+
+def resolve_code_hosting_connection(env):
+    """The Code Hosting Connection this run's Projects select (`env.code_hosting_connection`, else the
+    sole entry in `config.toml`'s registry), resolved once: the resolved name is stored back on
+    `env.code_hosting_connection`."""
+    entries = _code_hosting_registry(env.configuration_directory)
+    if env.code_hosting_connection is not None:
+        name = env.code_hosting_connection
+        if name not in entries:
+            registered = ", ".join(sorted(entries)) or "none"
+            raise SetupFailed(
+                f"no Code Hosting Connection named {name!r} in config.toml (registered: {registered})"
+            )
+    elif not entries:
+        raise SetupFailed("no Code Hosting Connection in config.toml; run yh setup --install-github")
+    elif len(entries) > 1:
+        raise SetupFailed(
+            f"config.toml has several Code Hosting Connections ({', '.join(sorted(entries))}); "
+            "pass --code-hosting-connection <name>"
+        )
+    else:
+        name = next(iter(entries))
+    env.code_hosting_connection = name
+    return name
+
+
 def ensure_project(env, project_id):
     """Builds the fixture tree and runs `yh setup --init` the first time a suite Project is used;
     later runs reuse the Project file already on disk."""
@@ -915,13 +975,16 @@ def ensure_project(env, project_id):
         return
     name = SUITE_PROJECTS[project_id]
     installation = resolve_installation(env).name
+    code_hosting_connection = resolve_code_hosting_connection(env)
     manifest = build_fixture_tree(env.root, project_id, force=False)
     args = [
         "--init", "--project", project_id, "--project-name", name, "--board-connection", installation,
+        "--code-hosting-connection", code_hosting_connection,
         "--linear-team", env.team,
         "--spec-source", manifest["spec_source"],
         # A rehearsal Night never pushes, and the fixture repositories' origin is a local bare repository
-        # with no GitHub token behind it, so setup's GitHub check would refuse these Projects.
+        # with no GitHub token behind it, so setup's GitHub check would refuse these Projects. The Project
+        # still selects a registry connection, whose token is never used for the same reason.
         "--skip-github-check",
     ]
     for repo in default_repo_declarations(manifest):
@@ -988,9 +1051,11 @@ def write_scenario_project_file(
     route="claude/sonnet/medium", fallbacks=("claude/opus/high",),
 ):
     """Rewrites the Project file with this scenario's [limits]/checks/Protected Paths and the
-    Routing Table override, keeping the `[board.linear]` `connection` and `project` the first `yh setup --init` wrote."""
+    Routing Table override, keeping the `[board.linear]` `connection` and `project`, and the `[code_hosting]`
+    `connection`, the first `yh setup --init` wrote."""
     linear_project = read_linear_project(env.configuration_directory, project_id)
     installation = read_project_installation(env.configuration_directory, project_id)
+    code_hosting_connection = read_project_code_hosting_connection(env.configuration_directory, project_id)
     repos = default_repo_declarations(manifest)
     if repo_overrides:
         by_name = {repo["name"]: repo for repo in repos}
@@ -1000,6 +1065,7 @@ def write_scenario_project_file(
         project_id=project_id,
         name=SUITE_PROJECTS.get(project_id, project_id),
         installation=installation,
+        code_hosting_connection=code_hosting_connection,
         linear_project=linear_project,
         spec_source=manifest["spec_source"],
         repos=repos,

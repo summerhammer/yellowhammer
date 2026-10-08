@@ -60,7 +60,7 @@ extension SetupWizardModel {
         isFetchingTeams = true
         teamsFailure = []
         defer { if generation == teamsFetchGeneration { isFetchingTeams = false } }
-        let arguments = SetupInvocation.choicesArguments(boardConnection: installation, githubCredential: nil)
+        let arguments = SetupInvocation.choicesArguments(boardConnection: installation)
         var lines: [String] = []
         do {
             let status = try await fetchEngine.run(arguments: arguments, standardInput: nil) { lines.append($0) }
@@ -104,7 +104,7 @@ extension SetupWizardModel {
         draft.linearVerification = .checking
 
         let arguments = SetupInvocation.choicesArguments(
-            boardConnection: installation, githubCredential: nil, linearProject: id
+            boardConnection: installation, linearProject: id
         )
         var lines: [String] = []
         do {

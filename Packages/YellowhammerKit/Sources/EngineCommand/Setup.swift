@@ -79,7 +79,7 @@ struct Setup {
         }
 
         var machine = try loadOrCreateMachineFile()
-        try await runGitHubStepIfInteractive(machine: machine)
+        let codeHostingConnection = try await selectCodeHostingConnection(machine: &machine)
         let request = try resolveLinearRequest(machine: machine)
         let selected: (members: [BoardMember], installation: LinearInstallation)?
         do {
@@ -104,7 +104,10 @@ struct Setup {
         if let selected {
             try setOperatorIdentity(machine: &machine, installation: selected.installation, members: selected.members)
             let board = bindProvisioning(selected.installation, "")
-            try await writeProjectsIfNeeded(machine: machine, installation: selected.installation, board: board)
+            try await writeProjectsIfNeeded(
+                machine: machine, installation: selected.installation, codeHostingConnection: codeHostingConnection,
+                board: board
+            )
         }
 
         let configuration = try validateConfiguration()

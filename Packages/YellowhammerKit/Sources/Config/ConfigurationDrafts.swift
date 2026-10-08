@@ -128,7 +128,7 @@ public struct BoundsDraft: Equatable, Sendable {
 /// A Project file's fields, editable through the app's form: the Operator edits every field but the
 /// identity (``id``) and the Spec Source (``specSource``, shown read-only — the app never edits it),
 /// as strings, and ``renderedTOML`` is handed to the loader (``Configuration/save(_:to:in:replacing:)``)
-/// to validate. ``schedule``, ``gitHubCredential``, ``changeType``, the Message Templates and the
+/// to validate. ``schedule``, ``changeType``, the Message Templates and the
 /// rehearsal declarations (``rehearsalLinearProject``, ``rehearsalJournal``) are carried through
 /// untouched: this slice of the app does not edit them, and saving any other field must never drop
 /// them. A key whose value is its default is not written back (``renderedTOML``).
@@ -137,6 +137,8 @@ public struct ProjectFileDraft: Equatable, Sendable {
     public var name: String
     public var linearInstallationName: String
     public var linearProject: String
+    /// The local name of the Code Hosting Connection the Project selects (`[code_hosting] connection`).
+    public var codeHostingConnectionName: String
     /// The Spec Source path, as written. Read-only: nil when the specification source is a Repo of
     /// Repo Role `spec` instead.
     public let specSource: String?
@@ -144,7 +146,6 @@ public struct ProjectFileDraft: Equatable, Sendable {
     public var bounds: BoundsDraft
     public var routingOverrides: [RoutingEntryDraft]
     var schedule: Schedule
-    var gitHubCredential: CredentialReference?
     var changeType: ChangeType
     var pullRequestTitle: MessageTemplate
     var commitMessage: MessageTemplate
@@ -157,12 +158,12 @@ public struct ProjectFileDraft: Equatable, Sendable {
         name = project.name
         linearInstallationName = project.linearInstallationName
         linearProject = project.linearProject
+        codeHostingConnectionName = project.codeHostingConnectionName
         specSource = project.specSource
         repos = project.repos.map(RepoDraft.init)
         bounds = BoundsDraft(project.bounds)
         routingOverrides = project.routingOverrides.map(RoutingEntryDraft.init)
         schedule = project.schedule
-        gitHubCredential = project.gitHubCredential
         changeType = project.changeType
         pullRequestTitle = project.pullRequestTitle
         commitMessage = project.commitMessage
@@ -199,19 +200,13 @@ extension ProjectFileDraft {
             board.append("rehearsal_project = \(ConfigurationRendering.quoted(rehearsalLinearProject))")
         }
         sections.append(board.joined(separator: "\n"))
+        sections.append("[code_hosting]\nconnection = \(ConfigurationRendering.quoted(codeHostingConnectionName))")
         if let rehearsalJournal {
             sections.append("[rehearsal]\njournal = \(ConfigurationRendering.quoted(rehearsalJournal))")
         }
 
-        var github: [String] = []
-        if let gitHubCredential {
-            github.append("credential = \(ConfigurationRendering.quoted(gitHubCredential.rawValue))")
-        }
         if let line = ConfigurationRendering.templateLine(pullRequestTitle) {
-            github.append(line)
-        }
-        if !github.isEmpty {
-            sections.append((["[github]"] + github).joined(separator: "\n"))
+            sections.append("[github]\n\(line)")
         }
         let git = [commitMessage, wipCommitMessage].compactMap(ConfigurationRendering.templateLine)
         if !git.isEmpty {
@@ -232,9 +227,10 @@ extension ProjectFileDraft {
 }
 
 extension MachineConfiguration {
-    /// Renders one `[board.linear.connections.<name>]` table per Board Connection, `[github]`, one `[cli.<name>]` table per declared adapter and the given base
-    /// Routing Table, in the shape ``MachineConfigurationDecoder`` reads back. Everything but the
-    /// Routing Table is carried from `self`.
+    /// Renders one `[board.linear.connections.<name>]` table per Board Connection, one
+    /// `[code_hosting.github.connections.<name>]` table per Code Hosting Connection, one `[cli.<name>]` table
+    /// per declared adapter and the given base Routing Table, in the shape ``MachineConfigurationDecoder``
+    /// reads back. Everything but the Routing Table is carried from `self`.
     public func renderedTOML(routingTable: [RoutingEntryDraft]) -> String {
         var sections: [String] = []
 
@@ -251,7 +247,9 @@ extension MachineConfiguration {
             sections.append(lines.joined(separator: "\n"))
         }
 
-        sections.append("[github]\ncredential = \(ConfigurationRendering.quoted(gitHubCredential.rawValue))")
+        for connection in codeHostingConnections {
+            sections.append(ConfigurationRendering.renderedCodeHostingConnection(connection))
+        }
 
         for adapter in cliAdapters {
             var lines = ["[cli.\(ConfigurationRendering.quotedKey(adapter.name))]"]

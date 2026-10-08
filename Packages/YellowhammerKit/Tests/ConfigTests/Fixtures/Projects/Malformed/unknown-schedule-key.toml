@@ -10,3 +10,6 @@ check = "test"
 
 [schedule]
 weird_time = "23:00"
+
+[code_hosting]
+connection = "github"

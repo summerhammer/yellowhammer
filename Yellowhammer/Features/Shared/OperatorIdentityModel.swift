@@ -59,7 +59,7 @@ final class OperatorIdentityModel {
         fetchFailure = []
         failure = nil
         defer { isFetching = false }
-        let arguments = SetupInvocation.choicesArguments(boardConnection: installation, githubCredential: nil)
+        let arguments = SetupInvocation.choicesArguments(boardConnection: installation)
         var lines: [String] = []
         do {
             let status = try await engine.run(arguments: arguments, standardInput: nil) { lines.append($0) }

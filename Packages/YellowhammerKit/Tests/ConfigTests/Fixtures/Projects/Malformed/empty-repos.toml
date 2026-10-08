@@ -2,3 +2,6 @@ id = "empty-repos"
 name = "Empty Repos"
 board = { linear = { connection = "acme", project = "ER" } }
 repos = []
+
+[code_hosting]
+connection = "github"

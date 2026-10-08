@@ -21,6 +21,9 @@ python3 scripts/rehearsal-suite/rehearsal_suite.py run \
 
 `--board-connection NAME` picks the Board Connection the suite runs against (default: the sole Board Connection;
 none, or several without the flag, is refused); `run` and `teardown` take it, and so does `release_gate.py`.
+`--code-hosting-connection NAME` picks the Code Hosting Connection the rehearsal Projects select (default: the sole
+entry in `config.toml`'s `[code_hosting.github.connections]` registry; none, or several without the flag, is refused).
+`run` and `release_gate.py record` take it.
 `--scenario N` (repeatable) runs a subset; `list` prints the scenarios. Exit codes: `0` every selected
 scenario passed, `1` a scenario failed, `2` the suite could not be set up (nothing was run). Logs, every
 `yh` invocation's output and a Journal snapshot after every step are left in the work directory it
@@ -35,6 +38,9 @@ wait out a real ten-minute Lease TTL.
   Installation is registered in `config.toml` (token pair in Keychain item `linear-<name>`); the scratch
   team exists and the app is a member of it. A production installation may be on the Mac too, as long as
   `--board-connection` names the scratch one.
+- A **Code Hosting Connection** in `config.toml`'s registry (`[code_hosting.github.connections.<name>]`).
+  Each rehearsal Project selects one (`[code_hosting] connection`), so the registry must hold the one the suite
+  picks. Connect one with `yh setup --install-github`. Its token is never used: a rehearsal Night never pushes.
 - An **Operator credential** — a Linear personal API key of a human member of the scratch workspace,
   never the scratch app — for the Operator's own gestures on the board (replying to a question,
   Cancel and reopen, editing a Card's declared scope). The Engine tells a human's comment from its own
@@ -53,10 +59,10 @@ wait out a real ten-minute Lease TTL.
 
 - **Rehearsal Projects** `rehearsal-suite-a` and `rehearsal-suite-b` in `~/.config/yellowhammer/projects/`
   (`yh` always reads that directory, and rehearsal uses the machine's one real Ledger). The first run
-  creates each with `yh setup --init --board-connection <name> --linear-team <team> --skip-github-check` (the fixture
+  creates each with `yh setup --init --board-connection <name> --code-hosting-connection <name> --linear-team <team> --skip-github-check` (the fixture
   repositories have a local bare repository as `origin` and no GitHub token, and a rehearsal Night never pushes), which creates its scratch Linear project
   and provisions the team; no LaunchAgent is ever installed (`--install-jobs` is never passed). Later runs
-  reuse them. Before every scenario the suite rewrites the Project file (keeping its `[board.linear]` table, `installation` and `project`)
+  reuse them. Before every scenario the suite rewrites the Project file (keeping its `[board.linear]` table, `installation` and `project`, and its `[code_hosting]` `connection`)
   with that scenario's `[limits]`, `check` commands and Protected Paths, and a Routing Table override of
   `claude/sonnet/medium` with fallback `claude/opus/high` — Verification never runs on a Route that wrote
   the Cycle's code, so a single-Route table could never land. **These are real Projects, not sandboxed

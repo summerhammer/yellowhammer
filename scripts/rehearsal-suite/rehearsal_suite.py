@@ -5,7 +5,8 @@ Rehearsal scenario suite (P15.3): runs scripted end-to-end rehearsal Nights agai
 `README.md` for the full contract, the Prerequisites, and what each of the 13 scenarios checks.
 
   run --app PATH --team KEY [--scenario N ...] [--root DIR] [--work-directory DIR]
-      [--configuration-directory DIR] [--board-connection NAME] [--act-timeout SECONDS]
+      [--configuration-directory DIR] [--board-connection NAME] [--code-hosting-connection NAME]
+      [--act-timeout SECONDS]
     Runs the selected scenarios (default: all). Exit codes: 0 every selected scenario passed,
     1 a scenario failed, 2 the suite could not be set up (nothing was run).
 
@@ -109,7 +110,7 @@ def run_command(args):
     env = suite_env.make_environment(
         app=app, team=args.team, root=root, work_directory=work_directory,
         configuration_directory=configuration_directory, act_timeout=args.act_timeout,
-        installation=args.installation,
+        installation=args.installation, code_hosting_connection=args.code_hosting_connection,
     )
 
     try:
@@ -197,6 +198,10 @@ def parse_arguments(argv):
     run_parser.add_argument(
         "--board-connection", dest="installation", metavar="NAME", default=None,
         help="the Board Connection in config.toml (default: the sole one)",
+    )
+    run_parser.add_argument(
+        "--code-hosting-connection", dest="code_hosting_connection", metavar="NAME", default=None,
+        help="the Code Hosting Connection in config.toml's registry (default: the sole one)",
     )
     run_parser.add_argument(
         "--act-timeout", type=float, default=600.0, help="seconds any single yh invocation may take"

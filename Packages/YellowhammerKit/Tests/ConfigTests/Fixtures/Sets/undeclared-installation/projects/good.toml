@@ -11,3 +11,6 @@ name = "good"
 path = "~/dev/good"
 role = "backend"
 check = "swift test"
+
+[code_hosting]
+connection = "github"

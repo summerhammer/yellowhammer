@@ -16,13 +16,15 @@ struct BoardBindingTests {
             workspace = "workspace-1"
             yellowhammer_identity = "app-user-1"
 
-            [github]
+            [code_hosting.github.connections.github]
+            type = "keychain"
             credential = "keychain:github"
             """, file: "config.toml")
         let project = try ProjectConfiguration.parse("""
             id = "yellowhammer"
             name = "Yellowhammer"
             board = { linear = { connection = "acme", project = "7f1c2d9e-3b4a-4c5d-8e6f-0a1b2c3d4e5f" } }
+            code_hosting = { connection = "github" }
             spec_source = "~/Developer/yellowhammer-spec"
 
             [[repos]]
@@ -75,6 +77,9 @@ struct BoardBindingTests {
         connection = "\(installation)"
         project = "\(id.uppercased())"
 
+        [code_hosting]
+        connection = "github"
+
         [[repos]]
         name = "backend"
         path = "~/Developer/\(id)-backend"
@@ -99,7 +104,8 @@ struct BoardBindingTests {
             yellowhammer_identity = "app-user-b"
             operator = "op-b"
 
-            [github]
+            [code_hosting.github.connections.github]
+            type = "keychain"
             credential = "keychain:github"
             """, file: "config.toml")
         let homeDirectory = FileManager.default.temporaryDirectory

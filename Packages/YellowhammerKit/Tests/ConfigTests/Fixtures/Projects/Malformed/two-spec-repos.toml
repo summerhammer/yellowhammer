@@ -13,3 +13,6 @@ name = "spec-b"
 path = "~/dev/spec-b"
 role = "spec"
 check = "none"
+
+[code_hosting]
+connection = "github"

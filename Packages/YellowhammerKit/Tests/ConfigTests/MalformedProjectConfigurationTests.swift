@@ -27,6 +27,16 @@ private let boardFixtures: [MalformedFixture] = [
     MalformedFixture("board-empty-installation", line: 4, key: "board.linear.connection", .emptyString)
 ]
 
+/// A Project selects its Code Hosting Connection with a required `[code_hosting] connection`; the old
+/// `[github] credential` override is refused as an unknown key, with no migration.
+private let codeHostingFixtures: [MalformedFixture] = [
+    MalformedFixture("code-hosting-missing", line: 1, key: "code_hosting", .missingTable),
+    MalformedFixture("code-hosting-without-connection", line: 15, key: "code_hosting.connection", .missingKey),
+    MalformedFixture("code-hosting-empty-connection", line: 16, key: "code_hosting.connection", .emptyString),
+    MalformedFixture("code-hosting-unknown-key", line: 17, key: "code_hosting.credential", .unknownKey),
+    MalformedFixture("github-table-credential-key", line: 19, key: "github.credential", .unknownKey)
+]
+
 private let repoFixtures: [MalformedFixture] = [
     MalformedFixture("missing-repos", line: 1, key: "repos", .missingKey),
     MalformedFixture("empty-repos", line: 4, key: "repos", .emptyArray),
@@ -90,8 +100,8 @@ private let specificationSourceFixtures: [MalformedFixture] = [
 ]
 
 private let allProjectFixtures: [MalformedFixture] = [
-    identityFixtures, boardFixtures, repoFixtures, limitsAndScheduleFixtures, credentialAndRoutingFixtures,
-    specificationSourceFixtures
+    identityFixtures, boardFixtures, codeHostingFixtures, repoFixtures, limitsAndScheduleFixtures,
+    credentialAndRoutingFixtures, specificationSourceFixtures
 ].flatMap { $0 }
 
 @Test("Each malformed Project file is reported with its file, line and key", arguments: allProjectFixtures)
@@ -121,6 +131,9 @@ func parseSkipsFileStemCheck() throws {
     connection = "acme"
     project = "ANY"
 
+    [code_hosting]
+    connection = "github"
+
     [[repos]]
     name = "repo"
     path = "~/path"
@@ -140,6 +153,9 @@ spec_source = "~/spec"
 [board.linear]
 connection = "acme"
 project = "OVR"
+
+[code_hosting]
+connection = "github"
 
 [[repos]]
 name = "repo"
@@ -165,7 +181,7 @@ func overrideAdapterCheckNeedsTheDeclaredAdapters() throws {
         Issue.record("expected the override to be refused")
         return
     }
-    #expect(error.line == 18)
+    #expect(error.line == 21)
     #expect(error.key == "routing[0].fallbacks[0]")
     #expect(error.reason == .undeclaredCLIAdapter("gemini"))
 }
@@ -192,6 +208,48 @@ func installationCheckNeedsTheDeclaredInstallations() throws {
     #expect(error.key == "board.linear.connection")
     #expect(error.reason == .undeclaredLinearInstallation("acme"))
     #expect(error.description.contains("config.toml"))
+}
+
+@Test("A Code Hosting Connection the registry does not declare is refused only when the registry is known")
+func codeHostingCheckNeedsTheDeclaredConnections() throws {
+    let unchecked = try ProjectConfiguration.parse(overrideText, file: "/tmp/override.toml")
+    #expect(unchecked.codeHostingConnectionName == "github")
+
+    let declared = try ProjectConfiguration.parse(
+        overrideText, file: "/tmp/override.toml", declaredCodeHostingConnections: ["github", "other"]
+    )
+    #expect(declared == unchecked)
+
+    let checked = Result { () throws(ConfigurationError) in
+        try ProjectConfiguration.parse(
+            overrideText, file: "/tmp/override.toml", declaredLinearInstallations: ["acme"],
+            declaredCodeHostingConnections: ["other"]
+        )
+    }
+    guard case .failure(let error) = checked else {
+        Issue.record("expected the Code Hosting Connection to be refused")
+        return
+    }
+    #expect(error.line == 10)
+    #expect(error.key == "code_hosting.connection")
+    #expect(error.reason == .undeclaredCodeHostingConnection("github"))
+    #expect(error.description.contains("[code_hosting.github.connections.github]"))
+    #expect(error.description.contains("config.toml"))
+}
+
+@Test("The Board Connection check runs before the Code Hosting Connection check")
+func installationIsCheckedBeforeCodeHosting() {
+    let result = Result { () throws(ConfigurationError) in
+        try ProjectConfiguration.parse(
+            overrideText, file: "/tmp/override.toml", declaredLinearInstallations: ["other"],
+            declaredCodeHostingConnections: ["other"]
+        )
+    }
+    guard case .failure(let error) = result else {
+        Issue.record("expected a refusal")
+        return
+    }
+    #expect(error.reason == .undeclaredLinearInstallation("acme"))
 }
 
 @Test("The retired Project installation key is rejected")

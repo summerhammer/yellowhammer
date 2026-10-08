@@ -1,8 +1,8 @@
 import Domain
 import Foundation
 
-/// One Project's configuration file: its Linear project, Repos, specification source, Bounds, schedule,
-/// optional GitHub credential and Routing Table overrides.
+/// One Project's configuration file: its Linear project, Code Hosting Connection, Repos, specification
+/// source, Bounds, schedule and Routing Table overrides.
 ///
 /// Decoding also enforces that the Project has exactly one specification source, counted across both
 /// kinds: a `spec_source` path, or one Repo of Repo Role `spec`. Rules that span Projects, or that
@@ -15,14 +15,15 @@ public struct ProjectConfiguration: Sendable {
     public var linearInstallationName: String
     /// Linear's project this Project projects onto (`[board.linear] project`), as an opaque reference.
     public var linearProject: String
+    /// The local name of the machine file's Code Hosting Connection this Project selects
+    /// (`[code_hosting] connection`); see ``MachineConfiguration/codeHostingConnection(for:)``.
+    public var codeHostingConnectionName: String
     /// The path of the Spec Source, as written. Absent when the specification source is a Repo of Repo Role `spec`.
     public var specSource: String?
     /// In file order; never empty.
     public var repos: [RepoDeclaration]
     public var bounds: Bounds
     public var schedule: Schedule
-    /// Overrides the machine default GitHub credential when present.
-    public var gitHubCredential: CredentialReference?
     /// This Project's Routing Table overrides, in file order, not yet merged with the base table.
     public var routingOverrides: [RoutingEntry]
     /// The Project's Change Type, `feat` when the file sets none.
@@ -53,11 +54,11 @@ public struct ProjectConfiguration: Sendable {
         name: String,
         linearInstallationName: String,
         linearProject: String,
+        codeHostingConnectionName: String,
         specSource: String? = nil,
         repos: [RepoDeclaration],
         bounds: Bounds = Bounds(),
         schedule: Schedule = Schedule(),
-        gitHubCredential: CredentialReference? = nil,
         routingOverrides: [RoutingEntry] = [],
         changeType: ChangeType = .feat,
         pullRequestTitle: MessageTemplate = .default(.pullRequestTitle),
@@ -70,11 +71,11 @@ public struct ProjectConfiguration: Sendable {
         self.name = name
         self.linearInstallationName = linearInstallationName
         self.linearProject = linearProject
+        self.codeHostingConnectionName = codeHostingConnectionName
         self.specSource = specSource
         self.repos = repos
         self.bounds = bounds
         self.schedule = schedule
-        self.gitHubCredential = gitHubCredential
         self.routingOverrides = routingOverrides
         self.changeType = changeType
         self.pullRequestTitle = pullRequestTitle
@@ -110,11 +111,11 @@ extension ProjectConfiguration: Equatable {
             && lhs.name == rhs.name
             && lhs.linearInstallationName == rhs.linearInstallationName
             && lhs.linearProject == rhs.linearProject
+            && lhs.codeHostingConnectionName == rhs.codeHostingConnectionName
             && lhs.specSource == rhs.specSource
             && lhs.repos == rhs.repos
             && lhs.bounds == rhs.bounds
             && lhs.schedule == rhs.schedule
-            && lhs.gitHubCredential == rhs.gitHubCredential
             && lhs.routingOverrides == rhs.routingOverrides
             && lhs.changeType == rhs.changeType
             && lhs.pullRequestTitle == rhs.pullRequestTitle
@@ -138,20 +139,22 @@ extension ProjectConfiguration {
     ///
     /// When `declaredCLIAdapters` is given, every route in the Routing Table overrides must name one
     /// of them; when `declaredLinearInstallations` is given, the Project's installation must be one of
-    /// them. nil skips either check, which needs the machine-wide file.
+    /// them; when `declaredCodeHostingConnections` is given, so must its Code Hosting Connection. nil skips
+    /// any of these checks, which need the machine-wide file.
     public static func load(
         contentsOf url: URL, declaredCLIAdapters: Set<String>? = nil,
-        declaredLinearInstallations: Set<String>? = nil
+        declaredLinearInstallations: Set<String>? = nil, declaredCodeHostingConnections: Set<String>? = nil
     ) throws(ConfigurationError) -> ProjectConfiguration {
         try load(
             contentsOf: url, declaredCLIAdapters: declaredCLIAdapters,
-            declaredLinearInstallations: declaredLinearInstallations, lenientTemplates: false
+            declaredLinearInstallations: declaredLinearInstallations,
+            declaredCodeHostingConnections: declaredCodeHostingConnections, lenientTemplates: false
         )
     }
 
     static func load(
         contentsOf url: URL, declaredCLIAdapters: Set<String>?, declaredLinearInstallations: Set<String>?,
-        lenientTemplates: Bool
+        declaredCodeHostingConnections: Set<String>?, lenientTemplates: Bool
     ) throws(ConfigurationError) -> ProjectConfiguration {
         let file = url.path(percentEncoded: false)
         let text: String
@@ -166,17 +169,19 @@ extension ProjectConfiguration {
             fileStem: url.deletingPathExtension().lastPathComponent,
             declaredCLIAdapters: declaredCLIAdapters,
             declaredLinearInstallations: declaredLinearInstallations,
+            declaredCodeHostingConnections: declaredCodeHostingConnections,
             lenientTemplates: lenientTemplates
         )
     }
 
     public static func parse(
         _ text: String, file: String, declaredCLIAdapters: Set<String>? = nil,
-        declaredLinearInstallations: Set<String>? = nil
+        declaredLinearInstallations: Set<String>? = nil, declaredCodeHostingConnections: Set<String>? = nil
     ) throws(ConfigurationError) -> ProjectConfiguration {
         try parse(
             text, file: file, fileStem: nil, declaredCLIAdapters: declaredCLIAdapters,
-            declaredLinearInstallations: declaredLinearInstallations, lenientTemplates: false
+            declaredLinearInstallations: declaredLinearInstallations,
+            declaredCodeHostingConnections: declaredCodeHostingConnections, lenientTemplates: false
         )
     }
 
@@ -185,12 +190,14 @@ extension ProjectConfiguration {
     /// text against its filename's stem, without re-reading it from disk.
     static func parse(
         _ text: String, file: String, fileStem: String?, declaredCLIAdapters: Set<String>?,
-        declaredLinearInstallations: Set<String>?, lenientTemplates: Bool
+        declaredLinearInstallations: Set<String>?, declaredCodeHostingConnections: Set<String>?,
+        lenientTemplates: Bool
     ) throws(ConfigurationError) -> ProjectConfiguration {
         let root = try TOMLParser.parse(text, file: file)
         let decoder = ProjectConfigurationDecoder(
             file: file, fileStem: fileStem, declaredCLIAdapters: declaredCLIAdapters,
-            declaredLinearInstallations: declaredLinearInstallations, lenientTemplates: lenientTemplates
+            declaredLinearInstallations: declaredLinearInstallations,
+            declaredCodeHostingConnections: declaredCodeHostingConnections, lenientTemplates: lenientTemplates
         )
         return try decoder.decode(root)
     }

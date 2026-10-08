@@ -312,6 +312,7 @@ func invalidTemplateProjectIsRemovable() async throws {
         id = "alpha"
         name = "alpha"
         board = { linear = { connection = "acme", project = "alpha" } }
+        code_hosting = { connection = "github" }
         spec_source = "~/Developer/alpha-spec"
         change_type = ""
 
@@ -355,6 +356,7 @@ func removalStillValidatesWhatItUses() async throws {
         id = "alpha"
         name = "alpha"
         board = { linear = { connection = "acme", project = "alpha" } }
+        code_hosting = { connection = "github" }
         spec_source = "~/Developer/alpha-spec"
 
         [git]

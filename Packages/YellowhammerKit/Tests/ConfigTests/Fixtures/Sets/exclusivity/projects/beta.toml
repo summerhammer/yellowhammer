@@ -14,3 +14,6 @@ name = "shared-again"
 path = "~/dev/./shared/"
 role = "backend"
 check = "swift test"
+
+[code_hosting]
+connection = "github"

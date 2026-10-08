@@ -7,3 +7,6 @@ name = "backend"
 path = "~/dev/backend"
 role = "backend"
 check = "swift test"
+
+[code_hosting]
+connection = "github"

@@ -5,7 +5,7 @@ import Foundation
 import Synchronization
 import Testing
 
-private let githubOnly = "[github]\ncredential = \"keychain:github\"\n"
+private let githubOnly = ConfigurationDirectory.githubOnly
 
 /// A store provider that records the credential each install asked for, and hands back one throwaway
 /// Keychain-backed store (deleted with the provider).
@@ -32,9 +32,7 @@ struct SetupInstallRegistryTests {
         ]
     )
     func proposedName(urlKey: String, expected: String) throws {
-        let machine = MachineConfiguration(
-            gitHubCredential: try #require(CredentialReference("keychain:github")), cliAdapters: [], routingTable: []
-        )
+        let machine = MachineConfiguration(cliAdapters: [], routingTable: [])
         #expect(Setup.proposedInstallationName(urlKey: urlKey, machine: machine) == expected)
     }
 

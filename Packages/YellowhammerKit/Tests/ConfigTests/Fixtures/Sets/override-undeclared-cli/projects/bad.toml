@@ -12,3 +12,6 @@ check = "swift test"
 [[routing]]
 work_kind = "review"
 route = "gemini/pro"
+
+[code_hosting]
+connection = "github"

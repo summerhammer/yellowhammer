@@ -10,3 +10,6 @@ check = "test"
 
 [limits]
 unknown_bound = 5
+
+[code_hosting]
+connection = "github"

@@ -1,0 +1,3 @@
+[code_hosting.github.connections.acme]
+type = "ssh"
+credential = "keychain:github-acme"

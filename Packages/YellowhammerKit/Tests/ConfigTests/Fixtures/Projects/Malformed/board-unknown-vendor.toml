@@ -8,3 +8,6 @@ name = "repo"
 path = "~/path"
 role = "backend"
 check = "test"
+
+[code_hosting]
+connection = "github"

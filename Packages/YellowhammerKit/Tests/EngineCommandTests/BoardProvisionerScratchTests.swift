@@ -35,7 +35,8 @@ struct BoardProvisionerScratchTests {
             workspace = "workspace-1"
             yellowhammer_identity = "app-user-1"
 
-            [github]
+            [code_hosting.github.connections.github]
+            type = "keychain"
             credential = "keychain:github"
             """, file: "config.toml")
 
@@ -43,6 +44,7 @@ struct BoardProvisionerScratchTests {
             id = "yellowhammer"
             name = "Yellowhammer"
             board = { linear = { connection = "\(installation)", project = "\(linearProjectID)" } }
+            code_hosting = { connection = "github" }
             spec_source = "~/Developer/yellowhammer-spec"
 
             [[repos]]

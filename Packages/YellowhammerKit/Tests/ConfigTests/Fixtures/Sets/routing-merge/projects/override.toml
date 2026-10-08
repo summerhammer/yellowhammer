@@ -22,3 +22,6 @@ route = "claude/sonnet/low"
 work_kind = "arch"
 route = "claude/opus/high"
 fallbacks = ["codex/gpt-5.4/high"]
+
+[code_hosting]
+connection = "github"

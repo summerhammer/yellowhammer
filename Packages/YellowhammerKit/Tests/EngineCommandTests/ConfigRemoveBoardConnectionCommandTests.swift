@@ -18,7 +18,8 @@ private let twoInstallations = """
     workspace = "ws-b"
     yellowhammer_identity = "app-b"
 
-    [github]
+    [code_hosting.github.connections.github]
+    type = "keychain"
     credential = "keychain:github"
     """
 

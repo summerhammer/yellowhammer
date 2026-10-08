@@ -40,6 +40,7 @@ refusal; nothing was changed).
 import argparse
 import json
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -343,11 +344,14 @@ def write_project_repos_toml(project_dir, spec_dir, repos_meta):
     (project_dir / "project-repos.toml").write_text("\n".join(lines).rstrip() + "\n")
 
 
-def print_setup_args(project_id, spec_dir, repos_meta):
+def print_setup_args(project_id, spec_dir, repos_meta, code_hosting_connection):
     # Fixture repositories have a local bare repository as `origin` and no GitHub token behind it; a rehearsal
-    # Night never pushes, so the GitHub check that setup otherwise makes is skipped.
+    # Night never pushes, so the GitHub check that setup otherwise makes is skipped. The Project still selects a
+    # Code Hosting Connection from config.toml's registry (`--code-hosting-connection`), whose token is never used
+    # for the same reason.
     parts = [
-        "yh", "setup", "--init", "--project", project_id, "--spec-source", str(spec_dir), "--skip-github-check"
+        "yh", "setup", "--init", "--project", project_id, "--spec-source", str(spec_dir),
+        "--code-hosting-connection", shlex.quote(code_hosting_connection), "--skip-github-check",
     ]
     for repo in repos_meta:
         parts.append("--repo")
@@ -355,7 +359,7 @@ def print_setup_args(project_id, spec_dir, repos_meta):
     print(" ".join(parts))
 
 
-def build_one_project(root, project_id, force):
+def build_one_project(root, project_id, force, code_hosting_connection):
     project_dir = root / project_id
     marker = project_dir / MARKER_NAME
     if project_dir.exists():
@@ -392,7 +396,7 @@ def build_one_project(root, project_id, force):
     write_project_repos_toml(project_dir, spec_dir, repos_meta)
 
     print(f"build: {project_id}: built at {project_dir}")
-    print_setup_args(project_id, spec_dir, repos_meta)
+    print_setup_args(project_id, spec_dir, repos_meta, code_hosting_connection)
     return manifest
 
 
@@ -401,7 +405,7 @@ def build_command(args):
     refuse_if_inside_work_tree(root)
     root.mkdir(parents=True, exist_ok=True)
     for project_id in args.project:
-        build_one_project(root, project_id, args.force)
+        build_one_project(root, project_id, args.force, args.code_hosting_connection)
     return 0
 
 
@@ -754,6 +758,10 @@ def parse_arguments(argv):
         "--project", action="append", required=True, type=project_id_type, dest="project"
     )
     build_parser.add_argument("--force", action="store_true")
+    build_parser.add_argument(
+        "--code-hosting-connection", metavar="NAME", default="github",
+        help="the Code Hosting Connection the printed `yh setup --init` command selects (default: github)",
+    )
 
     apply_parser = subparsers.add_parser("apply", help="apply a scenario to an existing tree")
     apply_parser.add_argument(

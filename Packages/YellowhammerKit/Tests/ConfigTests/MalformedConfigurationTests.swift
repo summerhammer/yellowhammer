@@ -57,8 +57,14 @@ private let shapeFixtures: [MalformedFixture] = [
         "installation-unknown-key", line: 4, key: "board.linear.connections.acme.client_id", .unknownKey
     ),
     MalformedFixture("installation-empty-name", line: 1, key: "board.linear.connections.\"\"", .emptyString),
-    MalformedFixture("missing-github-credential", line: 3, key: "github.credential", .missingKey),
-    MalformedFixture("empty-credential", line: 4, key: "github.credential", .emptyString),
+    // A Keychain token connection must name a non-empty Credential Reference.
+    MalformedFixture(
+        "keychain-connection-missing-credential", line: 3,
+        key: "code_hosting.github.connections.github.credential", .missingKey
+    ),
+    MalformedFixture(
+        "empty-credential", line: 4, key: "code_hosting.github.connections.github.credential", .emptyString
+    ),
     MalformedFixture(
         "credential-not-string", line: 2, key: acmeCredential,
         .typeMismatch(expected: "string", found: "integer")
@@ -79,6 +85,35 @@ private let shapeFixtures: [MalformedFixture] = [
     MalformedFixture("unknown-cli-key", line: 7, key: "cli.claude.executible", .unknownKey),
     MalformedFixture("unknown-routing-entry-key", line: 7, key: "routing[0].repo-role", .unknownKey),
     MalformedFixture("unknown-route-table-key", line: 7, key: "routing[0].route.efort", .unknownKey)
+]
+
+/// The registry of Code Hosting Connections (connect-code-hosting). The old machine-wide `[github]` table is
+/// refused as an unknown key, with no migration.
+private let codeHostingFixtures: [MalformedFixture] = [
+    MalformedFixture("github-root-table", line: 1, key: "github", .unknownKey),
+    MalformedFixture("code-hosting-unknown-service", line: 1, key: "code_hosting.gitlab", .unknownKey),
+    MalformedFixture(
+        "code-hosting-unknown-type", line: 2, key: "code_hosting.github.connections.acme.type",
+        .invalidCodeHostingType("ssh")
+    ),
+    MalformedFixture(
+        "code-hosting-missing-type", line: 1, key: "code_hosting.github.connections.acme.type", .missingKey
+    ),
+    MalformedFixture(
+        "code-hosting-gh-with-credential", line: 3, key: "code_hosting.github.connections.gh.credential", .unknownKey
+    ),
+    MalformedFixture(
+        "code-hosting-second-gh", line: 5, key: "code_hosting.github.connections.work-gh.type",
+        .duplicateGitHubCLIConnection(firstConnection: "gh", firstLine: 2)
+    ),
+    MalformedFixture(
+        "code-hosting-duplicate-name", line: 5, key: "code_hosting.github.connections.acme",
+        .tableRedefined(firstLine: 1)
+    ),
+    MalformedFixture(
+        "code-hosting-unknown-key", line: 4, key: "code_hosting.github.connections.acme.token", .unknownKey
+    ),
+    MalformedFixture("code-hosting-empty-name", line: 1, key: "code_hosting.github.connections.\"\"", .emptyString)
 ]
 
 private let routingFixtures: [MalformedFixture] = [
@@ -110,7 +145,7 @@ private let routingFixtures: [MalformedFixture] = [
 
 @Test(
     "Each malformed file is reported with its file, line and key",
-    arguments: syntaxFixtures + shapeFixtures + routingFixtures
+    arguments: syntaxFixtures + shapeFixtures + codeHostingFixtures + routingFixtures
 )
 func malformedFixture(_ fixture: MalformedFixture) throws {
     let url = try #require(

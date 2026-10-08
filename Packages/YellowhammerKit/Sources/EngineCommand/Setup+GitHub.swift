@@ -69,18 +69,21 @@ extension Setup {
         for repo in report.repos { output(repo.message) }
     }
 
-    /// Before a Project file is written (and before any Linear write): the token must resolve and push to
-    /// the declaration's working Repos.
-    func validateGitHub(for declaration: ProjectDeclaration, machine: MachineConfiguration) async throws {
+    /// Before a Project file is written (and before any Linear write): the token of the Code Hosting
+    /// Connection the Project selects must resolve and push to the declaration's working Repos.
+    func validateGitHub(
+        for declaration: ProjectDeclaration, machine: MachineConfiguration, connection: String
+    ) async throws {
         guard !options.skipGitHubCheck else {
             output(
                 "warning: the GitHub check was skipped (--skip-github-check): `land` cannot push or open pull "
-                    + "requests for Project \(declaration.id.rawValue) until `yh setup --install-github` passes "
-                    + "for its Repos; `yh doctor` reports it."
+                    + "requests for Project \(declaration.id.rawValue) until "
+                    + "`yh setup --install-github --code-hosting-connection \(connection)` passes for its Repos; "
+                    + "`yh doctor` reports it."
             )
             return
         }
-        let reference = machine.gitHubCredential
+        let reference = try codeHostingReference(of: connection, machine: machine)
         _ = try await ensureGitHubCredential(
             reference: reference, capture: isInteractive ? .interactive : .never, replace: false
         )
@@ -88,37 +91,45 @@ extension Setup {
         try await validateGitHubRepos(reference: reference, repos: repos)
     }
 
-    /// Interactive setup captures and authenticates the machine-wide token right after `config.toml` is
-    /// loaded, before the Linear step, so even a run that adds no Project leaves a working credential.
-    func runGitHubStepIfInteractive(machine: MachineConfiguration) async throws {
-        let writesProject: Bool
-        switch options.mode {
-        case .interactive: writesProject = true
-        case .initialize: writesProject = options.projectID != nil
-        default: return
+    /// The Keychain reference behind the Code Hosting Connection called `name`, through the one resolver; a
+    /// refusal becomes a SetupError carrying its description.
+    func codeHostingReference(of name: String, machine: MachineConfiguration) throws -> CredentialReference {
+        do {
+            return try machine.codeHostingCredential(connectionNamed: name).reference
+        } catch {
+            throw SetupError(error.description)
         }
-        if writesProject, let given = options.githubCredential, given != machine.gitHubCredential {
-            output(
-                "note: --github-credential \(given.rawValue) was ignored; the kept config.toml names "
-                    + "\(machine.gitHubCredential.rawValue), which is the one used"
-            )
-        }
-        guard case .interactive = options.mode, !options.skipGitHubCheck else { return }
-        _ = try await ensureGitHubCredential(reference: machine.gitHubCredential, capture: .interactive, replace: false)
     }
 
-    /// Lets the Operator replace the token after the interactive loop's GitHub failure.
-    func offerGitHubReplacement(machine: MachineConfiguration) async throws {
+    /// Lets the Operator replace the selected connection's token after the interactive loop's GitHub failure.
+    func offerGitHubReplacement(machine: MachineConfiguration, connection: String) async throws {
         guard try confirm("Replace the GitHub token and check again? [y/N] ", defaultYes: false) else { return }
-        _ = try await ensureGitHubCredential(reference: machine.gitHubCredential, capture: .interactive, replace: true)
+        let reference = try codeHostingReference(of: connection, machine: machine)
+        _ = try await ensureGitHubCredential(reference: reference, capture: .interactive, replace: true)
     }
 
     // MARK: Standalone modes
 
-    /// `--install-github`: only the GitHub step. A rejected token is never stored; a stored token whose Repo
-    /// validation then fails stays stored (it is machine-wide) and the run fails naming each Repo.
+    /// `--install-github [--code-hosting-connection N]`: only the GitHub step, for the connection N (default
+    /// `github`). A broken `config.toml` is refused before anything is captured and is never overwritten.
+    /// A rejected token is never stored; N joins the registry only once its token is accepted. A stored
+    /// token whose Repo validation then fails stays stored and the run fails naming each Repo.
     func installGitHub() async throws {
-        let reference = standaloneGitHubReference()
+        let name = options.codeHostingConnection ?? CodeHostingConnection.defaultName
+        let existing = try loadMachineFileForGitHubInstall()
+        let entry = existing?.codeHostingConnection(named: name)
+        let reference: CredentialReference
+        switch entry?.kind {
+        case .githubCLI:
+            throw SetupError(CodeHostingRefusal.githubCLINotSupported(connection: name).description)
+        case .keychainToken(let stored):
+            reference = stored
+        case nil:
+            guard LinearInstallation.isValidLocalName(name) else {
+                throw SetupError(Self.invalidConnectionNameMessage(name))
+            }
+            reference = CodeHostingConnection.defaultCredentialReference(for: name)
+        }
         let capture: GitHubCapture = switch options.gitHubTokenSource {
         case .prompt: .interactive
         case .standardInput: .standardInput
@@ -127,40 +138,66 @@ extension Setup {
         _ = try await ensureGitHubCredential(
             reference: reference, capture: capture, replace: options.replaceGitHubToken
         )
-        try await validateGitHubRepos(reference: reference, repos: standaloneGitHubRepos(reference: reference))
-        output("GitHub credential \(reference.rawValue) is ready.")
+        if entry == nil {
+            try addCodeHostingConnection(CodeHostingConnection(name: name, kind: .keychainToken(reference)))
+        }
+        try await validateGitHubRepos(reference: reference, repos: standaloneGitHubRepos(connection: name))
+        output("Code Hosting Connection \(name) is ready.")
     }
 
-    /// `--print-github`: never prompts, writes nothing, prints one line for the app to decode. An invalid
-    /// report is still exit 0.
+    /// The machine file when there is one; nil when there is none. A `config.toml` that does not load is an
+    /// error, so the run never overwrites it.
+    private func loadMachineFileForGitHubInstall() throws -> MachineConfiguration? {
+        let path = machineFileURL.path(percentEncoded: false)
+        guard FileManager.default.fileExists(atPath: path) else { return nil }
+        do {
+            return try MachineConfiguration.load(contentsOf: machineFileURL)
+        } catch {
+            throw SetupError("\(path) is invalid: \(error); fix or remove it, then run setup again")
+        }
+    }
+
+    /// `--print-github [--code-hosting-connection N]`: never prompts, writes nothing, prints one line for the
+    /// app to decode. An invalid report is still exit 0. A connection that is not in the registry, or is a
+    /// `gh` CLI connection, reports `missing` whatever the Keychain holds.
     func printGitHub() async {
-        let reference = standaloneGitHubReference()
+        let name = options.codeHostingConnection ?? CodeHostingConnection.defaultName
         let repos = options.gitHubRepoPaths.map { gitHubRepo(name: Self.repoName(ofPath: $0), path: $0) }
+        let fallback = CodeHostingConnection.defaultCredentialReference(for: name)
+        let machine = FileManager.default.fileExists(atPath: machineFileURL.path(percentEncoded: false))
+            ? try? MachineConfiguration.load(contentsOf: machineFileURL) : nil
+        guard let machine, machine.codeHostingConnection(named: name) != nil else {
+            output(GitHubCredentialReport(
+                reference: fallback.rawValue, state: .missing,
+                message: "No Code Hosting Connection named \(name) is connected. Connect it with "
+                    + "`yh setup --install-github --code-hosting-connection \(name)`."
+            ).encodeLine())
+            return
+        }
+        let credential: CodeHostingCredential
+        do {
+            credential = try machine.codeHostingCredential(connectionNamed: name)
+        } catch {
+            output(GitHubCredentialReport(
+                reference: fallback.rawValue, state: .missing, message: error.description
+            ).encodeLine())
+            return
+        }
         let report = await gitHub.report(
-            reference: reference, secret: credentials.gitHubSecret(for: reference), repos: repos
+            reference: credential.reference, secret: credentials.gitHubSecret(for: credential.reference),
+            repos: repos
         )
         output(report.encodeLine())
     }
 
-    /// `--github-credential`, else `config.toml`'s `[github] credential` if it loads, else the default.
-    private func standaloneGitHubReference() -> CredentialReference {
-        if let given = options.githubCredential { return given }
-        if FileManager.default.fileExists(atPath: machineFileURL.path(percentEncoded: false)),
-           let machine = try? MachineConfiguration.load(contentsOf: machineFileURL) {
-            return machine.gitHubCredential
-        }
-        // Non-empty literal: never fails.
-        return CredentialReference(SetupOptions.defaultGitHubCredential)!
-    }
-
-    /// `--github-repo` paths, else the working Repos of every configured Project that uses `reference`.
-    private func standaloneGitHubRepos(reference: CredentialReference) -> [(name: String, path: String)] {
+    /// `--github-repo` paths, else the working Repos of every configured Project that selects `connection`.
+    private func standaloneGitHubRepos(connection: String) -> [(name: String, path: String)] {
         if !options.gitHubRepoPaths.isEmpty {
             return options.gitHubRepoPaths.map { gitHubRepo(name: Self.repoName(ofPath: $0), path: $0) }
         }
         guard let configuration = try? Configuration.load(directory: configurationDirectory) else { return [] }
         return configuration.projects
-            .filter { configuration.machine.gitHubCredential(for: $0) == reference }
+            .filter { $0.codeHostingConnectionName == connection }
             .flatMap { project in
                 project.repos.filter { $0.role != .spec }.map { gitHubRepo(name: $0.name, path: $0.path) }
             }

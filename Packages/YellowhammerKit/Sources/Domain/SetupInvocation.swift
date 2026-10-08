@@ -67,7 +67,8 @@ public struct SetupInvocation: Equatable, Sendable {
     /// The local name for a NEW Board Connection (`--board-connection-name`); never combined with
     /// `boardConnection`. Omitted when nil or trimmed empty (the proposal is used).
     public var boardConnectionName: String?
-    public var githubCredential: String?
+    /// The local name of the Code Hosting Connection the written Project selects (`--code-hosting-connection`).
+    public var codeHostingConnection: String?
     /// `"name"` or `"name=executable"`, in `--cli` order.
     public var cliAdapters: [String]
     public var route: String?
@@ -80,7 +81,7 @@ public struct SetupInvocation: Equatable, Sendable {
     public init(
         boardConnection: String? = nil,
         boardConnectionName: String? = nil,
-        githubCredential: String? = nil,
+        codeHostingConnection: String? = nil,
         cliAdapters: [String] = [],
         route: String? = nil,
         fallbacks: [String] = [],
@@ -90,7 +91,7 @@ public struct SetupInvocation: Equatable, Sendable {
     ) {
         self.boardConnection = boardConnection
         self.boardConnectionName = boardConnectionName
-        self.githubCredential = githubCredential
+        self.codeHostingConnection = codeHostingConnection
         self.cliAdapters = cliAdapters
         self.route = route
         self.fallbacks = fallbacks
@@ -104,7 +105,7 @@ public struct SetupInvocation: Equatable, Sendable {
         var arguments = ["setup", "--init"]
         Self.appendOption(&arguments, "--board-connection", boardConnection)
         Self.appendOption(&arguments, "--board-connection-name", boardConnectionName)
-        Self.appendOption(&arguments, "--github-credential", githubCredential)
+        Self.appendOption(&arguments, "--code-hosting-connection", codeHostingConnection)
         Self.appendRepeated(&arguments, "--cli", cliAdapters)
         Self.appendOption(&arguments, "--route", route)
         Self.appendRepeated(&arguments, "--fallback", fallbacks)
@@ -142,11 +143,10 @@ public struct SetupInvocation: Equatable, Sendable {
 
     /// `["setup", "--print-choices", ...]`: never prompts, writes no configuration file.
     public static func choicesArguments(
-        boardConnection: String?, githubCredential: String?, linearProject: String? = nil
+        boardConnection: String?, linearProject: String? = nil
     ) -> [String] {
         var arguments = ["setup", "--print-choices"] // glossary:ignore GL001
         appendOption(&arguments, "--board-connection", boardConnection)
-        appendOption(&arguments, "--github-credential", githubCredential)
         appendOption(&arguments, "--linear-project", linearProject)
         return arguments
     }
@@ -177,9 +177,9 @@ public struct SetupInvocation: Equatable, Sendable {
     /// `["setup", "--print-github", ...]`: never prompts, writes nothing; its output is one line, a
     /// ``GitHubCredentialReport``. `repoPaths` are the Repos to check the token against (none: the credential
     /// only).
-    public static func printGitHubArguments(githubCredential: String?, repoPaths: [String]) -> [String] {
+    public static func printGitHubArguments(codeHostingConnection: String?, repoPaths: [String]) -> [String] {
         var arguments = ["setup", "--print-github"]
-        appendOption(&arguments, "--github-credential", githubCredential)
+        appendOption(&arguments, "--code-hosting-connection", codeHostingConnection)
         appendRepeated(&arguments, "--github-repo", repoPaths)
         return arguments
     }
@@ -187,10 +187,10 @@ public struct SetupInvocation: Equatable, Sendable {
     /// `["setup", "--install-github", ...]`: the app's headless GitHub step — read the token from `source`,
     /// check it, store it. `replace` captures even when the stored token works (Settings' "Replace token…").
     public static func installGitHubArguments(
-        githubCredential: String?, source: GitHubTokenSource, replace: Bool, repoPaths: [String]
+        codeHostingConnection: String?, source: GitHubTokenSource, replace: Bool, repoPaths: [String]
     ) -> [String] {
         var arguments = ["setup", "--install-github"]
-        appendOption(&arguments, "--github-credential", githubCredential)
+        appendOption(&arguments, "--code-hosting-connection", codeHostingConnection)
         switch source {
         case .standardInput: arguments.append("--token-stdin")
         case .githubCLI: arguments.append("--from-gh")

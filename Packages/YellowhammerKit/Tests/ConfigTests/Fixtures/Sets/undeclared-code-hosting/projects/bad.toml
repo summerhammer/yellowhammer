@@ -1,0 +1,16 @@
+id = "bad"
+name = "bad"
+spec_source = "~/dev/spec"
+
+[board.linear]
+connection = "acme"
+project = "BAD"
+
+[code_hosting]
+connection = "missing"
+
+[[repos]]
+name = "bad"
+path = "~/dev/bad"
+role = "backend"
+check = "swift test"

@@ -9,5 +9,8 @@ role = "backend"
 check = "test"
 
 [github]
-credential = "keychain:github"
+pull_request_title = "{title}"
 unknown_key = "value"
+
+[code_hosting]
+connection = "github"

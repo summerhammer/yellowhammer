@@ -41,6 +41,7 @@ func projectMinimalFileLoads() throws {
         name: "Minimal Project",
         linearInstallationName: "acme",
         linearProject: "MIN",
+        codeHostingConnectionName: "github",
         specSource: "~/dev/minimal-spec",
         repos: [
             RepoDeclaration(
@@ -53,7 +54,6 @@ func projectMinimalFileLoads() throws {
         ],
         bounds: Bounds(),
         schedule: Schedule(),
-        gitHubCredential: nil,
         routingOverrides: []
     )
     #expect(configuration == expected)
@@ -83,7 +83,7 @@ private let fullFixtureRepos = [
     )
 ]
 
-@Test("A full Project file loads every Repo, Bound, schedule key, credential and routing override")
+@Test("A full Project file loads every Repo, Bound, schedule key, Code Hosting selection and routing override")
 func projectFullFileLoads() throws {
     let configuration = try ProjectConfiguration.load(contentsOf: fixture("full", in: "Valid"))
     let expected = ProjectConfiguration(
@@ -91,6 +91,7 @@ func projectFullFileLoads() throws {
         name: "Full Project",
         linearInstallationName: "acme",
         linearProject: "FULL",
+        codeHostingConnectionName: "github-full",
         repos: fullFixtureRepos,
         bounds: Bounds(
             reviewRoundsMax: 3,
@@ -105,7 +106,6 @@ func projectFullFileLoads() throws {
             nightEnd: try time(hour: 7, minute: 0),
             buildEveryMinutes: 20
         ),
-        gitHubCredential: CredentialReference("keychain:github-full"),
         routingOverrides: [
             RoutingEntry(
                 kind: try kind("impl.boilerplate"),

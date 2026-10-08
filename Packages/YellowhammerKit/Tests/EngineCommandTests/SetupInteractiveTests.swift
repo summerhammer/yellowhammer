@@ -12,11 +12,11 @@ struct SetupInteractiveTests {
     func interactiveCleanRun() async throws {
         let directory = ConfigurationDirectory()
         let board = await makeBoard(members: [operatorMember, secondCandidateMember])
-        let arguments = makeArguments(initialize: false)
+        let arguments = makeArguments(initialize: false, omitCodeHostingConnection: true)
         let console = ScriptedConsole(answers: [
-            "", // GitHub credential -> default
             "", // CLI Adapters -> none
             "", // catch-all route -> none
+            "", // no Code Hosting Connection yet: local name -> github (its stored token is reused)
             "", // Linear is not installed: "Are you a workspace admin?" -> install here
             "", // Local name -> proposed
             "", // Operator: empty re-asks
@@ -39,10 +39,10 @@ struct SetupInteractiveTests {
         let directory = ConfigurationDirectory()
         let board = await makeBoard(project: nil, teams: [engineeringTeam, productTeam])
         let arguments = makeArguments(
-            initialize: false, operatorID: "user-op"
+            initialize: false, operatorID: "user-op", omitCodeHostingConnection: true
         )
         let console = ScriptedConsole(answers: [
-            "", "", "", // GitHub credential, CLI Adapters, catch-all route
+            "", "", "", // CLI Adapters, catch-all route, Code Hosting Connection name
             "", // Linear is not installed: "Are you a workspace admin?" -> install here
             "", // Local name -> proposed
             "y", // Declare a Project now?
@@ -69,7 +69,8 @@ struct SetupInteractiveTests {
         // A second interactive run, declining to declare the Project again, creates nothing further.
         let secondConsole = ScriptedConsole(answers: ["n"])
         let secondSetup = try makeSetup(
-            arguments: arguments + ["--board-connection", "acme"], directory: directory, board: board,
+            arguments: arguments + ["--board-connection", "acme", "--code-hosting-connection", "github"],
+            directory: directory, board: board,
             console: secondConsole
         )
         try await secondSetup.run()

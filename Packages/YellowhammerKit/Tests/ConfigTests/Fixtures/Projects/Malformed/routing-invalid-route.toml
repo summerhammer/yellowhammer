@@ -10,3 +10,6 @@ check = "test"
 
 [[routing]]
 route = "invalid"
+
+[code_hosting]
+connection = "github"

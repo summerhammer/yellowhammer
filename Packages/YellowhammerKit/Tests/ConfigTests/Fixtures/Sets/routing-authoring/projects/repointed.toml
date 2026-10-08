@@ -13,3 +13,6 @@ check = "swift test"
 work_kind = "authoring"
 route = "codex/gpt-5.4/medium"
 fallbacks = ["claude/sonnet/high"]
+
+[code_hosting]
+connection = "github"

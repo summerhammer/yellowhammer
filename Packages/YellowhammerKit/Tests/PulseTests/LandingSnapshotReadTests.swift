@@ -11,7 +11,8 @@ private let machineTOML = """
 credential = "keychain:linear"
 workspace = "workspace-1"
 yellowhammer_identity = "app-user-1"
-[github]
+[code_hosting.github.connections.github]
+type = "keychain"
 credential = "keychain:github"
 
 [cli.claude]
@@ -44,6 +45,7 @@ private struct ConfigurationFixture: ~Copyable {
         id = "\(id)"
         name = "\(name)"
         board = { linear = { connection = "acme", project = "\(id.uppercased())" } }
+        code_hosting = { connection = "github" }
         spec_source = "~/dev/spec"
 
         """

@@ -356,6 +356,9 @@ spec_source = "~/repos/spec"
 connection = "scratch"
 project = "LINEAR-ALPHA"
 
+[code_hosting]
+connection = "github"
+
 [[repos]]
 name = "backend"
 path = "~/repos/backend"

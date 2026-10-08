@@ -3,5 +3,5 @@
 credential = "keychain:linear-acme"
 yellowhammer_identity = "app-1"
 
-[github]
-credential = "keychain:github"
+[code_hosting.github.connections]
+github = { type = "keychain", credential = "keychain:github" }

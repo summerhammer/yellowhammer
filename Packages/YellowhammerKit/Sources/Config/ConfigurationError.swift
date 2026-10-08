@@ -32,6 +32,14 @@ public struct ConfigurationError: Error, Equatable, Sendable {
         case duplicateLinearWorkspace(firstInstallation: String, firstLine: Int)
         /// A Project's `installation` names no `[board.linear.connections.<name>]` in the machine file.
         case undeclaredLinearInstallation(String)
+        /// A Code Hosting Connection's `type` is neither `gh` nor `keychain`.
+        case invalidCodeHostingType(String)
+        /// A second `type = "gh"` Code Hosting Connection; reported on the second entry's `type`. The Mac holds
+        /// at most one.
+        case duplicateGitHubCLIConnection(firstConnection: String, firstLine: Int)
+        /// A Project's `[code_hosting] connection` names no `[code_hosting.github.connections.<name>]` in the
+        /// machine file.
+        case undeclaredCodeHostingConnection(String)
         /// A Message Template names `{name}`, which is not a token of its template. `key` is the
         /// template's own key (`commit_message`); `accepted` lists the tokens it does take.
         case unknownTemplateToken(name: String, key: String, accepted: [String])
@@ -120,6 +128,14 @@ extension ConfigurationError.Reason: CustomStringConvertible {
         case .undeclaredLinearInstallation(let name):
             return "Project names connection \"\(name)\", which has no [board.linear.connections.\(name)] "
                 + "in the machine file config.toml"
+        case .invalidCodeHostingType(let value):
+            return "expected \"gh\" or \"keychain\", got \"\(value)\""
+        case .duplicateGitHubCLIConnection(let firstConnection, let firstLine):
+            return "the gh CLI is already connected as \"\(firstConnection)\" on line \(firstLine); "
+                + "the Mac holds at most one gh CLI connection"
+        case .undeclaredCodeHostingConnection(let name):
+            return "Project names Code Hosting Connection \"\(name)\", which has no "
+                + "[code_hosting.github.connections.\(name)] in the machine file config.toml"
         case .unknownTemplateToken(let name, let key, let accepted):
             return "names {\(name)}, which is not a \(key) token; the tokens are \(accepted.joined(separator: ", "))"
         case .unterminatedTemplateBrace(let key):

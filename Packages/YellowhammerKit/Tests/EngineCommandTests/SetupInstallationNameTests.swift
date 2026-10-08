@@ -6,7 +6,7 @@ import Foundation
 import Synchronization
 import Testing
 
-private let githubOnly = "[github]\ncredential = \"keychain:github\"\n"
+private let githubOnly = ConfigurationDirectory.githubOnly
 
 private func existingEntry(name: String, workspace: String) -> String {
     """

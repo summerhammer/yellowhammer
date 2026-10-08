@@ -166,7 +166,8 @@ final class HealthGroupUITests: XCTestCase {
         yellowhammer_identity = "app-user-2"
         operator = "usr-2"
 
-        [github]
+        [code_hosting.github.connections.github]
+        type = "keychain"
         credential = "keychain:github"
 
         [cli.claude]
@@ -179,6 +180,9 @@ final class HealthGroupUITests: XCTestCase {
             id = "\(id)"
             name = "\(id.capitalized)"
             spec_source = "~/dev/spec"
+
+            [code_hosting]
+            connection = "github"
 
             [board.linear]
             connection = "\(installation)"

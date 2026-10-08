@@ -1,1 +1,3 @@
-# A machine file without its required [github] table.
+# The old machine-wide [github] key is no longer read: no migration, refused as unknown.
+[github]
+credential = "keychain:github"

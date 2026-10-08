@@ -179,6 +179,7 @@ struct RehearsalIsolationTests {
             id = "alpha"
             name = "alpha"
             board = { linear = { connection = "acme", project = "alpha", rehearsal_project = "alpha-rehearsal" } }
+            code_hosting = { connection = "github" }
             rehearsal = { journal = "\(realJournal.path(percentEncoded: false))" }
             spec_source = "~/Developer/alpha-spec"
 

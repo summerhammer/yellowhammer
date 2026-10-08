@@ -16,7 +16,8 @@ struct SetupInstallationRemoteTests {
             workspace = "workspace-old"
             yellowhammer_identity = "app-user-old"
 
-            [github]
+            [code_hosting.github.connections.github]
+            type = "keychain"
             credential = "keychain:github"
             """)
         let file = directory.url.appending(component: "config.toml")

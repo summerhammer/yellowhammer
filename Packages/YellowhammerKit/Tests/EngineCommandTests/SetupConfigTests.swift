@@ -49,7 +49,8 @@ struct SetupConfigTests {
             yellowhammer_identity = "app-user-1"
             operator = "user-op"
 
-            [github]
+            [code_hosting.github.connections.github]
+            type = "keychain"
             credential = "keychain:github"
             """)
         try prepared.writeValidProjectFile(id: "demo")
@@ -99,7 +100,8 @@ struct SetupConfigTests {
             workspace = "workspace-1"
             yellowhammer_identity = "app-user-1"
 
-            [github]
+            [code_hosting.github.connections.github]
+            type = "keychain"
             credential = "keychain:github"
             """)
         let originalText = try String(contentsOf: destination.url.appending(component: "config.toml"), encoding: .utf8)

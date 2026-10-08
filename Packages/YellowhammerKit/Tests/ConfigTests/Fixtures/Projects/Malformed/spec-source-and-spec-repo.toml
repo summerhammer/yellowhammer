@@ -8,3 +8,6 @@ name = "spec-repo"
 path = "~/dev/other-spec"
 role = "spec"
 check = "none"
+
+[code_hosting]
+connection = "github"

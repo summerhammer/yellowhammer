@@ -112,6 +112,8 @@ extension AddProjectUITests {
     ) { // glossary:ignore GL001
         XCTAssertTrue(recorded.contains("--init"))
         XCTAssertEqual(value(after: "--board-connection", in: recorded), installation)
+        // The GitHub step checks the default Code Hosting Connection, so the Project selects it.
+        XCTAssertEqual(value(after: "--code-hosting-connection", in: recorded), "github")
         XCTAssertEqual(value(after: "--project", in: recorded), "demo") // glossary:ignore GL001
         XCTAssertEqual(value(after: "--project-name", in: recorded), "Demo") // glossary:ignore GL001
         XCTAssertEqual(value(after: "--linear-project", in: recorded), linearProject) // glossary:ignore GL001

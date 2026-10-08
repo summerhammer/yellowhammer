@@ -43,12 +43,13 @@ public struct LinearInstallation: Equatable, Sendable {
     }
 }
 
-/// The machine-wide configuration file: the registry of Linear Board Connections (ADR-005), the machine
-/// default GitHub credential, the declared CLI Adapters and the base Routing Table.
+/// The machine-wide configuration file: the registry of Linear Board Connections (ADR-005), the registry of
+/// Code Hosting Connections, the declared CLI Adapters and the base Routing Table.
 public struct MachineConfiguration: Equatable, Sendable {
     /// The registry of Board Connections, in file order; zero or more.
     public var linearInstallations: [LinearInstallation]
-    public var gitHubCredential: CredentialReference
+    /// The registry of Code Hosting Connections, in file order; zero or more.
+    public var codeHostingConnections: [CodeHostingConnection]
     /// In file order.
     public var cliAdapters: [CLIAdapterDeclaration]
     /// The base Routing Table, in file order.
@@ -56,12 +57,12 @@ public struct MachineConfiguration: Equatable, Sendable {
 
     public init(
         linearInstallations: [LinearInstallation] = [],
-        gitHubCredential: CredentialReference,
+        codeHostingConnections: [CodeHostingConnection] = [],
         cliAdapters: [CLIAdapterDeclaration],
         routingTable: [RoutingEntry]
     ) {
         self.linearInstallations = linearInstallations
-        self.gitHubCredential = gitHubCredential
+        self.codeHostingConnections = codeHostingConnections
         self.cliAdapters = cliAdapters
         self.routingTable = routingTable
     }
@@ -75,6 +76,17 @@ public struct MachineConfiguration: Equatable, Sendable {
     /// (``Configuration/loadLeniently(directory:)``) whose installation name is missing from the registry.
     public func linearInstallation(for project: ProjectConfiguration) -> LinearInstallation? {
         linearInstallation(named: project.linearInstallationName)
+    }
+
+    /// The registry entry called `name`, or nil.
+    public func codeHostingConnection(named name: String) -> CodeHostingConnection? {
+        codeHostingConnections.first { $0.name == name }
+    }
+
+    /// The Code Hosting Connection `project` selects. Nil only for a Project loaded leniently
+    /// (``Configuration/loadLeniently(directory:)``) whose connection name is missing from the registry.
+    public func codeHostingConnection(for project: ProjectConfiguration) -> CodeHostingConnection? {
+        codeHostingConnection(named: project.codeHostingConnectionName)
     }
 }
 

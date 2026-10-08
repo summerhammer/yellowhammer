@@ -25,7 +25,7 @@ struct SetupInvocationTests {
     func fullInvocationBuildsEveryOption() throws {
         let invocation = SetupInvocation(
             boardConnection: "main",
-            githubCredential: "keychain:github",
+            codeHostingConnection: "acme",
             cliAdapters: ["claude", "codex=codex-bin"],
             route: "claude/sonnet/medium",
             fallbacks: ["codex/gpt/high"],
@@ -43,7 +43,7 @@ struct SetupInvocationTests {
         #expect(try invocation.arguments() == [
             "setup", "--init",
             "--board-connection", "main",
-            "--github-credential", "keychain:github",
+            "--code-hosting-connection", "acme",
             "--cli", "claude",
             "--cli", "codex=codex-bin",
             "--route", "claude/sonnet/medium",
@@ -66,7 +66,7 @@ struct SetupInvocationTests {
     @Test("nil and empty (after trimming) options are omitted")
     func emptyOptionsAreOmitted() throws {
         let invocation = SetupInvocation(
-            boardConnection: nil, githubCredential: "", cliAdapters: ["  ", ""]
+            boardConnection: nil, codeHostingConnection: "", cliAdapters: ["  ", ""]
         )
 
         #expect(try invocation.arguments() == ["setup", "--init"])
@@ -134,20 +134,14 @@ struct SetupInvocationTests {
 
     @Test("choicesArguments builds --print-choices with only the Linear options") // glossary:ignore GL001
     func choicesArgumentsBuildsPrintChoices() {
-        let arguments = SetupInvocation.choicesArguments(
-            boardConnection: "main", githubCredential: "keychain:github"
-        )
+        let arguments = SetupInvocation.choicesArguments(boardConnection: "main")
 
-        #expect(arguments == [
-            "setup", "--print-choices",
-            "--board-connection", "main",
-            "--github-credential", "keychain:github"
-        ])
+        #expect(arguments == ["setup", "--print-choices", "--board-connection", "main"])
     }
 
     @Test("choicesArguments omits absent options") // glossary:ignore GL001
     func choicesArgumentsOmitsAbsentOptions() {
-        let arguments = SetupInvocation.choicesArguments(boardConnection: nil, githubCredential: nil)
+        let arguments = SetupInvocation.choicesArguments(boardConnection: nil)
 
         #expect(arguments == ["setup", "--print-choices"])
     }
@@ -155,7 +149,7 @@ struct SetupInvocationTests {
     @Test("choicesArguments passes --linear-project when provided") // glossary:ignore GL001
     func choicesArgumentsPassesLinearProject() {
         let arguments = SetupInvocation.choicesArguments(
-            boardConnection: "main", githubCredential: nil, linearProject: "proj-1"
+            boardConnection: "main", linearProject: "proj-1"
         )
 
         #expect(arguments == [
@@ -206,14 +200,14 @@ struct SetupInvocationTests {
         ])
     }
 
-    @Test("printGitHubArguments builds --print-github with the credential and Repos, omitting absent ones")
+    @Test("printGitHubArguments builds --print-github with the connection and Repos, omitting absent ones")
     func printGitHubArguments() {
-        #expect(SetupInvocation.printGitHubArguments(githubCredential: nil, repoPaths: [])
+        #expect(SetupInvocation.printGitHubArguments(codeHostingConnection: nil, repoPaths: [])
             == ["setup", "--print-github"])
         #expect(SetupInvocation.printGitHubArguments(
-            githubCredential: "keychain:github", repoPaths: ["~/a", "~/b"]
+            codeHostingConnection: "acme", repoPaths: ["~/a", "~/b"]
         ) == [
-            "setup", "--print-github", "--github-credential", "keychain:github",
+            "setup", "--print-github", "--code-hosting-connection", "acme",
             "--github-repo", "~/a", "--github-repo", "~/b"
         ])
     }
@@ -221,12 +215,12 @@ struct SetupInvocationTests {
     @Test("installGitHubArguments builds --install-github with the token source and --replace")
     func installGitHubArguments() {
         #expect(SetupInvocation.installGitHubArguments(
-            githubCredential: nil, source: .standardInput, replace: false, repoPaths: []
+            codeHostingConnection: nil, source: .standardInput, replace: false, repoPaths: []
         ) == ["setup", "--install-github", "--token-stdin"])
         #expect(SetupInvocation.installGitHubArguments(
-            githubCredential: "keychain:github", source: .githubCLI, replace: true, repoPaths: ["~/a"]
+            codeHostingConnection: "acme", source: .githubCLI, replace: true, repoPaths: ["~/a"]
         ) == [
-            "setup", "--install-github", "--github-credential", "keychain:github", "--from-gh", "--replace",
+            "setup", "--install-github", "--code-hosting-connection", "acme", "--from-gh", "--replace",
             "--github-repo", "~/a"
         ])
     }

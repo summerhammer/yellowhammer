@@ -7,7 +7,7 @@ import Testing
 func projectRepositoriesExpandHomePaths(specRepo: Bool) throws {
     let configuration = ProjectConfiguration(
         id: try #require(ProjectID(rawValue: "home-paths")), name: "Home paths",
-        linearInstallationName: "acme", linearProject: "HOME",
+        linearInstallationName: "acme", linearProject: "HOME", codeHostingConnectionName: "github",
         specSource: specRepo ? nil : "~/dev/spec",
         repos: [
             RepoDeclaration(
@@ -38,7 +38,8 @@ func projectRepositoriesExpandHomePaths(specRepo: Bool) throws {
 func projectRepositoriesPreserveNonHomePaths(path: String) throws {
     let configuration = ProjectConfiguration(
         id: try #require(ProjectID(rawValue: "other-paths")), name: "Other paths",
-        linearInstallationName: "acme", linearProject: "OTHER", specSource: path,
+        linearInstallationName: "acme", linearProject: "OTHER", codeHostingConnectionName: "github",
+        specSource: path,
         repos: [RepoDeclaration(name: "backend", path: path, role: .backend, check: .none)]
     )
 

@@ -44,9 +44,10 @@ public struct SetupCommand: AsyncParsableCommand {
     public var boardConnectionName: String?
 
     @Option(
-        name: .customLong("github-credential"), help: "Reference to the GitHub credential (default keychain:github)."
+        name: .customLong("code-hosting-connection"),
+        help: "The Code Hosting Connection the written Project selects, or that --install-github connects."
     )
-    public var githubCredential: String?
+    public var codeHostingConnection: String?
 
     @Option(name: .customLong("cli"), help: "A declared CLI Adapter, as `name` or `name=executable`.")
     public var cli: [String] = []

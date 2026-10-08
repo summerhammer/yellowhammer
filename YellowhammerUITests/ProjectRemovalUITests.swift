@@ -139,6 +139,9 @@ final class ProjectRemovalUITests: XCTestCase {
         name = "Orphan"
         spec_source = "~/dev/spec"
 
+        [code_hosting]
+        connection = "github"
+
         [board.linear]
         connection = "gone"
         project = "ORPHAN"

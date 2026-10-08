@@ -8,3 +8,6 @@ path = "~/path"
 role = "backend"
 check = "test"
 unknown_field = "value"
+
+[code_hosting]
+connection = "github"

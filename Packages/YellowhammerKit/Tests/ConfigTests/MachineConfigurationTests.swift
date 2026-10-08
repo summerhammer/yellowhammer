@@ -19,6 +19,10 @@ private func credential(_ string: String) throws -> CredentialReference {
     try #require(CredentialReference(string))
 }
 
+private func keychainConnection(_ name: String, _ reference: String) throws -> CodeHostingConnection {
+    CodeHostingConnection(name: name, kind: .keychainToken(try credential(reference)))
+}
+
 @Test("The default file is ~/.config/yellowhammer/config.toml")
 func defaultFileURL() {
     let home = URL(filePath: "/Users/operator", directoryHint: .isDirectory)
@@ -31,7 +35,7 @@ func minimalFileLoads() throws {
     let configuration = try MachineConfiguration.load(contentsOf: fixture("minimal", in: "Valid"))
     #expect(configuration == MachineConfiguration(
         linearInstallations: [],
-        gitHubCredential: try credential("keychain:github"),
+        codeHostingConnections: [try keychainConnection("github", "keychain:github")],
         cliAdapters: [],
         routingTable: []
     ))
@@ -56,7 +60,7 @@ func fullFileLoads() throws {
                 appUser: BoardObjectID(rawValue: "app-user-2")
             )
         ],
-        gitHubCredential: try credential("keychain:github"),
+        codeHostingConnections: [try keychainConnection("github", "keychain:github")],
         cliAdapters: [
             CLIAdapterDeclaration(name: "claude", executable: "/opt/homebrew/bin/claude"),
             CLIAdapterDeclaration(name: "codex"),
@@ -95,7 +99,8 @@ func fullFileLoads() throws {
 func alternativeTableSpellings() throws {
     let text = """
     board.linear.connections.acme = { credential = "keychain:linear", workspace = "w1", yellowhammer_identity = "u1" }
-    github = { credential = "keychain:github" }
+    code_hosting.github.connections.github = { type = "keychain", credential = "keychain:github" }
+    code_hosting.github.connections.gh = { type = "gh" }
     cli.claude = {}
     routing = [{ route = "claude/opus/high" }]
     """
@@ -103,7 +108,10 @@ func alternativeTableSpellings() throws {
     #expect(configuration.linearInstallations.map(\.name) == ["acme"])
     #expect(configuration.linearInstallations.first?.operatorIdentity == nil)
     #expect(configuration.linearInstallations.first?.credential == (try credential("keychain:linear")))
-    #expect(configuration.gitHubCredential == (try credential("keychain:github")))
+    #expect(configuration.codeHostingConnections == [
+        CodeHostingConnection(name: "github", kind: .keychainToken(try credential("keychain:github"))),
+        CodeHostingConnection(name: "gh", kind: .githubCLI)
+    ])
     #expect(configuration.routingTable == [RoutingEntry(route: try route("claude", "opus", "high"))])
 }
 
@@ -128,7 +136,8 @@ func legacyBoardConnectionKeysAreRejected() {
 
 private let githubSection = """
 
-    [github]
+    [code_hosting.github.connections.github]
+    type = "keychain"
     credential = "keychain:github"
     """
 
@@ -204,12 +213,12 @@ func installationForProject() throws {
     }
     let machine = MachineConfiguration(
         linearInstallations: [try installation("a"), try installation("b")],
-        gitHubCredential: try credential("keychain:github"), cliAdapters: [], routingTable: []
+        cliAdapters: [], routingTable: []
     )
     func project(_ installationName: String) throws -> ProjectConfiguration {
         ProjectConfiguration(
             id: try #require(ProjectID(rawValue: "p")), name: "P", linearInstallationName: installationName,
-            linearProject: "P", specSource: "/spec", repos: []
+            linearProject: "P", codeHostingConnectionName: "github", specSource: "/spec", repos: []
         )
     }
     #expect(machine.linearInstallation(for: try project("b"))?.name == "b")
@@ -225,9 +234,7 @@ func installationOperatorTypeMismatch() {
     workspace = "w1"
     yellowhammer_identity = "u1"
     operator = 42
-    [github]
-    credential = "keychain:github"
-    """
+    """ + githubSection
     do {
         _ = try MachineConfiguration.parse(text, file: "config.toml")
         Issue.record("expected a non-string operator to fail")
@@ -282,19 +289,62 @@ func errorDescription() {
     #expect(keyless.description == "config.toml:2: expected a key")
 }
 
-@Test("[github] still refuses a client_id key")
-func gitHubRefusesClientID() {
+@Test("The old machine-wide [github] table is refused as an unknown key")
+func oldGitHubTableIsRefused() {
     let text = """
     [github]
     credential = "keychain:github"
-    client_id = "yellowhammer-client-id"
     """
     do {
         _ = try MachineConfiguration.parse(text, file: "config.toml")
         Issue.record("expected the parse to fail")
     } catch {
-        #expect(error.line == 3, "\(error)")
-        #expect(error.key == "github.client_id", "\(error)")
+        #expect(error.line == 1, "\(error)")
+        #expect(error.key == "github", "\(error)")
         #expect(error.reason == .unknownKey, "\(error)")
     }
+}
+
+@Test("An empty [code_hosting.github.connections], [code_hosting.github] and [code_hosting] declare none")
+func emptyCodeHostingRegistryMeansNoConnections() throws {
+    let headers = ["[code_hosting.github.connections]", "[code_hosting.github]", "[code_hosting]"]
+    for header in headers + [""] {
+        let configuration = try MachineConfiguration.parse(header, file: "config.toml")
+        #expect(configuration.codeHostingConnections == [], "\(header)")
+    }
+}
+
+@Test("Code Hosting Connections decode in file order; the lookups find them by name and by Project")
+func codeHostingConnectionsDecodeInFileOrder() throws {
+    let text = """
+        [code_hosting.github.connections.acme]
+        type = "keychain"
+        credential = "keychain:github-acme"
+
+        [code_hosting.github.connections."my gh"]
+        type = "gh"
+        """
+    let configuration = try MachineConfiguration.parse(text, file: "config.toml")
+    #expect(configuration.codeHostingConnections == [
+        CodeHostingConnection(name: "acme", kind: .keychainToken(try credential("keychain:github-acme"))),
+        CodeHostingConnection(name: "my gh", kind: .githubCLI)
+    ])
+    #expect(configuration.codeHostingConnection(named: "my gh")?.kind == .githubCLI)
+    #expect(configuration.codeHostingConnection(named: "nope") == nil)
+
+    func project(_ connection: String) throws -> ProjectConfiguration {
+        ProjectConfiguration(
+            id: try #require(ProjectID(rawValue: "p")), name: "P", linearInstallationName: "a",
+            linearProject: "P", codeHostingConnectionName: connection, specSource: "/spec", repos: []
+        )
+    }
+    #expect(configuration.codeHostingConnection(for: try project("acme"))?.name == "acme")
+    #expect(configuration.codeHostingConnection(for: try project("c")) == nil)
+}
+
+@Test("The default connection name and its Credential Reference")
+func codeHostingDefaults() {
+    #expect(CodeHostingConnection.defaultName == "github")
+    #expect(CodeHostingConnection.defaultCredentialReference(for: "github").rawValue == "keychain:github")
+    #expect(CodeHostingConnection.defaultCredentialReference(for: "acme").rawValue == "keychain:acme")
 }

@@ -12,3 +12,6 @@ check = "test"
 work_kind = "authoring"
 repo_role = "backend"
 route = "claude/sonnet"
+
+[code_hosting]
+connection = "github"

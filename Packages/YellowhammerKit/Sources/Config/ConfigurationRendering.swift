@@ -36,6 +36,24 @@ enum ConfigurationRendering {
         "[board.linear.connections.\(TOMLKey.isBare(name) ? name : quotedKey(name))]"
     }
 
+    /// `[code_hosting.github.connections.<name>]`, the name bare when it can be and quoted otherwise.
+    static func codeHostingConnectionHeader(_ name: String) -> String {
+        "[code_hosting.github.connections.\(TOMLKey.isBare(name) ? name : quotedKey(name))]"
+    }
+
+    /// One Code Hosting Connection: its `type`, and for a Keychain token its `credential`.
+    static func renderedCodeHostingConnection(_ connection: CodeHostingConnection) -> String {
+        var lines = [codeHostingConnectionHeader(connection.name)]
+        switch connection.kind {
+        case .githubCLI:
+            lines.append("type = \"gh\"")
+        case .keychainToken(let credential):
+            lines.append("type = \"keychain\"")
+            lines.append("credential = \(quoted(credential.rawValue))")
+        }
+        return lines.joined(separator: "\n")
+    }
+
     /// A quoted TOML key, used for table headers whose name may not be a bare key (such as a CLI
     /// Adapter name with a space).
     static func quotedKey(_ string: String) -> String {
@@ -139,8 +157,9 @@ enum ConfigurationRendering {
 }
 
 extension MachineConfiguration {
-    /// Renders one `[board.linear.connections.<name>]` table per Board Connection, `[github]`, one `[cli.<name>]` table per declared adapter and the base
-    /// Routing Table, in the shape ``MachineConfigurationDecoder`` reads back.
+    /// Renders one `[board.linear.connections.<name>]` table per Board Connection, one
+    /// `[code_hosting.github.connections.<name>]` table per Code Hosting Connection, one `[cli.<name>]` table
+    /// per declared adapter and the base Routing Table, in the shape ``MachineConfigurationDecoder`` reads back.
     public var renderedTOML: String {
         renderedTOML(routingTable: routingTable.map(RoutingEntryDraft.init))
     }
@@ -222,6 +241,46 @@ extension MachineConfiguration {
         return lines.joined(separator: "\n")
     }
 
+    /// A textual edit of an existing, hand-maintained `config.toml`: preserves every other line, including
+    /// comments. Adds or replaces the entry called `connection.name`. When its table exists, `type` is set in
+    /// place and `credential` is set (inserted when missing) for a Keychain token, or removed for a `gh` CLI
+    /// connection, which holds no token. When it does not, a new table is appended at the end of the file.
+    /// Applying it twice equals applying it once.
+    public static func settingCodeHostingConnection(
+        _ connection: CodeHostingConnection, inFileText text: String
+    ) -> String {
+        var lines = text.components(separatedBy: "\n")
+        guard let header = codeHostingHeaderIndex(named: connection.name, in: lines) else {
+            var result = text
+            if !result.isEmpty {
+                if !result.hasSuffix("\n") { result += "\n" }
+                result += "\n"
+            }
+            return result + ConfigurationRendering.renderedCodeHostingConnection(connection) + "\n"
+        }
+        switch connection.kind {
+        case .githubCLI:
+            setKey("type", to: "gh", tableAt: header, in: &lines)
+            removeKey("credential", tableAt: header, in: &lines)
+        case .keychainToken(let credential):
+            setKey("type", to: "keychain", tableAt: header, in: &lines)
+            setKey("credential", to: credential.rawValue, tableAt: header, in: &lines)
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// Removes the `key` line from the table whose header is at `header`, when it has one.
+    private static func removeKey(_ key: String, tableAt header: Int, in lines: inout [String]) {
+        var end = header + 1
+        while end < lines.count, !isAnyTableHeader(lines[end]) {
+            if isKeyAssignment(lines[end], key: key) {
+                lines.remove(at: end)
+                return
+            }
+            end += 1
+        }
+    }
+
     /// Sets `key = "value"` in the table whose header is at `header`: replaces the key's line, or inserts
     /// it after the table's last key line (right after the header when it has none).
     private static func setKey(_ key: String, to value: String, tableAt header: Int, in lines: inout [String]) {
@@ -244,10 +303,24 @@ extension MachineConfiguration {
         lines.firstIndex { installationName(ofHeaderLine: $0) == name }
     }
 
+    private static func codeHostingHeaderIndex(named name: String, in lines: [String]) -> Int? {
+        lines.firstIndex { codeHostingConnectionName(ofHeaderLine: $0) == name }
+    }
+
     /// The `<name>` of a `[board.linear.connections.<name>]` header line, nil for any other line. The
     /// name may be bare or basic-quoted; whitespace around the dots and brackets and a trailing `#`
     /// comment are allowed.
     private static func installationName(ofHeaderLine line: String) -> String? {
+        tableName(ofHeaderLine: line, under: ["board", "linear", "connections"])
+    }
+
+    /// The `<name>` of a `[code_hosting.github.connections.<name>]` header line, nil for any other line.
+    private static func codeHostingConnectionName(ofHeaderLine line: String) -> String? {
+        tableName(ofHeaderLine: line, under: ["code_hosting", "github", "connections"])
+    }
+
+    /// The last segment of a `[<prefix>.<name>]` header line, nil for any other line.
+    private static func tableName(ofHeaderLine line: String, under prefix: [String]) -> String? {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         guard trimmed.hasPrefix("["), !trimmed.hasPrefix("[[") else { return nil }
         let characters = Array(trimmed.dropFirst())
@@ -265,8 +338,8 @@ extension MachineConfiguration {
         }
         skipSpaces(characters, &index)
         guard index == characters.count || characters[index] == "#" else { return nil }
-        guard segments.count == 4, segments.prefix(3) == ["board", "linear", "connections"] else { return nil }
-        return segments[3]
+        guard segments.count == prefix.count + 1, Array(segments.prefix(prefix.count)) == prefix else { return nil }
+        return segments[prefix.count]
     }
 
     private static func skipSpaces(_ characters: [Character], _ index: inout Int) {
@@ -313,9 +386,10 @@ extension MachineConfiguration {
 }
 
 extension ProjectConfiguration {
-    /// Renders the Project's identity, Repos, `[limits]` (all six Bounds, explicit) and `[schedule]`
-    /// (all three keys, explicit) — see the spec citation on ``ConfigurationRendering`` — plus an
-    /// optional `[github]` override and any Routing Table overrides.
+    /// Renders the Project's identity, Board and Code Hosting selections, Repos, `[limits]` (all six Bounds,
+    /// explicit) and `[schedule]` (all three keys, explicit) — see the spec citation on
+    /// ``ConfigurationRendering`` — plus a `[github]` title when it is not the default and any Routing Table
+    /// overrides.
     public var renderedTOML: String {
         ProjectFileDraft(self).renderedTOML
     }

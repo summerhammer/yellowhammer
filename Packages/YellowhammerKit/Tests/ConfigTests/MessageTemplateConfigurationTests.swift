@@ -7,6 +7,7 @@ private let base = """
     id = "alpha"
     name = "Alpha"
     board = { linear = { connection = "acme", project = "ALP" } }
+    code_hosting = { connection = "github" }
     spec_source = "~/spec"
     """
 
@@ -61,20 +62,21 @@ func allKeysDecode() throws {
     #expect(project.wipCommitMessage.text == "wip {type} {repository}")
 }
 
-@Test("A [github] with only pull_request_title means no credential override")
-func githubTitleWithoutCredential() throws {
+@Test("A Project's [github] takes pull_request_title only; a credential there is an unknown key")
+func githubTakesTheTitleOnly() throws {
     let project = try parse("[github]\npull_request_title = \"{title}\"")
-    #expect(project.gitHubCredential == nil)
     #expect(project.pullRequestTitle.text == "{title}")
-    let both = try parse("[github]\ncredential = \"keychain:gh\"\npull_request_title = \"{title}\"")
-    #expect(both.gitHubCredential == CredentialReference("keychain:gh"))
+    #expect(project.codeHostingConnectionName == "github")
+    let credential = refusal("[github]\ncredential = \"keychain:gh\"\npull_request_title = \"{title}\"")
+    #expect(credential?.key == "github.credential")
+    #expect(credential?.reason == .unknownKey)
 }
 
 @Test("An unknown token, an empty template and a non-string value are refused, naming the key")
 func badTemplatesRefused() {
     let unknown = refusal("[git]\ncommit_message = \"{type}: {branch}\"")
     #expect(unknown?.key == "git.commit_message")
-    #expect(unknown?.line == 12)
+    #expect(unknown?.line == 13)
     #expect(unknown?.reason == .unknownTemplateToken(
         name: "branch", key: "commit_message",
         accepted: ["{type}", "{title}", "{key}", "{repository}", "{scope}",
@@ -104,12 +106,12 @@ func machineFileRejectsProjectKeys() {
     let machine = ""
     let cases: [(String, String)] = [
         ("", "change_type"),
-        ("[github]\ncredential = \"c\"\n\n[git]\ncommit_message = \"{type}\"", "git"),
-        ("[github]\ncredential = \"c\"\npull_request_title = \"{title}\"", "github.pull_request_title")
+        ("[git]\ncommit_message = \"{type}\"", "git"),
+        ("[github]\npull_request_title = \"{title}\"", "github")
     ]
     for (body, key) in cases {
         let text = key == "change_type"
-            ? "change_type = \"feat\"\n" + machine + "[github]\ncredential = \"c\""
+            ? "change_type = \"feat\"\n" + machine + "[git]\ncommit_message = \"{type}\""
             : machine + body
         do {
             _ = try MachineConfiguration.parse(text, file: "config.toml")
@@ -126,7 +128,6 @@ func roundTrip() throws {
     let project = try parse(
         """
         [github]
-        credential = "keychain:gh"
         pull_request_title = "[{key}] {title}"
 
         [git]
@@ -163,11 +164,13 @@ func badTemplateIsolatesProject() throws {
     try FileManager.default.createDirectory(at: projects, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: directory) }
     let machineText = "[board.linear.connections.acme]\ncredential = \"keychain:linear\"\n"
-        + "workspace = \"w1\"\nyellowhammer_identity = \"u1\"\n\n[github]\ncredential = \"keychain:github\"\n"
+        + "workspace = \"w1\"\nyellowhammer_identity = \"u1\"\n\n[code_hosting.github.connections.github]\n"
+        + "type = \"keychain\"\ncredential = \"keychain:github\"\n"
     try machineText.write(to: directory.appending(component: "config.toml"), atomically: true, encoding: .utf8)
     func file(_ id: String, _ path: String, _ extra: String) -> String {
         "id = \"\(id)\"\nname = \"\(id)\"\nspec_source = \"~/spec\"\n\n"
             + "[board.linear]\nconnection = \"acme\"\nproject = \"\(id)\"\n\n"
+            + "[code_hosting]\nconnection = \"github\"\n\n"
             + "[[repos]]\nname = \"b\"\npath = \"\(path)\"\nrole = \"backend\"\ncheck = \"none\"\n\n\(extra)\n"
     }
     try file("good", "~/good", "").write(

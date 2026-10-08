@@ -10,6 +10,7 @@ struct AddProjectDraftInvocationTests {
         let draft = completeAddProjectDraft()
         let expected = SetupInvocation(
             boardConnection: "acme",
+            codeHostingConnection: "github",
             project: SetupInvocation.Project(
                 id: "acme", name: "Acme", linearProject: .existing("ACME"), specSource: "/work/acme-spec",
                 repos: [
@@ -22,7 +23,8 @@ struct AddProjectDraftInvocationTests {
         )
         #expect(draft.setupInvocation == expected)
         #expect(try draft.setupInvocation.arguments() == [
-            "setup", "--init", "--board-connection", "acme", "--project", "acme", "--project-name", "Acme",
+            "setup", "--init", "--board-connection", "acme", "--code-hosting-connection", "github",
+            "--project", "acme", "--project-name", "Acme",
             "--linear-project", "ACME",
             "--spec-source", "/work/acme-spec", "--repo", "acme-backend,backend,/work/acme-backend,make test",
             "--install-jobs"
@@ -110,10 +112,18 @@ struct AddProjectDraftInvocationTests {
         #expect(arguments[index + 1] == "acme")
     }
 
+    @Test("The new Project selects the default Code Hosting Connection, the one the GitHub step checks")
+    func defaultCodeHostingConnectionIsSelected() throws {
+        let invocation = completeAddProjectDraft().setupInvocation
+        #expect(invocation.codeHostingConnection == CodeHostingConnection.defaultName)
+        let arguments = try invocation.arguments()
+        let index = try #require(arguments.firstIndex(of: "--code-hosting-connection"))
+        #expect(arguments[index + 1] == "github")
+    }
+
     @Test("Nothing machine-wide is carried")
     func nothingMachineWide() {
         let invocation = completeAddProjectDraft().setupInvocation
-        #expect(invocation.githubCredential == nil)
         #expect(invocation.cliAdapters.isEmpty)
         #expect(invocation.route == nil)
         #expect(invocation.fallbacks.isEmpty)

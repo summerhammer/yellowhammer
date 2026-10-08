@@ -53,7 +53,7 @@ final class GitHubCredentialModel {
         var lines: [String] = []
         do {
             let status = try await run.engine.run(
-                arguments: SetupInvocation.printGitHubArguments(githubCredential: nil, repoPaths: repoPaths)
+                arguments: SetupInvocation.printGitHubArguments(codeHostingConnection: nil, repoPaths: repoPaths)
             ) { lines.append($0) }
             guard run.generation == generation else { return }
             if status == 0, let report = GitHubCredentialReport.decodeLastLine(lines) {
@@ -100,7 +100,7 @@ final class GitHubCredentialModel {
         do {
             let status = try await run.engine.run(
                 arguments: SetupInvocation.installGitHubArguments(
-                    githubCredential: nil, source: source, replace: true, repoPaths: repoPaths
+                    codeHostingConnection: nil, source: source, replace: true, repoPaths: repoPaths
                 ),
                 standardInput: standardInput
             ) { lines.append($0) }
