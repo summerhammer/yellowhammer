@@ -10,17 +10,16 @@ import Testing
 struct LoopbackCallbackServerTests {
     /// Binds a random port well away from the three real redirect ports and below macOS's ephemeral range
     /// (49152+), so no client socket elsewhere in the suite holds it; a sibling test that drew the same
-    /// port is still possible, so a busy port is retried on another.
+    /// port is still possible, so a failed bind is retried on another, and only the last one throws.
+    /// (`try?` rather than a `catch .busy(let port)`: Swift 6.3's SILGen crashes on that typed-error
+    /// pattern here.)
     private static func bindTestPort() throws -> LoopbackCallbackServer {
-        var lastError: LoopbackCallbackServer.BindError?
-        for _ in 0..<10 {
-            do {
-                return try LoopbackCallbackServer.bind(port: Int.random(in: 45000...49000))
-            } catch LoopbackCallbackServer.BindError.busy(let port) {
-                lastError = .busy(port: port)
+        for _ in 0..<9 {
+            if let server = try? LoopbackCallbackServer.bind(port: Int.random(in: 45000...49000)) {
+                return server
             }
         }
-        throw lastError!
+        return try LoopbackCallbackServer.bind(port: Int.random(in: 45000...49000))
     }
 
     @Test("Serves /callback with its query, then closes")
