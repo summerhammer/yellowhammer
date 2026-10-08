@@ -205,4 +205,29 @@ struct SetupInvocationTests {
             "setup", "--install-linear", "--events", "json", "--board-connection", "main", "--remote"
         ])
     }
+
+    @Test("printGitHubArguments builds --print-github with the credential and Repos, omitting absent ones")
+    func printGitHubArguments() {
+        #expect(SetupInvocation.printGitHubArguments(githubCredential: nil, repoPaths: [])
+            == ["setup", "--print-github"])
+        #expect(SetupInvocation.printGitHubArguments(
+            githubCredential: "keychain:github", repoPaths: ["~/a", "~/b"]
+        ) == [
+            "setup", "--print-github", "--github-credential", "keychain:github",
+            "--github-repo", "~/a", "--github-repo", "~/b"
+        ])
+    }
+
+    @Test("installGitHubArguments builds --install-github with the token source and --replace")
+    func installGitHubArguments() {
+        #expect(SetupInvocation.installGitHubArguments(
+            githubCredential: nil, source: .standardInput, replace: false, repoPaths: []
+        ) == ["setup", "--install-github", "--token-stdin"])
+        #expect(SetupInvocation.installGitHubArguments(
+            githubCredential: "keychain:github", source: .githubCLI, replace: true, repoPaths: ["~/a"]
+        ) == [
+            "setup", "--install-github", "--github-credential", "keychain:github", "--from-gh", "--replace",
+            "--github-repo", "~/a"
+        ])
+    }
 }

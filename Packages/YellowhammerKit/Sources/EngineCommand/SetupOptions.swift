@@ -20,6 +20,12 @@ enum SetupMode: Equatable {
     case installCLI
     /// `--uninstall-cli`: removes `/usr/local/bin/yh` if it points to `yh` and exits.
     case uninstallCLI
+    /// `--install-github`: runs only the GitHub step (capture, check, store the token), validates the
+    /// token against the Repos, and exits — never touches Linear, Project files or jobs, and never creates
+    /// `config.toml`.
+    case installGitHub
+    /// `--print-github`: never prompts, writes nothing; prints the GitHub credential report as one line.
+    case printGitHub
 }
 
 /// The scheduled-jobs format `--export-jobs` writes.
@@ -61,6 +67,9 @@ struct SetupOptions {
     /// workspace already in the registry the name is discarded (and the run says so).
     let installationName: String?
     let githubCredential: CredentialReference?
+    /// `--token-stdin`, `--from-gh`, `--replace` and `--github-repo`; only meaningful with `--install-github`
+    /// or `--print-github`.
+    let gitHub: GitHubStepOptions
     /// In `--cli` order.
     let cliAdapters: [CLIAdapterDeclaration]
     /// The base Routing Table's one entry (kind `*`, repo_role `*`), built from `--route`/`--fallback`.
@@ -85,6 +94,7 @@ struct SetupOptions {
         installation = try Self.parseInstallation(command.boardConnection)
         installationName = try Self.parseInstallationName(command)
         githubCredential = try Self.parseCredential(command.githubCredential, option: "--github-credential")
+        gitHub = try GitHubStepOptions(command: command)
         operatorID = command.operatorID.map { BoardObjectID(rawValue: $0) }
 
         let (adapters, declaredNames) = try Self.parseCLIAdapters(command.cli)
@@ -130,6 +140,11 @@ struct SetupOptions {
             try validateStandaloneCLIMode(command, flag: "--uninstall-cli")
             return .uninstallCLI
         }
+        if command.installGitHub || command.printGitHub {
+            try validateGitHubScope(command)
+            return command.installGitHub ? .installGitHub : .printGitHub
+        }
+        try validateGitHubOptionsWithoutMode(command)
         if command.printChoices {
             try validatePrintChoicesScope(command)
             return .printChoices
@@ -170,27 +185,6 @@ struct SetupOptions {
             throw ValidationError("--cron requires --export-jobs")
         }
         return command.installJobs ? .install : .none
-    }
-
-    /// `--events json` is only meaningful with `--install-linear`; any other value is a ValidationError.
-    private static func parseEventsJSON(_ command: SetupCommand) throws -> Bool {
-        guard let events = command.events else { return false }
-        guard events == "json" else {
-            throw ValidationError("--events must be \"json\", got \"\(events)\"")
-        }
-        guard command.installLinear else {
-            throw ValidationError("--events requires --install-linear")
-        }
-        return true
-    }
-
-    /// `--remote` is only meaningful with `--install-linear` (roadmap P17.9).
-    private static func parseRemoteApproval(_ command: SetupCommand) throws -> Bool {
-        guard command.remote else { return false }
-        guard command.installLinear else {
-            throw ValidationError("--remote requires --install-linear")
-        }
-        return true
     }
 
     private static func parseInstallation(_ raw: String?) throws -> String? {
@@ -350,5 +344,28 @@ extension SetupOptions {
             )
         }
         return raw
+    }
+}
+
+extension SetupOptions {
+    /// `--events json` is only meaningful with `--install-linear`; any other value is a ValidationError.
+    private static func parseEventsJSON(_ command: SetupCommand) throws -> Bool {
+        guard let events = command.events else { return false }
+        guard events == "json" else {
+            throw ValidationError("--events must be \"json\", got \"\(events)\"")
+        }
+        guard command.installLinear else {
+            throw ValidationError("--events requires --install-linear")
+        }
+        return true
+    }
+
+    /// `--remote` is only meaningful with `--install-linear` (roadmap P17.9).
+    private static func parseRemoteApproval(_ command: SetupCommand) throws -> Bool {
+        guard command.remote else { return false }
+        guard command.installLinear else {
+            throw ValidationError("--remote requires --install-linear")
+        }
+        return true
     }
 }

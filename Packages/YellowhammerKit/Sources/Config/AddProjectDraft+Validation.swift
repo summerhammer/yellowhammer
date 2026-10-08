@@ -10,6 +10,7 @@ extension AddProjectDraft {
         case .project: projectProblems
         case .board: linearProblems
         case .repos: repoProblems
+        case .github: gitHubProblems
         case .specSource: specSourceProblems
         case .bounds: boundsProblems
         case .jobs: jobsProblems
@@ -172,6 +173,28 @@ extension AddProjectDraft {
             }
         }
         return problems
+    }
+
+    /// The Repos a GitHub token must be able to publish: every Repo whose role is not `spec` (the Spec Source is
+    /// read-only), as the Operator entered their paths.
+    public var workingRepoPaths: [String] {
+        repos.filter { $0.role != "spec" }.map(\.path)
+    }
+
+    /// Whether the last GitHub check was made against the working Repos the draft has now.
+    public var gitHubCheckIsCurrent: Bool {
+        guard gitHubReport != nil else { return false }
+        func normalized(_ paths: [String]) -> [String] { paths.map(AddProjectContext.normalizedPath).sorted() }
+        return normalized(gitHubCheckedRepoPaths) == normalized(workingRepoPaths)
+    }
+
+    private var gitHubProblems: [String] {
+        // Only Repos of role `spec` leave nothing to push to, but the token is still the Project's: its check
+        // is then of the credential alone. No Repos at all is the Repos step's problem to name first.
+        guard !repos.isEmpty else { return ["Add a working Repo first."] }
+        guard let report = gitHubReport, gitHubCheckIsCurrent else { return ["Check the GitHub token."] }
+        guard report.state == .resolves else { return [report.message] }
+        return report.repos.filter { $0.status != .ok && $0.status != .okUnverified }.map(\.message)
     }
 
     private var specSourceProblems: [String] {

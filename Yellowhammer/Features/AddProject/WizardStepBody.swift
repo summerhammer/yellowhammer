@@ -11,6 +11,8 @@ struct WizardStepBody: View {
     let linearWorkspaces: LinearWorkspacesModel
     let onSelectInstallation: (String) -> Void
     var onVerifyLinearProject: () -> Void = {}
+    /// The GitHub step's credential; nil in a preview, where the step runs nothing.
+    var gitHub: GitHubCredentialModel?
 
     var body: some View {
         switch step {
@@ -29,6 +31,15 @@ struct WizardStepBody: View {
             }
         case .repos:
             RepoStepView(draft: $draft) { problemBox }
+        case .github:
+            if let gitHub {
+                WizardColumn {
+                    GitHubCredentialView(model: gitHub, mode: .wizard, repoPaths: gitHubRepoPaths)
+                    problemBox
+                }
+                // On opening the step, and again when the working Repos change: the check is of these Repos.
+                .task(id: gitHubRepoPaths) { await gitHub.check(repoPaths: gitHubRepoPaths) }
+            }
         case .specSource:
             WizardColumn {
                 SpecBlock(draft: $draft)
@@ -48,6 +59,11 @@ struct WizardStepBody: View {
             }
             .formStyle(.grouped)
         }
+    }
+
+    /// The working Repos the GitHub token is checked against, `~` expanded.
+    private var gitHubRepoPaths: [String] {
+        draft.workingRepoPaths.map(AddProjectContext.normalizedPath)
     }
 
     /// The step's problems, once the Operator has left it; none on its first opening.

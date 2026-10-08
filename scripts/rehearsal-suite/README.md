@@ -53,7 +53,8 @@ wait out a real ten-minute Lease TTL.
 
 - **Rehearsal Projects** `rehearsal-suite-a` and `rehearsal-suite-b` in `~/.config/yellowhammer/projects/`
   (`yh` always reads that directory, and rehearsal uses the machine's one real Ledger). The first run
-  creates each with `yh setup --init --board-connection <name> --linear-team <team>`, which creates its scratch Linear project
+  creates each with `yh setup --init --board-connection <name> --linear-team <team> --skip-github-check` (the fixture
+  repositories have a local bare repository as `origin` and no GitHub token, and a rehearsal Night never pushes), which creates its scratch Linear project
   and provisions the team; no LaunchAgent is ever installed (`--install-jobs` is never passed). Later runs
   reuse them. Before every scenario the suite rewrites the Project file (keeping its `[board.linear]` table, `installation` and `project`)
   with that scenario's `[limits]`, `check` commands and Protected Paths, and a Routing Table override of

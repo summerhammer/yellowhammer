@@ -27,11 +27,11 @@ let selfMember = BoardMember(
     isActive: true, isApp: false, isSelf: true
 )
 
-/// Answers Installation-token-presence reads from a seed — `SetupCredentialStore` is presence-only
-/// (P17.4): it never stores.
+/// Answers `SetupCredentialStore` reads from a seed, and records what `store` was asked to keep.
 final class RecordingCredentialStore: SetupCredentialStore {
     private let storage: Mutex<[String: String]>
     private let unreadable: Set<String>
+    private let stores = Mutex<[StoredSecret]>([])
 
     /// `unreadable` names references whose item "exists but cannot be read" (a locked Keychain).
     init(seed: [String: String] = [:], unreadable: Set<String> = []) {
@@ -47,6 +47,26 @@ final class RecordingCredentialStore: SetupCredentialStore {
     func secret(for reference: CredentialReference) -> String? {
         storage.withLock { $0[reference.rawValue] }
     }
+
+    func store(_ secret: String, for reference: CredentialReference) throws {
+        storage.withLock { $0[reference.rawValue] = secret }
+        stores.withLock { $0.append(StoredSecret(reference: reference.rawValue, secret: secret)) }
+    }
+
+    /// A store holding `keychain:github` (a token the passing GitHub stub accepts) plus `seed`, so a test of
+    /// another step never meets the GitHub step's capture prompt.
+    static func withGitHub(_ seed: [String: String] = [:], unreadable: Set<String> = []) -> RecordingCredentialStore {
+        RecordingCredentialStore(seed: ["keychain:github": "ghp_test"].merging(seed) { $1 }, unreadable: unreadable)
+    }
+
+    /// One `store` call.
+    struct StoredSecret: Equatable {
+        let reference: String
+        let secret: String
+    }
+
+    /// Every `store` call, in order.
+    var storedSecrets: [StoredSecret] { stores.withLock { $0 } }
 }
 
 /// Records every line `Setup` printed, in order.
@@ -290,7 +310,7 @@ func makeSetup(
     board: FakeProvisioningBoard,
     console: ScriptedConsole = ScriptedConsole(),
     credentials: RecordingCredentialStore = RecordingCredentialStore(
-        seed: ["keychain:linear": "test-secret", "keychain:linear-acme": "test-secret"]
+        seed: ["keychain:linear": "test-secret", "keychain:linear-acme": "test-secret", "keychain:github": "ghp_test"]
     ),
     output: RecordingOutput = RecordingOutput(),
     notifications: NotificationRegistrationStub = NotificationRegistrationStub(.allowed),
@@ -299,6 +319,8 @@ func makeSetup(
     yhExecutablePath: String = "/usr/local/bin/yh",
     setupTimePATH: String? = "/usr/bin:/bin",
     fileExists: @escaping (String) -> Bool = { _ in false },
+    gitHub: GitHubCredentialValidation = StubGitHubTransport.passing().validation(),
+    importGitHubToken: @escaping @Sendable () async -> GitHubTokenImport = { .unavailable("gh is not installed") },
     launchAgents: any LaunchAgentControl = RecordingLaunchAgentControl(),
     linearInstallSeams: LinearInstallSeams = defaultLinearInstallSeams(),
     linearInstallationStore: @escaping (LinearInstallation) -> LinearInstallationStore =
@@ -326,6 +348,8 @@ func makeSetup(
         yhExecutablePath: yhExecutablePath,
         setupTimePATH: setupTimePATH,
         fileExists: fileExists,
+        gitHub: gitHub,
+        importGitHubToken: importGitHubToken,
         launchAgents: launchAgents,
         linearInstallSeams: linearInstallSeams,
         linearInstallationStore: linearInstallationStore,

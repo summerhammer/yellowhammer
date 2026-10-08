@@ -11,14 +11,17 @@ struct Doctor {
     let homeDirectory: URL
     let output: (String) -> Void
     let console: any SetupConsole
-    /// Presence-only: whether an Installation token pair exists in the Keychain (Check 4's first
-    /// criterion). Never reads or stores a secret.
+    /// Whether an Installation token pair exists in the Keychain (Check 4's first criterion: presence
+    /// only), and the GitHub token itself, which the GitHub check reads to call GitHub with. Never stores.
     let credentials: any SetupCredentialStore
     /// `linearProjectID` is `""` for the workspace-scoped reads (identity, members) and the Project's own
     /// Linear project for the board-membership check.
     let bindProvisioning: (LinearInstallation, String) -> any BoardProvisioning
     let launchAgents: any LaunchAgentControl
     let git: GitRunner
+    /// Reads the GitHub token (through `credentials`) and asks GitHub whether it can push to each working
+    /// Repo. Read-only against GitHub.
+    let gitHub: GitHubCredentialValidation
     /// Runs `yh probe <name>` for one declared CLI. Real seam: `ProbeCommand.parse([name]).run(...)`.
     let runProbe: (String) async -> Void
     let fix: Bool
@@ -65,6 +68,9 @@ struct Doctor {
         }
         if checks.contains(.linear) {
             findings += await runLinearCheck(configuration: configuration)
+        }
+        if checks.contains(.github) {
+            findings += await runGitHubCheck(configuration: configuration)
         }
         if checks.contains(.launchd) {
             findings += await runLaunchdCheck(configuration: configuration)

@@ -53,6 +53,8 @@ private final class CountingPresence: SetupCredentialStore {
         asked.withLock { $0 += 1 }
         return answer
     }
+
+    func store(_ secret: String, for reference: CredentialReference) throws {}
 }
 
 private struct RemoveResult {

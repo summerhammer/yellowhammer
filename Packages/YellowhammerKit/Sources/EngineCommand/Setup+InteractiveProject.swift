@@ -16,6 +16,9 @@ extension Setup {
                 try await writeProject(declaration, machine: machine, installation: installation, board: board)
             } catch {
                 output("\(error)")
+                if let failure = error as? SetupError, failure.isGitHubFailure {
+                    try await offerGitHubReplacement(machine: machine)
+                }
                 continue
             }
             guard askYesNo("Declare another Project? [y/N] ") else { return }

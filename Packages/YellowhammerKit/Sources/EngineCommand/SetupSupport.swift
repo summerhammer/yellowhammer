@@ -5,23 +5,35 @@ import Security
 /// A `yh setup` failure, printed as-is and turned into a non-zero exit.
 struct SetupError: Error, CustomStringConvertible, Sendable {
     let message: String
+    /// Whether the GitHub step refused: interactive setup then offers to replace the token before it
+    /// re-asks the Project.
+    let isGitHubFailure: Bool
 
-    init(_ message: String) {
+    init(_ message: String, gitHub: Bool = false) {
         self.message = message
+        isGitHubFailure = gitHub
     }
 
     var description: String { message }
 }
 
-/// Whether an Installation token pair is present in the Keychain, so `Setup`/`Doctor` never touch the
-/// Keychain directly for this presence check. The real conformance wraps ``KeychainCredentialStore``; a
-/// read error means absent. Presence-only, by design (P17.4): it reads only to test presence — the
-/// value itself (opaque JSON, `LinearInstallationStore`'s own concern) is read back but never used here.
+/// Reads and writes the Keychain on behalf of `Setup` and `Doctor`, so neither touches the Keychain
+/// directly. The real conformance wraps ``KeychainCredentialStore``; a read error in ``secret(for:)`` means
+/// absent.
+///
+/// The two callers use it differently:
+/// - The Linear steps use it for **presence only** (P17.4): they read an Installation token pair to test
+///   that it is there and never use the value (opaque JSON, `LinearInstallationStore`'s own concern).
+/// - The GitHub steps **read the token** to call GitHub with it (the credential check), and ``store(_:for:)``
+///   puts a token the Operator supplied under its reference. The token is never printed, logged, or stored
+///   anywhere but the Keychain.
 protocol SetupCredentialStore: Sendable {
     func secret(for reference: CredentialReference) -> String?
     /// Whether the item is there, distinguishing "absent" from "present but could not be read" (a locked
     /// Keychain). The default derives from ``secret(for:)``, which cannot tell the two apart.
     func presence(of reference: CredentialReference) -> CredentialPresence
+    /// Stores `secret` under `reference`, replacing any existing item.
+    func store(_ secret: String, for reference: CredentialReference) throws
 }
 
 /// The answer of ``SetupCredentialStore/presence(of:)``. Never carries the secret.
@@ -40,20 +52,24 @@ extension SetupCredentialStore {
 
 /// Wraps ``KeychainCredentialStore`` as a ``SetupCredentialStore``.
 struct KeychainSetupCredentialStore: SetupCredentialStore {
-    private let store = KeychainCredentialStore()
+    private let keychain = KeychainCredentialStore()
 
     func secret(for reference: CredentialReference) -> String? {
-        try? store.read(reference)
+        try? keychain.read(reference)
     }
 
     func presence(of reference: CredentialReference) -> CredentialPresence {
         do {
-            _ = try store.read(reference)
+            _ = try keychain.read(reference)
             return .present
         } catch {
             if error.status == errSecItemNotFound { return .absent }
             return .unreadable("\(error)")
         }
+    }
+
+    func store(_ secret: String, for reference: CredentialReference) throws {
+        try keychain.store(secret, for: reference)
     }
 }
 

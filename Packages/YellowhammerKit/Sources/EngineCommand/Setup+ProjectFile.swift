@@ -11,7 +11,7 @@ extension Setup {
         machine: MachineConfiguration, installation: LinearInstallation, board: any BoardProvisioning
     ) async throws {
         switch options.mode {
-        case .config, .printChoices, .installLinear, .installCLI, .uninstallCLI:
+        case .config, .printChoices, .installLinear, .installCLI, .uninstallCLI, .installGitHub, .printGitHub:
             return
         case .initialize:
             guard let declaration = try optionProjectDeclaration() else { return }
@@ -39,7 +39,8 @@ extension Setup {
 
     /// Keeps an existing Project file untouched; otherwise refuses a reused Project id whose kept Journal
     /// names another Linear workspace, validates its shape first (a bad declaration
-    /// must not leave an orphan Linear project), resolves the Linear project — creating it in a team
+    /// must not leave an orphan Linear project), checks the GitHub token can push to its working Repos
+    /// (likewise before any Linear write), resolves the Linear project — creating it in a team
     /// when asked — and writes the file.
     func writeProject(
         _ declaration: ProjectDeclaration, machine: MachineConfiguration, installation: LinearInstallation,
@@ -63,6 +64,9 @@ extension Setup {
             declaration, installationName: installationName, machine: machine,
             declaredCLIAdapters: declaredCLIAdapters, at: path
         )
+
+        // Also before any Linear write: a token that cannot push to a Repo is a Night that fails at `land`.
+        try await validateGitHub(for: declaration, machine: machine)
 
         let linearProjectID = try await resolveLinearProjectID(
             declaration.linearProject, name: declaration.name, board: board

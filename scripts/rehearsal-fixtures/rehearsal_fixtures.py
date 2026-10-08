@@ -344,7 +344,11 @@ def write_project_repos_toml(project_dir, spec_dir, repos_meta):
 
 
 def print_setup_args(project_id, spec_dir, repos_meta):
-    parts = ["yh", "setup", "--init", "--project", project_id, "--spec-source", str(spec_dir)]
+    # Fixture repositories have a local bare repository as `origin` and no GitHub token behind it; a rehearsal
+    # Night never pushes, so the GitHub check that setup otherwise makes is skipped.
+    parts = [
+        "yh", "setup", "--init", "--project", project_id, "--spec-source", str(spec_dir), "--skip-github-check"
+    ]
     for repo in repos_meta:
         parts.append("--repo")
         parts.append(f"'{repo['name']},{repo['role']},{repo['path']},true'")

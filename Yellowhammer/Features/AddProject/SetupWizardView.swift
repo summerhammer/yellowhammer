@@ -2,7 +2,7 @@ import Config
 import Domain
 import SwiftUI
 
-/// The Add Project sheet: everything `yh setup` does, as a hub of six steps any of which can be opened at
+/// The Add Project sheet: everything `yh setup` does, as a hub of seven steps any of which can be opened at
 /// any time, driven by ``SetupWizardModel``. It exists only to add a Project, reached from an Add Project
 /// action in a window, and it shows no status or cross-Project summary. The one machine-wide prerequisite
 /// is an agent CLI route, which is not set here: while it is missing the hub shows it as a Prerequisites

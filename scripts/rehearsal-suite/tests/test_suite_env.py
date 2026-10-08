@@ -453,6 +453,17 @@ class InstallationTests(unittest.TestCase):
         args = env.yh.run_setup.call_args.args[1]
         self.assertEqual(args[args.index("--board-connection") + 1], "my-ws")
 
+    def test_ensure_project_skips_the_github_check(self):
+        (self.config_dir / "config.toml").write_text(MACHINE_CONFIG)
+        env = self.make_env()
+        env.yh = mock.Mock()
+        env.yh.run_setup.return_value = (0, "", Path("/dev/null"))
+        manifest = {"spec_source": "/tmp/spec", "repos": []}
+        with mock.patch.object(suite_env, "build_fixture_tree", return_value=manifest), \
+             mock.patch.object(suite_env, "default_repo_declarations", return_value=[]):
+            suite_env.ensure_project(env, "rehearsal-suite-a")
+        self.assertIn("--skip-github-check", env.yh.run_setup.call_args.args[1])
+
     def test_scenario_project_file_preserves_installation_and_project(self):
         (self.config_dir / "config.toml").write_text(MACHINE_CONFIG)
         path = suite_env.project_file_path(self.config_dir, "rehearsal-suite-a")

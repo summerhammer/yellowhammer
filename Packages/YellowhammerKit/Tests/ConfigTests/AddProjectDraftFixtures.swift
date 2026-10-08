@@ -29,7 +29,22 @@ func completeAddProjectDraft() -> AddProjectDraft {
     draft.addRepo(path: "/work/acme-backend")
     draft.repos[0].check = "make test"
     draft.useSpecSource("/work/acme-spec")
+    draft.gitHubReport = validGitHubReport(repoPaths: draft.workingRepoPaths)
+    draft.gitHubCheckedRepoPaths = draft.workingRepoPaths
     // Bounds and the Schedule are complete at their defaults once opened.
     draft.visited.formUnion([.bounds, .jobs])
     return draft
+}
+
+/// A GitHub check that found the token good for a user and able to push to each of `repoPaths`.
+func validGitHubReport(repoPaths: [String]) -> GitHubCredentialReport {
+    GitHubCredentialReport(
+        reference: "keychain:github", state: .resolves, login: "octocat", message: "The token belongs to octocat.",
+        repos: repoPaths.map {
+            let name = URL(filePath: $0).lastPathComponent
+            return GitHubCredentialReport.Repo(
+                name: name, path: $0, slug: "acme/\(name)", status: .ok, message: "Repo \(name): the token can push."
+            )
+        }
+    )
 }

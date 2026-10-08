@@ -28,6 +28,9 @@ final class AddProjectUITests: XCTestCase {
     private var installedMarker: URL!
     private var attemptsMarker: URL!
     private var checkedMarker: URL!
+    /// Created by the stub's `--install-github`; until it exists, `--print-github` reports the token `missing`
+    /// when `YH_STUB_GITHUB_MISSING` is set.
+    private var githubStoredMarker: URL!
     /// Where the stub's `--init` writes the Project file; the configuration's `projects` folder is a symlink
     /// to it, so the app finds the new Project where the real `yh setup --init` would put it.
     private var projectsDirectory: URL!
@@ -60,6 +63,7 @@ final class AddProjectUITests: XCTestCase {
         installedMarker = URL(filePath: "/tmp/yh-uitest-installed-\(uniqueSuffix)")
         attemptsMarker = URL(filePath: "/tmp/yh-uitest-attempts-\(uniqueSuffix)")
         checkedMarker = URL(filePath: "/tmp/yh-uitest-checked-\(uniqueSuffix)")
+        githubStoredMarker = URL(filePath: "/tmp/yh-uitest-github-stored-\(uniqueSuffix)")
         projectsDirectory = URL(filePath: "/tmp/yh-uitest-projects-\(uniqueSuffix)", directoryHint: .isDirectory)
         argvLog = URL(filePath: "/tmp/yh-uitest-argv-\(uniqueSuffix)")
         try FileManager.default.createSymbolicLink(
@@ -78,6 +82,7 @@ final class AddProjectUITests: XCTestCase {
             "YH_STUB_INSTALLED_MARKER": installedMarker.path(percentEncoded: false),
             "YH_STUB_ATTEMPTS_MARKER": attemptsMarker.path(percentEncoded: false),
             "YH_STUB_CHECKED_MARKER": checkedMarker.path(percentEncoded: false),
+            "YH_STUB_GITHUB_STORED_MARKER": githubStoredMarker.path(percentEncoded: false),
             "YH_STUB_PROJECTS_DIR": projectsDirectory.path(percentEncoded: false),
             "YH_STUB_ARGV_LOG": argvLog.path(percentEncoded: false),
             "YH_STUB_GATE_DIR": gateDirectory.path(percentEncoded: false)
@@ -91,9 +96,10 @@ final class AddProjectUITests: XCTestCase {
     /// second (a Retry) installs, matching OQ94's "setup stops before the browser" then a fresh attempt.
     /// `relayUnreachable`: a `--remote` attempt fails with `relayUnreachable` instead of issuing a link
     /// (roadmap P17.9).
+    /// `githubMissing`: the stub's `--print-github` reports no stored token until `--install-github` ran.
     func launchApp(
         machine: String? = nil, connectName: String? = nil, portsBusyFirst: Bool = false,
-        relayUnreachable: Bool = false
+        relayUnreachable: Bool = false, githubMissing: Bool = false
     ) throws {
         if let machine {
             try machine.write(to: machineFile, atomically: true, encoding: .utf8)
@@ -106,6 +112,9 @@ final class AddProjectUITests: XCTestCase {
         }
         if relayUnreachable {
             app.launchEnvironment["YH_STUB_RELAY_UNREACHABLE"] = "1"
+        }
+        if githubMissing {
+            app.launchEnvironment["YH_STUB_GITHUB_MISSING"] = "1"
         }
         app.launch()
     }

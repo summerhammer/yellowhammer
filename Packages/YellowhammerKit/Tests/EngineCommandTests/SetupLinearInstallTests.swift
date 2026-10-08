@@ -65,7 +65,7 @@ struct SetupLinearInstallTests {
         let board = await makeBoard(members: [operatorMember])
         let opened = URLRecorder()
         let seams = happyPathSeams(opened: opened)
-        let credentials = RecordingCredentialStore()
+        let credentials = RecordingCredentialStore.withGitHub()
         let output = RecordingOutput()
         let reference = try #require(CredentialReference("keychain:test-install-\(UUID().uuidString)"))
         let lockPath = FileManager.default.temporaryDirectory
@@ -110,7 +110,7 @@ struct SetupLinearInstallTests {
         try directory.writeValidProjectFile(id: "demo")
         let board = await makeBoard(members: [operatorMember])
         let seams = happyPathSeams()
-        let credentials = RecordingCredentialStore()
+        let credentials = RecordingCredentialStore.withGitHub()
         let reference = try #require(CredentialReference("keychain:test-install-\(UUID().uuidString)"))
         let store = LinearInstallationStore(
             reference: reference, keychain: KeychainCredentialStore(),
@@ -139,7 +139,7 @@ struct SetupLinearInstallTests {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
         let board = await makeBoard()
-        let credentials = RecordingCredentialStore()
+        let credentials = RecordingCredentialStore.withGitHub()
         let arguments = makeArguments(initialize: false, installLinear: true, events: "json")
         let setup = try makeSetup(
             arguments: arguments, directory: directory, board: board, credentials: credentials,
@@ -154,7 +154,7 @@ struct SetupLinearInstallTests {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
         let board = await makeBoard()
-        let credentials = RecordingCredentialStore()
+        let credentials = RecordingCredentialStore.withGitHub()
         let output = RecordingOutput()
         let console = ScriptedConsole(answers: ["n"])
         let arguments = makeArguments(initialize: false, installLinear: true)
@@ -175,7 +175,7 @@ struct SetupLinearInstallTests {
         try directory.writeMachineFile()
         let board = await makeBoard()
         await board.refuseWorkspaceMembersNext(.notAuthenticated("token revoked"))
-        let credentials = RecordingCredentialStore(seed: ["keychain:linear": "test-secret"])
+        let credentials = RecordingCredentialStore.withGitHub(["keychain:linear": "test-secret"])
         let arguments = makeArguments(initialize: true, operatorID: "user-op", installation: "acme")
         let setup = try makeSetup(
             arguments: arguments, directory: directory, board: board, credentials: credentials
@@ -195,7 +195,7 @@ struct SetupLinearInstallTests {
         try directory.writeMachineFile()
         let board = await makeBoard(members: [operatorMember])
         let seams = happyPathSeams()
-        let credentials = RecordingCredentialStore()
+        let credentials = RecordingCredentialStore.withGitHub()
         let events = Mutex<[LinearInstallEvent]>([])
         let reference = try #require(CredentialReference("keychain:test-install-\(UUID().uuidString)"))
         let store = LinearInstallationStore(
@@ -234,7 +234,7 @@ struct SetupLinearInstallTests {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
         let board = await makeBoard()
-        let credentials = RecordingCredentialStore()
+        let credentials = RecordingCredentialStore.withGitHub()
         let events = Mutex<[LinearInstallEvent]>([])
         let arguments = makeArguments(initialize: false, installLinear: true, events: "json")
         let setup = try makeSetup(
@@ -264,7 +264,7 @@ struct SetupLinearInstallTests {
         try directory.writeMachineFile()
         try directory.writeValidProjectFile(id: "demo")
         let board = await makeBoard()
-        let credentials = RecordingCredentialStore()
+        let credentials = RecordingCredentialStore.withGitHub()
         let output = RecordingOutput()
         let notifications = NotificationRegistrationStub(.allowed)
         let arguments = makeArguments(initialize: true, operatorID: "user-op", installation: "acme")
@@ -291,7 +291,7 @@ struct SetupLinearInstallTests {
         )
         let opened = URLRecorder()
         let seams = happyPathSeams(opened: opened)
-        let credentials = RecordingCredentialStore(seed: ["keychain:linear": "existing-secret"])
+        let credentials = RecordingCredentialStore.withGitHub(["keychain:linear": "existing-secret"])
         let output = RecordingOutput()
         let arguments = makeArguments(
             initialize: false, operatorID: "user-op", installLinear: true, installation: "acme"

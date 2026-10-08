@@ -11,7 +11,9 @@ import Observation
 /// comes from running `yh`. The agent CLI route lives in Settings → Agent CLIs, and ``readiness`` blocks Add
 /// Project until it is there. The Linear workspace and its Operator identity are chosen in the Linear step
 /// through ``linearWorkspaces``; a workspace connected there is machine configuration, not the Project's, so
-/// it stays in `config.toml` when the sheet is cancelled and nothing undoes it.
+/// it stays in `config.toml` when the sheet is cancelled and nothing undoes it. The GitHub step works the same
+/// way through ``gitHub``: a token stored there is machine-wide (like a Board Connection) and stays in the
+/// Keychain when the sheet is cancelled; nothing else is written until the run.
 @MainActor
 @Observable
 final class SetupWizardModel {
@@ -23,6 +25,9 @@ final class SetupWizardModel {
     var machineConfiguration: MachineConfiguration?
     /// The Board connections list the Linear step chooses from, and connects another to.
     let linearWorkspaces: LinearWorkspacesModel
+    /// The GitHub step's credential: checked against the draft's working Repos, with each report written into
+    /// the draft.
+    let gitHub = GitHubCredentialModel()
     var isFetchingTeams = false
     /// `yh --print-choices`'s output when it could not list the teams; the Linear project step still takes
     /// an existing Linear project's id without them.
@@ -59,6 +64,10 @@ final class SetupWizardModel {
             Task { await self.selectLinearInstallation(name) }
         }
         linearWorkspaces.onChanged = { [weak self] in self?.loadContext() }
+        gitHub.onReport = { [weak self] report, repoPaths in
+            self?.draft.gitHubReport = report
+            self?.draft.gitHubCheckedRepoPaths = repoPaths
+        }
         loadContext()
     }
 
@@ -144,6 +153,7 @@ final class SetupWizardModel {
     /// survive it.
     func terminateRun() {
         linearWorkspaces.terminate()
+        gitHub.terminate()
         teamsEngine.terminate()
         verifyEngine.terminate()
         engine.terminate()

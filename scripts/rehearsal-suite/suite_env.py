@@ -920,6 +920,9 @@ def ensure_project(env, project_id):
         "--init", "--project", project_id, "--project-name", name, "--board-connection", installation,
         "--linear-team", env.team,
         "--spec-source", manifest["spec_source"],
+        # A rehearsal Night never pushes, and the fixture repositories' origin is a local bare repository
+        # with no GitHub token behind it, so setup's GitHub check would refuse these Projects.
+        "--skip-github-check",
     ]
     for repo in default_repo_declarations(manifest):
         args += ["--repo", f"{repo['name']},{repo['role']},{repo['path']},true"]

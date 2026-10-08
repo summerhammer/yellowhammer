@@ -83,7 +83,7 @@ struct SetupInteractiveTests {
         let board = await makeBoard()
         let arguments = makeArguments(initialize: false, operatorID: "user-op", installation: "acme")
         let console = ScriptedConsole(answers: ["c"])
-        let credentials = RecordingCredentialStore()
+        let credentials = RecordingCredentialStore.withGitHub()
         let setup = try makeSetup(
             arguments: arguments, directory: directory, board: board, console: console, credentials: credentials,
             linearInstallSeams: busyLinearInstallSeams()
