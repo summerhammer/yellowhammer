@@ -4,11 +4,12 @@ import Foundation
 /// The Add Project wizard's state as plain values. Nothing here runs `yh` or touches the disk: the
 /// ``context`` carries what the wizard knows about the Mac, and ``setupInvocation`` is what it asks `yh` to do.
 public struct AddProjectDraft: Equatable, Sendable {
-    /// The wizard's six steps, in the order the hub lists them.
+    /// The wizard's seven steps, in the order the hub lists them.
     public enum Step: Int, CaseIterable, Identifiable, Comparable, Sendable {
         case project
         case board
         case repos
+        case github
         case specSource
         case bounds
         case jobs
@@ -24,6 +25,7 @@ public struct AddProjectDraft: Equatable, Sendable {
             case .project: "Project"
             case .board: "Board"
             case .repos: "Repos"
+            case .github: "GitHub"
             case .specSource: "Spec Source"
             case .bounds: "Bounds"
             case .jobs: "Scheduled jobs" // glossary:ignore GL001
@@ -35,6 +37,7 @@ public struct AddProjectDraft: Equatable, Sendable {
             case .project: "Project"
             case .board: "Board"
             case .repos: "Repos"
+            case .github: "GitHub"
             case .specSource: "Spec Source"
             case .bounds: "Bounds"
             case .jobs: "Schedule"
@@ -51,6 +54,9 @@ public struct AddProjectDraft: Equatable, Sendable {
                     + "Linear project they come from, or a team to create one in." // glossary:ignore GL001
             case .repos:
                 "The working Repos this Project builds in. A working Repo belongs to exactly one Project."
+            case .github:
+                "The GitHub token Yellowhammer pushes Feature Branches and opens pull requests with. "
+                    + "It is checked against every working Repo."
             case .specSource:
                 "Yellowhammer cites one specification when it authors a Feature. It reads it and never writes to it."
             case .bounds:
@@ -72,6 +78,7 @@ public struct AddProjectDraft: Equatable, Sendable {
             case .project: "square.stack.3d.up"
             case .board: "link"
             case .repos: "folder"
+            case .github: "key"
             case .specSource: "doc.text"
             case .bounds: "gauge.with.dots.needle.33percent"
             case .jobs: "moon.stars"
@@ -183,6 +190,12 @@ public struct AddProjectDraft: Equatable, Sendable {
 
     // Repos
     public var repos: [Repo] = []
+
+    // GitHub
+    /// What `yh setup --print-github` last reported for ``workingRepoPaths``; nil until a check ran.
+    public var gitHubReport: GitHubCredentialReport?
+    /// The working Repo paths (as the draft had them) that `gitHubReport` was checked against.
+    public var gitHubCheckedRepoPaths: [String] = []
 
     // Spec Source
     public var specChoice: SpecSourceChoice = .path

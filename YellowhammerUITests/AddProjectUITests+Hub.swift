@@ -38,14 +38,8 @@ extension AddProjectUITests {
         element("setup-step-board").click()
         fillLinearStep(in: sheet, installation: choosesInstallation ? installation : nil)
 
-        // Spec Source: the picked Repo becomes the spec, which declares its Check "none".
-        element("setup-step-specSource").click()
-        let specRepoChoice = element("setup-spec-choice-repo")
-        XCTAssertTrue(specRepoChoice.waitForExistence(timeout: 5))
-        specRepoChoice.click()
-        let specRepo = element("setup-spec-repo-acme-backend")
-        XCTAssertTrue(specRepo.waitForExistence(timeout: 5))
-        specRepo.click()
+        chooseSpecRepo()
+        visitGitHubStep()
 
         // Bounds and the Schedule are complete at their defaults, but only once opened: until then the
         // footer offers to continue, not to add.
@@ -135,6 +129,34 @@ extension AddProjectUITests {
 
     func text(of element: XCUIElement) -> String {
         (element.value as? String).flatMap { $0.isEmpty ? nil : $0 } ?? element.label
+    }
+
+    /// Spec Source: the picked Repo becomes the spec, which declares its Check "none".
+    func chooseSpecRepo() {
+        element("setup-step-specSource").click()
+        let specRepoChoice = element("setup-spec-choice-repo")
+        XCTAssertTrue(specRepoChoice.waitForExistence(timeout: 5))
+        specRepoChoice.click()
+        let specRepo = element("setup-spec-repo-acme-backend")
+        XCTAssertTrue(specRepo.waitForExistence(timeout: 5))
+        specRepo.click()
+    }
+
+    /// GitHub: the stored token resolves. Its Repos are the working ones; the drive's one Repo is the Spec
+    /// Source, so the check is of the credential alone.
+    func visitGitHubStep() {
+        element("setup-step-github").click()
+        XCTAssertTrue(waitForText(of: element("github-credential-state"), containing: "Stored"))
+    }
+
+    /// Polls until `element`'s text contains `fragment`.
+    func waitForText(of element: XCUIElement, containing fragment: String, timeout: TimeInterval = 10) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if element.exists, text(of: element).contains(fragment) { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        return element.exists && text(of: element).contains(fragment)
     }
 
     func typeName(_ name: String) {

@@ -15,6 +15,7 @@ extension AddProjectDraft {
         case .project: identitySummary
         case .board: linearSummary
         case .repos: repos.isEmpty ? "No Repos yet" : repos.map(\.name).formatted(Self.listStyle)
+        case .github: gitHubSummary
         case .specSource: specSourceSummary
         case .bounds: boundsSummary
         case .jobs: jobsSummary
@@ -48,6 +49,17 @@ extension AddProjectDraft {
             guard let teamKey else { return "No team" }
             let team = context.teams.first { $0.key == teamKey }
             return "New in \(team?.name ?? teamKey)"
+        }
+    }
+
+    private var gitHubSummary: String {
+        guard gitHubCheckIsCurrent, let report = gitHubReport else { return "Not checked" }
+        switch report.state {
+        case .resolves: return report.isValid ? "GitHub user \(report.login ?? "")" : "Cannot push to every Repo"
+        case .missing: return "No token"
+        case .unreadable: return "Token unreadable"
+        case .rejected: return "Token rejected"
+        case .unreachable: return "GitHub unreachable"
         }
     }
 
