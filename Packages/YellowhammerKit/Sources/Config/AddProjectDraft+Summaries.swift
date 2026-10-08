@@ -55,10 +55,13 @@ extension AddProjectDraft {
     private var gitHubSummary: String {
         guard gitHubCheckIsCurrent, let report = gitHubReport else { return "Not checked" }
         switch report.state {
-        case .resolves: return report.isValid ? "GitHub user \(report.login ?? "")" : "Cannot push to every Repo"
-        case .missing: return "No token"
-        case .unreadable: return "Token unreadable"
-        case .rejected: return "Token rejected"
+        case .resolves:
+            return problems(in: .github).isEmpty
+                ? "\(codeHostingConnectionName ?? "") · GitHub user \(report.login ?? "")"
+                : "Cannot push to every Repo"
+        case .missing: return "Connection missing"
+        case .unreadable: return "Connection unreadable"
+        case .rejected: return "Connection rejected"
         case .unreachable: return "GitHub unreachable"
         }
     }

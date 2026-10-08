@@ -5,42 +5,49 @@ import Foundation
 extension EngineStub {
     /// Registry report for the app. When `YH_STUB_CODE_HOSTING_REPORT_FILE` names an existing file, its
     /// content (one JSON line) is the answer, read afresh on every run, so a test in the UI test runner's
-    /// container can change the report mid-test. Otherwise the fixture can leave the default connection absent
-    /// until it is connected.
+    /// container can change the report mid-test. Otherwise it returns the default connection.
     static let printCodeHostingConnectionsCase = #"""
           print-code-hosting-connections)
             if [ -n "$YH_STUB_CODE_HOSTING_REPORT_FILE" ] && [ -f "$YH_STUB_CODE_HOSTING_REPORT_FILE" ]; then
               cat "$YH_STUB_CODE_HOSTING_REPORT_FILE"
               exit 0
             fi
-            if [ -n "$YH_STUB_GITHUB_MISSING" ] && [ ! -f "$YH_STUB_GITHUB_STORED_MARKER" ]; then
-              echo '{"connections":[]}'
-            else
-              echo '{"connections":[{"name":"github","type":"keychain","identity":"octocat","state":"ok","projects":[]}]}'
-            fi
+            echo '{"connections":[{"name":"github","type":"keychain","identity":"octocat","state":"ok","projects":[]}],"githubCLI":{"available":true,"login":"octocat"}}'
             exit 0
             ;;
 
         """#
 
-    /// Per-Repo credential report, using the same contract as the real command.
+    /// The current selected-connection check, with a configurable refusal for one working Repo.
     static let checkCodeHostingCredentialCase = #"""
           check-code-hosting-credential)
+            if [ -n "$YH_STUB_ARGV_LOG" ]; then echo "$all_args" >> "$YH_STUB_ARGV_LOG"; fi
             repos=""
+            refused_repo="$YH_STUB_CODE_HOSTING_REFUSED_REPO"
+            if [ -n "$YH_STUB_CODE_HOSTING_REFUSED_REPO_FILE" ]; then
+              refused_repo=""
+              if [ -f "$YH_STUB_CODE_HOSTING_REFUSED_REPO_FILE" ]; then
+                refused_repo=$(cat "$YH_STUB_CODE_HOSTING_REFUSED_REPO_FILE")
+              fi
+            fi
+            connection="github"
             previous=""
             for arg in "$@"; do
+              if [ "$previous" = "--connection" ]; then connection="$arg"; fi
               if [ "$previous" = "--github-repo" ]; then
                 repo_name=$(basename "$arg")
-                entry='{"message":"Repo '"$repo_name"' (acme/'"$repo_name"'): the token can push.","name":"'"$repo_name"'","path":"'"$arg"'","slug":"acme/'"$repo_name"'","status":"ok"}'
+                status="ok"
+                message="the token can push."
+                if [ "$arg" = "$refused_repo" ]; then
+                  status="noPushPermission"
+                  message="GitHub refused push permission."
+                fi
+                entry='{"message":"Repo '"$repo_name"' (acme/'"$repo_name"'): '"$message"'","name":"'"$repo_name"'","path":"'"$arg"'","slug":"acme/'"$repo_name"'","status":"'"$status"'"}'
                 if [ -n "$repos" ]; then repos="$repos,$entry"; else repos="$entry"; fi
               fi
               previous="$arg"
             done
-            if [ -n "$YH_STUB_GITHUB_MISSING" ] && [ ! -f "$YH_STUB_GITHUB_STORED_MARKER" ]; then
-              echo '{"message":"No GitHub token is stored for keychain:github.","reference":"keychain:github","repos":[],"state":"missing"}'
-            else
-              echo '{"login":"octocat","message":"The token in keychain:github belongs to octocat.","reference":"keychain:github","repos":['"$repos"'],"state":"resolves"}'
-            fi
+            echo '{"login":"octocat","message":"Code Hosting Connection '"$connection"' belongs to octocat.","reference":"keychain:'"$connection"'","repos":['"$repos"'],"state":"resolves"}'
             exit 0
             ;;
 
@@ -50,7 +57,7 @@ extension EngineStub {
     /// token from stdin and logs argv only (never the token). When `YH_STUB_CODE_HOSTING_REFUSAL` is set it
     /// echoes that text and exits 1. When `YH_STUB_CODE_HOSTING_GATES` is set it then waits on the
     /// `code-hosting` gate (``waitForGate``), so a test can first write the entry `yh` would add to
-    /// `config.toml`. Then it creates the fixture's stored-token marker and prints the success line for `$2`.
+    /// `config.toml`. Then it prints the success line for `$2`.
     static let connectCodeHostingCase = #"""
           connect-code-hosting|replace-code-hosting-token)
             read -r _
@@ -60,7 +67,6 @@ extension EngineStub {
               exit 1
             fi
             if [ -n "$YH_STUB_CODE_HOSTING_GATES" ]; then wait_for_gate code-hosting; fi
-            if [ -n "$YH_STUB_GITHUB_STORED_MARKER" ]; then touch "$YH_STUB_GITHUB_STORED_MARKER"; fi
             echo "Code Hosting Connection $2 is ready as GitHub user octocat."
             exit 0
             ;;

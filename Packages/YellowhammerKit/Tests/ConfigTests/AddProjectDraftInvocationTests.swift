@@ -138,4 +138,17 @@ struct AddProjectDraftInvocationTests {
         #expect(draft.boundsToWrite(afterExitStatus: 1) == nil)
         #expect(draft.boundsToWrite(afterExitStatus: 0) == draft.bounds)
     }
+    @Test("The setup invocation carries the chosen Code Hosting Connection")
+    func selectedCodeHostingConnection() throws {
+        var draft = completeAddProjectDraft()
+        draft.context.codeHostingConnections.append(
+            CodeHostingConnection(name: "company", kind: .githubCLI(executable: nil))
+        )
+        draft.codeHostingConnectionName = "company"
+        draft.codeHostingCheckedConnectionName = "company"
+        let invocation = draft.setupInvocation
+        #expect(invocation.codeHostingConnection == "company")
+        let arguments = try invocation.arguments()
+        #expect(arguments.contains("company"))
+    }
 }

@@ -183,7 +183,7 @@ extension AddProjectDraft {
 
     /// Whether the last GitHub check was made against the working Repos the draft has now.
     public var gitHubCheckIsCurrent: Bool {
-        guard gitHubReport != nil else { return false }
+        guard gitHubReport != nil, codeHostingConnectionName == codeHostingCheckedConnectionName else { return false }
         func normalized(_ paths: [String]) -> [String] { paths.map(AddProjectContext.normalizedPath).sorted() }
         return normalized(gitHubCheckedRepoPaths) == normalized(workingRepoPaths)
     }
@@ -192,8 +192,16 @@ extension AddProjectDraft {
         // Only Repos of role `spec` leave nothing to push to, but the token is still the Project's: its check
         // is then of the credential alone. No Repos at all is the Repos step's problem to name first.
         guard !repos.isEmpty else { return ["Add a working Repo first."] }
-        guard let report = gitHubReport, gitHubCheckIsCurrent else { return ["Check the GitHub token."] }
+        guard let codeHostingConnectionName else { return ["Choose a Code Hosting Connection."] }
+        guard context.codeHostingConnections.contains(where: { $0.name == codeHostingConnectionName }) else {
+            return ["\(codeHostingConnectionName) is not a connected Code Hosting Connection."]
+        }
+        guard let report = gitHubReport, gitHubCheckIsCurrent else { return ["Check the Code Hosting Connection."] }
         guard report.state == .resolves else { return [report.message] }
+        let reportedPaths = Set(report.repos.map { AddProjectContext.normalizedPath($0.path) })
+        guard workingRepoPaths.allSatisfy({ reportedPaths.contains(AddProjectContext.normalizedPath($0)) }) else {
+            return ["Check push access to every working Repo."]
+        }
         return report.repos.filter { $0.status != .ok && $0.status != .okUnverified }.map(\.message)
     }
 

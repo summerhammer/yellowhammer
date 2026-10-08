@@ -17,6 +17,8 @@ public struct AddProjectContext: Equatable, Sendable {
     public var teams: [SetupChoices.Team]
     /// The active Linear projects `yh setup --print-choices` returned, in the board's order. // glossary:ignore GL001
     public var linearProjects: [SetupChoices.LinearProject] // glossary:ignore GL001
+    /// The machine-wide Code Hosting Connection registry, in config order.
+    public var codeHostingConnections: [CodeHostingConnection] = []
     /// The Linear Board Connection registry (`[board.linear.connections.*]`), in config order.
     public var linearInstallations: [LinearInstallation]
     /// What each kept Journal records, by Project id. The app fills it; Config never opens a Journal.
@@ -37,8 +39,10 @@ public struct AddProjectContext: Equatable, Sendable {
         teams: [SetupChoices.Team] = [],
         linearProjects: [SetupChoices.LinearProject] = [],
         linearInstallations: [LinearInstallation] = [],
+        codeHostingConnections: [CodeHostingConnection] = [],
         keptJournals: [String: KeptJournal] = [:]
     ) {
+        self.codeHostingConnections = codeHostingConnections
         self.linearInstallations = linearInstallations
         self.keptJournals = keptJournals
         self.linearProjects = linearProjects
@@ -76,6 +80,7 @@ public struct AddProjectContext: Equatable, Sendable {
             teams: teams,
             linearProjects: linearProjects,
             linearInstallations: configuration.machine.linearInstallations,
+            codeHostingConnections: configuration.machine.codeHostingConnections,
             keptJournals: keptJournals
         )
     }

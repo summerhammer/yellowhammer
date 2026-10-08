@@ -3,7 +3,7 @@ import Domain
 import Foundation
 import Observation
 
-/// The Code Hosting Connections list, in Settings → Code Hosting: one row per Code Hosting Connection in
+/// The Code Hosting Connections registry, shared by Settings and the Setup wizard: one row per connection in
 /// `config.toml`'s registry, with per row the Code Hosting identity `yh` read, a token replacement (a Keychain
 /// token connection only) and a removal, and the ways to connect another. The app decides nothing (ADR-001):
 /// every action is a `yh` invocation built in `Domain`, `config.toml` is only ever read here, no name is
@@ -11,7 +11,7 @@ import Observation
 /// undecodable file. The app never calls GitHub, reads the Keychain or runs `gh`.
 ///
 /// The model never keeps a token: it travels as one line on `yh`'s standard input and is dropped when the
-/// run starts. One action runs at a time. Owned by `SettingsWindow`, so another sidebar row and back neither
+/// run starts. One action runs at a time. Owned by its window or wizard, so navigation neither
 /// recreates it nor kills a running action.
 @MainActor
 @Observable
@@ -25,6 +25,7 @@ final class CodeHostingConnectionsModel {
         let projects: [String]
 
         var id: String { name }
+        var typeLabel: String { kind == .gh ? "gh CLI" : "Keychain token" }
     }
 
     /// The action that is running; one at a time.
@@ -33,6 +34,8 @@ final class CodeHostingConnectionsModel {
         case replace(String)
         case remove(String)
     }
+
+    @ObservationIgnored var onConnected: (@MainActor (String) -> Void)?
 
     let directory: URL
     private(set) var connections: [Connection] = []
@@ -253,11 +256,13 @@ final class CodeHostingConnectionsModel {
     }
 
     private func connect(_ arguments: [String], standardInput: String? = nil) async -> Bool {
-        await perform(
+        let accepted = await perform(
             .connect, arguments: arguments, standardInput: standardInput,
             onFailure: { self.connectFailure = $0 },
             onSuccess: { self.connectedMessage = $0 }
         )
+        if accepted, arguments.count > 2 { onConnected?(arguments[2]) }
+        return accepted
     }
 
     private func replace(
