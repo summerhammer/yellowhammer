@@ -2660,6 +2660,15 @@ The Feature Branch Orca ADE reports, with its prefix (#318), is planned and trac
   push refusal blocking Add Project, and Configuration refusing then saving a connection change.
 - **Status** — Done on 2026-10-08.
 
+### [x] P21.6 Pulse Health flag for a refused Code Hosting Connection
+- **Work** — The Health group flags a refused Code Hosting Connection that this Project selects, names it,
+  and opens Settings › Code Hosting. The flag is built from this Project's `yh doctor --json` rows alone.
+  Replaces PR #385's `HealthFlagKind.gitHubCredential`.
+- **Spec** — `app/land-on-the-sidebar-and-pulse` (S8, [issue #394](https://github.com/summerhammer/yellowhammer/issues/394)).
+- **Done when** — Pulse read tests show a refused connection flagged and an ok connection not flagged; a UI
+  test covers the deep link into Settings › Code Hosting.
+- **Status** — Done on 2026-10-08.
+
 ---
 
 ## Traceability: story → steps
@@ -2705,7 +2714,7 @@ The Feature Branch Orca ADE reports, with its prefix (#318), is planned and trac
 | `morning-report/report-the-instrumented-rates` | P12.2 |
 | `morning-report/notify-the-operator-of-exceptions` | P12.4, P12.5 |
 | `morning-report/triage-the-morning` | P10.8, P10.9, P9.9, P12.3, P16.8 |
-| `app/land-on-the-sidebar-and-pulse` | P18.1, P18.2, P18.3, P18.4, P18.5, P18.6, P18.7, P18.8, P18.9 |
+| `app/land-on-the-sidebar-and-pulse` | P18.1, P18.2, P18.3, P18.4, P18.5, P18.6, P18.7, P18.8, P18.9, P21.6 |
 | `app/scope-windows-to-a-project` | P18.1, P18.12 |
 | `app/stop-the-engine-for-a-project` | P18.10 |
 | `app/abort-a-running-attempt` | P18.11 |
