@@ -76,11 +76,15 @@ other real repository by mistake.
 
 ```sh
 yh setup --init --project rehearsal-a \
-  --spec-source /private/tmp/claude-501/p152-fixtures/rehearsal-a/spec \
+  --spec-source /private/tmp/claude-501/p152-fixtures/rehearsal-a/spec --skip-github-check \
   --repo 'fixture-backend,backend,/private/tmp/claude-501/p152-fixtures/rehearsal-a/repos/fixture-backend,true' \
   --repo 'fixture-web,web,/private/tmp/claude-501/p152-fixtures/rehearsal-a/repos/fixture-web,true' \
   --repo 'fixture-mobile,mobile,/private/tmp/claude-501/p152-fixtures/rehearsal-a/repos/fixture-mobile,true'
 ```
+
+`--skip-github-check` is there because the fixture repositories' `origin` is a local bare repository, with no
+GitHub token behind it: without the flag `yh setup` refuses the Project. A rehearsal Night never pushes, so
+nothing is lost; `yh doctor` still reports the missing GitHub check.
 
 `project-repos.toml` in the built tree holds the same information as TOML, ready to paste into
 the Project file (add the scratch Linear team/project fields yourself — see

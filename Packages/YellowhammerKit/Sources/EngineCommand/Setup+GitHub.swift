@@ -72,6 +72,14 @@ extension Setup {
     /// Before a Project file is written (and before any Linear write): the token must resolve and push to
     /// the declaration's working Repos.
     func validateGitHub(for declaration: ProjectDeclaration, machine: MachineConfiguration) async throws {
+        guard !options.skipGitHubCheck else {
+            output(
+                "warning: the GitHub check was skipped (--skip-github-check): `land` cannot push or open pull "
+                    + "requests for Project \(declaration.id.rawValue) until `yh setup --install-github` passes "
+                    + "for its Repos; `yh doctor` reports it."
+            )
+            return
+        }
         let reference = machine.gitHubCredential
         _ = try await ensureGitHubCredential(
             reference: reference, capture: isInteractive ? .interactive : .never, replace: false
@@ -95,7 +103,7 @@ extension Setup {
                     + "\(machine.gitHubCredential.rawValue), which is the one used"
             )
         }
-        guard case .interactive = options.mode else { return }
+        guard case .interactive = options.mode, !options.skipGitHubCheck else { return }
         _ = try await ensureGitHubCredential(reference: machine.gitHubCredential, capture: .interactive, replace: false)
     }
 

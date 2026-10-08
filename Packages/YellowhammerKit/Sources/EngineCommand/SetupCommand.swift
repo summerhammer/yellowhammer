@@ -153,6 +153,12 @@ public struct SetupCommand: AsyncParsableCommand {
     @Flag(name: .customLong("replace"), help: "With --install-github, capture a new token even if one works.")
     public var replace: Bool = false
 
+    @Flag(
+        name: .customLong("skip-github-check"),
+        help: "With --init and a Project, or interactively, write the Project without checking the GitHub token."
+    )
+    public var skipGitHubCheck: Bool = false
+
     @Option(
         name: .customLong("github-repo"),
         help: "With --install-github or --print-github, a Repo path to check the token against."

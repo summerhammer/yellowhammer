@@ -19,8 +19,12 @@ struct GitHubStepOptions {
     let replace: Bool
     /// `--github-repo`, in order: the Repo paths to check the token against.
     let repoPaths: [String]
+    /// `--skip-github-check`: write a Project without checking that the token can push to its Repos (a
+    /// rehearsal-only Project never pushes).
+    let skipCheck: Bool
 
     init(command: SetupCommand) throws {
+        skipCheck = command.skipGitHubCheck
         tokenSource = command.tokenStdin ? .standardInput : command.fromGH ? .githubCLI : .prompt
         replace = command.replace
         repoPaths = try command.githubRepo.map { path in
@@ -36,6 +40,7 @@ extension SetupOptions {
     var gitHubTokenSource: GitHubTokenSource { gitHub.tokenSource }
     var replaceGitHubToken: Bool { gitHub.replace }
     var gitHubRepoPaths: [String] { gitHub.repoPaths }
+    var skipGitHubCheck: Bool { gitHub.skipCheck }
 
     /// The GitHub step's own flags without `--install-github` or `--print-github` are refused.
     static func validateGitHubOptionsWithoutMode(_ command: SetupCommand) throws {
@@ -44,6 +49,24 @@ extension SetupOptions {
         }
         guard command.githubRepo.isEmpty else {
             throw ValidationError("--github-repo requires --install-github or --print-github")
+        }
+        try validateSkipGitHubCheck(command)
+    }
+
+    /// `--skip-github-check` belongs to a run that writes a Project: `--init` with `--project`, or interactive.
+    private static func validateSkipGitHubCheck(_ command: SetupCommand) throws {
+        guard command.skipGitHubCheck else { return }
+        let forbidden: [(Bool, String)] = [
+            (command.config != nil, "--config"),
+            (command.installLinear, "--install-linear"),
+            (command.printChoices, "--print-choices")
+        ]
+        let present = forbidden.filter(\.0).map(\.1)
+        guard present.isEmpty else {
+            throw ValidationError("--skip-github-check cannot be combined with " + present.joined(separator: ", "))
+        }
+        guard !command.initialize || command.project != nil else {
+            throw ValidationError("--skip-github-check with --init requires --project") // glossary:ignore GL001
         }
     }
 
@@ -65,7 +88,8 @@ extension SetupOptions {
             (!command.fallback.isEmpty, "--fallback"),
             (command.installJobs, "--install-jobs"),
             (command.exportJobs != nil, "--export-jobs"),
-            (command.cron, "--cron")
+            (command.cron, "--cron"),
+            (command.skipGitHubCheck, "--skip-github-check")
         ]
         let present = forbidden.filter(\.0).map(\.1)
         guard present.isEmpty else {

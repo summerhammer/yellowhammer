@@ -172,6 +172,48 @@ struct SetupGitHubTests {
         #expect(transport.requests.isEmpty)
     }
 
+    @Test("--skip-github-check writes the Project with no token, warns once, and never calls GitHub")
+    func initSkipGitHubCheck() async throws {
+        let directory = ConfigurationDirectory()
+        let board = await makeBoard(project: nil)
+        let output = RecordingOutput()
+        let transport = StubGitHubTransport.passing()
+        let setup = try makeSetup(
+            arguments: Self.initArguments() + ["--skip-github-check"], directory: directory, board: board,
+            credentials: Self.withoutGitHub(), output: output, gitHub: transport.validation()
+        )
+
+        try await setup.run()
+
+        #expect(Self.projectFileExists(directory.url))
+        #expect(transport.requests.isEmpty)
+        let warnings = output.lines.filter { $0.contains("the GitHub check was skipped") }
+        #expect(warnings == [
+            "warning: the GitHub check was skipped (--skip-github-check): `land` cannot push or open pull "
+                + "requests for Project demo until `yh setup --install-github` passes for its Repos; "
+                + "`yh doctor` reports it."
+        ])
+    }
+
+    @Test("Interactive --skip-github-check asks for no token and checks nothing")
+    func interactiveSkipGitHubCheck() async throws {
+        let directory = ConfigurationDirectory()
+        let credentials = Self.withoutGitHub()
+        let console = ScriptedConsole(answers: Self.answers(github: []))
+        let transport = StubGitHubTransport.passing()
+        let setup = try makeSetup(
+            arguments: makeArguments(initialize: false, operatorID: "user-op") + ["--skip-github-check"],
+            directory: directory, board: await makeBoard(), console: console, credentials: credentials,
+            gitHub: transport.validation()
+        )
+
+        try await setup.run()
+
+        #expect(!console.prompts.contains(Self.secretPrompt))
+        #expect(transport.requests.isEmpty)
+        #expect(credentials.storedSecrets.isEmpty)
+    }
+
     // MARK: Interactive
 
     private func interactive(
@@ -534,7 +576,13 @@ struct SetupGitHubTests {
         ["--replace"],
         ["--init", "--token-stdin"],
         ["--github-repo", "~/dev/backend"],
-        ["--init", "--github-repo", "~/dev/backend"]
+        ["--init", "--github-repo", "~/dev/backend"],
+        ["--install-github", "--skip-github-check"],
+        ["--print-github", "--skip-github-check"],
+        ["--skip-github-check", "--config", "/tmp/x"],
+        ["--skip-github-check", "--install-linear"],
+        ["--skip-github-check", "--print-choices"],
+        ["--init", "--skip-github-check"]
     ])
     func combinationsRefused(arguments: [String]) {
         #expect(throws: (any Error).self) { try SetupOptions(command: try SetupCommand.parse(arguments)) }
@@ -547,7 +595,9 @@ struct SetupGitHubTests {
             ["--install-github", "--token-stdin", "--replace", "--github-repo", "~/a"],
             ["--install-github", "--from-gh", "--github-credential", "keychain:x"],
             ["--print-github"],
-            ["--print-github", "--github-repo", "~/a", "--github-repo", "~/b"]
+            ["--print-github", "--github-repo", "~/a", "--github-repo", "~/b"],
+            ["--skip-github-check"],
+            ["--init", "--project", "demo", "--linear-team", "ENG", "--skip-github-check"] // glossary:ignore GL001
         ] {
             _ = try SetupOptions(command: try SetupCommand.parse(arguments))
         }
