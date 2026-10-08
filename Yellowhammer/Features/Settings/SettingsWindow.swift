@@ -6,7 +6,8 @@ import SwiftUI
 /// Projects, and a toolbar with back and forward; the current section's name is its pane's heading, and
 /// every pane is drawn with the Add Project sheet's blocks (`SettingsPane`). It is a separate window
 /// from the main window. A Project's Configuration, Recalibrate and the machine-wide settings
-/// (General: Orca ADE; Boards: Board connections; Agent CLIs; the base Routing Table) are here.
+/// (General: Orca ADE and the Command Line Tool; Boards: Board connections; Code Hosting: Code Hosting
+/// Connections; Agent CLIs; the base Routing Table) are here.
 ///
 /// Where each piece of state lives:
 /// - **The current section** is `history.current`. The sidebar's selection is derived from it, and a
@@ -18,6 +19,8 @@ import SwiftUI
 ///   models under it), which also supplies a Project entry's Linear workspace name, is this window's
 ///   `@State`, so another sidebar row and back neither recreates it nor kills a running install.
 ///   Closing the window terminates it: setup is not an Act, so no child of it survives the window.
+/// - **The Code Hosting pane's model** (the Code Hosting Connections list and the `yh` actions on it) is
+///   this window's `@State` for the same reason, and closing the window terminates it too.
 /// - **The configuration** is read when the window appears and each time the app becomes active, the
 ///   same way the main window reads its snapshot. It reads no Journal.
 struct SettingsWindow: View {
@@ -26,6 +29,7 @@ struct SettingsWindow: View {
     @State private var history = SettingsHistory()
     @State private var configured: ConfiguredProjects?
     @State private var linearWorkspaces = LinearWorkspacesModel()
+    @State private var codeHostingConnections = CodeHostingConnectionsModel()
     @State private var highlightedBoardConnection: String?
     /// The last request token this window has applied. A new window starts at zero, so it applies the
     /// request that opened it.
@@ -89,6 +93,7 @@ struct SettingsWindow: View {
         .task { await readWhileOpen() }
         .onDisappear {
             linearWorkspaces.terminate()
+            codeHostingConnections.terminate()
         }
     }
 
@@ -98,6 +103,8 @@ struct SettingsWindow: View {
             GeneralSettingsPane()
         case .boards:
             BoardsSettingsPane(model: linearWorkspaces, highlightedBoardConnection: highlightedBoardConnection)
+        case .codeHosting:
+            CodeHostingSettingsPane(model: codeHostingConnections)
         case .agentCLIs:
             AgentCLIsPane()
         case .baseRoutingTable:
@@ -180,6 +187,7 @@ struct SettingsWindow: View {
         for await _ in NotificationCenter.default.notifications(named: NSApplication.didBecomeActiveNotification) {
             readConfiguration()
             linearWorkspaces.reloadIfClean()
+            codeHostingConnections.reloadIfClean()
         }
     }
 }
