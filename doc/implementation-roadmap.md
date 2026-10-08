@@ -2615,6 +2615,16 @@ The Feature Branch Orca ADE reports, with its prefix (#318), is planned and trac
   removal protects every Project file, and the app reads the new report contract.
 - **Status** — Done on 2026-10-08.
 
+### [x] P21.2 Select and change a Project's Code Hosting Connection
+- **Work** — Implement `yh project set-code-hosting-connection <project> <connection>` (with aliases
+  `select-code-hosting-connection` and `set-code-hosting`). Validate push permissions across working
+  Repos before updating the Project file, pre-select `gh` when present in interactive setup, and report
+  fine-grained tokens as unverified.
+- **Spec** — `landing/connect-code-hosting` (S3, [issue #389](https://github.com/summerhammer/yellowhammer/issues/389)).
+- **Done when** — Push check failure prevents saving, fine-grained tokens report unverified and save,
+  spec-role Repos are skipped during push check, and interactive setup pre-selects `gh`.
+- **Status** — Done on 2026-10-08.
+
 ---
 
 ## Traceability: story → steps
@@ -2652,7 +2662,7 @@ The Feature Branch Orca ADE reports, with its prefix (#318), is planned and trac
 | `bounds/refuse-protected-paths-before-dispatch` | P8.3 |
 | `landing/open-one-pull-request-per-repository` | P10.1, P10.2, P10.3, P10.4, P19.2, P19.6, P19.7 |
 | `landing/announce-a-partial-landing` | P10.4, P10.8, P6.2, P19.6 |
-| `landing/connect-code-hosting` | P21.1 |
+| `landing/connect-code-hosting` | P21.1, P21.2 |
 | `verification/verify-a-feature-clause-by-clause` | P10.5 |
 | `verification/return-a-feature-with-unmet-clauses` | P10.6 |
 | `verification/archive-the-cycle-on-a-verified-feature` | P10.7 |

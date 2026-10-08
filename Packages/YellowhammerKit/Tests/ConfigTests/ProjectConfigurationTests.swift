@@ -178,3 +178,72 @@ func timeOfDayFormat(_ string: String, valid: Bool) {
 func projectIDCharacters(_ string: String, valid: Bool) {
     #expect((ProjectID(rawValue: string) != nil) == valid)
 }
+
+@Suite("ProjectConfiguration.settingCodeHostingConnection")
+struct ProjectSettingCodeHostingTests {
+    private let multiLineFile = """
+        id = "demo"
+        name = "Demo"
+        spec_source = "~/dev/demo-spec"
+
+        [board.linear]
+        connection = "acme"
+        project = "DEMO"
+
+        # keep code hosting comment
+        [code_hosting]
+        connection = "github"
+
+        [[repos]]
+        name = "backend"
+        path = "~/dev/demo-backend"
+        role = "backend"
+        check = "swift test"
+        """
+
+    private let inlineTableFile = """
+        id = "demo"
+        name = "Demo"
+        board = { linear = { connection = "acme", project = "DEMO" } }
+        code_hosting = { connection = "github" }
+        spec_source = "~/dev/demo-spec"
+
+        [[repos]]
+        name = "backend"
+        path = "~/dev/demo-backend"
+        role = "backend"
+        check = "swift test"
+        """
+
+    @Test("Replaces connection in [code_hosting] table, preserving comments and surrounding tables")
+    func replacesInMultiLineTable() throws {
+        let updated = ProjectConfiguration.settingCodeHostingConnection(named: "work", inFileText: multiLineFile)
+        #expect(updated.contains("# keep code hosting comment"))
+        #expect(updated.contains("connection = \"work\""))
+        #expect(!updated.contains("connection = \"github\""))
+        #expect(ProjectConfiguration.settingCodeHostingConnection(named: "work", inFileText: updated) == updated)
+        let parsed = try ProjectConfiguration.parse(updated, file: "demo.toml")
+        #expect(parsed.codeHostingConnectionName == "work")
+    }
+
+    @Test("Replaces connection in inline table code_hosting = { connection = ... }")
+    func replacesInInlineTable() throws {
+        let updated = ProjectConfiguration.settingCodeHostingConnection(named: "work", inFileText: inlineTableFile)
+        #expect(updated.contains("code_hosting = { connection = \"work\" }"))
+        #expect(!updated.contains("connection = \"github\""))
+        #expect(ProjectConfiguration.settingCodeHostingConnection(named: "work", inFileText: updated) == updated)
+        let parsed = try ProjectConfiguration.parse(updated, file: "demo.toml")
+        #expect(parsed.codeHostingConnectionName == "work")
+    }
+
+    @Test("Appends [code_hosting] table when missing")
+    func appendsWhenMissing() throws {
+        let minimal = """
+            id = "demo"
+            name = "Demo"
+            """
+        let updated = ProjectConfiguration.settingCodeHostingConnection(named: "work", inFileText: minimal)
+        #expect(updated.contains("[code_hosting]\nconnection = \"work\"\n"))
+        #expect(ProjectConfiguration.settingCodeHostingConnection(named: "work", inFileText: updated) == updated)
+    }
+}
