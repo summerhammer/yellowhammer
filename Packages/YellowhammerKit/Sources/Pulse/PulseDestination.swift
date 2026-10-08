@@ -23,6 +23,8 @@ public enum PulseDestination: Hashable, Sendable {
     /// The Settings window's Boards pane, where a Board Connection or Operator identity flag is fixed: its
     /// Linear section lists the workspaces.
     case linearWorkspaces
+    /// The Settings window's Code Hosting section, where a refused Code Hosting Connection is fixed.
+    case codeHosting
     case pullRequest(URL)
     case linearIssue(URL)
 }

@@ -11,19 +11,19 @@ extension HealthFlag {
         DoctorFindingRow.decodeLastLine(lines).map { flags(in: $0, for: project) }
     }
 
-    /// The flags `project`'s Health group shows: stale Operator identity, Board Connection revoked, GitHub
-    /// credential problems, and probe failures, in `HealthFlagKind` order. Each flag's detail is the finding's own message, so the
+    /// The flags `project`'s Health group shows: stale Operator identity, Board Connection revoked, refused
+    /// Code Hosting Connection, and probe failures, in `HealthFlagKind` order. Each flag's detail is the finding's own message, so the
     /// app invents no wording.
     ///
     /// - Probe failures have no installation scope (Agent CLIs are machine-wide), so they appear on every
     ///   Project.
-    /// - The two installation flags and the GitHub credential flag appear only when the row's `projects`
-    ///   contains `project`: they are the flags of the installation or credential this Project selected,
+    /// - The two installation flags and the Code Hosting Connection flag appear only when the row's `projects`
+    ///   contains `project`: they are the flags of the installation or connection this Project selected,
     ///   never of one only other Projects use.
-    /// - A row whose `projects` is empty (an installation no Project uses) is on no Project.
-    /// - An installation row whose `projects` is nil is dropped, never broadcast to every Project.
-    /// - A finding that is none of the three flags (git, `launchd`, a Project naming a missing
-    ///   installation, a Linear that cannot be reached) is not a Health flag, and is left to `yh doctor`.
+    /// - A row whose `projects` is empty (an installation or connection no Project uses) is on no Project.
+    /// - An installation or connection row whose `projects` is nil is dropped, never broadcast to every Project.
+    /// - A finding that is none of the four flags (git, `launchd`, a Project naming a missing
+    ///   installation or connection, a Linear that cannot be reached) is not a Health flag, and is left to `yh doctor`.
     public static func flags(in rows: [DoctorFindingRow], for project: ProjectID) -> [HealthFlag] {
         let flags = rows.compactMap { flag(for: $0, project: project) }
         return HealthFlagKind.allCases.flatMap { kind in flags.filter { $0.kind == kind } }
@@ -49,9 +49,10 @@ extension HealthFlag {
         // The finding has no reason code, so revocation is told from "cannot be reached" by its wording.
         case ("linear", "authorization", "failure") where row.message.contains("revoked"):
             .appInstallationRevoked
-        // The GitHub token is missing, unreadable, rejected, or cannot push to a working Repo.
-        case ("github", _, "failure"):
-            .gitHubCredential
+        // A refused Code Hosting Connection that this Project selects (token missing, unreadable or rejected,
+        // or gh absent or logged out).
+        case ("github", "credential", "failure"):
+            .codeHostingConnectionRefused
         case ("probes", _, "failure"):
             .probeFailure
         default:

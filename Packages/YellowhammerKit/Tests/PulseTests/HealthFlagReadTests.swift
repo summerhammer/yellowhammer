@@ -137,30 +137,33 @@ func nilProjectsDropped() {
 func destinations() {
     #expect(HealthFlag(kind: .staleOperatorIdentity, detail: "").destination == .linearWorkspaces)
     #expect(HealthFlag(kind: .appInstallationRevoked, detail: "").destination == .linearWorkspaces)
+    #expect(HealthFlag(kind: .codeHostingConnectionRefused, detail: "").destination == .codeHosting)
     #expect(HealthFlag(kind: .probeFailure, detail: "").destination == .settings)
 }
 
-@Test("A failing GitHub finding is a GitHub credential flag on its own Project, in flag order, with its message")
-func gitHubCredentialFlag() throws {
+@Test("A refused Code Hosting Connection is flagged on its selecting Project, in flag order, with its message")
+func refusedCodeHostingConnectionFlag() throws {
+    let githubRefused = "Code Hosting Connection github (type \"keychain\"): "
+        + "GitHub rejected the token in keychain:github: it is wrong, revoked or expired; "
+        + "replace it in Settings › Code Hosting or run `yh config replace-code-hosting-token github --token-stdin`"
     let output = doctorOutput([
         Finding("probes", "codex", "failure", "probe failed"),
-        Finding("github", "repo backend", "failure",
-                "Project demo: Repo backend (acme/backend): the token lacks push permission.", projects: ["demo"]),
-        Finding("github", "credential", "failure", "Project other: no token", projects: ["other"]),
+        Finding("github", "credential", "failure", githubRefused, projects: ["demo"]),
+        Finding("github", "credential", "failure", "Code Hosting Connection other: no token", projects: ["other"]),
         Finding("linear", "connection", "failure", "no token pair", projects: ["demo"])
     ])
 
     let flags = try #require(HealthFlag.read(doctorOutput: output, project: demo))
 
-    #expect(flags.map(\.kind) == [.appInstallationRevoked, .gitHubCredential, .probeFailure])
-    #expect(flags[1].detail == "Project demo: Repo backend (acme/backend): the token lacks push permission.")
+    #expect(flags.map(\.kind) == [.appInstallationRevoked, .codeHostingConnectionRefused, .probeFailure])
+    #expect(flags[1].detail == githubRefused)
 }
 
-@Test("A passing, warning or info GitHub finding raises no flag, and one without projects is dropped")
-func gitHubNonFailures() {
+@Test("An ok Code Hosting Connection raises no flag, as do warning, info or unassigned findings")
+func codeHostingNonFailures() {
     let output = doctorOutput([
-        Finding("github", "credential", "pass", "belongs to octocat", projects: ["demo"]),
-        Finding("github", "credential", "warning", "could not be checked", projects: ["demo"]),
+        Finding("github", "credential", "pass", "Connection github: ok", projects: ["demo"]),
+        Finding("github", "credential", "warning", "Connection github: unreachable", projects: ["demo"]),
         Finding("github", "credential", "info", "No Project uses it yet."),
         Finding("github", "credential", "failure", "no projects field")
     ])
@@ -168,8 +171,8 @@ func gitHubNonFailures() {
     #expect(HealthFlag.read(doctorOutput: output, project: demo) == [])
 }
 
-@Test("The GitHub credential flag opens the Settings window")
-func gitHubDestination() {
-    #expect(HealthFlag(kind: .gitHubCredential, detail: "").destination == .settings)
-    #expect(HealthFlagKind.gitHubCredential.rawValue == "GitHub credential")
+@Test("The refused Code Hosting Connection flag opens Settings › Code Hosting")
+func codeHostingDestination() {
+    #expect(HealthFlag(kind: .codeHostingConnectionRefused, detail: "").destination == .codeHosting)
+    #expect(HealthFlagKind.codeHostingConnectionRefused.rawValue == "Code Hosting Connection refused")
 }
