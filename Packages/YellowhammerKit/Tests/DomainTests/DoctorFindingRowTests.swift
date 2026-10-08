@@ -57,6 +57,17 @@ struct DoctorFindingRowTests {
         #expect(DoctorFindingRow.decodeLastLine([DoctorFindingRow.encodeLine([row])]) == [row])
     }
 
+    @Test("connection encodes only when set and round-trips")
+    func connectionField() {
+        var row = base
+        row.connection = "github"
+        #expect(DoctorFindingRow.encodeLine([row]) == """
+            [{"check":"linear","connection":"github","message":"m",\
+            "severity":"pass","subject":"authorization"}]
+            """)
+        #expect(DoctorFindingRow.decodeLastLine([DoctorFindingRow.encodeLine([row])]) == [row])
+    }
+
     @Test("authorizationState prefers the authorization row, falls back to the connection row")
     func authorizationStateAccessor() {
         func row(_ subject: String, _ installation: String, _ state: String?) -> DoctorFindingRow {

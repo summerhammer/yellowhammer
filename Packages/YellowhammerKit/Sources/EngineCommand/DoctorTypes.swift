@@ -44,6 +44,8 @@ struct DoctorFinding: Equatable, Sendable {
     var installation: DoctorInstallationScope?
     /// The installation's authorization state, on the rows that judge it.
     var authorization: InstallationAuthorizationState?
+    /// The Code Hosting Connection this finding is about, when it is scoped to one.
+    var codeHosting: DoctorCodeHostingScope?
 }
 
 /// The Board Connection a finding names: its local name, its workspace (the registered id, and the
@@ -52,5 +54,12 @@ struct DoctorInstallationScope: Equatable, Sendable {
     let name: String
     let workspace: String?
     let workspaceName: String?
+    let projects: [ProjectID]
+}
+
+/// The Code Hosting Connection a finding names: its local name and the Projects that select it,
+/// in Project id order.
+struct DoctorCodeHostingScope: Equatable, Sendable {
+    let name: String
     let projects: [ProjectID]
 }

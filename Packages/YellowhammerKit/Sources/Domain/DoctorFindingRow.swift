@@ -22,11 +22,13 @@ public struct DoctorFindingRow: Codable, Equatable, Sendable {
     /// `"authorized"`, `"refused"` or `"unreachable"` (``InstallationAuthorizationState``), only on the
     /// installation rows that judge authorization.
     public var authorization: String?
+    /// The Code Hosting Connection's local name, when the finding is about one.
+    public var connection: String?
 
     public init(
         check: String, subject: String, severity: String, message: String,
         installation: String? = nil, workspace: String? = nil, workspaceName: String? = nil,
-        projects: [String]? = nil, authorization: String? = nil
+        projects: [String]? = nil, authorization: String? = nil, connection: String? = nil
     ) {
         self.check = check
         self.subject = subject
@@ -37,6 +39,7 @@ public struct DoctorFindingRow: Codable, Equatable, Sendable {
         self.workspaceName = workspaceName
         self.projects = projects
         self.authorization = authorization
+        self.connection = connection
     }
 
     /// The rows in the last non-blank line of `yh doctor --json`'s output, decoded as a JSON array. Nil

@@ -99,13 +99,14 @@ struct Doctor {
     }
 
     /// Keeps only machine-scoped findings, findings scoped to `projectFilter`, and findings of an
-    /// installation that serves it, when set.
+    /// installation or Code Hosting Connection that serves it, when set.
     private func keptFindings(_ findings: [DoctorFinding]) -> [DoctorFinding] {
         guard let projectFilter else { return findings }
         return findings.filter { finding in
-            if finding.projectID == nil, finding.installation == nil { return true }
+            if finding.projectID == nil, finding.installation == nil, finding.codeHosting == nil { return true }
             return finding.projectID == projectFilter
                 || finding.installation?.projects.contains(projectFilter) == true
+                || finding.codeHosting?.projects.contains(projectFilter) == true
         }
     }
 
@@ -120,11 +121,12 @@ struct Doctor {
 
     func finding(
         _ check: DoctorCheck, subject: String, _ severity: DoctorSeverity, _ message: String,
-        project: ProjectID? = nil, installation: DoctorInstallationScope? = nil
+        project: ProjectID? = nil, installation: DoctorInstallationScope? = nil,
+        codeHosting: DoctorCodeHostingScope? = nil
     ) -> DoctorFinding {
         DoctorFinding(
             check: check, subject: subject, severity: severity, message: message, projectID: project,
-            installation: installation
+            installation: installation, codeHosting: codeHosting
         )
     }
 }
