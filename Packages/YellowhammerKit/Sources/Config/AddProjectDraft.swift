@@ -192,7 +192,7 @@ public struct AddProjectDraft: Equatable, Sendable {
     public var repos: [Repo] = []
 
     // GitHub
-    /// What `yh setup --print-github` last reported for ``workingRepoPaths``; nil until a check ran.
+    /// What `yh config check-code-hosting-credential` last reported for ``workingRepoPaths``; nil until a check ran.
     public var gitHubReport: GitHubCredentialReport?
     /// The working Repo paths (as the draft had them) that `gitHubReport` was checked against.
     public var gitHubCheckedRepoPaths: [String] = []

@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 
 /// The Add Project wizard's GitHub step: a missing token is typed into the secure field, stored through
-/// `yh setup --install-github --token-stdin`, and checked again. Split from `AddProjectUITests` to keep both
+/// `yh setup connect-code-hosting github --token-stdin`, and checked again. Split from `AddProjectUITests` to keep both
 /// under SwiftLint's length limits.
 extension AddProjectUITests {
     /// The token the test types. It must appear in no argument vector the app ran.
@@ -26,7 +26,7 @@ extension AddProjectUITests {
 
         XCTAssertTrue(waitForText(of: element("github-credential-state"), containing: "Stored"))
         XCTAssertTrue(
-            waitForRecorded { $0.contains("--install-github --token-stdin") }, "\(recordedArguments())"
+            waitForRecorded { $0.contains("connect-code-hosting github --token-stdin") }, "\(recordedArguments())"
         )
         for line in recordedArguments() {
             XCTAssertFalse(line.contains(Self.typedGitHubToken), "the token reached an argument vector")

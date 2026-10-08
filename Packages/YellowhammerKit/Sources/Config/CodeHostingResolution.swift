@@ -10,7 +10,7 @@ public enum CodeHostingRefusal: Error, Equatable, Sendable, CustomStringConverti
         case .notInRegistry(let connection):
             return "Code Hosting Connection \"\(connection)\" is not in the machine file's "
                 + "[code_hosting.github.connections] registry. Connect it with "
-                + "`yh setup --install-github --code-hosting-connection \(connection)`, "
+                + "`yh config connect-code-hosting \(connection) --token-stdin`, "
                 + "or select another connection for the Project."
         case .githubCLINotSupported(let connection):
             return "Code Hosting Connection \"\(connection)\" uses the gh CLI, which this build of "

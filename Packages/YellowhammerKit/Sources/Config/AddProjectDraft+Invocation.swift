@@ -39,8 +39,7 @@ extension AddProjectDraft {
                 directory: exportDirectory.trimmingCharacters(in: .whitespacesAndNewlines), cron: exportUsesCron
             )
         }
-        // The GitHub step checks and stores the token of the default connection (`yh setup --print-github` and
-        // `--install-github` with no name), so the new Project selects that one.
+        // Setup checks the default connection and records that selection on the new Project.
         return SetupInvocation(
             boardConnection: linearInstallationName, codeHostingConnection: CodeHostingConnection.defaultName,
             project: project, jobs: jobs

@@ -200,28 +200,23 @@ struct SetupInvocationTests {
         ])
     }
 
-    @Test("printGitHubArguments builds --print-github with the connection and Repos, omitting absent ones")
-    func printGitHubArguments() {
-        #expect(SetupInvocation.printGitHubArguments(codeHostingConnection: nil, repoPaths: [])
-            == ["setup", "--print-github"])
-        #expect(SetupInvocation.printGitHubArguments(
-            codeHostingConnection: "acme", repoPaths: ["~/a", "~/b"]
+    @Test("Code Hosting check invocation uses the config report command")
+    func checkCodeHostingCredentialArguments() {
+        #expect(SetupInvocation.checkCodeHostingCredentialArguments(connection: nil, repoPaths: [])
+            == ["config", "check-code-hosting-credential"])
+        #expect(SetupInvocation.checkCodeHostingCredentialArguments(
+            connection: "acme", repoPaths: ["~/a", "~/b"]
         ) == [
-            "setup", "--print-github", "--code-hosting-connection", "acme",
+            "config", "check-code-hosting-credential", "--connection", "acme",
             "--github-repo", "~/a", "--github-repo", "~/b"
         ])
     }
 
-    @Test("installGitHubArguments builds --install-github with the token source and --replace")
-    func installGitHubArguments() {
-        #expect(SetupInvocation.installGitHubArguments(
-            codeHostingConnection: nil, source: .standardInput, replace: false, repoPaths: []
-        ) == ["setup", "--install-github", "--token-stdin"])
-        #expect(SetupInvocation.installGitHubArguments(
-            codeHostingConnection: "acme", source: .githubCLI, replace: true, repoPaths: ["~/a"]
-        ) == [
-            "setup", "--install-github", "--code-hosting-connection", "acme", "--from-gh", "--replace",
-            "--github-repo", "~/a"
-        ])
+    @Test("Code Hosting token invocations choose connect or replace and never include the token")
+    func codeHostingTokenArguments() {
+        #expect(SetupInvocation.codeHostingTokenArguments(connection: "acme", source: .standardInput, replace: false)
+            == ["config", "connect-code-hosting", "acme", "--token-stdin"])
+        #expect(SetupInvocation.codeHostingTokenArguments(connection: "acme", source: .githubCLI, replace: true)
+            == ["config", "replace-code-hosting-token", "acme", "--from-gh"])
     }
 }

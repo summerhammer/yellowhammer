@@ -1,6 +1,8 @@
 import Domain
 import Foundation
 
+// swiftlint:disable file_length
+
 /// Renders configuration values back to the TOML shapes ``ConfigurationDecoding`` accepts, for setup to
 /// write `~/.config/yellowhammer/config.toml` and `projects/<id>.toml` with the spec's defaults spelled
 /// out (bounds/bound-unanswered-nights: "Initial setup sets `overdue_nights_max = 3` in each
@@ -198,6 +200,29 @@ extension MachineConfiguration {
         }
         lines.removeSubrange(header..<removeEnd)
         // Do not leave a doubled gap where the removed table sat.
+        while header > 0, header < lines.count,
+              lines[header - 1].trimmingCharacters(in: .whitespaces).isEmpty,
+              lines[header].trimmingCharacters(in: .whitespaces).isEmpty {
+            lines.remove(at: header)
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// Removes the named Code Hosting Connection table, preserving comments attached to the next table.
+    public static func removingCodeHostingConnection(named name: String, inFileText text: String) -> String {
+        var lines = text.components(separatedBy: "\n")
+        guard let header = codeHostingHeaderIndex(named: name, in: lines) else { return text }
+        var end = header + 1
+        while end < lines.count, !isAnyTableHeader(lines[end]) { end += 1 }
+        var removeEnd = end
+        if end < lines.count {
+            while removeEnd > header + 1 {
+                let trimmed = lines[removeEnd - 1].trimmingCharacters(in: .whitespaces)
+                guard trimmed.isEmpty || trimmed.hasPrefix("#") else { break }
+                removeEnd -= 1
+            }
+        }
+        lines.removeSubrange(header..<removeEnd)
         while header > 0, header < lines.count,
               lines[header - 1].trimmingCharacters(in: .whitespaces).isEmpty,
               lines[header].trimmingCharacters(in: .whitespaces).isEmpty {

@@ -6,8 +6,7 @@ extension Doctor {
     /// Check 5 (shift-scheduling/diagnose-the-installation): Code Hosting Connections (`github`).
     /// Runs once per Code Hosting Connection in the registry, in registry order. Each connection reports its
     /// local name, its type, its live Code Hosting identity (for GitHub, the login), and the Projects that select
-    /// it. A refused connection fails ([FAIL]) naming the connection, the Projects it serves, and the fix:
-    /// Settings › Code Hosting.
+    /// it. A refused connection fails ([FAIL]) naming the connection, the Projects it serves, and the fix.
     ///
     /// An unreferenced connection (no Project names it) is reported as context (info).
     ///
@@ -23,7 +22,8 @@ extension Doctor {
             guard configuration.projects.isEmpty, missing.isEmpty else { return missing }
             return [finding(
                 .github, subject: "credential", .info,
-                "No Code Hosting Connection is connected; connect one with `yh setup --install-github`."
+                "No Code Hosting Connection is connected; connect one with "
+                    + "`yh config connect-code-hosting github --token-stdin`."
             )]
         }
 
@@ -76,7 +76,8 @@ extension Doctor {
         }
         return finding(
             .github, subject: "credential", .failure,
-            prefix + "\(refusal.description) Select a Keychain token connection instead in Settings › Code Hosting.",
+            prefix + "\(refusal.description) Select a Keychain token connection instead in Settings › Code Hosting, "
+                + "or connect one under a different name and select it in the Project file.",
             codeHosting: scope
         )
     }
@@ -87,13 +88,17 @@ extension Doctor {
     ) async -> [DoctorFinding] {
         let secret = credentials.gitHubSecret(for: reference)
         if served.isEmpty {
-            let report = await gitHub.report(reference: reference, secret: secret, repos: [])
+            let report = await gitHub.report(
+                reference: reference, secret: secret, repos: [], connectionName: connection.name
+            )
             return [unreferencedFinding(report, scope: scope, type: type, reference: reference)]
         }
 
         let activeProjects = served.filter { projectFilter == nil || $0.id == projectFilter }
         let allRepos = activeProjects.flatMap { workingRepos(of: $0) }
-        let report = await gitHub.report(reference: reference, secret: secret, repos: allRepos)
+        let report = await gitHub.report(
+            reference: reference, secret: secret, repos: allRepos, connectionName: connection.name
+        )
 
         var findings = [
             connectionFinding(report, scope: scope, type: type, reference: reference)
@@ -130,17 +135,18 @@ extension Doctor {
             return finding(.github, subject: "credential", .warning, prefix + report.message, codeHosting: scope)
         case .missing:
             let detail = "no GitHub token found under reference \(reference.rawValue) in Keychain; "
-                + "connect it in Settings › Code Hosting, or run "
-                + "`yh setup --install-github --code-hosting-connection \(scope.name)`"
+                + "replace it in Settings › Code Hosting or run "
+                + "`yh config replace-code-hosting-token \(scope.name) --token-stdin`"
             return finding(.github, subject: "credential", .failure, prefix + detail, codeHosting: scope)
         case .unreadable:
             let detail = "the Keychain item for \(reference.rawValue) could not be read; "
-                + "unlock the login Keychain or reconnect in Settings › Code Hosting"
+                + "unlock the login Keychain, reconnect in Settings › Code Hosting, or replace it with "
+                + "`yh config replace-code-hosting-token \(scope.name) --token-stdin`"
             return finding(.github, subject: "credential", .failure, prefix + detail, codeHosting: scope)
         case .rejected:
             let detail = "GitHub rejected the token in \(reference.rawValue): it is wrong, revoked or expired; "
-                + "reconnect or replace the token in Settings › Code Hosting, "
-                + "or run `yh setup --install-github --code-hosting-connection \(scope.name)`"
+                + "replace it in Settings › Code Hosting or run "
+                + "`yh config replace-code-hosting-token \(scope.name) --token-stdin`"
             return finding(.github, subject: "credential", .failure, prefix + detail, codeHosting: scope)
         }
     }
@@ -207,7 +213,7 @@ extension Doctor {
             return finding(
                 .github, subject: "project", .failure, // glossary:ignore GL001
                 named + ", which is not in the registry; "
-                    + "connect it with `yh setup --install-github --code-hosting-connection \(name)`, "
+                    + "connect it with `yh config connect-code-hosting \(name) --token-stdin`, "
                     + "or select another connection under [code_hosting] in the Project file",
                 project: id,
                 codeHosting: DoctorCodeHostingScope(name: name, projects: [id])

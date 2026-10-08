@@ -1,8 +1,8 @@
 import Foundation
 
 /// The stub `yh` shell script the Setup wizard and Settings UI tests exec, shared so both test classes
-/// drive the same `--print-choices`, `--init`, `--check`, `--install-linear`, `--print-github` and
-/// `--install-github` answers.
+/// drive the same `--print-choices`, `--init`, `--check`, `--install-linear`, `check-code-hosting-credential` and
+/// `connect-code-hosting` answers.
 enum EngineStub {
     /// A `sh` script, read (never exec'd) by `/bin/sh`. `--print-choices` answers with a canned
     /// ``SetupChoices`` JSON line and nothing else, so the wizard's "last non-empty line" decode still
@@ -11,7 +11,7 @@ enum EngineStub {
     /// tests name.
     static func write(in directory: URL) throws -> URL {
         let script = "#!/bin/sh\nall_args=\"$*\"\n" + waitForGate + "shift\ncase \"$1\" in\n"
-            + printChoicesCase + initCase + checkCase + installLinearCase + printGitHubCase + installGitHubCase
+            + printChoicesCase + initCase + checkCase + installLinearCase + printCodeHostingCases
             + operatorCase
             + removeInstallationCase + projectRemoveCase
             + "  *)\n    exit 1\n    ;;\nesac\n"
