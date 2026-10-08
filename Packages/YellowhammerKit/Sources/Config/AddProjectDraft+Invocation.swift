@@ -39,9 +39,9 @@ extension AddProjectDraft {
                 directory: exportDirectory.trimmingCharacters(in: .whitespacesAndNewlines), cron: exportUsesCron
             )
         }
-        // Setup checks the default connection and records that selection on the new Project.
+        // Setup checks the selected connection and records it on the new Project.
         return SetupInvocation(
-            boardConnection: linearInstallationName, codeHostingConnection: CodeHostingConnection.defaultName,
+            boardConnection: linearInstallationName, codeHostingConnection: codeHostingConnectionName,
             project: project, jobs: jobs
         )
     }

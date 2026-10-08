@@ -137,7 +137,12 @@ public final class LoopbackCallbackServer: Sendable {
         while true {
             if cancelled.withLock({ $0 }) { throw WaitError.cancelled }
             let remaining = deadline.timeIntervalSinceNow
-            guard remaining > 0 else { throw WaitError.timedOut }
+            guard remaining > 0 else {
+                // Closed, not just abandoned: a listening socket left open still completes a late
+                // client's handshake into its backlog, and that client then hangs with nobody serving it.
+                close()
+                throw WaitError.timedOut
+            }
             guard let fd = descriptor.withLock({ $0 >= 0 ? $0 : nil }) else { throw WaitError.cancelled }
 
             guard let client = try acceptOneConnection(fd: fd, remaining: remaining, cancelled: cancelled) else {

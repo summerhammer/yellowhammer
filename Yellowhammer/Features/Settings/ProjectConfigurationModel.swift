@@ -15,6 +15,11 @@ final class ProjectConfigurationModel {
     let projectID: ProjectID
     let directory: URL
     let file: URL
+    let codeHosting: CodeHostingConnectionsModel
+    var selectedCodeHostingConnection = ""
+    private(set) var isChangingCodeHosting = false
+    private(set) var codeHostingFailure: String?
+    @ObservationIgnored private let codeHostingEngine = SetupEngine()
 
     /// The text on disk when this model last loaded successfully, used by
     /// ``Config/Configuration/save(_:to:in:replacing:)`` to detect a concurrent hand edit.
@@ -36,6 +41,7 @@ final class ProjectConfigurationModel {
     var failure: String?
 
     init(project id: ProjectID, directory: URL = ConfigurationDirectory.current) {
+        codeHosting = CodeHostingConnectionsModel(directory: directory)
         projectID = id
         self.directory = directory
         file = directory.appending(
@@ -53,6 +59,7 @@ final class ProjectConfigurationModel {
     /// on disk, so ``originalText`` and the loaded draft always agree by construction — never re-read
     /// separately, which could race a concurrent hand edit.
     func load() {
+        codeHosting.reloadIfClean()
         guard let text = try? String(contentsOf: file, encoding: .utf8) else {
             clear(loadFailure: "\(file.path(percentEncoded: false)) does not exist.")
             return
@@ -62,6 +69,7 @@ final class ProjectConfigurationModel {
             if let project = configuration.projects.first(where: { $0.id == projectID }) {
                 originalText = text
                 loaded = project
+                selectedCodeHostingConnection = project.codeHostingConnectionName
                 routingCatalog = RoutingCatalog(machine: configuration.machine, projects: configuration.projects)
                 let loadedDraft = ProjectFileDraft(project)
                 saved = loadedDraft
@@ -87,7 +95,7 @@ final class ProjectConfigurationModel {
     /// written, so a caller that shows the configuration elsewhere can read it again.
     @discardableResult
     func save() -> Bool {
-        guard let draft, let originalText else { return false }
+        guard !isChangingCodeHosting, let draft, let originalText else { return false }
         do {
             try Configuration.save(draft.renderedTOML, to: file, in: directory, replacing: originalText)
             load()
@@ -107,8 +115,53 @@ final class ProjectConfigurationModel {
     /// Reloads from disk only when there is nothing unsaved to lose, so a direct TOML edit shows up
     /// without ever discarding a form edit the Operator has not saved.
     func reloadIfClean() {
-        guard !isDirty else { return }
+        guard !isDirty, !isChangingCodeHosting else { return }
         load()
+    }
+
+    /// Runs the engine's checked change, then updates only this field in the unsaved form.
+    @discardableResult
+    func changeCodeHostingConnection() async -> Bool {
+        guard !isChangingCodeHosting, let originalText, let saved,
+              !ConfigurationDirectory.isOverridden || SetupEngine.isStubbed else { return false }
+        let selection = selectedCodeHostingConnection
+        guard selection != saved.codeHostingConnectionName else { return false }
+        guard (try? String(contentsOf: file, encoding: .utf8)) == originalText else {
+            codeHostingFailure = "The Project file changed on disk. "
+                + "Reload it before changing the Code Hosting Connection."
+            return false
+        }
+        isChangingCodeHosting = true
+        codeHostingFailure = nil
+        defer { isChangingCodeHosting = false }
+        var lines: [String] = []
+        do {
+            let status = try await codeHostingEngine.run(
+                arguments: SetupInvocation.setProjectCodeHostingConnectionArguments(
+                    project: projectID.rawValue, connection: selection
+                )
+            ) { lines.append($0) }
+            guard status == 0 else {
+                codeHostingFailure = lines.isEmpty ? "yh exited \(status)." : lines.joined(separator: "\n")
+                return false
+            }
+            // Keep the expected original, not an arbitrary reread: any concurrent file edit still
+            // refuses the next form Save. Edits typed during the engine run stay in the draft.
+            self.originalText = ProjectConfiguration.settingCodeHostingConnection(
+                named: selection, inFileText: originalText
+            )
+            self.saved?.codeHostingConnectionName = selection
+            draft?.codeHostingConnectionName = selection
+            if let configuration = try? Configuration.load(directory: directory) {
+                loaded = configuration.projects.first { $0.id == projectID }
+            }
+            codeHosting.load()
+            await codeHosting.refreshReport()
+            return true
+        } catch {
+            codeHostingFailure = "\(error)"
+            return false
+        }
     }
 
     private func clear(loadFailure: String) {
