@@ -2637,6 +2637,18 @@ The Feature Branch Orca ADE reports, with its prefix (#318), is planned and trac
   holds at most one `gh` CLI connection.
 - **Status** — Done on 2026-10-08.
 
+### [x] P21.4 Settings › Code Hosting
+- **Work** — A machine-wide Code Hosting section beside Boards: the GitHub group lists every Code Hosting
+  Connection with its local name, type and live Code Hosting identity; connect by the `gh` CLI (offered when
+  `yh` reports `gh` found and logged in, otherwise disabled with the reason), a pasted token or an import from
+  `gh`; replace a Keychain token; remove, showing `yh`'s refusal. A not-yet-supported group with no action.
+  PR #385's credential card leaves Settings › General.
+- **Spec** — `landing/connect-code-hosting` (S6, [issue #392](https://github.com/summerhammer/yellowhammer/issues/392)).
+- **Done when** — Every action is a `yh` invocation behind the fixture guard, no token is displayed or held,
+  and UI tests against the engine stub cover each connect, replace, remove refused and allowed, and the
+  disabled `gh` option.
+- **Status** — Done on 2026-10-08.
+
 ---
 
 ## Traceability: story → steps
@@ -2674,7 +2686,7 @@ The Feature Branch Orca ADE reports, with its prefix (#318), is planned and trac
 | `bounds/refuse-protected-paths-before-dispatch` | P8.3 |
 | `landing/open-one-pull-request-per-repository` | P10.1, P10.2, P10.3, P10.4, P19.2, P19.6, P19.7 |
 | `landing/announce-a-partial-landing` | P10.4, P10.8, P6.2, P19.6 |
-| `landing/connect-code-hosting` | P21.1, P21.2, P21.3 |
+| `landing/connect-code-hosting` | P21.1, P21.2, P21.3, P21.4 |
 | `verification/verify-a-feature-clause-by-clause` | P10.5 |
 | `verification/return-a-feature-with-unmet-clauses` | P10.6 |
 | `verification/archive-the-cycle-on-a-verified-feature` | P10.7 |

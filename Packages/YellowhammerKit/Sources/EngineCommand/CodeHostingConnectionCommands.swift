@@ -38,10 +38,8 @@ struct CodeHostingConnectionManager {
         guard !connections.contains(where: { $0.name == name }) else {
             throw SetupError("Code Hosting Connection \"\(name)\" already exists")
         }
-        if let existing = connections.first(where: { if case .githubCLI = $0.kind { true } else { false } }) {
-            throw SetupError(
-                "this Mac already has a gh CLI connection, \(existing.name); a Mac holds at most one"
-            )
+        if let existing = Self.githubCLIConnection(in: connections) {
+            throw SetupError(Self.alreadyHasGitHubCLIMessage(existing.name))
         }
         let validation = await gitHub.reportGitHubCLI(executable: nil, repos: [], connectionName: name)
         guard validation.state == .resolves else { throw SetupError(validation.message, gitHub: true) }
@@ -182,7 +180,9 @@ struct CodeHostingConnectionManager {
 
     func report() async throws -> CodeHostingConnectionsReport {
         guard let configuration = try load() else {
-            let empty = CodeHostingConnectionsReport(connections: [])
+            let empty = CodeHostingConnectionsReport(
+                connections: [], gitHubCLI: await gitHubCLIOffer(connections: [])
+            )
             output(empty.encodeLine())
             return empty
         }
@@ -212,7 +212,10 @@ struct CodeHostingConnectionManager {
                 ))
             }
         }
-        let result = CodeHostingConnectionsReport(connections: reports)
+        let result = CodeHostingConnectionsReport(
+            connections: reports,
+            gitHubCLI: await gitHubCLIOffer(connections: configuration.machine.codeHostingConnections)
+        )
         output(result.encodeLine())
         return result
     }
@@ -248,6 +251,33 @@ struct CodeHostingConnectionManager {
     private func load() throws -> Configuration? {
         guard FileManager.default.fileExists(atPath: machineURL.path(percentEncoded: false)) else { return nil }
         return try Configuration.loadLeniently(directory: directory)
+    }
+}
+
+extension CodeHostingConnectionManager {
+    fileprivate static func githubCLIConnection(in connections: [CodeHostingConnection]) -> CodeHostingConnection? {
+        connections.first { if case .githubCLI = $0.kind { true } else { false } }
+    }
+
+    /// The refusal for a second gh CLI connection; the connect command and the report's offer share it.
+    fileprivate static func alreadyHasGitHubCLIMessage(_ name: String) -> String {
+        "this Mac already has a gh CLI connection, \(name); a Mac holds at most one"
+    }
+
+    /// Whether Settings may offer "Connect the gh CLI": `gh` is asked only when the registry holds no gh
+    /// connection, since a Mac holds at most one and that connection's own row already runs `gh` once.
+    fileprivate func gitHubCLIOffer(
+        connections: [CodeHostingConnection]
+    ) async -> CodeHostingConnectionsReport.GitHubCLIOffer {
+        if let existing = Self.githubCLIConnection(in: connections) {
+            return .init(available: false, reason: Self.alreadyHasGitHubCLIMessage(existing.name))
+        }
+        let result = await gitHub.reportGitHubCLI(
+            executable: nil, repos: [], connectionName: CodeHostingConnection.gitHubCLIDefaultName
+        )
+        return result.state == .resolves
+            ? .init(available: true, login: result.login)
+            : .init(available: false, reason: result.message)
     }
 }
 

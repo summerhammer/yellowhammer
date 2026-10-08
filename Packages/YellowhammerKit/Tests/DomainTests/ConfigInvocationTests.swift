@@ -29,4 +29,12 @@ struct ConfigInvocationTests {
                 == ["config", "remove-board-connection", "acme"]
         )
     }
+
+    @Test("removeCodeHostingConnectionArguments passes the name as the one positional and no override")
+    func removeCodeHostingConnectionVector() {
+        #expect(
+            ConfigInvocation.removeCodeHostingConnectionArguments(name: "gh")
+                == ["config", "remove-code-hosting-connection", "gh"]
+        )
+    }
 }
