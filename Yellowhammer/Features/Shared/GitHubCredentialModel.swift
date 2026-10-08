@@ -3,10 +3,9 @@ import Domain
 import Foundation
 import Observation
 
-/// The GitHub credential's state, shared by the Setup wizard's GitHub step and the Settings window's General
-/// pane. The app never calls GitHub or reads the Keychain itself (ADR-001): every check and store goes through
-/// `yh config`, decoded with ``GitHubCredentialReport``, so
-/// the wording the Operator reads comes from `yh`.
+/// The GitHub credential's state, for the Setup wizard's GitHub step. The app never calls GitHub or reads the
+/// Keychain itself (ADR-001): every check and store goes through `yh config`, decoded with
+/// ``GitHubCredentialReport``, so the wording the Operator reads comes from `yh`.
 ///
 /// The token travels only over standard input: never an argument, never logged, and not kept here after
 /// the run starts. The model owns a `SetupEngine` per run and a generation counter that drops the result of a

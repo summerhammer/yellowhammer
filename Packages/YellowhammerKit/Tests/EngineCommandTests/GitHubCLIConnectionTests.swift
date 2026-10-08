@@ -207,6 +207,77 @@ struct GitHubCLIConnectionTests {
         #expect(missing?.state == .refused)
         #expect(missing?.reason == GitHubCLIExecutable.notFoundMessage)
     }
+}
+
+/// The registry report's gh CLI offer, and the rest of the suite (split out to keep the type body short).
+extension GitHubCLIConnectionTests {
+    @Test("The report offers the gh CLI with its login when gh is found, logged in, and not yet connected")
+    func offerAvailableWhenGitHubCLIResolves() async throws {
+        let gh = try StubGitHubCLI(login: "octocat")
+        defer { gh.remove() }
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+
+        let report = try await manager(directory, gitHub: gh.validation()).report()
+
+        #expect(report.gitHubCLI == .init(available: true, login: "octocat"))
+    }
+
+    @Test("The report withholds the gh CLI offer, pointing at gh auth login, when gh is logged out")
+    func offerUnavailableWhenLoggedOut() async throws {
+        let gh = try StubGitHubCLI(mode: .loggedOut)
+        defer { gh.remove() }
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+
+        let offer = try await manager(directory, gitHub: gh.validation()).report().gitHubCLI
+
+        #expect(offer?.available == false)
+        #expect(offer?.login == nil)
+        #expect(offer?.reason?.contains("gh auth login") == true)
+    }
+
+    @Test("The report withholds the gh CLI offer with the shared not-found message when gh is missing")
+    func offerUnavailableWhenNotFound() async throws {
+        let gh = try StubGitHubCLI()
+        defer { gh.remove() }
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+
+        let offer = try await manager(directory, gitHub: gh.validation(found: false)).report().gitHubCLI
+
+        #expect(offer == .init(available: false, reason: GitHubCLIExecutable.notFoundMessage))
+    }
+
+    @Test("The report withholds the gh CLI offer, with the connect refusal, once a gh connection exists")
+    func offerUnavailableWhenRegistryHoldsOne() async throws {
+        let gh = try StubGitHubCLI()
+        defer { gh.remove() }
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile(Self.withGitHubCLI)
+
+        let report = try await manager(directory, gitHub: gh.validation()).report()
+
+        #expect(report.gitHubCLI == .init(
+            available: false,
+            reason: "this Mac already has a gh CLI connection, gh; a Mac holds at most one"
+        ))
+        #expect(gh.calls.count == 1)
+    }
+
+    @Test("The gh CLI offer is reported even when no machine file exists")
+    func offerPresentWithoutMachineFile() async throws {
+        let gh = try StubGitHubCLI(login: "octocat")
+        defer { gh.remove() }
+        let directory = ConfigurationDirectory()
+        let output = RecordingOutput()
+
+        let report = try await manager(directory, gitHub: gh.validation(), output: output).report()
+
+        #expect(report.connections.isEmpty)
+        #expect(report.gitHubCLI == .init(available: true, login: "octocat"))
+        #expect(output.lines == [report.encodeLine()])
+    }
 
     @Test("The credential check of a gh connection reports the literal reference gh and each Repo")
     func checkCredentialUsesGitHubCLI() async throws {
