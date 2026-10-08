@@ -54,12 +54,18 @@ struct WizardBlock<Content: View>: View {
 struct WizardBlockRow<Control: View>: View {
     let label: String
     var detail: String?
+    var labelIdentifier: String?
     @ViewBuilder let control: Control
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(label)
+                if let labelIdentifier {
+                    Text(label)
+                        .accessibilityIdentifier(labelIdentifier)
+                } else {
+                    Text(label)
+                }
                 if let detail {
                     Text(detail).font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

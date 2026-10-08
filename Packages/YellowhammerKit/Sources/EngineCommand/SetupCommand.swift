@@ -120,6 +120,18 @@ public struct SetupCommand: AsyncParsableCommand {
     )
     public var remote: Bool = false
 
+    @Flag(
+        name: .customLong("install-cli"),
+        help: "Install or update the /usr/local/bin/yh symlink pointing to this yh."
+    )
+    public var installCLI: Bool = false
+
+    @Flag(
+        name: .customLong("uninstall-cli"),
+        help: "Remove the /usr/local/bin/yh symlink if it points to yh."
+    )
+    public var uninstallCLI: Bool = false
+
     public init() {}
 
     public func validate() throws {
@@ -149,7 +161,7 @@ public struct SetupCommand: AsyncParsableCommand {
             },
             registerNotifications: Self.registerNotifications,
             homeDirectory: homeDirectory,
-            yhExecutablePath: Self.yhExecutablePath(),
+            yhExecutablePath: CommandLineToolLink.runningExecutablePath(),
             setupTimePATH: ProcessInfo.processInfo.environment["PATH"],
             fileExists: { FileManager.default.isExecutableFile(atPath: $0) },
             launchAgents: LaunchctlLaunchAgentControl(),
@@ -168,19 +180,6 @@ public struct SetupCommand: AsyncParsableCommand {
                 if let line = try? event.ndjsonLine() { print(line) }
             }
         ).run()
-    }
-
-    /// The absolute path to the `yh` binary currently running: the bundle's executable when running
-    /// inside the app-embedded `Contents/MacOS/yh`, otherwise `argv[0]` resolved against the current
-    /// directory.
-    private static func yhExecutablePath() -> String {
-        if let bundlePath = Bundle.main.executableURL?.resolvingSymlinksInPath().path {
-            return bundlePath
-        }
-        let argv0 = CommandLine.arguments[0]
-        guard !argv0.hasPrefix("/") else { return argv0 }
-        return URL(filePath: argv0, relativeTo: URL(filePath: FileManager.default.currentDirectoryPath))
-            .standardizedFileURL.path
     }
 
     private static func registerNotifications() async -> NotificationRegistration {

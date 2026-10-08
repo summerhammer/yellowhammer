@@ -14,7 +14,7 @@ public struct DoctorCommand: AsyncParsableCommand {
         abstract: "Check configuration, Linear authorization, git, probes and LaunchAgents."
     )
 
-    @Flag(help: "Unload and remove orphaned LaunchAgents, after confirmation.")
+    @Flag(help: "Unload orphaned LaunchAgents, and repoint dangling or mismatched /usr/local/bin/yh symlink.")
     public var fix: Bool = false
 
     @Flag(help: "With --fix, remove orphaned LaunchAgents without asking for confirmation.")
@@ -68,7 +68,7 @@ public struct DoctorCommand: AsyncParsableCommand {
     private func resolvedProjectFilter() throws -> ProjectID? {
         guard let project else { return nil }
         guard let id = ProjectID(rawValue: project) else {
-            throw ValidationError("--project \(project) is not a valid Project id")
+            throw ValidationError("--project \(project) is not a valid Project id") // glossary:ignore GL001
         }
         return id
     }
@@ -128,7 +128,9 @@ public struct DoctorCommand: AsyncParsableCommand {
                 try? await ProbeCommand.parse([name]).run(configurationDirectory: configurationDirectory)
             },
             fix: options.fix, yes: options.yes, probe: options.probe, checks: options.checks,
-            projectFilter: options.projectFilter
+            projectFilter: options.projectFilter,
+            commandLineToolLink: options.commandLineToolLink,
+            runningExecutablePath: options.runningExecutablePath
         )
     }
 }
@@ -141,4 +143,24 @@ struct DoctorRunOptions {
     let probe: Bool
     let checks: [DoctorCheck]
     let projectFilter: ProjectID?
+    let commandLineToolLink: CommandLineToolLink
+    let runningExecutablePath: String
+
+    init(
+        fix: Bool,
+        yes: Bool,
+        probe: Bool,
+        checks: [DoctorCheck],
+        projectFilter: ProjectID?,
+        commandLineToolLink: CommandLineToolLink = CommandLineToolLink(),
+        runningExecutablePath: String = CommandLineToolLink.runningExecutablePath()
+    ) {
+        self.fix = fix
+        self.yes = yes
+        self.probe = probe
+        self.checks = checks
+        self.projectFilter = projectFilter
+        self.commandLineToolLink = commandLineToolLink
+        self.runningExecutablePath = runningExecutablePath
+    }
 }

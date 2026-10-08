@@ -27,6 +27,8 @@ struct Doctor {
     let checks: [DoctorCheck]
     /// Only report this Project's findings, plus machine-scoped ones, when set.
     let projectFilter: ProjectID?
+    var commandLineToolLink: CommandLineToolLink = CommandLineToolLink()
+    var runningExecutablePath: String = CommandLineToolLink.runningExecutablePath()
 
     var machineFileURL: URL {
         configurationDirectory.appending(component: "config.toml", directoryHint: .notDirectory)

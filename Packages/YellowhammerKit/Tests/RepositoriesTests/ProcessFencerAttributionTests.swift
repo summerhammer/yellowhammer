@@ -109,7 +109,10 @@ struct ProcessFencerAttributionTests {
 
         let shell = try Self.launchShellWithBackgroundChild(currentDirectory: worktree)
         defer { shell.terminateAndReap() }
-        try await Task.sleep(for: .milliseconds(200))
+        for _ in 0..<30 {
+            if ProcessFencer().holders(of: worktree.path).count >= 2 { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
 
         let shellIdentity = try #require(ProcessIdentity.identity(of: shell.pid))
         let snapshot = RunningSnapshot(

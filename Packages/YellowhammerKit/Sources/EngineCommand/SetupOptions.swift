@@ -16,6 +16,10 @@ enum SetupMode: Equatable {
     /// `--install-linear`: runs only the Linear step (install, store, confirm), then the Operator
     /// identity choice if none is configured, and exits — never touches Project files or jobs.
     case installLinear
+    /// `--install-cli`: installs or repoints the `/usr/local/bin/yh` symlink and exits.
+    case installCLI
+    /// `--uninstall-cli`: removes `/usr/local/bin/yh` if it points to `yh` and exits.
+    case uninstallCLI
 }
 
 /// The scheduled-jobs format `--export-jobs` writes.
@@ -115,6 +119,17 @@ struct SetupOptions {
     }
 
     private static func parseMode(_ command: SetupCommand) throws -> SetupMode {
+        if command.installCLI && command.uninstallCLI {
+            throw ValidationError("--install-cli and --uninstall-cli are mutually exclusive")
+        }
+        if command.installCLI {
+            try validateStandaloneCLIMode(command, flag: "--install-cli")
+            return .installCLI
+        }
+        if command.uninstallCLI {
+            try validateStandaloneCLIMode(command, flag: "--uninstall-cli")
+            return .uninstallCLI
+        }
         if command.printChoices {
             try validatePrintChoicesScope(command)
             return .printChoices
@@ -323,43 +338,6 @@ struct SetupOptions {
 }
 
 extension SetupOptions {
-    /// `--print-choices` is exclusive with everything that generates or adopts configuration; it only
-    /// takes the options that reach the Linear client, exactly as `--init` would.
-    private static func validatePrintChoicesScope(_ command: SetupCommand) throws {
-        let forbidden: [(Bool, String)] = [
-            (command.initialize, "--init"),
-            (command.config != nil, "--config"),
-            (command.project != nil, "--project"), // glossary:ignore GL001
-            (command.projectName != nil, "--project-name"), // glossary:ignore GL001
-            (command.linearTeam != nil, "--linear-team"),
-            (command.specSource != nil, "--spec-source"),
-            (command.nightStart != nil, "--night-start"),
-            (command.nightEnd != nil, "--night-end"),
-            (command.buildEveryMinutes != nil, "--build-every-minutes"),
-            (!command.repo.isEmpty, "--repo"),
-            (!command.cli.isEmpty, "--cli"),
-            (command.route != nil, "--route"),
-            (!command.fallback.isEmpty, "--fallback"),
-            (command.operatorID != nil, "--operator"),
-            (command.installJobs, "--install-jobs"),
-            (command.exportJobs != nil, "--export-jobs"),
-            (command.cron, "--cron"),
-            (command.installLinear, "--install-linear"),
-            (command.boardConnectionName != nil, "--board-connection-name")
-        ]
-        let present = forbidden.filter(\.0).map(\.1)
-        guard present.isEmpty else {
-            throw ValidationError(
-                "--print-choices cannot be combined with " + present.joined(separator: ", ") // glossary:ignore GL001
-            )
-        }
-        if command.linearProject != nil && command.boardConnection == nil {
-            throw ValidationError(
-                "--linear-project with --print-choices requires --board-connection" // glossary:ignore GL001
-            )
-        }
-    }
-
     private static func parseInstallationName(_ command: SetupCommand) throws -> String? {
         guard let raw = command.boardConnectionName else { return nil }
         guard !raw.trimmingCharacters(in: .whitespaces).isEmpty else {

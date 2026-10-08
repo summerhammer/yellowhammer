@@ -13,6 +13,7 @@ extension Doctor {
                 findings.append(await launchdFinding(projectID: project.id, act: act))
             }
         }
+        findings.append(commandLineToolFinding())
         return findings
     }
 
@@ -38,5 +39,57 @@ extension Doctor {
             .launchd, subject: label, .pass, "\(subject) LaunchAgent \(label) is installed and loaded",
             project: projectID
         )
+    }
+
+    private func commandLineToolFinding() -> DoctorFinding {
+        let subject = commandLineToolLink.linkPath
+        let state = commandLineToolLink.inspect(runningExecutable: runningExecutablePath)
+        switch state {
+        case .installed:
+            return finding(
+                .launchd, subject: subject, .pass,
+                "Command Line Tool symlink \(subject) resolves to running yh"
+            )
+        case .notInstalled:
+            return finding(
+                .launchd, subject: subject, .info,
+                "Command Line Tool is not installed at \(subject); "
+                    + "install via Yellowhammer → Install Command Line Tool… or yh setup --install-cli"
+            )
+        case .dangling(let target):
+            return repointedOrWarning(
+                subject: subject, canRepoint: fix,
+                warning: "Command Line Tool symlink \(subject) is dangling (target \(target) does not exist)"
+            )
+        case .mismatched(let target):
+            return repointedOrWarning(
+                subject: subject, canRepoint: fix && commandLineToolLink.isSymlink,
+                warning: "Command Line Tool symlink \(subject) resolves to \(target), "
+                    + "not running yh (\(runningExecutablePath))"
+            )
+        }
+    }
+
+    /// With `--fix`, repoints a dangling or mismatched symlink; otherwise (or when the repoint cannot
+    /// be done) reports `warning`, printing the manual commands when the parent directory is read-only.
+    private func repointedOrWarning(subject: String, canRepoint: Bool, warning: String) -> DoctorFinding {
+        guard canRepoint else {
+            return finding(.launchd, subject: subject, .warning, warning)
+        }
+        guard commandLineToolLink.isParentDirectoryWritable else {
+            output("sudo ln -sfh '\(runningExecutablePath)' \(subject)")
+            output("sudo chmod -h 0755 \(subject)")
+            output("or update via Yellowhammer → Update Command Line Tool…")
+            return finding(.launchd, subject: subject, .warning, warning)
+        }
+        do {
+            try commandLineToolLink.install(target: runningExecutablePath)
+            return finding(
+                .launchd, subject: subject, .pass,
+                "repointed Command Line Tool symlink \(subject) -> \(runningExecutablePath)"
+            )
+        } catch {
+            return finding(.launchd, subject: subject, .warning, warning)
+        }
     }
 }

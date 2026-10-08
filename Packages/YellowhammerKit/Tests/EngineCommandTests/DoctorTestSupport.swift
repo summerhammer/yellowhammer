@@ -39,7 +39,9 @@ func makeDoctor(
     yes: Bool = false,
     probe: Bool = false,
     checks: [DoctorCheck] = DoctorCheck.allCases,
-    projectFilter: ProjectID? = nil
+    projectFilter: ProjectID? = nil,
+    commandLineToolLink: CommandLineToolLink = CommandLineToolLink(),
+    runningExecutablePath: String = CommandLineToolLink.runningExecutablePath()
 ) -> Doctor {
     Doctor(
         configurationDirectory: directory.url,
@@ -58,7 +60,9 @@ func makeDoctor(
         yes: yes,
         probe: probe,
         checks: checks,
-        projectFilter: projectFilter
+        projectFilter: projectFilter,
+        commandLineToolLink: commandLineToolLink,
+        runningExecutablePath: runningExecutablePath
     )
 }
 

@@ -1,3 +1,4 @@
+import ArgumentParser
 import Config
 import Domain
 import Foundation
@@ -41,6 +42,9 @@ struct Setup {
     /// whether to call this or ``output`` — never both, so `--events json` writes nothing else to stdout
     /// for the Linear step.
     let linearInstallEvents: @Sendable (LinearInstallEvent) -> Void
+    var commandLineToolLink: CommandLineToolLink = CommandLineToolLink()
+    var isTTY: () -> Bool = { isatty(STDIN_FILENO) != 0 }
+    var runSudo: (String) throws -> Int32 = Setup.defaultRunSudo
 
     var machineFileURL: URL {
         configurationDirectory.appending(component: "config.toml", directoryHint: .notDirectory)
@@ -52,7 +56,7 @@ struct Setup {
         switch options.mode {
         case .interactive: true
         case .installLinear: !options.eventsJSON
-        case .initialize, .config, .printChoices: false
+        case .initialize, .config, .printChoices, .installCLI, .uninstallCLI: false
         }
     }
 
@@ -63,10 +67,7 @@ struct Setup {
     /// on any failure that stops setup; step 6's per-Project failures are printed and accumulate into
     /// the final throw instead.
     func run() async throws {
-        if case .printChoices = options.mode {
-            try await printChoices()
-            return
-        }
+        if try await runStandaloneMode() { return }
         if case .config(let source) = options.mode {
             try installPreparedConfiguration(from: source)
         }
@@ -78,16 +79,7 @@ struct Setup {
             selected = try await authorizeLinear(request, machine: &machine)
         } catch {
             guard case .installLinear = options.mode else {
-                // No Linear installation: the steps that need none still run (configuration validation,
-                // notification registration, routing warnings) before the Linear failure is the final
-                // error. Project file writing, provisioning and scheduled jobs need Linear (or its
-                // provisioning) and are skipped.
-                let configuration = try validateConfiguration()
-                await reportNotifications()
-                reportRoutingWarnings(configuration: configuration, machine: machine)
-                throw SetupError(
-                    "setup finished without a Board Connection; run yh setup --install-linear (\(error))"
-                )
+                try await finishWithoutBoardConnection(machine: machine, error: error)
             }
             throw error
         }
@@ -124,5 +116,113 @@ struct Setup {
             throw SetupError("setup finished with errors; see the output above")
         }
         output("Setup complete.")
+    }
+
+    /// Runs the modes that do not touch Linear or the Projects; returns whether one of them ran.
+    private func runStandaloneMode() async throws -> Bool {
+        switch options.mode {
+        case .printChoices:
+            try await printChoices()
+        case .installCLI:
+            try runInstallCLI()
+        case .uninstallCLI:
+            try runUninstallCLI()
+        case .interactive, .initialize, .config, .installLinear:
+            return false
+        }
+        return true
+    }
+
+    /// No Linear installation: the steps that need none still run (configuration validation,
+    /// notification registration, routing warnings) before the Linear failure is the final
+    /// error. Project file writing, provisioning and scheduled jobs need Linear (or its
+    /// provisioning) and are skipped.
+    private func finishWithoutBoardConnection(machine: MachineConfiguration, error: any Error) async throws -> Never {
+        let configuration = try validateConfiguration()
+        await reportNotifications()
+        reportRoutingWarnings(configuration: configuration, machine: machine)
+        throw SetupError(
+            "setup finished without a Board Connection; run yh setup --install-linear (\(error))"
+        )
+    }
+
+    func runInstallCLI() throws {
+        let state = commandLineToolLink.inspect(runningExecutable: yhExecutablePath)
+        switch state {
+        case .installed:
+            output("Command Line Tool symlink is already installed at \(commandLineToolLink.linkPath)")
+            return
+        case .mismatched(let target) where target == commandLineToolLink.linkPath:
+            throw SetupError("refusing to replace non-symlink file at \(commandLineToolLink.linkPath)")
+        case .notInstalled, .dangling, .mismatched:
+            if commandLineToolLink.isParentDirectoryWritable {
+                do {
+                    try commandLineToolLink.install(target: yhExecutablePath)
+                    output(
+                        "Installed Command Line Tool symlink at "
+                            + "\(commandLineToolLink.linkPath) -> \(yhExecutablePath)"
+                    )
+                } catch {
+                    throw SetupError("could not install Command Line Tool symlink: \(error)")
+                }
+            } else {
+                let privilegedCommand = commandLineToolLink.privilegedInstallCommand(target: yhExecutablePath)
+                if isTTY() {
+                    let status = try runSudo(privilegedCommand)
+                    guard status == 0 else {
+                        throw SetupError("sudo failed with exit status \(status)")
+                    }
+                    output(
+                        "Installed Command Line Tool symlink at "
+                            + "\(commandLineToolLink.linkPath) -> \(yhExecutablePath)"
+                    )
+                } else {
+                    output("sudo /bin/sh -c \(CommandLineToolLink.shellQuote(privilegedCommand))")
+                    throw ExitCode(1)
+                }
+            }
+        }
+    }
+
+    func runUninstallCLI() throws {
+        let state = commandLineToolLink.inspect(runningExecutable: yhExecutablePath)
+        if case .notInstalled = state {
+            output("Command Line Tool symlink is not installed at \(commandLineToolLink.linkPath)")
+            return
+        }
+        do {
+            try commandLineToolLink.checkUninstallEligibility()
+        } catch {
+            throw SetupError("\(error)")
+        }
+        if commandLineToolLink.isParentDirectoryWritable {
+            do {
+                try commandLineToolLink.uninstall()
+                output("Removed Command Line Tool symlink at \(commandLineToolLink.linkPath)")
+            } catch {
+                throw SetupError("could not remove Command Line Tool symlink: \(error)")
+            }
+        } else {
+            let privilegedCommand = commandLineToolLink.privilegedUninstallCommand()
+            if isTTY() {
+                let status = try runSudo(privilegedCommand)
+                guard status == 0 else {
+                    throw SetupError("sudo failed with exit status \(status)")
+                }
+                output("Removed Command Line Tool symlink at \(commandLineToolLink.linkPath)")
+            } else {
+                output("sudo /bin/sh -c \(CommandLineToolLink.shellQuote(privilegedCommand))")
+                throw ExitCode(1)
+            }
+        }
+    }
+
+    static func defaultRunSudo(_ command: String) throws -> Int32 {
+        let process = Process()
+        process.executableURL = URL(filePath: "/usr/bin/sudo")
+        process.arguments = ["/bin/sh", "-c", command]
+        try process.run()
+        process.waitUntilExit()
+        return process.terminationStatus
     }
 }

@@ -44,7 +44,10 @@ struct ProcessFencerTests {
 
         let child = try Self.launchSleep(currentDirectory: worktree)
         defer { child.terminateAndReap() }
-        try await Task.sleep(for: .milliseconds(150))
+        for _ in 0..<20 {
+            if !ProcessFencer().holders(of: worktree.path).isEmpty { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
 
         let sweeps = SweepCounter()
         let fencer = ProcessFencer(
