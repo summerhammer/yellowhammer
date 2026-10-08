@@ -9,6 +9,15 @@ import Testing
 /// app's argument-building contract and `yh setup`'s flag spelling can never silently drift apart.
 @Suite("SetupInvocation ↔ SetupCommand contract")
 struct SetupInvocationContractTests {
+    @Test("legacy standalone GitHub setup modes are rejected")
+    func legacyGitHubModesAreRejected() {
+        for removedFlag in ["--install-github", "--print-github"] {
+            #expect(throws: (any Error).self) {
+                try SetupCommand.parse([removedFlag])
+            }
+        }
+    }
+
     @Test("A full --init invocation parses back to the matching SetupOptions") // glossary:ignore GL001
     func fullInitInvocationParsesBack() throws {
         let invocation = SetupInvocation(
@@ -120,39 +129,19 @@ struct SetupInvocationContractTests {
         #expect(options.projectID == nil)
     }
 
-    @Test("printGitHubArguments parses back as --print-github with its Repos")
-    func printGitHubParsesBack() throws {
-        let built = SetupInvocation.printGitHubArguments(
-            codeHostingConnection: "work", repoPaths: ["~/dev/backend", "/srv/web"]
-        )
-
-        let options = try SetupOptions(command: try SetupCommand.parse(Array(built.dropFirst())))
-
-        #expect(options.mode == .printGitHub)
-        #expect(options.codeHostingConnection == "work")
-        #expect(options.gitHubRepoPaths == ["~/dev/backend", "/srv/web"])
-    }
-
-    @Test("installGitHubArguments parses back as --install-github for each token source")
-    func installGitHubParsesBack() throws {
-        let stdin = SetupInvocation.installGitHubArguments(
-            codeHostingConnection: nil, source: .standardInput, replace: true, repoPaths: ["~/dev/backend"]
-        )
-        let fromGH = SetupInvocation.installGitHubArguments(
-            codeHostingConnection: "github", source: .githubCLI, replace: false, repoPaths: []
-        )
-
-        let stdinOptions = try SetupOptions(command: try SetupCommand.parse(Array(stdin.dropFirst())))
-        let ghOptions = try SetupOptions(command: try SetupCommand.parse(Array(fromGH.dropFirst())))
-
-        #expect(stdinOptions.mode == .installGitHub)
-        #expect(stdinOptions.gitHubTokenSource == .standardInput)
-        #expect(stdinOptions.replaceGitHubToken)
-        #expect(stdinOptions.gitHubRepoPaths == ["~/dev/backend"])
-        #expect(stdinOptions.codeHostingConnection == nil)
-        #expect(ghOptions.mode == .installGitHub)
-        #expect(ghOptions.gitHubTokenSource == .githubCLI)
-        #expect(!ghOptions.replaceGitHubToken)
-        #expect(ghOptions.codeHostingConnection == "github")
+    @Test("Code Hosting invocations use config commands and keep token data off argv")
+    func codeHostingArguments() {
+        #expect(SetupInvocation.checkCodeHostingCredentialArguments(
+            connection: "work", repoPaths: ["~/dev/backend", "/srv/web"]
+        ) == [
+            "config", "check-code-hosting-credential", "--connection", "work",
+            "--github-repo", "~/dev/backend", "--github-repo", "/srv/web"
+        ])
+        #expect(SetupInvocation.codeHostingTokenArguments(
+            connection: "work", source: .standardInput, replace: false
+        ) == ["config", "connect-code-hosting", "work", "--token-stdin"])
+        #expect(SetupInvocation.codeHostingTokenArguments(
+            connection: "work", source: .githubCLI, replace: true
+        ) == ["config", "replace-code-hosting-token", "work", "--from-gh"])
     }
 }

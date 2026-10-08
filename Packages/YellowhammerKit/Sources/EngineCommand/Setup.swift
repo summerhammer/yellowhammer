@@ -61,8 +61,7 @@ struct Setup {
         switch options.mode {
         case .interactive: true
         case .installLinear: !options.eventsJSON
-        case .installGitHub: options.gitHubTokenSource == .prompt
-        case .initialize, .config, .printChoices, .installCLI, .uninstallCLI, .printGitHub: false
+        case .initialize, .config, .printChoices, .installCLI, .uninstallCLI: false
         }
     }
 
@@ -137,10 +136,6 @@ struct Setup {
             try runInstallCLI()
         case .uninstallCLI:
             try runUninstallCLI()
-        case .printGitHub:
-            await printGitHub()
-        case .installGitHub:
-            try await installGitHub()
         case .interactive, .initialize, .config, .installLinear:
             return false
         }

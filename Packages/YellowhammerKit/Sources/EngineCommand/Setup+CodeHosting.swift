@@ -77,8 +77,8 @@ extension Setup {
     private func connectedListing(_ machine: MachineConfiguration, fixing name: String?) -> String {
         let names = machine.codeHostingConnections.map(\.name)
         guard names.isEmpty else { return "connected: " + names.joined(separator: ", ") }
-        let flag = name.map { " --code-hosting-connection \($0)" } ?? ""
-        return "none are connected; connect one with yh setup --install-github" + flag
+        let suggestedName = name ?? CodeHostingConnection.defaultName
+        return "none are connected; connect one with `yh config connect-code-hosting \(suggestedName) --token-stdin`"
     }
 
     /// Lists the registry plus "Connect a GitHub token (Keychain)…" and asks which one this run uses. An empty,
@@ -91,7 +91,7 @@ extension Setup {
             guard canConnect else {
                 throw SetupError(
                     "no Code Hosting Connection is connected, and --skip-github-check connects none; "
-                        + "run yh setup --install-github first"
+                        + "run yh config connect-code-hosting github --token-stdin first"
                 )
             }
             return try await connectKeychainTokenConnection(machine: &machine)

@@ -9,7 +9,12 @@ public struct ConfigCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "config",
         abstract: "Machine-wide configuration edits.",
-        subcommands: [ConfigOperatorCommand.self, ConfigRemoveBoardConnectionCommand.self],
+        subcommands: [
+            ConfigOperatorCommand.self, ConfigRemoveBoardConnectionCommand.self,
+            ConfigConnectCodeHostingCommand.self, ConfigReplaceCodeHostingTokenCommand.self,
+            ConfigRemoveCodeHostingConnectionCommand.self, ConfigPrintCodeHostingConnectionsCommand.self,
+            ConfigCheckCodeHostingCredentialCommand.self
+        ],
         defaultSubcommand: nil
     )
 

@@ -28,7 +28,7 @@ final class AddProjectUITests: XCTestCase {
     private var installedMarker: URL!
     private var attemptsMarker: URL!
     private var checkedMarker: URL!
-    /// Created by the stub's `--install-github`; until it exists, `--print-github` reports the token `missing`
+    /// Created by the stub's `connect-code-hosting`; until it exists, `check-code-hosting-credential` reports the token `missing`
     /// when `YH_STUB_GITHUB_MISSING` is set.
     private var githubStoredMarker: URL!
     /// Where the stub's `--init` writes the Project file; the configuration's `projects` folder is a symlink
@@ -96,7 +96,7 @@ final class AddProjectUITests: XCTestCase {
     /// second (a Retry) installs, matching OQ94's "setup stops before the browser" then a fresh attempt.
     /// `relayUnreachable`: a `--remote` attempt fails with `relayUnreachable` instead of issuing a link
     /// (roadmap P17.9).
-    /// `githubMissing`: the stub's `--print-github` reports no stored token until `--install-github` ran.
+    /// `githubMissing`: the stub's `check-code-hosting-credential` reports no stored token until `connect-code-hosting` ran.
     func launchApp(
         machine: String? = nil, connectName: String? = nil, portsBusyFirst: Bool = false,
         relayUnreachable: Bool = false, githubMissing: Bool = false

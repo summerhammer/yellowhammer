@@ -12,7 +12,7 @@ extension Setup {
         board: any BoardProvisioning
     ) async throws {
         switch options.mode {
-        case .config, .printChoices, .installLinear, .installCLI, .uninstallCLI, .installGitHub, .printGitHub:
+        case .config, .printChoices, .installLinear, .installCLI, .uninstallCLI:
             return
         case .initialize:
             guard let declaration = try optionProjectDeclaration() else { return }

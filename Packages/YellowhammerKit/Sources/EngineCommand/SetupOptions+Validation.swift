@@ -28,12 +28,6 @@ extension SetupOptions {
             (command.boardConnectionName != nil, "--board-connection-name"),
             (command.operatorID != nil, "--operator"),
             (command.codeHostingConnection != nil, "--code-hosting-connection"),
-            (command.installGitHub, "--install-github"),
-            (command.printGitHub, "--print-github"),
-            (command.tokenStdin, "--token-stdin"),
-            (command.fromGH, "--from-gh"),
-            (command.replace, "--replace"),
-            (!command.githubRepo.isEmpty, "--github-repo"),
             (command.skipGitHubCheck, "--skip-github-check")
         ]
         let present = forbidden.filter(\.0).map(\.1)
