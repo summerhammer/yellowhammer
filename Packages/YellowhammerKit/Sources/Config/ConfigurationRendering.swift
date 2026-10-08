@@ -47,8 +47,11 @@ enum ConfigurationRendering {
     static func renderedCodeHostingConnection(_ connection: CodeHostingConnection) -> String {
         var lines = [codeHostingConnectionHeader(connection.name)]
         switch connection.kind {
-        case .githubCLI:
+        case .githubCLI(let executable):
             lines.append("type = \"gh\"")
+            if let executable {
+                lines.append("executable = \(quoted(executable))")
+            }
         case .keychainToken(let credential):
             lines.append("type = \"keychain\"")
             lines.append("credential = \(quoted(credential.rawValue))")
@@ -269,7 +272,8 @@ extension MachineConfiguration {
     /// A textual edit of an existing, hand-maintained `config.toml`: preserves every other line, including
     /// comments. Adds or replaces the entry called `connection.name`. When its table exists, `type` is set in
     /// place and `credential` is set (inserted when missing) for a Keychain token, or removed for a `gh` CLI
-    /// connection, which holds no token. When it does not, a new table is appended at the end of the file.
+    /// connection, which holds no token. `executable` is set for a `gh` entry that declares one and removed
+    /// otherwise (always removed for a Keychain token). When it does not, a new table is appended at the end of the file.
     /// Applying it twice equals applying it once.
     public static func settingCodeHostingConnection(
         _ connection: CodeHostingConnection, inFileText text: String
@@ -284,11 +288,17 @@ extension MachineConfiguration {
             return result + ConfigurationRendering.renderedCodeHostingConnection(connection) + "\n"
         }
         switch connection.kind {
-        case .githubCLI:
+        case .githubCLI(let executable):
             setKey("type", to: "gh", tableAt: header, in: &lines)
             removeKey("credential", tableAt: header, in: &lines)
+            if let executable {
+                setKey("executable", to: executable, tableAt: header, in: &lines)
+            } else {
+                removeKey("executable", tableAt: header, in: &lines)
+            }
         case .keychainToken(let credential):
             setKey("type", to: "keychain", tableAt: header, in: &lines)
+            removeKey("executable", tableAt: header, in: &lines)
             setKey("credential", to: credential.rawValue, tableAt: header, in: &lines)
         }
         return lines.joined(separator: "\n")

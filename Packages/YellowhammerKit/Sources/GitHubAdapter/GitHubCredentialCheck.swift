@@ -48,8 +48,9 @@ public struct GitHubCredentialCheck: Sendable {
     }
 
     /// `GET /user`: 200 → who the token belongs to and its scopes; 401 → rejected; anything else (a
-    /// rate-limit 403, another status, a transport error) → unavailable.
-    public func authenticate(token: String) async -> GitHubAuthentication {
+    /// rate-limit 403, another status, a transport error) → unavailable. A nil `token` sets no
+    /// `Authorization` header, for a transport that authenticates itself (``GHCLITransport``).
+    public func authenticate(token: String?) async -> GitHubAuthentication {
         let outcome = await get("https://api.github.com/user", token: token)
         switch outcome {
         case .failure(let message):
@@ -70,9 +71,10 @@ public struct GitHubCredentialCheck: Sendable {
     }
 
     /// `GET /repos/{owner}/{repo}`. `scopes` is what ``authenticate(token:)`` reported: non-nil for a
-    /// classic or OAuth token (whose scopes can be checked), nil for a fine-grained token.
+    /// classic or OAuth token (whose scopes can be checked), nil for a fine-grained token. A nil `token`
+    /// sets no `Authorization` header, as in ``authenticate(token:)``.
     public func access(
-        token: String, owner: String, repository: String, scopes: [String]?
+        token: String?, owner: String, repository: String, scopes: [String]?
     ) async -> GitHubRepositoryAccess {
         let outcome = await get("https://api.github.com/repos/\(owner)/\(repository)", token: token)
         switch outcome {
@@ -112,10 +114,12 @@ public struct GitHubCredentialCheck: Sendable {
         case failure(String)
     }
 
-    private func get(_ urlString: String, token: String) async -> Outcome {
+    private func get(_ urlString: String, token: String?) async -> Outcome {
         var request = URLRequest(url: URL(string: urlString)!)
         request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let token {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue(apiVersion, forHTTPHeaderField: "X-GitHub-Api-Version")
         do {

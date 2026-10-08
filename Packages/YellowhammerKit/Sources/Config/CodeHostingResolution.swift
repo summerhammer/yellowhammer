@@ -2,8 +2,6 @@
 public enum CodeHostingRefusal: Error, Equatable, Sendable, CustomStringConvertible {
     /// The selection names no registry entry (only reachable after a lenient load).
     case notInRegistry(connection: String)
-    /// A `gh` CLI connection: it decodes, but this build cannot use it yet (roadmap S5, #391).
-    case githubCLINotSupported(connection: String)
 
     public var description: String {
         switch self {
@@ -12,21 +10,24 @@ public enum CodeHostingRefusal: Error, Equatable, Sendable, CustomStringConverti
                 + "[code_hosting.github.connections] registry. Connect it with "
                 + "`yh config connect-code-hosting \(connection) --token-stdin`, "
                 + "or select another connection for the Project."
-        case .githubCLINotSupported(let connection):
-            return "Code Hosting Connection \"\(connection)\" uses the gh CLI, which this build of "
-                + "Yellowhammer cannot use yet. Select a Keychain token connection instead."
         }
     }
 }
 
-/// What a resolved selection gives: the connection's local name and its Keychain Credential Reference.
-public struct CodeHostingCredential: Equatable, Sendable {
-    public let connection: String
-    public let reference: CredentialReference
+/// What a resolved selection gives: the connection's local name and how it authenticates.
+public enum CodeHostingCredential: Equatable, Sendable {
+    /// A token held in the macOS Keychain under this Credential Reference.
+    case keychainToken(connection: String, reference: CredentialReference)
+    /// The Operator's own `gh` CLI, which holds the token; Yellowhammer holds none. `executable` is the
+    /// declared path, or nil when `gh` is looked up at the time of use.
+    case githubCLI(connection: String, executable: String?)
 
-    public init(connection: String, reference: CredentialReference) {
-        self.connection = connection
-        self.reference = reference
+    /// The connection's local name.
+    public var connection: String {
+        switch self {
+        case .keychainToken(let connection, _), .githubCLI(let connection, _):
+            connection
+        }
     }
 }
 
@@ -47,10 +48,10 @@ extension MachineConfiguration {
             throw .notInRegistry(connection: name)
         }
         switch connection.kind {
-        case .githubCLI:
-            throw .githubCLINotSupported(connection: name)
+        case .githubCLI(let executable):
+            return .githubCLI(connection: name, executable: executable)
         case .keychainToken(let reference):
-            return CodeHostingCredential(connection: name, reference: reference)
+            return .keychainToken(connection: name, reference: reference)
         }
     }
 }

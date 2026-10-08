@@ -3,18 +3,20 @@ import Foundation
 
 /// The GitHub implementation of the Publication Port (roadmap P10.4): `POST
 /// /repos/{owner}/{repo}/pulls`, nothing else. It authenticates with a token resolved lazily, per
-/// call, through an injected closure — never eagerly, and never logged or placed in an error. It
-/// translates GitHub's response and never decides: no retry.
+/// call, through an injected closure — never eagerly, and never logged or placed in an error. A nil token
+/// sets no `Authorization` header: the transport authenticates (``GHCLITransport`` does, as `gh`'s active
+/// account). It translates GitHub's response and never decides: no retry.
 public struct GitHubAdapter: Publication, Sendable {
     private let transport: any GitHubTransport
-    /// Resolves the bearer token for one call. Called once per `openPullRequest`, never cached here.
-    private let token: @Sendable () throws -> String
+    /// Resolves the bearer token for one call, or nil when the transport authenticates. Called once per
+    /// `openPullRequest`, never cached here.
+    private let token: @Sendable () throws -> String?
     private let apiVersion: String
 
     public init(
         transport: any GitHubTransport = URLSessionGitHubTransport(),
         apiVersion: String = "2022-11-28",
-        token: @escaping @Sendable () throws -> String
+        token: @escaping @Sendable () throws -> String?
     ) {
         self.transport = transport
         self.apiVersion = apiVersion
@@ -22,7 +24,7 @@ public struct GitHubAdapter: Publication, Sendable {
     }
 
     public func openPullRequest(_ draft: PullRequestDraft) async throws(PublicationError) -> PullRequestReceipt {
-        let resolvedToken: String
+        let resolvedToken: String?
         do {
             resolvedToken = try token()
         } catch {
@@ -44,13 +46,15 @@ public struct GitHubAdapter: Publication, Sendable {
         return try GitHubPullRequestFailure.map(data: data, response: response)
     }
 
-    private static func makeRequest(_ draft: PullRequestDraft, token: String, apiVersion: String) -> URLRequest {
+    private static func makeRequest(_ draft: PullRequestDraft, token: String?, apiVersion: String) -> URLRequest {
         let url = URL(
             string: "https://api.github.com/repos/\(draft.owner)/\(draft.repository)/pulls"
         )!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let token {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue(apiVersion, forHTTPHeaderField: "X-GitHub-Api-Version")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

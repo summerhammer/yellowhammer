@@ -4,11 +4,13 @@ import Domain
 import Foundation
 import Repositories
 import Security
+import Synchronization
 import Testing
 
 /// Every reader of the GitHub credential resolves through the Project's Code Hosting Connection: a refusal
-/// (a `gh` CLI connection, or a name absent from the registry) is raised before the Keychain is read, and a
-/// Keychain token connection reads exactly its own reference.
+/// (a name absent from the registry, or a `gh` CLI connection whose `gh` is not found) is raised before the
+/// Keychain is read, a `gh` CLI connection holds no token, and a Keychain token connection reads exactly its
+/// own reference.
 @Suite("Code Hosting Connection readers")
 struct CodeHostingReaderTests {
     /// A Keychain account no real run uses, deleted when the test ends.
@@ -38,7 +40,7 @@ struct CodeHostingReaderTests {
     }
 
     private func gitHubCLI(_ name: String) -> CodeHostingConnection {
-        CodeHostingConnection(name: name, kind: .githubCLI)
+        CodeHostingConnection(name: name, kind: .githubCLI(executable: nil))
     }
 
     private func keychain(_ name: String, _ item: ThrowawayItem) -> CodeHostingConnection {
@@ -66,17 +68,31 @@ struct CodeHostingReaderTests {
         #expect(token == "ghp_second")
     }
 
-    @Test("A gh CLI connection is refused by the land token seam, and the Keychain is never read")
-    func landRefusesGitHubCLI() throws {
+    @Test("A gh CLI connection gives the land token seam no token, and the Keychain is never read")
+    func landTokenSeamHoldsNoTokenForGitHubCLI() throws {
         let (configuration, project) = try configuration(selecting: "gh", connections: [gitHubCLI("gh")])
 
-        let error = #expect(throws: CodeHostingRefusal.self) {
+        let token = try LandBinding.token(
+            configuration: configuration, project: project, credentials: KeychainCredentialStore(),
+            gitHubCLI: { _ in "/stub/gh" }
+        )
+
+        #expect(token == nil)
+    }
+
+    @Test("A gh CLI connection whose gh is not found is refused by the land token seam with the shared message")
+    func landRefusesAMissingGitHubCLI() throws {
+        let (configuration, project) = try configuration(selecting: "gh", connections: [gitHubCLI("gh")])
+
+        let error = #expect(throws: GitHubCLIExecutable.NotFound.self) {
             try LandBinding.token(
-                configuration: configuration, project: project, credentials: KeychainCredentialStore()
+                configuration: configuration, project: project, credentials: KeychainCredentialStore(),
+                gitHubCLI: { _ in throw GitHubCLIExecutable.NotFound() }
             )
         }
 
-        #expect(error == .githubCLINotSupported(connection: "gh"))
+        #expect(error?.description == GitHubCLIExecutable.notFoundMessage)
+        #expect(GitHubCLIExecutable.notFoundMessage.contains("`gh auth login`"))
     }
 
     @Test("A selection absent from the registry is refused by the land token seam")
@@ -95,14 +111,38 @@ struct CodeHostingReaderTests {
         #expect(error == .notInRegistry(connection: "ghost"))
     }
 
-    @Test("The land push seam turns the refusal into the credentials-missing outcome carrying its description")
-    func landPushSeamCarriesTheRefusal() throws {
-        // The push seam is FeatureBranchLanePush, which reports a thrown token error as
-        // `credentialsMissingOrInsufficient(detail: "...could not be resolved: \(error)")`; the detail is the
-        // refusal's own description because ``CodeHostingRefusal`` prints as its sentence.
-        let refusal = CodeHostingRefusal.githubCLINotSupported(connection: "gh")
-        #expect("\(refusal)" == refusal.description)
+    @Test("The land push credential for a gh connection is gh itself, found now, with its declared path first")
+    func landPushCredentialForGitHubCLI() throws {
+        let declared = CodeHostingConnection(name: "gh", kind: .githubCLI(executable: "/declared/gh"))
+        let (configuration, project) = try configuration(selecting: "gh", connections: [declared])
+        let seen = Mutex<[String?]>([])
+
+        let credential = try LandBinding.pushCredential(
+            configuration: configuration, project: project, credentials: KeychainCredentialStore(),
+            gitHubCLI: { declared in
+                seen.withLock { $0.append(declared) }
+                return declared ?? "/path/gh"
+            }
+        )
+
+        guard case .githubCLI(let executable) = credential else {
+            Issue.record("expected the gh credential, got \(credential)")
+            return
+        }
+        #expect(executable == "/declared/gh")
+        #expect(seen.withLock { $0 } == ["/declared/gh"])
+    }
+
+    @Test("A land push for a gh connection whose gh is missing throws the not-found message")
+    func landPushCredentialWithoutGitHubCLI() throws {
         let (configuration, project) = try configuration(selecting: "gh", connections: [gitHubCLI("gh")])
+
+        #expect(throws: GitHubCLIExecutable.NotFound.self) {
+            try LandBinding.pushCredential(
+                configuration: configuration, project: project, credentials: KeychainCredentialStore(),
+                gitHubCLI: { _ in throw GitHubCLIExecutable.NotFound() }
+            )
+        }
         _ = LandBinding.push(configuration: configuration, project: project)
     }
 
@@ -110,17 +150,19 @@ struct CodeHostingReaderTests {
     func projectRemoveRefusals() async throws {
         let repo = Repo(name: "backend", path: "/nonexistent/backend", role: .backend)
         let branch = FeatureBranch(name: "yh-demo")
-        for (selection, expected) in [
-            ("gh", CodeHostingRefusal.githubCLINotSupported(connection: "gh")),
-            ("ghost", CodeHostingRefusal.notInRegistry(connection: "ghost"))
-        ] {
+        let cases: [(selection: String, detail: String)] = [
+            ("gh", GitHubCLIExecutable.notFoundMessage),
+            ("ghost", CodeHostingRefusal.notInRegistry(connection: "ghost").description)
+        ]
+        for (selection, detail) in cases {
             let (configuration, project) = try configuration(selecting: selection, connections: [gitHubCLI("gh")])
 
-            let outcome = await ProjectRemoveCommand.push(configuration: configuration, project: project)(
-                branch, repo, .real
-            )
+            let outcome = await ProjectRemoveCommand.push(
+                configuration: configuration, project: project,
+                gitHubCLI: { _ in throw GitHubCLIExecutable.NotFound() }
+            )(branch, repo, .real)
 
-            #expect(outcome == .credentialsMissingOrInsufficient(repository: "backend", detail: expected.description))
+            #expect(outcome == .credentialsMissingOrInsufficient(repository: "backend", detail: detail))
         }
     }
 

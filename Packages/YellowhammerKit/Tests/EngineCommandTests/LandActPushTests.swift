@@ -29,7 +29,7 @@ struct LandActPushTests {
         await env.board.seed(issue: "BACK-1", description: nil)
         let (feature, cycleID) = try env.setUpFeature()
 
-        let land = LandAct(push: FeatureBranchLanePush(token: { nil }))
+        let land = LandAct(push: FeatureBranchLanePush(credential: { nil }))
         let failure = await land.run(
             lane: RepoLane(repository: "backend", cards: try env.journal.cards(cycleID: cycleID)),
             feature: feature, cycleID: cycleID, context: env.context
@@ -61,7 +61,7 @@ struct LandActPushTests {
         let (feature, cycleID) = try env.setUpFeature()
         try recordTouchedRepositories(env.journal, featureID: feature.id, repositories: ["backend"])
 
-        let land = LandAct(push: FeatureBranchLanePush(token: { nil }))
+        let land = LandAct(push: FeatureBranchLanePush(credential: { nil }))
         let failure = await land.run(
             lane: RepoLane(repository: "backend", cards: try env.journal.cards(cycleID: cycleID)),
             feature: feature, cycleID: cycleID, context: env.context
@@ -93,7 +93,7 @@ struct LandActPushTests {
         let (feature, cycleID) = try env.setUpFeature()
         try recordTouchedRepositories(env.journal, featureID: feature.id, repositories: ["backend"])
 
-        let land = LandAct(push: FeatureBranchLanePush(token: { nil }))
+        let land = LandAct(push: FeatureBranchLanePush(credential: { nil }))
         let failure = await land.run(
             lane: RepoLane(repository: "backend", cards: try env.journal.cards(cycleID: cycleID)),
             feature: feature, cycleID: cycleID, context: env.context
@@ -132,7 +132,7 @@ struct LandActPushTests {
         await env.board.seed(issue: "FEAT-1", description: nil)
         let (feature, cycleID) = try env.setUpFeature()
 
-        let land = LandAct(push: FeatureBranchLanePush(token: { nil }))
+        let land = LandAct(push: FeatureBranchLanePush(credential: { nil }))
         let failure = await land.run(
             lane: RepoLane(repository: "backend", cards: try env.journal.cards(cycleID: cycleID)),
             feature: feature, cycleID: cycleID, context: env.context
@@ -168,7 +168,7 @@ struct LandActPushTests {
         let (feature, cycleID) = try env.setUpFeature()
 
         struct TokenError: Error {}
-        let land = LandAct(push: FeatureBranchLanePush(token: { throw TokenError() }))
+        let land = LandAct(push: FeatureBranchLanePush(credential: { throw TokenError() }))
         let failure = await land.run(
             lane: RepoLane(repository: "backend", cards: try env.journal.cards(cycleID: cycleID)),
             feature: feature, cycleID: cycleID, context: env.context
@@ -198,7 +198,7 @@ struct LandActPushTests {
         await env.board.seed(issue: "FEAT-1", description: nil)
         let (feature, cycleID) = try env.setUpFeature(branch: FeatureBranch(rawValue: "main"))
 
-        let land = LandAct(push: FeatureBranchLanePush(token: { nil }))
+        let land = LandAct(push: FeatureBranchLanePush(credential: { nil }))
         let failure = await land.run(
             lane: RepoLane(repository: "backend", cards: try env.journal.cards(cycleID: cycleID)),
             feature: feature, cycleID: cycleID, context: env.context
@@ -247,7 +247,7 @@ struct LandActPushTests {
         await env.board.seed(issue: "MOB-1", description: nil)
         let (feature, cycleID) = try env.setUpFeature(secondRepository: "mobile")
 
-        let land = LandAct(push: FeatureBranchLanePush(token: { nil }))
+        let land = LandAct(push: FeatureBranchLanePush(credential: { nil }))
         let cards = try env.journal.cards(cycleID: cycleID)
         let backendFailure = await land.run(
             lane: RepoLane(repository: "backend", cards: cards.filter { $0.repository == "backend" }),

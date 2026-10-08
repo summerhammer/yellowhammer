@@ -134,7 +134,7 @@ struct MachineConfigurationDecoder {
     private func codeHostingConnection(
         named name: String, in table: TOMLTable, path: String
     ) throws(ConfigurationError) -> CodeHostingConnection {
-        try decoding.rejectUnknownKeys(in: table, path: path, allowed: ["type", "credential"])
+        try decoding.rejectUnknownKeys(in: table, path: path, allowed: ["type", "credential", "executable"])
         let type = try decoding.requiredString("type", in: table, path: path)
         let typeLine = table["type"]?.line ?? table.line
         switch type {
@@ -143,8 +143,13 @@ struct MachineConfigurationDecoder {
             if let credential = table["credential"] {
                 throw decoding.error(line: credential.line, key: TOMLKey.path(path, "credential"), .unknownKey)
             }
-            return CodeHostingConnection(name: name, kind: .githubCLI)
+            let executable = try decoding.optionalString("executable", in: table, path: path)
+            return CodeHostingConnection(name: name, kind: .githubCLI(executable: executable))
         case "keychain":
+            // `executable` locates `gh`; a Keychain token connection has no `gh` to locate.
+            if let executable = table["executable"] {
+                throw decoding.error(line: executable.line, key: TOMLKey.path(path, "executable"), .unknownKey)
+            }
             let credentialString = try decoding.requiredString("credential", in: table, path: path)
             guard let credential = CredentialReference(credentialString) else {
                 let line = table["credential"]?.line ?? table.line

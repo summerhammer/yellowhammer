@@ -146,4 +146,24 @@ struct ScheduledJobBareEnvironmentTests {
         )
         #expect(missing == ["git"])
     }
+
+    @Test("unresolvableTools: gh is checked only with a gh connection, and a declared executable always resolves")
+    func unresolvableToolsChecksGitHubCLIOnlyWithAConnection() throws {
+        let path = "/usr/bin"
+        let onlyGit: (String) -> Bool = { $0 == "/usr/bin/git" || $0 == "/usr/bin/orca" }
+
+        #expect(ScheduledJob.unresolvableTools(composedPATH: path, declaredCLIAdapters: [], fileExists: onlyGit)
+            .isEmpty)
+        #expect(ScheduledJob.unresolvableTools(
+            composedPATH: path, declaredCLIAdapters: [], gitHubCLI: .init(declared: nil), fileExists: onlyGit
+        ) == ["gh"])
+        #expect(ScheduledJob.unresolvableTools(
+            composedPATH: path, declaredCLIAdapters: [], gitHubCLI: .init(declared: "/opt/gh/bin/gh"),
+            fileExists: onlyGit
+        ).isEmpty)
+        #expect(ScheduledJob.unresolvableTools(
+            composedPATH: "/opt/homebrew/bin:/usr/bin", declaredCLIAdapters: [], gitHubCLI: .init(declared: nil),
+            fileExists: { onlyGit($0) || $0 == "/opt/homebrew/bin/gh" }
+        ).isEmpty)
+    }
 }

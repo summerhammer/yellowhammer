@@ -126,7 +126,7 @@ func machineFullRoundTrip() throws {
         ],
         codeHostingConnections: [
             CodeHostingConnection(name: "github", kind: .keychainToken(try credential("keychain:github"))),
-            CodeHostingConnection(name: "work gh", kind: .githubCLI),
+            CodeHostingConnection(name: "work gh", kind: .githubCLI(executable: nil)),
             CodeHostingConnection(name: "acme", kind: .keychainToken(try credential("keychain:github-acme")))
         ],
         cliAdapters: [
@@ -454,7 +454,7 @@ func registryRendersOneTablePerConnection() throws {
     let machine = MachineConfiguration(
         codeHostingConnections: [
             CodeHostingConnection(name: "acme", kind: .keychainToken(try credential("keychain:github-acme"))),
-            CodeHostingConnection(name: "my gh", kind: .githubCLI)
+            CodeHostingConnection(name: "my gh", kind: .githubCLI(executable: nil))
         ],
         cliAdapters: [], routingTable: []
     )

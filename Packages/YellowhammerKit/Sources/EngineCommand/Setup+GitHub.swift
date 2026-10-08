@@ -62,10 +62,16 @@ extension Setup {
             connectionName: connectionName
         )
         guard report.state == .resolves else { throw SetupError(report.message, gitHub: true) }
+        try requirePublishable(report, credential: "GitHub credential \(reference.rawValue)")
+    }
+
+    /// Throws one SetupError listing every Repo `report` found the credential cannot publish; otherwise prints
+    /// each Repo's verdict.
+    private func requirePublishable(_ report: GitHubCredentialReport, credential: String) throws {
         let failing = report.repos.filter { $0.status != .ok && $0.status != .okUnverified }
         guard failing.isEmpty else {
             throw SetupError(
-                "GitHub credential \(reference.rawValue) cannot publish every Repo:\n"
+                "\(credential) cannot publish every Repo:\n"
                     + failing.map { "  " + $0.message }.joined(separator: "\n"),
                 gitHub: true
             )
@@ -73,8 +79,9 @@ extension Setup {
         for repo in report.repos { output(repo.message) }
     }
 
-    /// Before a Project file is written (and before any Linear write): the token of the Code Hosting
-    /// Connection the Project selects must resolve and push to the declaration's working Repos.
+    /// Before a Project file is written (and before any Linear write): the Code Hosting Connection the Project
+    /// selects must resolve and push to the declaration's working Repos. A Keychain token is reused or
+    /// captured; the GitHub CLI holds no token, so it is only asked who it is and what it can push to.
     func validateGitHub(
         for declaration: ProjectDeclaration, machine: MachineConfiguration, connection: String
     ) async throws {
@@ -87,20 +94,27 @@ extension Setup {
             )
             return
         }
-        let reference = try codeHostingReference(of: connection, machine: machine)
-        _ = try await ensureGitHubCredential(
-            reference: reference, capture: isInteractive ? .interactive : .never, replace: false,
-            connectionName: connection
-        )
         let repos = declaration.repos.filter { $0.role != .spec }.map { gitHubRepo(name: $0.name, path: $0.path) }
-        try await validateGitHubRepos(reference: reference, repos: repos, connectionName: connection)
+        switch try codeHostingCredential(of: connection, machine: machine) {
+        case .keychainToken(_, let reference):
+            _ = try await ensureGitHubCredential(
+                reference: reference, capture: isInteractive ? .interactive : .never, replace: false,
+                connectionName: connection
+            )
+            try await validateGitHubRepos(reference: reference, repos: repos, connectionName: connection)
+        case .githubCLI(_, let executable):
+            let report = await gitHub.reportGitHubCLI(executable: executable, repos: repos, connectionName: connection)
+            guard report.state == .resolves else { throw SetupError(report.message, gitHub: true) }
+            output(report.message)
+            try requirePublishable(report, credential: "The gh CLI")
+        }
     }
 
-    /// The Keychain reference behind the Code Hosting Connection called `name`, through the one resolver; a
-    /// refusal becomes a SetupError carrying its description.
-    func codeHostingReference(of name: String, machine: MachineConfiguration) throws -> CredentialReference {
+    /// What the Code Hosting Connection called `name` gives, through the one resolver; a refusal becomes a
+    /// SetupError carrying its description.
+    func codeHostingCredential(of name: String, machine: MachineConfiguration) throws -> CodeHostingCredential {
         do {
-            return try machine.codeHostingCredential(connectionNamed: name).reference
+            return try machine.codeHostingCredential(connectionNamed: name)
         } catch {
             throw SetupError(error.description)
         }
@@ -108,9 +122,17 @@ extension Setup {
 
     /// Lets the Operator replace the selected connection's token after the interactive loop's GitHub failure.
     func offerGitHubReplacement(machine: MachineConfiguration, connection: String) async throws {
-        guard try confirm("Replace the GitHub token and check again? [y/N] ", defaultYes: false) else { return }
-        let reference = try codeHostingReference(of: connection, machine: machine)
-        _ = try await ensureGitHubCredential(reference: reference, capture: .interactive, replace: true)
+        switch try codeHostingCredential(of: connection, machine: machine) {
+        case .githubCLI:
+            // Yellowhammer never changes gh's login, so there is nothing to replace here.
+            output(
+                "Code Hosting Connection \(connection) uses the gh CLI, which holds the GitHub token; "
+                    + "Yellowhammer holds none. Run `gh auth login` or `gh auth switch` yourself, then check again."
+            )
+        case .keychainToken(_, let reference):
+            guard try confirm("Replace the GitHub token and check again? [y/N] ", defaultYes: false) else { return }
+            _ = try await ensureGitHubCredential(reference: reference, capture: .interactive, replace: true)
+        }
     }
 
     private func gitHubRepo(name: String, path: String) -> (name: String, path: String) {

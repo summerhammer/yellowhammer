@@ -142,7 +142,8 @@ struct SetupCodeHostingTests {
         #expect(configuration.projects.first?.codeHostingConnectionName == "work")
     }
 
-    @Test("--init --project with a gh CLI connection is refused with its description") // glossary:ignore GL001
+    @Test("--init --project with a gh CLI connection whose gh is not found is refused with the shared message")
+    // glossary:ignore GL001
     func initGitHubCLIConnectionRefused() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile(Self.registry)
@@ -153,7 +154,7 @@ struct SetupCodeHostingTests {
 
         let error = try #require(await failure(setup))
 
-        #expect(error.message == CodeHostingRefusal.githubCLINotSupported(connection: "gh").description)
+        #expect(error.message == GitHubCLIExecutable.notFoundMessage)
         #expect(await board.creates == 0)
         #expect(!Self.exists(directory.url, "projects", "demo.toml"))
     }
@@ -199,7 +200,7 @@ struct SetupCodeHostingTests {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile(Self.registry)
         let credentials = Self.credentials(["keychain:github-work": "ghp_work"])
-        let console = ScriptedConsole(answers: ["9", "", "2", "n"]) // out of range, empty, work, no Project now
+        let console = ScriptedConsole(answers: ["9", "x", "2", "n"]) // out of range, non-numeric, work, no Project now
         let output = RecordingOutput()
         let setup = try makeSetup(
             arguments: makeArguments(
@@ -216,14 +217,14 @@ struct SetupCodeHostingTests {
         #expect(output.lines.contains("  3) gh — gh CLI"))
         #expect(output.lines.contains("  4) Connect a GitHub token (Keychain)…"))
         #expect(credentials.storedSecrets.isEmpty)
-        #expect(console.prompts.filter { $0 == "Choose [1-4] [3]: " }.count == 3)
+        #expect(console.prompts.filter { $0 == "Choose [1-4] (Enter for 3): " }.count == 3)
     }
 
-    @Test("Interactive: choosing a gh CLI connection is refused with its description and asks again")
-    func interactiveGitHubCLIAsksAgain() async throws {
+    @Test("Interactive: a gh CLI connection is chosen like any other, and holds no token to store")
+    func interactiveGitHubCLIIsChosen() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile(Self.registry)
-        let console = ScriptedConsole(answers: ["3", "1", "n"])
+        let console = ScriptedConsole(answers: ["3", "n"])
         let output = RecordingOutput()
         let setup = try makeSetup(
             arguments: makeArguments(
@@ -236,8 +237,8 @@ struct SetupCodeHostingTests {
 
         try await setup.run()
 
-        #expect(output.lines.contains(CodeHostingRefusal.githubCLINotSupported(connection: "gh").description))
-        #expect(console.prompts.filter { $0 == "Choose [1-4] [3]: " }.count == 2)
+        #expect(console.prompts.filter { $0 == "Choose [1-4] (Enter for 3): " }.count == 1)
+        #expect(output.lines.allSatisfy { !$0.contains("cannot use yet") })
     }
 
     @Test("Interactive: a new connection is named, its token stored, and the entry added after GitHub accepts it")
@@ -363,7 +364,7 @@ struct SetupCodeHostingTests {
 
         try await setup.run()
 
-        #expect(console.prompts.contains("Choose [1-3] [3]: "))
+        #expect(console.prompts.contains("Choose [1-3] (Enter for 3): "))
     }
 
     @Test("Interactive: no pre-selection when no gh CLI connection is in the registry")
