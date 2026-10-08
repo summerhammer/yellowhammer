@@ -1,22 +1,18 @@
 import Config
 import SwiftUI
 
-/// The machine-wide settings of the Settings window's General section: the GitHub credential, Orca ADE and the
-/// Command Line Tool. The Board connections (Boards), Agent CLIs and the base Routing Table have panes of their
-/// own (P18.15, P18.16).
+/// The machine-wide settings of the Settings window's General section: Orca ADE and the Command Line Tool.
+/// The Board connections (Boards), the Code Hosting Connections (Code Hosting), Agent CLIs and the base
+/// Routing Table have panes of their own (P18.15, P18.16).
 struct GeneralSettingsPane: View {
     @Environment(CommandLineToolModel.self) private var commandLineToolModel
-    @State private var gitHub = GitHubCredentialModel()
 
     var body: some View {
         SettingsPane(
             title: "General",
-            explanation: "What this Mac shares with every Project: the GitHub credential, " // glossary:ignore GL001
+            explanation: "What this Mac shares with every Project: " // glossary:ignore GL001
                 + "Orca ADE and the Command Line Tool."
         ) {
-            GitHubCredentialView(model: gitHub, mode: .settings)
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("settings-github")
             orcaADE
             commandLineToolCard
         }
@@ -25,8 +21,6 @@ struct GeneralSettingsPane: View {
         .onAppear {
             commandLineToolModel.refresh()
         }
-        .task { await gitHub.check(repoPaths: []) }
-        .onDisappear { gitHub.terminate() }
     }
 
     private var orcaADE: some View {

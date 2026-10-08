@@ -19,4 +19,10 @@ public enum ConfigInvocation {
         if orphanProjects { arguments += ["--orphan-projects", "--yes"] }
         return arguments
     }
+
+    /// `["config", "remove-code-hosting-connection", <name>]`: removes one unselected Code Hosting Connection;
+    /// there is no "remove anyway" option.
+    public static func removeCodeHostingConnectionArguments(name: String) -> [String] {
+        ["config", "remove-code-hosting-connection", name]
+    }
 }

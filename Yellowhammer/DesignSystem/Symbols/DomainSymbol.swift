@@ -7,4 +7,6 @@ enum DomainSymbol {
     static let repoFill = "\(repo).fill"
     /// An Board Connection, the connected workspace of a board vendor: the Settings window's Boards cards.
     static let appInstallation = "building.2"
+    /// A Code Hosting Connection: the Settings window's Code Hosting cards.
+    static let codeHostingConnection = "link"
 }

@@ -23,9 +23,33 @@ public struct CodeHostingConnectionsReport: Codable, Equatable, Sendable {
         }
     }
 
-    public var connections: [Connection]
+    /// Whether connecting the gh CLI is offered: `available` only when `yh` found `gh` logged in (then `login`
+    /// names its active account); otherwise `reason` is `yh`'s own words for why not.
+    public struct GitHubCLIOffer: Codable, Equatable, Sendable {
+        public var available: Bool
+        public var login: String?
+        public var reason: String?
 
-    public init(connections: [Connection]) { self.connections = connections }
+        public init(available: Bool, login: String? = nil, reason: String? = nil) {
+            self.available = available
+            self.login = login
+            self.reason = reason
+        }
+    }
+
+    public var connections: [Connection]
+    /// The gh CLI offer; absent in a line from a `yh` that predates it.
+    public var gitHubCLI: GitHubCLIOffer?
+
+    private enum CodingKeys: String, CodingKey {
+        case connections
+        case gitHubCLI = "githubCLI"
+    }
+
+    public init(connections: [Connection], gitHubCLI: GitHubCLIOffer? = nil) {
+        self.connections = connections
+        self.gitHubCLI = gitHubCLI
+    }
 
     public func encodeLine() -> String {
         let encoder = JSONEncoder()

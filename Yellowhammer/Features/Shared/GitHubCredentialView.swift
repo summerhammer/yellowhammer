@@ -2,21 +2,13 @@ import Domain
 import SwiftUI
 
 /// The GitHub credential: whether a token is stored and accepted, what it can push to, and where to put a
-/// new one. Shared by the Setup wizard's GitHub step and the Settings window's General pane, driven by
-/// ``GitHubCredentialModel``. The wording of every failure is `yh`'s own (``GitHubCredentialReport/message``);
-/// the app adds only the labels around it. The token is typed into a secure field, handed to `yh` over
-/// standard input, and the field is emptied the moment the run starts.
+/// new one. The Setup wizard's GitHub step draws it, driven by ``GitHubCredentialModel``. The wording of every
+/// failure is `yh`'s own (``GitHubCredentialReport/message``); the app adds only the labels around it. The
+/// token is typed into a secure field, handed to `yh` over standard input, and the field is emptied the moment
+/// the run starts.
 struct GitHubCredentialView: View {
-    enum Mode {
-        /// The wizard's step: the Repos are listed, and a token is asked for unless every one can push.
-        case wizard
-        /// Settings → General: the credential alone, with no Repos.
-        case settings
-    }
-
     let model: GitHubCredentialModel
-    let mode: Mode
-    /// The working Repo paths the token is checked against; none in Settings.
+    /// The working Repo paths the token is checked against.
     var repoPaths: [String] = []
     @State private var token = ""
     @State private var isReplacing = false
@@ -53,7 +45,7 @@ struct GitHubCredentialView: View {
     }
 
     private var repos: [GitHubCredentialReport.Repo] {
-        mode == .wizard ? report?.repos ?? [] : []
+        report?.repos ?? []
     }
 
     private var stateTitle: String {
@@ -134,11 +126,7 @@ struct GitHubCredentialView: View {
 
     /// A stored token that works needs no field until the Operator asks to replace it.
     private var isUsable: Bool {
-        guard let report else { return false }
-        switch mode {
-        case .wizard: return report.isValid
-        case .settings: return report.state == .resolves
-        }
+        report?.isValid ?? false
     }
 
     private var canReplace: Bool { isUsable && !isReplacing }

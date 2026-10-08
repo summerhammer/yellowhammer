@@ -34,7 +34,7 @@ struct WizardStepBody: View {
         case .github:
             if let gitHub {
                 WizardColumn {
-                    GitHubCredentialView(model: gitHub, mode: .wizard, repoPaths: gitHubRepoPaths)
+                    GitHubCredentialView(model: gitHub, repoPaths: gitHubRepoPaths)
                     problemBox
                 }
                 // On opening the step, and again when the working Repos change: the check is of these Repos.
