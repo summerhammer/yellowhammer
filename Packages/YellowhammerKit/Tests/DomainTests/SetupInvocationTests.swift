@@ -219,4 +219,10 @@ struct SetupInvocationTests {
         #expect(SetupInvocation.codeHostingTokenArguments(connection: "acme", source: .githubCLI, replace: true)
             == ["config", "replace-code-hosting-token", "acme", "--from-gh"])
     }
+
+    @Test("connectGitHubCLIArguments connects the gh CLI itself under the local name")
+    func connectGitHubCLIArguments() {
+        #expect(SetupInvocation.connectGitHubCLIArguments(connection: "gh")
+            == ["config", "connect-code-hosting", "gh", "--gh-cli"])
+    }
 }

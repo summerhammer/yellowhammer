@@ -196,6 +196,11 @@ public struct SetupInvocation: Equatable, Sendable {
         return arguments
     }
 
+    /// Connects the GitHub CLI itself under the given local name; Yellowhammer holds no token.
+    public static func connectGitHubCLIArguments(connection: String) -> [String] {
+        ["config", "connect-code-hosting", connection, "--gh-cli"]
+    }
+
     public static let codeHostingConnectionsArguments = ["config", "print-code-hosting-connections"]
 
     /// Selects or changes a Project's Code Hosting Connection (`yh project set-code-hosting-connection <project> <connection>`).
