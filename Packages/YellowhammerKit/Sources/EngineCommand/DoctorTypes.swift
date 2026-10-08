@@ -6,6 +6,7 @@ enum DoctorCheck: String, CaseIterable, Sendable {
     case probes
     case git
     case linear
+    case github
     case launchd
     case orphans
 }

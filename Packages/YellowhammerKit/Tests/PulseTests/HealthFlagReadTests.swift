@@ -139,3 +139,37 @@ func destinations() {
     #expect(HealthFlag(kind: .appInstallationRevoked, detail: "").destination == .linearWorkspaces)
     #expect(HealthFlag(kind: .probeFailure, detail: "").destination == .settings)
 }
+
+@Test("A failing GitHub finding is a GitHub credential flag on its own Project, in flag order, with its message")
+func gitHubCredentialFlag() throws {
+    let output = doctorOutput([
+        Finding("probes", "codex", "failure", "probe failed"),
+        Finding("github", "repo backend", "failure",
+                "Project demo: Repo backend (acme/backend): the token lacks push permission.", projects: ["demo"]),
+        Finding("github", "credential", "failure", "Project other: no token", projects: ["other"]),
+        Finding("linear", "connection", "failure", "no token pair", projects: ["demo"])
+    ])
+
+    let flags = try #require(HealthFlag.read(doctorOutput: output, project: demo))
+
+    #expect(flags.map(\.kind) == [.appInstallationRevoked, .gitHubCredential, .probeFailure])
+    #expect(flags[1].detail == "Project demo: Repo backend (acme/backend): the token lacks push permission.")
+}
+
+@Test("A passing, warning or info GitHub finding raises no flag, and one without projects is dropped")
+func gitHubNonFailures() {
+    let output = doctorOutput([
+        Finding("github", "credential", "pass", "belongs to octocat", projects: ["demo"]),
+        Finding("github", "credential", "warning", "could not be checked", projects: ["demo"]),
+        Finding("github", "credential", "info", "No Project uses it yet."),
+        Finding("github", "credential", "failure", "no projects field")
+    ])
+
+    #expect(HealthFlag.read(doctorOutput: output, project: demo) == [])
+}
+
+@Test("The GitHub credential flag opens the Settings window")
+func gitHubDestination() {
+    #expect(HealthFlag(kind: .gitHubCredential, detail: "").destination == .settings)
+    #expect(HealthFlagKind.gitHubCredential.rawValue == "GitHub credential")
+}

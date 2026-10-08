@@ -5,13 +5,13 @@ import Foundation
 import Repositories
 
 /// `yh doctor`: checks configuration, agent CLI probe eligibility, git, Linear authorization and the
-/// Operator identity, installed LaunchAgents, and orphaned LaunchAgents left behind by a manually
+/// Operator identity, the GitHub credential (that it resolves and can push to each working Repo), installed LaunchAgents, and orphaned LaunchAgents left behind by a manually
 /// deleted Project (spec: object-guide Project lifecycle, OQ52(1)). `--project` narrows the report to
 /// one Project's findings plus the machine-scoped ones (spec risks.md OQ12 "Surface 3").
 public struct DoctorCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "doctor",
-        abstract: "Check configuration, Linear authorization, git, probes and LaunchAgents."
+        abstract: "Check configuration, Linear authorization, the GitHub credential, git, probes and LaunchAgents."
     )
 
     @Flag(help: "Unload orphaned LaunchAgents, and repoint dangling or mismatched /usr/local/bin/yh symlink.")
@@ -85,7 +85,7 @@ public struct DoctorCommand: AsyncParsableCommand {
     }
 
     /// One compact JSON array of `DoctorFindingRow`s — no `projectID`; a finding scoped to an App
-    /// Installation also carries its name, workspace and Projects.
+    /// Installation also carries its name, workspace and Projects, and a GitHub finding its one Project.
     static func encodeFindingsJSON(_ findings: [DoctorFinding]) -> String {
         DoctorFindingRow.encodeLine(findings.map { finding in
             DoctorFindingRow(
@@ -93,10 +93,17 @@ public struct DoctorCommand: AsyncParsableCommand {
                 severity: severityString(finding.severity), message: finding.message,
                 installation: finding.installation?.name, workspace: finding.installation?.workspace,
                 workspaceName: finding.installation?.workspaceName,
-                projects: finding.installation?.projects.map(\.rawValue),
+                projects: finding.installation?.projects.map(\.rawValue) ?? gitHubProjects(of: finding),
                 authorization: finding.authorization?.rawValue
             )
         })
+    }
+
+    /// A GitHub finding names the Project it is about, so the app's Health group can attribute it. No other
+    /// check's JSON carries a Project this way.
+    private static func gitHubProjects(of finding: DoctorFinding) -> [String]? {
+        guard finding.check == .github, let project = finding.projectID else { return nil }
+        return [project.rawValue]
     }
 
     private static func severityString(_ severity: DoctorSeverity) -> String {
@@ -124,6 +131,7 @@ public struct DoctorCommand: AsyncParsableCommand {
             },
             launchAgents: LaunchctlLaunchAgentControl(),
             git: GitRunner(),
+            gitHub: .production(),
             runProbe: { name in
                 try? await ProbeCommand.parse([name]).run(configurationDirectory: configurationDirectory)
             },

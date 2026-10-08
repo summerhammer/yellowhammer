@@ -78,7 +78,7 @@ public struct HealthFlag: Identifiable, Equatable, Sendable {
     public var destination: PulseDestination {
         switch kind {
         case .staleOperatorIdentity, .appInstallationRevoked: .linearWorkspaces
-        case .probeFailure, .actFailure: .settings
+        case .gitHubCredential, .probeFailure, .actFailure: .settings
         }
     }
 }
@@ -86,6 +86,7 @@ public struct HealthFlag: Identifiable, Equatable, Sendable {
 public enum HealthFlagKind: String, CaseIterable, Sendable {
     case staleOperatorIdentity = "stale Operator identity"
     case appInstallationRevoked = "Board Connection revoked"
+    case gitHubCredential = "GitHub credential"
     case probeFailure = "probe failure"
     case actFailure = "Act failure"
 }

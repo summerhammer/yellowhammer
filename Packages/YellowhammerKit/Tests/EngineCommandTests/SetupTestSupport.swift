@@ -27,11 +27,11 @@ let selfMember = BoardMember(
     isActive: true, isApp: false, isSelf: true
 )
 
-/// Answers Installation-token-presence reads from a seed — `SetupCredentialStore` is presence-only
-/// (P17.4): it never stores.
+/// Answers `SetupCredentialStore` reads from a seed, and records what `store` was asked to keep.
 final class RecordingCredentialStore: SetupCredentialStore {
     private let storage: Mutex<[String: String]>
     private let unreadable: Set<String>
+    private let stores = Mutex<[StoredSecret]>([])
 
     /// `unreadable` names references whose item "exists but cannot be read" (a locked Keychain).
     init(seed: [String: String] = [:], unreadable: Set<String> = []) {
@@ -47,6 +47,20 @@ final class RecordingCredentialStore: SetupCredentialStore {
     func secret(for reference: CredentialReference) -> String? {
         storage.withLock { $0[reference.rawValue] }
     }
+
+    func store(_ secret: String, for reference: CredentialReference) throws {
+        storage.withLock { $0[reference.rawValue] = secret }
+        stores.withLock { $0.append(StoredSecret(reference: reference.rawValue, secret: secret)) }
+    }
+
+    /// One `store` call.
+    struct StoredSecret: Equatable {
+        let reference: String
+        let secret: String
+    }
+
+    /// Every `store` call, in order.
+    var storedSecrets: [StoredSecret] { stores.withLock { $0 } }
 }
 
 /// Records every line `Setup` printed, in order.

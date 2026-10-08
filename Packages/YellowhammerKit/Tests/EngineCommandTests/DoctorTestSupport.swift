@@ -28,12 +28,15 @@ func makeDoctor(
     boards: [String: FakeProvisioningBoard] = [:],
     binds: DoctorBindLog = DoctorBindLog(),
     console: ScriptedConsole = ScriptedConsole(),
-    credentials: RecordingCredentialStore = RecordingCredentialStore(seed: ["keychain:linear": "test-secret"]),
+    credentials: RecordingCredentialStore = RecordingCredentialStore(
+        seed: ["keychain:linear": "test-secret", "keychain:github": "ghp_test-secret"]
+    ),
     output: RecordingOutput = RecordingOutput(),
     homeDirectory: URL = FileManager.default.temporaryDirectory
         .appending(component: "yh-doctor-home-\(UUID().uuidString)", directoryHint: .isDirectory),
     launchAgents: any LaunchAgentControl = RecordingLaunchAgentControl(),
     git: GitRunner = GitRunner(),
+    gitHub: GitHubCredentialValidation = StubGitHubTransport.passing().validation(),
     runProbe: @escaping (String) async -> Void = { _ in },
     fix: Bool = false,
     yes: Bool = false,
@@ -55,6 +58,7 @@ func makeDoctor(
         },
         launchAgents: launchAgents,
         git: git,
+        gitHub: gitHub,
         runProbe: runProbe,
         fix: fix,
         yes: yes,
