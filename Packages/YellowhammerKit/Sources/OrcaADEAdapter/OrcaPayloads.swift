@@ -36,3 +36,16 @@ struct OrcaListResultPayload: Decodable {
 struct OrcaRemoveResultPayload: Decodable {
     let removed: Bool?
 }
+
+struct OrcaRepositoryPayload: Decodable {
+    let path: String
+}
+
+struct OrcaRepositoriesPayload: Decodable {
+    let repos: [OrcaRepositoryPayload]
+}
+
+/// Registration's result carries vendor metadata that the caller does not need.
+struct OrcaRepositoryResultPayload: Decodable {
+    let repo: OrcaRepositoryPayload
+}

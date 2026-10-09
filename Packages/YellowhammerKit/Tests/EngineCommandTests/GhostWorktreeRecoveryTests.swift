@@ -22,6 +22,8 @@ import Testing
 /// first (git refuses `branch -D` while its metadata still says the branch is checked out), then
 /// `git branch -D`.
 final class OrcaLikeWorkspace: Workspace, Sendable {
+    func registeredRepositoryPaths() async throws(WorkspaceError) -> [String] { [] }
+    func registerRepository(path: String) async throws(WorkspaceError) {}
     struct CreateCall: Equatable {
         let name: String
         let baseBranch: String?

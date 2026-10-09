@@ -16,7 +16,7 @@ import Foundation
 public struct SetupCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "setup",
-        abstract: "Generate, adopt or verify machine and Project configuration, and provision Linear."
+        abstract: "Generate, adopt or verify configuration, provision Linear and register Repos with Orca ADE."
     )
 
     @Flag(name: .customLong("init"), help: "Generate configuration from options and defaults; never prompts.")
@@ -176,6 +176,7 @@ public struct SetupCommand: AsyncParsableCommand {
                 path: ProcessInfo.processInfo.environment["PATH"],
                 fileExists: { FileManager.default.isExecutableFile(atPath: $0) }
             ),
+            workspace: WorkspaceBinding.workspace(),
             launchAgents: LaunchctlLaunchAgentControl(),
             linearInstallSeams: .production(),
             linearInstallationStore: { installation in

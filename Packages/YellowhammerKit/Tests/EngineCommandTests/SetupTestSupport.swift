@@ -381,6 +381,7 @@ func makeSetup(
     fileExists: @escaping (String) -> Bool = { _ in false },
     gitHub: GitHubCredentialValidation = StubGitHubTransport.passing().validation(),
     importGitHubToken: @escaping @Sendable () async -> GitHubTokenImport = { .unavailable("gh is not installed") },
+    workspace: any Workspace = RegistrationWorkspace(),
     launchAgents: any LaunchAgentControl = RecordingLaunchAgentControl(),
     linearInstallSeams: LinearInstallSeams = defaultLinearInstallSeams(),
     linearInstallationStore: @escaping (LinearInstallation) -> LinearInstallationStore =
@@ -412,6 +413,7 @@ func makeSetup(
         fileExists: fileExists,
         gitHub: gitHub,
         importGitHubToken: importGitHubToken,
+        workspace: workspace,
         launchAgents: launchAgents,
         linearInstallSeams: linearInstallSeams,
         linearInstallationStore: linearInstallationStore,

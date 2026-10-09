@@ -14,6 +14,8 @@ import Testing
 /// assert on the filesystem as well as on the returned records. Returns `branch == name` unless a
 /// collision or failure was scripted for that repository or name.
 private final class FakeWorkspace: Workspace, Sendable {
+    func registeredRepositoryPaths() async throws(WorkspaceError) -> [String] { [] }
+    func registerRepository(path: String) async throws(WorkspaceError) {}
     struct CreateCall: Equatable {
         let repositoryPath: String
         let name: String

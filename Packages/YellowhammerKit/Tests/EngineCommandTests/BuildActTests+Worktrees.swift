@@ -14,6 +14,8 @@ import Testing
 /// `baseDirectory`, so allocation resolves `branch == name` and succeeds. Modelled on
 /// `WorktreeAllocatorTests`' own `FakeWorkspace`, which is file-private there.
 final class BuildActFakeWorkspace: Workspace, Sendable {
+    func registeredRepositoryPaths() async throws(WorkspaceError) -> [String] { [] }
+    func registerRepository(path: String) async throws(WorkspaceError) {}
     struct RemoveCall: Equatable {
         let id: WorktreeID
         let force: Bool

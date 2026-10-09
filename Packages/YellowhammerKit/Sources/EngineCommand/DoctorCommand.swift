@@ -6,12 +6,12 @@ import Repositories
 
 /// `yh doctor`: checks configuration, agent CLI probe eligibility, git, Linear authorization and the
 /// Operator identity, the GitHub credential (that it resolves and can push to each working Repo), installed LaunchAgents, and orphaned LaunchAgents left behind by a manually
-/// deleted Project (spec: object-guide Project lifecycle, OQ52(1)). `--project` narrows the report to
+/// deleted Project (spec: object-guide Project lifecycle, OQ52(1)), then Orca ADE Repo registration. `--project` narrows the report to
 /// one Project's findings plus the machine-scoped ones (spec risks.md OQ12 "Surface 3").
 public struct DoctorCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "doctor",
-        abstract: "Check configuration, Linear authorization, the GitHub credential, git, probes and LaunchAgents."
+        abstract: "Check configuration, Linear authorization, GitHub, git, probes, LaunchAgents and Orca ADE."
     )
 
     @Flag(help: "Unload orphaned LaunchAgents, and repoint dangling or mismatched /usr/local/bin/yh symlink.")
@@ -132,6 +132,7 @@ public struct DoctorCommand: AsyncParsableCommand {
             bindProvisioning: { installation, linearProjectID in
                 BoardBinding.provisioning(installation: installation, linearProjectID: linearProjectID)
             },
+            workspace: WorkspaceBinding.workspace(),
             launchAgents: LaunchctlLaunchAgentControl(),
             git: GitRunner(),
             gitHub: .production(),
