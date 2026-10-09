@@ -219,10 +219,12 @@ struct ExceptionNotificationPostingTests {
         // Fails the Night Card's own creation, so no Night Card ever opens for this run.
         await boards.writing.refuseNext(.unreachable("board unreachable"))
 
+        // `.never`: one try, so the single `refuseNext` is not absorbed by an in-pass resend.
         let invocation = EngineInvocation(
             act: .build, mode: .real, nightStart: nightCardNightStart, journal: journal,
             trigger: .forced, runID: RunID(), board: board,
             notifier: ExceptionNotifier { recorder.record($0) },
+            outboxTransientRetry: .never,
             work: { _ in }
         )
 
@@ -294,6 +296,7 @@ struct ExceptionNotificationPostingTests {
             act: .build, mode: .real, nightStart: nightCardNightStart, journal: journal,
             trigger: .forced, runID: RunID(), board: board,
             notifier: ExceptionNotifier { recorder.record($0) },
+            outboxTransientRetry: SleepLog().ruled,
             work: { _ in throw failure }
         )
 

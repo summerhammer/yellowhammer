@@ -116,6 +116,7 @@ extension ActCommand {
             notifier: notifier,
             outboxKill: outboxKill,
             narrativeScrub: narrativeScrub,
+            actLog: { ActLog.writeToStandardError($0) },
             work: work
         )
     }

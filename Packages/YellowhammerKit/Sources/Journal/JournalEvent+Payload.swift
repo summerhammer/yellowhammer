@@ -88,6 +88,8 @@ extension JournalEvent {
             ["issue_id": issueID]
         case .nightCardCompleted(let issueID):
             ["issue_id": issueID]
+        case .nightCardCompletionDeferred(let issueID, let entryIDs, let reason):
+            ["issue_id": issueID, "entry_ids": entryIDs.map(String.init).joined(separator: ","), "reason": reason]
         case .boardWriteFailed(let clientID, let operation, let issueID, let reason):
             {
                 var dict: [String: String] = [

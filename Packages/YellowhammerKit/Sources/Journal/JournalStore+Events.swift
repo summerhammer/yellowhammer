@@ -112,12 +112,15 @@ extension JournalStore {
         return try decodeEvents(rows)
     }
 
+    /// Decodes rows in order. A row whose `type` this build does not know is skipped, not an error: the app
+    /// opens every Journal read-only and the Pulse reads every event of a Night, so a Journal written by a
+    /// newer `yh` must not make an older reader fail. A known type with a malformed payload still throws.
     private static func decodeEvents(_ rows: [Row]) throws -> [JournalEventRecord] {
-        try rows.map { row in
+        try rows.compactMap { row in
             let id: Int64 = row["id"]
             let typeRaw: String = row["type"]
             guard let eventType = JournalEventType(rawValue: typeRaw) else {
-                throw JournalError.eventUnreadable(id: id)
+                return nil
             }
 
             let payloadJSON: String? = row["payload"]
