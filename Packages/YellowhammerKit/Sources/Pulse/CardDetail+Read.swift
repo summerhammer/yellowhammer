@@ -85,6 +85,7 @@ extension CardDetail.Attempt {
                     result: run.result,
                     exitStatus: run.exitStatus,
                     output: run.output,
+                    judgedCommit: run.judgedCommit,
                     occurredAt: run.occurredAt
                 )
             }

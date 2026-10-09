@@ -46,21 +46,12 @@ public struct AttemptAccount: Equatable, Sendable {
     public var outcome: String  // attempt.result, or "in progress" when open
     public var consumedHow: String?
 
-    public init(ordinal: Int, record: AttemptRecord) {
+    /// `checkRuns` is this Attempt's own `checkRan` runs, in append order (required, with no default: the
+    /// Check result comes from them, never from Rounds, which only a failed judgement writes).
+    public init(ordinal: Int, record: AttemptRecord, checkRuns: [CheckRunRecord]) {
         self.ordinal = ordinal
         self.route = record.route
-
-        // Determine check result
-        if record.checkDeclaredNone {
-            self.checkResult = "green came from a model alone (`check = none`)"
-        } else {
-            // Find the last round with lens == .check
-            if let checkRound = record.rounds.last(where: { $0.lens == .check }) {
-                self.checkResult = checkRound.verdict
-            } else {
-                self.checkResult = "not recorded"
-            }
-        }
+        self.checkResult = Self.checkResult(checkDeclaredNone: record.checkDeclaredNone, runs: checkRuns)
 
         // Build round accounts
         self.rounds = record.rounds.map {
@@ -74,6 +65,28 @@ public struct AttemptAccount: Equatable, Sendable {
         self.outcome = record.result ?? "in progress"
 
         self.consumedHow = record.consumedHow
+    }
+
+    /// The Check result of one Attempt, from its `checkRan` runs in append order: its last run's result,
+    /// the commit it judged when recorded, and how many earlier runs failed (`passed on `b763aff` after 1
+    /// failed run`). A passing Check writes no Round, so Rounds say nothing about the final result. Shared
+    /// by the Managed Block and the Night Card so the two never word it differently.
+    public static func checkResult(checkDeclaredNone: Bool, runs: [CheckRunRecord]) -> String {
+        if checkDeclaredNone || runs.last?.result == .declaredNone {
+            return "green came from a model alone (`check = none`)"
+        }
+        guard let last = runs.last else {
+            return "not run"
+        }
+        var text = last.result.rawValue
+        if let commit = last.judgedCommit {
+            text += " on `\(commit)`"
+        }
+        let earlierFailures = runs.dropLast().filter { $0.result == .failed }.count
+        if earlierFailures > 0 {
+            text += " after \(earlierFailures) failed run\(earlierFailures == 1 ? "" : "s")"
+        }
+        return text
     }
 }
 

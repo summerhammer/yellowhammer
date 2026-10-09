@@ -2,7 +2,7 @@ import Config
 import Domain
 
 extension Setup {
-    /// Step 8: proactive routing warnings (routing/overview, OQ13). Never fails setup. With zero
+    /// Step 8: proactive routing warnings (routing/overview, OQ13, OQ154). Never fails setup. With zero
     /// Projects, the machine's base Routing Table is warned about instead.
     func reportRoutingWarnings(configuration: Configuration, machine: MachineConfiguration) {
         guard !configuration.projects.isEmpty else {

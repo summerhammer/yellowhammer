@@ -310,7 +310,9 @@ extension JournalEvent {
             ]
         case .featureAuthoringFailed, .featureBreakdownRejected, .authoringDispatched, .featureSelectionFailed:
             authoringFaultPayload
-        case .checkRan(let cardID, let issueID, let attemptID, let result, let exitStatus, let output):
+        case .checkRan(
+            let cardID, let issueID, let attemptID, let result, let exitStatus, let output, let judgedCommit
+        ):
             {
                 var dict: [String: String] = [
                     "card_id": String(cardID), "issue_id": issueID, "attempt_id": String(attemptID),
@@ -321,6 +323,9 @@ extension JournalEvent {
                 }
                 if let output {
                     dict["output"] = output
+                }
+                if let judgedCommit {
+                    dict["judged_commit"] = judgedCommit
                 }
                 return dict
             }()

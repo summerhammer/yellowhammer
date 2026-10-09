@@ -189,13 +189,19 @@ public struct CardDetail: Identifiable, Equatable, Sendable {
         public var result: CheckRunResult
         public var exitStatus: Int32?
         public var output: String?
+        /// The worker commit the Check judged; `nil` when the event did not record one.
+        public var judgedCommit: String?
         public var occurredAt: Date
 
-        public init(id: String, result: CheckRunResult, exitStatus: Int32?, output: String?, occurredAt: Date) {
+        public init(
+            id: String, result: CheckRunResult, exitStatus: Int32?, output: String?, judgedCommit: String? = nil,
+            occurredAt: Date
+        ) {
             self.id = id
             self.result = result
             self.exitStatus = exitStatus
             self.output = output
+            self.judgedCommit = judgedCommit
             self.occurredAt = occurredAt
         }
     }

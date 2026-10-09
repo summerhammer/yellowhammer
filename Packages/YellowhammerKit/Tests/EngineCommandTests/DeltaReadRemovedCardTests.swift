@@ -183,9 +183,11 @@ struct DeltaReadRemovedCardTests {
 
         let lines = try NightSummary.removedCardLines(events: try journal.events(), journal: journal)
         #expect(lines.count == 2)
-        #expect(lines[0].hasPrefix("`ENG-card-1` was trashed on the board."))
+        #expect(lines[0].hasPrefix("[ENG-card-1]("))
+        #expect(lines[0].contains(" was trashed on the board."))
         #expect(lines[0].contains("set aside"))
-        #expect(lines[1].hasPrefix("`ENG-card-2` was archived on the board."))
+        #expect(lines[1].hasPrefix("[ENG-card-2]("))
+        #expect(lines[1].contains(" was archived on the board."))
         #expect(lines[1].contains("restored this Night"))
     }
 }
