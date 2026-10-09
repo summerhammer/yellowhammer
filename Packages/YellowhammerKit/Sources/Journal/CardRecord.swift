@@ -173,6 +173,22 @@ public struct CardRecord: Equatable, Sendable {
         guard let title, !title.isEmpty else { return issueIDForDisplay ?? issueID }
         return title
     }
+
+    /// The Card's display identifier (e.g. `YLH-326`), falling back to `displayTitle` when unknown.
+    public var displayIdentifier: String {
+        if let id = issueIDForDisplay, !id.isEmpty { return id }
+        if let key = issueKey, !key.isEmpty { return key }
+        return displayTitle
+    }
+
+    /// Renders the Card as a Markdown link to `issueURL` when recorded, or as `displayIdentifier`.
+    public var displayLink: String {
+        let text = displayIdentifier
+        if let issueURL, !issueURL.isEmpty {
+            return "[\(text)](\(issueURL))"
+        }
+        return text
+    }
 }
 
 // MARK: - CardRecord helpers

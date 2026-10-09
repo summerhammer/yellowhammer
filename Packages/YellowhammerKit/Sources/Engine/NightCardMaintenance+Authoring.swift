@@ -38,7 +38,7 @@ extension NightCardMaintenance {
         var acceptedPlans: [String: FeatureAuthoringAcceptedPayload] = [:]
         var resolvedGroupKeys: Set<String> = []
         for record in try journal.events() where record.nightID == night.id {
-            if let line = Self.authoringLine(for: record.event), seen.insert(line).inserted {
+            if let line = Self.authoringLine(for: record.event, journal: journal), seen.insert(line).inserted {
                 lines.append(line)
             }
             switch record.event {
@@ -63,30 +63,44 @@ extension NightCardMaintenance {
         return lines
     }
 
+    private static func renderFeatureReference(issueID: String, journal: JournalStore?) -> String {
+        if let journal, let feature = try? journal.feature(issueID: issueID) {
+            if let issueURL = feature.issueURL, !issueURL.isEmpty {
+                return "[\(feature.displayIdentifier)](\(issueURL))"
+            }
+            return "`\(feature.displayIdentifier)`"
+        }
+        return "`\(issueID)`"
+    }
+
     // One case per authoring-line event: a growing enumeration, not a complexity problem to refactor.
     // swiftlint:disable:next cyclomatic_complexity function_body_length
-    static func authoringLine(for event: JournalEvent) -> String? {
+    static func authoringLine(for event: JournalEvent, journal: JournalStore? = nil) -> String? {
         switch event {
         case .authoringSkippedFeatureInFlight(let featureIssueID):
+            let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)
             return """
-                Authoring was skipped: Feature `\(featureIssueID)` is already in flight for this Project. \
+                Authoring was skipped: Feature \(featureRef) is already in flight for this Project. \
                 A quiet Night, not a failure.
                 """
         case .authoringPredecessorNotLanded(let featureIssueID, let repositories):
             let named = repositories.joined(separator: ", ")
+            let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)
             return """
-                Authoring was skipped: predecessor Feature `\(featureIssueID)` has not landed in \(named). \
+                Authoring was skipped: predecessor Feature \(featureRef) has not landed in \(named). \
                 A quiet Night, not a failure.
                 """
         case .authoringPredecessorIndeterminate(let featureIssueID, let repositories):
             let named = repositories.joined(separator: ", ")
+            let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)
             return """
-                Authoring was skipped: predecessor Feature `\(featureIssueID)`'s Feature Branch could not be \
+                Authoring was skipped: predecessor Feature \(featureRef)'s Feature Branch could not be \
                 found in \(named). A quiet Night, not a failure.
                 """
         case .predecessorWalkSkippedReleasedFeature(let featureIssueID):
+            let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)
             return """
-                Feature `\(featureIssueID)` was abandoned: tonight's work is not built on it. The \
+                Feature \(featureRef) was abandoned: tonight's work is not built on it. The \
                 predecessor-ancestry gate walked past it to the Feature before it.
                 """
         case .authoringNoWorkAvailable:
@@ -99,21 +113,24 @@ extension NightCardMaintenance {
         case .featureAuthoringHalted(let name, let reasonKind, let detail):
             let named = detail.map { " (\($0))" } ?? ""
             return """
-                Authoring halted for Feature `\(name)`: \(reasonKind)\(named). A quiet Night, not a failure.
+                Authoring halted for Feature `\(name)`: \(reasonKind)\(named). Waiting on You: requires \
+                an Operator turn to clear.
                 """
         case .refusalOpened(let name, _, let clauses, let depth),
             .refusalRepeated(let name, _, let clauses, let depth):
             let named = clauses.isEmpty ? "" : " Uncitable clauses: \(clauses)."
             return """
                 Feature `\(name)` was refused: its specification was too thin to cite a Definition of \
-                Done.\(named) Re-selection depth: \(depth). A quiet Night, not a failure.
+                Done.\(named) Re-selection depth: \(depth). Waiting on You: Refusal requires an Operator \
+                turn to answer.
                 """
         case .featureAuthoringFailed(let name, _, let reason), .featureBreakdownRejected(let name, let reason):
             return authoringFaultLine(feature: name, reason: reason)
         case .featureClosedByMerge(_, let featureIssueID, let repositories, let carriedForward, _, _):
             let named = repositories.joined(separator: ", ")
+            let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)
             return """
-                Feature `\(featureIssueID)` closed by merge: its Feature Branches reached mainline in \
+                Feature \(featureRef) closed by merge: its Feature Branches reached mainline in \
                 \(named). Its Cycle is archived unverified; \(carriedForward.count) Cards carried forward, \
                 Blocked awaiting Adoption.
                 """
@@ -124,20 +141,23 @@ extension NightCardMaintenance {
                 The next author Act selects afresh.
                 """
         case .featureSettled(_, let featureIssueID, let acceptedCards, _):
+            let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)
             return """
-                Feature `\(featureIssueID)` was settled *kept in flight*: it stays in flight. \
+                Feature \(featureRef) was settled *kept in flight*: it stays in flight. \
                 \(acceptedCards.count) green Cards recorded as accepted.
                 """
         case .featureReleased(_, let featureIssueID, let carriedForward, _, let abandonedRepositories, _):
             let abandoned = abandonedRepositories.isEmpty ? "none" : abandonedRepositories.joined(separator: ", ")
+            let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)
             return """
-                Feature `\(featureIssueID)` was settled *abandoned*: stop-with-salvage. \
+                Feature \(featureRef) was settled *abandoned*: stop-with-salvage. \
                 \(carriedForward.count) Cards carried forward, Blocked awaiting Adoption; abandoned pull \
                 requests: \(abandoned). This Feature Issue is not archived and stays re-enterable.
                 """
         case .settleValueNotHonoured(let featureIssueID, let value, let reason):
+            let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)
             return """
-                Feature `\(featureIssueID)`'s settle read `\(value)`, not honoured: \(reason). Treated as \
+                Feature \(featureRef)'s settle read `\(value)`, not honoured: \(reason). Treated as \
                 unsettled.
                 """
         case .featureReselected, .reselectionBoundReached, .refusalPromotedToStandingItem,

@@ -345,4 +345,80 @@ struct AuthorActFeatureReturnTests {
         #expect(authoring.wasCalled)
         #expect(try journal.events().first { $0.type == .authoringSkippedFeatureInFlight } == nil)
     }
+
+private func makeUUIDReturnWorld(featUUID: String, cardUUID: String) async throws -> ReturnWorld {
+    let fixture = try OutboxJournalFixture()
+    let journal = try fixture.open()
+    let boards = try await makeBuildActBoards()
+    await boards.writing.seed(issue: featUUID, description: nil)
+    let runID = RunID()
+    try claimLandLease(journal, runID: runID)
+
+    let now = JournalStore.timestamp(Date())
+    let featureID: Int64 = try journal.write { db in
+        try db.execute(
+            sql: """
+            INSERT INTO feature (issue_id, issue_id_for_display, issue_url, state, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            arguments: [featUUID, "YLH-325", "https://linear.app/team/issue/YLH-325", "selected", now]
+        )
+        return db.lastInsertedRowID
+    }
+    try journal.recordWorktreeName(
+        featureID: featureID, worktreeName: WorktreeName(rawValue: returnBranch.rawValue)
+    )
+    let cycleID = try insertReconcilerCycle(journal, featureID: featureID)
+    try journal.write { db in
+        try db.execute(
+            sql: """
+            INSERT INTO card (
+                cycle_id, issue_id, issue_id_for_display, issue_url, title, repository,
+                kind, authored_order, state, budget_epoch, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            arguments: [
+                cycleID, cardUUID, "YLH-326", "https://linear.app/team/issue/YLH-326",
+                "Do task", "backend", "card", 1, CardState.done.rawValue, 0, now
+            ]
+        )
+    }
+
+    let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+    let night = try journal.openNight(nightStart: returnNightStart, mode: .real, act: .land, runID: runID).night
+    let outbox = Outbox(
+        journal: journal, board: boards.writing, runID: runID, act: .land, nightID: night.id, clock: { returnEpoch }
+    )
+    let context = ActContext(
+        act: .land, mode: .real, trigger: .scheduled, runID: runID, journal: journal, night: night,
+        outbox: outbox, board: board, mainlines: selectionMainlines(), repositories: selectionRepositories()
+    )
+    let (feature, _) = try #require(try journal.inFlightFeature())
+    return ReturnWorld(
+        fixture: fixture, journal: journal, boards: boards, context: context, featureID: featureID, cycleID: cycleID,
+        feature: feature, runID: runID
+    )
+}
+
+    @Test("Return comment posted to the board embeds no UUID when display identifiers exist")
+    func returnCommentContainsNoUUIDWhenIdentifiersExist() async throws {
+        let featUUID = "201acaaa-c2ce-4082-a90a-096a50228fa7"
+        let cardUUID = "ac155696-c2ce-4082-a90a-096a50228fa7"
+        let world = try await makeUUIDReturnWorld(featUUID: featUUID, cardUUID: cardUUID)
+
+        let clause = ClauseVerificationRecord(
+            issueID: featUUID, cid: "c1", level: "feature", text: "Clause c1.", locationID: "epic/story",
+            citationProvenance: "machine-found", verdict: .unmet, whatWasChecked: "checked c1",
+            interpretation: "read c1", judgedBy: .engine
+        )
+        try recordVerification(world, clauses: [clause])
+        let verdict = VerificationVerdict(allClausesMet: false, unmetClauses: ["\(featUUID) c1"])
+
+        try await FeatureReturn().returnFeature(world.featureContext, verdict: verdict)
+
+        let comment = try #require(await world.boards.writing.comments.first).body
+        let uuidRegex = try Regex(#"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"#)
+        #expect(!comment.contains(uuidRegex))
+        #expect(comment.contains("[YLH-325](https://linear.app/team/issue/YLH-325)"))
+    }
 }
