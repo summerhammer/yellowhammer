@@ -113,6 +113,11 @@ public struct EngineInvocation: Sendable {
     /// The one scrub every narrative this invocation's Outbox posts passes (OQ146/OQ147, R23), built by
     /// `EngineCommand` from the credentials it holds. `.none` by default.
     public let narrativeScrub: @Sendable () -> NarrativeScrub
+    /// How the Outbox this invocation builds resends a write the board could not be reached for.
+    public let outboxTransientRetry: OutboxTransientRetry
+    /// One line for the Act's log, for a condition worth reading there that is not a failure. `EngineCommand`
+    /// wires it to the timestamped log; the Engine never imports `EngineCommand`. A no-op by default.
+    let actLog: @Sendable (String) -> Void
     /// Not `private`: the module-internal notification extension reads it (roadmap P12.5).
     let journal: JournalStore
     private let work: ActWork
@@ -135,8 +140,12 @@ public struct EngineInvocation: Sendable {
         operatorIdentity: OperatorIdentity = .none,
         notifier: ExceptionNotifier = .silent,
         outboxKill: RehearsalOutboxKill? = nil,
-        narrativeScrub: @escaping @Sendable () -> NarrativeScrub = { .none }
+        narrativeScrub: @escaping @Sendable () -> NarrativeScrub = { .none },
+        outboxTransientRetry: OutboxTransientRetry = .ruled,
+        actLog: @escaping @Sendable (String) -> Void = { _ in }
     ) {
+        self.outboxTransientRetry = outboxTransientRetry
+        self.actLog = actLog
         self.narrativeScrub = narrativeScrub
         self.act = act
         self.mode = mode
@@ -181,8 +190,12 @@ public struct EngineInvocation: Sendable {
         notifier: ExceptionNotifier = .silent,
         outboxKill: RehearsalOutboxKill? = nil,
         narrativeScrub: @escaping @Sendable () -> NarrativeScrub = { .none },
+        outboxTransientRetry: OutboxTransientRetry = .ruled,
+        actLog: @escaping @Sendable (String) -> Void = { _ in },
         work: @escaping ActWork
     ) {
+        self.outboxTransientRetry = outboxTransientRetry
+        self.actLog = actLog
         self.narrativeScrub = narrativeScrub
         self.act = act
         self.mode = mode
@@ -297,25 +310,8 @@ public struct EngineInvocation: Sendable {
     // `boardPreflight()` lives in EngineInvocation+BoardPreflight.swift — split out for the file/type
     // length limits.
 
-    /// Ensures the Project's Night Card is live when a board is wired, replacing an archived card. Split out of
-    /// `runUnderLease` to keep that function under the function body length limit; the caller re-reads
-    /// the Night afterwards, since `open` may have recorded its Night Card issue id.
-    private func openNightCardIfNeeded(night: NightRecord) async throws -> (Outbox?, NightCardMaintenance?) {
-        guard let board else { return (nil, nil) }
-        let boxed = Outbox(
-            journal: journal, board: board.writing, reading: board.reading, runID: runID, act: act, nightID: night.id,
-            installation: board.installation, scrub: narrativeScrub
-        ) { [outboxKill] in outboxKill?.interrupt($0) }
-        let maintenance = NightCardMaintenance(
-            journal: journal, outbox: boxed, provisioning: board.provisioning, bounds: nightCardBounds
-        )
-        let opening = try await maintenance.open(night: night)
-        if !night.isOpen, case .opened = opening {
-            _ = try await maintenance.acceptCompletion(night: night)
-            _ = try await maintenance.deliverCompletion(night: night)
-        }
-        return (boxed, maintenance)
-    }
+    // `openNightCardIfNeeded(night:)` lives in EngineInvocation+NightCardCompletion.swift — split out for the
+    // file/type length limits.
 
     /// Reads the Project board once before this Act's work, then applies the same readiness inputs
     /// without claiming a Card lease or mutating the Journal. Any failed read is recorded as unknown.

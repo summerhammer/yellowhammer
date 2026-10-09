@@ -82,6 +82,8 @@ extension JournalEvent {
             .nightCardOpened(issueID: try reader.require("issue_id"))
         case .nightCardCompleted:
             .nightCardCompleted(issueID: try reader.require("issue_id"))
+        case .nightCardCompletionDeferred:
+            try Self.decodeNightCardCompletionDeferred(reader)
         case .boardWriteFailed:
             try Self.decodeBoardWriteFailed(reader)
         case .outboxGroupRolledBack:
@@ -334,6 +336,18 @@ extension JournalEvent {
             issueID: try reader.require("issue_id"),
             preservedProseHash: try reader.require("preserved_prose_hash"),
             renderedHash: try reader.require("rendered_hash")
+        )
+    }
+
+    private static func decodeNightCardCompletionDeferred(_ reader: PayloadReader) throws -> JournalEvent {
+        let entryIDs = try reader.require("entry_ids").split(separator: ",").map { text in
+            guard let id = Int64(text) else { throw JournalError.eventUnreadable(id: reader.rowID) }
+            return id
+        }
+        return .nightCardCompletionDeferred(
+            issueID: try reader.require("issue_id"),
+            entryIDs: entryIDs,
+            reason: try reader.require("reason")
         )
     }
 

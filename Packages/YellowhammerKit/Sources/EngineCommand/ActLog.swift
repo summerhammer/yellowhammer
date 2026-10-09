@@ -1,4 +1,5 @@
 import ArgumentParser
+import Engine
 import Foundation
 
 /// The one place the format of a line `yh` itself writes while running an Act lives. `launchd` appends
@@ -20,7 +21,10 @@ enum ActLog {
     /// Runs `body`; on failure writes `<timestamp> Error: <message>` through `write`, then throws an
     /// `ExitCode` carrying the code ArgumentParser would have exited with, so it exits without printing
     /// the error a second time. The message is ArgumentParser's own `fullMessage(for:)`. A clean exit
-    /// (`ExitCode.success`, `CleanExit`) passes through untouched.
+    /// (`ExitCode.success`, `CleanExit`) passes through untouched. A Lease stand-down
+    /// (`EngineInvocationError.actLeaseHeld`) is routine, since build and land share every tick: it writes
+    /// `<timestamp> Stood down: <description>` instead, so `Error:` lines in the log are real errors. Its
+    /// exit code is unchanged.
     static func reportingFailure<Command: ParsableArguments>(
         of command: Command.Type,
         now: () -> Date = { Date() },
@@ -32,8 +36,13 @@ enum ActLog {
         } catch {
             let code = command.exitCode(for: error)
             guard code != .success else { throw error }
-            let message = command.fullMessage(for: error)
-            // `fullMessage(for:)` already starts with ArgumentParser's own `Error: ` token.
+            let message: String
+            if case .actLeaseHeld = error as? EngineInvocationError {
+                message = "Stood down: \(String(describing: error))"
+            } else {
+                // `fullMessage(for:)` already starts with ArgumentParser's own `Error: ` token.
+                message = command.fullMessage(for: error)
+            }
             if !message.isEmpty { write(message, now()) }
             throw code
         }

@@ -65,6 +65,8 @@ extension JournalEvent {
             .nightCardOpened
         case .nightCardCompleted:
             .nightCardCompleted
+        case .nightCardCompletionDeferred:
+            .nightCardCompletionDeferred
         case .boardWriteFailed:
             .boardWriteFailed
         case .outboxGroupRolledBack:

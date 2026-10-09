@@ -120,6 +120,9 @@ public enum JournalEvent: Equatable, Sendable {
     case nightCardOpened(issueID: String)
     /// The land firing at `night_end` completed the Night Card with the Night Summary.
     case nightCardCompleted(issueID: String)
+    /// The Night Card's completion was still pending when the closing Act ended; the Outbox replays it on a
+    /// later Act.
+    case nightCardCompletionDeferred(issueID: String, entryIDs: [Int64], reason: String)
     /// A permanent board write failure, surfaced in the Night Summary because a silent projection
     /// failure makes every other guarantee unreadable.
     case boardWriteFailed(clientID: UUID, operation: String, issueID: String?, reason: String)

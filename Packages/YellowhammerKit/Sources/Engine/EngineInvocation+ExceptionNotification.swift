@@ -33,8 +33,9 @@ extension EngineInvocation {
         try journal.closeNight(id: night.id, reason: .nightEnd, act: act, runID: runID)
         // Completion needs the closed Night's completedAt and verdict.
         if let card, let closed = try journal.night(id: night.id) {
-            _ = try await card.acceptCompletion(night: closed)
+            let entries = try await card.acceptCompletion(night: closed)
             _ = try await card.deliverCompletion(night: closed)
+            recordDeferredCompletion(entries: entries, night: closed)
             await notifyClosed(night: closed)
             // The un-adopted-Cards figure changes every Night regardless of whether the Card was
             // touched, so its Managed Block header is refreshed here too — never lets a refresh

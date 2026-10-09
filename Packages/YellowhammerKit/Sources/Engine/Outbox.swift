@@ -26,8 +26,11 @@ public struct Outbox: Sendable {
     public let act: Act?
     public let nightID: Int64?
     /// How many transient failures (the board unreachable, a response unreadable) a write survives
-    /// before it is recorded as permanently failed. A rate-limit refusal never counts.
+    /// before it is recorded as permanently failed. A rate-limit refusal never counts, and the resends
+    /// of one pass (``transientRetry``) count as one.
     public var attemptLimit = 3
+    /// How a pass re-sends a write while the board cannot be reached, before leaving it pending.
+    public var transientRetry = OutboxTransientRetry.ruled
     /// The Board Connection the board writes through, named on a rate-budget record. Nil for a board
     /// bound through none.
     public let installation: AppInstallationLabel?
@@ -148,8 +151,8 @@ public struct Outbox: Sendable {
     // MARK: - Delivering
 
     /// Delivers every pending entry in accepted order, including entries a killed run left behind.
-    /// Stops at a rate-limit refusal or an unreachable board, because acting on a budget that is gone
-    /// does less than waiting; a Card whose Lease this run does not hold is skipped and stays pending.
+    /// Stops at a rate-limit refusal, or at a board still unreachable after the pass's resends, because
+    /// acting on a budget that is gone does less than waiting; a Card whose Lease this run does not hold is skipped and stays pending.
     /// Throws ``OutboxError/staleRun(_:)`` the moment the run's Act-scoped Lease is found lost.
     func deliverPendingExclusively() async throws -> OutboxDeliveryReport {
         var deliveries: [OutboxDelivery] = []
@@ -176,9 +179,10 @@ public struct Outbox: Sendable {
         return OutboxDeliveryReport(deliveries: deliveries)
     }
 
-    // One entry: Lease check, the board call, then the record — in that order, always. A write to a
-    // removed Card's issue (OQ142) is aborted once the Lease holds, with no board call.
-    func deliver(_ entry: OutboxEntry) async throws -> OutboxDelivery {
+    // One try of one entry: Lease check, the board call, then the record — in that order, always. A
+    // write to a removed Card's issue (OQ142) is aborted once the Lease holds, with no board call. An
+    // unreachable board is thrown as ``TransientBoardFailure`` for `deliver(_:)` to resend.
+    func deliverOnce(_ entry: OutboxEntry) async throws -> OutboxDelivery {
         do {
             try journal.revalidateOutboxLeases(for: entry, runID: runID, now: clock())
         } catch let error as JournalError {
@@ -234,6 +238,7 @@ public struct Outbox: Sendable {
         } catch OutboxError.archivedIssue(let issue) {
             return try abortArchived(entry, issue: issue)
         } catch let error as BoardError {
+            if case .unreachable = error { throw TransientBoardFailure(error: error, write: write) }
             return try refused(entry, write: write, error: error)
         } catch OutboxError.parentNotApplied(let entryID, let parentKey) {
             let broken = OutboxError.parentNotApplied(entryID: entryID, parentKey: parentKey)
@@ -331,7 +336,7 @@ public struct Outbox: Sendable {
         }
     }
 
-    private func refused(_ entry: OutboxEntry, write: BoardWrite, error: BoardError) throws -> OutboxDelivery {
+    func refused(_ entry: OutboxEntry, write: BoardWrite, error: BoardError) throws -> OutboxDelivery {
         switch error {
         case .rateLimited(let retryAfter, _):
             // The budget is the Board Connection's, shared by every Project on it: named as
