@@ -156,7 +156,23 @@ func nightCardCompletedRoundTrips() throws {
     #expect(readIssueID == "NIGHT-1")
 }
 
-@Test("Night Card replacement retains generations, clears stale display metadata and replays atomically")
+@Test("nightCardCompletionDeferred event round-trips with its entry ids in order")
+func nightCardCompletionDeferredRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+    let event = JournalEvent.nightCardCompletionDeferred(
+        issueID: "NIGHT-1", entryIDs: [12, 7], reason: "Linear returned 503"
+    )
+
+    _ = try journal.append(event, act: .land, runID: run, now: epoch)
+    let records = try journal.events(ofType: .nightCardCompletionDeferred)
+
+    #expect(records.count == 1)
+    #expect(records[0].event == event)
+}
+
+@Test("Night Card replacement retains generations,clears stale display metadata and replays atomically")
 func replacementRetainsHistory() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()

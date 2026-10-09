@@ -109,7 +109,9 @@ struct OutboxTests {
         let board = FakeWritingBoard()
         let issue = await board.seed(issue: "issue-1", description: nil)
         await board.script(.loseResponse, for: "Attempt 1 crashed")
-        let outbox = try outbox(journal, board: board)
+        // Replay across passes, as after a killed run: no resend within the first pass.
+        var outbox = try outbox(journal, board: board)
+        outbox.transientRetry = .never
         let write = OutboxWrite(
             key: "comment:issue-1:attempt-1:crash", write: .createComment(issue: issue, body: "Attempt 1 crashed")
         )
@@ -134,7 +136,8 @@ struct OutboxTests {
         let journal = try fixture.open()
         let board = FakeWritingBoard()
         for _ in 0..<3 { await board.refuseNext(.unreachable("down")) }
-        let outbox = try outbox(journal, board: board)
+        var outbox = try outbox(journal, board: board)
+        outbox.transientRetry = .never
         let write = OutboxWrite(key: "card:1:main:1:create", write: card("Card one"))
 
         _ = try outbox.accept(write)
@@ -155,8 +158,9 @@ struct OutboxTests {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let board = FakeWritingBoard()
-        await board.refuseNext(.unreachable("Linear answered with HTTP 503"))
-        let outbox = try outbox(journal, board: board)
+        await board.script(.refuse(.unreachable("Linear answered with HTTP 503")), for: "Card one")
+        var outbox = try outbox(journal, board: board)
+        outbox.transientRetry = SleepLog().ruled
         let write = OutboxWrite(key: "card:1:main:1:create", write: card("Card one"))
 
         _ = try outbox.accept(write)

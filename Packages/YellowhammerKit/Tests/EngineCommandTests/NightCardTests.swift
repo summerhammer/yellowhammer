@@ -309,11 +309,17 @@ struct NightCardTests {
         let writing = boards.writing
         let board = ActBoard(reading: FakeReadingBoard([]), writing: writing, provisioning: provisioning)
 
+        // A persistent outage on the Night Card: a single `refuseNext` would be absorbed by the Outbox's
+        // in-pass resend. `SleepLog` keeps the resends from really sleeping.
+        let nightCardIssue = Box<BoardObjectID>()
         try await EngineInvocation(
             act: .land, mode: .real, nightStart: nightCardNightStart, journal: journal,
             trigger: .forced, runID: RunID(), closesNight: true, board: board,
-            work: { _ in
-                await writing.refuseNext(.unreachable("simulated outage"))
+            outboxTransientRetry: SleepLog().ruled,
+            work: { context in
+                let issue = try #require(context.night.nightCardIssueID)
+                nightCardIssue.set(BoardObjectID(rawValue: issue))
+                await writing.refuse(issue: BoardObjectID(rawValue: issue), with: .unreachable("simulated outage"))
             }
         ).run()
 
@@ -323,9 +329,11 @@ struct NightCardTests {
 
         let updatesBefore = await writing.updateCalls
         let replayed = Box<Bool>()
+        await writing.clearRefusal(issue: try #require(nightCardIssue.value))
         try await EngineInvocation(
             act: .build, mode: .real, nightStart: nightCardNightStart, journal: journal,
             trigger: .forced, runID: RunID(), board: board,
+            outboxTransientRetry: SleepLog().ruled,
             work: { context in
                 guard let outbox = context.outbox else {
                     Issue.record("Expected an Outbox on the context")

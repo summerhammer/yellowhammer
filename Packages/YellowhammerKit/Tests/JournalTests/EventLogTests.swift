@@ -213,20 +213,32 @@ func corruptPayloadThrows() throws {
     }
 }
 
-@Test("Unknown event type string throws eventUnreadable")
-func unknownTypeThrows() throws {
+@Test("An event type this build does not know is skipped by events() and pulseEvents, known rows still read")
+func unknownTypeIsSkipped() throws {
     let fixture = try JournalFixture()
     let journal = try fixture.open()
+    let run = RunID()
+    _ = try journal.claimActLease(act: .build, runID: run, mode: .real, now: epoch)
+    let nightStart = try #require(NightStart(rawValue: "2026-09-12"))
+    let night = try journal.openNight(nightStart: nightStart, mode: .real, act: .build, runID: run, now: epoch).night.id
+    let baseline = try journal.events().count
 
-    // Insert an event with an unknown type
+    try journal.append(.actStarted, act: .build, runID: run, nightID: night, now: epoch)
+    // A row written by a newer `yh`, between two known events.
     try journal.write { db in
         try db.execute(
-            sql: "INSERT INTO event (type, occurred_at, payload) VALUES ('UnknownType', ?, NULL)",
-            arguments: [JournalStore.timestamp(epoch)]
+            sql: """
+            INSERT INTO event (night_id, type, occurred_at, payload)
+            VALUES (?, 'SomeFutureEvent', ?, '{"k":"v"}')
+            """,
+            arguments: [night, JournalStore.timestamp(epoch)]
         )
     }
+    try journal.append(.actEnded, act: .build, runID: run, nightID: night, now: epoch)
 
-    #expect(throws: JournalError.eventUnreadable(id: 1)) {
-        _ = try journal.events()
-    }
-}
+    // Opening the Night wrote its own events; the two appended around the unknown row follow them.
+    let all = try journal.events()
+    #expect(all.count == baseline + 2)
+    #expect(all.suffix(2).map(\.event) == [.actStarted, .actEnded])
+    let pulse = try journal.pulseEvents(nightID: night, unstampedFailuresSince: epoch)
+    #expect(pulse.suffix(2).map(\.event) == [.actStarted, .actEnded])}

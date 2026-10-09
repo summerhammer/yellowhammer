@@ -18,8 +18,9 @@ public enum BoardError: Error, Equatable, Sendable {
     case forbidden(String)
     /// The board refused the request for another reason.
     case refused(String)
-    /// The board could not be reached.
-    case unreachable(String)
+    /// The board could not be reached, or answered that it is unavailable (an HTTP 5xx). `retryAfter`
+    /// is how long the board asked to be left alone before the next request, when it said so.
+    case unreachable(String, retryAfter: Duration? = nil)
     /// The board answered with something that could not be read.
     case unreadableResponse(String)
 }
@@ -41,7 +42,7 @@ extension BoardError: CustomStringConvertible {
             "the board refused permission: \(message)"
         case .refused(let message):
             "the board refused the request: \(message)"
-        case .unreachable(let message):
+        case .unreachable(let message, _):
             "the board could not be reached: \(message)"
         case .unreadableResponse(let message):
             "the board's response could not be read: \(message)"

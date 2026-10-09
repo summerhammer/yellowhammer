@@ -36,7 +36,6 @@ public struct NightPulse: Equatable, Sendable {
 public enum NightPulseState: String, CaseIterable, Sendable {
     case running
     case done
-    case halted
     /// The Journal read never produces this: no starved record exists in the Journal.
     case starved
 }
@@ -61,17 +60,31 @@ public struct HealthFlag: Identifiable, Equatable, Sendable {
     public var detail: String
     public var occurrenceCount: Int
     public var lastOccurredAt: Date?
+    /// When a later successful run cleared the most recent failure of this detail in the same Night.
+    public var recoveredAt: Date?
+    /// Undelivered Board write metadata. Set only on `.undeliveredBoardWrites`.
+    public var pendingWriteCount: Int
+    public var failedWriteCount: Int
+    public var oldestUndeliveredAt: Date?
+    public var lastError: String?
 
     /// A flag is its kind and detail; repeated Journal failures update its count and time.
     public var id: String { "\(kind.rawValue): \(detail)" }
 
     public init(
-        kind: HealthFlagKind, detail: String, occurrenceCount: Int = 1, lastOccurredAt: Date? = nil
+        kind: HealthFlagKind, detail: String, occurrenceCount: Int = 1, lastOccurredAt: Date? = nil,
+        recoveredAt: Date? = nil, pendingWriteCount: Int = 0, failedWriteCount: Int = 0,
+        oldestUndeliveredAt: Date? = nil, lastError: String? = nil
     ) {
         self.kind = kind
         self.detail = detail
         self.occurrenceCount = occurrenceCount
         self.lastOccurredAt = lastOccurredAt
+        self.recoveredAt = recoveredAt
+        self.pendingWriteCount = pendingWriteCount
+        self.failedWriteCount = failedWriteCount
+        self.oldestUndeliveredAt = oldestUndeliveredAt
+        self.lastError = lastError
     }
 
     /// Settings destination for doctor findings. Journal failures are read-only Health rows.
@@ -79,7 +92,7 @@ public struct HealthFlag: Identifiable, Equatable, Sendable {
         switch kind {
         case .staleOperatorIdentity, .appInstallationRevoked: .linearWorkspaces
         case .codeHostingConnectionRefused: .codeHosting
-        case .probeFailure, .actFailure: .settings
+        case .probeFailure, .actFailure, .undeliveredBoardWrites: .settings
         }
     }
 }
@@ -90,4 +103,5 @@ public enum HealthFlagKind: String, CaseIterable, Sendable {
     case codeHostingConnectionRefused = "Code Hosting Connection refused"
     case probeFailure = "probe failure"
     case actFailure = "Act failure"
+    case undeliveredBoardWrites = "undelivered Board writes"
 }

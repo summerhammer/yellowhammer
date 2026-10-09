@@ -75,7 +75,7 @@ enum PulseGroup: String, CaseIterable, Identifiable {
 
     static func summary(of health: [HealthFlag]?) -> String {
         guard let health else { return "yh doctor not read" }
-        return health.isEmpty ? "No health flags" : "\(health.count) flagged"
+        return health.isEmpty ? "No flags" : "\(health.count) flagged"
     }
 }
 

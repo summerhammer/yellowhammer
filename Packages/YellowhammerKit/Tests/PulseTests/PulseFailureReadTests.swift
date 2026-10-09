@@ -23,7 +23,123 @@ private func openFailureNight(_ journal: JournalStore) throws -> (nightID: Int64
     return (opening.night.id, run)
 }
 
-@Test("Ten allocation failures show one Health reason with count and last time, a halted Night and an idle lane")
+@Test("A later successful run of the same Act in the Night recovers its failure")
+func failedActRecovery() throws {
+    let fixture = FailureFixture()
+    let journal = try fixture.open()
+    let opening = try openFailureNight(journal)
+    let failedAt = epoch
+    try journal.append(.actIncomplete(reason: "Linear returned 503"), act: .build, runID: opening.run,
+                       nightID: opening.nightID, now: failedAt)
+    let successRun = RunID()
+    let recoveredAt = failedAt.addingTimeInterval(900)
+    try journal.append(.actEnded, act: .build, runID: successRun, nightID: opening.nightID, now: recoveredAt)
+
+    let pulse = try PulseSnapshot.read(from: journal, status: .idle, asOf: recoveredAt)
+    #expect(pulse.health?.first?.recoveredAt == recoveredAt)
+}
+
+@Test("A later failed Act run with a different reason does not leave an earlier row marked recovered")
+func laterFailureClearsRecovery() throws {
+    let fixture = FailureFixture()
+    let journal = try fixture.open()
+    let opening = try openFailureNight(journal)
+    try journal.append(.actIncomplete(reason: "Linear returned 503"), act: .build, runID: opening.run,
+                       nightID: opening.nightID, now: epoch)
+    let successRun = RunID()
+    let recoveredAt = epoch.addingTimeInterval(900)
+    try journal.append(.actEnded, act: .build, runID: successRun, nightID: opening.nightID, now: recoveredAt)
+    let laterFailureRun = RunID()
+    try journal.append(.actIncomplete(reason: "Linear returned 429"), act: .build, runID: laterFailureRun,
+                       nightID: opening.nightID, now: recoveredAt.addingTimeInterval(900))
+
+    let pulse = try PulseSnapshot.read(from: journal, status: .idle, asOf: recoveredAt)
+    #expect(pulse.health?.count == 2)
+    #expect(pulse.health?.allSatisfy { $0.recoveredAt == nil } == true)
+}
+
+@Test("A successful lifecycle row sharing a failed run cannot recover that run")
+func sameRunLifecycleIsNotRecovery() throws {
+    let fixture = FailureFixture()
+    let journal = try fixture.open()
+    let opening = try openFailureNight(journal)
+    try journal.append(.repoLaneEnded(repository: "main", cardsRun: 0, failure: "allocation failed"),
+                       act: .build, runID: opening.run, nightID: opening.nightID, now: epoch)
+    try journal.append(.actEnded, act: .build, runID: opening.run, nightID: opening.nightID,
+                       now: epoch.addingTimeInterval(900))
+
+    let pulse = try PulseSnapshot.read(from: journal, status: .idle, asOf: epoch.addingTimeInterval(900))
+    #expect(pulse.health?.first?.recoveredAt == nil)
+}
+
+@Test("A different Act does not recover a failed run")
+func differentActDoesNotRecover() throws {
+    let fixture = FailureFixture()
+    let journal = try fixture.open()
+    let opening = try openFailureNight(journal)
+    try journal.append(.actIncomplete(reason: "Linear returned 503"), act: .build, runID: opening.run,
+                       nightID: opening.nightID, now: epoch)
+    try journal.append(.actEnded, act: .land, runID: RunID(), nightID: opening.nightID,
+                       now: epoch.addingTimeInterval(900))
+
+    let pulse = try PulseSnapshot.read(from: journal, status: .idle, asOf: epoch.addingTimeInterval(900))
+    #expect(pulse.health?.first?.recoveredAt == nil)
+}
+
+@Test("A successful Act in another Night does not recover a failed run")
+func differentNightDoesNotRecover() throws {
+    let fixture = FailureFixture()
+    let journal = try fixture.open()
+    let opening = try openFailureNight(journal)
+    try journal.append(.actIncomplete(reason: "Linear returned 503"), act: .build, runID: opening.run,
+                       nightID: opening.nightID, now: epoch)
+    let otherNight = try journal.write { db -> Int64 in
+        try db.execute(
+            sql: "INSERT INTO night (project_id, night_start, mode, state, opened_at) VALUES (?, ?, ?, ?, ?)",
+            arguments: [fixture.projectID.rawValue, "2026-09-30", "real", "closed", JournalStore.timestamp(epoch)]
+        )
+        return db.lastInsertedRowID
+    }
+    try journal.append(.actEnded, act: .build, runID: RunID(), nightID: otherNight,
+                       now: epoch.addingTimeInterval(900))
+
+    let flags = JournalFailures(events: try journal.events()).flags
+    #expect(flags.first?.recoveredAt == nil)
+}
+
+@Test("Pulse Health aggregates pending and failed Board writes and ignores applied and aborted writes")
+func undeliveredBoardWrites() throws {
+    let fixture = FailureFixture()
+    let journal = try fixture.open()
+    try journal.write { db in
+        for (index, state, error) in [
+            (0, "pending", nil as String?), (1, "pending", "temporary refusal"),
+            (2, "failed", "permanent refusal"), (3, "applied", nil), (4, "aborted", nil)
+        ] {
+            try db.execute(
+                sql: """
+                    INSERT INTO outbox
+                        (client_id, operation, payload, created_at, state, last_error)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                arguments: [
+                    UUID().uuidString.lowercased(), "comment", "{}",
+                    JournalStore.timestamp(epoch.addingTimeInterval(Double(index))), state, error
+                ]
+            )
+        }
+    }
+
+    let pulse = try PulseSnapshot.read(from: journal, status: .idle, asOf: epoch)
+    let flag = try #require(pulse.health?.first { $0.kind == .undeliveredBoardWrites })
+    #expect(pulse.health?.count == 1)
+    #expect(flag.pendingWriteCount == 2)
+    #expect(flag.failedWriteCount == 1)
+    #expect(flag.oldestUndeliveredAt == epoch)
+    #expect(flag.lastError == "permanent refusal")
+}
+
+@Test("Ten allocation failures show one Health reason and a closed Night remains done")
 func repeatedAllocationFailures() throws {
     let fixture = FailureFixture()
     let journal = try fixture.open()
@@ -54,7 +170,7 @@ func repeatedAllocationFailures() throws {
     #expect(flags.first?.detail == "build · main: \(reason)")
     #expect(flags.first?.occurrenceCount == 10)
     #expect(flags.first?.lastOccurredAt == epoch.addingTimeInterval(9))
-    #expect(pulse.night?.state == .halted)
+    #expect(pulse.night?.state == .done)
     #expect(pulse.night?.verdictLine == "10 Act runs failed — see Health")
     #expect(pulse.night?.cardsByDisposition.isEmpty == true)
     #expect(pulse.night?.cardsAbsence.contains("eligible Cards were available") == true)

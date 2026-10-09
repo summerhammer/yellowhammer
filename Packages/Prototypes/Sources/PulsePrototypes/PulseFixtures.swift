@@ -15,6 +15,7 @@ enum PulseScenario: String, CaseIterable, Identifiable, CustomStringConvertible 
     case morningTriage = "Morning triage"
     case partialLanding = "Partial Landing"
     case healthFlags = "Health flags"
+    case undeliveredWrites = "Undelivered Board writes"
     case starvedNight = "Starved Night"
     case stress = "Stress: long and many"
 
@@ -60,6 +61,8 @@ enum PulseScenario: String, CaseIterable, Identifiable, CustomStringConvertible 
             pulse.night = PulseFixtures.night(.done, verdict: "landed partially — 1 of 2 Repos")
         case .healthFlags:
             pulse.setAllHealthFlags(true)
+        case .undeliveredWrites:
+            pulse.setHealthFlag(.undeliveredBoardWrites, true)
         case .starvedNight:
             pulse.night = PulseFixtures.night(.starved)
         case .stress:
@@ -233,13 +236,12 @@ enum PulseFixtures {
         case .done:
             [.init(disposition: .done, count: 6), .init(disposition: .blocked, count: 1),
              .init(disposition: .waitingOnYou, count: 1)]
-        case .halted, .starved:
+        case .starved:
             [.init(disposition: .todo, count: 5)]
         }
         let defaultVerdict = switch state {
         case .running: "running — 2 of 7 Cards done"
         case .done: "advanced — 6 Cards done, 2 need you"
-        case .halted: "halted — Acts failed; see Health"
         case .starved: "starved — no Card was dispatched"
         }
         return NightPulse(
@@ -351,8 +353,15 @@ extension PulseSnapshot {
             case .codeHostingConnectionRefused: "Code Hosting Connection github: GitHub rejected the token."
             case .probeFailure: "codex failed its Probe: exit status 127."
             case .actFailure: "build · main: Worktree allocation failed."
+            case .undeliveredBoardWrites: "Linear not updated"
             }
-            return HealthFlag(kind: kind, detail: detail)
+            return HealthFlag(
+                kind: kind, detail: detail,
+                pendingWriteCount: kind == .undeliveredBoardWrites ? 2 : 0,
+                failedWriteCount: kind == .undeliveredBoardWrites ? 1 : 0,
+                oldestUndeliveredAt: kind == .undeliveredBoardWrites ? PulseFixtures.minutesBeforeAsOf(90) : nil,
+                lastError: kind == .undeliveredBoardWrites ? "Linear returned 503" : nil
+            )
         }
     }
 
