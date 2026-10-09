@@ -33,6 +33,7 @@ extension PulseSnapshot {
             unstampedFailuresSince: selectedNight?.openedAt ?? Date(timeIntervalSince1970: 0)
         )
         let failures = JournalFailures(events: events)
+        let outboxFlags = try Self.undeliveredBoardWrites(journal)
         let liveRunID = runningAct != nil ? try journal.currentActLease()?.runID : nil
         return PulseSnapshot(
             needsYou: try needsYou(journal),
@@ -42,8 +43,23 @@ extension PulseSnapshot {
                 runningLanes: runningLanes(night: selectedNight, events: events, liveRunID: liveRunID)
             ),
             night: try selectedNight.map { try night($0, journal: journal, events: events) },
-            health: failures.flags.isEmpty ? nil : failures.flags
+            health: (failures.flags + outboxFlags).isEmpty ? nil : failures.flags + outboxFlags
         )
+    }
+
+    /// One aggregated, read-only Health flag for Board writes that have not been delivered or aborted.
+    private static func undeliveredBoardWrites(_ journal: JournalStore) throws -> [HealthFlag] {
+        let entries = try journal.undeliveredOutboxEntries()
+        guard !entries.isEmpty else { return [] }
+        let pending = entries.count { $0.state == .pending }
+        let failed = entries.count { $0.state == .failed }
+        let lastError = entries.reversed().compactMap(\.lastError).first
+        let oldest = entries.map(\.createdAt).min()
+        return [HealthFlag(
+            kind: .undeliveredBoardWrites, detail: "Linear not updated",
+            occurrenceCount: entries.count, pendingWriteCount: pending, failedWriteCount: failed,
+            oldestUndeliveredAt: oldest, lastError: lastError
+        )]
     }
 
     /// Adds doctor findings without dropping failures already read from this Project's Journal.
@@ -258,7 +274,7 @@ extension PulseSnapshot {
             "No Cards touched"
         }
         return NightPulse(
-            state: night.state == .opened ? .running : (count > 0 ? .halted : .done),
+            state: night.state == .opened ? .running : .done,
             startedAt: night.openedAt,
             verdictLine: count > 0 ? "\(count) Act run\(count == 1 ? "" : "s") failed — see Health" : nil,
             cardsByDisposition: try dispositions(night: night, journal: journal, events: events),

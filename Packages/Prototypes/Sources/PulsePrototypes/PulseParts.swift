@@ -287,10 +287,31 @@ struct PulseHealthRow: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(flag.kind.rawValue.prefix(1).uppercased() + flag.kind.rawValue.dropFirst())
                 Text(flag.detail).font(.caption).foregroundStyle(.secondary)
+                if flag.kind == .undeliveredBoardWrites {
+                    Text(flag.outboxSummary).font(.caption).foregroundStyle(.secondary)
+                    if let error = flag.lastError {
+                        Text(error).font(.caption).foregroundStyle(.secondary)
+                    }
+                } else if let recoveredAt = flag.recoveredAt {
+                    let count = flag.occurrenceCount
+                    let time = recoveredAt.formatted(date: .omitted, time: .shortened)
+                    Text("\(count) failure · recovered \(time)")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
             Spacer(minLength: 8)
             Image(systemName: "gearshape").foregroundStyle(.secondary).help("Open the Project's Settings")
         }
+    }
+}
+
+extension HealthFlag {
+    var outboxSummary: String {
+        let pending = pendingWriteCount == 0 ? nil : "\(pendingWriteCount) writes pending"
+        let failed = failedWriteCount == 0 ? nil : "\(failedWriteCount) writes failed"
+        let counts = [pending, failed].compactMap { $0 }.joined(separator: " · ")
+        let since = oldestUndeliveredAt.map { "since \($0.formatted(date: .abbreviated, time: .shortened))" }
+        return [counts, since].compactMap { $0 }.joined(separator: " · ")
     }
 }
 
