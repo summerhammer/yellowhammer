@@ -36,6 +36,8 @@ final class HealthGroupUITests: XCTestCase {
             "-YellowhammerEngineStub", stubURL.path(percentEncoded: false),
             "-ApplePersistenceIgnoreState", "YES"
         ]
+        app.launchEnvironment["YH_STUB_HEALTH_FINDINGS_FILE"] = base.appending(component: "findings.json").path()
+        app.launchEnvironment["YH_STUB_HEALTH_REPORT_FILE"] = base.appending(component: "report.json").path()
         app.launch()
     }
 
@@ -107,6 +109,39 @@ final class HealthGroupUITests: XCTestCase {
         let codeHosting = app.descendants(matching: .any)["settings-code-hosting-pane"].firstMatch
         XCTAssertTrue(codeHosting.waitForExistence(timeout: 5), "the flag did not open Settings → Code Hosting")
         XCTAssertTrue(app.descendants(matching: .any)["settings-code-hosting-row-github"].waitForExistence(timeout: 5))
+    }
+
+    func testOpenSettingsUsesCodeHostingAndRefreshesAnAlreadyOpenPane() throws {
+        app.terminate()
+        let refusal = Self.findings[5]
+        let findingsFile = base.appending(component: "findings.json")
+        try "[\(refusal)]".write(to: findingsFile, atomically: true, encoding: .utf8)
+        let reportFile = base.appending(component: "report.json")
+        try CodeHostingSettingsUITests.report(
+            [CodeHostingSettingsUITests.githubReportConnection], offer: CodeHostingSettingsUITests.availableOffer
+        ).write(to: reportFile, atomically: true, encoding: .utf8)
+        app.launch()
+        let link = app.descendants(matching: .any)["pulse-health-settings"].firstMatch
+        XCTAssertTrue(app.descendants(matching: .any)["health-flag"].firstMatch.waitForExistence(timeout: 15))
+        link.click()
+        XCTAssertTrue(app.descendants(matching: .any)["settings-code-hosting-pane"].waitForExistence(timeout: 5))
+        let identity = app.descendants(matching: .any)["settings-code-hosting-connection-github"].firstMatch
+        XCTAssertTrue(waitForIdentity(identity, containing: "octocat"))
+
+        let changed = CodeHostingSettingsUITests.githubReportConnection
+            .replacingOccurrences(of: "octocat", with: "changed-account")
+        try CodeHostingSettingsUITests.report(
+            [changed], offer: CodeHostingSettingsUITests.availableOffer
+        ).write(to: reportFile, atomically: true, encoding: .utf8)
+        app.windows.containing(.any, identifier: "pulse-health").firstMatch.click()
+        link.click()
+        XCTAssertTrue(waitForIdentity(identity, containing: "changed-account"))
+    }
+
+    func testOpenSettingsWithMixedFlagsUsesTheProjectPane() {
+        XCTAssertTrue(app.descendants(matching: .any)["health-flag"].firstMatch.waitForExistence(timeout: 15))
+        app.descendants(matching: .any)["pulse-health-settings"].firstMatch.click()
+        XCTAssertTrue(app.descendants(matching: .any)["settings-project-pane-archive"].waitForExistence(timeout: 5))
     }
 
     private func select(_ id: String) {
@@ -243,8 +278,27 @@ final class HealthGroupUITests: XCTestCase {
     /// prints its backticks verbatim.
     private static let stub = """
     #!/bin/sh
+    if [ "$1" = config ] && [ "$2" = print-code-hosting-connections ]; then
+      cat "$YH_STUB_HEALTH_REPORT_FILE"
+      exit 0
+    fi
     [ "$#" -eq 2 ] && [ "$1" = doctor ] && [ "$2" = --json ] || exit 2
+    if [ -f "$YH_STUB_HEALTH_FINDINGS_FILE" ]; then
+      cat "$YH_STUB_HEALTH_FINDINGS_FILE"
+      exit 1
+    fi
     echo '[\(findings.joined(separator: ","))]'
     exit 1
     """
+}
+
+private extension HealthGroupUITests {
+    func waitForIdentity(_ element: XCUIElement, containing identity: String) -> Bool {
+        let deadline = Date().addingTimeInterval(10)
+        while Date() < deadline {
+            if ((element.value as? String) ?? element.label).contains(identity) { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        return ((element.value as? String) ?? element.label).contains(identity)
+    }
 }

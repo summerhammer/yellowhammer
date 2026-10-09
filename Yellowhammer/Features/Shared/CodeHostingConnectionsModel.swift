@@ -64,9 +64,9 @@ final class CodeHostingConnectionsModel {
 
     @ObservationIgnored private let reportEngine = SetupEngine()
     @ObservationIgnored private let actionEngine = SetupEngine()
-    @ObservationIgnored private var didRefreshOnAppearance = false
     @ObservationIgnored private var isRefreshing = false
     @ObservationIgnored private var refreshQueued = false
+    @ObservationIgnored private var readGeneration = 0
 
     init(directory: URL = ConfigurationDirectory.current) {
         self.directory = directory
@@ -116,19 +116,16 @@ final class CodeHostingConnectionsModel {
         }
     }
 
-    /// Reloads on app activation, but leaves alone a running action.
+    /// Reloads the registry without interfering with a running action.
     func reloadIfClean() {
         guard running == nil else { return }
         load()
     }
 
-    /// The pane's first appearance: reads the report once; later appearances (another sidebar row and
-    /// back) and app activations do not run it again. The read runs in a task of the model's own, not the
-    /// view's: a view's task is cancelled when navigation recreates the pane, which would end the read
-    /// half-way with nothing left to retry it.
-    func refreshOnFirstAppearance() {
-        guard !didRefreshOnAppearance else { return }
-        didRefreshOnAppearance = true
+    /// A pane visit, Settings request or app activation asks for a fresh registry and live report.
+    /// The model owns the task so navigating away cannot cancel it. Requests during an action are
+    /// retained until it finishes; overlapping reads coalesce into one follow-up read.
+    func requestRefresh() {
         Task { await refreshReport() }
     }
 
@@ -136,8 +133,7 @@ final class CodeHostingConnectionsModel {
     /// configuration and Keychain, so while the app is pointed at another configuration (a UI test's
     /// fixture) it is not run unless a stub stands in for `yh`.
     func refreshReport() async {
-        guard mayRunYH else { return }
-        guard !isRefreshing else {
+        guard running == nil, !isRefreshing else {
             refreshQueued = true
             return
         }
@@ -145,10 +141,17 @@ final class CodeHostingConnectionsModel {
         defer { isRefreshing = false }
         repeat {
             refreshQueued = false
+            load()
+            guard mayRunYH else { return }
+            let generation = readGeneration
             var lines: [String] = []
             do {
                 let status = try await reportEngine.run(arguments: SetupInvocation.codeHostingConnectionsArguments) {
                     lines.append($0)
+                }
+                guard generation == readGeneration, running == nil else {
+                    if running != nil { refreshQueued = true }
+                    continue
                 }
                 if status == 0, let report = CodeHostingConnectionsReport.decodeLastLine(lines) {
                     live = Dictionary(report.connections.map { ($0.name, $0) }) { _, last in last }
@@ -160,11 +163,15 @@ final class CodeHostingConnectionsModel {
                     reportFailure = lines.isEmpty ? ["yh exited \(status)."] : lines
                 }
             } catch {
+                guard generation == readGeneration, running == nil else {
+                    if running != nil { refreshQueued = true }
+                    continue
+                }
                 live = [:]
                 gitHubCLIOffer = nil
                 reportFailure = ["\(error)"]
             }
-        } while refreshQueued
+        } while refreshQueued && running == nil
     }
 
     // MARK: Connecting
@@ -231,6 +238,8 @@ final class CodeHostingConnectionsModel {
 
     /// Terminates every running `yh`: closing the Settings window is not an Act.
     func terminate() {
+        readGeneration += 1
+        refreshQueued = false
         reportEngine.terminate()
         actionEngine.terminate()
     }
@@ -285,25 +294,30 @@ final class CodeHostingConnectionsModel {
     ) async -> Bool {
         guard mayRunYH, running == nil else { return false }
         running = action
+        readGeneration += 1
+        if isRefreshing { refreshQueued = true }
         clearOutcomes(of: action)
-        defer { running = nil }
         var lines: [String] = []
+        var accepted = false
         do {
             let status = try await actionEngine.run(arguments: arguments, standardInput: standardInput) {
                 lines.append($0)
             }
-            guard status == 0 else {
+            if status == 0 {
+                onSuccess(lines)
+                accepted = true
+            } else {
                 onFailure(lines.isEmpty ? ["yh exited \(status)."] : lines)
-                return false
             }
-            onSuccess(lines)
         } catch {
             onFailure(["\(error)"])
-            return false
         }
-        load()
-        await refreshReport()
-        return true
+        running = nil
+        // Keep success callbacks (including the wizard's connection selection) after the registry read.
+        // A failed action must also honor refresh requests that arrived while it was running.
+        if accepted { load() }
+        if accepted || refreshQueued { await refreshReport() }
+        return accepted
     }
 
     private func clearOutcomes(of action: Action) {

@@ -52,7 +52,7 @@ struct WizardCodeHostingStep: View {
             }
             if isConnecting || connections.connections.isEmpty { CodeHostingConnectBlock(model: connections) }
         }
-        .task { await connections.refreshReport() }
+        .onAppear { connections.requestRefresh() }
         .task(id: checkID) { await runCheck() }
     }
 

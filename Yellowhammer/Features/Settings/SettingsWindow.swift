@@ -86,7 +86,10 @@ struct SettingsWindow: View {
             history.visit($0)
         }
         .accessibilityIdentifier("settings-window")
-        .onAppear(perform: applyRequest)
+        .onAppear {
+            applyRequest()
+            if history.current == .codeHosting { codeHostingConnections.requestRefresh() }
+        }
         .onChange(of: request.token) { applyRequest() }
         // A Project added from the main window; a sheet finishing fires neither appear nor didBecomeActive.
         .onChange(of: projectListChanges.token) { readConfiguration() }
@@ -167,11 +170,16 @@ struct SettingsWindow: View {
     private func applyRequest() {
         guard request.token != appliedRequest else { return }
         appliedRequest = request.token
+        let previousSection = history.current
         highlightedBoardConnection = request.boardConnection ?? resolveBoardConnection(for: request.project)
         if let section = request.section {
             history.visit(section)
         } else if let project = request.project {
             history.visit(.project(project))
+        }
+        // Bringing forward an already selected pane does not cause another pane appearance.
+        if previousSection == .codeHosting, history.current == .codeHosting {
+            codeHostingConnections.requestRefresh()
         }
     }
 
@@ -187,7 +195,11 @@ struct SettingsWindow: View {
         for await _ in NotificationCenter.default.notifications(named: NSApplication.didBecomeActiveNotification) {
             readConfiguration()
             linearWorkspaces.reloadIfClean()
-            codeHostingConnections.reloadIfClean()
+            if history.current == .codeHosting {
+                codeHostingConnections.requestRefresh()
+            } else {
+                codeHostingConnections.reloadIfClean()
+            }
         }
     }
 }
