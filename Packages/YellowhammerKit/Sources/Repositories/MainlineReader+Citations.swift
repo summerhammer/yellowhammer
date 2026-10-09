@@ -158,48 +158,40 @@ extension MainlineReader {
     ) async -> SpecCitationResolution {
         let raw = citation.rawValue
         let isGoalCandidate = raw.range(of: "^[Gg]\\d+$", options: .regularExpression) != nil
-            || raw.hasPrefix("{#")
-            || raw.hasPrefix("#")
-            || raw.contains("goals")
+            || raw.hasPrefix("{#") || raw.hasPrefix("#") || raw.contains("goals")
 
-        if isGoalCandidate {
-            if let res = await attemptGoalResolution(
-                citation: citation,
-                repoPath: repoPath,
-                repoName: repoName,
-                commit: commit
+        if isGoalCandidate, let res = await attemptGoalResolution(
+            citation: citation, repoPath: repoPath, repoName: repoName, commit: commit
+        ) {
+            return res
+        }
+
+        let cleanPath = cleanCitationPath(raw)
+        let isFailedGoalAnchor = Self.candidateGoalsPaths.contains(cleanPath) && raw.contains("#")
+
+        if !isFailedGoalAnchor {
+            if let res = await attemptPathResolution(
+                cleanPath: cleanPath, citation: citation, repoPath: repoPath, repoName: repoName, commit: commit
+            ) {
+                return res
+            }
+            if cleanPath.contains("/"), let res = await attemptStoryResolution(
+                cleanPath: cleanPath, citation: citation, repoPath: repoPath, repoName: repoName, commit: commit
             ) {
                 return res
             }
         }
 
-        if raw.contains("/") {
-            if let res = await attemptStoryResolution(
-                citation: citation,
-                repoPath: repoPath,
-                repoName: repoName,
-                commit: commit
-            ) {
-                return res
-            }
-        }
-
-        if !isGoalCandidate {
-            if let res = await attemptGoalResolution(
-                citation: citation,
-                repoPath: repoPath,
-                repoName: repoName,
-                commit: commit
-            ) {
-                return res
-            }
+        if !isGoalCandidate, let res = await attemptGoalResolution(
+            citation: citation, repoPath: repoPath, repoName: repoName, commit: commit
+        ) {
+            return res
         }
 
         return .unresolved(
             citation: citation,
             reason: "Citation '\(raw)' could not be resolved in specification repository '\(repoName)'",
-            repository: repoName,
-            commit: commit
+            repository: repoName, commit: commit
         )
     }
 
@@ -279,32 +271,43 @@ extension MainlineReader {
         return false
     }
 
-    private func attemptStoryResolution(
+    private func cleanCitationPath(_ raw: String) -> String {
+        guard !raw.hasPrefix("{#"), !raw.hasPrefix("#") else {
+            return raw
+        }
+        var path = raw
+        if let hashIdx = path.firstIndex(of: "#") {
+            path = String(path[..<hashIdx])
+        }
+        path = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        while path.hasPrefix("/") {
+            path = String(path.dropFirst())
+        }
+        return path
+    }
+
+    private func attemptPathResolution(
+        cleanPath: String,
         citation: SpecCitation,
         repoPath: String,
         repoName: String,
         commit: String
     ) async -> SpecCitationResolution? {
-        let raw = citation.rawValue
-        let parts = raw.split(separator: "/")
-        guard parts.count >= 2 else { return nil }
-
-        let epic = String(parts[0])
-        var story = String(parts[parts.count - 1])
-        if story.hasSuffix(".md") {
-            story = String(story.dropLast(3))
-        }
-        if let hashIdx = story.firstIndex(of: "#") {
-            story = String(story[..<hashIdx])
+        guard !cleanPath.isEmpty, !cleanPath.hasPrefix("#"), !cleanPath.hasPrefix("{") else {
+            return nil
         }
 
-        let candidates = candidateStoryPaths(epic: epic, story: story, rawCitation: raw)
-        for candidate in candidates {
-            let res = await git.run(["-C", repoPath, "cat-file", "-e", "\(commit):\(candidate)"])
-            if res.isSuccess {
+        var candidatePaths = [cleanPath]
+        if !cleanPath.hasSuffix(".md") {
+            candidatePaths.append(cleanPath + ".md")
+        }
+
+        for path in candidatePaths {
+            let res = await git.run(["-C", repoPath, "cat-file", "-t", "\(commit):\(path)"])
+            if res.isSuccess && res.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == "blob" {
                 return .resolved(
                     citation: citation,
-                    resolvedPath: candidate,
+                    resolvedPath: path,
                     commit: commit,
                     repository: repoName
                 )
@@ -313,10 +316,51 @@ extension MainlineReader {
         return nil
     }
 
-    private func candidateStoryPaths(epic: String, story: String, rawCitation: String) -> [String] {
+    private func attemptStoryResolution(
+        cleanPath: String,
+        citation: SpecCitation,
+        repoPath: String,
+        repoName: String,
+        commit: String
+    ) async -> SpecCitationResolution? {
+        let parts = cleanPath.split(separator: "/")
+        guard parts.count >= 2 else { return nil }
+
+        var epicsToTry = [String(parts[0])]
+        if parts.count > 2 {
+            if parts.count >= 3 && parts[parts.count - 2] == "stories" {
+                epicsToTry.append(String(parts[parts.count - 3]))
+            } else {
+                epicsToTry.append(String(parts[parts.count - 2]))
+            }
+        }
+
+        var story = String(parts[parts.count - 1])
+        if story.hasSuffix(".md") {
+            story = String(story.dropLast(3))
+        }
+
+        for epic in epicsToTry {
+            let candidates = candidateStoryPaths(epic: epic, story: story, cleanPath: cleanPath)
+            for candidate in candidates {
+                let res = await git.run(["-C", repoPath, "cat-file", "-t", "\(commit):\(candidate)"])
+                if res.isSuccess && res.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == "blob" {
+                    return .resolved(
+                        citation: citation,
+                        resolvedPath: candidate,
+                        commit: commit,
+                        repository: repoName
+                    )
+                }
+            }
+        }
+        return nil
+    }
+
+    private func candidateStoryPaths(epic: String, story: String, cleanPath: String) -> [String] {
         var paths: [String] = []
-        if rawCitation.hasSuffix(".md") {
-            paths.append(rawCitation)
+        if cleanPath.hasSuffix(".md") {
+            paths.append(cleanPath)
         }
         paths.append("docs/requirements/epics/\(epic)/stories/\(story).md")
         paths.append("requirements/epics/\(epic)/stories/\(story).md")
@@ -328,8 +372,11 @@ extension MainlineReader {
         paths.append("docs/\(epic)/\(story).md")
         paths.append("\(epic)/stories/\(story).md")
         paths.append("\(epic)/\(story).md")
-        if !paths.contains(rawCitation) {
-            paths.append(rawCitation)
+        if !cleanPath.hasSuffix(".md") {
+            paths.append(cleanPath + ".md")
+        }
+        if !paths.contains(cleanPath) {
+            paths.append(cleanPath)
         }
         return paths
     }
