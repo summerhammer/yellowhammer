@@ -13,6 +13,8 @@ import Testing
 /// where the reported branch is scripted per call. `removeWorktree` records the call and really
 /// removes the git worktree and its branch, so a later allocation can add the same branch again.
 private final class PrefixingGitWorkspace: Workspace, Sendable {
+    func registeredRepositoryPaths() async throws(WorkspaceError) -> [String] { [] }
+    func registerRepository(path: String) async throws(WorkspaceError) {}
     struct RemoveCall: Equatable {
         let id: WorktreeID
         let force: Bool

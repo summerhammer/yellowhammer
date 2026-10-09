@@ -35,6 +35,8 @@ struct Setup {
     /// Imports a token from the GitHub CLI (`gh auth token`). Never called unless the Operator accepts it
     /// or passes `--from-gh`.
     let importGitHubToken: @Sendable () async -> GitHubTokenImport
+    /// Orca ADE registry access through the Workspace Port.
+    let workspace: any Workspace
     /// `launchd`'s control surface for `--install-jobs`.
     let launchAgents: any LaunchAgentControl
     /// The Linear Board Connection browser flow's side effects (P17.6): port binding, the browser
@@ -113,15 +115,19 @@ struct Setup {
         let (provisioningFailedIDs, unfinishedProvisioning) = await provisionProjects(
             configuration: configuration, machine: machine
         )
+        let registration = await registerRepositories(configuration: configuration)
         let jobsFailed = await handleScheduledJobs(
-            configuration: configuration, machine: machine, provisioningFailedIDs: provisioningFailedIDs
+            configuration: configuration, machine: machine,
+            provisioningFailedIDs: provisioningFailedIDs.union(registration.failedIDs)
         )
         await reportNotifications()
         reportRoutingWarnings(configuration: configuration, machine: machine)
         // The story's consolidated list, last: every unfinished provisioning step across every Project.
         reportUnfinishedProvisioning(unfinishedProvisioning)
 
-        if !configuration.invalidProjects.isEmpty || !provisioningFailedIDs.isEmpty || jobsFailed {
+        let failed = !configuration.invalidProjects.isEmpty || !provisioningFailedIDs.isEmpty
+            || registration.failed || jobsFailed
+        if failed {
             throw SetupError("setup finished with errors; see the output above")
         }
         output("Setup complete.")

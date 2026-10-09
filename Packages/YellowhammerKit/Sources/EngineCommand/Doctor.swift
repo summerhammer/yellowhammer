@@ -17,6 +17,7 @@ struct Doctor {
     /// `linearProjectID` is `""` for the workspace-scoped reads (identity, members) and the Project's own
     /// Linear project for the board-membership check.
     let bindProvisioning: (LinearInstallation, String) -> any BoardProvisioning
+    let workspace: any Workspace
     let launchAgents: any LaunchAgentControl
     let git: GitRunner
     /// Reads the GitHub token (through `credentials`) and asks GitHub whether it can push to each working
@@ -79,6 +80,9 @@ struct Doctor {
             findings += await runOrphansCheck(configuration: configuration)
         }
 
+        if checks.contains(.orca) {
+            findings += await runOrcaCheck(configuration: configuration)
+        }
         let kept = keptFindings(findings)
         printSummary(kept)
         return kept

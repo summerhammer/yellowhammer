@@ -10,6 +10,12 @@ import Foundation
 /// held for a Feature's repository, and the release gate on an unpushed Feature Branch all sit above
 /// it, in the Engine and the Journal; an implementation translates and never decides.
 public protocol Workspace: Sendable {
+    /// Paths of all Repos registered with Orca ADE. Also verifies that its runtime is reachable.
+    func registeredRepositoryPaths() async throws(WorkspaceError) -> [String]
+
+    /// Registers a Repo with Orca ADE. The caller checks existing registration before requesting this.
+    func registerRepository(path: String) async throws(WorkspaceError)
+
     /// Asks Orca ADE for a Worktree of `repositoryPath`, named `name`, based on `baseBranch` when one
     /// is given. Orca ADE creates a branch identical to `name` when it can; on a name collision it
     /// does not fail — it returns a Worktree whose `branch` differs from `name`, and the caller

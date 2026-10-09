@@ -13,6 +13,20 @@ public struct OrcaADEAdapter: Workspace {
         self.runner = runner
     }
 
+    public func registeredRepositoryPaths() async throws(WorkspaceError) -> [String] {
+        let payload: OrcaRepositoriesPayload = try await perform(["repo", "list", "--json"])
+        return payload.repos.map(\.path)
+    }
+
+    public func registerRepository(path: String) async throws(WorkspaceError) {
+        let payload: OrcaRepositoryResultPayload = try await perform(
+            ["repo", "add", "--path", path, "--json"], repositoryPath: path
+        )
+        guard !payload.repo.path.isEmpty else {
+            throw .malformedResponse("orca repo add returned an empty Repo path")
+        }
+    }
+
     public func createWorktree(
         repositoryPath: String, name: String, baseBranch: String?
     ) async throws(WorkspaceError) -> WorkspaceWorktree {

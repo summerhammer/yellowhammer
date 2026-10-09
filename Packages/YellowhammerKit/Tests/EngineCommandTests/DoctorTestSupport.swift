@@ -34,6 +34,7 @@ func makeDoctor(
     output: RecordingOutput = RecordingOutput(),
     homeDirectory: URL = FileManager.default.temporaryDirectory
         .appending(component: "yh-doctor-home-\(UUID().uuidString)", directoryHint: .isDirectory),
+    workspace: any Workspace = RegistrationWorkspace(),
     launchAgents: any LaunchAgentControl = RecordingLaunchAgentControl(),
     git: GitRunner = GitRunner(),
     gitHub: GitHubCredentialValidation = StubGitHubTransport.passing().validation(),
@@ -56,6 +57,7 @@ func makeDoctor(
             binds.record(installation: installation.name, linearProjectID: linearProjectID)
             return boards[installation.name] ?? board
         },
+        workspace: workspace,
         launchAgents: launchAgents,
         git: git,
         gitHub: gitHub,

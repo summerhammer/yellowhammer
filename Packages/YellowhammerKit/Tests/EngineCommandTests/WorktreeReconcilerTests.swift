@@ -46,6 +46,8 @@ let reconcilerBranch = FeatureBranch(
 /// Records every `removeWorktree` call and counts `worktrees(repositoryPath:)` calls, so a test can
 /// assert reconciliation never consults the Workspace Port's list — only the Journal's own records.
 final class ReconcilerFakeWorkspace: Workspace, Sendable {
+    func registeredRepositoryPaths() async throws(WorkspaceError) -> [String] { [] }
+    func registerRepository(path: String) async throws(WorkspaceError) {}
     struct RemoveCall: Equatable {
         let id: WorktreeID
         let force: Bool

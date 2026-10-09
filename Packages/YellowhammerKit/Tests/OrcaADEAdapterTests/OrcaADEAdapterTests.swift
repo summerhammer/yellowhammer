@@ -202,3 +202,46 @@ struct OrcaADEAdapterTests {
         #expect(worktrees[0].branch == "yh-proj-feat")
     }
 }
+
+@Suite("Orca ADE Repo registration adapter")
+struct OrcaRepositoryRegistrationTests {
+    @Test("list decodes registered paths and add sends documented arguments")
+    func listAndAdd() async throws {
+        let runner = StubOrcaCommandRunner(outputs: [
+            OrcaCommandOutput(exitCode: 0, stdout: #"{"ok":true,"result":{"repos":[{"path":"/repo"}]}}"#, stderr: ""),
+            OrcaCommandOutput(exitCode: 0, stdout: #"{"ok":true,"result":{"repo":{"path":"/spec"}}}"#, stderr: "")
+        ])
+        let adapter = OrcaADEAdapter(runner: runner)
+        #expect(try await adapter.registeredRepositoryPaths() == ["/repo"])
+        try await adapter.registerRepository(path: "/spec")
+        #expect(runner.calls == [["repo", "list", "--json"], ["repo", "add", "--path", "/spec", "--json"]])
+    }
+
+    @Test("missing registration evidence fails closed", arguments: [true, false])
+    func malformed(list: Bool) async throws {
+        let runner = StubOrcaCommandRunner(outputs: [
+            OrcaCommandOutput(exitCode: 0, stdout: #"{"ok":true,"result":{}}"#, stderr: "")
+        ])
+        let adapter = OrcaADEAdapter(runner: runner)
+        await #expect(throws: WorkspaceError.self) {
+            if list {
+                _ = try await adapter.registeredRepositoryPaths()
+            } else {
+                try await adapter.registerRepository(path: "/repo")
+            }
+        }
+    }
+
+    @Test("registration refusal preserves Orca's code and error")
+    func refusal() async throws {
+        let runner = StubOrcaCommandRunner(outputs: [
+            OrcaCommandOutput(
+                exitCode: 1, stdout: #"{"ok":false,"error":{"code":"denied","message":"cannot register"}}"#,
+                stderr: ""
+            )
+        ])
+        await #expect(throws: WorkspaceError.refused(code: "denied", message: "cannot register")) {
+            try await OrcaADEAdapter(runner: runner).registerRepository(path: "/repo")
+        }
+    }
+}

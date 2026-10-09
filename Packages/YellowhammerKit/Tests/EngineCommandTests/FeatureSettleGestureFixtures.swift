@@ -20,6 +20,8 @@ let settleFeatureBranch = "yh-proj-settle"
 /// the one caller that must be able to discard an unpushed Worktree, so `removeCalls` is what a test
 /// reads to see that happened.
 final class FakeSettleWorkspace: Workspace, Sendable {
+    func registeredRepositoryPaths() async throws(WorkspaceError) -> [String] { [] }
+    func registerRepository(path: String) async throws(WorkspaceError) {}
     struct RemoveCall: Equatable, Sendable {
         let id: WorktreeID
         let force: Bool
