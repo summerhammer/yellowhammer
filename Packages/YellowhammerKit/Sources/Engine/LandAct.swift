@@ -17,26 +17,35 @@ import Repositories
 ///    in defence in depth: the push and open-pull-request seams are never called, and those two steps
 ///    are recorded `.rehearsalBoundary`. The merge test still runs in rehearsal — pure local git. A lane
 ///    whose seam throws is an engine fault: recorded, the lane's remaining steps are skipped, and the
-///    other lanes still run. A lane whose push reports no completed work has its No-Pushed-Branch Outcome
-///    recorded once (a record that cannot be written faults the lane); so does every touched repository no
-///    Card names, which has no lane and no push step, in rehearsal mode too.
-/// 4. If no lane faulted: Verification (P10.5), judged before any pull request exists because a pull
-///    request body is written once and carries its clause report. A rehearsal Night runs it too — its
-///    verifier is answered by a fixture, never an agent CLI. A nil Verification seam records all three
-///    Feature steps `.notWired` and gates nothing.
+///    other lanes still run. A push that reports a refusal or failure (branch protection, missing or
+///    insufficient credentials, a refused Mainline) is not a fault, but it leaves the push outstanding.
+///    A lane whose push reports no completed work has its No-Pushed-Branch Outcome recorded once (a
+///    record that cannot be written faults the lane); so does every touched repository no Card names,
+///    which has no lane and no push step, in rehearsal mode too.
+/// 4. If no lane faulted and no push is outstanding: Verification (P10.5), judged before any pull
+///    request exists because a pull request body is written once and carries its clause report. A
+///    rehearsal Night runs it too — its verifier is answered by a fixture, never an agent CLI. A nil
+///    Verification seam records all three Feature steps `.notWired` and gates nothing.
 /// 5. In a second phase each lane that did not fault opens its pull request (P10.4) and then releases its
-///    held Worktree. Where Verification is wired but did not complete — a lane faulted in the first
-///    phase, or Verification itself did — every lane's pull request is recorded `.skipped` and its
-///    Worktree stays held; the Cycle stays unlanded and the next land firing retries.
-/// 6. If nothing faulted, by Verification's verdict: return the Feature (P10.6) or archive the Cycle
-///    (P10.7), never both. When every touched repository has the outcome (N = 0) no pull request opened
-///    and the Feature is not Done: an all-met verdict does not archive the Cycle, which still lands.
-/// 7. If nothing faulted: the Cycle is marked landed. Write-back always runs, fault or not: it replays
-///    any deferred Card state write left behind (``DeferredCardStateReplay``, issue #96 — this
-///    Act dispatches no Card, so nothing else ever retries one) and then delivers the Outbox. A fault
-///    (from any lane or the Feature sequence) is thrown after write-back as
-///    ``LandActError/lanesFailed(_:)``, keyed by repository (Feature-scoped faults are keyed by the
-///    Feature's issue id), so the Cycle stays unlanded and the next land firing retries.
+///    held Worktree. While a push is outstanding, or where Verification is wired but did not complete
+///    (a lane faulted in the first phase, or Verification itself did), every lane's pull request is
+///    recorded `.skipped` and its Worktree stays held. A pull request the seam reports not opened is not
+///    a fault either: it leaves that lane's Worktree held and the step outstanding; the lanes that did
+///    open stay released.
+/// 6. If nothing faulted and nothing is outstanding, by Verification's verdict: return the Feature
+///    (P10.6) or archive the Cycle (P10.7), never both. When every touched repository has the outcome
+///    (N = 0) no pull request opened and the Feature is not Done: an all-met verdict does not archive the
+///    Cycle, which still lands.
+/// 7. If nothing faulted and nothing is outstanding: the Cycle is marked landed. Otherwise it stays
+///    unlanded, and the next land firing resumes the outstanding steps from the Journal's records: a
+///    recorded Verification report is reused (``FeatureVerification``), a recorded pull request is not
+///    opened again (``FeatureBranchPullRequest``), and a released Worktree is not released again.
+///    Write-back always runs, fault or not: it replays any deferred Card state write left behind
+///    (``DeferredCardStateReplay``, issue #96 — this Act dispatches no Card, so nothing else ever retries
+///    one) and then delivers the Outbox. A fault (from any lane or the Feature sequence) is thrown after
+///    write-back as ``LandActError/lanesFailed(_:)``, keyed by repository (Feature-scoped faults are keyed
+///    by the Feature's issue id). An outstanding step alone is not thrown: the Act ends normally, with the
+///    refusal already recorded as a failed land step and reported on the board.
 public struct LandAct: Sendable {
     /// The Repo Lane merge test (P10.3); nil records `.notWired` and never gates landing.
     public let mergeTest: (any LaneMergeTesting)?
@@ -90,12 +99,10 @@ public struct LandAct: Sendable {
 
         let lanes = RepoLane.derive(from: try journal.cards(cycleID: cycleID))
 
-        var failures: [String: String] = [:]
-        var progresses: [LandLaneProgress] = []
-        for lane in lanes {
-            let progress = await runFirstPhase(lane: lane, feature: feature, cycleID: cycleID, context: context)
-            progress.fault.map { failures[lane.repository] = $0 }
-            progresses.append(progress)
+        let progresses = await runFirstPhases(lanes: lanes, feature: feature, cycleID: cycleID, context: context)
+        var failures = progresses.reduce(into: [String: String]()) { $0[$1.laneContext.lane.repository] = $1.fault }
+        var outstanding = progresses.reduce(into: [String: String]()) {
+            $0[$1.laneContext.lane.repository] = $1.outstandingPush
         }
 
         failures.merge(
@@ -103,21 +110,25 @@ public struct LandAct: Sendable {
         ) { $1 }
 
         let verification = await runVerification(
-            feature: feature, cycleID: cycleID, firstPhaseFailed: !failures.isEmpty, context: context
+            feature: feature, cycleID: cycleID, firstPhaseIncomplete: !failures.isEmpty || !outstanding.isEmpty,
+            context: context
         )
         if case .faulted(let failure) = verification {
             failures[feature.issueID] = failure
         }
-        failures.merge(await runSecondPhases(progresses, gate: verification.gate, context: context)) { $1 }
+        let gate = outstanding.isEmpty ? verification.gate : "a required push is outstanding"
+        let secondPhases = await runSecondPhases(progresses, gate: gate, context: context)
+        failures.merge(secondPhases.failures) { $1 }
+        outstanding.merge(secondPhases.outstanding) { $1 }
 
-        if failures.isEmpty {
+        if failures.isEmpty, outstanding.isEmpty {
             let fault = await runFeatureSteps(
                 verification: verification, feature: feature, cycleID: cycleID, context: context
             )
             fault.map { failures[feature.issueID] = $0 }
         }
 
-        if failures.isEmpty {
+        if failures.isEmpty, outstanding.isEmpty {
             try journal.markCycleLanded(cycleID: cycleID, runID: context.runID)
             try journal.append(
                 .cycleLanded(cycleID: cycleID), act: context.act, runID: context.runID, nightID: context.night.id
