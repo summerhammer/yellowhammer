@@ -107,7 +107,8 @@ extension AuthoringInstruction {
     private var fieldsSentence: String {
         switch pass {
         case .breakdown:
-            return "`drafted` carries `definition_of_done` (clauses of `text` and `citation`) and `cards` "
+            return "`drafted` carries `definition_of_done` (clauses of `text` and `citation`, where `citation` "
+                + "is a story ID `<epic>/<story>` or a goal ID) and `cards` "
                 + "(each with `repository`, `kind`, `title`, `unit_of_work`, `brief`, `definition_of_done` "
                 + "and `contracts` naming a `repository`, its `paths` and an optional `symbol`); `failed` "
                 + "carries `reason`."

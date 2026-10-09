@@ -25,8 +25,9 @@ struct LandStepResult {
         LandStepResult(outcome: .skipped, detail: detail, fault: nil)
     }
 
-    /// A business-level failure the seam itself reported (not a throw): recorded, but the lane keeps
-    /// going, e.g. a push seam that reports "not pushed".
+    /// A business-level failure the seam itself reported (not a throw), e.g. a push seam that reports
+    /// "not pushed": recorded, not a fault, but the step is still outstanding — nothing that depends on
+    /// it runs, and the Cycle stays unlanded for the next land firing to retry.
     static func failed(_ detail: String?) -> LandStepResult {
         LandStepResult(outcome: .failed, detail: detail, fault: nil)
     }
@@ -45,6 +46,30 @@ struct LandLaneProgress {
     let pushOutcome: LanePushOutcome?
     /// Non-nil when a seam of the first phase faulted: the lane stops there and skips its second phase.
     let fault: String?
+
+    /// Non-nil when the push reported a refusal or failure rather than throwing — branch protection,
+    /// missing or insufficient credentials, a refused Mainline: not a fault, but the push is still
+    /// outstanding. Nil when no push outcome exists (not wired, rehearsal boundary) or when the push
+    /// pushed or had no completed work.
+    var outstandingPush: String? {
+        guard fault == nil, let pushOutcome, !pushOutcome.safeToReleaseWorktree else { return nil }
+        return pushOutcome.reason ?? "the push did not complete"
+    }
+}
+
+/// How one Repo Lane's second phase (open pull request, release Worktree) ended.
+struct LandLaneSecondPhase {
+    /// Non-nil when a seam threw: an engine fault.
+    let fault: String?
+    /// Non-nil when the pull request seam reported it was not opened (not a fault): the lane's Worktree
+    /// stays held and the Cycle unlanded, for the next land firing to retry.
+    let outstanding: String?
+}
+
+/// Every lane's second phase, by repository: the engine faults, and the steps left outstanding.
+struct LandSecondPhases {
+    var failures: [String: String] = [:]
+    var outstanding: [String: String] = [:]
 }
 
 extension LandAct {
@@ -71,55 +96,75 @@ extension LandAct {
         )
     }
 
+    /// Every Repo Lane's first phase, sequentially, in lane order.
+    func runFirstPhases(
+        lanes: [RepoLane], feature: FeatureRecord, cycleID: Int64, context: ActContext
+    ) async -> [LandLaneProgress] {
+        var progresses: [LandLaneProgress] = []
+        for lane in lanes {
+            progresses.append(await runFirstPhase(lane: lane, feature: feature, cycleID: cycleID, context: context))
+        }
+        return progresses
+    }
+
     /// One Repo Lane, both phases back to back with no Verification in between: merge test, push, open pull
     /// request, release Worktree. `run(_:)` does not use it; it lets a test exercise one lane's seams in
     /// isolation. Never throws: an engine fault is returned.
     func run(lane: RepoLane, feature: FeatureRecord, cycleID: Int64, context: ActContext) async -> String? {
         let progress = await runFirstPhase(lane: lane, feature: feature, cycleID: cycleID, context: context)
         if let fault = progress.fault { return fault }
-        return await runSecondPhase(progress, verificationGate: nil, context: context)
+        return await runSecondPhase(progress, gate: nil, context: context).fault
     }
 
-    /// Every lane's second phase, for the lanes whose first phase did not fault; the faults, by repository.
+    /// Every lane's second phase, for the lanes whose first phase did not fault: the faults and the
+    /// outstanding steps, by repository.
     func runSecondPhases(
         _ progresses: [LandLaneProgress], gate: String?, context: ActContext
-    ) async -> [String: String] {
-        var failures: [String: String] = [:]
+    ) async -> LandSecondPhases {
+        var phases = LandSecondPhases()
         for progress in progresses where progress.fault == nil {
             let repository = progress.laneContext.lane.repository
-            if let failure = await runSecondPhase(progress, verificationGate: gate, context: context) {
-                failures[repository] = failure
-            }
+            let phase = await runSecondPhase(progress, gate: gate, context: context)
+            phase.fault.map { phases.failures[repository] = $0 }
+            phase.outstanding.map { phases.outstanding[repository] = $0 }
         }
-        return failures
+        return phases
     }
 
-    /// A Repo Lane's second phase: open pull request, then release the Worktree. `verificationGate`, when
-    /// non-nil, is why Verification did not complete: the pull request is recorded skipped (its body is
-    /// written once and must carry the clause report) and the Worktree is left held. Returns a fault
-    /// description, nil otherwise.
+    /// A Repo Lane's second phase: open pull request, then release the Worktree. `gate`, when non-nil, is
+    /// why no pull request may open yet — a required push is outstanding, or Verification did not
+    /// complete (a body is written once and must carry the clause report): the pull request is recorded
+    /// skipped and the Worktree is left held. A pull request that was not opened also leaves the
+    /// Worktree held, and is returned as outstanding.
     func runSecondPhase(
-        _ progress: LandLaneProgress, verificationGate: String?, context: ActContext
-    ) async -> String? {
+        _ progress: LandLaneProgress, gate: String?, context: ActContext
+    ) async -> LandLaneSecondPhase {
         let laneContext = progress.laneContext
         let lane = laneContext.lane
-        if let verificationGate {
-            record(.skipped(verificationGate), step: .openPullRequest, repository: lane.repository, context: context)
-            record(.skipped(verificationGate), step: .releaseWorktree, repository: lane.repository, context: context)
-            return nil
+        if let gate {
+            record(.skipped(gate), step: .openPullRequest, repository: lane.repository, context: context)
+            record(.skipped(gate), step: .releaseWorktree, repository: lane.repository, context: context)
+            return LandLaneSecondPhase(fault: nil, outstanding: nil)
         }
 
         let prResult = await runOpenPullRequest(
             laneContext, pushOutcome: progress.pushOutcome, mergeOutcome: progress.mergeOutcome, context: context
         )
         record(prResult, step: .openPullRequest, repository: lane.repository, context: context)
-        if let fault = prResult.fault { return fault }
+        if let fault = prResult.fault { return LandLaneSecondPhase(fault: fault, outstanding: nil) }
+        if prResult.outcome == .failed {
+            record(
+                .skipped("pull request not opened"), step: .releaseWorktree, repository: lane.repository,
+                context: context
+            )
+            return LandLaneSecondPhase(fault: nil, outstanding: prResult.detail ?? "the pull request was not opened")
+        }
 
         let releaseResult = await runReleaseWorktree(
             feature: laneContext.feature, lane: lane, pushOutcome: progress.pushOutcome, context: context
         )
         record(releaseResult, step: .releaseWorktree, repository: lane.repository, context: context)
-        return releaseResult.fault
+        return LandLaneSecondPhase(fault: releaseResult.fault, outstanding: nil)
     }
 
     private func runMergeTest(_ laneContext: LandActLaneContext) async -> (LandStepResult, MergeTestOutcome?) {

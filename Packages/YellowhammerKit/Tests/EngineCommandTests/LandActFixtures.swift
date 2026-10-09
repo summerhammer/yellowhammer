@@ -67,11 +67,16 @@ struct StubPush: LanePushing {
 
 struct StubPullRequest: PullRequestOpening {
     let log: LandCallLog
+    /// Repositories whose pull request the seam reports not opened (a refusal, not a throw).
+    var notOpened: Set<String> = []
 
     func open(
         _ context: LandActLaneContext, push: LanePushOutcome, mergeOutcome: MergeTestOutcome?
     ) async throws -> PullRequestOutcome {
         log.add("openPullRequest:\(context.lane.repository)")
+        if notOpened.contains(context.lane.repository) {
+            return PullRequestOutcome(opened: false, detail: "refused")
+        }
         return PullRequestOutcome(opened: true)
     }
 }
@@ -150,5 +155,24 @@ func heldWorktreeIDs(_ journal: JournalStore, featureID: Int64) throws -> [Strin
 func recordTouchedRepositories(_ journal: JournalStore, featureID: Int64, repositories: [String]) throws {
     try journal.write { database in
         try JournalStore.insertFeatureRepositories(database, featureID: featureID, repositories: repositories)
+    }
+}
+
+/// One recorded `.landStep` event, for asserting what a land firing did to each step.
+struct RecordedLandStep {
+    let step: LandStep
+    let repository: String?
+    let outcome: LandStepOutcome
+    let detail: String?
+}
+
+func recordedLandSteps(
+    _ journal: JournalStore, _ step: LandStep, repository: String? = nil
+) throws -> [RecordedLandStep] {
+    try journal.events(ofType: .landStep).compactMap { record in
+        guard case .landStep(let found, let repo, let outcome, let detail) = record.event, found == step,
+              repository == nil || repository == repo
+        else { return nil }
+        return RecordedLandStep(step: found, repository: repo, outcome: outcome, detail: detail)
     }
 }

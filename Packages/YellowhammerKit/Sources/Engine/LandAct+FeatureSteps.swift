@@ -5,7 +5,8 @@ import Journal
 enum LandVerificationOutcome {
     /// No Verification seam is wired: the three Feature steps are recorded `.notWired` after the lanes.
     case notWired
-    /// A lane faulted before Verification could run; it ran nothing and recorded nothing.
+    /// A lane faulted, or a push is still outstanding, before Verification could run; it ran nothing and
+    /// recorded nothing.
     case didNotRun
     /// The seam threw: an engine fault, recorded and returned.
     case faulted(String)
@@ -22,13 +23,13 @@ enum LandVerificationOutcome {
 }
 
 extension LandAct {
-    /// Runs Verification (P10.5) once every lane's first phase is done and none faulted, so its report
-    /// exists before any pull request body is written.
+    /// Runs Verification (P10.5) once every lane's first phase is done, none faulted and no push is
+    /// outstanding, so its report exists before any pull request body is written.
     func runVerification(
-        feature: FeatureRecord, cycleID: Int64, firstPhaseFailed: Bool, context: ActContext
+        feature: FeatureRecord, cycleID: Int64, firstPhaseIncomplete: Bool, context: ActContext
     ) async -> LandVerificationOutcome {
         guard let verification else { return .notWired }
-        guard !firstPhaseFailed else { return .didNotRun }
+        guard !firstPhaseIncomplete else { return .didNotRun }
         do {
             let verdict = try await verification.verify(
                 LandActFeatureContext(act: context, feature: feature, cycleID: cycleID)
@@ -42,10 +43,10 @@ extension LandAct {
         }
     }
 
-    /// The Feature-scoped steps after the lanes and their pull requests, run only when nothing faulted:
-    /// by Verification's verdict, return the Feature or archive the Cycle, never both. A nil Verification
-    /// seam records all three steps `.notWired` and calls neither return nor archive. Returns a fault
-    /// description when a wired seam throws, nil otherwise.
+    /// The Feature-scoped steps after the lanes and their pull requests, run only when nothing faulted
+    /// and nothing is outstanding: by Verification's verdict, return the Feature or archive the Cycle,
+    /// never both. A nil Verification seam records all three steps `.notWired` and calls neither return
+    /// nor archive. Returns a fault description when a wired seam throws, nil otherwise.
     func runFeatureSteps(
         verification outcome: LandVerificationOutcome, feature: FeatureRecord, cycleID: Int64, context: ActContext
     ) async -> String? {
