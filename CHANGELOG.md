@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.11.0](https://github.com/summerhammer/yellowhammer/compare/v0.10.1...v0.11.0) (2026-10-09)
+
+
+### Features
+
+* **doctor:** Verification route reachability warning in Check 1 (OQ154) ([#420](https://github.com/summerhammer/yellowhammer/issues/420)) ([#428](https://github.com/summerhammer/yellowhammer/issues/428)) ([be4435c](https://github.com/summerhammer/yellowhammer/commit/be4435c2b9129f563c44be4c00377bd9195dc07d))
+* **engine:** register each Repo with Orca ADE in setup; add yh doctor Check 8 orca ([a973f2e](https://github.com/summerhammer/yellowhammer/commit/a973f2e0022b0b9317a5c64777feebe4c3a2e646))
+
+
+### Bug Fixes
+
+* **app:** show undelivered writes and recovered failures in Pulse ([#423](https://github.com/summerhammer/yellowhammer/issues/423)) ([9c0890c](https://github.com/summerhammer/yellowhammer/commit/9c0890c00ee38a0e03f582fd5d6f88e0d8aa824e))
+* **engine:** authenticate the Mainline fetch with the Project's Code Hosting Connection ([#426](https://github.com/summerhammer/yellowhammer/issues/426)) ([fdd928d](https://github.com/summerhammer/yellowhammer/commit/fdd928df2b4d64ec902ec37903a7864a1ec734fc))
+* **engine:** push over HTTPS with the Project's Code Hosting Connection when origin is SSH ([27e0f33](https://github.com/summerhammer/yellowhammer/commit/27e0f3383b65f79abc39ccabe91c585261cccc4d)), closes [#421](https://github.com/summerhammer/yellowhammer/issues/421)
+* **engine:** report a Card's last Check run, Attempt results and end state on the Night Card ([#427](https://github.com/summerhammer/yellowhammer/issues/427)) ([eb8478a](https://github.com/summerhammer/yellowhammer/commit/eb8478a4f704a20b6c2ab8cfc5ecb004b0418681))
+* **engine:** retry transient Linear failures inside the Act; record a deferred Night-closing write ([bcaa79c](https://github.com/summerhammer/yellowhammer/commit/bcaa79cb1f67671cf3370fcbd8b1ef5a52fa03d3)), closes [#409](https://github.com/summerhammer/yellowhammer/issues/409)
+* **engine:** show display identifiers, deduplicate clauses, and name Operator turns ([#424](https://github.com/summerhammer/yellowhammer/issues/424)) ([dc31156](https://github.com/summerhammer/yellowhammer/commit/dc31156b0085d4f1c3befc43ee4a9c25d2711542))
+
 ## [0.10.1](https://github.com/summerhammer/yellowhammer/compare/v0.10.0...v0.10.1) (2026-10-09)
 
 
