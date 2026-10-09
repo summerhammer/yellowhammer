@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.10.1](https://github.com/summerhammer/yellowhammer/compare/v0.10.0...v0.10.1) (2026-10-09)
+
+
+### Bug Fixes
+
+* **engine:** keep the Cycle unlanded while a push or pull request is outstanding ([#405](https://github.com/summerhammer/yellowhammer/issues/405)) ([898122e](https://github.com/summerhammer/yellowhammer/commit/898122e350f2fe59f002f064b5643d28870df493))
+* **engine:** resolve path.md#anchor citations and specify citation forms in breakdown ([#406](https://github.com/summerhammer/yellowhammer/issues/406)) ([#415](https://github.com/summerhammer/yellowhammer/issues/415)) ([1f6405c](https://github.com/summerhammer/yellowhammer/commit/1f6405cb286bd33de447785fa7b91b9e794801d0))
+* **settings:** refresh live Code Hosting identity and refusals ([#414](https://github.com/summerhammer/yellowhammer/issues/414)) ([74e4ad0](https://github.com/summerhammer/yellowhammer/commit/74e4ad08455212f97621a35fa08d7f3c486c9034))
+* **setup:** preserve running and unchanged LaunchAgents ([#412](https://github.com/summerhammer/yellowhammer/issues/412)) ([78f6be2](https://github.com/summerhammer/yellowhammer/commit/78f6be2e8928490789f0a8fd87b4f486e65f9e05)), closes [#407](https://github.com/summerhammer/yellowhammer/issues/407)
+
 ## [0.10.0](https://github.com/summerhammer/yellowhammer/compare/v0.9.0...v0.10.0) (2026-10-08)
 
 
