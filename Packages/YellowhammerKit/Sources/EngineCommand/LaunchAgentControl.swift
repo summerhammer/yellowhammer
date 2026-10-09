@@ -3,11 +3,12 @@ import Foundation
 import Subprocess
 import System
 
-/// `launchd`'s per-user control surface, the three calls `--install-jobs` needs. Tests inject a
+/// `launchd`'s per-user control surface for `--install-jobs`. Tests inject a
 /// recording fake; `SetupCommand.run` builds ``LaunchctlLaunchAgentControl``.
 protocol LaunchAgentControl: Sendable {
-    /// Unloads `label` from the user's `gui` domain. A failure (typically: not currently loaded) is
-    /// never an error worth reporting — the caller ignores it.
+    /// Inspects a job before replacement; inspection errors must prevent unloading.
+    func jobState(label: String) async throws -> LaunchAgentRuntimeState
+    /// Unloads `label` from the user's `gui` domain.
     func bootout(label: String) async throws
     /// Marks `label` enabled in the user's `gui` domain, so `bootstrap` does not refuse it.
     func enable(label: String) async throws
@@ -15,6 +16,12 @@ protocol LaunchAgentControl: Sendable {
     func bootstrap(plistURL: URL) async throws
     /// Whether `label` is currently loaded in the user's `gui` domain (`yh doctor`'s launchd check).
     func isLoaded(label: String) async -> Bool
+}
+
+enum LaunchAgentRuntimeState: Equatable, Sendable {
+    case unloaded
+    case idle
+    case running
 }
 
 /// A `launchctl` failure: the command's own combined stdout/stderr, so the Operator sees what
@@ -32,8 +39,8 @@ struct LaunchctlJobInfo: Equatable, Sendable {
 }
 
 /// The read-only `launchctl` seam `yh status` needs: a label's current state and whether it is
-/// disabled. Kept separate from ``LaunchAgentControl`` — whose fakes only implement install/uninstall
-/// calls — so this addition never breaks an existing test fake.
+/// disabled. Kept separate from ``LaunchAgentControl`` because these status diagnostics tolerate
+/// missing information; installation safety requires the throwing jobState query instead.
 protocol LaunchAgentInspecting: Sendable {
     /// This label's current state under `launchctl print gui/<uid>/<label>`, or nil when it fails
     /// (typically: not currently loaded).
@@ -64,6 +71,13 @@ struct LaunchctlLaunchAgentControl: LaunchAgentControl {
         try await run(["bootstrap", "gui/\(uid)", plistURL.path(percentEncoded: false)])
     }
 
+    func jobState(label: String) async throws -> LaunchAgentRuntimeState {
+        guard let output = try await execute(["print", "gui/\(uid)/\(label)"], allowMissingService: true) else {
+            return .unloaded
+        }
+        return try Self.parseJobState(output)
+    }
+
     func isLoaded(label: String) async -> Bool {
         (try? await run(["print", "gui/\(uid)/\(label)"])) != nil
     }
@@ -74,6 +88,14 @@ struct LaunchctlLaunchAgentControl: LaunchAgentControl {
 
     @discardableResult
     private func run(_ arguments: [String]) async throws -> String {
+        // Missing services are accepted only by jobState's explicit inspection path.
+        guard let output = try await execute(arguments) else {
+            throw LaunchctlError(description: "launchctl returned no output")
+        }
+        return output
+    }
+
+    private func execute(_ arguments: [String], allowMissingService: Bool = false) async throws -> String? {
         let result: ExecutionResult<Void, StringOutput<UTF8>, CombinedErrorOutput>
         do {
             result = try await Subprocess.run(
@@ -85,6 +107,13 @@ struct LaunchctlLaunchAgentControl: LaunchAgentControl {
         }
         guard case .exited(0) = result.terminationStatus else {
             let combined = result.standardOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+            let label = arguments.last?.split(separator: "/").last ?? ""
+            let missingMessage = "Could not find service \"\(label)\" in domain for user gui: \(uid)"
+            if allowMissingService, case .exited(113) = result.terminationStatus,
+               arguments.count == 2,
+               combined == missingMessage || combined == "Bad request.\n" + missingMessage {
+                return nil
+            }
             throw LaunchctlError(
                 description: "launchctl \(arguments.joined(separator: " ")) \(result.terminationStatus): \(combined)"
             )
@@ -102,6 +131,28 @@ extension LaunchctlLaunchAgentControl: LaunchAgentInspecting {
     func disabledLabels() async -> Set<String> {
         guard let output = try? await run(["print-disabled", "gui/\(uid)"]) else { return [] }
         return Self.parseDisabledLabels(output)
+    }
+
+    /// Only top-level state/pid fields describe the job itself. Unknown output fails closed.
+    static func parseJobState(_ text: String) throws -> LaunchAgentRuntimeState {
+        var state: String?
+        var pid: Int?
+        for line in text.split(separator: "\n") {
+            guard line.hasPrefix("\t"), !line.hasPrefix("\t\t") else { continue }
+            let field = line.dropFirst()
+            if field.hasPrefix("state = ") { state = String(field.dropFirst(8)).trimmingCharacters(in: .whitespaces) }
+            if field.hasPrefix("pid = ") {
+                guard let parsed = Int(field.dropFirst(6).trimmingCharacters(in: .whitespaces)), parsed > 0 else {
+                    throw LaunchctlError(description: "launchctl print: invalid top-level pid")
+                }
+                pid = parsed
+            }
+        }
+        if pid != nil || state == "running" { return .running }
+        guard state == "not running" || state == "waiting" else {
+            throw LaunchctlError(description: "launchctl print: unrecognized or missing top-level state")
+        }
+        return .idle
     }
 
     /// Reads the first, top-level (single-tab-indented) `runs =` and `last exit code =` lines of a

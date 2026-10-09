@@ -31,11 +31,117 @@ struct SpecCitationResolutionTests {
         ## G5: Five Is Alive {#g5-five}
         Target: Maintain high quality...
         """
-        return try await fixture.commit(
+        _ = try await fixture.commit(
             filename: "docs/requirements/vision/goals.md",
             content: goalsContent,
             message: "add goals"
         )
+
+        _ = try await fixture.commit(
+            filename: "path.md",
+            content: "# Root spec path\n",
+            message: "add path.md"
+        )
+
+        _ = try await fixture.commit(
+            filename: "docs/requirements/epics/live-check/overview.md",
+            content: "# Live Check Overview\n\n## Business Rules\nRules here.\n",
+            message: "add overview"
+        )
+
+        return try await fixture.commit(
+            filename: "docs/requirements/epics/live-check/stories/greeting.md",
+            content: "# Greeting Story\n\n## Acceptance Criteria\nCriteria here.\n",
+            message: "add greeting story"
+        )
+    }
+
+    @Test("Resolves citations given as path.md#anchor and plain repository paths")
+    func repositoryPathResolution() async throws {
+        let fixture = GitFixture(name: "spec-citation-paths")
+        await fixture.initRepo(defaultBranch: "main")
+        let sha = try await populateSpecFixture(fixture)
+
+        let specSource = SpecSource(path: fixture.path)
+        let repos = ProjectRepositories(workingRepos: [], specSource: specSource)
+        let reader = MainlineReader()
+
+        // 1. path.md#anchor (top-level path with anchor)
+        let resPathAnchor = await reader.resolveCitation("path.md#anchor", in: repos)
+        #expect(resPathAnchor.resolves == true)
+        #expect(resPathAnchor.resolvedPath == "path.md")
+        #expect(resPathAnchor.commit == sha)
+        #expect(resPathAnchor.repository == "spec_source")
+        #expect(resPathAnchor.failureReason == nil)
+
+        // 2. plain path (top-level and nested repository path without anchor)
+        let resPlainPath = await reader.resolveCitation("path.md", in: repos)
+        #expect(resPlainPath.resolves == true)
+        #expect(resPlainPath.resolvedPath == "path.md")
+
+        let resNestedPlainPath = await reader.resolveCitation(
+            "docs/requirements/epics/live-check/overview.md",
+            in: repos
+        )
+        #expect(resNestedPlainPath.resolves == true)
+        #expect(resNestedPlainPath.resolvedPath == "docs/requirements/epics/live-check/overview.md")
+
+        // 3. full repository path with anchor (issue #406 citations)
+        let resGreetingAnchor = await reader.resolveCitation(
+            "docs/requirements/epics/live-check/stories/greeting.md#acceptance-criteria",
+            in: repos
+        )
+        #expect(resGreetingAnchor.resolves == true)
+        #expect(resGreetingAnchor.resolvedPath == "docs/requirements/epics/live-check/stories/greeting.md")
+
+        let resOverviewAnchor = await reader.resolveCitation(
+            "docs/requirements/epics/live-check/overview.md#business-rules",
+            in: repos
+        )
+        #expect(resOverviewAnchor.resolves == true)
+        #expect(resOverviewAnchor.resolvedPath == "docs/requirements/epics/live-check/overview.md")
+
+        // 4. Nonexistent path rejection
+        let resMissing = await reader.resolveCitation("nonexistent.md#anchor", in: repos)
+        #expect(resMissing.resolves == false)
+        #expect(resMissing.failureReason?.contains("could not be resolved") == true)
+    }
+
+    @Test("Resolves citations given as <epic>/<story> and goal ID")
+    func identifierResolution() async throws {
+        let fixture = GitFixture(name: "spec-citation-ids")
+        await fixture.initRepo(defaultBranch: "main")
+        _ = try await populateSpecFixture(fixture)
+
+        let specSource = SpecSource(path: fixture.path)
+        let repos = ProjectRepositories(workingRepos: [], specSource: specSource)
+        let reader = MainlineReader()
+
+        // 1. <epic>/<story> and <epic>/<story>#anchor
+        let resStoryID = await reader.resolveCitation(
+            "feature-authoring/author-an-architectural-brief",
+            in: repos
+        )
+        #expect(resStoryID.resolves == true)
+        #expect(
+            resStoryID.resolvedPath ==
+            "docs/requirements/epics/feature-authoring/stories/author-an-architectural-brief.md"
+        )
+
+        let resStoryAnchor = await reader.resolveCitation(
+            "feature-authoring/author-an-architectural-brief#brief-authoring",
+            in: repos
+        )
+        #expect(resStoryAnchor.resolves == true)
+        #expect(
+            resStoryAnchor.resolvedPath ==
+            "docs/requirements/epics/feature-authoring/stories/author-an-architectural-brief.md"
+        )
+
+        // 2. goal ID
+        let resGoalID = await reader.resolveCitation("G1", in: repos)
+        #expect(resGoalID.resolves == true)
+        #expect(resGoalID.resolvedPath == "docs/requirements/vision/goals.md")
     }
 
     @Test("Resolves valid story ID `<epic>/<story>`")

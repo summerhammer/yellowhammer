@@ -171,7 +171,7 @@ struct LandActTests {
         #expect(try journal.isCycleLanded(cycleID: land.cycleID))
     }
 
-    @Test("A push reporting not-pushed keeps the Worktree held, skips the pull request, and still lands")
+    @Test("A push reporting not-pushed is outstanding: no Verification or pull request, Worktrees held, unlanded")
     func notPushedKeepsWorktreeHeldAndSkipsPullRequest() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
@@ -194,12 +194,20 @@ struct LandActTests {
 
         try await invocation.run()
 
-        #expect(!log.all.contains("openPullRequest:backend"))
-        #expect(log.all.contains("openPullRequest:mobile"))
+        #expect(!log.all.contains("verification"))
+        #expect(!log.all.contains { $0.hasPrefix("openPullRequest") })
+        #expect(!log.all.contains("archiveCycle"))
 
         let held = try heldWorktreeIDs(journal, featureID: land.featureID)
-        #expect(held == ["backend": true, "mobile": false])
-        #expect(try journal.isCycleLanded(cycleID: land.cycleID))
+        #expect(held == ["backend": true, "mobile": true])
+        #expect(try !journal.isCycleLanded(cycleID: land.cycleID))
+        #expect(try journal.events(ofType: .cycleLanded).isEmpty)
+
+        let backendPush = try #require(try recordedLandSteps(journal, .push, repository: "backend").first)
+        #expect(backendPush.outcome == .failed)
+        let pullRequests = try recordedLandSteps(journal, .openPullRequest)
+        #expect(pullRequests.count == 2)
+        #expect(pullRequests.allSatisfy { $0.outcome == .skipped && $0.detail == "a required push is outstanding" })
     }
 
     @Test("A merge test reporting a conflict does not stop the lane")
