@@ -81,6 +81,22 @@ public struct FeatureRecord: Equatable, Sendable {
             issueURL: issueURL
         )
     }
+
+    /// The Feature's display identifier (e.g. `YLH-325`), falling back to `issueID` when unknown.
+    public var displayIdentifier: String {
+        if let id = issueIDForDisplay, !id.isEmpty { return id }
+        if let key = issueKey, !key.isEmpty { return key }
+        return issueID
+    }
+
+    /// Renders the Feature as a Markdown link to `issueURL` when recorded, or as `displayIdentifier`.
+    public var displayLink: String {
+        let text = displayIdentifier
+        if let issueURL, !issueURL.isEmpty {
+            return "[\(text)](\(issueURL))"
+        }
+        return text
+    }
 }
 
 extension JournalStore {

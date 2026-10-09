@@ -1,7 +1,7 @@
 import Domain
 import Foundation
 
-/// The comment posted on the in-flight Feature Issue when explicit Project removal (roadmap P13.5;
+/// The comment posted on the in-flight Feature Card when explicit Project removal (roadmap P13.5;
 /// spec risks.md OQ52(1)) releases it. Pure: no Journal or board access. States plainly that
 /// Yellowhammer's automated management stopped, that nothing on Linear was deleted, and that any
 /// Worktree with uncommitted edits got a WIP commit pushed to the Feature Branch before removal — a
@@ -29,8 +29,8 @@ public struct ProjectRemovalComment: Equatable, Sendable {
         }
         return """
         **Project removed.** Yellowhammer's automated management of Project \(projectID.rawValue) was \
-        released because the Project was removed on this machine. This Feature Issue, its Cards and \
-        every other object on Linear are untouched — nothing here was deleted, and this Feature is no \
+        released because the Project was removed on this machine. This Feature Card, its Work Cards and \
+        every other object on Linear are untouched — nothing here was deleted, and this Feature Card is no \
         longer in flight for Yellowhammer. \(worktrees)
         """
     }

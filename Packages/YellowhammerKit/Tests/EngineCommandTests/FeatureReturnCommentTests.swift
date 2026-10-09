@@ -80,4 +80,103 @@ struct FeatureReturnCommentTests {
         let comment = FeatureReturnComment(clauses: [clause("c1", verdict: .unmet)], pullRequests: [:])
         #expect(comment.body().contains("none was opened"))
     }
+
+    private struct DuplicateClausesFixture {
+        let feature: FeatureRecord
+        let card: CardRecord
+        let clauses: [ClauseVerificationRecord]
+    }
+
+    private func makeDuplicateClausesFixture() -> DuplicateClausesFixture {
+        let featureUUID = "201acaaa-c2ce-4082-a90a-096a50228fa7"
+        let cardUUID = "ac155696-c2ce-4082-a90a-096a50228fa7"
+        let feature = FeatureRecord(
+            id: 1, issueID: featureUUID, issueIDForDisplay: "YLH-325", state: "returned",
+            worktreeName: nil, createdAt: Date(), abandonedAt: nil, closedBy: nil,
+            issueKey: "YLH-325", issueURL: "https://linear.app/team/issue/YLH-325"
+        )
+        let card = CardRecord(
+            id: 2, cycleID: 1, issueID: cardUUID, issueIDForDisplay: "YLH-326", title: "Card 1 title",
+            repository: "backend", kind: "card", authoredOrder: 1, state: .done, waitingReason: nil,
+            blockReason: nil, shelvedFromState: nil, budgetEpoch: 0, createdAt: Date(), stateVersion: 1,
+            boardStateVersion: 1, unansweredNights: 0, unansweredLastCountedNightID: nil, failedAdoptions: 0,
+            divergenceStandingNightID: nil, issueKey: "YLH-326", issueURL: "https://linear.app/team/issue/YLH-326"
+        )
+        let clauses = [
+            ClauseVerificationRecord(
+                issueID: featureUUID, cid: "c1", level: "feature", text: "Clause c1 text.",
+                locationID: "epic/story", citationProvenance: "machine-found", verdict: .met,
+                whatWasChecked: "checked c1", interpretation: "read c1", judgedBy: .agent
+            ),
+            ClauseVerificationRecord(
+                issueID: featureUUID, cid: "c2", level: "feature", text: "Clause c2 text.",
+                locationID: "epic/story", citationProvenance: "machine-found", verdict: .unmet,
+                whatWasChecked: "checked c2", interpretation: "read c2", judgedBy: .engine
+            ),
+            ClauseVerificationRecord(
+                issueID: cardUUID, cid: "c1", level: "card", text: "Clause c1 text.",
+                locationID: "epic/story", citationProvenance: "machine-found", verdict: .met,
+                whatWasChecked: "checked c1", interpretation: "read c1", judgedBy: .agent
+            ),
+            ClauseVerificationRecord(
+                issueID: cardUUID, cid: "c2", level: "card", text: "Clause c2 text.",
+                locationID: "epic/story", citationProvenance: "machine-found", verdict: .unmet,
+                whatWasChecked: "checked c2", interpretation: "read c2", judgedBy: .engine
+            )
+        ]
+        return DuplicateClausesFixture(feature: feature, card: card, clauses: clauses)
+    }
+
+    @Test("Output contains no UUID when identifiers are recorded, and lists each clause exactly once")
+    func containsNoUUIDAndListsEachClauseOnce() throws {
+        let fixture = makeDuplicateClausesFixture()
+        let record = FeatureVerificationRecord(
+            id: 1, featureID: 1, cycleID: 1, route: nil, nightID: 1, runID: RunID(),
+            verifiedAt: Date(), clauses: fixture.clauses
+        )
+        let comment = FeatureReturnComment(
+            record: record, pullRequests: [:], feature: fixture.feature, cards: [fixture.card]
+        )
+        let body = comment.body()
+
+        let uuidRegex = try Regex(#"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"#)
+        #expect(!body.contains(uuidRegex))
+
+        let c1Count = body.components(separatedBy: "Clause c1 text.").count - 1
+        let c2Count = body.components(separatedBy: "Clause c2 text.").count - 1
+        #expect(c1Count == 1)
+        #expect(c2Count == 1)
+
+        #expect(body.contains("Feature [YLH-325](https://linear.app/team/issue/YLH-325) c1"))
+        #expect(body.contains("Feature [YLH-325](https://linear.app/team/issue/YLH-325) c2"))
+    }
+
+    @Test("Falls back to Card title when identifier is unknown")
+    func fallsBackToCardTitle() throws {
+        let cardUUID = "bc155696-c2ce-4082-a90a-096a50228fa7"
+        let card = CardRecord(
+            id: 3, cycleID: 1, issueID: cardUUID, issueIDForDisplay: nil, title: "Parse YAML",
+            repository: "backend", kind: "card", authoredOrder: 1, state: .done, waitingReason: nil,
+            blockReason: nil, shelvedFromState: nil, budgetEpoch: 0, createdAt: Date(), stateVersion: 1,
+            boardStateVersion: 1, unansweredNights: 0, unansweredLastCountedNightID: nil, failedAdoptions: 0,
+            divergenceStandingNightID: nil, issueKey: nil, issueURL: "https://linear.app/team/issue/YAML-1"
+        )
+        let clauses = [
+            ClauseVerificationRecord(
+                issueID: cardUUID, cid: "c1", level: "card", text: "Parse yaml file.",
+                locationID: "epic/story", citationProvenance: "machine-found", verdict: .unmet,
+                whatWasChecked: "checked c1", interpretation: "read c1", judgedBy: .engine
+            )
+        ]
+        let comment = FeatureReturnComment(
+            clauses: clauses,
+            pullRequests: [:],
+            issues: [cardUUID: FeatureReturnComment.IssueDisplay(card: card)]
+        )
+        let body = comment.body()
+
+        let uuidRegex = try Regex(#"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"#)
+        #expect(!body.contains(uuidRegex))
+        #expect(body.contains("Work Card [Parse YAML](https://linear.app/team/issue/YAML-1) c1"))
+    }
 }

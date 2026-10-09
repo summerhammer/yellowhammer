@@ -14,9 +14,15 @@ func projectRemovalCommentBody() throws {
     #expect(body.contains("alpha"))
     #expect(body.contains("untouched"))
     #expect(body.contains("WIP"))
+    #expect(body.contains("Feature Card"))
+    #expect(body.contains("Work Cards"))
+    #expect(!body.contains("Feature Issue"))
     let rehearsal = ProjectRemovalComment(projectID: projectID, mode: .rehearsal).body()
     #expect(rehearsal.contains("never commits or pushes"))
     #expect(!rehearsal.contains("pushed to its Feature Branch"))
+    #expect(rehearsal.contains("Feature Card"))
+    #expect(rehearsal.contains("Work Cards"))
+    #expect(!rehearsal.contains("Feature Issue"))
 }
 
 // `yh project remove <id>` (roadmap P13.5; spec risks.md OQ52(1)). Slice 2: EngineCommand's

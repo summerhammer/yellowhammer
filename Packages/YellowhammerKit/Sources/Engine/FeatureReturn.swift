@@ -66,7 +66,13 @@ public struct FeatureReturn: FeatureReturning, Sendable {
     private func postComment(_ recorded: FeatureVerificationRecord, context: LandActFeatureContext) async throws {
         guard let outbox = context.act.outbox else { return }
         let pullRequests = try context.act.journal.pullRequests(featureID: context.feature.id)
-        let body = FeatureReturnComment(record: recorded, pullRequests: pullRequests).body()
+        let cards = try context.act.journal.cards(cycleID: context.cycleID)
+        let body = FeatureReturnComment(
+            record: recorded,
+            pullRequests: pullRequests,
+            feature: context.feature,
+            cards: cards
+        ).body()
         let key = "land:\(context.cycleID):return:\(context.feature.issueID)"
         let issue = BoardObjectID(rawValue: context.feature.issueID)
         _ = try await outbox.post(OutboxWrite(key: key, write: .createComment(issue: issue, body: body)))
