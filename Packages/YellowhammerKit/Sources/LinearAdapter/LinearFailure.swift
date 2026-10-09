@@ -38,7 +38,9 @@ struct LinearFailure {
             return rateLimited(response)
         }
         if (500..<600).contains(response.statusCode) {
-            return .unreachable(scrub("Linear answered with HTTP \(response.statusCode)"))
+            return .unreachable(
+                scrub("Linear answered with HTTP \(response.statusCode)"), retryAfter: LinearBudget.retryAfter(response)
+            )
         }
         let detail = refusalDetail(data)
         let described = [detail.code, detail.description].compactMap { $0 }.joined(separator: ": ")
@@ -68,7 +70,9 @@ struct LinearFailure {
         case 429:
             return rateLimited(response)
         case 500..<600:
-            return .unreachable(scrub("Linear answered with HTTP \(response.statusCode)"))
+            return .unreachable(
+                scrub("Linear answered with HTTP \(response.statusCode)"), retryAfter: LinearBudget.retryAfter(response)
+            )
         default:
             return graphQL(data, response) ?? .refused(scrub("Linear answered with HTTP \(response.statusCode)"))
         }

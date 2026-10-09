@@ -17,7 +17,7 @@ struct NightCardArchiveTests {
         let board = ActBoard(reading: reading, writing: boards.writing, provisioning: boards.provisioning)
         try await EngineInvocation(
             act: .author, mode: .real, nightStart: nightCardNightStart, journal: journal,
-            trigger: .forced, board: board, work: { context in
+            trigger: .forced, board: board, outboxTransientRetry: SleepLog().ruled, work: { context in
                 let maintenance = try #require(context.nightCard)
                 try await maintenance.recordAuthoring(night: context.night)
                 _ = try await maintenance.acceptCompletion(night: context.night)
@@ -25,11 +25,16 @@ struct NightCardArchiveTests {
                 _ = try outbox.accept(OutboxWrite(key: "old-halt", write: .createComment(
                     issue: BoardObjectID(rawValue: try #require(context.night.nightCardIssueID)), body: "old halt"
                 )))
-                await boards.writing.refuseNext(.unreachable("leave old entries pending"))
+                // Persistent, so the in-pass resends do not clear it; lifted below.
+                await boards.writing.refuse(
+                    issue: BoardObjectID(rawValue: try #require(context.night.nightCardIssueID)),
+                    with: .unreachable("leave old entries pending")
+                )
             }
         ).run()
         let first = try #require(try journal.currentNight())
         let old = BoardObjectID(rawValue: try #require(first.nightCardIssueID))
+        await boards.writing.clearRefusal(issue: old)
         await boards.writing.edit(old, description: "Human prose\n" + fencedDescription)
         try await boards.writing.archiveIssue(old)
         let archived = try #require(await boards.writing.issue(old))

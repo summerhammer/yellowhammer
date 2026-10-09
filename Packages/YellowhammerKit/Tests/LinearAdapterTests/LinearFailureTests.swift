@@ -71,7 +71,7 @@ struct LinearFailureTests {
         let error = try await failure([
             Fixture.json("Service Unavailable", status: statusCode)
         ])
-        guard case .unreachable(let message) = error else {
+        guard case .unreachable(let message, _) = error else {
             Issue.record("expected unreachable, got \(error)")
             return
         }
@@ -84,11 +84,31 @@ struct LinearFailureTests {
             Fixture.token(),
             Fixture.json("Server Error", status: statusCode)
         ])
-        guard case .unreachable(let message) = error else {
+        guard case .unreachable(let message, _) = error else {
             Issue.record("expected unreachable, got \(error)")
             return
         }
         #expect(message.contains("\(statusCode)"))
+    }
+
+    @Test("A 503 carries its Retry-After, so the Outbox can honour it; one without it carries none")
+    func http503RetryAfter() async throws {
+        let error = try await failure([
+            Fixture.token(),
+            Fixture.json("Service Unavailable", status: 503, headers: ["Retry-After": "12"])
+        ])
+        guard case .unreachable(_, let retryAfter) = error else {
+            Issue.record("expected unreachable, got \(error)")
+            return
+        }
+        #expect(retryAfter == .seconds(12))
+
+        let bare = try await failure([Fixture.token(), Fixture.json("Service Unavailable", status: 503)])
+        guard case .unreachable(_, let none) = bare else {
+            Issue.record("expected unreachable, got \(bare)")
+            return
+        }
+        #expect(none == nil)
     }
 
     @Test("A GraphQL entity-not-found for the Linear project is scopeNotFound")

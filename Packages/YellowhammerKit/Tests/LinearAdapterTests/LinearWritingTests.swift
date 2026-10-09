@@ -202,7 +202,7 @@ struct LinearWritingTests {
         do {
             _ = try await adapter.createIssue(draft, clientID: clientID)
             Issue.record("expected unreachable")
-        } catch .unreachable(let message) {
+        } catch .unreachable(let message, _) {
             #expect(message.contains("503"))
         } catch {
             Issue.record("unexpected error: \(error)")

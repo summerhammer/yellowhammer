@@ -1,6 +1,9 @@
 import ArgumentParser
+import Domain
+import Engine
 @testable import EngineCommand
 import Foundation
+import Journal
 import Testing
 
 // An Act's diagnostic log line carries a timestamp because launchd's does not.
@@ -30,6 +33,35 @@ struct ActLogTests {
 
         #expect(lines == ["2026-10-03T07:15:56Z Error: the board refused Yellowhammer's identity"])
         #expect(thrown as? ExitCode == AuthorCommand.exitCode(for: Refusal()))
+        #expect(thrown as? ExitCode != .success)
+    }
+
+    @Test("A Lease stand-down writes one `Stood down:` line, never `Error:`, and keeps the exit code")
+    func standDownIsNotAnError() async throws {
+        let directory = ConfigurationDirectory()
+        let projectID = try #require(ProjectID(rawValue: "alpha"))
+        let journal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: projectID)
+        guard case .claimed(let holder) = try journal.claimActLease(act: .build, runID: RunID(), mode: .real) else {
+            Issue.record("The running Act did not claim the Project")
+            return
+        }
+        let standDown = EngineInvocationError.actLeaseHeld(act: .land, projectID: projectID, by: holder)
+
+        var lines: [String] = []
+        var thrown: (any Error)?
+        do {
+            try await ActLog.reportingFailure(
+                of: LandCommand.self, now: { instant },
+                write: { text, date in lines.append(ActLog.line(text, at: date)) },
+                body: { throw standDown }
+            )
+        } catch {
+            thrown = error
+        }
+
+        #expect(lines == ["2026-10-03T07:15:56Z Stood down: \(String(describing: standDown))"])
+        #expect(lines.allSatisfy { !$0.contains("Error:") })
+        #expect(thrown as? ExitCode == LandCommand.exitCode(for: standDown))
         #expect(thrown as? ExitCode != .success)
     }
 
