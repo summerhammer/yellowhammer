@@ -224,6 +224,7 @@ struct AuthoringFixtureTests {
         #expect(rendered == instruction.render())
         #expect(rendered.contains("/runs/result.json"))
         #expect(rendered.contains("yellowhammer.result.breakdown"))
+        #expect(rendered.contains("where `citation` is a story ID `<epic>/<story>` or a goal ID"))
         #expect(rendered.hasSuffix("\n"))
         #expect(instruction.withResultFilePath("/other.json").render().contains("/other.json"))
     }
