@@ -16,7 +16,7 @@ struct CodeHostingSettingsPane: View {
             GitHubCodeHostingSection(model: model)
             CodeHostingUnsupportedGroup()
         }
-        .onAppear { model.refreshOnFirstAppearance() }
+        .onAppear { model.requestRefresh() }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("settings-code-hosting-pane")
     }

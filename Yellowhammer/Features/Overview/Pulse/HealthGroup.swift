@@ -31,11 +31,18 @@ struct HealthGroup: View {
                     }
                 }
             }
-            Button("Open Settings") { openDestination(.settings) }
+            Button("Open Settings") { openDestination(settingsDestination) }
                 .buttonStyle(.link)
                 .accessibilityIdentifier("pulse-health-settings")
         }
         .accessibilityIdentifier("pulse-health")
+    }
+
+    /// A single repair destination is the useful way out; mixed findings need the Project's Settings.
+    private var settingsDestination: PulseDestination {
+        let destinations = Set((health ?? []).map(\.destination))
+        guard destinations.count == 1, let destination = destinations.first else { return .settings }
+        return destination
     }
 
     private func help(for destination: PulseDestination) -> String {

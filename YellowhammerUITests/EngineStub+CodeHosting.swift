@@ -8,6 +8,8 @@ extension EngineStub {
     /// container can change the report mid-test. Otherwise it returns the default connection.
     static let printCodeHostingConnectionsCase = #"""
           print-code-hosting-connections)
+            if [ -n "$YH_STUB_ARGV_LOG" ]; then echo "$all_args" >> "$YH_STUB_ARGV_LOG"; fi
+            if [ -n "$YH_STUB_CODE_HOSTING_REPORT_GATE" ]; then wait_for_gate code-hosting-report; fi
             if [ -n "$YH_STUB_CODE_HOSTING_REPORT_FILE" ] && [ -f "$YH_STUB_CODE_HOSTING_REPORT_FILE" ]; then
               cat "$YH_STUB_CODE_HOSTING_REPORT_FILE"
               exit 0
@@ -81,11 +83,11 @@ extension EngineStub {
     static let removeCodeHostingConnectionCase = #"""
           remove-code-hosting-connection)
             if [ -n "$YH_STUB_ARGV_LOG" ]; then echo "$all_args" >> "$YH_STUB_ARGV_LOG"; fi
+            if [ -n "$YH_STUB_CODE_HOSTING_GATES" ]; then wait_for_gate code-hosting-removed; fi
             if [ -n "$YH_STUB_CODE_HOSTING_REMOVE_REFUSE" ]; then
               echo "$YH_STUB_CODE_HOSTING_REMOVE_REFUSE"
               exit 1
             fi
-            if [ -n "$YH_STUB_CODE_HOSTING_GATES" ]; then wait_for_gate code-hosting-removed; fi
             echo "Code Hosting Connection $2 removed."
             exit 0
             ;;
