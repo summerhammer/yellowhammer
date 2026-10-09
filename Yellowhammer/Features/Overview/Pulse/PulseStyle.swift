@@ -63,7 +63,6 @@ extension NightPulseState {
         case .running: .active
         case .done: .info
         case .starved: .attention
-        case .halted: .error
         }
         return style
     }

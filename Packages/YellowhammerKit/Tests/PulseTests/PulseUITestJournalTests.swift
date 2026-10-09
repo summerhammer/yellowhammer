@@ -101,6 +101,10 @@ private func seedUITestJournal(_ journal: JournalStore) throws {
         featureID: feature.featureID, repository: uiTestJournalRepo,
         url: "https://github.com/acme/archive/pull/42", nightID: night.id, runID: run, now: seededAt
     )
+    _ = try journal.acceptOutbox(
+        [OutboxDraft(clientID: UUID(), operation: "comment", payload: "{}")],
+        runID: run, now: seededAt
+    )
     _ = try journal.releaseActLease(runID: run)
 }
 

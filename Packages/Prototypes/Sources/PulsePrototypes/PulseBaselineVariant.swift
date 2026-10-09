@@ -193,7 +193,21 @@ struct PulseBaselineVariant: View {
         if let flags, !flags.isEmpty {
             ForEach(flags) { flag in
                 Button { openDestination(.settings) } label: {
-                    Label("\(flag.kind.rawValue): \(flag.detail)", systemImage: "exclamationmark.triangle")
+                    VStack(alignment: .leading) {
+                        Label("\(flag.kind.rawValue): \(flag.detail)", systemImage: "exclamationmark.triangle")
+                        if flag.kind == .undeliveredBoardWrites {
+                            Text(flag.outboxSummary).font(.caption).foregroundStyle(.secondary)
+                            if let error = flag.lastError {
+                                Text(error).font(.caption).foregroundStyle(.secondary)
+                            }
+                        } else if let recoveredAt = flag.recoveredAt {
+                            let count = flag.occurrenceCount
+                            let time = recoveredAt.formatted(date: .omitted, time: .shortened)
+                            Text("\(count) failure · recovered \(time)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
                 .buttonStyle(.link)
             }

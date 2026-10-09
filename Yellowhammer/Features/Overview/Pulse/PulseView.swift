@@ -14,6 +14,8 @@ struct PulseView: View {
     let asOf: Date
     /// What the Inspector shows, so the row it names is marked.
     let inspected: PulseSelection?
+    let deliverNow: () -> Void
+    let canDeliverNow: Bool
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -45,7 +47,7 @@ struct PulseView: View {
         case .now: NowGroup(now: pulse.now, asOf: asOf, inspected: inspected)
         case .feature: FeatureGroup(feature: pulse.feature, inspected: inspected)
         case .night: NightGroup(night: pulse.night)
-        case .health: HealthGroup(health: pulse.health)
+        case .health: HealthGroup(health: pulse.health, deliverNow: deliverNow, canDeliverNow: canDeliverNow)
         }
     }
 }

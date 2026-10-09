@@ -347,7 +347,7 @@ extension JournalStore {
         return try Self.outboxEntry(from: row, id: id)
     }
 
-    private static func outboxEntry(from row: Row, id: Int64) throws -> OutboxEntry {
+    static func outboxEntry(from row: Row, id: Int64) throws -> OutboxEntry {
         let onError = { JournalError.outboxEntryUnreadable(id: id) }
 
         guard let clientIDStr: String = row["client_id"] else {

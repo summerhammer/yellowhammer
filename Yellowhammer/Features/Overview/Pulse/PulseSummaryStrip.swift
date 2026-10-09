@@ -71,7 +71,7 @@ private struct PulseSummaryFigure: View {
             return (night.state.rawValue, "started \(night.startedAt.formatted(date: .omitted, time: .shortened))")
         case .health:
             guard let health = pulse.health else { return ("—", "yh doctor not read") }
-            return health.isEmpty ? ("OK", "no health flags") : ("\(health.count)", "yh doctor flags")
+            return health.isEmpty ? ("OK", "no flags") : ("\(health.count)", "flags")
         }
     }
 }

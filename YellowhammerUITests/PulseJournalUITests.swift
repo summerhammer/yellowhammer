@@ -35,6 +35,15 @@ final class PulseJournalUITests: XCTestCase {
             "-YellowhammerConfigurationDirectory", configurationDirectory.path(percentEncoded: false),
             "-ApplePersistenceIgnoreState", "YES"
         ]
+        if name.contains("testDeliverNowBuildsAndRefreshesHealthAfterCompletion") {
+            let stubDirectory = configurationDirectory.appending(component: "stub", directoryHint: .isDirectory)
+            try FileManager.default.createDirectory(at: stubDirectory, withIntermediateDirectories: true)
+            let stub = stubDirectory.appending(component: "yh.sh", directoryHint: .notDirectory)
+            try Self.deliveryStub.write(to: stub, atomically: true, encoding: .utf8)
+            app.launchArguments += ["-YellowhammerEngineStub", stub.path(percentEncoded: false)]
+            app.launchEnvironment["YH_DELIVERY_FINDINGS"] = stubDirectory.appending(component: "findings.json").path()
+            app.launchEnvironment["YH_DELIVERY_ARGUMENTS"] = stubDirectory.appending(component: "arguments.txt").path()
+        }
         app.launch()
         XCTAssertTrue(waitForHeading("Zed Archive", timeout: 10), "Pulse heading is \(text(of: "pulse-heading"))")
     }
@@ -43,9 +52,11 @@ final class PulseJournalUITests: XCTestCase {
         if testRun?.hasSucceeded == false {
             add(XCTAttachment(string: app.debugDescription))
             add(XCTAttachment(screenshot: XCUIScreen.main.screenshot()))
+            add(XCTAttachment(string: "UI fixture: \(configurationDirectory.path(percentEncoded: false))"))
+        } else {
+            try? FileManager.default.removeItem(at: configurationDirectory)
         }
         app.terminate()
-        try? FileManager.default.removeItem(at: configurationDirectory)
     }
 
     func testSidebarShowsTheRunningAttemptAndTheLaneBadge() {
@@ -90,6 +101,46 @@ final class PulseJournalUITests: XCTestCase {
         XCTAssertTrue(text(of: "night-state").contains("running"), "night-state is \(text(of: "night-state"))")
         XCTAssertTrue(element("night-dispositions").exists)
         XCTAssertFalse(element("night-absence").exists)
+        openHealth()
+        let deliver = element("pulse-deliver-now")
+        XCTAssertTrue(deliver.waitForExistence(timeout: 10), "the Journal fixture should include a pending write")
+        XCTAssertFalse(deliver.isEnabled, "an overridden config without a yh stub must not launch an Act")
+    }
+
+    func testDeliverNowBuildsAndRefreshesHealthAfterCompletion() throws {
+        openHealth()
+        let deliver = element("pulse-deliver-now")
+        XCTAssertTrue(deliver.waitForExistence(timeout: 10), "the pending Board write row has no Deliver now action")
+        XCTAssertTrue(deliver.isEnabled, "Deliver now is disabled despite the Engine test stub")
+        XCTAssertTrue(deliver.isHittable, "Deliver now is outside the visible Health card")
+        app.activate()
+        deliver.click()
+
+        let calls = configurationDirectory.appending(components: "stub", "calls.txt", directoryHint: .notDirectory)
+        XCTAssertTrue(
+            waitForFileContaining(calls, "build --project archive", timeout: 5), "yh did not start the build stub"
+        )
+        let arguments = configurationDirectory
+            .appending(components: "stub", "arguments.txt", directoryHint: .notDirectory)
+        XCTAssertTrue(waitForFile(arguments, timeout: 5), "yh build was not launched")
+        let line = try? String(contentsOf: arguments, encoding: .utf8)
+        XCTAssertEqual(line?.trimmingCharacters(in: .whitespacesAndNewlines), "build --project archive")
+        XCTAssertTrue(waitForFileContaining(calls, "build completed", timeout: 5), "the build stub did not finish")
+
+        let refreshedHealth = app.buttons
+            .matching(NSPredicate(format: "label == %@", "Health, 2, flags"))
+            .firstMatch
+        XCTAssertTrue(refreshedHealth.waitForExistence(timeout: 10), "Pulse did not refresh after the build Act exited")
+        let refreshedFlag = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS 'delivery refreshed'"))
+            .firstMatch
+        XCTAssertTrue(refreshedFlag.exists, "the refreshed Doctor finding was not rendered in Health")
+        let events = (try? String(contentsOf: calls, encoding: .utf8))?.components(separatedBy: .newlines) ?? []
+        let completionIndex = events.firstIndex { $0.contains("build completed") }
+        let finalDoctorIndex = events.lastIndex { $0.contains("doctor --json") }
+        XCTAssertNotNil(completionIndex)
+        XCTAssertNotNil(finalDoctorIndex)
+        XCTAssertGreaterThan(finalDoctorIndex ?? -1, completionIndex ?? .max, "Health reread preceded build completion")
     }
 
     func testACardOpensItsDetailInTheInspector() {
@@ -160,12 +211,54 @@ final class PulseJournalUITests: XCTestCase {
         )
     }
 
+    private static let deliveryStub = """
+    #!/bin/sh
+    echo "$(date +%s) $*" >> "$(dirname "$0")/calls.txt"
+    if [ "$1" = doctor ] && [ "$2" = --json ]; then
+      if [ -f "$YH_DELIVERY_FINDINGS" ]; then cat "$YH_DELIVERY_FINDINGS"; else echo '[]'; fi
+      exit 0
+    fi
+    if [ "$1" = build ] && [ "$2" = --project ] && [ "$3" = archive ]; then
+      echo "$*" > "$YH_DELIVERY_ARGUMENTS"
+      sleep 2
+      echo '[{"check":"probes","subject":"codex","severity":"failure",' \
+        '"message":"delivery refreshed"}]' > "$YH_DELIVERY_FINDINGS"
+      echo "$(date +%s) build completed" >> "$(dirname "$0")/calls.txt"
+      exit 0
+    fi
+    exit 2
+    """
+
     private func click(_ identifier: String) {
         let target = element(identifier)
         XCTAssertTrue(target.waitForExistence(timeout: 10), "\(identifier) is missing")
         // Another app's window can hold focus under a busy runner; XCUITest clicks only a frontmost app.
         app.activate()
         target.click()
+    }
+
+    private func openHealth() {
+        let health = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Health,'")).firstMatch
+        XCTAssertTrue(health.waitForExistence(timeout: 5), "Health summary action is missing")
+        health.click()
+    }
+
+    private func waitForFile(_ url: URL, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        return FileManager.default.fileExists(atPath: url.path(percentEncoded: false))
+    }
+
+    private func waitForFileContaining(_ url: URL, _ text: String, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let content = try? String(contentsOf: url, encoding: .utf8), content.contains(text) { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        return (try? String(contentsOf: url, encoding: .utf8))?.contains(text) == true
     }
 
     private func element(_ identifier: String) -> XCUIElement {

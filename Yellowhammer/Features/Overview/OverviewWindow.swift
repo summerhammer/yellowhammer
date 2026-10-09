@@ -32,6 +32,7 @@ struct OverviewWindow: View {
     @State private var confirmingStop = false
     /// Only a synchronous launch failure is retained; the app never owns an Author run's state.
     @State private var authorFailure: String?
+    @State private var launchFailureTitle = "Engine could not be launched"
     @State private var abort = AttemptAbortModel()
     /// The Attempt the Operator asked to abort, while its confirmation is shown.
     @State private var abortRequest: PendingAttemptAbort?
@@ -53,6 +54,8 @@ struct OverviewWindow: View {
     private var canStartAuthor: Bool {
         selectedSnapshot != nil && (!ConfigurationDirectory.isOverridden || SetupEngine.isStubbed)
     }
+
+    private var canDeliverNow: Bool { canStartAuthor }
 
     /// The window's own value, when it names no configured Project, no refused one, and no Project a link
     /// named: restored by macOS after its Project was removed, or left by a Project removed while the
@@ -99,7 +102,7 @@ struct OverviewWindow: View {
             )
         }
         .alert(
-            "Author could not be launched",
+            launchFailureTitle,
             isPresented: Binding(get: { authorFailure != nil }, set: { if !$0 { authorFailure = nil } })
         ) {
             Button("OK") { authorFailure = nil }
@@ -139,7 +142,25 @@ struct OverviewWindow: View {
                 logURL: SetupEngine.logURL(projectID: project.id.rawValue, command: "author")
             )
         } catch {
+            launchFailureTitle = "Author could not be launched"
             authorFailure = "\(error)"
+        }
+    }
+
+    /// Starts one build Act to deliver the selected Project's pending Board writes. Completion triggers
+    /// a fresh Pulse read; the Act itself stays detached if this app exits.
+    private func deliverNow() {
+        guard canDeliverNow, let project = selectedSnapshot else { return }
+        authorFailure = nil
+        do {
+            try SetupEngine().launchDetached(
+                arguments: ["build", "--project", project.id.rawValue],
+                logURL: SetupEngine.logURL(projectID: project.id.rawValue, command: "build"),
+                onCompletion: { Task { await model.load() } }
+            )
+        } catch {
+            launchFailureTitle = "Deliver now could not be launched"
+            authorFailure = "Deliver now could not be launched: \(error)"
         }
     }
 
@@ -148,7 +169,10 @@ struct OverviewWindow: View {
             OverviewUnavailable(reason: .configurationUnreadable(failure))
         } else if let snapshot = model.snapshot {
             if let selected = snapshot.project(scopedProject) {
-                PulseView(project: selected, asOf: snapshot.asOf, inspected: inspected)
+                PulseView(
+                    project: selected, asOf: snapshot.asOf, inspected: inspected,
+                    deliverNow: deliverNow, canDeliverNow: canDeliverNow
+                )
             } else if let scopedProject {
                 // Only a deep link keeps the window scoped to an id that is not configured: any other
                 // such value is dropped (`staleProject`).

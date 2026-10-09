@@ -1,11 +1,13 @@
 import Pulse
 import SwiftUI
 
-/// The Pulse's Health group: recorded Act failures and `yh doctor` findings. Runtime failures show
+/// The Pulse's Health group: recorded Act failures, undelivered Board writes and `yh doctor` findings. Runtime failures show
 /// their reason, count and last occurrence; doctor findings open Settings, where the Operator acts.
 /// Nil states that doctor was not read when there are no recorded failures to show.
 struct HealthGroup: View {
     let health: [HealthFlag]?
+    let deliverNow: () -> Void
+    let canDeliverNow: Bool
     @Environment(\.openPulseDestination) private var openDestination
 
     var body: some View {
@@ -22,12 +24,19 @@ struct HealthGroup: View {
             case let flags?:
                 ForEach(flags) { flag in
                     if flag.kind == .actFailure {
-                        HealthFlagRow(flag: flag).accessibilityIdentifier("health-flag")
+                        HealthFlagRow(flag: flag)
+                    } else if flag.kind == .undeliveredBoardWrites {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HealthFlagRow(flag: flag)
+                            Button("Deliver now", action: deliverNow)
+                                .buttonStyle(.link)
+                                .disabled(!canDeliverNow)
+                                .accessibilityIdentifier("pulse-deliver-now")
+                        }
                     } else {
                         Button { openDestination(flag.destination) } label: { HealthFlagRow(flag: flag) }
                             .buttonStyle(.plain)
                             .help(help(for: flag.destination))
-                            .accessibilityIdentifier("health-flag")
                     }
                 }
             }
@@ -74,10 +83,21 @@ private struct HealthFlagRow: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
-                if let last = flag.lastOccurredAt {
-                    Text("\(occurrenceLabel) · last \(last.formatted(date: .abbreviated, time: .shortened))")
+                if flag.kind == .undeliveredBoardWrites {
+                    Text(outboxSummary)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    if let error = flag.lastError {
+                        Text(error).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                    }
+                } else if let recoveredAt = flag.recoveredAt {
+                    let recoveredTime = recoveredAt.formatted(date: .omitted, time: .shortened)
+                    Text("\(occurrenceLabel) · recovered \(recoveredTime)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if let last = flag.lastOccurredAt {
+                    Text("\(occurrenceLabel) · last \(last.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             Spacer(minLength: 8)
@@ -85,6 +105,7 @@ private struct HealthFlagRow: View {
         .contentShape(.rect)
         // Combining children drops the selectable detail from the label, so both are spelled out.
         .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("health-flag")
         .accessibilityLabel(accessibilityDescription)
     }
 
@@ -92,8 +113,29 @@ private struct HealthFlagRow: View {
         "\(flag.occurrenceCount) failure\(flag.occurrenceCount == 1 ? "" : "s")"
     }
 
+    private var outboxSummary: String {
+        let pending = flag.pendingWriteCount
+        let failed = flag.failedWriteCount
+        let pendingText = "\(pending) pending write\(pending == 1 ? "" : "s")"
+        let failedText = "\(failed) failed write\(failed == 1 ? "" : "s")"
+        let counts = [pending > 0 ? pendingText : nil, failed > 0 ? failedText : nil]
+            .compactMap { $0 }.joined(separator: " · ")
+        let since = flag.oldestUndeliveredAt.map {
+            "since \($0.formatted(date: .abbreviated, time: .shortened))"
+        }
+        return [counts, since].compactMap { $0 }.joined(separator: " · ")
+    }
+
     private var accessibilityDescription: String {
         let detail = "\(flag.kind.displayName): \(flag.detail)"
+        if flag.kind == .undeliveredBoardWrites {
+            let error = flag.lastError.map { ". Last error: \($0)" } ?? ""
+            return "\(detail). \(outboxSummary)\(error)"
+        }
+        if let recoveredAt = flag.recoveredAt {
+            let time = recoveredAt.formatted(date: .omitted, time: .shortened)
+            return "\(detail). \(occurrenceLabel), recovered \(time)"
+        }
         guard let last = flag.lastOccurredAt else { return detail }
         return "\(detail). \(occurrenceLabel), last \(last.formatted(date: .abbreviated, time: .shortened))"
     }
