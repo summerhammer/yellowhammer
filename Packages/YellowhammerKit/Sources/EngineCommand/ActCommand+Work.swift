@@ -5,12 +5,19 @@ import Engine
 import Foundation
 import Repositories
 
+/// What every Act's work shares across one invocation: its narrative scrub and its mainline refresher.
+struct ActSharedSeams {
+    let narrativeScrub: @Sendable () -> NarrativeScrub
+    let refresher: MainlineRefresher
+}
+
 extension ActCommand {
     /// This Act's own work. Split out of `makeInvocation` to keep that function within its length limit.
     func work(
         mode: NightMode, configuration: Configuration, project: ProjectConfiguration, configurationDirectory: URL,
-        narrativeScrub: @escaping @Sendable () -> NarrativeScrub
+        shared: ActSharedSeams
     ) throws -> EngineInvocation.ActWork {
+        let (narrativeScrub, refresher) = (shared.narrativeScrub, shared.refresher)
         switch Self.act {
         case .land:
             // The Repo Lane merge test (P10.3) is pure local git and records conflicts without gating
@@ -25,7 +32,8 @@ extension ActCommand {
                 ),
                 verification: try LandBinding.verification(
                     mode: mode, configuration: configuration, project: project,
-                    configurationDirectory: configurationDirectory, resultFixtures: resultFixtures
+                    configurationDirectory: configurationDirectory, refresher: refresher,
+                    resultFixtures: resultFixtures
                 ),
                 returnFeature: FeatureReturn(),
                 archiveCycle: CycleArchive()
@@ -41,7 +49,8 @@ extension ActCommand {
                 predecessorGate: PredecessorAncestryGate(closure: FeatureMergeClosure()),
                 authoring: try AuthoringBinding.authoring(
                     mode: mode, configuration: configuration, project: project,
-                    configurationDirectory: configurationDirectory, resultFixtures: resultFixtures
+                    configurationDirectory: configurationDirectory, refresher: refresher,
+                    resultFixtures: resultFixtures
                 ),
                 settle: FeatureSettleGesture(),
                 unansweredNightsMax: project.bounds.unansweredNightsMax
@@ -53,7 +62,9 @@ extension ActCommand {
             )
             return BuildAct(
                 cardRunner: cardRunner,
-                readiness: ReadinessCheck(provenance: ProvenanceDiffTester(), citations: MainlineReader()),
+                readiness: ReadinessCheck(
+                    provenance: ProvenanceDiffTester(), citations: MainlineReader(refresher: refresher)
+                ),
                 // Bound in both modes (P8.10): a rehearsal Night writes no result files, so this simply
                 // finds none, and the lease-reclaim sweep falls to the event log and Crashed-Unknown.
                 resultReader: RunDirectoryResultReader(

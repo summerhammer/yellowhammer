@@ -87,9 +87,13 @@ extension ActCommand {
         // Every Act wires its own work here, the one place an adapter is built (ADR-001).
         // One scrub for every narrative this invocation posts: the Outbox's and the pull request's.
         let narrativeScrub = NarrativeScrubBinding.source(mode: mode, configuration: configuration, project: project)
+        // One refresher for the invocation: its Act-start fetch and every mainline read authenticate with the
+        // Project's Code Hosting Connection (OQ152).
+        let refresher = MainlineBinding.mainlineRefresher(configuration: configuration, project: project)
         let work = try self.work(
             mode: mode, configuration: configuration, project: project,
-            configurationDirectory: configurationDirectory, narrativeScrub: narrativeScrub
+            configurationDirectory: configurationDirectory,
+            shared: ActSharedSeams(narrativeScrub: narrativeScrub, refresher: refresher)
         )
         return EngineInvocation(
             act: Self.act,
@@ -100,6 +104,7 @@ extension ActCommand {
             closesNight: closesNight,
             board: board,
             repositories: project.repositories,
+            mainlineRefresher: refresher,
             workspace: workspace,
             nightCardBounds: NightCardMaintenance.Bounds(
                 reviewRoundsMax: project.bounds.reviewRoundsMax,
@@ -110,7 +115,7 @@ extension ActCommand {
                 failedAdoptionsMax: project.bounds.failedAdoptionsMax
             ),
             openingReadiness: ReadinessCheck(
-                provenance: ProvenanceDiffTester(), citations: MainlineReader()
+                provenance: ProvenanceDiffTester(), citations: MainlineReader(refresher: refresher)
             ),
             operatorIdentity: operatorIdentity,
             notifier: notifier,
