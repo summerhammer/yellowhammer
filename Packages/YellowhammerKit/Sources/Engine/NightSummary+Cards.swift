@@ -7,9 +7,11 @@ import Journal
 // those same Cards. Never cost.
 
 extension NightSummary {
-    /// One line per Card touched this Night, sorted by repository then authored order: issue id,
-    /// route(s) this Night used, Check result (model-alone worded like `CardManagedBlock`'s
-    /// `AttemptAccount`), and Rounds with their lenses. Empty when no Card was touched.
+    /// One line per Card touched this Night, sorted by repository then authored order: the Card's
+    /// identifier (linked to its issue when the URL is known) and where it stands at the end of the Night,
+    /// then each Attempt of it touched this Night — its ordinal in the Card's whole history, route, result,
+    /// Check result (worded by `AttemptAccount.checkResult`, from the Attempt's `checkRan` events, never
+    /// from Rounds) and Rounds with their lenses. Empty when no Card was touched.
     public static func cardLines(night: NightRecord, journal: JournalStore) throws -> [String] {
         let events = try nightEvents(night: night, journal: journal)
         let cards = try touchedCards(events: events, journal: journal)
@@ -21,16 +23,24 @@ extension NightSummary {
     private static func cardLine(
         card: CardRecord, events: [JournalEventRecord], journal: JournalStore
     ) throws -> String {
+        let name = cardName(card)
         let attemptIDs = touchedAttemptIDs(cardID: card.id, events: events)
         guard !attemptIDs.isEmpty else {
-            return "`\(card.issueID)` — no Attempt this Night."
+            return "\(name) — \(card.state.rawValue) · no Attempt this Night."
         }
         let history = try journal.attemptHistory(cardID: card.id)
-        let attempts = history.attempts.filter { attemptIDs.contains($0.id) }.sorted { $0.id < $1.id }
-        let routes = attempts.map { "\($0.route.cli)/\($0.route.model)" }.joined(separator: ", ")
-        let checks = attempts.map(checkSummary).joined(separator: "; ")
-        let rounds = attempts.map(roundsSummary).joined(separator: "; ")
-        return "`\(card.issueID)` — route: \(routes) · check: \(checks) · rounds: \(rounds)"
+        // Built from the events already read: `nightEvents` is read once per section, by design.
+        let checkRuns: [(cardID: Int64, run: CheckRunRecord)] = events.compactMap { record in
+            guard case .checkRan(let cardID, _, _, _, _, _, _) = record.event,
+                let run = CheckRunRecord(record) else { return nil }
+            return (cardID, run)
+        }
+        let cardRuns = checkRuns.filter { $0.cardID == card.id }.map(\.run)
+        // The ordinal is the Attempt's place in the Card's whole history, not among this Night's Attempts.
+        let attempts = history.attempts.enumerated().filter { attemptIDs.contains($0.element.id) }
+            .sorted { $0.element.id < $1.element.id }
+            .map { attemptSummary(ordinal: $0.offset + 1, $0.element, checkRuns: cardRuns) }
+        return "\(name) — \(card.state.rawValue) · " + attempts.joined(separator: " · ")
     }
 
     /// Attempt ids named by this Card's `attemptEnded`, `routeRetried` or `checkRan` events this Night.
@@ -44,7 +54,7 @@ extension NightSummary {
                 match = attemptID
             case .routeRetried(let recordCardID, _, let attemptID, _, _) where recordCardID == cardID:
                 match = attemptID
-            case .checkRan(let recordCardID, _, let attemptID, _, _, _) where recordCardID == cardID:
+            case .checkRan(let recordCardID, _, let attemptID, _, _, _, _) where recordCardID == cardID:
                 match = attemptID
             default:
                 match = nil
@@ -54,21 +64,6 @@ extension NightSummary {
             }
         }
         return order
-    }
-
-    private static func checkSummary(_ attempt: AttemptRecord) -> String {
-        if attempt.checkDeclaredNone {
-            return "green came from a model alone (`check = none`)"
-        }
-        if let checkRound = attempt.rounds.last(where: { $0.lens == .check }) {
-            return checkRound.verdict
-        }
-        return "not recorded"
-    }
-
-    private static func roundsSummary(_ attempt: AttemptRecord) -> String {
-        guard !attempt.rounds.isEmpty else { return "none" }
-        return attempt.rounds.map { "\($0.lens.rawValue)(\($0.verdict))" }.joined(separator: ", ")
     }
 
     /// The `**Dispositions:**` section: the Blocked/Waiting-on-You count over Cards touched this
@@ -86,16 +81,17 @@ extension NightSummary {
         let waiting = cards.filter { $0.state == .waitingOnYou }.count
         var lines = ["\(blocked) Blocked, \(waiting) Waiting on You"]
         for record in events {
-            guard case .failureCauseRecorded(let cardID, let issueID, _, _, let recurrenceCount) = record.event,
+            guard case .failureCauseRecorded(let cardID, _, _, _, let recurrenceCount) = record.event,
                 touchedIDs.contains(cardID) else { continue }
             let kind = recurrenceCount > 1 ? "recurrence" : "first occurrence"
-            lines.append("`\(issueID)` — \(kind).")
+            lines.append("\(cardName(try journal.card(id: cardID))) — \(kind).")
         }
         for record in events {
-            guard case .cardRunStep(_, let issueID, .operatorAborted, let detail) = record.event else { continue }
+            guard case .cardRunStep(let cardID, _, .operatorAborted, let detail) = record.event else { continue }
             let attempt = detail.map { $0.replacingOccurrences(of: "attempt ", with: "") } ?? "?"
+            let name = cardName(try journal.card(id: cardID))
             lines.append(
-                "`\(issueID)` was stopped by the Operator: Attempt \(attempt) aborted, consuming no Attempt " +
+                "\(name) was stopped by the Operator: Attempt \(attempt) aborted, consuming no Attempt " +
                     "and excluding no Route. It stays Blocked (`operator abort`) until re-ready."
             )
         }
@@ -122,12 +118,12 @@ extension NightSummary {
         }
         return try order.map { cardID in
             let card = try journal.card(id: cardID)
-            let name = card.issueIDForDisplay ?? card.issueID
+            let name = cardName(card)
             let removal = how[cardID] ?? CardRemoval.trashed.rawValue
             let after = restored.contains(cardID)
                 ? "The issue was restored this Night, and the Card is back in play as it stood."
                 : "It is set aside with nothing posted to it, and resumes as it stood if the issue is restored."
-            return "`\(name)` was \(removal) on the board. \(after)"
+            return "\(name) was \(removal) on the board. \(after)"
         }
     }
 }
