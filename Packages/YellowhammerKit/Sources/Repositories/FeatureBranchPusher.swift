@@ -80,11 +80,8 @@ public struct FeatureBranchPusher: Sendable {
 
         // With a credential, push to the explicit HTTPS URL so the connection is the identity git
         // uses; an SSH `origin` would otherwise push with the Operator's SSH key.
-        var httpsURL: String?
-        if credential != nil {
-            httpsURL = await GitHubRepositorySlugResolver(git: git).resolve(path: path)?.httpsURL
-        }
-        let pushRunner = pushRunner(credential: credential, httpsURL: httpsURL)
+        let httpsURL = await git.httpsURL(for: credential, in: path)
+        let pushRunner = git.authenticated(with: credential, httpsURL: httpsURL)
         let refspec = "refs/heads/\(branch.name):refs/heads/\(branch.name)"
         let result = await pushRunner.run(["-C", path, "push", "--porcelain", httpsURL ?? "origin", refspec])
 
@@ -103,29 +100,6 @@ public struct FeatureBranchPusher: Sendable {
         return .pushed(commit: commit)
     }
 
-    /// Builds the `GitRunner` used for the push: ambient environment plus a disabled terminal
-    /// prompt, and, when a credential is given, config injected purely through the environment so
-    /// no credential appears in `ps`/process arguments. When pushing to `httpsURL`, the Operator's
-    /// `insteadOf` rewrites are neutralized for that exact URL.
-    private func pushRunner(credential: PushCredential?, httpsURL: String?) -> GitRunner {
-        var environment = git.environment
-        environment["GIT_TERMINAL_PROMPT"] = "0"
-
-        if let credential {
-            var configs = Self.configs(for: credential)
-            if let httpsURL {
-                configs += Self.urlRewriteOverrides(for: httpsURL)
-            }
-            environment["GIT_CONFIG_COUNT"] = "\(configs.count)"
-            for (index, config) in configs.enumerated() {
-                environment["GIT_CONFIG_KEY_\(index)"] = config.key
-                environment["GIT_CONFIG_VALUE_\(index)"] = config.value
-            }
-        }
-
-        return GitRunner(executablePath: git.executablePath, environment: environment)
-    }
-
     private static func failureOutcome(_ result: GitCommandResult, repository: String) -> PushOutcome {
         let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
         switch classify(exitCode: result.exitCode, stderr: stderr) {
@@ -135,35 +109,6 @@ public struct FeatureBranchPusher: Sendable {
             return .credentialsMissingOrInsufficient(repository: repository, detail: stderr)
         case .other:
             return .failed(repository: repository, reason: stderr)
-        }
-    }
-
-    /// Config pairs that map `url` onto itself for fetch and push. Git applies the longest matching
-    /// `insteadOf` prefix, so this beats an Operator's `url."git@github.com:".insteadOf = https://github.com/`
-    /// and keeps the push on HTTPS.
-    static func urlRewriteOverrides(for url: String) -> [(key: String, value: String)] {
-        [
-            (key: "url.\(url).insteadOf", value: url),
-            (key: "url.\(url).pushInsteadOf", value: url)
-        ]
-    }
-
-    /// The git config pairs for a credential. Both reset the inherited `credential.helper` list first.
-    private static func configs(for credential: PushCredential) -> [(key: String, value: String)] {
-        switch credential {
-        case .token(let token):
-            let basicCredential = Data("x-access-token:\(token.value)".utf8).base64EncodedString()
-            return [
-                (key: "credential.helper", value: ""),
-                (key: "http.extraHeader", value: "Authorization: Basic \(basicCredential)")
-            ]
-        case .githubCLI(let executable):
-            // A shell-run helper (leading `!`): the path is single-quoted, with `'` written as `'\''`.
-            let quoted = "'" + executable.replacingOccurrences(of: "'", with: "'\\''") + "'"
-            return [
-                (key: "credential.helper", value: ""),
-                (key: "credential.helper", value: "!\(quoted) auth git-credential")
-            ]
         }
     }
 

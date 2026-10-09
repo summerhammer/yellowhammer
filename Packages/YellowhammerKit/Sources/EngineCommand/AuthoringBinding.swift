@@ -14,6 +14,7 @@ enum AuthoringBinding {
         configuration: Configuration,
         project: ProjectConfiguration,
         configurationDirectory: URL,
+        refresher: MainlineRefresher,
         resultFixtures: RehearsalScript = RehearsalScript.empty
     ) throws -> FeatureSelection {
         let ledger = try LedgerStore.open(configurationDirectory: configurationDirectory)
@@ -29,8 +30,8 @@ enum AuthoringBinding {
             selector: RoutedFeatureSelector(route: route),
             transaction: AuthoringTransaction(
                 drafting: RoutedFeatureBreakdown(route: route),
-                citations: MainlineReader(),
-                transcribing: MainlineReader(),
+                citations: MainlineReader(refresher: refresher),
+                transcribing: MainlineReader(refresher: refresher),
                 provenance: ProvenanceDiffTester(),
                 consecutiveRefusalsMax: project.bounds.consecutiveRefusalsMax,
                 failedAdoptionsMax: project.bounds.failedAdoptionsMax

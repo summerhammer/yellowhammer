@@ -178,7 +178,7 @@ struct FeatureBranchPusherCredentialTests {
         #expect(rewritten.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == Self.sshOrigin)
 
         var environment = base
-        let overrides = FeatureBranchPusher.urlRewriteOverrides(for: Self.httpsTarget)
+        let overrides = GitRunner.urlRewriteOverrides(for: Self.httpsTarget)
         environment["GIT_CONFIG_COUNT"] = "\(overrides.count)"
         for (index, override) in overrides.enumerated() {
             environment["GIT_CONFIG_KEY_\(index)"] = override.key
@@ -204,7 +204,7 @@ struct FeatureBranchPusherCredentialTests {
         #expect(rewritten.stderr.contains("transport 'ssh' not allowed"))
 
         var environment = base
-        let overrides = FeatureBranchPusher.urlRewriteOverrides(for: Self.httpsTarget)
+        let overrides = GitRunner.urlRewriteOverrides(for: Self.httpsTarget)
         environment["GIT_CONFIG_COUNT"] = "\(overrides.count)"
         for (index, override) in overrides.enumerated() {
             environment["GIT_CONFIG_KEY_\(index)"] = override.key

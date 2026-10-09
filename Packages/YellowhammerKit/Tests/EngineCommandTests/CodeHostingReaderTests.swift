@@ -133,6 +133,43 @@ struct CodeHostingReaderTests {
         #expect(seen.withLock { $0 } == ["/declared/gh"])
     }
 
+    @Test("The mainline fetch credential for a gh connection is gh itself, found when the seam is called")
+    func mainlineCredentialForGitHubCLI() throws {
+        let (configuration, project) = try configuration(selecting: "gh", connections: [gitHubCLI("gh")])
+        let seen = Mutex(0)
+
+        let seam = MainlineBinding.credential(
+            configuration: configuration, project: project, credentials: KeychainCredentialStore(),
+            gitHubCLI: { _ in
+                seen.withLock { $0 += 1 }
+                return "/stub/gh"
+            }
+        )
+        #expect(seen.withLock { $0 } == 0)
+        let credential = try seam()
+
+        guard case .githubCLI(let executable)? = credential else {
+            Issue.record("expected the gh credential, got \(String(describing: credential))")
+            return
+        }
+        #expect(executable == "/stub/gh")
+        #expect(seen.withLock { $0 } == 1)
+    }
+
+    @Test("The mainline fetch credential for a connection absent from the registry throws a refusal")
+    func mainlineCredentialRefusesAbsentConnection() throws {
+        let item = ThrowawayItem()
+        let (configuration, project) = try configuration(selecting: "ghost", connections: [keychain("real", item)])
+
+        let seam = MainlineBinding.credential(
+            configuration: configuration, project: project, credentials: KeychainCredentialStore(),
+            gitHubCLI: { _ in "/stub/gh" }
+        )
+
+        let error = #expect(throws: CodeHostingRefusal.self) { try seam() }
+        #expect(error == .notInRegistry(connection: "ghost"))
+    }
+
     @Test("A land push for a gh connection whose gh is missing throws the not-found message")
     func landPushCredentialWithoutGitHubCLI() throws {
         let (configuration, project) = try configuration(selecting: "gh", connections: [gitHubCLI("gh")])

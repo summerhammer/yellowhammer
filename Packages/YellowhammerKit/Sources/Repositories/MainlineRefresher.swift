@@ -28,11 +28,18 @@ public struct MainlineRefreshResult: Sendable {
 /// Opportunistic non-destructive fetch runs at the start of each author, build, and land Act.
 /// If fetch fails (offline or unreachable), it falls back gracefully to cached refs without failing
 /// the Act and records a ``MainlineFetchFailure``. A Spec Source is never fetched and never written.
+///
+/// The fetch authenticates with the Project's Code Hosting Connection (the `credential` seam, the same
+/// ``PushCredential`` the land push uses) and never falls back to ambient credentials: when the seam
+/// throws, no `git fetch` runs at all and the failure is recorded. A nil credential means no Code
+/// Hosting Connection is configured, and git runs plain.
 public struct MainlineRefresher: Sendable {
     public let git: GitRunner
+    private let credential: @Sendable () throws -> PushCredential?
 
-    public init(git: GitRunner = GitRunner()) {
+    public init(git: GitRunner = GitRunner(), credential: @escaping @Sendable () throws -> PushCredential? = { nil }) {
         self.git = git
+        self.credential = credential
     }
 
     /// Refreshes all repositories for a Project: working repositories (opportunistic fetch) and Spec Source (local read).
@@ -40,8 +47,10 @@ public struct MainlineRefresher: Sendable {
         var workingMainlines: [String: ResolvedMainline] = [:]
         var failures: [MainlineFetchFailure] = []
 
+        // Resolved once for the whole Project, before any repo is touched.
+        let resolution = resolveCredential()
         for repo in repositories.workingRepos {
-            let (mainline, failure) = await refreshWorkingRepo(repo)
+            let (mainline, failure) = await refreshWorkingRepo(repo, resolution: resolution)
             if let mainline {
                 workingMainlines[repo.name] = mainline
             }
@@ -65,6 +74,16 @@ public struct MainlineRefresher: Sendable {
     public func refreshWorkingRepo(
         _ repo: Repo
     ) async -> (mainline: ResolvedMainline?, failure: MainlineFetchFailure?) {
+        await refreshWorkingRepo(repo, resolution: resolveCredential())
+    }
+
+    private func resolveCredential() -> Result<PushCredential?, any Error> {
+        Result { try credential() }
+    }
+
+    private func refreshWorkingRepo(
+        _ repo: Repo, resolution: Result<PushCredential?, any Error>
+    ) async -> (mainline: ResolvedMainline?, failure: MainlineFetchFailure?) {
         let path = (repo.path as NSString).expandingTildeInPath
         guard FileManager.default.fileExists(atPath: path) else { return (nil, nil) }
 
@@ -73,9 +92,27 @@ public struct MainlineRefresher: Sendable {
             return (await localMainline(for: repo, branch: defaultBranch, in: path), nil)
         }
 
-        let fetchResult = await git.run([
-            "-c", "transfer.timeout=10", "-C", path, "fetch", "--quiet", "origin", defaultBranch
-        ], timeout: 15.0)
+        let resolved: PushCredential?
+        switch resolution {
+        case .success(let value):
+            resolved = value
+        case .failure(let error):
+            // Fetching now would be the forbidden ambient attempt: record the failure and fall back.
+            let failure = MainlineFetchFailure(
+                repository: repo.name,
+                reason: "the Code Hosting Connection could not be resolved: \(error)"
+            )
+            return (await offlineMainline(for: repo, branch: defaultBranch, in: path), failure)
+        }
+
+        // With a credential, fetch from the explicit HTTPS URL, as the push does, so an SSH `origin` never
+        // fetches with the Operator's SSH key; the refspec keeps `refs/remotes/origin/<branch>` the target.
+        let httpsURL = await git.httpsURL(for: resolved, in: path)
+        let source = httpsURL.map { [$0, "+refs/heads/\(defaultBranch):refs/remotes/origin/\(defaultBranch)"] }
+            ?? ["origin", defaultBranch]
+        let fetchResult = await git.authenticated(with: resolved, httpsURL: httpsURL).run(
+            ["-c", "transfer.timeout=10", "-C", path, "fetch", "--quiet"] + source, timeout: 15.0
+        )
         if fetchResult.isSuccess {
             let remote = await remoteMainline(for: repo, branch: defaultBranch, in: path)
             if let remote { return (remote, nil) }
@@ -85,9 +122,13 @@ public struct MainlineRefresher: Sendable {
         let rawStderr = fetchResult.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
         let reason = rawStderr.isEmpty ? "git fetch exited with status \(fetchResult.exitCode)" : rawStderr
         let failure = MainlineFetchFailure(repository: repo.name, reason: reason)
-        let cached = await remoteMainline(for: repo, branch: defaultBranch, in: path)
-        if let cached { return (cached, failure) }
-        return (await localMainline(for: repo, branch: defaultBranch, in: path), failure)
+        return (await offlineMainline(for: repo, branch: defaultBranch, in: path), failure)
+    }
+
+    /// The cached `refs/remotes/origin/<branch>`, else the local mainline.
+    private func offlineMainline(for repo: Repo, branch: String, in path: String) async -> ResolvedMainline? {
+        if let cached = await remoteMainline(for: repo, branch: branch, in: path) { return cached }
+        return await localMainline(for: repo, branch: branch, in: path)
     }
 
     private func remoteMainline(for repo: Repo, branch: String, in path: String) async -> ResolvedMainline? {

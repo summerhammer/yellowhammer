@@ -7,7 +7,7 @@ extension Doctor {
     /// later check — every one of them needs configuration. Each invalid Project is a failure listing
     /// its file and errors; each valid Project is a pass. Routing warnings follow
     /// `Setup.reportRoutingWarnings` exactly: per Project when there are any, the machine's base
-    /// Routing Table when there are none (routing/overview, OQ13).
+    /// Routing Table when there are none (routing/overview, OQ13, OQ154).
     func runConfigurationCheck(into findings: inout [DoctorFinding]) -> Configuration? {
         let configuration: Configuration
         do {

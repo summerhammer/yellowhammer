@@ -14,8 +14,9 @@ import Repositories
 /// CLI connection holds no token: `gh` is found at the time of use (its declared path, else `PATH`), the push
 /// uses `gh auth git-credential` as git's credential helper, and pull requests go through `gh api`; a `gh` that
 /// is not found throws, which leaves the Cycle unlanded through the credentials-missing path.
-/// The returned closures resolve lazily, on each call, so a Rehearsal Night — which never calls either seam —
-/// never touches the Keychain or `gh`.
+/// The returned push and pull request closures resolve lazily, on each call, so a Rehearsal Night — which never
+/// calls either seam — never touches the Keychain or `gh` for them (its mainline fetch resolves the connection
+/// separately, through ``MainlineBinding``).
 enum LandBinding {
     static func push(
         configuration: Configuration,
@@ -92,6 +93,7 @@ enum LandBinding {
         configuration: Configuration,
         project: ProjectConfiguration,
         configurationDirectory: URL,
+        refresher: MainlineRefresher,
         resultFixtures: RehearsalScript = RehearsalScript.empty
     ) throws -> FeatureVerification {
         let ledger = try LedgerStore.open(configurationDirectory: configurationDirectory)
@@ -101,7 +103,7 @@ enum LandBinding {
                 mode: mode, configuration: configuration, project: project,
                 configurationDirectory: configurationDirectory, resultFixtures: resultFixtures
             ),
-            citations: MainlineReader()
+            citations: MainlineReader(refresher: refresher)
         )
     }
 }
