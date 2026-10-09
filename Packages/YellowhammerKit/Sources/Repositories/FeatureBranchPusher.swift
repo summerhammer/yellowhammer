@@ -24,7 +24,8 @@ public enum PushFailureClassification: Equatable, Sendable {
     case other
 }
 
-/// How a push authenticates to GitHub.
+/// How a push authenticates to GitHub. Both are HTTP credentials, so for a GitHub `origin` the push
+/// targets the HTTPS URL derived from it, which an SSH `origin` would otherwise bypass.
 public enum PushCredential: Sendable {
     /// A token Yellowhammer holds, sent as a basic-auth `http.extraHeader`.
     case token(GitHubToken)
@@ -34,6 +35,11 @@ public enum PushCredential: Sendable {
 }
 
 /// Pushes a Feature Branch to `origin` on GitHub.
+///
+/// With a credential, the push goes to the HTTPS URL derived from `origin` (when it is a GitHub
+/// remote), not to the `origin` remote by name: an SSH `origin` would otherwise push with the
+/// Operator's SSH key, not the Code Hosting Connection's identity. Without a credential, or for a
+/// non-GitHub `origin`, it pushes to `origin` as configured.
 ///
 /// Rehearsal never pushes (`.notPushedInRehearsal`, no git command run). Mainline is never
 /// pushed (`.refusedMainline`, no git command run). A credential, when given, is supplied to git
@@ -72,37 +78,44 @@ public struct FeatureBranchPusher: Sendable {
             return .refusedMainline
         }
 
-        let pushRunner = pushRunner(credential: credential)
+        // With a credential, push to the explicit HTTPS URL so the connection is the identity git
+        // uses; an SSH `origin` would otherwise push with the Operator's SSH key.
+        var httpsURL: String?
+        if credential != nil {
+            httpsURL = await GitHubRepositorySlugResolver(git: git).resolve(path: path)?.httpsURL
+        }
+        let pushRunner = pushRunner(credential: credential, httpsURL: httpsURL)
         let refspec = "refs/heads/\(branch.name):refs/heads/\(branch.name)"
-        let result = await pushRunner.run(["-C", path, "push", "--porcelain", "origin", refspec])
+        let result = await pushRunner.run(["-C", path, "push", "--porcelain", httpsURL ?? "origin", refspec])
 
         guard result.isSuccess else {
-            let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-            switch Self.classify(exitCode: result.exitCode, stderr: stderr) {
-            case .branchProtection:
-                return .refusedByBranchProtection(repository: repo.name, detail: stderr)
-            case .credentials:
-                return .credentialsMissingOrInsufficient(repository: repo.name, detail: stderr)
-            case .other:
-                return .failed(repository: repo.name, reason: stderr)
-            }
+            return Self.failureOutcome(result, repository: repo.name)
         }
 
         guard let commit = await revParse("refs/heads/\(branch.name)", in: path) else {
             return .failed(repository: repo.name, reason: "push succeeded but the branch tip could not be resolved")
+        }
+
+        if httpsURL != nil {
+            // Pushing to a URL does not update the remote-tracking ref; do it best-effort.
+            _ = await git.run(["-C", path, "update-ref", "refs/remotes/origin/\(branch.name)", commit])
         }
         return .pushed(commit: commit)
     }
 
     /// Builds the `GitRunner` used for the push: ambient environment plus a disabled terminal
     /// prompt, and, when a credential is given, config injected purely through the environment so
-    /// no credential appears in `ps`/process arguments.
-    private func pushRunner(credential: PushCredential?) -> GitRunner {
+    /// no credential appears in `ps`/process arguments. When pushing to `httpsURL`, the Operator's
+    /// `insteadOf` rewrites are neutralized for that exact URL.
+    private func pushRunner(credential: PushCredential?, httpsURL: String?) -> GitRunner {
         var environment = git.environment
         environment["GIT_TERMINAL_PROMPT"] = "0"
 
         if let credential {
-            let configs = Self.configs(for: credential)
+            var configs = Self.configs(for: credential)
+            if let httpsURL {
+                configs += Self.urlRewriteOverrides(for: httpsURL)
+            }
             environment["GIT_CONFIG_COUNT"] = "\(configs.count)"
             for (index, config) in configs.enumerated() {
                 environment["GIT_CONFIG_KEY_\(index)"] = config.key
@@ -111,6 +124,28 @@ public struct FeatureBranchPusher: Sendable {
         }
 
         return GitRunner(executablePath: git.executablePath, environment: environment)
+    }
+
+    private static func failureOutcome(_ result: GitCommandResult, repository: String) -> PushOutcome {
+        let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch classify(exitCode: result.exitCode, stderr: stderr) {
+        case .branchProtection:
+            return .refusedByBranchProtection(repository: repository, detail: stderr)
+        case .credentials:
+            return .credentialsMissingOrInsufficient(repository: repository, detail: stderr)
+        case .other:
+            return .failed(repository: repository, reason: stderr)
+        }
+    }
+
+    /// Config pairs that map `url` onto itself for fetch and push. Git applies the longest matching
+    /// `insteadOf` prefix, so this beats an Operator's `url."git@github.com:".insteadOf = https://github.com/`
+    /// and keeps the push on HTTPS.
+    static func urlRewriteOverrides(for url: String) -> [(key: String, value: String)] {
+        [
+            (key: "url.\(url).insteadOf", value: url),
+            (key: "url.\(url).pushInsteadOf", value: url)
+        ]
     }
 
     /// The git config pairs for a credential. Both reset the inherited `credential.helper` list first.

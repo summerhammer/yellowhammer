@@ -31,6 +31,15 @@ struct GitHubRepositorySlugTests {
         #expect(GitHubRepositorySlug.parse(url) == expected)
     }
 
+    @Test("Every origin scheme yields the same explicit HTTPS URL", arguments: [
+        "git@github.com:o/r.git",
+        "ssh://git@github.com/o/r.git",
+        "https://github.com/o/r"
+    ])
+    func explicitHTTPSURL(_ url: String) {
+        #expect(GitHubRepositorySlug.parse(url)?.httpsURL == "https://github.com/o/r.git")
+    }
+
     @Test("A non-GitHub host does not parse")
     func nonGitHubHost() {
         #expect(GitHubRepositorySlug.parse("https://gitlab.com/o/r.git") == nil)
