@@ -184,16 +184,43 @@ final class RecordingLaunchAgentControl: LaunchAgentControl, @unchecked Sendable
         var calls: [Call] = []
         var failingLabels: Set<String>
         var loadedLabels: Set<String>
+        var states: [String: [LaunchAgentRuntimeState]]
+        var inspectionFailures: Set<String>
+        var bootoutFailures: Set<String>
+        var bootstrapFailures: [String: Int]
     }
 
     private let storage: Mutex<State>
 
-    init(failingLabels: Set<String> = [], loadedLabels: Set<String> = []) {
-        storage = Mutex(State(failingLabels: failingLabels, loadedLabels: loadedLabels))
+    init(
+        failingLabels: Set<String> = [], loadedLabels: Set<String> = [],
+        states: [String: [LaunchAgentRuntimeState]] = [:], inspectionFailures: Set<String> = [],
+        bootoutFailures: Set<String> = [], bootstrapFailures: [String: Int] = [:]
+    ) {
+        storage = Mutex(State(
+            failingLabels: failingLabels, loadedLabels: loadedLabels, states: states,
+            inspectionFailures: inspectionFailures, bootoutFailures: bootoutFailures,
+            bootstrapFailures: bootstrapFailures
+        ))
+    }
+
+    func jobState(label: String) async throws -> LaunchAgentRuntimeState {
+        try storage.withLock { state in
+            if state.inspectionFailures.contains(label) { throw LaunchctlError(description: "inspection failed") }
+            if var states = state.states[label], !states.isEmpty {
+                let result = states.removeFirst()
+                state.states[label] = states
+                return result
+            }
+            return state.loadedLabels.contains(label) ? .idle : .unloaded
+        }
     }
 
     func bootout(label: String) async throws {
-        storage.withLock { $0.calls.append(.bootout(label)) }
+        try storage.withLock {
+            $0.calls.append(.bootout(label))
+            if $0.bootoutFailures.contains(label) { throw LaunchctlError(description: "bootout failed") }
+        }
     }
 
     func isLoaded(label: String) async -> Bool {
@@ -207,7 +234,13 @@ final class RecordingLaunchAgentControl: LaunchAgentControl, @unchecked Sendable
 
     func bootstrap(plistURL: URL) async throws {
         let label = plistURL.deletingPathExtension().lastPathComponent
-        storage.withLock { $0.calls.append(.bootstrap(label)) }
+        try storage.withLock {
+            $0.calls.append(.bootstrap(label))
+            if let remaining = $0.bootstrapFailures[label], remaining > 0 {
+                $0.bootstrapFailures[label] = remaining - 1
+                throw LaunchctlError(description: "bootstrap failed")
+            }
+        }
         try failIfScripted(label: label)
     }
 

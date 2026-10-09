@@ -159,26 +159,71 @@ extension Setup {
 
         var anyFailed = false
         for job in jobs {
-            let plistURL = directory.appending(component: job.fileName, directoryHint: .notDirectory)
             do {
-                let data = try job.plistData(homeDirectory: homeDirectory.path(percentEncoded: false))
-                try data.write(to: plistURL, options: .atomic)
-            } catch {
-                output("Project \(job.projectID): could not write \(job.fileName): \(error)") // glossary:ignore GL001
-                anyFailed = true
-                continue
-            }
-            do {
-                try? await launchAgents.bootout(label: job.label)
-                try await launchAgents.enable(label: job.label)
-                try await launchAgents.bootstrap(plistURL: plistURL)
-                output("Project \(job.projectID): installed \(job.label)") // glossary:ignore GL001
+                try await installJob(job, in: directory)
             } catch {
                 output("Project \(job.projectID): could not load \(job.label): \(error)") // glossary:ignore GL001
                 anyFailed = true
             }
         }
         return anyFailed
+    }
+
+    private func installJob(_ job: ScheduledJob, in directory: URL) async throws {
+        let plistURL = directory.appending(component: job.fileName, directoryHint: .notDirectory)
+        let data = try job.plistData(homeDirectory: homeDirectory.path(percentEncoded: false))
+        let previous = try FileManager.default.fileExists(atPath: plistURL.path(percentEncoded: false))
+            ? Data(contentsOf: plistURL) : nil
+        let initialState = try await launchAgents.jobState(label: job.label)
+        // Enabling an unchanged loaded job preserves explicit --install-jobs semantics without a reload.
+        if previous == data, initialState != .unloaded {
+            try await launchAgents.enable(label: job.label)
+            output("Project \(job.projectID): already installed \(job.label)") // glossary:ignore GL001
+            return
+        }
+        if initialState == .running {
+            reportRunningJob(job)
+            return
+        }
+        try await launchAgents.enable(label: job.label)
+        // Revalidate immediately before bootout, after the enabling operation.
+        let state = try await launchAgents.jobState(label: job.label)
+        if state == .running {
+            reportRunningJob(job)
+            return
+        }
+        let replacingLoadedJob = state == .idle
+        if replacingLoadedJob {
+            guard previous != nil else {
+                throw LaunchctlError(description: "loaded job has no existing plist to restore; leaving it loaded")
+            }
+            try await launchAgents.bootout(label: job.label)
+        }
+        do {
+            try data.write(to: plistURL, options: .atomic)
+            try await launchAgents.bootstrap(plistURL: plistURL)
+        } catch {
+            if replacingLoadedJob, let previous {
+                do {
+                    try previous.write(to: plistURL, options: .atomic)
+                    try await launchAgents.bootstrap(plistURL: plistURL)
+                    output("Project \(job.projectID): restored previous \(job.label)") // glossary:ignore GL001
+                } catch let recoveryError {
+                    throw LaunchctlError(
+                        description: "\(error); could not restore previous \(job.label): \(recoveryError)"
+                    )
+                }
+            }
+            throw error
+        }
+        output("Project \(job.projectID): installed \(job.label)") // glossary:ignore GL001
+    }
+
+    private func reportRunningJob(_ job: ScheduledJob) {
+        output(
+            "Project \(job.projectID): skipped running \(job.label); " // glossary:ignore GL001
+                + "rerun yh setup --install-jobs when the job is idle."
+        )
     }
 
     // MARK: - Export
