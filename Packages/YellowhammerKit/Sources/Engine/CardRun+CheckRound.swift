@@ -56,7 +56,7 @@ extension CardRun {
     ) async throws -> CheckLoopOutcome {
         var worked = worked
         while true {
-            let checked = try await runCheck(frame: frame, attemptID: attemptID)
+            let checked = try await runCheck(frame: frame, attemptID: attemptID, commit: worked.commit)
             guard case .failed(let output, let exitStatus) = checked else {
                 return .passed(commit: worked.commit, session: worked.session)
             }
@@ -77,8 +77,9 @@ extension CardRun {
     }
 
     /// Runs the Check over the worker's commit and records it: the `check` step (its outcome kind only, never
-    /// the output) and the `checkRan` event (the output, capped by the runner).
-    func runCheck(frame: CardRunFrame, attemptID: Int64) async throws -> RepositoryCheckResult {
+    /// the output) and the `checkRan` event (the output, capped by the runner, and the worker `commit` it
+    /// judged — a passing Check writes no Round, so the event is the only record of which commit went green).
+    func runCheck(frame: CardRunFrame, attemptID: Int64, commit: String) async throws -> RepositoryCheckResult {
         try frame.revalidateLease()
         let checked = try await check.run(
             repository: frame.card.repository, check: frame.check, worktreePath: frame.worktree.path
@@ -91,17 +92,17 @@ extension CardRun {
         case .passed(let printed):
             event = .checkRan(
                 cardID: card.id, issueID: card.issueID, attemptID: attemptID, result: .passed, exitStatus: 0,
-                output: printed
+                output: printed, judgedCommit: commit
             )
         case .failed(let printed, let status):
             event = .checkRan(
                 cardID: card.id, issueID: card.issueID, attemptID: attemptID, result: .failed, exitStatus: status,
-                output: printed
+                output: printed, judgedCommit: commit
             )
         case .declaredNone:
             event = .checkRan(
                 cardID: card.id, issueID: card.issueID, attemptID: attemptID, result: .declaredNone,
-                exitStatus: nil, output: nil
+                exitStatus: nil, output: nil, judgedCommit: commit
             )
         }
         try frame.journal.append(

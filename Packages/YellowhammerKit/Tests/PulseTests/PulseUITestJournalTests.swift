@@ -118,7 +118,7 @@ private func seedAttempts(
     try journal.append(
         .checkRan(
             cardID: blocked, issueID: issueID(11), attemptID: failed.id, result: .failed,
-            exitStatus: 1, output: "swift test: 3 failures"
+            exitStatus: 1, output: "swift test: 3 failures", judgedCommit: nil
         ),
         runID: runID, nightID: nightID, now: seededAt.addingTimeInterval(240)
     )

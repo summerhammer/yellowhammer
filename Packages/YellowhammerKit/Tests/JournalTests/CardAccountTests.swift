@@ -79,7 +79,7 @@ private func seedTwoAttemptCard(_ journal: JournalStore) throws -> SeededAttempt
     try journal.append(
         .checkRan(
             cardID: cardID, issueID: "CARD-1", attemptID: first.id, result: .failed,
-            exitStatus: 1, output: "build failed: line 42"
+            exitStatus: 1, output: "build failed: line 42", judgedCommit: nil
         ),
         runID: runID, now: epoch.addingTimeInterval(11)
     )
@@ -96,14 +96,15 @@ private func seedTwoAttemptCard(_ journal: JournalStore) throws -> SeededAttempt
     )
     try journal.append(
         .checkRan(
-            cardID: cardID, issueID: "CARD-1", attemptID: second.id, result: .passed, exitStatus: 0, output: nil
+            cardID: cardID, issueID: "CARD-1", attemptID: second.id, result: .passed, exitStatus: 0, output: nil,
+            judgedCommit: nil
         ),
         runID: runID, now: epoch.addingTimeInterval(41)
     )
     try journal.append(
         .checkRan(
             cardID: cardID, issueID: "CARD-1", attemptID: second.id, result: .declaredNone,
-            exitStatus: nil, output: nil
+            exitStatus: nil, output: nil, judgedCommit: nil
         ),
         runID: runID, now: epoch.addingTimeInterval(42)
     )
@@ -113,7 +114,7 @@ private func seedTwoAttemptCard(_ journal: JournalStore) throws -> SeededAttempt
     try journal.append(
         .checkRan(
             cardID: otherCardID, issueID: "CARD-2", attemptID: otherAttempt.id, result: .passed,
-            exitStatus: 0, output: nil
+            exitStatus: 0, output: nil, judgedCommit: nil
         ),
         runID: runID, now: epoch.addingTimeInterval(50)
     )
@@ -237,7 +238,8 @@ func readOnlyOpenAndReadsDoNotModifyTheFile() throws {
     let attempt = try journal.recordAttempt(cardID: cardID, route: routeA, runID: runID, now: epoch)
     try journal.append(
         .checkRan(
-            cardID: cardID, issueID: "CARD-1", attemptID: attempt.id, result: .passed, exitStatus: 0, output: nil
+            cardID: cardID, issueID: "CARD-1", attemptID: attempt.id, result: .passed, exitStatus: 0, output: nil,
+            judgedCommit: nil
         ),
         runID: runID, now: epoch.addingTimeInterval(1)
     )
@@ -280,7 +282,8 @@ private func seedOneCheckRun(directory: URL, projectID: ProjectID) throws -> URL
     let attempt = try journal.recordAttempt(cardID: cardID, route: routeA, runID: runID, now: epoch)
     try journal.append(
         .checkRan(
-            cardID: cardID, issueID: "CARD-1", attemptID: attempt.id, result: .passed, exitStatus: 0, output: nil
+            cardID: cardID, issueID: "CARD-1", attemptID: attempt.id, result: .passed, exitStatus: 0, output: nil,
+            judgedCommit: nil
         ),
         runID: runID, now: epoch
     )

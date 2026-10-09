@@ -78,6 +78,14 @@ struct ManagedBlockMaintenanceTests {
             attemptID: attempt.id, lens: .check, verdict: "failed", requestedChanges: nil, judgedCommit: nil,
             runID: runID, now: outboxEpoch
         )
+        // The Check result is the Attempt's `checkRan` runs, not its Rounds.
+        try journal.append(
+            .checkRan(
+                cardID: cardID, issueID: "issue-1", attemptID: attempt.id, result: .failed, exitStatus: 1,
+                output: nil, judgedCommit: nil
+            ),
+            runID: runID, now: outboxEpoch
+        )
 
         let outcome = try await maintenance.maintain(card: try journal.card(id: cardID), brief: brief)
         guard case .posted(let after, _, _) = outcome else {
