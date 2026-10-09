@@ -12,6 +12,12 @@ public struct GitHubRepositorySlug: Equatable, Sendable {
         self.repository = repository
     }
 
+    /// The explicit HTTPS clone URL, `https://github.com/<owner>/<repository>.git`, whatever scheme
+    /// the local `origin` uses.
+    public var httpsURL: String {
+        "https://github.com/\(owner)/\(repository).git"
+    }
+
     /// Parses `https://github.com/o/r(.git)`, `git@github.com:o/r(.git)`, and
     /// `ssh://git@github.com/o/r(.git)`. Nil for anything else — a different host, a malformed URL, or
     /// a value with no owner/repository pair.
