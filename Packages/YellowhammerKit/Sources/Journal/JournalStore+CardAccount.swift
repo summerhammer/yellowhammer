@@ -11,7 +11,29 @@ public struct CheckRunRecord: Equatable, Sendable {
     public let result: CheckRunResult
     public let exitStatus: Int32?
     public let output: String?
+    /// The worker commit the Check judged; `nil` for an event written before it was recorded.
+    public let judgedCommit: String?
     public let occurredAt: Date
+}
+
+extension CheckRunRecord {
+    /// The run `record` is, or `nil` when the event is not a `checkRan`.
+    public init?(_ record: JournalEventRecord) {
+        guard case .checkRan(_, _, let attemptID, let result, let exitStatus, let output, let judgedCommit) =
+            record.event
+        else {
+            return nil
+        }
+        self.init(
+            eventID: record.id,
+            attemptID: attemptID,
+            result: result,
+            exitStatus: exitStatus,
+            output: output,
+            judgedCommit: judgedCommit,
+            occurredAt: record.occurredAt
+        )
+    }
 }
 
 /// The whole read-only account of one Card the app shows behind a Card (roadmap P14.5): the Card
@@ -42,24 +64,23 @@ extension JournalStore {
 
             let history = try Self.attemptHistory(db, cardID: card.id)
 
-            let checkRuns: [CheckRunRecord] = try Self.events(db, ofType: .checkRan).compactMap { record in
-                guard
-                    case .checkRan(let cardID, _, let attemptID, let result, let exitStatus, let output) = record.event,
-                    cardID == card.id
-                else {
-                    return nil
-                }
-                return CheckRunRecord(
-                    eventID: record.id,
-                    attemptID: attemptID,
-                    result: result,
-                    exitStatus: exitStatus,
-                    output: output,
-                    occurredAt: record.occurredAt
-                )
-            }
+            let checkRuns = try Self.checkRuns(db, cardID: card.id)
 
             return CardAccount(card: card, history: history, checkRuns: checkRuns)
+        }
+    }
+
+    /// Every `checkRan` event for one Card, in append order.
+    public func checkRuns(cardID: Int64) throws -> [CheckRunRecord] {
+        try read { db in try Self.checkRuns(db, cardID: cardID) }
+    }
+
+    private static func checkRuns(_ db: Database, cardID: Int64) throws -> [CheckRunRecord] {
+        try events(db, ofType: .checkRan).compactMap { record in
+            guard case .checkRan(let recordCardID, _, _, _, _, _, _) = record.event, recordCardID == cardID else {
+                return nil
+            }
+            return CheckRunRecord(record)
         }
     }
 }

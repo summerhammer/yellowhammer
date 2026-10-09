@@ -74,7 +74,8 @@ extension JournalEvent {
             attemptID: try reader.int64("attempt_id"),
             result: result,
             exitStatus: reader.payload?["exit_status"].flatMap { Int32($0) },
-            output: reader.payload?["output"]
+            output: reader.payload?["output"],
+            judgedCommit: reader.payload?["judged_commit"]
         )
     }
 }

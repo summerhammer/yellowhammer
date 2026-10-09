@@ -29,7 +29,7 @@ public enum NightSummary {
     static func cardID(for event: JournalEvent) -> Int64? {
         switch event {
         case .attemptEnded(let cardID, _, _, _, _, _),
-            .checkRan(let cardID, _, _, _, _, _),
+            .checkRan(let cardID, _, _, _, _, _, _),
             .cardRunStep(let cardID, _, _, _),
             .cardStateTransitioned(let cardID, _, _, _, _, _),
             .routeRetried(let cardID, _, _, _, _),

@@ -95,7 +95,7 @@ struct CardRoutingTests {
         let block = CardManagedBlock(
             kind: "card", repository: "main", state: .inProgress, lanePosition: 1, laneLength: 1,
             brief: ArchitecturalBrief(prose: "Brief", transcriptions: []), definitionOfDone: [],
-            attempts: [AttemptAccount(ordinal: 1, record: attempt)]
+            attempts: [AttemptAccount(ordinal: 1, record: attempt, checkRuns: [])]
         )
         #expect(block.render().contains("#### Attempt 1 — `claude/opus/high`"))
         #expect(try journal.card(id: cardID).state == .todo)

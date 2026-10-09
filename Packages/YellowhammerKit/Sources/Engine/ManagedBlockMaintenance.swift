@@ -98,7 +98,12 @@ public struct ManagedBlockMaintenance: Sendable {
     /// Builds the Card's Managed Block from the Journal and renders it.
     private func renderManagedBlock(card: CardRecord, brief: ArchitecturalBrief) throws -> String {
         let history = try journal.attemptHistory(cardID: card.id)
-        let attempts = history.attempts.enumerated().map { AttemptAccount(ordinal: $0.offset + 1, record: $0.element) }
+        let checkRuns = try journal.checkRuns(cardID: card.id)
+        let attempts = history.attempts.enumerated().map { index, attempt in
+            AttemptAccount(
+                ordinal: index + 1, record: attempt, checkRuns: checkRuns.filter { $0.attemptID == attempt.id }
+            )
+        }
         let doDClauses = try journal.clauses(issueID: card.issueID).map { DoDClause($0) }
         let laneLength = try journal.repoLaneLength(cycleID: card.cycleID, repository: card.repository)
         let scope = try journal.declaredScope(cardID: card.id)

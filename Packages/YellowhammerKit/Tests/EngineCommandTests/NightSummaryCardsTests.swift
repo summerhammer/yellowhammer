@@ -10,6 +10,7 @@ import Testing
 // `NightCardJournalFixture`, `makeBoards()` and `nightCardNightStart` from NightCardTests.swift.
 
 private let codexRoute = Route(cli: "codex", model: "gpt-5.4", effort: "medium")!
+private let agyRoute = Route(cli: "agy", model: "gemini-3.8-flash", effort: "high")!
 
 /// A structural failure cause for the recurrence tests — its wording is never asserted, only its hash.
 private func flakyCause() throws -> FailureCause {
@@ -41,7 +42,8 @@ private struct CardsFixtureIDs {
 @discardableResult
 private func insertCardsFixture(
     _ journal: JournalStore, featureIssueID: String = "FEAT-1", cardIssueID: String = "CARD-1",
-    repository: String = "backend", authoredOrder: Int = 1, cardState: CardState = .todo
+    repository: String = "backend", authoredOrder: Int = 1, cardState: CardState = .todo,
+    issueIDForDisplay: String? = nil, issueKey: String? = nil, issueURL: String? = nil
 ) throws -> CardsFixtureIDs {
     try journal.write { db in
         let timestamp = JournalStore.timestamp(Date())
@@ -56,13 +58,49 @@ private func insertCardsFixture(
         let cycleID = db.lastInsertedRowID
         try db.execute(
             sql: """
-            INSERT INTO card (cycle_id, issue_id, repository, kind, authored_order, state, budget_epoch, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO card (
+                cycle_id, issue_id, issue_id_for_display, issue_key, issue_url, repository, kind, authored_order,
+                state, budget_epoch, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            arguments: [cycleID, cardIssueID, repository, "card", authoredOrder, cardState.rawValue, 0, timestamp]
+            arguments: [
+                cycleID, cardIssueID, issueIDForDisplay, issueKey, issueURL, repository, "card", authoredOrder,
+                cardState.rawValue, 0, timestamp
+            ]
         )
         return CardsFixtureIDs(featureID: featureID, cycleID: cycleID, cardID: db.lastInsertedRowID)
     }
+}
+
+/// A second Attempt whose Check failed on `fddeef4` (a failed Round) and then passed on `b763aff` (no
+/// Round: only a failed judgement is one), ending in success.
+private func seedCheckFailedThenPassed(
+    _ journal: JournalStore, context: ActContext, cardID: Int64, issueID: String
+) throws {
+    let attempt = try journal.recordAttempt(
+        cardID: cardID, route: agyRoute, runID: context.runID, act: context.act, nightID: context.night.id
+    )
+    try journal.append(
+        .checkRan(
+            cardID: cardID, issueID: issueID, attemptID: attempt.id, result: .failed, exitStatus: 1,
+            output: "red", judgedCommit: "fddeef4"
+        ),
+        act: context.act, runID: context.runID, nightID: context.night.id
+    )
+    try journal.recordRound(
+        attemptID: attempt.id, lens: .check, verdict: "failed", requestedChanges: "red",
+        judgedCommit: "fddeef4", runID: context.runID
+    )
+    try journal.append(
+        .checkRan(
+            cardID: cardID, issueID: issueID, attemptID: attempt.id, result: .passed, exitStatus: 0,
+            output: nil, judgedCommit: "b763aff"
+        ),
+        act: context.act, runID: context.runID, nightID: context.night.id
+    )
+    try journal.endAttempt(
+        attemptID: attempt.id, ending: .success, runID: context.runID, act: context.act, nightID: context.night.id
+    )
 }
 
 @Suite("Night Summary: Cards, Dispositions, Pull requests, Answers (P12.1)")
@@ -79,7 +117,7 @@ struct NightSummaryCardsTests {
         #expect(try NightSummary.dispositionLines(night: night, journal: journal).isEmpty)
     }
 
-    @Test("A Card's route, model-alone Check and Rounds render in one line")
+    @Test("A Card's name, state, Attempt, Check result and Rounds render in one line")
     func cardLineNamesRouteCheckAndRounds() async throws {
         let fixture = try NightCardJournalFixture()
         let journal = try fixture.open()
@@ -95,9 +133,13 @@ struct NightSummaryCardsTests {
                 attemptID: attempt.id, lens: .review, verdict: "changes-requested", requestedChanges: nil,
                 judgedCommit: nil, runID: context.runID
             )
-            try journal.recordRound(
-                attemptID: attempt.id, lens: .check, verdict: "passed", requestedChanges: nil, judgedCommit: nil,
-                runID: context.runID
+            // A passing Check writes no Round: only its `checkRan` event records it.
+            try journal.append(
+                .checkRan(
+                    cardID: seeded.cardID, issueID: "CARD-1", attemptID: attempt.id, result: .passed,
+                    exitStatus: 0, output: nil, judgedCommit: "abc1234"
+                ),
+                act: context.act, runID: context.runID, nightID: context.night.id
             )
             try journal.endAttempt(
                 attemptID: attempt.id, ending: .success, runID: context.runID, act: context.act,
@@ -107,8 +149,101 @@ struct NightSummaryCardsTests {
 
         let lines = try NightSummary.cardLines(night: night, journal: journal)
         #expect(lines == [
-            "`CARD-1` — route: codex/gpt-5.4 · check: passed · rounds: review(changes-requested), check(passed)"
+            "`CARD-1` — Todo · Attempt 1: codex/gpt-5.4, success; check: passed on `abc1234`; "
+                + "rounds: review(changes-requested)"
         ])
+    }
+
+    @Test("A Done Card whose Check failed and then passed reports the pass, not the stale failure (#384)")
+    func checkFailedThenPassedReadsPassed() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let url = "https://linear.app/summerhammer/issue/YLH-312"
+        let issueID = "88d41e5f-0000-4000-8000-000000000312"
+        let seeded = try insertCardsFixture(
+            journal, cardIssueID: issueID, cardState: .done,
+            issueIDForDisplay: "YLH-312", issueKey: "YLH-312", issueURL: url
+        )
+        let night = try await openNightForCardsTest(journal: journal, board: board) { context in
+            let first = try journal.recordAttempt(
+                cardID: seeded.cardID, route: agyRoute, runID: context.runID, act: context.act,
+                nightID: context.night.id
+            )
+            try journal.endAttempt(
+                attemptID: first.id,
+                ending: .crashedUnknown(.terminated(.timedOut(after: .seconds(1800), forcedKill: false))),
+                runID: context.runID, act: context.act, nightID: context.night.id
+            )
+            try seedCheckFailedThenPassed(journal, context: context, cardID: seeded.cardID, issueID: issueID)
+        }
+
+        let line = try #require(try NightSummary.cardLines(night: night, journal: journal).first)
+        #expect(line.hasPrefix("[YLH-312](\(url)) — Done"))
+        #expect(line.contains("Attempt 1: agy/gemini-3.8-flash, Crashed-Unknown ("))
+        #expect(line.contains("Attempt 2: agy/gemini-3.8-flash, success"))
+        #expect(line.contains("check: passed on `b763aff` after 1 failed run"))
+        #expect(!line.contains("check: failed"))
+        #expect(line.contains("rounds: check(failed)"))
+    }
+
+    @Test("A Card without a URL is named in backticks; without an identifier, by its issue id")
+    func cardNameFallsBack() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let keyed = try insertCardsFixture(
+            journal, featureIssueID: "FEAT-1", cardIssueID: "uuid-keyed", repository: "backend",
+            issueKey: "YLH-7"
+        )
+        let bare = try insertCardsFixture(
+            journal, featureIssueID: "FEAT-2", cardIssueID: "uuid-bare", repository: "frontend"
+        )
+        let night = try await openNightForCardsTest(journal: journal, board: board)
+        for (id, issueID) in [(keyed.cardID, "uuid-keyed"), (bare.cardID, "uuid-bare")] {
+            try journal.append(
+                .cardRunStep(cardID: id, issueID: issueID, step: .leaseClaimed, detail: nil),
+                act: .build, runID: RunID(), nightID: night.id
+            )
+        }
+
+        let lines = try NightSummary.cardLines(night: night, journal: journal)
+        #expect(lines == [
+            "`YLH-7` — Todo · no Attempt this Night.",
+            "`uuid-bare` — Todo · no Attempt this Night."
+        ])
+    }
+
+    @Test("Dispositions name a failure cause's and an Operator abort's Card by identifier, not UUID")
+    func dispositionsNameCardsByIdentifier() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let issueID = "88d41e5f-0000-4000-8000-000000000312"
+        let seeded = try insertCardsFixture(
+            journal, cardIssueID: issueID, cardState: .blocked,
+            issueIDForDisplay: "YLH-312"
+        )
+        let night = try await openNightForCardsTest(journal: journal, board: board) { context in
+            try journal.recordFailureCause(
+                cardID: seeded.cardID, cause: try flakyCause(),
+                nightID: context.night.id, runID: context.runID, act: context.act
+            )
+            try journal.append(
+                .cardRunStep(
+                    cardID: seeded.cardID, issueID: issueID, step: .operatorAborted, detail: "attempt 2"
+                ),
+                act: context.act, runID: context.runID, nightID: context.night.id
+            )
+        }
+
+        let lines = try NightSummary.dispositionLines(night: night, journal: journal)
+        #expect(lines.contains("`YLH-312` — first occurrence."))
+        #expect(lines.contains { $0.hasPrefix("`YLH-312` was stopped by the Operator: Attempt 2 aborted") })
+        #expect(!lines.contains { $0.contains(issueID) })
     }
 
     @Test("A model-alone Check reads `check = none`")
@@ -323,7 +458,9 @@ struct NightSummaryCardsTests {
         let issue = try #require(await boards.writing.liveIssues.first)
         let description = try #require(issue.description)
         #expect(description.contains("**Cards:**"))
-        #expect(description.contains("`CARD-1` — route: codex/gpt-5.4"))
+        #expect(description.contains(
+            "`CARD-1` — Blocked · Attempt 1: codex/gpt-5.4, success; check: not run"
+        ))
         #expect(description.contains("**Dispositions:**"))
         #expect(description.contains("1 Blocked, 0 Waiting on You"))
     }
