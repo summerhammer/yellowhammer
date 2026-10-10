@@ -8,7 +8,17 @@ extension Schedule {
     /// five Projects staggered by 3 minutes each interleave without ever sharing a minute.
     public static let staggerStepMinutes = 3
 
+    /// How much later than its land tick each periodic build fires (Build Firing Offset Ruling
+    /// 2026-10-10): a build and a land Act started in the same second race for the Project's Lease and
+    /// one stands down. With `build_every_minutes == 1` there is no room for the offset, so it is zero.
+    static let buildFiringOffsetMinutes = 1
+
     /// One Project's author, build and land firings, each in firing order and deduplicated.
+    ///
+    /// `build` fires one minute after each periodic land tick (see `buildFiringOffsetMinutes`), so the
+    /// two never share a minute — except that with `build_every_minutes == 1` they do, and that the last
+    /// build can fall on the Night-closing land's minute when the window length minus one is a multiple
+    /// of `build_every_minutes`.
     public struct ScheduledFirings: Equatable, Sendable {
         public let author: [TimeOfDay]
         public let build: [TimeOfDay]
@@ -21,8 +31,11 @@ extension Schedule {
     }
 
     /// The firing grid for `staggerIndex`'s position among a machine's Projects (sorted ascending by
-    /// `ProjectID`; see ``ScheduledJob``). Offsets `night_start`/`night_end`/every build firing by
-    /// `staggerIndex * staggerStepMinutes`, wrapping at midnight.
+    /// `ProjectID`; see ``ScheduledJob``). Offsets `night_start`/`night_end`/every periodic firing by
+    /// `staggerIndex * staggerStepMinutes` (`o`), wrapping at midnight. For each `k` with
+    /// `o + k × build_every_minutes` inside the window, land fires at
+    /// `night_start + o + k × build_every_minutes` and build one minute later; author fires at
+    /// `night_start + o` and the Night-closing land at `night_end + o`.
     ///
     /// Throws when the offset consumes the whole Night window (`offset >= L`) or when the window spans
     /// a full 24 hours (`night_start == night_end`): a 24-hour window has no land firing that belongs to
@@ -69,7 +82,11 @@ extension Schedule {
             buildOffsets.append(offset + multiplier * buildEveryMinutes)
             multiplier += 1
         }
-        let build = deduplicated(buildOffsets.map(time))
+        // Build fires one minute after the land tick it shares a `k` with, so the two Acts never start in
+        // the same second and race for the Project's Lease. Every `k` keeps its firing: the shift never
+        // adds, drops or merges one, even when the last build lands on the Night-closing land's minute.
+        let buildShift = buildEveryMinutes == 1 ? 0 : Self.buildFiringOffsetMinutes
+        let build = deduplicated(buildOffsets.map { time($0 + buildShift) })
         let land = deduplicated(buildOffsets.map(time) + [time(offset + length)])
 
         return ScheduledFirings(author: deduplicated(author), build: build, land: land)
