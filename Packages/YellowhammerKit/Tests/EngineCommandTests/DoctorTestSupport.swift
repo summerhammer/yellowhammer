@@ -45,7 +45,9 @@ func makeDoctor(
     checks: [DoctorCheck] = DoctorCheck.allCases,
     projectFilter: ProjectID? = nil,
     commandLineToolLink: CommandLineToolLink = CommandLineToolLink(),
-    runningExecutablePath: String = CommandLineToolLink.runningExecutablePath()
+    runningExecutablePath: String = CommandLineToolLink.runningExecutablePath(),
+    setupTimePATH: String? = "/usr/bin:/bin",
+    fileExists: @escaping (String) -> Bool = { _ in false }
 ) -> Doctor {
     Doctor(
         configurationDirectory: directory.url,
@@ -68,7 +70,9 @@ func makeDoctor(
         checks: checks,
         projectFilter: projectFilter,
         commandLineToolLink: commandLineToolLink,
-        runningExecutablePath: runningExecutablePath
+        runningExecutablePath: runningExecutablePath,
+        setupTimePATH: setupTimePATH,
+        fileExists: fileExists
     )
 }
 

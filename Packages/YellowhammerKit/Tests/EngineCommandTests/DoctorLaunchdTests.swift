@@ -1,3 +1,5 @@
+import Config
+import Domain
 @testable import EngineCommand
 import Foundation
 import Testing
@@ -15,7 +17,12 @@ struct DoctorLaunchdTests {
         let agentsDirectory = home.appending(components: "Library", "LaunchAgents", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: agentsDirectory, withIntermediateDirectories: true)
         let label = "dev.yellowhammer.alpha.author"
-        try Data().write(to: agentsDirectory.appending(component: "\(label).plist"))
+        let author = ScheduledJob(
+            projectID: try #require(ProjectID(rawValue: "alpha")), act: .author, yhExecutablePath: "/opt/yh",
+            firings: try Schedule().firings(staggerIndex: 0).author, pathValue: "/usr/bin"
+        )
+        try author.plistData(homeDirectory: "/Users/test")
+            .write(to: agentsDirectory.appending(component: "\(label).plist"))
 
         let doctor = makeDoctor(
             directory: directory, homeDirectory: home,
