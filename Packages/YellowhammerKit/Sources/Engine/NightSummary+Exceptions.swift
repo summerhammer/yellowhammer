@@ -101,7 +101,8 @@ extension NightSummary {
     }
 
     /// The `**Exceptions:**` section: `boardWriteFailed`, `rateBudgetExhausted`, `mainlineFetchFailed`,
-    /// `absentNightDetected`, `notificationDeliveryFailed`, `worktreeNameCollision`, a `worktreeLost` that
+    /// `absentNightDetected`, `notificationDeliveryFailed`, `worktreeNameCollision`, a `flushFiringRan` that closed
+    /// the Night (the closing land did not), a `worktreeLost` that
     /// recovered nothing (OQ133; ``worktreeLossLines(night:journal:)``) and `overrideRefused` — the last
     /// once per Card and reason, however many Acts refused it (OQ126). Empty when none of these happened
     /// this Night.
@@ -134,6 +135,11 @@ extension NightSummary {
                 lines.append(
                     "A Worktree branch-name collision in `\(repository)` halted the build Act: Orca ADE made "
                         + "`\(reported)`, not `\(requested)`. Later Acts retry."
+                )
+            case .flushFiringRan(.closedNight, _):
+                lines.append(
+                    "The Night's closing land did not close it: a flush firing closed it at "
+                        + "\(record.occurredAt.formatted(.iso8601))."
                 )
             default:
                 break

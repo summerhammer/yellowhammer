@@ -115,6 +115,12 @@ extension JournalStore {
         try read { db in try Self.fetchNight(db, id: id) }
     }
 
+    /// The Night of this Project that started on this date, open or closed, or nil when none was
+    /// recorded — which is what a flush firing needs to tell "never started" from "still open".
+    public func night(nightStart: NightStart) throws -> NightRecord? {
+        try read { db in try Self.fetchNight(db, projectID: projectID, nightStart: nightStart) }
+    }
+
     /// Records the Night Card's issue id, the first Act of the Night creating it before any work
     /// (DR7). One write transaction under the Act-scoped lease. A repeat of the same issue id is a
     /// no-op — the Outbox's replay after a crash resolves to the same create — and a different id

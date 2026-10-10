@@ -241,6 +241,8 @@ extension JournalEvent {
             .cardPromotedToStandingItem
         case .projectRemoved:
             .projectRemoved
+        case .flushFiringRan:
+            .flushFiringRan
         }
     }
 }

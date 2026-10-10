@@ -9,10 +9,15 @@ extension EngineInvocation {
     /// replays them on a later Act; this only makes the gap visible. Entries are re-read from the Journal
     /// rather than taken from the delivery report, because a pass that defers its first entry stops, and
     /// the report never mentions the second. Best-effort: it never fails the Act.
-    func recordDeferredCompletion(entries: [OutboxEntry], night: NightRecord) {
+    ///
+    /// Returns whether any of the entries is still pending, so the closing notification can say the
+    /// Night Card is not updated yet; that holds even when no Night Card issue id is recorded to write
+    /// the event against.
+    func recordDeferredCompletion(entries: [OutboxEntry], night: NightRecord) -> Bool {
         let pending = entries.compactMap { try? journal.outboxEntry(clientID: $0.clientID) }
             .filter { $0.state == .pending }
-        guard let first = pending.first, let issueID = night.nightCardIssueID else { return }
+        guard let first = pending.first else { return false }
+        guard let issueID = night.nightCardIssueID else { return true }
         let ids = pending.map(\.id)
         let reason = first.lastError ?? "still pending"
         _ = try? journal.append(
@@ -24,21 +29,30 @@ extension EngineInvocation {
             "Night Card completion deferred: Outbox entries \(list) still pending (\(reason)); "
                 + "a later Act delivers them"
         )
+        return true
+    }
+
+    /// This Act's Outbox and Night Card maintenance, or nil when no board is wired. Nothing is read or written.
+    /// A flush firing's Outbox does not count a pass the board could not be reached in as an attempt.
+    func makeNightCardMaintenance(night: NightRecord) -> (Outbox, NightCardMaintenance)? {
+        guard let board else { return nil }
+        var boxed = Outbox(
+            journal: journal, board: board.writing, reading: board.reading, runID: runID, act: act, nightID: night.id,
+            installation: board.installation, scrub: narrativeScrub
+        ) { [outboxKill] in outboxKill?.interrupt($0) }
+        boxed.transientRetry = outboxTransientRetry
+        boxed.countsTransientAttempts = !isFlushFiring
+        let maintenance = NightCardMaintenance(
+            journal: journal, outbox: boxed, provisioning: board.provisioning, bounds: nightCardBounds
+        )
+        return (boxed, maintenance)
     }
 
     /// Ensures the Project's Night Card is live when a board is wired, replacing an archived card. Split out of
     /// `runUnderLease` to keep that function under the function body length limit; the caller re-reads
     /// the Night afterwards, since `open` may have recorded its Night Card issue id.
     func openNightCardIfNeeded(night: NightRecord) async throws -> (Outbox?, NightCardMaintenance?) {
-        guard let board else { return (nil, nil) }
-        var boxed = Outbox(
-            journal: journal, board: board.writing, reading: board.reading, runID: runID, act: act, nightID: night.id,
-            installation: board.installation, scrub: narrativeScrub
-        ) { [outboxKill] in outboxKill?.interrupt($0) }
-        boxed.transientRetry = outboxTransientRetry
-        let maintenance = NightCardMaintenance(
-            journal: journal, outbox: boxed, provisioning: board.provisioning, bounds: nightCardBounds
-        )
+        guard let (boxed, maintenance) = makeNightCardMaintenance(night: night) else { return (nil, nil) }
         let opening = try await maintenance.open(night: night)
         if !night.isOpen, case .opened = opening {
             _ = try await maintenance.acceptCompletion(night: night)

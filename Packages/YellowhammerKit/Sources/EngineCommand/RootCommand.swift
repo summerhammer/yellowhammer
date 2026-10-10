@@ -78,6 +78,14 @@ extension ActCommand {
         // same way.
         let window = night.map { project.schedule.nightWindow(for: $0) } ?? project.schedule.nightWindow(at: now)
         let closesNight = Self.act == .land && now >= window.end
+        // A scheduled real-mode land at or after the first flush minute is a flush firing: it does no Night
+        // work (Transient Board Failure Ruling item 6). A forced land and any rehearsal land are never one —
+        // rehearsal suites close past Nights that way. The stagger index is Setup's: the Project's position
+        // among the machine's Projects, sorted by id.
+        let isFlushFiring = Self.act == .land && !rehearsal && night == nil && trigger == .scheduled
+            && project.schedule.isFlushFiring(
+                at: now, in: window, staggerIndex: configuration.projects.firstIndex { $0.id == resolved.id } ?? 0
+            )
 
         let board = try bindBoard?(configuration, project)
         let workspace = bindWorkspace?()
@@ -95,7 +103,7 @@ extension ActCommand {
             configurationDirectory: configurationDirectory,
             shared: ActSharedSeams(narrativeScrub: narrativeScrub, refresher: refresher)
         )
-        return EngineInvocation(
+        var invocation = EngineInvocation(
             act: Self.act,
             mode: mode,
             nightStart: window.nightStart,
@@ -106,14 +114,7 @@ extension ActCommand {
             repositories: project.repositories,
             mainlineRefresher: refresher,
             workspace: workspace,
-            nightCardBounds: NightCardMaintenance.Bounds(
-                reviewRoundsMax: project.bounds.reviewRoundsMax,
-                attemptsPerWorkCard: project.bounds.attemptsPerWorkCard,
-                unansweredNightsMax: project.bounds.unansweredNightsMax,
-                reselectionsMax: project.bounds.reselectionsMax,
-                consecutiveRefusalsMax: project.bounds.consecutiveRefusalsMax,
-                failedAdoptionsMax: project.bounds.failedAdoptionsMax
-            ),
+            nightCardBounds: Self.nightCardBounds(project),
             openingReadiness: ReadinessCheck(
                 provenance: ProvenanceDiffTester(), citations: MainlineReader(refresher: refresher)
             ),
@@ -123,6 +124,21 @@ extension ActCommand {
             narrativeScrub: narrativeScrub,
             actLog: { ActLog.writeToStandardError($0) },
             work: work
+        )
+        invocation.isFlushFiring = isFlushFiring
+        return invocation
+    }
+
+    /// The Night Summary's Bounds, read from the Project's `[bounds]`. Split out of `makeInvocation` to keep
+    /// that function within its length limit.
+    private static func nightCardBounds(_ project: ProjectConfiguration) -> NightCardMaintenance.Bounds {
+        NightCardMaintenance.Bounds(
+            reviewRoundsMax: project.bounds.reviewRoundsMax,
+            attemptsPerWorkCard: project.bounds.attemptsPerWorkCard,
+            unansweredNightsMax: project.bounds.unansweredNightsMax,
+            reselectionsMax: project.bounds.reselectionsMax,
+            consecutiveRefusalsMax: project.bounds.consecutiveRefusalsMax,
+            failedAdoptionsMax: project.bounds.failedAdoptionsMax
         )
     }
 
