@@ -39,7 +39,8 @@ extension Status {
         window: NightWindow, firingsOfDay: Schedule.ScheduledFirings?, calendar: Calendar
     ) -> [Date] {
         guard let firingsOfDay else { return [window.start] }
-        let timesOfDay = firingsOfDay.author + firingsOfDay.build + firingsOfDay.land
+        // The flush firings fall after `night_end`, outside the Night: they are not among its firing instants.
+    let timesOfDay = firingsOfDay.author + firingsOfDay.build + firingsOfDay.landWithinNight
         return MissedNightDiagnosis.firingInstants(window: window, firings: timesOfDay, calendar: calendar)
     }
 

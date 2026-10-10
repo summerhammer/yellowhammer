@@ -29,8 +29,14 @@ extension EngineInvocation {
             }
             return
         }
-        guard closesNight else { return }
+        guard closesNight || isFlushFiring else { return }
         try journal.closeNight(id: night.id, reason: .nightEnd, act: act, runID: runID)
+        if isFlushFiring {
+            // Before the completion is rendered, so the Night Summary reports that a flush firing closed it.
+            _ = try? journal.append(
+                .flushFiringRan(outcome: .closedNight, detail: nil), act: act, runID: runID, nightID: night.id
+            )
+        }
         // Completion needs the closed Night's completedAt and verdict.
         if let card, let closed = try journal.night(id: night.id) {
             let entries = try await card.acceptCompletion(night: closed)

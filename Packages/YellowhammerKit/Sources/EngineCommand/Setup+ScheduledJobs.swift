@@ -65,7 +65,8 @@ extension Setup {
                 })
                 output(
                     "Project \(project.id): scheduled author \(firings.author.count), " // glossary:ignore GL001
-                        + "build \(firings.build.count), land \(firings.land.count) firings"
+                        + "build \(firings.build.count), land \(firings.land.count) "
+                        + "(\(firings.flush.count) flush) firings"
                 )
             } catch {
                 output("Project \(project.id): \(error)") // glossary:ignore GL001

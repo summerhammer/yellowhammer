@@ -148,6 +148,35 @@ struct StatusMissedNightsTests {
         #expect(missed[0].cause == .asleep([interval]))
     }
 
+    @Test("Flush firings after night_end are not among a Night's firings")
+    func flushFiringsAreNotTheNightsFirings() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+        try directory.writeValidProjectFile(id: "alpha")
+        let homeDirectory = FileManager.default.temporaryDirectory
+            .appending(component: "yh-status-home-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let launchAgents = try makeAllJobsLoaded(homeDirectory: homeDirectory, projectID: Self.projectID)
+        // Asleep until 06:30: every firing of the Night, the closing land at 06:00 included, is covered,
+        // but the flush firings at 07:00 and 09:00 are not. They fall after the Night, so they must not
+        // turn "asleep" into "undiagnosed".
+        let interval = SleepInterval(
+            start: statusTestDate("2026-09-23 21:00:00 +0000"), end: statusTestDate("2026-09-24 06:30:00 +0000")
+        )
+        let sleepHistory = StubSleepHistorySource(
+            history: SleepHistory(intervals: [interval], coverageStart: statusTestDate("2026-09-23 00:00:00 +0000"))
+        )
+
+        let status = makeStatus(
+            directory: directory, homeDirectory: homeDirectory, launchAgents: launchAgents,
+            sleepHistory: sleepHistory, now: Self.now
+        )
+        let report = await status.run()
+
+        let missed = try #require(report.projectStatuses.first?.missedNights)
+        #expect(missed.count == 1)
+        #expect(missed[0].cause == .asleep([interval]))
+    }
+
     @Test("Undiagnosed with sleepHistoryReachesBack true when nothing explains it")
     func undiagnosedReachesBack() async throws {
         let directory = ConfigurationDirectory()

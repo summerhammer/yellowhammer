@@ -119,4 +119,5 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case refusalPromotedToStandingItem = "RefusalPromotedToStandingItem"
     case cardPromotedToStandingItem = "CardPromotedToStandingItem"
     case projectRemoved = "ProjectRemoved"
+    case flushFiringRan = "FlushFiringRan"
 }

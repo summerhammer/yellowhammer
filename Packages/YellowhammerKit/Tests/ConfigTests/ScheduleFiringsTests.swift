@@ -1,5 +1,6 @@
 import Config
 import Domain
+import Foundation
 import Testing
 
 @Test("firings: defaults, stagger index 0")
@@ -10,9 +11,9 @@ func firingsDefaultsIndex0() throws {
     #expect(firings.build.count == 31)
     #expect(firings.build.first == TimeOfDay(hour: 22, minute: 16)!)
     #expect(firings.build.last == TimeOfDay(hour: 5, minute: 46)!)
-    #expect(firings.land.count == 32)
+    #expect(firings.landWithinNight.count == 32)
     #expect(firings.land.first == TimeOfDay(hour: 22, minute: 15)!)
-    #expect(firings.land.last == TimeOfDay(hour: 6, minute: 0)!)
+    #expect(firings.landWithinNight.last == TimeOfDay(hour: 6, minute: 0)!)
 }
 
 @Test("firings: worked example, 22:00-06:00 every 15, offset 3")
@@ -31,7 +32,7 @@ func firingsWorkedExample() throws {
     #expect(firings.build[1] == time(22, 34))
     #expect(firings.build.last == time(5, 49))
 
-    // land by membership: other Work Cards of this Feature append flush firings to land
+    // land by membership
     #expect(firings.land.contains(time(22, 18)))
     #expect(firings.land.contains(time(22, 33)))
     #expect(firings.land.contains(time(5, 48)))
@@ -49,7 +50,7 @@ func firingsDefaultsIndex2() throws {
     #expect(firings.build.count == 31)
     #expect(firings.build.first == TimeOfDay(hour: 22, minute: 22)!)
     #expect(firings.build.last == TimeOfDay(hour: 5, minute: 52)!)
-    #expect(firings.land.last == TimeOfDay(hour: 6, minute: 6)!)
+    #expect(firings.landWithinNight.last == TimeOfDay(hour: 6, minute: 6)!)
 }
 
 @Test("firings: same-day window 01:00-05:00 every 20")
@@ -64,7 +65,7 @@ func firingsSameDayWindow() throws {
     #expect(firings.build.count == 11)
     #expect(firings.build.first == TimeOfDay(hour: 1, minute: 21)!)
     #expect(firings.build.last == TimeOfDay(hour: 4, minute: 41)!)
-    #expect(firings.land.last == TimeOfDay(hour: 5, minute: 0)!)
+    #expect(firings.landWithinNight.last == TimeOfDay(hour: 5, minute: 0)!)
 }
 
 @Test("firings: interval does not divide the window")
@@ -77,7 +78,7 @@ func firingsNonDividingInterval() throws {
 
     #expect(firings.build.count == 19)
     #expect(firings.build.last == TimeOfDay(hour: 5, minute: 56)!)
-    #expect(firings.land.last == TimeOfDay(hour: 6, minute: 0)!)
+    #expect(firings.landWithinNight.last == TimeOfDay(hour: 6, minute: 0)!)
     #expect(!firings.build.contains(TimeOfDay(hour: 6, minute: 0)!))
 }
 
@@ -91,7 +92,7 @@ func firingsEveryMinuteHasNoBuildOffset() throws {
 
     let ticks = (1...9).map { TimeOfDay(hour: 1, minute: $0)! }
     #expect(firings.build == ticks)
-    #expect(firings.land == ticks + [TimeOfDay(hour: 1, minute: 10)!])
+    #expect(firings.landWithinNight == ticks + [TimeOfDay(hour: 1, minute: 10)!])
 }
 
 @Test("firings: build shift wraps at midnight")
@@ -119,7 +120,7 @@ func firingsLastBuildOnNightClosingLandMinute() throws {
 
     #expect(firings.build.count == 32)
     #expect(firings.build.last == TimeOfDay(hour: 6, minute: 1)!)
-    #expect(firings.land.last == TimeOfDay(hour: 6, minute: 1)!)
+    #expect(firings.landWithinNight.last == TimeOfDay(hour: 6, minute: 1)!)
     #expect(firings.land.contains(TimeOfDay(hour: 6, minute: 0)!))
 }
 
@@ -143,4 +144,96 @@ func firingsRefuses24HourWindow() throws {
     #expect(throws: Schedule.FiringGridError.self) {
         try schedule.firings(staggerIndex: 0)
     }
+}
+
+// shift-scheduling/fire-an-act-on-schedule: three flush firings follow the Night-closing land.
+
+private func time(_ hour: Int, _ minute: Int) -> TimeOfDay { TimeOfDay(hour: hour, minute: minute)! }
+
+@Test("flush firings: night_end 06:00, offset 3 fires at 06:18, 07:03 and 09:03")
+func flushFiringsWorkedExample() throws {
+    let firings = try Schedule().firings(staggerIndex: 1)
+
+    #expect(firings.flush == [time(6, 18), time(7, 3), time(9, 3)])
+    // The land LaunchAgent carries the whole set: periodic ticks, the closing land, then the flush firings.
+    #expect(firings.land.suffix(4) == [time(6, 3), time(6, 18), time(7, 3), time(9, 3)])
+    #expect(firings.land.count == firings.landWithinNight.count + 3)
+    #expect(firings.landWithinNight.last == time(6, 3))
+    #expect(!firings.landWithinNight.contains(time(6, 18)))
+}
+
+@Test("flush firings: stagger index 0 fires 15 minutes, 1 hour and 3 hours after night_end")
+func flushFiringsIndexZero() throws {
+    let firings = try Schedule().firings(staggerIndex: 0)
+
+    #expect(firings.flush == [time(6, 15), time(7, 0), time(9, 0)])
+    #expect(firings.land.count == 35)
+}
+
+@Test("flush firings wrap at midnight")
+func flushFiringsWrapAtMidnight() throws {
+    // Window 20:00-23:00: night_end 23:00 + 15 min / 1 h / 3 h = 23:15, 00:00, 02:00 (next day).
+    let schedule = Schedule(
+        nightStart: time(20, 0), nightEnd: time(23, 0), buildEveryMinutes: 60
+    )
+    let firings = try schedule.firings(staggerIndex: 0)
+
+    #expect(firings.flush == [time(23, 15), time(0, 0), time(2, 0)])
+}
+
+@Test("flush firings: one at or after the next night_start + o is not generated (lead draft)")
+func flushFiringsStopBeforeTheNextNight() throws {
+    // Window 22:00-06:00 is 480m and the gap to the next night_start is 1440 - 480 = 960m, so nothing
+    // is cut. A window of 22:00-20:00 leaves a 120m gap: the 15 min and 1 h flush firings fit, the 3 h
+    // one would land at the next night_start + o and is dropped, whatever o is.
+    let schedule = Schedule(nightStart: time(22, 0), nightEnd: time(20, 0), buildEveryMinutes: 60)
+
+    let first = try schedule.firings(staggerIndex: 0)
+    #expect(first.flush == [time(20, 15), time(21, 0)])
+    let second = try schedule.firings(staggerIndex: 2)
+    #expect(second.flush == [time(20, 21), time(21, 6)])
+    #expect(second.land.contains(time(20, 6)))
+}
+
+@Test("flush firings: a gap of 15 minutes or less leaves none")
+func flushFiringsNoneForTinyGap() throws {
+    let schedule = Schedule(nightStart: time(6, 10), nightEnd: time(6, 0), buildEveryMinutes: 60)
+    let firings = try schedule.firings(staggerIndex: 0)
+
+    #expect(firings.flush.isEmpty)
+    #expect(firings.land == firings.landWithinNight)
+}
+
+@Test("flush firings: the flush subset shares no minute with the Night's own land firings")
+func flushFiringsAreDisjointFromTheNightsLand() throws {
+    for staggerIndex in 0..<5 {
+        let firings = try Schedule().firings(staggerIndex: staggerIndex)
+        #expect(Set(firings.flush).isDisjoint(with: Set(firings.landWithinNight)))
+        #expect(Set(firings.land) == Set(firings.landWithinNight).union(firings.flush))
+        #expect(Set(firings.land).count == firings.land.count)
+    }
+}
+
+// The clock decides which land firing is a flush firing.
+
+private func at(_ day: Int, _ hour: Int, _ minute: Int) throws -> Date {
+    try #require(Calendar.current.date(from: DateComponents(
+        year: 2026, month: 9, day: day, hour: hour, minute: minute
+    )))
+}
+
+@Test("isFlushFiring: the closing land is not one; the first flush minute and later ones are")
+func isFlushFiringClassifiesFromTheClock() throws {
+    let schedule = Schedule()
+    let window = schedule.nightWindow(at: try at(15, 23, 0))
+
+    // Index 1 (offset 3): night_end + o is 06:03, the first flush minute 06:18.
+    #expect(!schedule.isFlushFiring(at: try at(16, 6, 3), in: window, staggerIndex: 1))
+    #expect(!schedule.isFlushFiring(at: try at(16, 6, 17), in: window, staggerIndex: 1))
+    #expect(schedule.isFlushFiring(at: try at(16, 6, 18), in: window, staggerIndex: 1))
+    #expect(schedule.isFlushFiring(at: try at(16, 7, 3), in: window, staggerIndex: 1))
+    #expect(schedule.isFlushFiring(at: try at(16, 9, 3), in: window, staggerIndex: 1))
+    // A land during the Night is never one, and nor is one in the next Night.
+    #expect(!schedule.isFlushFiring(at: try at(15, 23, 30), in: window, staggerIndex: 1))
+    #expect(!schedule.isFlushFiring(at: try at(16, 22, 0), in: window, staggerIndex: 1))
 }

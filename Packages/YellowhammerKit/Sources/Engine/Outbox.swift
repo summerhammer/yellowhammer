@@ -31,6 +31,10 @@ public struct Outbox: Sendable {
     public var attemptLimit = 3
     /// How a pass re-sends a write while the board cannot be reached, before leaving it pending.
     public var transientRetry = OutboxTransientRetry.ruled
+    /// Whether a pass that gives up on an unreachable board counts as an attempt toward ``attemptLimit``.
+    /// A flush firing's pass does not, so three flush firings in one outage cannot turn a transient failure
+    /// into a permanent one (Transient Board Failure Ruling 2026-10-09 item 6).
+    public var countsTransientAttempts = true
     /// The Board Connection the board writes through, named on a rate-budget record. Nil for a board
     /// bound through none.
     public let installation: AppInstallationLabel?
@@ -351,6 +355,9 @@ public struct Outbox: Sendable {
             // The board may or may not have applied it. A create is safe to re-send under its client id,
             // and an update re-sends the same content, so the entry stays pending for another attempt.
             let reason = String(describing: error)
+            guard countsTransientAttempts else {
+                return OutboxDelivery(entry: entry, outcome: .deferred(.transient(reason)))
+            }
             let attempted = try journal.recordOutboxAttemptFailure(id: entry.id, error: reason)
             if attempted.attemptCount >= attemptLimit {
                 return try fail(attempted, reason: "\(reason) (after \(attempted.attemptCount) attempts)")
