@@ -14,12 +14,16 @@ private final class LineLog: Sendable {
     var lines: [String] { storage.withLock { $0 } }
 }
 
+/// The closing events posted, in order: `.closed` and `.closedCompletionPending` only.
 private final class ClosedPosts: Sendable {
-    private let storage = Mutex<Int>(0)
+    private let storage = Mutex<[ExceptionNotification.Event]>([])
     func record(_ notification: ExceptionNotification) {
-        if case .closed = notification.event { storage.withLock { $0 += 1 } }
+        switch notification.event {
+        case .closed, .closedCompletionPending: storage.withLock { $0.append(notification.event) }
+        case .halted, .haltedUnrecorded: break
+        }
     }
-    var count: Int { storage.withLock { $0 } }
+    var events: [ExceptionNotification.Event] { storage.withLock { $0 } }
 }
 
 @Suite("Night Card completion that stays pending when the Night closes")
@@ -65,7 +69,8 @@ struct NightCardCompletionDeferredTests {
         #expect(log.lines.count == 1)
         #expect(log.lines.first?.contains("deferred") == true)
         #expect(try journal.events(ofType: .nightClosed).count == 1)
-        #expect(closed.count == 1)
+        // The Night Card is not updated yet, so the notification must not say the Night merely closed.
+        #expect(closed.events == [.closedCompletionPending])
         #expect(try journal.events().map(\.type).contains(.nightCardCompleted) == false)
 
         // A later Act flushes it once the board is reachable again.
@@ -88,14 +93,17 @@ struct NightCardCompletionDeferredTests {
         let boards = try await makeBoards()
         let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
         let log = LineLog()
+        let closed = ClosedPosts()
 
         try await EngineInvocation(
             act: .land, mode: .real, nightStart: nightCardNightStart, journal: journal,
             trigger: .forced, runID: RunID(), closesNight: true, board: board,
+            notifier: ExceptionNotifier { closed.record($0) },
             outboxTransientRetry: SleepLog().ruled, actLog: { log.append($0) },
             work: { _ in }
         ).run()
 
+        #expect(closed.events == [.closed])
         #expect(try journal.events(ofType: .nightCardCompletionDeferred).isEmpty)
         #expect(try journal.events(ofType: .nightCardCompleted).count == 1)
         #expect(try journal.pendingOutboxEntries().isEmpty)

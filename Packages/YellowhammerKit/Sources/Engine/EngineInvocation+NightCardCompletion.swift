@@ -9,10 +9,15 @@ extension EngineInvocation {
     /// replays them on a later Act; this only makes the gap visible. Entries are re-read from the Journal
     /// rather than taken from the delivery report, because a pass that defers its first entry stops, and
     /// the report never mentions the second. Best-effort: it never fails the Act.
-    func recordDeferredCompletion(entries: [OutboxEntry], night: NightRecord) {
+    ///
+    /// Returns whether any of the entries is still pending, so the closing notification can say the
+    /// Night Card is not updated yet; that holds even when no Night Card issue id is recorded to write
+    /// the event against.
+    func recordDeferredCompletion(entries: [OutboxEntry], night: NightRecord) -> Bool {
         let pending = entries.compactMap { try? journal.outboxEntry(clientID: $0.clientID) }
             .filter { $0.state == .pending }
-        guard let first = pending.first, let issueID = night.nightCardIssueID else { return }
+        guard let first = pending.first else { return false }
+        guard let issueID = night.nightCardIssueID else { return true }
         let ids = pending.map(\.id)
         let reason = first.lastError ?? "still pending"
         _ = try? journal.append(
@@ -24,6 +29,7 @@ extension EngineInvocation {
             "Night Card completion deferred: Outbox entries \(list) still pending (\(reason)); "
                 + "a later Act delivers them"
         )
+        return true
     }
 
     /// This Act's Outbox and Night Card maintenance, or nil when no board is wired. Nothing is read or written.
