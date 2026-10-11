@@ -60,4 +60,21 @@ struct KeychainCredentialStoreTests {
         #expect(throws: KeychainError.self) { try store.read(reference) }
         try store.delete(reference)
     }
+
+    @Test("Custom service isolates items from the default service")
+    func customServiceIsolates() throws {
+        let defaultStore = KeychainCredentialStore()
+        let customStore = KeychainCredentialStore(service: "dev.yellowhammer.tests")
+        let reference = try credential("keychain:test-\(UUID().uuidString)")
+        defer {
+            try? defaultStore.delete(reference)
+            try? customStore.delete(reference)
+        }
+
+        try customStore.store("custom-secret", for: reference)
+        #expect(try customStore.read(reference) == "custom-secret")
+        #expect(throws: KeychainError.self) {
+            try defaultStore.read(reference)
+        }
+    }
 }

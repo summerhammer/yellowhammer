@@ -166,15 +166,11 @@ private func localLoopbackSeamPair(
     return (portBinder, opener)
 }
 
-/// A throwaway `LinearInstallationStore` bound to a fresh keychain reference and lock file, so remote-
-/// install tests can assert on what was (or was not) stored without touching the machine's real ones.
+/// A throwaway in-memory `LinearInstallationStore` bound to a fresh reference, so remote-
+/// install tests can assert on what was (or was not) stored without touching the machine's Keychain.
 func freshLinearInstallationStore() -> (store: LinearInstallationStore, reference: CredentialReference) {
     let reference = CredentialReference("keychain:test-install-\(UUID().uuidString)")!
-    let lockPath = FileManager.default.temporaryDirectory
-        .appending(component: "yh-test-lock-\(UUID().uuidString).lock", directoryHint: .notDirectory)
-    let store = LinearInstallationStore(
-        reference: reference, keychain: KeychainCredentialStore(), machineLock: MachineLock(fileURL: lockPath)
-    )
+    let store = LinearInstallationStore.inMemory(reference: reference)
     return (store, reference)
 }
 
