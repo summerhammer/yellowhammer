@@ -146,4 +146,72 @@ struct DoctorConfigurationTests {
         #expect(finding.message.contains("Routing Table"))
         #expect(!findings.contains { $0.severity == .failure })
     }
+
+    @Test("A routing entry listing itself among its fallbacks warns in Doctor Check 1 (#441)")
+    func routingEntryListingItselfAmongFallbacksWarns() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile("""
+            [board.linear.connections.acme]
+            credential = "keychain:linear"
+            workspace = "workspace-1"
+            yellowhammer_identity = "app-user-1"
+
+            [code_hosting.github.connections.github]
+            type = "keychain"
+            credential = "keychain:github"
+
+            [cli.claude]
+            [cli.codex]
+
+            [[routing]]
+            work_kind = "authoring"
+            route = "claude/opus/high"
+            fallbacks = ["claude/opus/high", "codex/gpt-5.4/high"]
+            """)
+        try directory.writeValidProjectFile(id: "alpha")
+
+        let doctor = makeDoctor(directory: directory, checks: [.configuration])
+        let findings = await doctor.run()
+
+        let selfFallbackFinding = findings.first {
+            $0.check == .configuration && $0.severity == .warning
+                && $0.message.contains("lists its primary route (\"claude/opus/high\") among its fallbacks")
+        }
+        #expect(selfFallbackFinding != nil)
+        #expect(!findings.contains { $0.severity == .failure })
+    }
+
+    @Test("A routing entry with duplicate fallbacks warns in Doctor Check 1 (#441)")
+    func routingEntryWithDuplicateFallbacksWarns() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile("""
+            [board.linear.connections.acme]
+            credential = "keychain:linear"
+            workspace = "workspace-1"
+            yellowhammer_identity = "app-user-1"
+
+            [code_hosting.github.connections.github]
+            type = "keychain"
+            credential = "keychain:github"
+
+            [cli.claude]
+            [cli.codex]
+
+            [[routing]]
+            work_kind = "*"
+            route = "claude/sonnet/medium"
+            fallbacks = ["codex/gpt-5.4/high", "codex/gpt-5.4/high"]
+            """)
+        try directory.writeValidProjectFile(id: "alpha")
+
+        let doctor = makeDoctor(directory: directory, checks: [.configuration])
+        let findings = await doctor.run()
+
+        let duplicateFallbackFinding = findings.first {
+            $0.check == .configuration && $0.severity == .warning
+                && $0.message.contains("lists fallback (\"codex/gpt-5.4/high\") more than once")
+        }
+        #expect(duplicateFallbackFinding != nil)
+        #expect(!findings.contains { $0.severity == .failure })
+    }
 }

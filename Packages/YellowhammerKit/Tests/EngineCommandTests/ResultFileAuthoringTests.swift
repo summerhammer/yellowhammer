@@ -226,6 +226,15 @@ struct AuthoringFixtureTests {
         #expect(rendered.contains("yellowhammer.result.breakdown"))
         #expect(rendered.contains("where `citation` is a story ID `<epic>/<story>` or a goal ID"))
         #expect(rendered.hasSuffix("\n"))
+        #expect(rendered.contains("composed into the instruction of an autonomous worker agent CLI"))
+        #expect(rendered.contains("must not tell the worker not to commit"))
+        let selection = AuthoringInstruction(
+            pass: .selection, route: Route(cli: "claude", model: "opus", effort: "high")!,
+            specificationSource: .specSource(SpecSource(path: "/spec")), specificationMainline: nil,
+            repos: [Repo(name: "backend", path: "/b", role: .backend)], mainlines: ResolvedMainlines(),
+            namedFeature: nil, adoptionCandidates: [], selectedFeature: nil, resultFilePath: "/runs/result.json"
+        )
+        #expect(!selection.render().contains("autonomous worker agent CLI"))
         #expect(instruction.withResultFilePath("/other.json").render().contains("/other.json"))
     }
 }
