@@ -443,6 +443,56 @@ struct FlushFiringClassificationTests {
         #expect(!past.isFlushFiring)
     }
 
+    @Test("A scheduled land at 22:04 of a Project at Stagger Index 3 is the previous Night's flush firing")
+    func staggeredFlushFiringBeforeTheNextAuthorFiring() throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+        for id in ["alpha", "beta", "gamma"] {
+            try directory.writeValidProjectFile(id: id)
+        }
+        try directory.writeProjectFile(id: "zeta", """
+            id = "zeta"
+            name = "zeta"
+            board = { linear = { connection = "acme", project = "zeta" } }
+            code_hosting = { connection = "github" }
+            spec_source = "~/Developer/zeta-spec"
+
+            [schedule]
+            night_start = "22:00"
+            night_end = "21:40"
+            build_every_minutes = 60
+
+            [[repos]]
+            name = "backend"
+            path = "~/Developer/zeta-backend"
+            role = "backend"
+            check = "swift test"
+            """)
+        let land = try command(["--project", "zeta"]) // glossary:ignore GL001
+
+        // Sorted by id, zeta is index 3 (o = 9): the flush is generated at 22:04, the author firing at 22:09.
+        let flush = try land.makeInvocation(
+            configurationDirectory: directory.url, now: try localDate(day: 16, hour: 22, minute: 4)
+        )
+        #expect(flush.isFlushFiring)
+        #expect(flush.closesNight)
+        #expect(flush.nightStart == NightStart(rawValue: "2026-09-15"))
+
+        let ordinary = try land.makeInvocation(
+            configurationDirectory: directory.url, now: try localDate(day: 16, hour: 22, minute: 9)
+        )
+        #expect(!ordinary.isFlushFiring)
+        #expect(!ordinary.closesNight)
+        #expect(ordinary.nightStart == NightStart(rawValue: "2026-09-16"))
+
+        // A forced land keeps the wall-clock resolution: 22:04 belongs to the new Night.
+        let forced = try command(["--project", "zeta", "--force"]).makeInvocation( // glossary:ignore GL001
+            configurationDirectory: directory.url, now: try localDate(day: 16, hour: 22, minute: 4)
+        )
+        #expect(!forced.isFlushFiring)
+        #expect(forced.nightStart == NightStart(rawValue: "2026-09-16"))
+    }
+
     @Test("Build and author are never flush firings")
     func otherActsAreNotFlushFirings() throws {
         let directory = ConfigurationDirectory()

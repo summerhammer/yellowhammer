@@ -76,16 +76,21 @@ extension ActCommand {
         // Project's [schedule], which the generated land LaunchAgent's final firing (night_end plus the
         // Project's stagger offset) satisfies, and a forced land after night_end closes the Night the
         // same way.
-        let window = night.map { project.schedule.nightWindow(for: $0) } ?? project.schedule.nightWindow(at: now)
+        //
+        // A scheduled real-mode land resolves its Night on the Project's staggered grid, so the previous Night's
+        // flush firings that fall in `[night_start, night_start + o)` are not mistaken for the next Night's
+        // ordinary lands. Every other path (forced, rehearsal, explicit `night`, author, build) resolves from
+        // the wall clock.
+        let staggerIndex = configuration.projects.firstIndex { $0.id == resolved.id } ?? 0
+        let staggered = !rehearsal && trigger == .scheduled
+        let window = Self.nightWindow(project.schedule, at: now, night: night, staggered ? staggerIndex : nil)
         let closesNight = Self.act == .land && now >= window.end
         // A scheduled real-mode land at or after the first flush minute is a flush firing: it does no Night
         // work (Transient Board Failure Ruling item 6). A forced land and any rehearsal land are never one —
         // rehearsal suites close past Nights that way. The stagger index is Setup's: the Project's position
         // among the machine's Projects, sorted by id.
         let isFlushFiring = Self.act == .land && !rehearsal && night == nil && trigger == .scheduled
-            && project.schedule.isFlushFiring(
-                at: now, in: window, staggerIndex: configuration.projects.firstIndex { $0.id == resolved.id } ?? 0
-            )
+            && project.schedule.isFlushFiring(at: now, in: window, staggerIndex: staggerIndex)
 
         let board = try bindBoard?(configuration, project)
         let workspace = bindWorkspace?()
@@ -127,6 +132,17 @@ extension ActCommand {
         )
         invocation.isFlushFiring = isFlushFiring
         return invocation
+    }
+
+    /// The Night `now` belongs to: `night`'s when named; the Night on the Project's staggered grid for a
+    /// scheduled real-mode land; the wall clock's for everything else. Split out of `makeInvocation` to keep
+    /// that function within its length limit.
+    private static func nightWindow(
+        _ schedule: Schedule, at now: Date, night: NightStart?, _ staggerIndex: Int?
+    ) -> NightWindow {
+        if let night { return schedule.nightWindow(for: night) }
+        if let staggerIndex, Self.act == .land { return schedule.nightWindow(at: now, staggerIndex: staggerIndex) }
+        return schedule.nightWindow(at: now)
     }
 
     /// The Night Summary's Bounds, read from the Project's `[bounds]`. Split out of `makeInvocation` to keep

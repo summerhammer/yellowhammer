@@ -235,5 +235,63 @@ func isFlushFiringClassifiesFromTheClock() throws {
     #expect(schedule.isFlushFiring(at: try at(16, 9, 3), in: window, staggerIndex: 1))
     // A land during the Night is never one, and nor is one in the next Night.
     #expect(!schedule.isFlushFiring(at: try at(15, 23, 30), in: window, staggerIndex: 1))
-    #expect(!schedule.isFlushFiring(at: try at(16, 22, 0), in: window, staggerIndex: 1))
+    #expect(!schedule.isFlushFiring(at: try at(16, 22, 3), in: window, staggerIndex: 1))
+}
+
+// The generator's stagger decides which Night a firing belongs to.
+
+private var utc: Calendar {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "UTC")!
+    return calendar
+}
+
+private func utcInstant(_ day: Int, _ hour: Int, _ minute: Int) throws -> Date {
+    try #require(utc.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour, minute: minute)))
+}
+
+/// Window 22:00-21:40 every 60 minutes: at index 3 (o = 9) the flush is 22:04 and the author 22:09.
+private let staggeredExample = Schedule(nightStart: time(22, 0), nightEnd: time(21, 40), buildEveryMinutes: 60)
+
+@Test("stagger: a flush firing can fall before the next Night's staggered author firing")
+func staggeredExampleFirings() throws {
+    let firings = try staggeredExample.firings(staggerIndex: 3)
+
+    #expect(firings.author == [time(22, 9)])
+    #expect(firings.flush == [time(22, 4)])
+}
+
+@Test("stagger: at 22:04 the staggered Night is the previous one and the firing is its flush firing")
+func staggeredNightWindowAtTheFlushMinute() throws {
+    let now = try utcInstant(16, 22, 4)
+
+    let window = staggeredExample.nightWindow(at: now, staggerIndex: 3, calendar: utc)
+
+    #expect(window.nightStart == NightStart(rawValue: "2026-09-15"))
+    #expect(staggeredExample.isFlushFiring(at: now, in: window, staggerIndex: 3, calendar: utc))
+    // The unstaggered resolution is unchanged: it picks the new Night.
+    #expect(staggeredExample.nightWindow(at: now, calendar: utc).nightStart == NightStart(rawValue: "2026-09-16"))
+}
+
+@Test("stagger: at 22:09 the staggered Night is the new one and nothing is a flush firing")
+func staggeredNightWindowAtTheNextNightsFirstFiring() throws {
+    let now = try utcInstant(16, 22, 9)
+
+    let window = staggeredExample.nightWindow(at: now, staggerIndex: 3, calendar: utc)
+
+    #expect(window.nightStart == NightStart(rawValue: "2026-09-16"))
+    #expect(!staggeredExample.isFlushFiring(at: now, in: window, staggerIndex: 3, calendar: utc))
+    // Index 0 has no offset: both resolutions agree.
+    #expect(staggeredExample.nightWindow(at: now, staggerIndex: 0, calendar: utc)
+        == staggeredExample.nightWindow(at: now, calendar: utc))
+}
+
+@Test("stagger: isFlushFiring is false at exactly the next night_start + o of the previous window")
+func isFlushFiringStopsAtTheStaggeredNextNightStart() throws {
+    let previous = staggeredExample.nightWindow(at: try utcInstant(15, 23, 0), calendar: utc)
+
+    let before = try utcInstant(16, 22, 8)
+    let exactly = try utcInstant(16, 22, 9)
+    #expect(staggeredExample.isFlushFiring(at: before, in: previous, staggerIndex: 3, calendar: utc))
+    #expect(!staggeredExample.isFlushFiring(at: exactly, in: previous, staggerIndex: 3, calendar: utc))
 }
