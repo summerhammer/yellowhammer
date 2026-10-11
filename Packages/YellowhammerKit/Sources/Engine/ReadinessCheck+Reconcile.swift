@@ -41,7 +41,7 @@ extension ReadinessCheck {
 
         if let prose = parsed.briefProse {
             let existing = try journal.architecturalBriefProse(cardID: card.id)
-            if existing != prose {
+            if existing.map({ !MarkdownEquivalence.rendersSame($0, prose) }) ?? true {
                 try journal.recordArchitecturalBrief(cardID: card.id, prose: prose)
             }
         }
@@ -58,12 +58,24 @@ extension ReadinessCheck {
         }
     }
 
+    /// Whether the board's copy of a Transcription Block was edited by the Operator, as opposed to merely
+    /// re-serialised by Linear: its Markdown must render differently from the Journal's content. A row
+    /// with no content falls back to comparing hashes. Shared with the opening inspection so both judge
+    /// an edit by the same rule.
+    static func isEdited(_ parsed: ParsedTranscription, against record: TranscriptionBlockRecord) -> Bool {
+        guard let recorded = record.content else { return parsed.contentHash != record.contentHash }
+        return !MarkdownEquivalence.rendersSame(parsed.content, recorded)
+    }
+
     private func reconcileTranscriptions(parsed: ParsedCardBlock, card: CardRecord, stamp: ReconcileContext) throws {
         let journal = stamp.journal
         let existingBlocks = try journal.transcriptionBlocks(cardID: card.id)
         for (index, parsedBlock) in parsed.transcriptions.enumerated() where index < existingBlocks.count {
             let row = existingBlocks[index]
-            if !row.authorSupplied, parsedBlock.contentHash != row.contentHash {
+            // Linear re-serialises the Markdown it was given (#433), so an unedited block rarely comes
+            // back byte-identical: leave the Journal's mainline-derived content and hash alone.
+            guard Self.isEdited(parsedBlock, against: row) else { continue }
+            if !row.authorSupplied {
                 try journal.voidTranscriptionStamp(id: row.id, nightID: stamp.nightID)
                 try stamp.append(
                     .transcriptionStampVoided(cardID: card.id, issueID: card.issueID, repository: row.repository)
@@ -117,13 +129,13 @@ extension ReadinessCheck {
         cid: String, existing: ClauseRecord, parsed: ParsedClause, card: CardRecord, stamp: ReconcileContext
     ) throws {
         let journal = stamp.journal
-        if existing.text != parsed.text {
+        if !MarkdownEquivalence.rendersSame(existing.text, parsed.text) {
             try journal.invalidateClause(issueID: card.issueID, cid: cid, cause: "text_edited")
             try stamp.append(.clauseInvalidated(issueID: card.issueID, cid: cid, cause: "text_edited"))
         }
 
         let newCitation = parsed.citation ?? ""
-        if existing.locationID != newCitation {
+        if !MarkdownEquivalence.rendersSame(existing.locationID, newCitation) {
             try journal.updateClauseCitation(issueID: card.issueID, cid: cid, locationID: newCitation)
             try journal.invalidateClause(issueID: card.issueID, cid: cid, cause: "citation_edited")
             try stamp.append(.clauseInvalidated(issueID: card.issueID, cid: cid, cause: "citation_edited"))
