@@ -94,6 +94,24 @@ func hardFailureFinalBlocksHardFailure() throws {
     #expect(history.blockReason(inEpoch: 0) == .routeFailure)
 }
 
+@Test("A contract-violation hard failure as the last Attempt blocks route failure, not host crash (#445)")
+func contractViolationFinalBlocksRouteFailure() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let cardID = try insertFixtureCard(journal)
+    let runID = RunID()
+    try claimLease(journal, runID: runID)
+    let attempt = try journal.recordAttempt(cardID: cardID, route: routeA, runID: runID, now: epoch)
+    _ = try journal.endAttempt(
+        attemptID: attempt.id, ending: .hardFailure(.contractViolation(.completedWithoutCommit)), runID: runID,
+        act: .build, now: epoch.addingTimeInterval(1)
+    )
+
+    let history = try journal.attemptHistory(cardID: cardID)
+
+    #expect(history.blockReason(inEpoch: 0) == .routeFailure)
+}
+
 @Test("A Crashed-Unknown final Attempt blocks host crash")
 func crashedUnknownFinalBlocksHostCrash() throws {
     let fixture = try JournalFixture()

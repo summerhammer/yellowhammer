@@ -78,6 +78,9 @@ public struct AuthoringRoute: Sendable {
             case .failed(let exitStatus):
                 tried.insert(route)
                 lastFailure = "\(pass.rawValue) on \(route) exited with status \(exitStatus)"
+            case .contractViolation(let error):
+                tried.insert(route)
+                lastFailure = "\(pass.rawValue) on \(route) broke the result contract: \(error)"
             case .crashedUnknown(let cause):
                 throw AuthoringDispatchFault(
                     reason: "\(pass.rawValue) on \(route) crashed with no outcome (\(cause)); a Crashed-Unknown "

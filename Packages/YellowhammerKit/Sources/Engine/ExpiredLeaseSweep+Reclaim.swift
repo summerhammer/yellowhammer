@@ -224,9 +224,18 @@ extension ExpiredLeaseSweep {
             let passResult = try resultReader.lastPass(
                 runID: previousRunID, issueID: card.issueID, attemptID: attempt.id
             ),
-            let data = passResult.data, !data.isEmpty,
-            let decoded = try? ResultFile.decode(data, expecting: passResult.pass)
+            let data = passResult.data, !data.isEmpty
         else { return nil }
+
+        let decoded: DispatchResult
+        do {
+            decoded = try ResultFile.decode(data, expecting: passResult.pass)
+        } catch {
+            // A file that declares a Yellowhammer schema but breaks its contract is the CLI answering: a
+            // hard failure, as on the live path. Any other unreadable file falls through (#445).
+            guard error.isContractViolation else { return nil }
+            return Classification(ending: .hardFailure(.contractViolation(error)), knownGoodCommit: nil)
+        }
 
         switch decoded {
         case .architect(let result):

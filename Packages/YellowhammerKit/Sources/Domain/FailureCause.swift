@@ -25,6 +25,8 @@ public struct FailureCause: Equatable, Sendable {
             detail = "exit status \(status)"
         case .hardFailure(.reported):
             detail = "reported"
+        case .hardFailure(.contractViolation(let error)):
+            detail = "contract violation: \(Self.violationKind(error))"
         case .roundsExhausted:
             detail = lens?.rawValue ?? "unknown lens"
         case .crashedUnknown(.resultFile):
@@ -40,6 +42,24 @@ public struct FailureCause: Equatable, Sendable {
         }
         self.canonical = "\(outcome)|\(detail)"
         self.summary = "\(outcome) (\(detail))"
+    }
+
+    /// The structural kind of a contract violation, taken from the error case alone: the field name is
+    /// ours, but the reason, the versions and the passes can carry model-authored text, so they stay out.
+    private static func violationKind(_ error: ResultFileError) -> String {
+        switch error {
+        case .completedWithoutCommit:
+            "completed without a commit"
+        case .passMismatch:
+            "pass mismatch"
+        case .unsupportedVersion:
+            "unsupported version"
+        case .invalid(let field, _):
+            "invalid \(field)"
+        case .empty, .malformedJSON, .unknownSchema, .unreadable:
+            // Not contract violations (`ResultFileError.isContractViolation`); never reached.
+            "result file"
+        }
     }
 
     /// The failure-cause hash (`failCauseHash`): lowercase hex SHA-256 of ``canonical``.

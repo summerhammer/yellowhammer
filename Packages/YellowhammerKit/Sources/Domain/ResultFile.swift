@@ -89,6 +89,11 @@ public enum ResultFile {
         let outcomeRaw = try string(object, "outcome")
         switch outcomeRaw {
         case "completed":
+            // A `completed` worker with no commit at all is its own contract violation (#445); a commit
+            // that is present but malformed stays `.invalid`.
+            guard let rawCommit = object["commit"], !(rawCommit is NSNull) else {
+                throw .completedWithoutCommit
+            }
             let commit = try hexCommit(object, "commit")
             let summary = try nonEmptyString(object, "summary")
             return WorkerResult(outcome: .completed(commit: commit, summary: summary))

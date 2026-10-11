@@ -2,6 +2,7 @@ import Domain
 @testable import Engine
 import Foundation
 @testable import Journal
+import Synchronization
 import Testing
 
 // graph-execution/run-a-card, Attempts and hard failure (roadmap P8.7): a hard failure, a Crashed-Unknown
@@ -14,6 +15,26 @@ private func twoRouteResolver() -> RouteResolver {
     cardRunResolver(table: RoutingTable(entries: [
         RoutingEntry(kind: Kind("card")!, route: cardRunOpus, fallbacks: [cardRunFallback])
     ]))
+}
+
+/// Answers the first worker pass with a result file that declares the worker schema but reports
+/// `completed` with `commit: null` (#445), classified by the real ``RunOutcome/classify``; every other
+/// pass, and later worker passes, answer from ``RehearsalDispatch``.
+private final class CompletedWithoutCommitDispatch: AgentDispatch, Sendable {
+    private let workerCalls = Mutex<Int>(0)
+    let requests = RequestLog()
+
+    func dispatch(_ request: AgentDispatchRequest) async throws -> AgentDispatchReport {
+        requests.add(request)
+        let call = request.pass == .worker ? workerCalls.withLock { value in value += 1; return value } : 0
+        guard call == 1 else { return try await RehearsalDispatch().dispatch(request) }
+        let file = Data(
+            #"{"schema":"yellowhammer.result.worker","version":1,"outcome":"completed","commit":null,"summary":"x"}"#
+                .utf8
+        )
+        let outcome = RunOutcome.classify(end: .exited(status: 0), resultFile: file, pass: .worker)
+        return AgentDispatchReport(outcome: outcome, origin: .rehearsalFixture("completed-without-commit"))
+    }
 }
 
 @Suite("Card run, Attempts and hard failure (P8.7)")
@@ -123,6 +144,32 @@ struct CardRunAttemptTests {
         #expect(card.blockReason == BlockReason.routeFailure.rawValue)
         let steps = try cardRunLog(world.journal)
         #expect(!steps.contains(CardRunStep.attemptsExhausted.rawValue))
+    }
+
+    // MARK: - c'. a completed worker with no commit is a contract violation: a hard failure (#445)
+
+    @Test("A worker that completes without a commit is a hard failure: Route excluded, retry lands elsewhere")
+    func completedWithoutCommitExcludesTheRoute() async throws {
+        let fixture = try OutboxJournalFixture()
+        let world = try await makeCardRunWorld(journal: try fixture.open())
+        let log = CallLog()
+        let dispatch = CompletedWithoutCommitDispatch()
+        let run = CardRun(
+            resolver: twoRouteResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
+            resetting: RecordingAttemptResetting(log: log)
+        )
+
+        try await run.run("BACK-1", in: world)
+
+        let attempts = try world.attempts("BACK-1")
+        #expect(attempts.count == 2)
+        #expect(attempts[0].result == AttemptOutcome.hardFailure.rawValue)
+        #expect(attempts[0].classification == "completed without a commit")
+        #expect(attempts[0].route == cardRunOpus)
+        #expect(attempts[1].route == cardRunFallback)
+        #expect(try world.journal.excludedRoutes(cardID: try #require(world.cardIDs["BACK-1"])) == [cardRunOpus])
+        #expect(try world.card("BACK-1").state == .done)
     }
 
     // MARK: - d. Crashed-Unknown retries the same Route

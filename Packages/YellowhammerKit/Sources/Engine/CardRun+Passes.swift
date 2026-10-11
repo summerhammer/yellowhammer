@@ -263,6 +263,7 @@ extension CardRun {
         switch outcome {
         case .completed: "completed"
         case .failed(let status): "failed(exit status \(status))"
+        case .contractViolation: "contract-violation"
         case .crashedUnknown: "crashed-unknown"
         }
     }
