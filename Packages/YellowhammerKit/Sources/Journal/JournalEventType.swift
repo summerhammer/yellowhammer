@@ -8,6 +8,8 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case actIncomplete = "ActIncomplete"
     case actStoodDown = "ActStoodDown"
     case linearAuthorizationHalted = "LinearAuthorizationHalted"
+    case linearReached = "LinearReached"
+    case linearUnreachableHalted = "LinearUnreachableHalted"
     case appInstallationTokenRefresh = "AppInstallationTokenRefresh"
     case mainlineFetchFailed = "MainlineFetchFailed"
     case absentNightDetected = "AbsentNightDetected"

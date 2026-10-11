@@ -43,7 +43,7 @@ extension EngineInvocation {
         var nightCard: NightCardMaintenance?
         var outbox: Outbox?
         do {
-            try await boardPreflight()
+            try await boardPreflight(night: night)
             (outbox, nightCard) = try await openNightCardIfNeeded(night: night)
             if outbox != nil {
                 night = try journal.night(id: night.id) ?? night

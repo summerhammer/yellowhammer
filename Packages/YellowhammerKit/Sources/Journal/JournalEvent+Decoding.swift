@@ -28,6 +28,8 @@ extension JournalEvent {
         case .actStoodDown:
             try Self.decodeStoodDown(reader)
         case .linearAuthorizationHalted: .linearAuthorizationHalted
+        case .linearReached: .linearReached
+        case .linearUnreachableHalted: .linearUnreachableHalted
         case .appInstallationTokenRefresh:
             try Self.decodeAppInstallationTokenRefresh(reader)
         case .mainlineFetchFailed:

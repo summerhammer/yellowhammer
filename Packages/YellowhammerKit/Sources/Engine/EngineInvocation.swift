@@ -271,7 +271,7 @@ public struct EngineInvocation: Sendable {
         do {
             // Before the Night Card: a refused identity or an unresolved board scope halts the Act
             // with no work done (roadmap P17.5; OQ85, OQ136).
-            try await boardPreflight()
+            try await boardPreflight(night: night)
             // The Night Card is created before the trigger is even evaluated (DR7): an idle Night
             // still opens one. An `open` failure propagates and is recorded as `ActIncomplete` by the
             // catch below, and no work runs.
@@ -311,7 +311,7 @@ public struct EngineInvocation: Sendable {
         }
     }
 
-    // `boardPreflight()` lives in EngineInvocation+BoardPreflight.swift — split out for the file/type
+    // `boardPreflight(night:)` lives in EngineInvocation+BoardPreflight.swift — split out for the file/type
     // length limits.
 
     // `openNightCardIfNeeded(night:)` lives in EngineInvocation+NightCardCompletion.swift — split out for the

@@ -25,6 +25,9 @@ public struct ExceptionNotification: Hashable, Sendable {
         /// could not be reached), so the Night Card is not updated yet (Transient Board Failure Ruling,
         /// item 7).
         case closedCompletionPending
+        /// The Night-closing Act halted before it closed the Night (Transient Board Failure Ruling, item
+        /// 12): the Night is not closed and its Night Card is not updated yet. `reason` names why it halted.
+        case haltedNightOpen(reason: String)
     }
 
     public enum ArgumentError: Error, Equatable, Sendable {
@@ -37,7 +40,8 @@ public struct ExceptionNotification: Hashable, Sendable {
         case unknownEvent(String)
         /// A halted Night must name why it halted.
         case missingReason
-        /// Only `halted` carries a reason — `haltedUnrecorded` is a halted Night too, but names none.
+        /// Only `halted` and `halted-night-open` carry a reason — `haltedUnrecorded` is a halted Night too,
+        /// but names none.
         case unexpectedReason
     }
 
@@ -64,6 +68,8 @@ public struct ExceptionNotification: Hashable, Sendable {
             arguments += ["--event", "closed"]
         case .closedCompletionPending:
             arguments += ["--event", "closed-completion-pending"]
+        case .haltedNightOpen(let reason):
+            arguments += ["--event", "halted-night-open", "--reason", reason]
         }
         return arguments
     }
@@ -88,25 +94,31 @@ public struct ExceptionNotification: Hashable, Sendable {
     /// split out of `init(arguments:)` to keep it under the cyclomatic-complexity limit.
     private static func event(from options: [String: String]) throws(ArgumentError) -> Event {
         let reason = options["--reason"]
-        switch options["--event"] {
+        let name = options["--event"]
+        if let name, let reasonless = Self.reasonlessEvents[name] {
+            guard reason == nil else { throw .unexpectedReason }
+            return reasonless
+        }
+        switch name {
         case nil:
             throw .missingEvent
         case "halted":
             guard let reason, !reason.allSatisfy(\.isWhitespace) else { throw .missingReason }
             return .halted(reason: reason)
-        case "halted-unrecorded":
-            guard reason == nil else { throw .unexpectedReason }
-            return .haltedUnrecorded
-        case "closed":
-            guard reason == nil else { throw .unexpectedReason }
-            return .closed
-        case "closed-completion-pending":
-            guard reason == nil else { throw .unexpectedReason }
-            return .closedCompletionPending
+        case "halted-night-open":
+            guard let reason, !reason.allSatisfy(\.isWhitespace) else { throw .missingReason }
+            return .haltedNightOpen(reason: reason)
         case let other?:
             throw .unknownEvent(other)
         }
     }
+
+    /// The events that carry no `--reason`, by their `--event` name.
+    private static let reasonlessEvents: [String: Event] = [
+        "halted-unrecorded": .haltedUnrecorded,
+        "closed": .closed,
+        "closed-completion-pending": .closedCompletionPending
+    ]
 
     /// The `--name value` pairs after `postFlag`, each named at most once.
     private static func options(_ tail: ArraySlice<String>) throws(ArgumentError) -> [String: String] {
@@ -135,6 +147,8 @@ public struct ExceptionNotification: Hashable, Sendable {
             "\(project.rawValue) halted before its Night Card could be opened — nothing is recorded " +
                 "on the board for this Night. Check the Journal or run yh status."
         case .closed: "Night closed"
+        case .haltedNightOpen(let reason):
+            "Night halted: \(reason) — the Night is not closed and its Night Card is not updated in Linear yet"
         case .closedCompletionPending: "Night closed — the Night Card is not updated in Linear yet"
         }
     }
