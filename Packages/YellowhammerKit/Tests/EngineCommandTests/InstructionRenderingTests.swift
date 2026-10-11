@@ -145,6 +145,19 @@ func resultContractNamesPathSchemaAndOutcomes() {
     #expect(rendered.contains("failed"))
 }
 
+@Test("The worker result contract states the commit obligation and its precedence; other passes do not")
+func workerResultContractStatesCommitObligation() {
+    let worker = makeInstruction(payloads: .none).render()
+    #expect(worker.contains("`completed` carries `commit` (the 40-hex SHA of the commit you made) and `summary`"))
+    #expect(worker.contains("nothing in the Card, the Architectural Brief, or the Definition of Done overrides it"))
+    #expect(worker.contains("not to commit, to leave your work uncommitted, or not to write the result file"))
+    for pass in [RunPass.architect, .reviewer] {
+        let rendered = makeInstruction(payloads: .none, pass: pass).render()
+        #expect(!rendered.contains("40-hex SHA"))
+        #expect(!rendered.contains("overrides it"))
+    }
+}
+
 @Test("An instruction with no payloads renders none of the four payload headings")
 func noPayloadsRendersNoPayloadHeadings() {
     let rendered = makeInstruction(payloads: .none).render()

@@ -92,9 +92,18 @@ extension AuthoringInstruction {
 
         Write the result file to `\(resultFilePath)` on completion. It must declare \
         `"schema": "\(pass.schemaIdentifier)"` and `"version": 1`. Permitted outcomes for this pass: \
-        \(permittedOutcomes.joined(separator: ", ")). \(fieldsSentence) An empty or missing result file \
-        is treated as a crash.
+        \(permittedOutcomes.joined(separator: ", ")). \(fieldsSentence)\(briefAudienceSentence) An empty or \
+        missing result file is treated as a crash.
         """
+    }
+
+    /// Breakdown pass only: who reads a Card's `brief` (issue #444). Empty for the selection pass.
+    private var briefAudienceSentence: String {
+        guard pass == .breakdown else { return "" }
+        return " A Card's `brief` is composed into the instruction of an autonomous worker agent CLI, which "
+            + "commits its work to the Feature branch itself and reports the commit in its result file. The "
+            + "`brief` states the approach, not completion criteria (the Definition of Done holds those), and "
+            + "must not tell the worker not to commit, to leave changes uncommitted, or that someone else commits."
     }
 
     private var permittedOutcomes: [String] {
