@@ -119,6 +119,7 @@ struct DoctorLaunchdScheduleTests {
         let author = try #require(try expectedFirings(.author, staggerIndex: 0).first)
         let plist: [String: Any] = [
             "Label": try label("alpha", .author),
+            "ProgramArguments": [yhPath, "author", "--project", "alpha"],
             "StartCalendarInterval": ["Hour": author.hour, "Minute": author.minute]
         ]
         try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)

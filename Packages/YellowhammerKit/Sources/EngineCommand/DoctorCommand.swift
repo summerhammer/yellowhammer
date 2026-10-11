@@ -14,8 +14,11 @@ public struct DoctorCommand: AsyncParsableCommand {
         abstract: "Check configuration, Linear authorization, GitHub, git, probes, LaunchAgents and Orca ADE."
     )
 
-    @Flag(help: "Unload orphaned LaunchAgents, and repoint dangling or mismatched /usr/local/bin/yh symlink.")
+    @Flag(help: "Repair schedules and missing job executables, unload orphaned jobs, and repair the yh symlink.")
     public var fix: Bool = false
+
+    @Flag(help: "With --fix, also repoint jobs naming a different Yellowhammer copy at the running yh.")
+    public var repoint: Bool = false
 
     @Flag(help: "With --fix, remove orphaned LaunchAgents without asking for confirmation.")
     public var yes: Bool = false
@@ -38,6 +41,9 @@ public struct DoctorCommand: AsyncParsableCommand {
         guard !yes || fix else {
             throw ValidationError("--yes requires --fix")
         }
+        guard !repoint || fix else {
+            throw ValidationError("--repoint requires --fix")
+        }
         _ = try resolvedChecks()
     }
 
@@ -52,7 +58,8 @@ public struct DoctorCommand: AsyncParsableCommand {
             configurationDirectory: configurationDirectory,
             homeDirectory: FileManager.default.homeDirectoryForCurrentUser,
             options: DoctorRunOptions(
-                fix: fix, yes: yes, probe: probe, checks: try resolvedChecks(), projectFilter: projectFilter
+                fix: fix, repoint: repoint, yes: yes, probe: probe,
+                checks: try resolvedChecks(), projectFilter: projectFilter
             ),
             quiet: json
         )
@@ -142,7 +149,8 @@ public struct DoctorCommand: AsyncParsableCommand {
             fix: options.fix, yes: options.yes, probe: options.probe, checks: options.checks,
             projectFilter: options.projectFilter,
             commandLineToolLink: options.commandLineToolLink,
-            runningExecutablePath: options.runningExecutablePath
+            runningExecutablePath: options.runningExecutablePath,
+            repoint: options.repoint
         )
     }
 }
@@ -151,6 +159,7 @@ public struct DoctorCommand: AsyncParsableCommand {
 /// `makeDoctor` within SwiftLint's parameter-count limit.
 struct DoctorRunOptions {
     let fix: Bool
+    let repoint: Bool
     let yes: Bool
     let probe: Bool
     let checks: [DoctorCheck]
@@ -160,6 +169,7 @@ struct DoctorRunOptions {
 
     init(
         fix: Bool,
+        repoint: Bool = false,
         yes: Bool,
         probe: Bool,
         checks: [DoctorCheck],
@@ -168,6 +178,7 @@ struct DoctorRunOptions {
         runningExecutablePath: String = CommandLineToolLink.runningExecutablePath()
     ) {
         self.fix = fix
+        self.repoint = repoint
         self.yes = yes
         self.probe = probe
         self.checks = checks

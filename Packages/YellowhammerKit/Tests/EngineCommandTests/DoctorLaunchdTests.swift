@@ -70,6 +70,6 @@ struct DoctorLaunchdTests {
 
         let finding = findings.first { $0.check == .launchd && $0.subject == label }
         #expect(finding?.severity == .warning)
-        #expect(!findings.contains { $0.severity == .failure })
+        #expect(findings.contains { $0.subject == label && $0.severity == .failure && $0.message.contains("missing") })
     }
 }

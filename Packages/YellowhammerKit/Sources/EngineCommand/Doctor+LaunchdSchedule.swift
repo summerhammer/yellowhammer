@@ -1,6 +1,7 @@
 import Config
 import Domain
 import Foundation
+import Journal
 
 /// One Act's LaunchAgent as `yh doctor` finds it on disk.
 struct LaunchdJobState {
@@ -11,16 +12,16 @@ struct LaunchdJobState {
     /// How the installed `StartCalendarInterval` differs from the firings the `[schedule]` implies; nil
     /// when it matches, when the job is not installed, or when no schedule was derived to compare with.
     let difference: String?
+    let executablePath: String?
+    let executable: ScheduledExecutable.State
 
     var label: String { act.launchdLabel(projectID: projectID) }
 }
 
 extension Doctor {
-    /// The findings for one Project's three Acts. With `--fix`, a Project with a differing job has its
-    /// installed jobs regenerated and the check re-run against what is then on disk, so a job that could
-    /// not be regenerated (running, or `launchctl` refused) still warns.
-    ///
-    /// Only the Project `--project` names is ever regenerated or compared against its schedule.
+    /// Reads each installed executable and schedule. With --fix, repairs affected jobs together, then
+    /// re-reads the plists so a skipped or failed repair retains the actual failure or warning.
+    /// Only the Project --project names is regenerated or compared against its schedule.
     func launchdFindings(
         project: ProjectConfiguration, staggerIndex: Int, machine: MachineConfiguration
     ) async -> [DoctorFinding] {
@@ -38,18 +39,37 @@ extension Doctor {
             }
         }
 
-        var states = await launchdJobStates(projectID: project.id, expected: expected)
-        var regenerated: Set<Act> = []
-        if fix, let expected, states.contains(where: { $0.difference != nil }) {
-            await regenerateJobs(projectID: project.id, expected: expected, states: states, machine: machine)
-            let differing = Set(states.filter { $0.difference != nil }.map(\.act))
-            states = await launchdJobStates(projectID: project.id, expected: expected)
-            regenerated = differing.intersection(states.filter { $0.difference == nil }.map(\.act))
+        let original = await launchdJobStates(projectID: project.id, expected: expected)
+        var states = original
+        if fix, let expected, projectFilter == nil || projectFilter == project.id {
+            let affected = original.filter { $0.installed && ($0.difference != nil || shouldRepoint($0)) }
+            if !affected.isEmpty {
+                findings += await regenerateJobs(
+                    projectID: project.id, expected: expected, states: affected, machine: machine
+                )
+                states = await launchdJobStates(projectID: project.id, expected: expected)
+            }
         }
         for state in states {
-            findings += launchdFindings(for: state, regenerated: regenerated.contains(state.act))
+            let previous = original.first { $0.act == state.act }
+            let regenerated = previous?.difference != nil && state.difference == nil
+            findings += launchdFindings(for: state, regenerated: regenerated)
+            let repointed = previous.map { shouldRepoint($0) && $0.executablePath != state.executablePath } == true
+                && state.executable == .running
+            if repointed {
+                findings.append(finding(
+                    .launchd, subject: state.label, .pass,
+                    "\(state.label): repointed its installed yh \(previous?.executablePath ?? "(none readable)") "
+                        + "at running yh \(ScheduledExecutable.description(runningExecutablePath))",
+                    project: project.id
+                ))
+            }
         }
         return findings
+    }
+
+    private func shouldRepoint(_ state: LaunchdJobState) -> Bool {
+        state.executable == .missing || (repoint && state.executable == .mismatched)
     }
 
     private func launchdJobStates(
@@ -64,56 +84,64 @@ extension Doctor {
             let difference = installed ? expected.flatMap {
                 scheduleDifference(wanted: Self.firings(of: act, in: $0), plistURL: plistURL)
             } : nil
+            let executablePath = ScheduledExecutable.installedPath(at: plistURL)
             states.append(LaunchdJobState(
-                projectID: projectID, act: act, installed: installed, loaded: loaded, difference: difference
+                projectID: projectID, act: act, installed: installed, loaded: loaded, difference: difference,
+                executablePath: executablePath,
+                executable: ScheduledExecutable.inspect(
+                    executablePath, running: runningExecutablePath, fileExists: fileExists
+                )
             ))
         }
         return states
     }
 
-    /// Rewrites the Project's installed jobs through the generation path `yh setup --install-jobs` uses.
-    /// A job that is not installed stays absent (Check 5 reports it); one that is installed but not loaded
-    /// is rewritten and stays unloaded.
-    ///
-    /// Each job keeps the `yh` its installed plist names (Bundle Location Ruling: `--fix` repoints only a
-    /// *missing* job). Only when that `yh` is unreadable, absent or no longer exists is the job repointed at
-    /// the running `yh`, and the output says so; a job whose `yh` exists but is not the running one is left
-    /// pointing at it, since repointing it is `--repoint`'s.
+    /// Schedule and executable repairs share setup's installer. Only affected installed jobs are
+    /// regenerated, with paused jobs left unloaded and running jobs skipped by the installer.
     private func regenerateJobs(
         projectID: ProjectID, expected: Schedule.ScheduledFirings, states: [LaunchdJobState],
         machine: MachineConfiguration
-    ) async {
+    ) async -> [DoctorFinding] {
+        var findings: [DoctorFinding] = []
         let installer = ScheduledJobInstaller(
-            homeDirectory: homeDirectory, yhExecutablePath: runningExecutablePath, setupTimePATH: setupTimePATH,
-            fileExists: fileExists, launchAgents: launchAgents, output: output
+            homeDirectory: homeDirectory, yhExecutablePath: ScheduledExecutable.resolved(runningExecutablePath),
+            setupTimePATH: setupTimePATH, fileExists: fileExists, launchAgents: launchAgents, output: output
         )
         let pathValue = installer.composedPATH(machine: machine)
         installer.reportUnresolvableTools(pathValue: pathValue, machine: machine)
-        let installedActs = Set(states.filter(\.installed).map(\.act))
-        let jobs = installer.jobs(projectID: projectID, firings: expected, pathValue: pathValue)
-            .filter { installedActs.contains($0.act) }
-            .map { job in
-                ScheduledJob(
-                    projectID: job.projectID, act: job.act, yhExecutablePath: keptExecutablePath(for: job),
-                    firings: job.firings, pathValue: job.pathValue
+        var jobs: [ScheduledJob] = []
+        for state in states {
+            let path = shouldRepoint(state) ? runningExecutablePath : (state.executablePath ?? runningExecutablePath)
+            let resolved = ScheduledExecutable.resolved(path)
+            do {
+                try ScheduledExecutable.validateLocation(
+                    ScheduledExecutable.resolved(runningExecutablePath), homeDirectory: homeDirectory, output: output
                 )
+                if resolved != ScheduledExecutable.resolved(runningExecutablePath) {
+                    try ScheduledExecutable.validateLocation(resolved, homeDirectory: homeDirectory, output: output)
+                }
+                let journalURL = JournalStore.defaultFileURL(
+                    configurationDirectory: configurationDirectory, id: projectID
+                )
+                if let applied = try JournalStore.schemaIdentifier(at: journalURL) {
+                    let candidate = ScheduledExecutable.resolved(runningExecutablePath) == resolved
+                        ? JournalStore.migrationIdentifiers.last : await executableSchema(resolved)
+                    try ScheduledExecutable.validateSchema(candidate, journal: applied)
+                }
+                jobs.append(ScheduledJob(
+                    projectID: projectID, act: state.act, yhExecutablePath: resolved,
+                    firings: Self.firings(of: state.act, in: expected), pathValue: pathValue
+                ))
+            } catch {
+                findings.append(finding(
+                    .launchd, subject: state.label, .failure,
+                    "\(state.label): refused regeneration at \(ScheduledExecutable.description(resolved)): \(error)",
+                    project: projectID
+                ))
             }
+        }
         _ = await installer.install(jobs, leavingUnloadedJobsUnloaded: true)
-    }
-
-    /// The `yh` the installed plist of `job` names when that file still exists; otherwise the running `yh`,
-    /// with one output line saying the job was repointed.
-    private func keptExecutablePath(for job: ScheduledJob) -> String {
-        let plistURL = launchAgentsDirectory.appending(component: job.fileName, directoryHint: .notDirectory)
-        let installed = (try? Data(contentsOf: plistURL))
-            .flatMap { try? PropertyListSerialization.propertyList(from: $0, format: nil) as? [String: Any] }
-            .flatMap { ($0["ProgramArguments"] as? [Any])?.first as? String }
-        if let installed, !installed.isEmpty, fileExists(installed) { return installed }
-        output(
-            "\(job.label): its installed yh \(installed ?? "(none readable)") is missing; "
-                + "repointed it at the running yh \(runningExecutablePath)"
-        )
-        return runningExecutablePath
+        return findings
     }
 
     private static func firings(of act: Act, in firings: Schedule.ScheduledFirings) -> [TimeOfDay] {
