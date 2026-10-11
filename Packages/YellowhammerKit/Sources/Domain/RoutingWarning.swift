@@ -8,6 +8,10 @@ public enum RoutingWarning: Hashable, Sendable {
     case noFallbacks(RoutingEntry.Key)
     /// The entry has fallbacks, but its primary route and every fallback name the same CLI.
     case singleCLI(RoutingEntry.Key, cli: String)
+    /// The entry lists its primary route among its fallbacks.
+    case fallbackEqualsPrimary(RoutingEntry.Key, route: Route)
+    /// The entry lists a fallback more than once.
+    case duplicateFallback(RoutingEntry.Key, route: Route)
     /// Every Route the authoring Work Kind can resolve to is also a Route a Work Card can resolve to
     /// (OQ154), so Verification can fault (`VerificationDispatchFault`). When `everyCycle` is true,
     /// that is a single Route every Work Card takes first, so Verification faults on every Cycle.
@@ -26,6 +30,14 @@ extension RoutingWarning: CustomStringConvertible {
             return "routing entry kind \"\(key.kind)\" repo_role \"\(Self.repoRoleDescription(key.repoRole))\" "
                 + "relies on a single CLI (\"\(cli)\"): if that CLI fails, no route remains and the Card is "
                 + "Blocked with route failure at once"
+        case .fallbackEqualsPrimary(let key, let route):
+            return "routing entry kind \"\(key.kind)\" repo_role \"\(Self.repoRoleDescription(key.repoRole))\" "
+                + "lists its primary route (\"\(route)\") among its fallbacks: an Attempt that fails on the primary "
+                + "would retry on the same route, which \"retry on a different route\" was designed to prevent"
+        case .duplicateFallback(let key, let route):
+            return "routing entry kind \"\(key.kind)\" repo_role \"\(Self.repoRoleDescription(key.repoRole))\" "
+                + "lists fallback (\"\(route)\") more than once: an Attempt that fails on that route "
+                + "would retry on the same route, which \"retry on a different route\" was designed to prevent"
         case .verificationRouteReachability(let everyCycle):
             let faultCondition = everyCycle
                 ? "once a Cycle's worker Attempts have used each of those Routes, and faults on every Cycle "
@@ -49,13 +61,26 @@ extension [RoutingEntry] {
     /// The proactive warnings for this Routing Table's entries, in entry order.
     public var warnings: [RoutingWarning] {
         guard !isEmpty else { return [.noEntries] }
-        var result: [RoutingWarning] = compactMap { entry in
+        var result: [RoutingWarning] = []
+        for entry in self {
             guard !entry.fallbacks.isEmpty else {
-                return .noFallbacks(entry.key)
+                result.append(.noFallbacks(entry.key))
+                continue
+            }
+            if entry.fallbacks.contains(entry.route) {
+                result.append(.fallbackEqualsPrimary(entry.key, route: entry.route))
+            }
+            var seenFallbacks: Set<Route> = []
+            var recordedDuplicates: Set<Route> = []
+            for fallback in entry.fallbacks where !seenFallbacks.insert(fallback).inserted {
+                if recordedDuplicates.insert(fallback).inserted {
+                    result.append(.duplicateFallback(entry.key, route: fallback))
+                }
             }
             let clis = Set(([entry.route] + entry.fallbacks).map(\.cli))
-            guard clis.count == 1 else { return nil }
-            return .singleCLI(entry.key, cli: entry.route.cli)
+            if clis.count == 1 {
+                result.append(.singleCLI(entry.key, cli: entry.route.cli))
+            }
         }
         if let reachability = verificationReachabilityWarning {
             result.append(reachability)
