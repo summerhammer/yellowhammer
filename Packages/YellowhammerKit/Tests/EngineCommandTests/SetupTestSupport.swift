@@ -359,7 +359,7 @@ func makeSetup(
     arguments: [String],
     directory: borrowing ConfigurationDirectory,
     board: FakeProvisioningBoard,
-    console: ScriptedConsole = ScriptedConsole(),
+    console: any SetupConsole = ScriptedConsole(),
     credentials: RecordingCredentialStore = RecordingCredentialStore(
         seed: ["keychain:linear": "test-secret", "keychain:linear-acme": "test-secret", "keychain:github": "ghp_test"]
     ),
