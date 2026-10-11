@@ -25,38 +25,48 @@ public enum RehearsalResultFixture: String, CaseIterable, Sendable {
     /// Truncated JSON. Must fail ``ResultFile`` validation.
     case workerMalformed = "worker-malformed.json"
     /// The author Act's selection answers (roadmap P9.11). A rehearsal Night fixtures the selection and
-    /// breakdown dispatches by this same rule. The selected Feature names the repository
-    /// `fixture-backend`, which must be one of the Project's working repositories or ``FeatureSelection``
-    /// halts it as `contract-outside-project`: a test using it configures a Project with that repo name.
+    /// breakdown dispatches by this same rule. The file names the repository `fixture-backend`;
+    /// ``RehearsalDispatch`` maps it onto the request's own working repositories (#440) — itself when the
+    /// Project has a repo of that name, otherwise the Project's first repo — so a Project need not carry
+    /// the fixture's repo names (else ``FeatureSelection`` would halt it as `contract-outside-project`).
     case selectionSelected = "selection-selected.json"
     case selectionNoSelectableFeature = "selection-no-selectable-feature.json"
     case selectionFailed = "selection-failed.json"
     /// One Card in `fixture-backend` under Kind `impl.fixture`, citing `fixture-epic/fixture-story`; it
-    /// pairs with ``selectionSelected``.
+    /// pairs with ``selectionSelected``. ``RehearsalDispatch`` maps the repository onto the Project's own
+    /// and the citation onto one of its spec's real stories (#440); identity when the names exist.
     case breakdownDrafted = "breakdown-drafted.json"
     /// Like ``selectionSelected``, but names two repositories — `fixture-backend` and `fixture-web` —
     /// so a rehearsal Night can exercise a Card carrying a Contract that crosses repositories. Pairs
-    /// with ``breakdownDraftedWithContract``.
+    /// with ``breakdownDraftedWithContract``. Both names are mapped onto the Project's own repositories
+    /// (#440); a Project with one repo gets that repo, once.
     case selectionSelectedWithContract = "selection-selected-with-contract.json"
     /// Two Cards, both Kind `impl.fixture`, citing `fixture-epic/fixture-story`: one in `fixture-backend`
     /// with no contracts, and one in `fixture-web` whose single contract cites
     /// `contracts/fixture-api.json` from `fixture-backend`'s mainline — a rehearsal Night's Transcription
-    /// Block exercise. Pairs with ``selectionSelectedWithContract``.
+    /// Block exercise. Pairs with ``selectionSelectedWithContract``. Repositories and citations are mapped
+    /// onto the Project's own (#440), but the contract path `contracts/fixture-api.json` exists only in the
+    /// P15.2 fixture tree, so on a real Project this fixture halts as contract-unreadable.
     case breakdownDraftedWithContract = "breakdown-drafted-with-contract.json"
     /// Selects `fixture-backend` and `fixture-web`, like ``selectionSelectedWithContract``, but the file's
     /// `adopted_card_issue_ids` is always `[]`: ``RehearsalDispatch`` synthesizes it from the request's
     /// ``AuthoringInstruction/adoptionCandidates`` (P15.3), so a rehearsal Night can exercise adoption
-    /// without knowing a live Card's issue id in advance. Pairs with ``breakdownDraftedWithContract``.
+    /// without knowing a live Card's issue id in advance. Pairs with ``breakdownDraftedWithContract``;
+    /// repository names are mapped onto the Project's own (#440).
     case selectionSelectedAdopting = "selection-selected-adopting.json"
     /// Like ``selectionSelectedWithContract``, but names three repositories — `fixture-backend`,
     /// `fixture-web` and `fixture-mobile` — for a rehearsal Night exercising a three-repository Feature.
-    /// No adoptions. Pairs with ``breakdownDraftedThreeRepos``.
+    /// No adoptions. Pairs with ``breakdownDraftedThreeRepos``. Names are mapped onto the Project's own
+    /// repositories (#440), wrapping around when it has fewer than three.
     case selectionSelectedThreeRepos = "selection-selected-three-repos.json"
     /// Five Cards across three repositories, citing two Feature-level Definition of Done clauses:
     /// `fixture-backend` × 3 (no contracts), `fixture-web` × 1 (one contract, citing
     /// `contracts/fixture-api.json` from `fixture-backend`'s mainline, like
     /// ``breakdownDraftedWithContract``'s web Card), `fixture-mobile` × 1 (no contracts). Each Card's
     /// authored order within its repository is the file's order. Pairs with ``selectionSelectedThreeRepos``.
+    /// Repositories and citations are mapped onto the Project's own (#440); the contract path
+    /// `contracts/fixture-api.json` exists only in the P15.2 fixture tree, so on a real Project this
+    /// fixture halts as contract-unreadable.
     case breakdownDraftedThreeRepos = "breakdown-drafted-three-repos.json"
     /// The land Act's verifier answers (roadmap P10.5). The file's single clause is a placeholder:
     /// the fixture cannot know the Feature's clause ids in advance, so ``RehearsalDispatch`` answers a

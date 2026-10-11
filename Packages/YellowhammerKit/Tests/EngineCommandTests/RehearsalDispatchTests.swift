@@ -29,13 +29,13 @@ private func cardInstruction(issueID: String, pass: RunPass = .worker, worktreeP
 
 private func authoringRequest(
     issueID: String = "authoring", pass: RunPass, namedFeature: FeatureName? = nil,
-    adoptionCandidates: [AdoptionCandidate] = []
+    adoptionCandidates: [AdoptionCandidate] = [], repos: [Repo] = [], specPath: String = "/repos/spec"
 ) -> AgentDispatchRequest {
     AgentDispatchRequest(
         runID: RunID(), issueID: issueID, attemptID: 1, route: route, pass: pass,
         instruction: .authoring(AuthoringInstruction(
-            pass: pass, route: route, specificationSource: .specSource(SpecSource(path: "/repos/spec")),
-            specificationMainline: nil, repos: [], mainlines: ResolvedMainlines(), namedFeature: namedFeature,
+            pass: pass, route: route, specificationSource: .specSource(SpecSource(path: specPath)),
+            specificationMainline: nil, repos: repos, mainlines: ResolvedMainlines(), namedFeature: namedFeature,
             adoptionCandidates: adoptionCandidates, selectedFeature: nil, resultFilePath: ""
         )),
         worktreePath: "/repos/spec"
@@ -213,5 +213,69 @@ struct RehearsalDispatchScriptTests {
             return
         }
         #expect(judgedCommit == head)
+    }
+
+    @Test("A selection request for a Project whose repo is `app` answers repositories == [app] (#440)")
+    func selectionIsMappedOntoTheProjectsRepos() async throws {
+        let dispatch = RehearsalDispatch()
+        let repos = [Repo(name: "app", path: "/repos/app", role: .backend)]
+
+        let report = try await dispatch.dispatch(authoringRequest(pass: .selection, repos: repos))
+
+        guard
+            case .completed(.selection(let result)) = report.outcome,
+            case .selected(let selected) = result.outcome
+        else {
+            Issue.record("expected a selected outcome")
+            return
+        }
+        #expect(selected.repositories == ["app"])
+    }
+
+    @Test("A breakdown request against a real spec repo answers a Card in `app` citing its real story (#440)")
+    func breakdownIsMappedOntoTheProjectsReposAndSpec() async throws {
+        let temp = FileManager.default.temporaryDirectory
+            .appending(component: "yh-rehearsal-breakdown-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let git = GitRunner()
+        _ = try await initReconcilerGitRepo(at: temp, git: git)
+        let stories = temp.appending(path: "docs/requirements/epics/demo/stories", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: stories, withIntermediateDirectories: true)
+        try "# First".write(to: stories.appending(path: "first.md"), atomically: true, encoding: .utf8)
+        _ = await git.run(["add", "."], workingDirectory: temp.path(percentEncoded: false))
+        _ = await git.run(["commit", "-m", "story"], workingDirectory: temp.path(percentEncoded: false))
+        let repos = [Repo(name: "app", path: "/repos/app", role: .backend)]
+
+        let report = try await RehearsalDispatch().dispatch(authoringRequest(
+            pass: .breakdown, repos: repos, specPath: temp.path(percentEncoded: false)
+        ))
+
+        guard
+            case .completed(.breakdown(let result)) = report.outcome,
+            case .drafted(let breakdown) = result.outcome
+        else {
+            Issue.record("expected a drafted outcome")
+            return
+        }
+        #expect(breakdown.cards.map(\.repository) == ["app"])
+        #expect(breakdown.cards.flatMap(\.definitionOfDone).map(\.citation) == ["demo/first"])
+        #expect(breakdown.definitionOfDone.map(\.citation).allSatisfy { $0 == "demo/first" })
+    }
+
+    @Test("A breakdown request whose spec is not a git repo keeps the fixture's citations (#440)")
+    func breakdownKeepsCitationsWithoutGit() async throws {
+        let repos = [Repo(name: "app", path: "/repos/app", role: .backend)]
+
+        let report = try await RehearsalDispatch().dispatch(authoringRequest(pass: .breakdown, repos: repos))
+
+        guard
+            case .completed(.breakdown(let result)) = report.outcome,
+            case .drafted(let breakdown) = result.outcome
+        else {
+            Issue.record("expected a drafted outcome")
+            return
+        }
+        #expect(breakdown.cards.map(\.repository) == ["app"])
+        #expect(breakdown.cards.flatMap(\.definitionOfDone).map(\.citation).contains("fixture-epic/fixture-story"))
     }
 }
