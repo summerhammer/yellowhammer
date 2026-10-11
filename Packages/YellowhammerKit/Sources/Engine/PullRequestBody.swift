@@ -163,6 +163,15 @@ public struct PullRequestBodyInput: Equatable, Sendable {
 /// per-repository, landing/announce-a-partial-landing). Pure: a value in, a `String` out, no Journal
 /// or board access. Never renders model-authored content (diffs, verdict prose, briefs).
 public enum PullRequestBody {
+    /// Why a squash or rebase merge stalls the predecessor-ancestry gate; shared by this body and the
+    /// Night Card's not-landed line so the two cannot drift (issue #448).
+    static let squashMergeWarning =
+        "A pull request merged with Squash and merge or Rebase and merge writes new commits, so its "
+        + "Feature Branch never becomes an ancestor of mainline"
+
+    private static let mergeCommitLine =
+        "Merge it with **Create a merge commit**. \(squashMergeWarning), and the next Feature is never authored."
+
     public static func render(_ input: PullRequestBodyInput) -> String {
         input.isPartialLanding ? renderPartial(input) : renderComplete(input)
     }
@@ -184,6 +193,7 @@ public enum PullRequestBody {
         lines.append(
             "Merging this pull request is what releases the next Feature; leaving it open costs tomorrow night."
         )
+        lines.append(mergeCommitLine)
         lines.append("")
         lines.append(mainlineVerdictLine(input))
         lines.append("")
@@ -234,6 +244,7 @@ public enum PullRequestBody {
         lines.append(
             "Merging satisfies the landing gate for the repositories it reached and releases the next Feature."
         )
+        lines.append(mergeCommitLine)
         lines.append("")
         lines.append(cardListSection(title: "Cards in this repository", cards: input.laneCards))
         lines.append("")
