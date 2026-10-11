@@ -2,6 +2,7 @@ import Domain
 @testable import Engine
 import Foundation
 @testable import Journal
+import Repositories
 import Testing
 
 // roadmap P9.11 (glossary: Rehearsal Night): a rehearsal Night substitutes nothing special for the author
@@ -71,6 +72,55 @@ struct AuthoringRehearsalTests {
         }
         #expect(payload.name == "Fixture Feature: rehearsal selection")
         #expect(payload.repositories == ["fixture-backend"])
+    }
+
+    @Test("A Project whose repo and spec stories differ from the fixtures still authors a Card (#440)")
+    func rehearsalAuthorsOnAProjectThatIsNotTheFixtureTree() async throws {
+        let temp = FileManager.default.temporaryDirectory
+            .appending(component: "yh-authoring-rehearsal-spec-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let git = GitRunner()
+        let specPath = temp.path(percentEncoded: false)
+        _ = try await initReconcilerGitRepo(at: temp, git: git)
+        let stories = temp.appending(path: "docs/requirements/epics/demo/stories", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: stories, withIntermediateDirectories: true)
+        try "# First".write(to: stories.appending(path: "first.md"), atomically: true, encoding: .utf8)
+        _ = await git.run(["add", "."], workingDirectory: specPath)
+        _ = await git.run(["commit", "-m", "story"], workingDirectory: specPath)
+
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBuildActBoards()
+        let dispatch = RehearsalDispatch()
+        let route = AuthoringRoute(
+            resolver: RouteResolver(table: Self.table) { _ in .offered }, dispatch: dispatch
+        )
+        let selection = FeatureSelection(
+            selector: RoutedFeatureSelector(route: route),
+            transaction: AuthoringTransaction(
+                drafting: RoutedFeatureBreakdown(route: route),
+                citations: FakeCitationResolver(resolvable: ["demo/first"]),
+                transcribing: FakeContractTranscriber(), provenance: FakeProvenanceTester()
+            )
+        )
+        let repositories = ProjectRepositories(
+            workingRepos: [Repo(name: "app", path: "/repos/app", role: .backend)],
+            specSource: SpecSource(path: specPath)
+        )
+        let (context, _) = try makeSelectionContext(
+            journal, repositories: repositories, boards: boards, mainlines: ResolvedMainlines()
+        )
+
+        let outcome = try await selection.selectAndAuthor(context)
+
+        #expect(outcome == .authored)
+        let selected = try #require(try journal.events(ofType: .featureSelected).first)
+        guard case .featureSelected(let payload) = selected.event else {
+            Issue.record("expected featureSelected")
+            return
+        }
+        #expect(payload.repositories == ["app"])
+        #expect(try journal.events(ofType: .agentCLIProcessSpawned).isEmpty)
     }
 
     @Test("A Rehearsal Night's reports all carry the fixture origin")

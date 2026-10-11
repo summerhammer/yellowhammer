@@ -54,6 +54,11 @@ contract. `selection-selected-adopting.json` (P15.3, pairs with `breakdown-draft
 selects the same two repositories but leaves `adopted_card_issue_ids` for
 ``RehearsalDispatch`` to synthesize from whichever Blocked Cards this tree's Project has left behind.
 
+On a Project without these fixture repos or stories, the engine maps the fixture names onto the
+Project's own (#440): a name that exists maps to itself, so this tree is unchanged; otherwise repos and
+spec stories are assigned in order, wrapping when the Project has fewer. The `contracts/fixture-api.json`
+path is not mapped, so the with-contract fixtures only run to completion on this tree.
+
 `fixture-backend` additionally carries `migrations/0001_init.sql`, and `migrations/` is its one
 protected path (`protected_paths = ["migrations/"]` in `project-repos.toml`) — see *Protected
 Paths refusal* below.
