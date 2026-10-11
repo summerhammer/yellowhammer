@@ -185,6 +185,34 @@ struct ExpiredLeaseSweepTests {
         #expect(try journal.card(id: card.cardID).state == .todo)
     }
 
+    @Test("A dead run's worker `completed` file with no commit is a hard failure, Route excluded (#445)")
+    func workerCompletedWithoutCommitResultFile() async throws {
+        let fixture = try ReconcilerJournalFixture()
+        let journal = try fixture.open()
+        let runID = RunID()
+        let deadRun = RunID()
+        let card = try makeReclaimFixture(journal: journal, runID: runID, deadRun: deadRun, worktreeDirectory: nil)
+        let reader = FixedRunResultReading(
+            runID: deadRun, issueID: card.issueID, attemptID: card.attemptID,
+            result: resultFile(
+                pass: .worker,
+                json: """
+                {"schema":"yellowhammer.result.worker","version":1,"outcome":"completed",\
+                "commit":null,"summary":"x"}
+                """
+            )
+        )
+        let sweep = ExpiredLeaseSweep(
+            journal: journal, runID: runID, act: .build, nightID: nil, clock: { reclaimEpoch }, resultReader: reader
+        )
+        _ = try await sweep.sweep(featureID: card.featureID, cycleID: card.cycleID)
+
+        let attempt = try #require(try journal.attemptHistory(cardID: card.cardID).attempts.first)
+        #expect(attempt.result == AttemptOutcome.hardFailure.rawValue)
+        #expect(attempt.classification == "completed without a commit")
+        #expect(try journal.excludedRoutes(cardID: card.cardID).contains(reclaimRoute))
+    }
+
     @Test("A recorded `failed(exit status 2)` step with no result file is a hard failure, Route excluded")
     func recordedExitStatusStep() async throws {
         let fixture = try ReconcilerJournalFixture()

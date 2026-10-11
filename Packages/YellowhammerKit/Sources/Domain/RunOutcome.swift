@@ -31,7 +31,9 @@ extension RunEnd: CustomStringConvertible {
 
 /// Why an Attempt is Crashed-Unknown: there is no exit code attributable to the CLI.
 public enum CrashedUnknownCause: Equatable, Sendable {
-    /// Exit 0, but the result file is missing, empty or schema-invalid (the Codex SIGTERM failure mode).
+    /// Exit 0, but the result file is missing, empty, malformed JSON or declares no recognised schema (the
+    /// Codex SIGTERM failure mode). A file that declares a Yellowhammer result schema but breaks its
+    /// contract is ``RunOutcome/contractViolation(_:)`` instead.
     case resultFile(ResultFileError)
     /// Yellowhammer ended the run (timeout or abort). Only ``RunEnd/timedOut(after:forcedKill:)`` or
     /// ``RunEnd/aborted(forcedKill:)`` are ever stored here.
@@ -56,6 +58,10 @@ public enum RunOutcome: Equatable, Sendable {
     case completed(DispatchResult)
     /// Consumes the Attempt; excludes no route.
     case crashedUnknown(CrashedUnknownCause)
+    /// Exit 0, and a result file that declares a Yellowhammer result schema but breaks its contract
+    /// (``ResultFileError/isContractViolation``): the CLI answered, so the cause is attributable to the
+    /// Route. A hard failure — consumes the Attempt and excludes the route (#445).
+    case contractViolation(ResultFileError)
     /// A non-zero exit status attributable to the CLI, recorded for route-failure classification. A
     /// result file, if any, is NOT read: exit 0 is one of the two keys.
     case failed(exitStatus: Int32)
@@ -68,6 +74,8 @@ extension RunOutcome: CustomStringConvertible {
             "completed(\(result))"
         case .crashedUnknown(let cause):
             "crashedUnknown(\(cause))"
+        case .contractViolation(let error):
+            "contractViolation(\(error))"
         case .failed(let exitStatus):
             "failed(exitStatus: \(exitStatus))"
         }
@@ -85,7 +93,7 @@ extension RunOutcome {
             let result = try ResultFile.decode(contentsOf: url, expecting: pass)
             return .completed(result)
         } catch let error as ResultFileError {
-            return .crashedUnknown(.resultFile(error))
+            return classify(resultFileError: error)
         } catch {
             return .crashedUnknown(.resultFile(.unreadable("\(error)")))
         }
@@ -103,8 +111,14 @@ extension RunOutcome {
             let result = try ResultFile.decode(data, expecting: pass)
             return .completed(result)
         } catch {
-            return .crashedUnknown(.resultFile(error))
+            return classify(resultFileError: error)
         }
+    }
+
+    /// A result file that parsed and declared a Yellowhammer schema but broke its contract is the CLI
+    /// answering (a hard failure); one that never did is Crashed-Unknown.
+    private static func classify(resultFileError error: ResultFileError) -> RunOutcome {
+        error.isContractViolation ? .contractViolation(error) : .crashedUnknown(.resultFile(error))
     }
 
     /// Shared for every `end` other than a clean exit(0): a non-zero exit is attributable to the

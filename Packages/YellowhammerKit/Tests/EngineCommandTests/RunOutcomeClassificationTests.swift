@@ -40,10 +40,97 @@ func exitZeroWhitespaceIsCrashedUnknownEmpty() {
     #expect(outcome == .crashedUnknown(.resultFile(.empty)))
 }
 
-@Test("Exit 0 with a valid file for the wrong pass is Crashed-Unknown, pass mismatch")
-func exitZeroWrongPassIsCrashedUnknownPassMismatch() {
+@Test("Exit 0 with a valid file for the wrong pass is a contract violation, pass mismatch")
+func exitZeroWrongPassIsContractViolationPassMismatch() {
     let outcome = RunOutcome.classify(end: .exited(status: 0), resultFile: validArchitectJSON, pass: .worker)
-    #expect(outcome == .crashedUnknown(.resultFile(.passMismatch(expected: .worker, found: .architect))))
+    #expect(outcome == .contractViolation(.passMismatch(expected: .worker, found: .architect)))
+}
+
+private func workerFile(_ fields: String) -> Data {
+    Data("{\"schema\":\"yellowhammer.result.worker\",\"version\":1,\(fields)}".utf8)
+}
+
+@Test("Exit 0 with a completed worker whose commit is null is a contract violation (#445)")
+func exitZeroCompletedWithNullCommitIsContractViolation() {
+    let data = workerFile(#""outcome":"completed","commit":null,"summary":"stub""#)
+    let outcome = RunOutcome.classify(end: .exited(status: 0), resultFile: data, pass: .worker)
+    #expect(outcome == .contractViolation(.completedWithoutCommit))
+}
+
+@Test("Exit 0 with a completed worker that has no commit key is a contract violation (#445)")
+func exitZeroCompletedWithoutCommitKeyIsContractViolation() {
+    let data = workerFile(#""outcome":"completed","summary":"stub""#)
+    let outcome = RunOutcome.classify(end: .exited(status: 0), resultFile: data, pass: .worker)
+    #expect(outcome == .contractViolation(.completedWithoutCommit))
+}
+
+@Test("Exit 0 with a completed worker whose commit is not a SHA is a contract violation, invalid commit")
+func exitZeroCompletedWithBadCommitIsContractViolationInvalid() {
+    let data = workerFile(#""outcome":"completed","commit":"xyz","summary":"stub""#)
+    let outcome = RunOutcome.classify(end: .exited(status: 0), resultFile: data, pass: .worker)
+    guard case .contractViolation(.invalid(let field, _)) = outcome else {
+        Issue.record("expected .contractViolation(.invalid), got \(outcome)")
+        return
+    }
+    #expect(field == "commit")
+}
+
+@Test("Exit 0 with a commit that is present but not a string is a contract violation, invalid commit")
+func exitZeroCompletedWithNonStringCommitIsContractViolationInvalid() {
+    let data = workerFile(#""outcome":"completed","commit":42,"summary":"stub""#)
+    let outcome = RunOutcome.classify(end: .exited(status: 0), resultFile: data, pass: .worker)
+    guard case .contractViolation(.invalid(let field, _)) = outcome else {
+        Issue.record("expected .contractViolation(.invalid), got \(outcome)")
+        return
+    }
+    #expect(field == "commit")
+}
+
+@Test("Exit 0 with an unsupported schema version is a contract violation")
+func exitZeroUnsupportedVersionIsContractViolation() {
+    let data = Data(#"{"schema":"yellowhammer.result.worker","version":2,"outcome":"failed","reason":"x"}"#.utf8)
+    let outcome = RunOutcome.classify(end: .exited(status: 0), resultFile: data, pass: .worker)
+    #expect(outcome == .contractViolation(.unsupportedVersion(2)))
+}
+
+@Test("Exit 0 with malformed JSON stays Crashed-Unknown")
+func exitZeroMalformedJSONStaysCrashedUnknown() {
+    let data = Data(#"{"schema":"yell"#.utf8)
+    let outcome = RunOutcome.classify(end: .exited(status: 0), resultFile: data, pass: .worker)
+    guard case .crashedUnknown(.resultFile(.malformedJSON)) = outcome else {
+        Issue.record("expected .crashedUnknown(.resultFile(.malformedJSON)), got \(outcome)")
+        return
+    }
+}
+
+@Test("Exit 0 with an unrecognised schema stays Crashed-Unknown")
+func exitZeroUnknownSchemaStaysCrashedUnknown() {
+    let outcome = RunOutcome.classify(
+        end: .exited(status: 0), resultFile: Data(#"{"schema":"something.else","version":1}"#.utf8), pass: .worker
+    )
+    guard case .crashedUnknown(.resultFile(.unknownSchema)) = outcome else {
+        Issue.record("expected .crashedUnknown(.resultFile(.unknownSchema)), got \(outcome)")
+        return
+    }
+}
+
+@Test("A non-zero exit never reads the file: a contract-violating file is still just failed")
+func nonZeroExitIgnoresContractViolatingFile() {
+    let data = workerFile(#""outcome":"completed","commit":null,"summary":"stub""#)
+    let outcome = RunOutcome.classify(end: .exited(status: 1), resultFile: data, pass: .worker)
+    #expect(outcome == .failed(exitStatus: 1))
+}
+
+@Test("Only the four contract-breaking ResultFileError cases are contract violations")
+func isContractViolationTruthTable() {
+    #expect(ResultFileError.completedWithoutCommit.isContractViolation)
+    #expect(ResultFileError.passMismatch(expected: .worker, found: .architect).isContractViolation)
+    #expect(ResultFileError.unsupportedVersion(2).isContractViolation)
+    #expect(ResultFileError.invalid(field: "commit", reason: "x").isContractViolation)
+    #expect(!ResultFileError.empty.isContractViolation)
+    #expect(!ResultFileError.malformedJSON("x").isContractViolation)
+    #expect(!ResultFileError.unknownSchema("x").isContractViolation)
+    #expect(!ResultFileError.unreadable("x").isContractViolation)
 }
 
 @Test("A non-zero exit is attributable to the CLI even with a valid file present")

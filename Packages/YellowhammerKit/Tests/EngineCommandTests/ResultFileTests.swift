@@ -148,6 +148,29 @@ func shortCommitFailsValidation() throws {
     }
 }
 
+@Test("A completed worker with a null commit fails as .completedWithoutCommit")
+func nullCommitFailsAsCompletedWithoutCommit() throws {
+    let json = """
+        {"schema": "yellowhammer.result.worker", "version": 1, "outcome": "completed", \
+        "commit": null, "summary": "x"}
+        """
+    let data = try #require(json.data(using: .utf8))
+    #expect(throws: ResultFileError.completedWithoutCommit) {
+        try ResultFile.decode(data, expecting: .worker)
+    }
+}
+
+@Test("A completed worker with no commit key fails as .completedWithoutCommit")
+func missingCommitFailsAsCompletedWithoutCommit() throws {
+    let json = """
+        {"schema": "yellowhammer.result.worker", "version": 1, "outcome": "completed", "summary": "x"}
+        """
+    let data = try #require(json.data(using: .utf8))
+    #expect(throws: ResultFileError.completedWithoutCommit) {
+        try ResultFile.decode(data, expecting: .worker)
+    }
+}
+
 @Test("Whitespace-only data fails as .empty")
 func whitespaceOnlyFailsValidation() throws {
     let data = Data("   \n\t  ".utf8)

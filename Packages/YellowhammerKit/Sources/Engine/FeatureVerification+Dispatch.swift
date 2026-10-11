@@ -26,15 +26,7 @@ extension FeatureVerification {
             }
             let route = resolved.route
             ordinal += 1
-            let instruction = VerificationInstruction(
-                route: route, featureTitle: base.featureTitle, clauses: base.clauses,
-                specificationSource: base.source, repositories: base.repositories, resultFilePath: ""
-            )
-            let dispatchRequest = AgentDispatchRequest(
-                runID: act.runID, issueID: Self.runDirectoryName, attemptID: ordinal, route: route,
-                pass: .verifier, instruction: .verification(instruction), worktreePath: base.source.path,
-                additionalReadableDirectories: base.repositories.map(\.directory)
-            )
+            let dispatchRequest = Self.verifierRequest(base, route: route, ordinal: ordinal, runID: act.runID)
             let report: AgentDispatchReport
             do {
                 report = try await dispatch.dispatch(dispatchRequest)
@@ -56,6 +48,9 @@ extension FeatureVerification {
             case .failed(let exitStatus):
                 tried.insert(route)
                 lastFailure = "verifier on \(route) exited with status \(exitStatus)"
+            case .contractViolation(let error):
+                tried.insert(route)
+                lastFailure = "verifier on \(route) broke the result contract: \(error)"
             case .crashedUnknown(let cause):
                 throw VerificationDispatchFault(
                     reason: "verifier on \(route) crashed with no outcome (\(cause)); a Crashed-Unknown run "
@@ -63,6 +58,20 @@ extension FeatureVerification {
                 )
             }
         }
+    }
+
+    private static func verifierRequest(
+        _ base: InstructionBase, route: Route, ordinal: Int64, runID: RunID
+    ) -> AgentDispatchRequest {
+        let instruction = VerificationInstruction(
+            route: route, featureTitle: base.featureTitle, clauses: base.clauses,
+            specificationSource: base.source, repositories: base.repositories, resultFilePath: ""
+        )
+        return AgentDispatchRequest(
+            runID: runID, issueID: runDirectoryName, attemptID: ordinal, route: route,
+            pass: .verifier, instruction: .verification(instruction), worktreePath: base.source.path,
+            additionalReadableDirectories: base.repositories.map(\.directory)
+        )
     }
 
     private func exhaustedReason(writers: [Route], lastFailure: String?) -> String {

@@ -28,6 +28,9 @@ public enum HardFailureCause: Equatable, Sendable {
     /// The run completed under the dual key and its result reports failure (`WorkerOutcome.failed`,
     /// `ArchitectOutcome.failed`).
     case reported(reason: String)
+    /// Exit 0 and a result file that declares a Yellowhammer result schema but breaks its contract
+    /// (``RunOutcome/contractViolation(_:)``). The CLI answered, so the cause is the Route's (#445).
+    case contractViolation(ResultFileError)
 }
 
 /// The stored vocabulary of `attempt.result`.
@@ -103,6 +106,8 @@ extension AttemptEnding {
             "exit status \(status)"
         case .hardFailure(.reported(let reason)):
             "reported: \(reason)"
+        case .hardFailure(.contractViolation(let error)):
+            error.description
         case .roundsExhausted(let rounds):
             "\(rounds) rounds"
         case .crashedUnknown(.resultFile(let error)):
@@ -160,6 +165,8 @@ extension AttemptEnding {
             self = .hardFailure(.exitStatus(exitStatus))
         case .crashedUnknown(let cause):
             self = .crashedUnknown(cause)
+        case .contractViolation(let error):
+            self = .hardFailure(.contractViolation(error))
         case .completed:
             return nil
         }

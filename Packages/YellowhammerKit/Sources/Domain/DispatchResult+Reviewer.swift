@@ -102,9 +102,26 @@ public enum ResultFileError: Error, Equatable, Sendable, CustomStringConvertible
     case invalid(field: String, reason: String)
     /// The file could not be read from disk at all (missing, unreadable).
     case unreadable(String)
+    /// A worker declared `outcome: completed` but gave no commit (absent or `null`). The file is
+    /// otherwise well-formed, so this is the CLI answering and breaking the contract (#445).
+    case completedWithoutCommit
+
+    /// Whether the file parsed as JSON and declared a recognised Yellowhammer result schema, yet broke
+    /// its contract. That is the CLI answering, so the cause is attributable to the Route: a hard
+    /// failure, not Crashed-Unknown. An empty, malformed, unknown-schema or missing file is not.
+    public var isContractViolation: Bool {
+        switch self {
+        case .passMismatch, .unsupportedVersion, .invalid, .completedWithoutCommit:
+            true
+        case .empty, .malformedJSON, .unknownSchema, .unreadable:
+            false
+        }
+    }
 
     public var description: String {
         switch self {
+        case .completedWithoutCommit:
+            "completed without a commit"
         case .empty:
             "result file is empty or whitespace-only"
         case .malformedJSON(let detail):

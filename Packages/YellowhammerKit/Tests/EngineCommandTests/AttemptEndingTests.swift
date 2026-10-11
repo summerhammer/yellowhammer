@@ -96,3 +96,15 @@ func abortedEndingVocabulary() {
     #expect(ending.consumedHow == "not consumed; route not excluded (stopped by the Operator)")
     #expect(FailureCause(ending: ending) == nil)
 }
+
+@Test("A contract violation maps to a hard failure that consumes the Attempt and excludes the Route (#445)")
+func contractViolationMapsToHardFailure() throws {
+    let ending = try #require(AttemptEnding(failedRun: .contractViolation(.completedWithoutCommit)))
+    #expect(ending == .hardFailure(.contractViolation(.completedWithoutCommit)))
+    #expect(ending.excludesRoute)
+    #expect(ending.consumesAttempt)
+    #expect(ending.exclusionReason == "hard failure")
+    #expect(ending.outcome == .hardFailure)
+    #expect(ending.classification == "completed without a commit")
+    #expect(ending.description == "hard failure (completed without a commit)")
+}
