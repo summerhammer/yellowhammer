@@ -84,15 +84,13 @@ extension NightSummary {
         return "did not advance"
     }
 
-    /// `N decisions waiting` — Cards of the in-flight Cycle currently Blocked or Waiting on You — plus,
-    /// when an in-flight Feature has landed but this Night is not yet triaged, the unsettled Feature
-    /// that holds them.
+    /// `N decisions waiting` — Cards of the in-flight Cycle currently Blocked or Waiting on You,
+    /// plus unresolved Authoring Halt Feature Cards (including those left Blocked by expiry). When an
+    /// in-flight Feature has landed but this Night is not yet triaged, name the unsettled Feature.
     private static func decisionsPhrase(night: NightRecord, journal: JournalStore) throws -> String {
-        let waiting: Int
+        var waiting = try journal.unresolvedAuthoringHaltCardCount()
         if let cycleID = try journal.inFlightCycleID() {
-            waiting = try journal.laneHoles(cycleID: cycleID).count
-        } else {
-            waiting = 0
+            waiting += try journal.laneHoles(cycleID: cycleID).count
         }
         let inFlightLanded = try journal.inFlightLandedFeature()
         let unsettled = inFlightLanded != nil && night.triagedAt == nil
