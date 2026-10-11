@@ -1835,7 +1835,7 @@ depends on and that never shipped.
 - **Agent** — Opus 5 Medium or `gpt-5.6-sol medium`.
 - **Done when** — A clean account installs through the app alone.
 
-### [ ] P17.8 `[DevOps]` Scratch tooling and live verification
+### [x] P17.8 `[DevOps]` Scratch tooling and live verification
 - **Work** — Scratch scripts and live tests use the installed token pair under the same lock; the
   scratch workspace is re-installed; install, revoke and re-install are run live; a `launchd`-fired
   Act writes the refreshed pair without a prompt.
@@ -1860,14 +1860,13 @@ depends on and that never shipped.
   4. Setup view: after a revocation, a fresh Setup session's Linear step showed the refusal and
      "Install again"; the browser round-trip ended with "Installed in the Linear workspace
      summerhammer." (The wizard keeps its state until the app quits.)
-- **Remaining**
-  2. **`launchd`-fired Keychain write.** P17.9's live run re-installed through the Code Relay, which
-     revoked the earlier pair (L10). The new pair, written 2026-09-27 19:22Z, expires
-     2026-09-28 19:22Z, so it is refreshable from 17:22Z. The 22:00 EEST Night (19:00Z) must refresh
-     it and write the Keychain **without a prompt**. Check the item's `mdat` moved, a new
-     `expires_at`, no `errSecInteractionNotAllowed`, and that `yh doctor` passes. From 17:22Z, run
-     nothing that refreshes before the Night.
-  5. Then mark P17.8 `[x]`.
+- **Live on v0.11.0 (2026-10-11, installed release build)**: step 2 passes.
+  2. **`launchd`-fired Keychain write.** The pair written 2026-10-10 10:14Z expired
+     2026-10-11 10:14Z. Nothing refreshed it before the Night. The author Act of Night 2026-10-11,
+     fired by `launchd` at 10:45Z with the app never opened, refreshed it (`AppInstallationTokenRefresh`,
+     trigger `near-expiry`, outcome `refreshed`, new `expires_at` 2026-10-12 10:45Z) and wrote the
+     Keychain item without a prompt. The item's `mdat` moved to 2026-10-11 10:45:05Z, and no
+     `errSecInteractionNotAllowed` was logged. `yh doctor` passed afterwards (0 failed). (#268)
   Open elsewhere: spec gaps found while building Phase 17 are in yellowhammer-spec#70; the
   whole-target `EngineCommandTests` crash is #215.
 
