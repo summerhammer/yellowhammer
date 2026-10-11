@@ -36,7 +36,7 @@ struct ActLogTests {
         #expect(thrown as? ExitCode != .success)
     }
 
-    @Test("A Lease stand-down writes one `Stood down:` line, never `Error:`, and keeps the exit code")
+    @Test("A Lease stand-down writes one `Stood down:` line, never `Error:`, and exits with code 0")
     func standDownIsNotAnError() async throws {
         let directory = ConfigurationDirectory()
         let projectID = try #require(ProjectID(rawValue: "alpha"))
@@ -61,8 +61,7 @@ struct ActLogTests {
 
         #expect(lines == ["2026-10-03T07:15:56Z Stood down: \(String(describing: standDown))"])
         #expect(lines.allSatisfy { !$0.contains("Error:") })
-        #expect(thrown as? ExitCode == LandCommand.exitCode(for: standDown))
-        #expect(thrown as? ExitCode != .success)
+        #expect(thrown as? ExitCode == .success)
     }
 
     @Test("A validation failure keeps its non-default exit code")
