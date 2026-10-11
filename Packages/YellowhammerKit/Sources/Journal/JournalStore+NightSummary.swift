@@ -8,6 +8,21 @@ import GRDB
 // `inFlightCycleID()`, `inFlightLandedFeature()`, `card(id:)`, `attemptHistory(cardID:)`).
 
 extension JournalStore {
+    /// Distinct Feature Cards still requiring attention after an Authoring Halt. Expiry changes the
+    /// Card from Waiting on You to Blocked; only clearing the halt removes its decision. A halt with
+    /// no recorded board issue does not represent a Card, and historical cleared rows never count.
+    public func unresolvedAuthoringHaltCardCount() throws -> Int {
+        try read { db in
+            try Int.fetchOne(
+                db,
+                sql: """
+                SELECT COUNT(DISTINCT issue_id) FROM authoring_halt
+                WHERE state IN ('open', 'expired') AND issue_id IS NOT NULL
+                """
+            ) ?? 0
+        }
+    }
+
     /// Every pull request recorded for `nightID`, ordered by repository — the Night Summary's
     /// `**Pull requests:**` section reads this rather than `pullRequests(featureID:)`, which is scoped
     /// to a Feature across every Night it touched.
