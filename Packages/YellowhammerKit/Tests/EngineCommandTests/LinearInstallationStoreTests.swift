@@ -19,4 +19,12 @@ struct LinearInstallationStoreKeychainTests {
 
         #expect(try installationStore.tokenStore.read() == nil)
     }
+
+    @Test("An in-memory store reads nil when empty and does not touch the Keychain")
+    func inMemoryStoreReadsNilWhenEmpty() throws {
+        let reference = try #require(CredentialReference("keychain:test-linear-token-\(UUID().uuidString)"))
+        let store = LinearInstallationStore.inMemory(reference: reference)
+
+        #expect(try store.tokenStore.read() == nil)
+    }
 }

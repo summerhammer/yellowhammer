@@ -317,32 +317,23 @@ func defaultLinearInstallSeams() -> LinearInstallSeams {
     happyPathSeams()
 }
 
-/// A Keychain-backed ``LinearInstallationStore`` under a unique throwaway reference, whose item is
-/// deleted when the last copy of the provider is released.
+/// An in-memory ``LinearInstallationStore`` provider under a unique throwaway reference, so tests never
+/// touch the Keychain or create lock files.
 final class ThrowawayInstallationStores: Sendable {
-    let reference = CredentialReference("keychain:yh-test-\(UUID().uuidString)")!
+    let reference: CredentialReference
+    private let inner: LinearInstallationStore
+
+    init(reference: CredentialReference = CredentialReference("keychain:yh-test-\(UUID().uuidString)")!) {
+        self.reference = reference
+        self.inner = LinearInstallationStore.inMemory(reference: reference)
+    }
 
     func store(_: LinearInstallation) -> LinearInstallationStore {
-        makeStore()
+        inner
     }
 
     func makeStore() -> LinearInstallationStore {
-        LinearInstallationStore(
-            reference: reference, keychain: KeychainCredentialStore(),
-            machineLock: MachineLock(
-                fileURL: FileManager.default.temporaryDirectory
-                    .appending(component: "yh-test-lock-\(UUID().uuidString).lock", directoryHint: .notDirectory)
-            )
-        )
-    }
-
-    deinit {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: KeychainCredentialStore.service,
-            kSecAttrAccount as String: String(reference.rawValue.dropFirst("keychain:".count))
-        ]
-        SecItemDelete(query as CFDictionary)
+        inner
     }
 }
 
@@ -368,7 +359,7 @@ func makeSetup(
     arguments: [String],
     directory: borrowing ConfigurationDirectory,
     board: FakeProvisioningBoard,
-    console: ScriptedConsole = ScriptedConsole(),
+    console: any SetupConsole = ScriptedConsole(),
     credentials: RecordingCredentialStore = RecordingCredentialStore(
         seed: ["keychain:linear": "test-secret", "keychain:linear-acme": "test-secret", "keychain:github": "ghp_test"]
     ),
