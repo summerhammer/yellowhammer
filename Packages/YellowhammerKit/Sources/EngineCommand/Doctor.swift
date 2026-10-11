@@ -36,7 +36,9 @@ struct Doctor {
     /// The `PATH` and executable lookup `--fix` composes a regenerated job's `PATH` from, the same
     /// inputs `yh setup --install-jobs` uses (see ``ScheduledJobInstaller``).
     var setupTimePATH: String? = ProcessInfo.processInfo.environment["PATH"]
-    var fileExists: (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }
+    var repoint: Bool = false
+    var executableSchema: (String) async -> String? = ScheduledExecutable.schema
+    var fileExists: (String) -> Bool = ExecutableFile.isRunnable
 
     var machineFileURL: URL {
         configurationDirectory.appending(component: "config.toml", directoryHint: .notDirectory)

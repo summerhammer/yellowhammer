@@ -40,14 +40,19 @@ func makeDoctor(
     gitHub: GitHubCredentialValidation = StubGitHubTransport.passing().validation(),
     runProbe: @escaping (String) async -> Void = { _ in },
     fix: Bool = false,
+    repoint: Bool = false,
     yes: Bool = false,
     probe: Bool = false,
     checks: [DoctorCheck] = DoctorCheck.allCases,
     projectFilter: ProjectID? = nil,
-    commandLineToolLink: CommandLineToolLink = CommandLineToolLink(),
-    runningExecutablePath: String = CommandLineToolLink.runningExecutablePath(),
+    commandLineToolLink: CommandLineToolLink = CommandLineToolLink(
+        path: FileManager.default.temporaryDirectory
+            .appending(component: "yh-doctor-link-\(UUID().uuidString)")
+            .appending(component: "yh").path(percentEncoded: false)
+    ),
+    runningExecutablePath: String = "/opt/yellowhammer/yh",
     setupTimePATH: String? = "/usr/bin:/bin",
-    fileExists: @escaping (String) -> Bool = { _ in false }
+    fileExists: @escaping (String) -> Bool = { $0 == "/opt/yellowhammer/yh" || $0 == "/opt/yh" }
 ) -> Doctor {
     Doctor(
         configurationDirectory: directory.url,
@@ -72,6 +77,7 @@ func makeDoctor(
         commandLineToolLink: commandLineToolLink,
         runningExecutablePath: runningExecutablePath,
         setupTimePATH: setupTimePATH,
+        repoint: repoint,
         fileExists: fileExists
     )
 }

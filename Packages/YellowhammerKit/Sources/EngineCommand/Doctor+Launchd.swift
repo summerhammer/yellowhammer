@@ -3,11 +3,9 @@ import Domain
 import Foundation
 
 extension Doctor {
-    /// Check 5: for every valid Project and each Act, whether its LaunchAgent is installed and loaded,
-    /// and whether its `StartCalendarInterval` matches the firings the Project's `[schedule]` implies
-    /// (`Schedule.firings(staggerIndex:)`). A missing, unloaded or out-of-date plist is a warning, never a
-    /// failure — the Operator may unload jobs to pause a Project (paused, not removed). With `--fix`, an
-    /// out-of-date Project's installed jobs are regenerated (see `Doctor+LaunchdSchedule.swift`).
+    /// Check 5: each valid Project's installed and loaded LaunchAgents, their executable paths, and
+    /// their firings against the configured [schedule]. Absent, paused and stale jobs warn; a missing
+    /// executable fails. --fix regenerates affected installed jobs through setup's generation path.
     func runLaunchdCheck(configuration: Configuration) async -> [DoctorFinding] {
         var findings: [DoctorFinding] = []
         // The stagger index is a Project's position among ALL configured Projects (sorted by id), exactly
@@ -54,13 +52,39 @@ extension Doctor {
             findings.append(finding(
                 .launchd, subject: label, .pass,
                 "\(subject) LaunchAgent \(label) regenerated to match its [schedule]"
-                    + (state.loaded ? "; installed and loaded" : "; left unloaded"),
+                    + (state.loaded ? "; installed and loaded" : "; left unloaded")
+                    + (state.executable == .running ? "; executable resolves to running yh" : ""),
                 project: state.projectID
             ))
         } else if state.loaded {
             findings.append(finding(
-                .launchd, subject: label, .pass, "\(subject) LaunchAgent \(label) is installed and loaded",
+                .launchd, subject: label, .pass,
+                "\(subject) LaunchAgent \(label) is installed and loaded"
+                    + (state.executable == .running ? "; executable resolves to running yh" : ""),
                 project: state.projectID
+            ))
+        }
+        return findings + executableFindings(for: state, regenerated: regenerated)
+    }
+
+    private func executableFindings(for state: LaunchdJobState, regenerated: Bool) -> [DoctorFinding] {
+        let label = state.label
+        let subject = "Project \(state.projectID.rawValue) \(state.act.rawValue)"
+        var findings: [DoctorFinding] = []
+        if state.executable != .running {
+            let installed = state.executablePath.map(ScheduledExecutable.description)
+                ?? "(none readable; version unknown)"
+            let running = ScheduledExecutable.description(runningExecutablePath)
+            let missing = state.executable == .missing
+            findings.append(finding(
+                .launchd, subject: label, missing ? .failure : .warning,
+                "\(subject) LaunchAgent \(label) names \(missing ? "missing" : "mismatched") yh \(installed); "
+                    + "running yh is \(running); run `yh doctor --fix\(missing ? "" : " --repoint")`",
+                project: state.projectID
+            ))
+        } else if state.difference != nil || (!state.loaded && !regenerated) {
+            findings.append(finding(
+                .launchd, subject: label, .pass, "\(label) executable resolves to running yh", project: state.projectID
             ))
         }
         return findings
