@@ -3,42 +3,67 @@ import Domain
 import Foundation
 
 extension Doctor {
-    /// Check 5: for every valid Project and each Act, whether its LaunchAgent is installed and loaded.
-    /// A missing or unloaded plist is a warning, never a failure — the Operator may unload jobs to
-    /// pause a Project (paused, not removed).
+    /// Check 5: for every valid Project and each Act, whether its LaunchAgent is installed and loaded,
+    /// and whether its `StartCalendarInterval` matches the firings the Project's `[schedule]` implies
+    /// (`Schedule.firings(staggerIndex:)`). A missing, unloaded or out-of-date plist is a warning, never a
+    /// failure — the Operator may unload jobs to pause a Project (paused, not removed). With `--fix`, an
+    /// out-of-date Project's installed jobs are regenerated (see `Doctor+LaunchdSchedule.swift`).
     func runLaunchdCheck(configuration: Configuration) async -> [DoctorFinding] {
         var findings: [DoctorFinding] = []
+        // The stagger index is a Project's position among ALL configured Projects (sorted by id), exactly
+        // as setup computes it, whatever `--project` narrows the report to.
+        let allIDs = configuration.projects.map(\.id)
         for project in configuration.projects {
-            for act in Act.allCases {
-                findings.append(await launchdFinding(projectID: project.id, act: act))
-            }
+            guard let staggerIndex = allIDs.firstIndex(of: project.id) else { continue }
+            findings += await launchdFindings(
+                project: project, staggerIndex: staggerIndex, machine: configuration.machine
+            )
         }
         findings.append(commandLineToolFinding())
         return findings
     }
 
-    private func launchdFinding(projectID: ProjectID, act: Act) async -> DoctorFinding {
-        let label = "dev.yellowhammer.\(projectID.rawValue).\(act.rawValue)"
-        let subject = "Project \(projectID.rawValue) \(act.rawValue)"
-        let plistURL = launchAgentsDirectory.appending(component: "\(label).plist", directoryHint: .notDirectory)
-        guard FileManager.default.fileExists(atPath: plistURL.path(percentEncoded: false)) else {
-            return finding(
+    /// One Act's findings. The missing and not-loaded warnings, and the pass for an installed and loaded
+    /// job whose schedule matches, read as they always have.
+    func launchdFindings(for state: LaunchdJobState, regenerated: Bool) -> [DoctorFinding] {
+        let label = state.label
+        let subject = "Project \(state.projectID.rawValue) \(state.act.rawValue)"
+        guard state.installed else {
+            return [finding(
                 .launchd, subject: label, .warning,
                 "\(subject) LaunchAgent \(label) is not installed; run `yh setup --install-jobs`",
-                project: projectID
-            )
+                project: state.projectID
+            )]
         }
-        guard await launchAgents.isLoaded(label: label) else {
-            return finding(
+        var findings: [DoctorFinding] = []
+        if !state.loaded {
+            findings.append(finding(
                 .launchd, subject: label, .warning,
                 "\(subject) LaunchAgent \(label) is installed but not loaded", // glossary:ignore GL001
-                project: projectID
-            )
+                project: state.projectID
+            ))
         }
-        return finding(
-            .launchd, subject: label, .pass, "\(subject) LaunchAgent \(label) is installed and loaded",
-            project: projectID
-        )
+        if let difference = state.difference {
+            findings.append(finding(
+                .launchd, subject: label, .warning,
+                "\(subject) LaunchAgent \(label) differs from its [schedule]: \(difference); "
+                    + "run `yh doctor --fix`",
+                project: state.projectID
+            ))
+        } else if regenerated {
+            findings.append(finding(
+                .launchd, subject: label, .pass,
+                "\(subject) LaunchAgent \(label) regenerated to match its [schedule]"
+                    + (state.loaded ? "; installed and loaded" : "; left unloaded"),
+                project: state.projectID
+            ))
+        } else if state.loaded {
+            findings.append(finding(
+                .launchd, subject: label, .pass, "\(subject) LaunchAgent \(label) is installed and loaded",
+                project: state.projectID
+            ))
+        }
+        return findings
     }
 
     private func commandLineToolFinding() -> DoctorFinding {

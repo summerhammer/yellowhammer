@@ -24,6 +24,16 @@ extension Schedule {
         return window(startingOnDayOf: startDay, calendar: calendar)
     }
 
+    /// The Night whose staggered firing grid `now` falls on. Every firing of a Project's grid is the
+    /// unstaggered grid shifted by `o` (the Stagger Offset of `staggerIndex`), so the Night is resolved from
+    /// the unstaggered instant `now - o`. It differs from ``nightWindow(at:calendar:)`` only in
+    /// `[night_start, night_start + o)`, where only the previous Night's closing land and flush firings fire.
+    public func nightWindow(at now: Date, staggerIndex: Int, calendar: Calendar = .current) -> NightWindow {
+        let offset = staggerIndex * Self.staggerStepMinutes
+        let unstaggered = calendar.date(byAdding: .minute, value: -offset, to: now) ?? now
+        return nightWindow(at: unstaggered, calendar: calendar)
+    }
+
     /// The window of the Night whose `night_start` falls on `nightStart`'s date — rehearsal-only, so a
     /// suite can run several successive Nights (Night 1, Night 2, Night 3) in one session instead of one
     /// Night per wall-clock day. Only the Night's identity moves: leases, heartbeats and every timestamp

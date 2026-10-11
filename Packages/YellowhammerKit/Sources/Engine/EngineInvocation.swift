@@ -86,6 +86,10 @@ public struct EngineInvocation: Sendable {
     /// True for the land firing at `night_end`, which completes the Night whether or not the Cycle
     /// landed. Decided by `EngineCommand` from the clock against the Project's `[schedule]`.
     public let closesNight: Bool
+    /// True for a land Act started by one of the flush firings after `night_end`: it does no Night work (see
+    /// `EngineInvocation+FlushFiring.swift`). Decided by `EngineCommand` from the clock; never set for a
+    /// forced or rehearsal Act.
+    public var isFlushFiring = false
     public let leasePolicy: LeasePolicy
     /// The Board Port, when this invocation maintains a Night Card. The Engine never opens a Journal
     /// or imports an adapter (MB1/MB5); `EngineCommand` is the one place this is wired.
@@ -236,7 +240,7 @@ public struct EngineInvocation: Sendable {
             break
         }
         do {
-            try await runUnderLease()
+            try await runUnderLeaseOrFlush()
         } catch {
             // An Act that cannot complete exits with the lease released where it can. The Act's
             // failure is the error worth reporting: if the release fails too, the lease frees by its
@@ -249,7 +253,7 @@ public struct EngineInvocation: Sendable {
 
     /// The Act's life between claiming and releasing the Project. Any error thrown here is recorded
     /// as `ActIncomplete` on the way out, stamped with the Night where one was opened.
-    private func runUnderLease() async throws {
+    func runUnderLease() async throws {
         // The Night is recorded before anything else — before the trigger is even evaluated — so a
         // Night with nothing to do, or one whose first Act dies on the next line, still says it opened.
         let opening: NightOpening

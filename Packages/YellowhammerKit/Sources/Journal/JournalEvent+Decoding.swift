@@ -269,6 +269,7 @@ extension JournalEvent {
         case .refusalPromotedToStandingItem: try Self.decodeRefusalPromotedToStandingItem(reader)
         case .cardPromotedToStandingItem: try Self.decodeCardPromotedToStandingItem(reader)
         case .projectRemoved: try Self.decodeProjectRemoved(reader)
+        case .flushFiringRan: try Self.decodeFlushFiringRan(reader)
         }
     }
 

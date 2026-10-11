@@ -15,9 +15,10 @@ extension EngineInvocation {
         }
     }
 
-    /// Closes the Night and completes its Night Card when this Act closes it, then posts `.closed` —
-    /// only once that completion is recorded on the Night Card, and before anything later can throw,
-    /// so a Night whose close is followed by a failure is reported both closed and halted.
+    /// Closes the Night and completes its Night Card when this Act closes it, then posts `.closed` (or
+    /// `.closedCompletionPending` while the completion is still pending in the Outbox) — only once the
+    /// completion has been delivered or queued, and before anything later can throw, so a Night whose
+    /// close is followed by a failure is reported both closed and halted.
     func closeNightIfNeeded(
         _ night: NightRecord, card: NightCardMaintenance?, outbox: Outbox?
     ) async throws {
@@ -29,14 +30,20 @@ extension EngineInvocation {
             }
             return
         }
-        guard closesNight else { return }
+        guard closesNight || isFlushFiring else { return }
         try journal.closeNight(id: night.id, reason: .nightEnd, act: act, runID: runID)
+        if isFlushFiring {
+            // Before the completion is rendered, so the Night Summary reports that a flush firing closed it.
+            _ = try? journal.append(
+                .flushFiringRan(outcome: .closedNight, detail: nil), act: act, runID: runID, nightID: night.id
+            )
+        }
         // Completion needs the closed Night's completedAt and verdict.
         if let card, let closed = try journal.night(id: night.id) {
             let entries = try await card.acceptCompletion(night: closed)
             _ = try await card.deliverCompletion(night: closed)
-            recordDeferredCompletion(entries: entries, night: closed)
-            await notifyClosed(night: closed)
+            let completionPending = recordDeferredCompletion(entries: entries, night: closed)
+            await notifyClosed(night: closed, completionPending: completionPending)
             // The un-adopted-Cards figure changes every Night regardless of whether the Card was
             // touched, so its Managed Block header is refreshed here too — never lets a refresh
             // failure fail the Night's own completion, which has already happened above.
@@ -57,10 +64,13 @@ extension EngineInvocation {
         }
     }
 
-    /// Posts `.closed`. Called only from `closeNightIfNeeded`, right after this Act's own completion of
-    /// the Night Card is recorded, so there is nothing to gate here beyond that.
-    func notifyClosed(night: NightRecord) async {
-        await notify(.closed, notification: "closed", night: night)
+    /// Posts `.closed`, or `.closedCompletionPending` when the Night Card's completion is still pending
+    /// in the Outbox (Transient Board Failure Ruling, item 7), so the notification never implies the
+    /// morning is already in Linear. Called only from `closeNightIfNeeded`, right after this Act's own
+    /// delivery of that completion, so there is nothing to gate here beyond that. Only this Night-closing
+    /// write counts: a pending write still counts as recorded for every halted notification (OQ71).
+    func notifyClosed(night: NightRecord, completionPending: Bool) async {
+        await notify(completionPending ? .closedCompletionPending : .closed, notification: "closed", night: night)
     }
 
     /// Posts `.halted(reason:)` from `runUnderLease`'s catch, after `.actIncomplete` is appended. The

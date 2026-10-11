@@ -466,6 +466,7 @@ extension JournalEvent {
         case .refusalPromotedToStandingItem: refusalPromotedToStandingItemPayload
         case .cardPromotedToStandingItem: cardPromotedToStandingItemPayload
         case .projectRemoved: projectRemovedPayload
+        case .flushFiringRan: flushFiringRanPayload
         }
     }
 }

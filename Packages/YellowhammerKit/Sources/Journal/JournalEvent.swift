@@ -463,6 +463,9 @@ public enum JournalEvent: Equatable, Sendable {
     /// repositories whose held Worktree was removed and left in place respectively (a dirty Worktree in
     /// rehearsal, say).
     case projectRemoved(featureIssueID: String?, removedWorktrees: [String], keptWorktrees: [String])
+    /// A land Act started by one of the three flush firings after `night_end` ran (Transient Board Failure
+    /// Ruling 2026-10-09 item 6). It does no Night work; `detail` is the entries delivered, or the failure.
+    case flushFiringRan(outcome: FlushFiringOutcome, detail: String?)
 
     // `type`, the exhaustive switch from a case to its `JournalEventType`, lives in
     // JournalEvent+Type.swift, split out to keep this file under the file length limit.

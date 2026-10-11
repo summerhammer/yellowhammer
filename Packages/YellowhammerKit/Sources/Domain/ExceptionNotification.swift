@@ -7,7 +7,9 @@
 /// failed), the local notification still posts as `.haltedUnrecorded`, since nothing else will tell the
 /// Operator this Night halted. Only *halted*, *haltedUnrecorded* and *closed* post locally — *opened*
 /// is recorded on the Night Card and posts nothing (Decision Gates Ruling, G-10) — so `Event` has no
-/// `opened` case. Each notification names its Project, and there is no combined notification across
+/// `opened` case. *Closed* has a second copy, `.closedCompletionPending`, for the one write that is
+/// still pending when the notification posts: the Night Card's completion (Transient Board Failure
+/// Ruling, item 7). Each notification names its Project, and there is no combined notification across
 /// Projects.
 ///
 /// `arguments` and `init(arguments:)` are the launch contract between `yh` and the app.
@@ -19,6 +21,10 @@ public struct ExceptionNotification: Hashable, Sendable {
         /// Card is open, or the halted comment write was aborted or permanently failed.
         case haltedUnrecorded
         case closed
+        /// The Night closed, but the Night Card's completion is still pending in the Outbox (the board
+        /// could not be reached), so the Night Card is not updated yet (Transient Board Failure Ruling,
+        /// item 7).
+        case closedCompletionPending
     }
 
     public enum ArgumentError: Error, Equatable, Sendable {
@@ -56,6 +62,8 @@ public struct ExceptionNotification: Hashable, Sendable {
             arguments += ["--event", "halted-unrecorded"]
         case .closed:
             arguments += ["--event", "closed"]
+        case .closedCompletionPending:
+            arguments += ["--event", "closed-completion-pending"]
         }
         return arguments
     }
@@ -92,6 +100,9 @@ public struct ExceptionNotification: Hashable, Sendable {
         case "closed":
             guard reason == nil else { throw .unexpectedReason }
             return .closed
+        case "closed-completion-pending":
+            guard reason == nil else { throw .unexpectedReason }
+            return .closedCompletionPending
         case let other?:
             throw .unknownEvent(other)
         }
@@ -124,6 +135,7 @@ public struct ExceptionNotification: Hashable, Sendable {
             "\(project.rawValue) halted before its Night Card could be opened — nothing is recorded " +
                 "on the board for this Night. Check the Journal or run yh status."
         case .closed: "Night closed"
+        case .closedCompletionPending: "Night closed — the Night Card is not updated in Linear yet"
         }
     }
 }

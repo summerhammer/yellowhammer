@@ -438,7 +438,9 @@ struct HeadlessAppNotifierTests {
                 executable: URL(filePath: "/Applications/Yellowhammer.app/Contents/MacOS/yh")
             ) == "/Applications/Yellowhammer.app"
         )
-        #expect(HeadlessAppLaunch.enclosingAppPath(executable: URL(filePath: "/usr/local/bin/yh")) == nil)
+        // A path that cannot exist: `/usr/local/bin/yh` is a symlink into the app on a machine that ran
+        // "Install Command Line Tool", and `enclosingAppPath` resolves symlinks.
+        #expect(HeadlessAppLaunch.enclosingAppPath(executable: URL(filePath: "/nonexistent/bin/yh")) == nil)
         #expect(HeadlessAppLaunch.enclosingAppPath(executable: URL(filePath: "/tmp/Contents/MacOS/yh")) == nil)
         #expect(HeadlessAppLaunch.enclosingAppPath(executable: nil) == nil)
     }
