@@ -353,24 +353,8 @@ public struct DeltaRead: Sendable {
         }
     }
 
-    /// The repository a rendered Managed Block names on its `Repository:` line — the line the Card's
-    /// block renders (roadmap P5.6) as `**Repository:** \`name\``. Bold and backticks are optional, so
-    /// an Operator who retyped the line is still read. Nil when the block has no such line.
-    static func repository(inBlock block: String) -> String? {
-        for line in block.split(whereSeparator: \.isNewline) {
-            var text = Substring(line.trimmingCharacters(in: .whitespaces))
-            if text.hasPrefix("- ") || text.hasPrefix("* ") { text = text.dropFirst(2) }
-            text = text.drop(while: { $0 == "*" || $0 == "_" })
-            guard text.lowercased().hasPrefix("repository") else { continue }
-            text = text.dropFirst("repository".count)
-            text = text.drop(while: { $0 == "*" || $0 == "_" || $0 == " " })
-            guard text.first == ":" else { continue }
-            text = text.dropFirst().drop(while: { $0 == "*" || $0 == "_" || $0 == " " || $0 == "`" })
-            let name = text.prefix(while: { !$0.isWhitespace && $0 != "`" && $0 != "*" })
-            return name.isEmpty ? nil : String(name)
-        }
-        return nil
-    }
+    // The repository line parser for the Card's Managed Block (roadmap P5.6; issue #446) lives in
+    // DeltaRead+Repository.swift, split out to keep this file under the file-length limit.
 
     // MARK: - Events
 

@@ -200,4 +200,92 @@ struct DeltaReadReconciliationTests {
         #expect(DeltaRead.repository(inBlock: "The repository is elsewhere") == nil)
         #expect(DeltaRead.repository(inBlock: "") == nil)
     }
+
+    @Test("A brief with transcribed code containing 'repository: \"backend\",' above the real line is ignored")
+    func repositoryLineIgnoresTranscribedCode() {
+        let block = """
+        ### Architectural Brief
+        <!-- yh:transcription:start repo=backend paths=Tests/CardTests.swift symbol=- commit=c1 hash=h1 -->
+        func testCard() {
+            let card = Card(
+                featureID: 1,
+                repository: "backend",
+                worktreeID: "wt-1"
+            )
+        }
+        <!-- yh:transcription:end -->
+
+        **Repository:** `yellowhammer`
+        """
+        #expect(DeltaRead.repository(inBlock: block) == "yellowhammer")
+    }
+
+    @Test("A brief with a fenced code block containing repository: \"backend\", above the real line is ignored")
+    func repositoryLineIgnoresFencedCode() {
+        let block = """
+        ### Architectural Brief
+        ```swift
+        let fixture = [
+            repository: "backend",
+        ]
+        ```
+
+        **Repository:** `yellowhammer`
+        """
+        #expect(DeltaRead.repository(inBlock: block) == "yellowhammer")
+    }
+
+    @Test("A brief with transcribed code and no real Repository line returns nil")
+    func repositoryLineWithoutRealLineReturnsNil() {
+        let block = """
+        ### Architectural Brief
+        <!-- yh:transcription:start repo=backend paths=Tests/CardTests.swift symbol=- commit=c1 hash=h1 -->
+            repository: "backend",
+        <!-- yh:transcription:end -->
+        """
+        #expect(DeltaRead.repository(inBlock: block) == nil)
+    }
+
+    @Test("Quoted code with repository: \"backend\", is not read as a repository line")
+    func repositoryLineRejectsQuotedCode() {
+        #expect(
+            DeltaRead.repository(inBlock: "    repository: \"backend\",\n**Repository:** `yellowhammer`")
+                == "yellowhammer"
+        )
+        #expect(DeltaRead.repository(inBlock: "repository: \"backend\",") == nil)
+    }
+
+    @Test("Transcribed code containing repository: \"backend\", does not break the authoring invariant")
+    func transcribedCodeDoesNotBreakInvariant() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        try insertCard(journal, issueID: "card-1", repository: "yellowhammer")
+        let description = fenced(block: """
+        ### Architectural Brief
+        <!-- yh:transcription:start repo=backend paths=Tests/CardTests.swift symbol=- commit=c1 hash=h1 -->
+        func testCard() {
+            let card = Card(
+                featureID: 1,
+                repository: "backend",
+                worktreeID: "wt-1"
+            )
+        }
+        <!-- yh:transcription:end -->
+
+        **Repository:** `yellowhammer`
+        """)
+        let board = FakeReadingBoard([
+            page(objects: [object("card-1", state: stateTodo, description: description)])
+        ])
+        let (read, _) = try deltaRead(journal, board: board, repositories: ["yellowhammer"])
+
+        guard case .read(let report) = try await read.perform() else {
+            Issue.record("expected a read")
+            return
+        }
+
+        #expect(report.invariantBreaks.isEmpty)
+        #expect(report.cardChanges.map(\.repositoryOnBoard) == ["yellowhammer"])
+        #expect(try journal.events(ofType: .authoringInvariantBroken).isEmpty)
+    }
 }
