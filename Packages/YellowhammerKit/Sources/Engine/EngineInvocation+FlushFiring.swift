@@ -57,16 +57,27 @@ extension EngineInvocation {
     }
 
     /// The Night is already closed: deliver the Project's pending Outbox entries and post no notification —
-    /// the closing Act has already said whether the completion is pending. A board that is still unreachable
-    /// leaves the entries pending (this Outbox does not count the pass as an attempt); a failure of the
-    /// firing itself is recorded as `FlushFiringRan`, not `ActIncomplete`, since the Night did not halt.
+    /// the closing Act has already said whether the completion is pending. A completion the closing Act never
+    /// accepted (its Night closed in the Journal, then a Linear read failed before the Night Card completion
+    /// reached the Outbox) is accepted here first, so the flush has something to deliver. A board that is
+    /// still unreachable leaves the entries pending (this Outbox does not count the pass as an attempt); a
+    /// failure of the firing itself is recorded as `FlushFiringRan`, not `ActIncomplete`, since the Night did
+    /// not halt.
     private func deliverPendingFromFlush(_ night: NightRecord) async {
         guard let (_, card) = makeNightCardMaintenance(night: night) else {
             record(.nothingPending, detail: nil, night: night)
             return
         }
         do {
+            var accepted = false
+            // Only a Night closed at `night_end` is completed: one that opened and died, or whose Project was
+            // removed, keeps its open Night Card.
+            if night.closeReason == .nightEnd, try !card.isCompletionAccepted(night: night) {
+                _ = try await card.acceptCompletion(night: night)
+                accepted = true
+            }
             let before = try journal.pendingOutboxEntries().count
+            let prefix = accepted ? "completion accepted; " : ""
             let report = try await card.deliverCompletion(night: night)
             let after = try journal.pendingOutboxEntries().count
             if before == 0 {
@@ -75,7 +86,8 @@ extension EngineInvocation {
                 // Recorded as delivered only when something was: an unreachable board delivers nothing.
                 record(
                     report.applied.isEmpty ? .stillPending : .delivered,
-                    detail: "\(report.applied.count) applied, \(after) of \(before) still pending", night: night
+                    detail: "\(prefix)\(report.applied.count) applied, \(after) of \(before) still pending",
+                    night: night
                 )
             }
             appendClosing(.actEnded, night: night)

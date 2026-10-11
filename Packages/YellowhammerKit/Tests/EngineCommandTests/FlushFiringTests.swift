@@ -56,6 +56,23 @@ private final class FlushScene: Sendable {
         ).run()
     }
 
+    /// A closing land whose Night closes in the Journal and whose completion acceptance then loses its
+    /// provisioning read: the Night is closed and no completion entry exists.
+    func closingLandLosingTheCompletionRead() async throws {
+        let provisioning = boards.provisioning
+        do {
+            try await EngineInvocation(
+                act: .land, mode: .real, nightStart: nightCardNightStart, journal: journal,
+                trigger: .forced, closesNight: true, board: board,
+                outboxTransientRetry: SleepLog().ruled,
+                work: { _ in await provisioning.refuseLabelsNext(.unreachable("temporary Linear read outage")) }
+            ).run()
+            Issue.record("Expected the completion provisioning read to throw")
+        } catch let error as BoardError {
+            #expect(error == .unreachable("temporary Linear read outage"))
+        }
+    }
+
     func flushFiring(sleeps: SleepLog = SleepLog(), runID: RunID = RunID()) async throws {
         let posts = posts
         let work = work
@@ -239,6 +256,48 @@ struct FlushFiringTests {
         try await scene.flushFiring()
         #expect(try scene.journal.currentNight() == nil)
         #expect(try scene.flushEvents() == [.closedNight])
+    }
+
+    @Test("A completion the closing land never accepted is accepted and delivered by the first flush firing")
+    func flushAcceptsACompletionNeverAccepted() async throws {
+        let scene = try await FlushScene()
+        try await scene.closingLandLosingTheCompletionRead()
+        let night = try #require(try scene.journal.night(nightStart: nightCardNightStart))
+        #expect(!night.isOpen)
+        #expect(try scene.journal.pendingOutboxEntries().isEmpty)
+
+        for _ in 0..<3 {
+            try await scene.flushFiring()
+        }
+
+        let issue = try #require(await scene.boards.writing.liveIssues.first)
+        let completed = try await NightCardScope.resolve(using: scene.boards.provisioning).completedState
+        #expect(issue.workflowState == completed)
+        #expect(try scene.journal.events(ofType: .nightCardCompleted).count == 1)
+        #expect(try scene.journal.pendingOutboxEntries().isEmpty)
+        #expect(try scene.flushEvents() == [.delivered, .nothingPending, .nothingPending])
+        let detail = try scene.journal.events(ofType: .flushFiringRan).compactMap { record -> String? in
+            if case .flushFiringRan(_, let detail) = record.event { detail } else { nil }
+        }.first
+        #expect(try #require(detail).hasPrefix("completion accepted; "))
+    }
+
+    @Test("A flush firing whose acceptance read fails is failed, and the next one recovers the completion")
+    func flushRetriesAFailedAcceptance() async throws {
+        let scene = try await FlushScene()
+        try await scene.closingLandLosingTheCompletionRead()
+
+        await scene.boards.provisioning.refuseLabelsNext(.unreachable("still down"))
+        try await scene.flushFiring()
+        #expect(try scene.flushEvents() == [.failed])
+        #expect(try scene.journal.events(ofType: .nightCardCompleted).isEmpty)
+
+        try await scene.flushFiring()
+        #expect(try scene.flushEvents() == [.failed, .delivered])
+        #expect(try scene.journal.events(ofType: .nightCardCompleted).count == 1)
+        let issue = try #require(await scene.boards.writing.liveIssues.first)
+        let completed = try await NightCardScope.resolve(using: scene.boards.provisioning).completedState
+        #expect(issue.workflowState == completed)
     }
 
     @Test("A Night that opened and died keeps its open Night Card: a flush firing does not complete it")

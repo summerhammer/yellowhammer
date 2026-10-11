@@ -202,6 +202,18 @@ public struct NightCardMaintenance: Sendable {
     // NightCardMaintenance+Authoring.swift. Both split out to keep this file/type under their limits.
 }
 
+extension NightCardMaintenance {
+    /// Whether the Night's completion was ever accepted: a Night Card is recorded and its `complete` Outbox
+    /// entry exists, in any state. Decided by that lookup, never by the pending count — a halted closing land
+    /// may have queued an unrelated halted-comment entry.
+    public func isCompletionAccepted(night: NightRecord) throws -> Bool {
+        let night = try journal.night(id: night.id) ?? night
+        guard let issueID = night.nightCardIssueID else { return false }
+        let key = Self.completeKey(nightStart: night.nightStart, issueID: issueID)
+        return try journal.outboxEntry(clientID: outbox.clientID(for: key)) != nil
+    }
+}
+
 /// Why the Night Card could not be opened or completed.
 public enum NightCardError: Error, Equatable, CustomStringConvertible {
     case notOpened(reason: String)
