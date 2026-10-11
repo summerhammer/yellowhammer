@@ -12,6 +12,7 @@ public enum LeftoverProcessDisposition: String, CaseIterable, Sendable {
     /// this run's snapshot, and killed it.
     case sweptByWorktreeFence = "swept-by-worktree-fence"
     /// Layer 2: the attributed Worktree fence found it holding the Worktree but could not attribute
-    /// it to this run's snapshot, so it was left running.
+    /// it to this run's snapshot, so it was left running. Only a process that started after the run
+    /// was dispatched is recorded: one already running then was not left behind by the run.
     case leftRunningUnattributed = "left-running-unattributed"
 }
