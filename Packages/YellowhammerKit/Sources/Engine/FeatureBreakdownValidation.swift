@@ -22,6 +22,8 @@ public enum FeatureBreakdownError: Error, Equatable, Sendable, CustomStringConve
     /// A Card has an empty or whitespace-only Architectural Brief (roadmap P9.6; spec: feature-
     /// authoring/author-an-architectural-brief): every authored Card carries a brief before dispatch.
     case emptyBrief(position: Int)
+    /// A Card's brief tells the worker not to commit (issue #444), contradicting the worker contract.
+    case briefContradictsWorkerContract(position: Int, phrase: String)
     /// A Card carries the Kind reserved for the author Act, which is never read off a Card.
     case reservedKind(title: String, kind: String)
     /// The transaction would author no Card at all — neither a new one nor an adopted one.
@@ -35,6 +37,9 @@ public enum FeatureBreakdownError: Error, Equatable, Sendable, CustomStringConve
             "Card \(position) of the breakdown has an empty title."
         case .emptyBrief(let position):
             "Card \(position) of the breakdown has an empty Architectural Brief."
+        case .briefContradictsWorkerContract(let position, let phrase):
+            "Card \(position) of the breakdown has an Architectural Brief containing \"\(phrase)\", which "
+                + "contradicts the worker contract: the worker commits its own work and reports the commit."
         case .reservedKind(let title, let kind):
             "Card '\(title)' carries Kind '\(kind)', which is reserved for the author Act."
         case .noCards:
@@ -58,6 +63,9 @@ enum FeatureBreakdownValidation {
             guard !card.brief.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw FeatureBreakdownError.emptyBrief(position: index + 1)
             }
+            if let phrase = briefContradiction(in: card.brief) {
+                throw FeatureBreakdownError.briefContradictsWorkerContract(position: index + 1, phrase: phrase)
+            }
             guard !card.kind.isReservedForAuthoring else {
                 throw FeatureBreakdownError.reservedKind(title: card.title, kind: card.kind.description)
             }
@@ -70,5 +78,30 @@ enum FeatureBreakdownValidation {
         guard !breakdown.cards.isEmpty || !selection.adoptedCardIssueIDs.isEmpty else {
             throw FeatureBreakdownError.noCards
         }
+    }
+
+    /// A shape check for a known contradiction (issue #444 lineage), not a judge of the brief: the worker
+    /// commits its own work, so a brief that says otherwise ("Do not commit; the lead commits.", copied
+    /// from an Operator's own lead/sidekick convention) would make every Attempt return no commit. It
+    /// matches only object-less negated commit imperatives and a few lineage phrases, so approach lines
+    /// such as "do not commit the generated fixtures" pass. Returns the offending phrase, if any.
+    static func briefContradiction(in brief: String) -> String? {
+        let patterns = [
+            #"(?:do not|don't|don’t|never) commit(?=\s*[.;!,]|\s*$)"#,
+            #"(?:do not|don't|don’t|never) commit (?:anything|your (?:work|changes)|the (?:work|changes))\b"#,
+            #"leave (?:the|your) (?:work|changes) uncommitted"#,
+            #"the lead commits"#,
+            #"(?:sidekick|worker) never commits"#
+        ]
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+                continue
+            }
+            let range = NSRange(brief.startIndex..., in: brief)
+            if let match = regex.firstMatch(in: brief, range: range), let found = Range(match.range, in: brief) {
+                return String(brief[found])
+            }
+        }
+        return nil
     }
 }
