@@ -1,6 +1,7 @@
 import Domain
+import Journal
 
-/// Thrown by ``EngineInvocation/boardPreflight()`` when part of the Project's board scope is unresolved
+/// Thrown by ``EngineInvocation/boardPreflight(night:)`` when part of the Project's board scope is unresolved
 /// (OQ85, OQ136): the Act does no work. `steps` is every unresolved item and what to do about it, in
 /// report order; `items` names just the items, in the same order.
 public struct BoardScopeUnresolved: Error, Equatable, CustomStringConvertible {
@@ -39,19 +40,24 @@ extension EngineInvocation {
     /// clocks) — for the author, build and land Acts alike, and for both causes (authorization,
     /// unresolved board scope). OQ135: a Worktree-name collision halt is thrown later, after the build
     /// Act's clock ran, so it still counts.
-    func boardPreflight() async throws {
+    func boardPreflight(night: NightRecord) async throws {
         try await authorizationPreflight()
-        try await resolveBoardScope()
+        try await resolveBoardScope(night: night)
     }
 
     /// Reads the board's scope with no create (`BoardProvisioner.verify`) and refuses when any item
     /// needs a fix. A read failure (network, etc.) propagates unchanged, as a generic halt.
-    private func resolveBoardScope() async throws {
+    ///
+    /// A report, finished or not, means Linear answered: that is recorded as `.linearReached` on the Night,
+    /// the Journal's evidence that this Act reached Linear for the consecutive-unreachable-halt count
+    /// (Transient Board Failure Ruling items 9-10).
+    private func resolveBoardScope(night: NightRecord) async throws {
         guard let board else { return }
         let report = try await BoardProvisioner.verify(
             using: board.provisioning, projectName: journal.projectID.rawValue,
             routingTable: RoutingTable(entries: [])
         )
+        _ = try? journal.append(.linearReached, act: act, runID: runID, nightID: night.id)
         let unfinished = report.unfinishedItems
         guard unfinished.isEmpty else {
             throw BoardScopeUnresolved(steps: unfinished.map(\.message), items: unfinished.map(\.item))

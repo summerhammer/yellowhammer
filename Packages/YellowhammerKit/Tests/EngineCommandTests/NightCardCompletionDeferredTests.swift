@@ -20,7 +20,7 @@ private final class ClosedPosts: Sendable {
     func record(_ notification: ExceptionNotification) {
         switch notification.event {
         case .closed, .closedCompletionPending: storage.withLock { $0.append(notification.event) }
-        case .halted, .haltedUnrecorded: break
+        case .halted, .haltedUnrecorded, .haltedNightOpen: break
         }
     }
     var events: [ExceptionNotification.Event] { storage.withLock { $0 } }

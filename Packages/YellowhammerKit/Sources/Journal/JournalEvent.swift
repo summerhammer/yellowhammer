@@ -56,6 +56,15 @@ public enum JournalEvent: Equatable, Sendable {
     /// `overdue_nights_max` (no clock reads this event — it simply never advances, since nothing
     /// dispatched).
     case linearAuthorizationHalted
+    /// This Act got a response from Linear: the board preflight's scope read succeeded (Transient Board
+    /// Failure Ruling 2026-10-09 items 9-10). Recorded on the Night so a later Act's halt can tell, from
+    /// the Journal alone, whether the Acts before it reached Linear. Not a halt.
+    case linearReached
+    /// This Act halted because Linear was unreachable: a 5xx or transport failure after bounded retries
+    /// (`BoardError.unreachable`, directly or wrapped). Appended alongside `.actIncomplete` for this cause.
+    /// The local halted notification pages only at the 2nd consecutive Act ending this way in a Night
+    /// (Transient Board Failure Ruling items 9-15), derived from this event and `.linearReached`.
+    case linearUnreachableHalted
     /// One attempt to refresh the Board Connection's token pair, succeeded or refused. Carries no token.
     case appInstallationTokenRefresh(AppInstallationTokenRefresh)
     case mainlineFetchFailed(repository: String, reason: String)

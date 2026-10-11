@@ -30,6 +30,7 @@ private let epoch = Date(timeIntervalSince1970: 1_800_000_000)
 func eventTypeRawValues() {
     let expected = [
         "ActStarted", "ActEnded", "ActIdle", "ActIncomplete", "ActStoodDown", "LinearAuthorizationHalted",
+        "LinearReached", "LinearUnreachableHalted",
         "MainlineFetchFailed", "AbsentNightDetected", "AuthoringNoWorkAvailable",
         "AuthoringSkippedFeatureInFlight", "AuthoringPredecessorNotLanded",
         "AuthoringPredecessorIndeterminate", "PredecessorWalkSkippedReleasedFeature",
@@ -109,6 +110,19 @@ func linearAuthorizationHaltedRoundTrips() throws {
 
     #expect(records.count == 1)
     #expect(records[0].event == .linearAuthorizationHalted)
+}
+
+@Test("linearReached and linearUnreachableHalted events round-trip")
+func linearReachabilityEventsRoundTrip() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+
+    _ = try journal.append(.linearReached, act: .build, runID: run, now: epoch)
+    _ = try journal.append(.linearUnreachableHalted, act: .build, runID: run, now: epoch)
+    let records = try journal.events()
+
+    #expect(records.map(\.event) == [.linearReached, .linearUnreachableHalted])
 }
 
 @Test("actIncomplete event with reason round-trips")

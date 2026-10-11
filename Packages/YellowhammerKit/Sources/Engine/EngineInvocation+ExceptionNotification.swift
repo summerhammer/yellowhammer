@@ -118,16 +118,22 @@ extension EngineInvocation {
         await notify(.halted(reason: reason), notification: "halted", night: night)
     }
 
-    /// `runUnderLease`'s catch: appends `.actIncomplete` — preceded by `.worktreeNameCollision` when
-    /// that is the cause — and then sends the halted notice the cause calls for. Never throws.
+    /// `runUnderLease`'s catch: appends `.actIncomplete` — preceded by the cause's own event
+    /// (`.worktreeNameCollision`, `.boardScopeUnresolved`, `.linearUnreachableHalted`) — and then sends the
+    /// halted notice the cause calls for. Never throws.
     func recordHalt(_ error: any Error, night: NightRecord, nightCard: NightCardMaintenance?, outbox: Outbox?) async {
         let reason = String(describing: error)
         // Read before the collision event is appended, so this Act's own event does not count.
         let collision = recordWorktreeNameCollision(error, night: night)
         let unresolved = recordBoardScopeUnresolved(error, night: night)
+        let unreachable = recordLinearUnreachableHalt(error, night: night)
         appendClosing(.actIncomplete(reason: reason), night: night)
         if error.isLinearAuthorizationFailure {
             await notifyLinearAuthorizationHalted(night: night)
+        } else if let unreachable {
+            await notifyLinearUnreachableHalted(
+                unreachable, reason: reason, night: night, nightCard: nightCard, outbox: outbox
+            )
         } else if let unresolved {
             await notifyBoardScopeUnresolvedHalted(unresolved, night: night)
         } else if let collision {
@@ -207,10 +213,18 @@ extension EngineInvocation {
         case .firstThisNight:
             await notifyHalted(reason: reason, night: night, nightCard: nightCard, outbox: outbox)
         case .repeatedThisNight:
-            guard board != nil, let outbox, let nightCard,
-                  let issueID = await currentNightCardIssueID(night: night, card: nightCard) else { return }
-            _ = await recordHaltedComment(reason: reason, issueID: issueID, night: night, outbox: outbox)
+            await recordHaltedCommentOnly(reason: reason, night: night, nightCard: nightCard, outbox: outbox)
         }
+    }
+
+    /// Writes the halted comment on the Night Card through the Outbox when there is a Night Card to write
+    /// on, and posts nothing either way.
+    func recordHaltedCommentOnly(
+        reason: String, night: NightRecord, nightCard: NightCardMaintenance?, outbox: Outbox?
+    ) async {
+        guard board != nil, let outbox, let nightCard,
+              let issueID = await currentNightCardIssueID(night: night, card: nightCard) else { return }
+        _ = await recordHaltedComment(reason: reason, issueID: issueID, night: night, outbox: outbox)
     }
 
     /// Names the cause and the fix, whether or not a Night Card could be opened (P17.5): a refused
@@ -229,7 +243,7 @@ extension EngineInvocation {
             + "Re-connect that workspace: " + fixes
     }
 
-    private func currentNightCardIssueID(night: NightRecord, card: NightCardMaintenance) async -> String? {
+    func currentNightCardIssueID(night: NightRecord, card: NightCardMaintenance) async -> String? {
         do {
             _ = try await card.open(night: night)
             return try journal.night(id: night.id)?.nightCardIssueID
@@ -257,7 +271,7 @@ extension EngineInvocation {
         }
     }
 
-    private func notify(_ event: ExceptionNotification.Event, notification: String, night: NightRecord) async {
+    func notify(_ event: ExceptionNotification.Event, notification: String, night: NightRecord) async {
         do {
             try await notifier.post(ExceptionNotification(project: journal.projectID, event: event))
         } catch {
@@ -275,7 +289,7 @@ extension EngineInvocation {
     /// The Night Card comment keeps the full reason; the local notification's is a single line
     /// (whitespace runs collapsed), capped so a long thrown-error description does not overrun a
     /// notification banner.
-    private static func collapsed(_ reason: String, limit: Int = 200) -> String {
+    static func collapsed(_ reason: String, limit: Int = 200) -> String {
         let singleLine = reason.split(whereSeparator: \.isWhitespace).joined(separator: " ")
         guard singleLine.count > limit else { return singleLine }
         return "\(singleLine.prefix(limit))…"

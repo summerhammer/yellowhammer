@@ -134,7 +134,7 @@ struct NightCardTests {
         let night = try #require(try journal.currentNight())
         #expect(night.nightCardIssueID != nil)
         let events = try journal.events().map(\.type)
-        #expect(events == [.nightOpened, .actStarted, .nightCardOpened, .actEnded])
+        #expect(events == [.nightOpened, .actStarted, .linearReached, .nightCardOpened, .actEnded])
     }
 
     @Test("A second Act of the same Night creates nothing")
@@ -238,7 +238,7 @@ struct NightCardTests {
         let events = try journal.events().map(\.type)
         #expect(
             events ==
-                [.nightOpened, .actStarted, .nightCardOpened, .actIdle, .managedBlockWritten, .actEnded]
+                [.nightOpened, .actStarted, .linearReached, .nightCardOpened, .actIdle, .managedBlockWritten, .actEnded]
         )
         // The Night Card and the in-flight Feature's own Roll-up block, seeded above.
         #expect(await writing.liveIssues.count == 2)

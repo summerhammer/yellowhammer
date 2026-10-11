@@ -104,7 +104,10 @@ struct BoardScopePreflightTests {
         #expect(!workRan.withLock { $0 })
         #expect(await boards.writing.createIssueCalls == 0, "no Night Card create was attempted")
         let records = try journal.events()
-        #expect(records.map(\.type) == [.nightOpened, .actStarted, .boardScopeUnresolved, .actIncomplete])
+        #expect(
+            records.map(\.type)
+                == [.nightOpened, .actStarted, .linearReached, .boardScopeUnresolved, .actIncomplete]
+        )
         let recorded = try #require(records.first { $0.type == .boardScopeUnresolved })
         guard case .boardScopeUnresolved(let steps) = recorded.event else {
             Issue.record("expected .boardScopeUnresolved")
