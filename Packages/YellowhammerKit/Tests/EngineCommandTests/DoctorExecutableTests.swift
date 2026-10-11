@@ -297,7 +297,9 @@ struct ScheduledExecutableTests {
         }
         try Data("#!/bin/sh\n\(body)\n".utf8).write(to: script)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path())
-        let result = await ScheduledExecutable.querySchema(script.path(), timeout: 0.2)
+        let result = kind == "timeout"
+            ? await ScheduledExecutable.querySchema(script.path(), timeout: 0.2)
+            : await ScheduledExecutable.schema(script.path())
         #expect(result == (kind == "valid" ? "journal-schema-9" : nil))
     }
 
