@@ -1742,7 +1742,7 @@ comment on the Delta Read).
   Operator's call, without re-running v0.1.1's gates; the next tag is the first to run it in full. The scheduled
   probe drift workflow cannot probe on a hosted runner (#199).
 
-### [ ] P16.8 First production Night
+### [x] P16.8 First production Night
 - **Work**
   - Configure one real Project with its real repositories, real Linear project and real
     subscriptions.
@@ -1758,6 +1758,11 @@ comment on the Delta Read).
   are filed.
 - **Waits on** — Phase 19 (Pull Request Title and Commit Message Ruling; OQ107 was raised as
   blocking this step).
+- **Status** — Done on v0.11.0, on the Yellowhammer Project itself (#263, #269). Night 2026-10-10 ran
+  unattended under `launchd`. It landed Feature YLH-336: 4 Work Cards, 27 of 27 clauses met, and pull
+  request #430 green on every check. A human merged it. DR1 was 0 for that Night's triage. The two
+  terminal visits after it (a squash merge left the ancestry gate closed, and Night 2026-10-11's
+  workers were told not to commit) are recorded with G-13 and G-15 in #269 and filed as #444–#448.
 
 ---
 
