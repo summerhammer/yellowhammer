@@ -74,7 +74,7 @@ struct ProcessFencerAttributionTests {
         #expect(ungrouped.isRunning)
     }
 
-    @Test("Rule 2 time guard: a holder in a recorded group but started before dispatch is not killed")
+    @Test("Rule 2 time guard: a holder in a recorded group but started before dispatch is neither killed nor reported")
     func rule2TimeGuard() async throws {
         let worktree = try Self.makeTempDir(name: "rule2-time")
         defer { try? FileManager.default.removeItem(at: worktree) }
@@ -97,9 +97,40 @@ struct ProcessFencerAttributionTests {
             return
         }
         #expect(!killed.contains { $0.pid == grouped.pid })
-        #expect(unattributed.contains { $0.pid == grouped.pid })
+        #expect(!unattributed.contains { $0.pid == grouped.pid })
 
         #expect(ProcessIdentity.identity(of: grouped.pid) != nil)
+    }
+
+    @Test("A holder already running at dispatch is not reported; one started after dispatch is (issue #438)")
+    func holderRunningAtDispatchIsNotReported() async throws {
+        let worktree = try Self.makeTempDir(name: "pre-dispatch")
+        defer { try? FileManager.default.removeItem(at: worktree) }
+
+        // Stands in for Orca ADE's setup-hook shell: in the Worktree before the run is dispatched.
+        let preexisting = try Self.launchSleep(currentDirectory: worktree)
+        defer { preexisting.terminateAndReap() }
+        try await Task.sleep(for: .milliseconds(150))
+        let dispatchedAt = Self.now()
+
+        let leftBehind = try Self.launchSleep(currentDirectory: worktree)
+        defer { leftBehind.terminateAndReap() }
+        try await Task.sleep(for: .milliseconds(150))
+
+        let snapshot = RunningSnapshot(dispatchedAt: dispatchedAt, processes: [], processGroups: [], sessions: [])
+
+        let fencer = ProcessFencer()
+        let outcome = await fencer.fence(worktreePath: worktree.path, attributedTo: snapshot)
+        guard case .quiescent(let killed, let unattributed) = outcome else {
+            Issue.record("expected .quiescent, got \(outcome)")
+            return
+        }
+        #expect(killed.isEmpty)
+        #expect(!unattributed.contains { $0.pid == preexisting.pid })
+        #expect(unattributed.contains { $0.pid == leftBehind.pid })
+
+        #expect(preexisting.isRunning)
+        #expect(leftBehind.isRunning)
     }
 
     @Test("Rule 3: a holder whose parent is attributed by rule 1 is killed, even though it is not itself snapshotted")
