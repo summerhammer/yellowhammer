@@ -67,8 +67,9 @@ struct Setup {
         }
     }
 
-    /// With `--config`, adopts a prepared configuration directory first. Authorizes Yellowhammer's
-    /// Linear identity, requires the Operator identity immediately after, provisions Linear per
+    /// A job request without configuration overrides reuses each saved Project's configuration.
+    /// With `--config`, adopts a prepared configuration directory first. The wizard authorizes
+    /// Yellowhammer's Linear identity and requires the Operator identity immediately after. Provisions Linear per
     /// Project, generates each eligible Project's scheduled jobs, registers local notification
     /// permission once, and warns about routing entries with no resilience. Throws with a clear message
     /// on any failure that stops setup; step 6's per-Project failures are printed and accumulate into
@@ -79,7 +80,36 @@ struct Setup {
             try installPreparedConfiguration(from: source)
         }
 
+        let savedConfiguration = try savedConfigurationForScheduledJobs()
         var machine = try loadOrCreateMachineFile()
+        if savedConfiguration == nil {
+            try await configureProjects(machine: &machine)
+        }
+        if case .installLinear = options.mode { return }
+
+        let configuration = try validateConfiguration()
+        let (provisioningFailedIDs, unfinishedProvisioning) = await provisionProjects(
+            configuration: configuration, machine: machine
+        )
+        let registration = await registerRepositories(configuration: configuration)
+        let jobsFailed = await handleScheduledJobs(
+            configuration: configuration, machine: machine,
+            provisioningFailedIDs: provisioningFailedIDs.union(registration.failedIDs)
+        )
+        await reportNotifications()
+        reportRoutingWarnings(configuration: configuration, machine: machine)
+        // The story's consolidated list, last: every unfinished provisioning step across every Project.
+        reportUnfinishedProvisioning(unfinishedProvisioning)
+
+        let failed = !configuration.invalidProjects.isEmpty || !provisioningFailedIDs.isEmpty
+            || registration.failed || jobsFailed
+        if failed {
+            throw SetupError("setup finished with errors; see the output above")
+        }
+        output("Setup complete.")
+    }
+
+    private func configureProjects(machine: inout MachineConfiguration) async throws {
         let codeHostingConnection = try await selectCodeHostingConnection(machine: &machine)
         let request = try resolveLinearRequest(machine: machine)
         let selected: (members: [BoardMember], installation: LinearInstallation)?
@@ -110,27 +140,6 @@ struct Setup {
                 board: board
             )
         }
-
-        let configuration = try validateConfiguration()
-        let (provisioningFailedIDs, unfinishedProvisioning) = await provisionProjects(
-            configuration: configuration, machine: machine
-        )
-        let registration = await registerRepositories(configuration: configuration)
-        let jobsFailed = await handleScheduledJobs(
-            configuration: configuration, machine: machine,
-            provisioningFailedIDs: provisioningFailedIDs.union(registration.failedIDs)
-        )
-        await reportNotifications()
-        reportRoutingWarnings(configuration: configuration, machine: machine)
-        // The story's consolidated list, last: every unfinished provisioning step across every Project.
-        reportUnfinishedProvisioning(unfinishedProvisioning)
-
-        let failed = !configuration.invalidProjects.isEmpty || !provisioningFailedIDs.isEmpty
-            || registration.failed || jobsFailed
-        if failed {
-            throw SetupError("setup finished with errors; see the output above")
-        }
-        output("Setup complete.")
     }
 
     /// Runs the modes that do not touch Linear or the Projects; returns whether one of them ran.

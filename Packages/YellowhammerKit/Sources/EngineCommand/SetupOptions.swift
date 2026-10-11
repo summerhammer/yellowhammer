@@ -6,7 +6,8 @@ import Foundation
 
 /// How `yh setup` was invoked: `--init` never prompts and generates from options and defaults;
 /// `--config <path>` never prompts and adopts a prepared configuration directory; absent both, it is
-/// interactive and prompts for whatever the options did not already supply.
+/// interactive and prompts for whatever the options did not already supply. Explicit job requests
+/// reuse saved Project configuration unless configuration options also request the wizard.
 enum SetupMode: Equatable {
     case initialize
     case config(URL)
@@ -78,6 +79,8 @@ struct SetupOptions {
     /// In `--repo` order.
     let repos: [RepoDeclaration]
     let jobs: JobsRequest
+    /// Explicit Project fields request the declaration wizard rather than reuse of saved job configuration.
+    let hasProjectDeclarationOptions: Bool
 
     init(command: SetupCommand) throws {
         mode = try Self.parseMode(command)
@@ -94,6 +97,9 @@ struct SetupOptions {
         cliAdapters = adapters
         route = try Self.parseRoute(command: command, declaredNames: declaredNames)
         jobs = try Self.parseJobsRequest(command)
+        hasProjectDeclarationOptions = command.projectName != nil || command.linearProject != nil
+            || command.linearTeam != nil || command.specSource != nil || !command.repo.isEmpty
+            || command.nightStart != nil || command.nightEnd != nil || command.buildEveryMinutes != nil
 
         try Self.validateProjectOptionScope(command)
         if let rawProject = command.project {

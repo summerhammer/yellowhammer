@@ -10,6 +10,7 @@ import Foundation
 /// routing entries with no resilience (routing/overview, OQ13).
 ///
 /// Interactive by default: it prompts for whatever the options below did not already supply.
+/// Explicit job requests reuse saved per-Project configuration when no configuration options are given.
 /// `--init` is non-interactive — it never prompts, and generates configuration from the options and the
 /// spec's defaults. `--config <path>` is also non-interactive: it adopts a prepared configuration
 /// directory instead of generating one. `--init` and `--config` are mutually exclusive.
@@ -88,12 +89,15 @@ public struct SetupCommand: AsyncParsableCommand {
     @Option(name: .customLong("repo"), help: "A Repo, as `name,role,path,check`.")
     public var repo: [String] = []
 
-    @Flag(name: .customLong("install-jobs"), help: "Write and load every eligible Project's LaunchAgents.")
+    @Flag(
+        name: .customLong("install-jobs"),
+        help: "Install LaunchAgents; reuse saved configuration unless configuration options are given."
+    )
     public var installJobs: Bool = false
 
     @Option(
         name: .customLong("export-jobs"),
-        help: "Write the scheduled jobs into this directory instead of loading them."
+        help: "Export jobs to this directory; reuse saved configuration unless configuration options are given."
     )
     public var exportJobs: String?
 
