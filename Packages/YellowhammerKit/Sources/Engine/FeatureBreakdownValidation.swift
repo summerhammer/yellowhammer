@@ -87,7 +87,7 @@ enum FeatureBreakdownValidation {
     /// such as "do not commit the generated fixtures" pass. Returns the offending phrase, if any.
     static func briefContradiction(in brief: String) -> String? {
         let patterns = [
-            #"(?:do not|don't|don’t|never) commit(?=\s*[.;!,]|\s*$)"#,
+            #"(?:do not|don't|don’t|never) commit(?=\s*[.;:!]|\s*$)"#,
             #"(?:do not|don't|don’t|never) commit (?:anything|your (?:work|changes)|the (?:work|changes))\b"#,
             #"leave (?:the|your) (?:work|changes) uncommitted"#,
             #"the lead commits"#,

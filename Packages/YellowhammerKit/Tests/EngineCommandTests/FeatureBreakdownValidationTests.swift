@@ -11,7 +11,9 @@ struct FeatureBreakdownValidationTests {
             "Never commit",
             "Do not commit your changes.",
             "Leave the work uncommitted.",
-            "The sidekick never commits."
+            "The sidekick never commits.",
+            "The lead commits.",
+            "Do not commit: the lead will."
         ]
     )
     func contradictionIsMatched(brief: String) {
@@ -24,7 +26,8 @@ struct FeatureBreakdownValidationTests {
             "Do not commit the generated fixtures.",
             "Don't commit secrets to the repo.",
             "Commit each step separately.",
-            "Never commit build products."
+            "Never commit build products.",
+            "Do not commit, push, or edit anything in `../yellowhammer-spec`."
         ]
     )
     func approachLineIsAccepted(brief: String) {
