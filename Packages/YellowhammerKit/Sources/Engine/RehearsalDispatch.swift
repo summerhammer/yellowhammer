@@ -49,6 +49,9 @@ extension RehearsalScript: ExpressibleByDictionaryLiteral {
 /// is a clean run — architect plans, worker completes, reviewer approves; the author Act's selection selects
 /// one Feature and its breakdown drafts one Card — and a test drives a failure by
 /// scripting another fixture for a pass, or one Card's pass alone through ``RehearsalScript/byCard``.
+/// Selection and breakdown fixtures are answered with the Project's own repository names and spec story
+/// citations (``RehearsalFixtureMapping``, #440), so a rehearsal Night on a real Project authors Cards
+/// instead of halting; the fixtures' bytes are untouched and a Project that has the fixture names gets them.
 public final class RehearsalDispatch: AgentDispatch, Sendable {
     public static let defaultScript: [RunPass: RehearsalResultFixture] = [
         .architect: .architectPlanned,
@@ -85,6 +88,8 @@ public final class RehearsalDispatch: AgentDispatch, Sendable {
             outcome = Self.verifierOutcome(for: request)
         } else if fixture.pass == .selection {
             outcome = Self.selectionOutcome(fixture: fixture, for: request)
+        } else if fixture.pass == .breakdown {
+            outcome = await Self.breakdownOutcome(fixture: fixture, for: request)
         } else if fixture.pass == .worker || fixture.pass == .reviewer {
             outcome = await Self.commitAdjustedOutcome(fixture.outcome(), worktreePath: request.worktreePath)
         } else {
@@ -135,7 +140,51 @@ public final class RehearsalDispatch: AgentDispatch, Sendable {
             name: name, reasoning: selected.reasoning, sequence: selected.sequence,
             repositories: selected.repositories, adoptedCardIssueIDs: adoptedCardIssueIDs
         )
-        return .completed(.selection(SelectionResult(outcome: .selected(adjusted))))
+        let mapped = RehearsalFixtureMapping(repos: instruction.repos, storyIDs: []).apply(to: adjusted)
+        return .completed(.selection(SelectionResult(outcome: .selected(mapped))))
+    }
+
+    /// A breakdown fixture's `drafted` answer is re-aimed at the Project (#440), like
+    /// ``selectionOutcome(fixture:for:)``: its fixture repository names become the request's own
+    /// ``AuthoringInstruction/repos`` (not the selected Feature's repositories, which the engine re-sorts)
+    /// and its `fixture-epic/...` citations become story IDs read from the Project's specification
+    /// (``specStoryIDs(for:)``). Every other outcome is returned untouched.
+    private static func breakdownOutcome(
+        fixture: RehearsalResultFixture, for request: AgentDispatchRequest
+    ) async -> RunOutcome {
+        let outcome = fixture.outcome()
+        guard case .authoring(let instruction) = request.instruction else {
+            preconditionFailure("a breakdown request carries an authoring instruction")
+        }
+        guard case .completed(.breakdown(let result)) = outcome, case .drafted(let breakdown) = result.outcome else {
+            return outcome
+        }
+        let mapping = RehearsalFixtureMapping(
+            repos: instruction.repos, storyIDs: await specStoryIDs(for: instruction)
+        )
+        return .completed(.breakdown(BreakdownResult(outcome: .drafted(mapping.apply(to: breakdown)))))
+    }
+
+    /// The `<epic>/<story>` IDs of the Project's specification, sorted: `git ls-tree` of
+    /// `docs/requirements/epics` at the specification mainline's commit (HEAD when none was resolved),
+    /// keeping only `docs/requirements/epics/<epic>/stories/<story>.md`. Empty on any git failure, which
+    /// leaves the fixture's citations untouched.
+    private static func specStoryIDs(for instruction: AuthoringInstruction) async -> [String] {
+        let path = (instruction.specificationSource.path as NSString).expandingTildeInPath
+        let commit = instruction.specificationMainline?.commit ?? "HEAD"
+        let result = await GitRunner().run(
+            ["ls-tree", "-r", "--name-only", commit, "--", "docs/requirements/epics"], workingDirectory: path
+        )
+        guard result.isSuccess else { return [] }
+        let ids = result.stdout.split(whereSeparator: \.isNewline).compactMap { line -> String? in
+            let parts = line.split(separator: "/", omittingEmptySubsequences: false)
+            guard
+                parts.count == 6, parts[0] == "docs", parts[1] == "requirements", parts[2] == "epics",
+                parts[4] == "stories", parts[5].hasSuffix(".md"), parts[5].count > 3, !parts[3].isEmpty
+            else { return nil }
+            return "\(parts[3])/\(parts[5].dropLast(3))"
+        }
+        return Array(Set(ids)).sorted()
     }
 
     /// A worker `completed` or reviewer `approved`/`changesRequested` fixture reports a commit it made
