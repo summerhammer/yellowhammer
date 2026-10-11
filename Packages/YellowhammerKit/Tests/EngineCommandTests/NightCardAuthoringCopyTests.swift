@@ -142,4 +142,45 @@ struct NightCardAuthoringCopyTests {
         let indeterminateLine = try #require(NightCardMaintenance.authoringLine(for: indeterminate))
         #expect(indeterminateLine.contains("A quiet Night, not a failure."))
     }
+
+    @Test("Not-landed line names each recorded Feature Branch and how to open the gate (issue #448)")
+    func notLandedLineNamesBranchesAndMergeCommit() throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let featureUUID = "334fe249-d329-47bf-b5f5-ad041a55cbd3"
+        try journal.write { db in
+            try db.execute(
+                sql: """
+                INSERT INTO feature (issue_id, issue_id_for_display, state, created_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                arguments: [featureUUID, "YLH-321", "selected", JournalStore.timestamp(Date())]
+            )
+        }
+        let feature = try #require(try journal.feature(issueID: featureUUID))
+        try journal.recordFeatureBranch(
+            featureID: feature.id, repository: "web", branch: FeatureBranch(name: "yh-feature-web")
+        )
+        try journal.recordFeatureBranch(
+            featureID: feature.id, repository: "backend", branch: FeatureBranch(name: "yh-feature-backend")
+        )
+
+        let event = JournalEvent.authoringPredecessorNotLanded(
+            featureIssueID: featureUUID, repositories: ["web", "backend"]
+        )
+        let line = try #require(NightCardMaintenance.authoringLine(for: event, journal: journal))
+        #expect(line.contains("Not an ancestor of mainline: `yh-feature-web` in web, `yh-feature-backend` in backend."))
+        #expect(line.contains("Squash and merge"))
+        #expect(line.contains("merge commit"))
+        #expect(line.hasSuffix("A quiet Night, not a failure."))
+    }
+
+    @Test("Not-landed line without a Journal omits the branch sentence but keeps the merge guidance")
+    func notLandedLineWithoutJournal() throws {
+        let event = JournalEvent.authoringPredecessorNotLanded(featureIssueID: "FEAT-1", repositories: ["backend"])
+        let line = try #require(NightCardMaintenance.authoringLine(for: event))
+        #expect(!line.contains("Not an ancestor of mainline"))
+        #expect(line.contains("Squash and merge"))
+        #expect(line.hasSuffix("A quiet Night, not a failure."))
+    }
 }
