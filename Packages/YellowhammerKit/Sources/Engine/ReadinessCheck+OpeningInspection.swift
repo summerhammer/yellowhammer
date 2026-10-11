@@ -107,12 +107,13 @@ extension ReadinessCheck {
     ) -> [TranscriptionBlock] {
         records.enumerated().map { index, record in
             guard let parsed, index < parsed.count else { return record.block }
-            let edit = parsed[index].contentHash != record.contentHash
+            // An unedited block is Linear's re-serialisation of ours (#433): keep the recorded one.
+            guard Self.isEdited(parsed[index], against: record) else { return record.block }
             return TranscriptionBlock(
                 repository: record.repository, paths: record.paths, symbol: record.symbol,
-                mainlineCommit: edit && !record.authorSupplied ? nil : record.mainlineCommit,
+                mainlineCommit: record.authorSupplied ? record.mainlineCommit : nil,
                 content: parsed[index].content, contentHash: parsed[index].contentHash,
-                authorSupplied: record.authorSupplied || edit
+                authorSupplied: true
             )
         }
     }
