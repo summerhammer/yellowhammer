@@ -207,4 +207,34 @@ struct AuthoringTranscriptionHaltTests {
         #expect(name == "FEAT-1")
         #expect(reason.contains("Architectural Brief"))
     }
+
+    @Test("A brief telling the worker not to commit is an authoring fault (issue #444)")
+    func briefContradictingWorkerContractRefusesAuthoring() async throws {
+        let kind = try authoringKind()
+        let breakdown = FeatureBreakdown(
+            definitionOfDone: [authoringClause("x")],
+            cards: [
+                CardDraft(
+                    repository: "backend", kind: kind, title: "Backend one", unitOfWork: "Do it",
+                    brief: "Add the schema. VERIFY: `swift test` green. Do not commit; the lead commits.",
+                    definitionOfDone: [authoringClause("x")]
+                )
+            ]
+        )
+        let rig = try await AuthoringRig(drafting: ScriptedBreakdown(breakdown))
+
+        let outcome = try await rig.run(rig.context())
+
+        #expect(outcome == .authoringRolledBack)
+        #expect(try tableRowCount(rig.journal, table: "outbox") == 0)
+        #expect(try rig.journal.events(ofType: .featureAuthoringAccepted).isEmpty)
+        #expect(await rig.boards.writing.liveIssues.isEmpty)
+        let rejected = try #require(try rig.journal.events(ofType: .featureBreakdownRejected).first)
+        guard case .featureBreakdownRejected(_, let reason) = rejected.event else {
+            Issue.record("expected featureBreakdownRejected")
+            return
+        }
+        #expect(reason.contains("Card 1"))
+        #expect(reason.contains("Do not commit"))
+    }
 }
