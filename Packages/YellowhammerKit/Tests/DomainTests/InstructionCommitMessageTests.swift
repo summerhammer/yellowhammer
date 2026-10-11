@@ -37,7 +37,12 @@ func workerRendersCommitMessages() {
 
                 feat: YLH-42 a card
 
-            End each commit message with the git trailer `Yellowhammer-Work-Card: YLH-42`.
+                Yellowhammer-Work-Card: YLH-42
+
+            Every commit you make for this Card carries the git trailer `Yellowhammer-Work-Card: YLH-42` \
+            in its last paragraph, in the same block as any trailers the repository's own conventions ask for \
+            (such as `Spec:` or `Co-Authored-By:`). Those conventions add trailers; they do not replace this \
+            one. A trailer separated from that block by a blank line is not read.
             """
         )
     )
