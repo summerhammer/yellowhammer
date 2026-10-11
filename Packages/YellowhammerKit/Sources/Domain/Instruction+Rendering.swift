@@ -88,7 +88,10 @@ extension Instruction {
     }
 
     /// Worker pass only: the rendered commit-message template and the `Yellowhammer-Work-Card` trailer. The
-    /// trailer sentence is omitted, never a placeholder, when the Card's key is unknown.
+    /// trailer is part of the format block, not only prose, because workers following a repository's own
+    /// commit convention dropped a prose-only request (issue #437). Git reads trailers from the message's last
+    /// paragraph only, so the request asks for it in the same block as the repository's own trailers. The
+    /// trailer line and sentence are omitted, never a placeholder, when the Card's key is unknown.
     private var commitMessagesSection: String? {
         guard pass == .worker, let request = commitMessage else { return nil }
         var lines = ["## Commit messages", "", "Write each commit message in this format:", ""]
@@ -97,7 +100,14 @@ extension Instruction {
         })
         if let key = request.workCardKey, !key.isEmpty {
             lines.append("")
-            lines.append("End each commit message with the git trailer `Yellowhammer-Work-Card: \(key)`.")
+            lines.append("    Yellowhammer-Work-Card: \(key)")
+            lines.append("")
+            lines.append(
+                "Every commit you make for this Card carries the git trailer `Yellowhammer-Work-Card: \(key)` "
+                    + "in its last paragraph, in the same block as any trailers the repository's own conventions "
+                    + "ask for (such as `Spec:` or `Co-Authored-By:`). Those conventions add trailers; they do "
+                    + "not replace this one. A trailer separated from that block by a blank line is not read."
+            )
         }
         return lines.joined(separator: "\n")
     }
