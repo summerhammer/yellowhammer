@@ -7,12 +7,6 @@ import Journal
 // Night ended, whether it advanced, and how many decisions are waiting.
 
 extension NightSummary {
-    /// Events whose presence this Night means the Night crashed: a lease of any scope was reclaimed,
-    /// or the previous Night opened and died.
-    private static let crashEventTypes: Set<JournalEventType> = [
-        .leaseReclaimed, .cardLeaseReclaimed, .cardReclaimed, .nightOpenedAndDied
-    ]
-
     /// Advancing without landing: a Card state transition, an Attempt ending, or a Feature being
     /// authored — any of these this Night, with no `cycleLanded`.
     private static let advancingEventTypes: Set<JournalEventType> = [
@@ -28,10 +22,13 @@ extension NightSummary {
 
     /// The Night Summary's one constant-time `**Verdict:**` line. A normal ending renders last
     /// (`<decisions> · <advance> · closed`); an abnormal ending (`crashed`/`halted`) is promoted to the
-    /// front (`crashed · <decisions> · <advance>`).
-    public static func verdictLine(night: NightRecord, journal: JournalStore) throws -> String {
+    /// front (`crashed · <decisions> · <advance>`). The ending is abnormal only when the Night's ending was:
+    /// see ``endingWord(night:events:renderingRunID:)``. `renderingRunID` is the Act computing the line.
+    public static func verdictLine(
+        night: NightRecord, journal: JournalStore, renderingRunID: RunID? = nil
+    ) throws -> String {
         let events = try nightEvents(night: night, journal: journal)
-        let ending = endingWord(events: events)
+        let ending = endingWord(night: night, events: events, renderingRunID: renderingRunID)
         let advance = try advanceWord(night: night, journal: journal, events: events)
         let decisions = try decisionsPhrase(night: night, journal: journal)
         switch ending {
@@ -46,14 +43,25 @@ extension NightSummary {
         case crashed, halted, closed
     }
 
-    private static func endingWord(events: [JournalEventRecord]) -> Ending {
-        if events.contains(where: { crashEventTypes.contains($0.type) }) {
+    /// `crashed` when the Night's own close reason is `opened_and_died` (read from the record: the
+    /// `nightOpenedAndDied` event is stamped on the *next* Night, about this one's predecessor). Otherwise
+    /// `halted`/`crashed` iff the last non-flush Act halted/crashed, and `closed` whatever failed earlier —
+    /// a failure a later Act recovered is the `**Exceptions:**` section's line, not the ending's. Lease and
+    /// Card reclaims no longer decide it; `**Crashes and reclaims:**` keeps reporting them.
+    private static func endingWord(
+        night: NightRecord, events: [JournalEventRecord], renderingRunID: RunID?
+    ) -> Ending {
+        if night.closeReason == .openedAndDied {
             return .crashed
         }
-        if events.contains(where: { $0.type == .actIncomplete }) {
+        switch nightRuns(events: events, renderingRunID: renderingRunID).last?.outcome {
+        case .halted:
             return .halted
+        case .crashed:
+            return .crashed
+        case .ended, nil:
+            return .closed
         }
-        return .closed
     }
 
     private static func advanceWord(

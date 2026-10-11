@@ -104,11 +104,16 @@ extension NightSummary {
     /// `absentNightDetected`, `notificationDeliveryFailed`, `worktreeNameCollision`, a `flushFiringRan` that closed
     /// the Night (the closing land did not), a `worktreeLost` that
     /// recovered nothing (OQ133; ``worktreeLossLines(night:journal:)``) and `overrideRefused` — the last
-    /// once per Card and reason, however many Acts refused it (OQ126). Empty when none of these happened
-    /// this Night.
-    public static func exceptionLines(night: NightRecord, journal: JournalStore) throws -> [String] {
+    /// once per Card and reason, however many Acts refused it (OQ126) — plus one line per recovery of failed
+    /// Acts (``recoveredFailureLines(events:renderingRunID:timeZone:)``, its time in `timeZone`). Empty when
+    /// none of these happened this Night.
+    public static func exceptionLines(
+        night: NightRecord, journal: JournalStore, renderingRunID: RunID? = nil,
+        timeZone: TimeZone = .current
+    ) throws -> [String] {
         var lines: [String] = []
-        for record in try nightEvents(night: night, journal: journal) {
+        let events = try nightEvents(night: night, journal: journal)
+        for record in events {
             switch record.event {
             case .boardWriteFailed(_, let operation, let issueID, let reason):
                 let named = issueID.map { " on `\($0)`" } ?? ""
@@ -145,7 +150,9 @@ extension NightSummary {
                 break
             }
         }
-        return lines + (try worktreeLossLines(night: night, journal: journal))
+        return lines
+            + recoveredFailureLines(events: events, renderingRunID: renderingRunID, timeZone: timeZone)
+            + (try worktreeLossLines(night: night, journal: journal))
             + (try overrideRefusalLines(night: night, journal: journal))
     }
 

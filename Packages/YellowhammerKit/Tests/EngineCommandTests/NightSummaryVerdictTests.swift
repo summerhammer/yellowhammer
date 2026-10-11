@@ -59,6 +59,46 @@ private func insertVerdictFixture(
     }
 }
 
+/// How a seeded Act ended: its `ActEnded`, its `ActIncomplete`, or neither (it crashed).
+enum SeededRunEnding {
+    case ended, halted, unterminated
+}
+
+/// The instant of an ISO-8601 string such as `2026-10-08T00:01:00Z`.
+func seededInstant(_ iso: String) throws -> Date {
+    try #require(ISO8601DateFormatter().date(from: iso))
+}
+
+/// Seeds one Act of `night` into the Journal: `ActStarted` at `startedAt`, an optional `FlushFiringRan` (a
+/// flush firing), and the ending. Returns its run id.
+@discardableResult
+func appendSeededRun(
+    to journal: JournalStore, night: NightRecord, startedAt: String, ending: SeededRunEnding,
+    act: Act = .land, flush: FlushFiringOutcome? = nil
+) throws -> RunID {
+    let runID = RunID()
+    let start = try seededInstant(startedAt)
+    try journal.append(.actStarted, act: act, runID: runID, nightID: night.id, now: start)
+    if let flush {
+        try journal.append(
+            .flushFiringRan(outcome: flush, detail: nil), act: act, runID: runID, nightID: night.id,
+            now: start.addingTimeInterval(1)
+        )
+    }
+    switch ending {
+    case .ended:
+        try journal.append(.actEnded, act: act, runID: runID, nightID: night.id, now: start.addingTimeInterval(2))
+    case .halted:
+        try journal.append(
+            .actIncomplete(reason: "board unreachable"), act: act, runID: runID, nightID: night.id,
+            now: start.addingTimeInterval(2)
+        )
+    case .unterminated:
+        break
+    }
+    return runID
+}
+
 @Suite("Night Summary: the constant-time Verdict line (P12.1)")
 struct NightSummaryVerdictTests {
     @Test("A silent Night is quiet, no decisions, closed")
@@ -150,8 +190,21 @@ struct NightSummaryVerdictTests {
         #expect(line == "1 decision waiting · landed partially — Partial Landing · closed")
     }
 
-    @Test("A reclaimed lease crashes the ending and is promoted to the front")
+    @Test("A last Act that crashed leads the verdict with crashed, promoted to the front")
     func crashedEndingIsPromotedToFront() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let night = try await openNightForVerdictTest(journal: journal, board: board)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T00:01:00Z", ending: .unterminated)
+
+        let line = try NightSummary.verdictLine(night: night, journal: journal)
+        #expect(line == "crashed · no decisions waiting · did not advance")
+    }
+
+    @Test("Lease and Card reclaims, and a previous Night's opened-and-died event, no longer crash the ending")
+    func reclaimsDoNotCrashTheEnding() async throws {
         let fixture = try NightCardJournalFixture()
         let journal = try fixture.open()
         let boards = try await makeBoards()
@@ -161,19 +214,151 @@ struct NightSummaryVerdictTests {
             .leaseReclaimed(previousRunID: RunID(), previousAct: .build, expiredAt: Date()),
             act: .land, runID: RunID(), nightID: night.id
         )
+        try journal.append(
+            .cardLeaseReclaimed(cardID: 1, previousRunID: RunID(), expiredAt: Date()),
+            act: .land, runID: RunID(), nightID: night.id
+        )
+        try journal.append(
+            .cardReclaimed(
+                cardID: 1, issueID: "CARD-1", previousRunID: RunID(), attemptID: nil, outcome: nil,
+                routeExcluded: false
+            ),
+            act: .land, runID: RunID(), nightID: night.id
+        )
+        try journal.append(
+            .nightOpenedAndDied(nightID: 99, nightStart: nightCardNightStart),
+            act: .land, runID: RunID(), nightID: night.id
+        )
 
         let line = try NightSummary.verdictLine(night: night, journal: journal)
-        #expect(line == "crashed · no decisions waiting · did not advance")
+        #expect(line == "no decisions waiting · did not advance · closed")
     }
 
-    @Test("An incomplete Act halts the ending and is promoted to the front")
+    @Test("A last Act that halted leads the verdict with halted, promoted to the front")
     func haltedEndingIsPromotedToFront() async throws {
         let fixture = try NightCardJournalFixture()
         let journal = try fixture.open()
         let boards = try await makeBoards()
         let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
         let night = try await openNightForVerdictTest(journal: journal, board: board)
-        try journal.append(.actIncomplete(reason: "board unreachable"), act: .build, runID: RunID(), nightID: night.id)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T00:01:00Z", ending: .halted)
+
+        let line = try NightSummary.verdictLine(night: night, journal: journal)
+        #expect(line == "halted · no decisions waiting · did not advance")
+    }
+
+    @Test("A halted Act that a later Act recovered does not halt the ending: the closing land renders closed")
+    func recoveredHaltRendersClosed() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let night = try await openNightForVerdictTest(journal: journal, board: board)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T00:01:00Z", ending: .halted)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T00:15:00Z", ending: .ended)
+        // The closing land renders its verdict before its own terminal event is written.
+        let closingLand = try appendSeededRun(
+            to: journal, night: night, startedAt: "2026-10-08T03:00:00Z", ending: .unterminated
+        )
+
+        let line = try NightSummary.verdictLine(night: night, journal: journal, renderingRunID: closingLand)
+        #expect(line == "no decisions waiting · did not advance · closed")
+    }
+
+    @Test("The Act rendering the verdict counts as ended, but the same unterminated Act does not for a later render")
+    func renderingRunCountsAsEnded() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let night = try await openNightForVerdictTest(journal: journal, board: board)
+        let running = try appendSeededRun(
+            to: journal, night: night, startedAt: "2026-10-08T03:00:00Z", ending: .unterminated
+        )
+
+        #expect(
+            try NightSummary.verdictLine(night: night, journal: journal, renderingRunID: running)
+                == "no decisions waiting · did not advance · closed"
+        )
+        #expect(
+            try NightSummary.verdictLine(night: night, journal: journal, renderingRunID: RunID())
+                == "crashed · no decisions waiting · did not advance"
+        )
+    }
+
+    @Test("A closing land that halted, then closed by a flush firing, still renders halted")
+    func haltedClosingLandClosedByFlushRendersHalted() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let night = try await openNightForVerdictTest(journal: journal, board: board)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T03:00:00Z", ending: .halted)
+        let flush = try appendSeededRun(
+            to: journal, night: night, startedAt: "2026-10-08T03:06:00Z", ending: .unterminated,
+            flush: .closedNight
+        )
+
+        let line = try NightSummary.verdictLine(night: night, journal: journal, renderingRunID: flush)
+        #expect(line == "halted · no decisions waiting · did not advance")
+    }
+
+    @Test("A closing land that crashed, then closed by a flush firing, renders crashed, not closed")
+    func crashedClosingLandClosedByFlushRendersCrashed() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let night = try await openNightForVerdictTest(journal: journal, board: board)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T00:15:00Z", ending: .ended)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T03:00:00Z", ending: .unterminated)
+        let flush = try appendSeededRun(
+            to: journal, night: night, startedAt: "2026-10-08T03:06:00Z", ending: .unterminated,
+            flush: .closedNight
+        )
+
+        let line = try NightSummary.verdictLine(night: night, journal: journal, renderingRunID: flush)
+        #expect(line == "crashed · no decisions waiting · did not advance")
+    }
+
+    @Test("A stood-down closing land (no ActStarted) closed by a flush firing: the last real Act decides")
+    func standDownClosingLandRendersTheLastRealRun() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let night = try await openNightForVerdictTest(journal: journal, board: board)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T00:15:00Z", ending: .ended)
+        let flush = try appendSeededRun(
+            to: journal, night: night, startedAt: "2026-10-08T03:06:00Z", ending: .unterminated,
+            flush: .closedNight
+        )
+        #expect(
+            try NightSummary.verdictLine(night: night, journal: journal, renderingRunID: flush)
+                == "no decisions waiting · did not advance · closed"
+        )
+
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T03:10:00Z", ending: .halted)
+        #expect(
+            try NightSummary.verdictLine(night: night, journal: journal, renderingRunID: flush)
+                == "halted · no decisions waiting · did not advance"
+        )
+    }
+
+    @Test("A flush firing neither fails nor recovers: a halted Act then an ended flush firing still reads halted")
+    func flushFiringsRecoverNothing() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let night = try await openNightForVerdictTest(journal: journal, board: board)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T03:00:00Z", ending: .halted)
+        try appendSeededRun(
+            to: journal, night: night, startedAt: "2026-10-08T03:06:00Z", ending: .ended, flush: .stillPending
+        )
+        try appendSeededRun(
+            to: journal, night: night, startedAt: "2026-10-08T03:09:00Z", ending: .halted, flush: .failed
+        )
 
         let line = try NightSummary.verdictLine(night: night, journal: journal)
         #expect(line == "halted · no decisions waiting · did not advance")
