@@ -50,6 +50,8 @@ private func insertExceptionsCard(
     }
 }
 
+private let utc = TimeZone(identifier: "UTC") ?? .gmt
+
 @Suite("Night Summary: Anomalies extension, Crashes and reclaims, Exceptions (P12.1)")
 struct NightSummaryExceptionsTests {
     @Test("Anomalies extend with a broken Managed Block delimiter and a broken authoring invariant")
@@ -386,8 +388,8 @@ struct NightSummaryExceptionsTests {
         #expect(line?.contains("tonight's work is not built on it") == true)
     }
 
-    @Test("A crashed Night's verdict is promoted to the front, and the Crashes section names what was reclaimed")
-    func crashedNightVerdictAndSection() async throws {
+    @Test("A reclaim does not crash the verdict, and the Crashes section still names what was reclaimed")
+    func reclaimIsReportedButDoesNotCrashTheVerdict() async throws {
         let fixture = try NightCardJournalFixture()
         let journal = try fixture.open()
         let boards = try await makeBoards()
@@ -410,11 +412,122 @@ struct NightSummaryExceptionsTests {
 
         let issue = try #require(await boards.writing.liveIssues.first { $0.title == "Night \(secondNightStart)" })
         let description = try #require(issue.description)
-        #expect(description.contains("**Verdict:** crashed · "))
+        // The reclaim is reported, but it is not the Night's ending: the closing land rendered this very verdict.
+        #expect(!description.contains("**Verdict:** crashed"))
+        #expect(description.contains("· closed"))
         #expect(description.contains("**Crashes and reclaims:**"))
         #expect(description.contains("`CARD-1`"))
         #expect(description.contains("reclaimable, and no partial state was written as if it were complete"))
         #expect(!description.contains("repo_lanes_in_parallel"))
         #expect(!description.contains("spend_per_night_usd"))
+    }
+
+    @Test("A halt at 00:01 recovered by the 00:15 Act, closed by the closing land: one recovered line, verdict closed")
+    func recoveredHaltIsAnExceptionLineNotTheEnding() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let night = try await openNightForExceptionsTest(journal: journal, board: board)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T00:01:00Z", ending: .halted)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T00:15:00Z", ending: .ended)
+        let closingLand = try appendSeededRun(
+            to: journal, night: night, startedAt: "2026-10-08T03:00:00Z", ending: .unterminated
+        )
+
+        let lines = try NightSummary.exceptionLines(
+            night: night, journal: journal, renderingRunID: closingLand, timeZone: utc
+        )
+        #expect(lines == ["1 Act failed, recovered 00:15"])
+        let verdict = try NightSummary.verdictLine(night: night, journal: journal, renderingRunID: closingLand)
+        #expect(verdict.hasSuffix(" · closed"))
+    }
+
+    @Test("Consecutive failed Acts, halted or crashed, that one Act recovered share one line")
+    func consecutiveFailuresShareOneLine() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let night = try await openNightForExceptionsTest(journal: journal, board: board)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T00:01:00Z", ending: .halted)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T00:08:00Z", ending: .unterminated)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T00:30:00Z", ending: .ended)
+
+        let lines = try NightSummary.exceptionLines(night: night, journal: journal, timeZone: utc)
+        #expect(lines == ["2 Acts failed, recovered 00:30"])
+    }
+
+    @Test("Two separate outages, each recovered, get two lines; a trailing unrecovered failure gets none")
+    func separateOutagesGetSeparateLines() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let night = try await openNightForExceptionsTest(journal: journal, board: board)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T00:01:00Z", ending: .halted)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T00:15:00Z", ending: .ended)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T01:01:00Z", ending: .halted)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T01:15:00Z", ending: .ended)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T02:01:00Z", ending: .halted)
+
+        let lines = try NightSummary.exceptionLines(night: night, journal: journal, timeZone: utc)
+        #expect(lines == ["1 Act failed, recovered 00:15", "1 Act failed, recovered 01:15"])
+    }
+
+    @Test("The recovering Act's start is rendered in the injected time zone")
+    func recoveredTimeFollowsTheInjectedTimeZone() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let night = try await openNightForExceptionsTest(journal: journal, board: board)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T00:01:00Z", ending: .halted)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T00:15:00Z", ending: .ended)
+
+        let kyiv = try #require(TimeZone(identifier: "Europe/Kyiv"))
+        let lines = try NightSummary.exceptionLines(night: night, journal: journal, timeZone: kyiv)
+        #expect(lines == ["1 Act failed, recovered 03:15"])
+    }
+
+    @Test("Flush firings neither fail nor recover: no recovered line for a failure only a flush firing followed")
+    func flushFiringsRecoverNothingInExceptions() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let night = try await openNightForExceptionsTest(journal: journal, board: board)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T03:00:00Z", ending: .halted)
+        try appendSeededRun(
+            to: journal, night: night, startedAt: "2026-10-08T03:06:00Z", ending: .ended, flush: .closedNight
+        )
+
+        let lines = try NightSummary.exceptionLines(night: night, journal: journal, timeZone: utc)
+        #expect(!lines.contains { $0.contains("recovered") })
+    }
+
+    @Test("A Night that opened and died reads crashed; the Night that found it dead reads closed")
+    func openedAndDiedCrashesOnlyTheDeadNight() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let first = try await openNightForExceptionsTest(journal: journal, board: board)
+        let secondNightStart = try #require(NightStart(rawValue: "2026-09-16"))
+        let second = try await openNightForExceptionsTest(
+            journal: journal, board: board, nightStart: secondNightStart
+        )
+
+        let dead = try #require(try journal.night(id: first.id))
+        #expect(dead.closeReason == .openedAndDied)
+        #expect(
+            try NightSummary.verdictLine(night: dead, journal: journal)
+                == "crashed · no decisions waiting · did not advance"
+        )
+        // The `nightOpenedAndDied` event sits on the second Night, about the first: it is not that Night's ending.
+        #expect(
+            try NightSummary.verdictLine(night: second, journal: journal)
+                == "no decisions waiting · did not advance · closed"
+        )
     }
 }

@@ -137,7 +137,9 @@ public struct NightCardMaintenance: Sendable {
         }
         let scope = try await NightCardScope.resolve(using: provisioning)
         let issue = BoardObjectID(rawValue: issueID)
-        let verdict = try NightSummary.verdictLine(night: night, journal: journal)
+        // This Act renders the summary before its own terminal event, so the Night Summary counts it as ended.
+        let renderingRunID = outbox.runID
+        let verdict = try NightSummary.verdictLine(night: night, journal: journal, renderingRunID: renderingRunID)
         let findings = try authoringLines(night: night)
         let cardLines = try NightSummary.cardLines(night: night, journal: journal)
         let dispositionLines = try NightSummary.dispositionLines(night: night, journal: journal)
@@ -146,7 +148,9 @@ public struct NightCardMaintenance: Sendable {
         let anomalies = try NightSummary.anomalyLines(night: night, journal: journal)
         let crashesAndReclaims = try NightSummary.crashesAndReclaimsLines(night: night, journal: journal)
         let leftoverProcesses = try NightSummary.leftoverProcessLines(night: night, journal: journal)
-        let exceptions = try NightSummary.exceptionLines(night: night, journal: journal)
+        let exceptions = try NightSummary.exceptionLines(
+            night: night, journal: journal, renderingRunID: renderingRunID
+        )
         let boundsLines = try self.boundsLines(night: night)
         let standingItems = try standingItemLines()
         let unadoptedCards = try NightSummary.unadoptedCardLines(night: night, journal: journal)
