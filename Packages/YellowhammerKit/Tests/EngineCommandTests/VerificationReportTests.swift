@@ -139,4 +139,15 @@ struct VerificationPullRequestBodyTests {
         #expect(body.contains("- BACK-2: \"A clause.\" (x/y) — unmet"))
         #expect(body.contains("1 Definition of Done clauses remain unmet"))
     }
+
+    @Test("Complete and partial bodies tell the Operator to merge with a merge commit (issue #448)")
+    func bodiesNameTheMergeCommit() {
+        let complete = PullRequestBody.render(bodyInput(cards: [doneCard]))
+        let partial = PullRequestBody.render(bodyInput(cards: [doneCard, blockedCard]))
+        #expect(!complete.contains("Definition of Done clauses unmet:"))
+        for body in [complete, partial] {
+            #expect(body.contains("Create a merge commit"))
+            #expect(body.contains("Squash and merge"))
+        }
+    }
 }
