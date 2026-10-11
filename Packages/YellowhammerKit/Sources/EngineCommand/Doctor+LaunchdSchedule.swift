@@ -74,6 +74,11 @@ extension Doctor {
     /// Rewrites the Project's installed jobs through the generation path `yh setup --install-jobs` uses.
     /// A job that is not installed stays absent (Check 5 reports it); one that is installed but not loaded
     /// is rewritten and stays unloaded.
+    ///
+    /// Each job keeps the `yh` its installed plist names (Bundle Location Ruling: `--fix` repoints only a
+    /// *missing* job). Only when that `yh` is unreadable, absent or no longer exists is the job repointed at
+    /// the running `yh`, and the output says so; a job whose `yh` exists but is not the running one is left
+    /// pointing at it, since repointing it is `--repoint`'s.
     private func regenerateJobs(
         projectID: ProjectID, expected: Schedule.ScheduledFirings, states: [LaunchdJobState],
         machine: MachineConfiguration
@@ -87,7 +92,28 @@ extension Doctor {
         let installedActs = Set(states.filter(\.installed).map(\.act))
         let jobs = installer.jobs(projectID: projectID, firings: expected, pathValue: pathValue)
             .filter { installedActs.contains($0.act) }
+            .map { job in
+                ScheduledJob(
+                    projectID: job.projectID, act: job.act, yhExecutablePath: keptExecutablePath(for: job),
+                    firings: job.firings, pathValue: job.pathValue
+                )
+            }
         _ = await installer.install(jobs, leavingUnloadedJobsUnloaded: true)
+    }
+
+    /// The `yh` the installed plist of `job` names when that file still exists; otherwise the running `yh`,
+    /// with one output line saying the job was repointed.
+    private func keptExecutablePath(for job: ScheduledJob) -> String {
+        let plistURL = launchAgentsDirectory.appending(component: job.fileName, directoryHint: .notDirectory)
+        let installed = (try? Data(contentsOf: plistURL))
+            .flatMap { try? PropertyListSerialization.propertyList(from: $0, format: nil) as? [String: Any] }
+            .flatMap { ($0["ProgramArguments"] as? [Any])?.first as? String }
+        if let installed, !installed.isEmpty, fileExists(installed) { return installed }
+        output(
+            "\(job.label): its installed yh \(installed ?? "(none readable)") is missing; "
+                + "repointed it at the running yh \(runningExecutablePath)"
+        )
+        return runningExecutablePath
     }
 
     private static func firings(of act: Act, in firings: Schedule.ScheduledFirings) -> [TimeOfDay] {
@@ -100,7 +126,15 @@ extension Doctor {
 
     /// Nil when the plist at `plistURL` carries exactly the `wanted` firings; otherwise what differs.
     private func scheduleDifference(wanted: [TimeOfDay], plistURL: URL) -> String? {
-        guard let data = try? Data(contentsOf: plistURL), let installed = Self.installedFirings(in: data) else {
+        guard let data = try? Data(contentsOf: plistURL) else {
+            return "its StartCalendarInterval could not be read as Hour and Minute firings"
+        }
+        let stray = Self.strayKeys(in: data)
+        if !stray.isEmpty {
+            return "its StartCalendarInterval restricts a firing by \(stray.joined(separator: ", ")), "
+                + "which setup never writes"
+        }
+        guard let installed = Self.installedFirings(in: data) else {
             return "its StartCalendarInterval could not be read as Hour and Minute firings"
         }
         let wantedSet = Set(wanted)
@@ -122,24 +156,33 @@ extension Doctor {
         times.sorted { ($0.hour, $0.minute) < ($1.hour, $1.minute) }
     }
 
-    /// The set of `{Hour, Minute}` firings in a LaunchAgent plist's `StartCalendarInterval` (one
-    /// dictionary or an array of them; absent means none). Nil when the plist is not a dictionary, or an
-    /// entry is not a fixed in-range Hour and Minute — a wildcard entry is not a firing setup writes.
-    static func installedFirings(in data: Data) -> Set<TimeOfDay>? {
+    /// The `StartCalendarInterval` entries of a LaunchAgent plist (one dictionary or an array of them;
+    /// absent means none). Nil when the plist is not a dictionary or the value is neither shape.
+    private static func intervalEntries(in data: Data) -> [[String: Any]]? {
         guard let plist = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any]
         else { return nil }
         guard let raw = plist["StartCalendarInterval"] else { return [] }
-        let entries: [[String: Any]]
-        if let dictionary = raw as? [String: Any] {
-            entries = [dictionary]
-        } else if let array = raw as? [[String: Any]] {
-            entries = array
-        } else {
-            return nil
-        }
+        if let dictionary = raw as? [String: Any] { return [dictionary] }
+        return raw as? [[String: Any]]
+    }
+
+    /// The keys, other than `Hour` and `Minute`, that any `StartCalendarInterval` entry carries (`Weekday`,
+    /// `Day`, `Month`), sorted. Such an entry restricts the firing, which setup never writes.
+    static func strayKeys(in data: Data) -> [String] {
+        let keys = (intervalEntries(in: data) ?? []).flatMap(\.keys)
+        return Set(keys).subtracting(["Hour", "Minute"]).sorted()
+    }
+
+    /// The set of `{Hour, Minute}` firings in a LaunchAgent plist's `StartCalendarInterval` (one
+    /// dictionary or an array of them; absent means none). Nil when the plist is not a dictionary, or an
+    /// entry is not exactly a fixed in-range Hour and Minute — a wildcard entry, or one constrained by
+    /// `Weekday`, `Day` or `Month`, is not a firing setup writes.
+    static func installedFirings(in data: Data) -> Set<TimeOfDay>? {
+        guard let entries = intervalEntries(in: data) else { return nil }
         var firings = Set<TimeOfDay>()
         for entry in entries {
-            guard let hour = entry["Hour"] as? Int, let minute = entry["Minute"] as? Int,
+            guard Set(entry.keys) == ["Hour", "Minute"],
+                  let hour = entry["Hour"] as? Int, let minute = entry["Minute"] as? Int,
                   let time = TimeOfDay(hour: hour, minute: minute)
             else { return nil }
             firings.insert(time)

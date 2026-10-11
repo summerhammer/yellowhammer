@@ -377,3 +377,142 @@ struct DoctorLaunchdScheduleTests {
         #expect(refusal.message.contains("24-hour Night window"))
     }
 }
+
+/// Rewrites the installed plist at `url` so every `StartCalendarInterval` entry also carries `key = value`.
+private func constrainEveryInterval(at url: URL, key: String, value: Int) throws {
+    var plist = try #require(
+        try PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil) as? [String: Any]
+    )
+    let intervals = try #require(plist["StartCalendarInterval"] as? [[String: Int]])
+    plist["StartCalendarInterval"] = intervals.map { $0.merging([key: value]) { _, new in new } }
+    try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0).write(to: url)
+}
+
+private func programArguments(at url: URL) throws -> [String] {
+    let plist = try #require(
+        try PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil) as? [String: Any]
+    )
+    return try #require(plist["ProgramArguments"] as? [String])
+}
+
+@Suite("Doctor: launchd schedule repair keeps the installed yh and flags constrained firings")
+struct DoctorLaunchdScheduleRepairTests {
+    private let existingPath = "/Applications/Stable.app/Contents/MacOS/yh"
+    private let doctorPath = "/Applications/Development.app/Contents/MacOS/yh"
+
+    private func installedBuildJob(in agents: URL, home: URL) throws -> (job: ScheduledJob, url: URL) {
+        let job = ScheduledJob(
+            projectID: try projectID("alpha"), act: .build, yhExecutablePath: existingPath,
+            firings: Array(try expectedFirings(.build, staggerIndex: 0).dropFirst()), pathValue: "/usr/bin:/bin"
+        )
+        let url = agents.appending(component: job.fileName)
+        try job.plistData(homeDirectory: home.path()).write(to: url)
+        return (job, url)
+    }
+
+    @Test("Schedule repair preserves an installed executable without --repoint")
+    func repairPreservesExecutable() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+        try directory.writeValidProjectFile(id: "alpha")
+        let (home, agents) = try temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let (job, url) = try installedBuildJob(in: agents, home: home)
+        let output = RecordingOutput()
+        let existing = existingPath
+        let running = doctorPath
+
+        _ = await makeDoctor(
+            directory: directory, output: output, homeDirectory: home,
+            launchAgents: RecordingLaunchAgentControl(loadedLabels: [job.label]),
+            fix: true, checks: [.configuration, .launchd], runningExecutablePath: running,
+            fileExists: { $0 == existing || $0 == running }
+        ).run()
+
+        #expect(try programArguments(at: url).first == existingPath)
+        let installed = try #require(Doctor.installedFirings(in: try Data(contentsOf: url)))
+        #expect(installed == Set(try expectedFirings(.build, staggerIndex: 0)))
+        #expect(!output.lines.contains { $0.contains("its installed yh") })
+    }
+
+    @Test("Schedule repair repoints a job whose installed yh no longer exists, and says so")
+    func repairRepointsAMissingExecutable() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+        try directory.writeValidProjectFile(id: "alpha")
+        let (home, agents) = try temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let (job, url) = try installedBuildJob(in: agents, home: home)
+        let output = RecordingOutput()
+        let running = doctorPath
+
+        _ = await makeDoctor(
+            directory: directory, output: output, homeDirectory: home,
+            launchAgents: RecordingLaunchAgentControl(loadedLabels: [job.label]),
+            fix: true, checks: [.configuration, .launchd], runningExecutablePath: running,
+            fileExists: { $0 == running }
+        ).run()
+
+        #expect(try programArguments(at: url).first == doctorPath)
+        let line = try #require(output.lines.first { $0.contains("repointed") })
+        #expect(line.contains(job.label))
+        #expect(line.contains(existingPath))
+        #expect(line.contains(doctorPath))
+    }
+
+    @Test("An installed job restricted to a Weekday warns, naming the key")
+    func weekdayConstraintWarns() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+        try directory.writeValidProjectFile(id: "alpha")
+        let (home, agents) = try temporaryHome()
+        try writeMatchingPlists(project: "alpha", staggerIndex: 0, in: agents)
+        let authorLabel = try label("alpha", .author)
+        try constrainEveryInterval(at: agents.appending(component: "\(authorLabel).plist"), key: "Weekday", value: 1)
+        let loaded = try Set(Act.allCases.map { try label("alpha", $0) })
+
+        let findings = await makeDoctor(
+            directory: directory, homeDirectory: home, launchAgents: RecordingLaunchAgentControl(loadedLabels: loaded),
+            checks: [.configuration, .launchd]
+        ).run()
+
+        let warning = try #require(findings.first { $0.check == .launchd && $0.subject == authorLabel })
+        #expect(warning.severity == .warning)
+        #expect(warning.message.contains("Weekday"))
+        #expect(warning.message.contains("yh doctor --fix"))
+    }
+
+    @Test("--fix regenerates a Weekday-restricted job without the Weekday key")
+    func fixRemovesTheWeekdayConstraint() async throws {
+        let directory = ConfigurationDirectory()
+        try directory.writeMachineFile()
+        try directory.writeValidProjectFile(id: "alpha")
+        let (home, agents) = try temporaryHome()
+        try writeMatchingPlists(project: "alpha", staggerIndex: 0, in: agents)
+        let authorLabel = try label("alpha", .author)
+        let url = agents.appending(component: "\(authorLabel).plist")
+        try constrainEveryInterval(at: url, key: "Weekday", value: 1)
+        let loaded = try Set(Act.allCases.map { try label("alpha", $0) })
+
+        let findings = await makeDoctor(
+            directory: directory, homeDirectory: home, launchAgents: RecordingLaunchAgentControl(loadedLabels: loaded),
+            fix: true, checks: [.configuration, .launchd], runningExecutablePath: yhPath
+        ).run()
+
+        let data = try Data(contentsOf: url)
+        #expect(Doctor.strayKeys(in: data).isEmpty)
+        #expect(Doctor.installedFirings(in: data) == Set(try expectedFirings(.author, staggerIndex: 0)))
+        let finding = try #require(findings.first { $0.check == .launchd && $0.subject == authorLabel })
+        #expect(finding.severity == .pass)
+        #expect(finding.message.contains("regenerated"))
+    }
+
+    @Test("A Day or Month constraint is not a firing setup writes", arguments: ["Day", "Month", "Weekday"])
+    func constrainedEntryIsNotAFiring(key: String) throws {
+        let plist: [String: Any] = ["StartCalendarInterval": [["Hour": 22, "Minute": 0, key: 1]]]
+        let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+
+        #expect(Doctor.installedFirings(in: data) == nil)
+        #expect(Doctor.strayKeys(in: data) == [key])
+    }
+}
