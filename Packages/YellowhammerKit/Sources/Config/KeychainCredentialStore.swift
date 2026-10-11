@@ -7,16 +7,21 @@ import Security
 public struct KeychainCredentialStore: Sendable {
     /// Shared by every process that reads Yellowhammer's credentials (the app and `yh`), so both
     /// resolve the same reference to the same item.
-    public static let service = "dev.yellowhammer"
+    public static let defaultService = "dev.yellowhammer"
+    public static let service = defaultService
 
-    public init() {}
+    public let service: String
+
+    public init(service: String = Self.defaultService) {
+        self.service = service
+    }
 
     /// Fetches the secret for `reference`. Throws `.notAKeychainReference` if the reference does
     /// not use the `keychain:` scheme.
     public func read(_ reference: CredentialReference) throws(KeychainError) -> String {
         let account = try account(for: reference)
 
-        var query = Self.query(account: account)
+        var query = self.query(account: account)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 
@@ -36,7 +41,7 @@ public struct KeychainCredentialStore: Sendable {
         let account = try account(for: reference)
         let data = Data(secret.utf8)
 
-        var query = Self.query(account: account)
+        var query = self.query(account: account)
         let attributes: [String: Any] = [kSecValueData as String: data]
 
         let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
@@ -55,7 +60,7 @@ public struct KeychainCredentialStore: Sendable {
     /// (`errSecItemNotFound`), so a repeated removal is idempotent.
     public func delete(_ reference: CredentialReference) throws(KeychainError) {
         let account = try account(for: reference)
-        let status = SecItemDelete(Self.query(account: account) as CFDictionary)
+        let status = SecItemDelete(self.query(account: account) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainError(account: account, operation: .delete, status: status)
         }
@@ -69,7 +74,7 @@ public struct KeychainCredentialStore: Sendable {
         return String(reference.rawValue.dropFirst(prefix.count))
     }
 
-    private static func query(account: String) -> [String: Any] {
+    private func query(account: String) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

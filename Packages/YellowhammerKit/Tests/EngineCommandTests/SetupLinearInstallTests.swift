@@ -68,11 +68,7 @@ struct SetupLinearInstallTests {
         let credentials = RecordingCredentialStore.withGitHub()
         let output = RecordingOutput()
         let reference = try #require(CredentialReference("keychain:test-install-\(UUID().uuidString)"))
-        let lockPath = FileManager.default.temporaryDirectory
-            .appending(component: "yh-test-lock-\(UUID().uuidString).lock", directoryHint: .notDirectory)
-        let store = LinearInstallationStore(
-            reference: reference, keychain: KeychainCredentialStore(), machineLock: MachineLock(fileURL: lockPath)
-        )
+        let store = LinearInstallationStore.inMemory(reference: reference)
         let arguments = makeArguments(initialize: false, operatorID: "user-op", installation: "acme")
         let console = ScriptedConsole()
         let setup = try makeSetup(
@@ -113,12 +109,7 @@ struct SetupLinearInstallTests {
         let seams = happyPathSeams()
         let credentials = RecordingCredentialStore.withGitHub()
         let reference = try #require(CredentialReference("keychain:test-install-\(UUID().uuidString)"))
-        let store = LinearInstallationStore(
-            reference: reference, keychain: KeychainCredentialStore(),
-            machineLock: MachineLock(fileURL: FileManager.default.temporaryDirectory.appending(
-                component: "yh-test-lock-\(UUID().uuidString).lock", directoryHint: .notDirectory
-            ))
-        )
+        let store = LinearInstallationStore.inMemory(reference: reference)
         let arguments = makeArguments(initialize: false, installLinear: true)
         let setup = try makeSetup(
             arguments: arguments, directory: directory, board: board, credentials: credentials,
@@ -199,12 +190,7 @@ struct SetupLinearInstallTests {
         let credentials = RecordingCredentialStore.withGitHub()
         let events = Mutex<[LinearInstallEvent]>([])
         let reference = try #require(CredentialReference("keychain:test-install-\(UUID().uuidString)"))
-        let store = LinearInstallationStore(
-            reference: reference, keychain: KeychainCredentialStore(),
-            machineLock: MachineLock(fileURL: FileManager.default.temporaryDirectory.appending(
-                component: "yh-test-lock-\(UUID().uuidString).lock", directoryHint: .notDirectory
-            ))
-        )
+        let store = LinearInstallationStore.inMemory(reference: reference)
         let arguments = makeArguments(
             initialize: false, operatorID: "user-op", installLinear: true, events: "json"
         )
