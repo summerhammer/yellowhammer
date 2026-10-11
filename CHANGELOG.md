@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.12.0](https://github.com/summerhammer/yellowhammer/compare/v0.11.0...v0.12.0) (2026-10-11)
+
+
+### Features
+
+* **doctor:** report installed job firings that differ from the schedule and regenerate them with --fix ([5c33da9](https://github.com/summerhammer/yellowhammer/commit/5c33da9fab6306d1a5d3ed352b64f87d54c7ab5f))
+* **engine:** closed notification says the Night Card is not updated yet while its completion is pending ([0d03348](https://github.com/summerhammer/yellowhammer/commit/0d033482b58ee91db141f1c7385f2d4d08cc8f2e))
+* **engine:** flush firings after night_end deliver pending writes and close an open Night ([b018a4d](https://github.com/summerhammer/yellowhammer/commit/b018a4dd57490cb2a07f0ba34665d5d5f03702cd))
+* **shift-scheduling:** build fires one minute after land, and flush firings close the Night after night_end ([#430](https://github.com/summerhammer/yellowhammer/issues/430)) ([4b75ed7](https://github.com/summerhammer/yellowhammer/commit/4b75ed7af12967fcf859bd230245eea9c04a48de))
+
+
+### Bug Fixes
+
+* **config:** fire each periodic build one minute after its land tick ([f0e2d36](https://github.com/summerhammer/yellowhammer/commit/f0e2d36696aad4f8e0f12871516015419374a6ef))
+* **doctor:** keep each job's installed yh on --fix, and report Weekday, Day or Month constraints ([bf322c6](https://github.com/summerhammer/yellowhammer/commit/bf322c659842473fa2b328bb0f1818a7202bb4b3))
+* **engine:** a flush firing accepts a Night Card completion the closing land never accepted ([6feda4b](https://github.com/summerhammer/yellowhammer/commit/6feda4b96a09730b07fa9c17f370c94b623e3a3b))
+* **engine:** a staggered flush firing before the next Night's author belongs to the previous Night ([be30938](https://github.com/summerhammer/yellowhammer/commit/be309389fae031ff185f6dd483f44aa238204cdb))
+
 ## [0.11.0](https://github.com/summerhammer/yellowhammer/compare/v0.10.1...v0.11.0) (2026-10-09)
 
 
