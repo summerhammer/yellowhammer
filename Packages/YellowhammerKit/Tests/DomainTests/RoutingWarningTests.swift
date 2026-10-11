@@ -158,4 +158,83 @@ struct RoutingWarningTests {
         #expect(text.contains("once a Cycle's worker Attempts have used each of those Routes"))
         #expect(text.contains("remedy: add a fallback, or an authoring entry, whose Route no Work Card can resolve to"))
     }
+
+    @Test("An entry whose fallbacks list its primary route warns fallbackEqualsPrimary (#441)")
+    func fallbackEqualsPrimaryWarns() {
+        let primary = route("claude", "opus", "high")
+        let entry = RoutingEntry(
+            kind: .authoring,
+            route: primary,
+            fallbacks: [primary, route("codex", "gpt-5.4", "high")]
+        )
+        let table = RoutingTable(entries: [entry])
+        #expect(table.warnings.contains(.fallbackEqualsPrimary(entry.key, route: primary)))
+    }
+
+    @Test("An entry with duplicate fallbacks warns duplicateFallback (#441)")
+    func duplicateFallbackWarns() {
+        let fallback = route("codex", "gpt-5.4", "high")
+        let entry = RoutingEntry(
+            kind: Kind("impl")!,
+            route: route("claude", "sonnet", "medium"),
+            fallbacks: [fallback, fallback]
+        )
+        let table = RoutingTable(entries: [entry])
+        #expect(table.warnings.contains(.duplicateFallback(entry.key, route: fallback)))
+    }
+
+    @Test("An entry listing its primary route with a single CLI warns both fallbackEqualsPrimary and singleCLI")
+    func fallbackEqualsPrimaryWithSingleCLIWarnsBoth() {
+        let primary = route("claude", "opus", "high")
+        let entry = RoutingEntry(
+            kind: .authoring,
+            route: primary,
+            fallbacks: [primary]
+        )
+        let table = RoutingTable(entries: [entry])
+        #expect(table.warnings.contains(.fallbackEqualsPrimary(entry.key, route: primary)))
+        #expect(table.warnings.contains(.singleCLI(entry.key, cli: "claude")))
+    }
+
+    @Test("A fallback appearing multiple times warns duplicateFallback only once for that route")
+    func duplicateFallbackWarnsOnlyOncePerRoute() {
+        let fallback = route("codex", "gpt-5.4", "high")
+        let entry = RoutingEntry(
+            kind: Kind("impl")!,
+            route: route("claude", "sonnet", "medium"),
+            fallbacks: [fallback, fallback, fallback]
+        )
+        let table = RoutingTable(entries: [entry])
+        let duplicates = table.warnings.filter {
+            if case .duplicateFallback(entry.key, route: fallback) = $0 { return true }
+            return false
+        }
+        #expect(duplicates.count == 1)
+    }
+
+    @Test("fallbackEqualsPrimary description names the entry and route, using glossary vocabulary")
+    func fallbackEqualsPrimaryDescription() {
+        let primary = route("claude", "opus", "high")
+        let entry = RoutingEntry(kind: .authoring, repoRole: .any, route: primary)
+        let warning = RoutingWarning.fallbackEqualsPrimary(entry.key, route: primary)
+        let text = warning.description
+        #expect(text.contains("kind \"authoring\""))
+        #expect(text.contains("repo_role \"*\""))
+        #expect(text.contains("lists its primary route (\"claude/opus/high\") among its fallbacks"))
+        #expect(text.contains("Attempt"))
+        #expect(text.contains("retry on a different route"))
+    }
+
+    @Test("duplicateFallback description names the entry and route, using glossary vocabulary")
+    func duplicateFallbackDescription() {
+        let fallback = route("codex", "gpt-5.4", "high")
+        let entry = RoutingEntry(kind: Kind("impl")!, repoRole: .role(.backend), route: route("claude", "sonnet"))
+        let warning = RoutingWarning.duplicateFallback(entry.key, route: fallback)
+        let text = warning.description
+        #expect(text.contains("kind \"impl\""))
+        #expect(text.contains("repo_role \"backend\""))
+        #expect(text.contains("lists fallback (\"codex/gpt-5.4/high\") more than once"))
+        #expect(text.contains("Attempt"))
+        #expect(text.contains("retry on a different route"))
+    }
 }

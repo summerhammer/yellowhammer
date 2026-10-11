@@ -13,7 +13,8 @@ public struct FencedProcess: Equatable, Sendable {
     }
 }
 
-/// One holder of the Worktree the fence found but could not attribute to the run — left running.
+/// One holder of the Worktree the fence found but could not attribute to the run, and that started
+/// after the run was dispatched — left running. A holder already running at dispatch is not reported.
 public struct UnattributedProcess: Equatable, Sendable {
     public let pid: pid_t
     public let commandName: String
@@ -28,7 +29,7 @@ public struct UnattributedProcess: Equatable, Sendable {
 
 /// The outcome of fencing a Worktree against one run's running snapshot (Normal-Exit Sweep
 /// Ruling): only a holder attributed to that run is killed; a holder that cannot be attributed is
-/// recorded and left running.
+/// left running, and reported when it started after the run was dispatched.
 public enum AttributedFencingOutcome: Equatable, Sendable {
     case quiescent(killed: [FencedProcess], unattributed: [UnattributedProcess])
     case notQuiescent(killed: [FencedProcess], remaining: [FencedProcess], unattributed: [UnattributedProcess])
@@ -86,7 +87,8 @@ extension ProcessFencer {
 
         /// One sweep of the process table: kills every newly-attributed holder found (re-checking
         /// identity immediately before signalling, so a recycled pid is never hit), folds it into
-        /// `all`, and reports every attributed holder still present plus every unattributed one.
+        /// `all`, and reports every attributed holder still present plus every unattributed one that
+        /// started after `snapshot.dispatchedAt`.
         mutating func sweepAndKill(
             fencer: ProcessFencer, worktreePath: String, snapshot: RunningSnapshot
         ) -> (attributedRemaining: [FencedProcess], unattributed: [UnattributedProcess]) {
@@ -98,10 +100,13 @@ extension ProcessFencer {
             for holder in fencer.holders(of: worktreePath) where !seen.contains(holder.pid) {
                 seen.insert(holder.pid)
                 // Re-check identity right before deciding, so a recycled pid is never signalled.
-                guard let identity = ProcessIdentity.identity(of: holder.pid),
-                    ProcessIdentity.isAttributed(pid: holder.pid, to: snapshot)
-                else {
-                    let identity = ProcessIdentity.identity(of: holder.pid)
+                let identity = ProcessIdentity.identity(of: holder.pid)
+                guard let identity, ProcessIdentity.isAttributed(pid: holder.pid, to: snapshot) else {
+                    // A holder already running when this run was dispatched (Orca ADE's setup-hook
+                    // shell, an Operator's terminal) is not something the run left behind: reporting
+                    // it would repeat it after every pass of every Card in the Worktree (issue #438).
+                    // A pid that vanished before its identity was read is still reported, as before.
+                    if let identity, identity.startTime <= snapshot.dispatchedAt { continue }
                     unattributed.append(UnattributedProcess(
                         pid: holder.pid, commandName: identity?.commandName ?? "", cwd: Self.cwd(of: holder)
                     ))

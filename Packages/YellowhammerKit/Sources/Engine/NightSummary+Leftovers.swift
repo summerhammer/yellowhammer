@@ -17,8 +17,9 @@ extension NightSummary {
     /// is reported here, not among the Cards touched this Night.
     public static func leftoverProcessLines(night: NightRecord, journal: JournalStore) throws -> [String] {
         var order: [String] = []
-        // Distinct pids per Card: the fence runs after every pass, so a process left running across
-        // several passes (an Operator's shell in the Worktree) is recorded once per pass but counted once.
+        // Distinct pids per Card: the fence reports a process only on the pass it started during, but a
+        // Journal written before issue #438 recorded one already running at dispatch (an Operator's
+        // shell in the Worktree) once per pass; it is still counted once.
         var swept: [String: Set<pid_t>] = [:]
         var unattributed: [String: Set<pid_t>] = [:]
 
