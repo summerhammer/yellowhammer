@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.13.0](https://github.com/summerhammer/yellowhammer/compare/v0.12.0...v0.13.0) (2026-10-11)
+
+
+### Features
+
+* **morning-report:** lead the Night verdict with halted or crashed only for an abnormal ending ([f889ebd](https://github.com/summerhammer/yellowhammer/commit/f889ebdf15f3325a1df0e6f6ab58bd065ec2e69b))
+* **morning-report:** page a board-unreachable halt at the 2nd consecutive one, and always on the closing Act ([295518c](https://github.com/summerhammer/yellowhammer/commit/295518c49781d6ca5463de9683d3773b987ac21c))
+
+
+### Bug Fixes
+
+* **authoring:** explain a squash-merged predecessor on the Night Card and pull request ([4947b6e](https://github.com/summerhammer/yellowhammer/commit/4947b6ec12e8f4d4c4071e56bc780ffbaa5ab3be)), closes [#448](https://github.com/summerhammer/yellowhammer/issues/448)
+* **authoring:** keep a Card's brief from contradicting the worker contract ([#459](https://github.com/summerhammer/yellowhammer/issues/459)) ([0ee78ee](https://github.com/summerhammer/yellowhammer/commit/0ee78ee0b840b4783473b03697daf861004de706))
+* **delta-read:** ignore transcription and code blocks when reading repository line ([#461](https://github.com/summerhammer/yellowhammer/issues/461)) ([b23fd0d](https://github.com/summerhammer/yellowhammer/commit/b23fd0dd8c91ab46494c63cf88598642cec9daa3))
+* **doctor:** verify LaunchAgent executables and gate repointing ([#453](https://github.com/summerhammer/yellowhammer/issues/453)) ([67ee1e2](https://github.com/summerhammer/yellowhammer/commit/67ee1e242b5dfc145496ed02ba7c2913db979579))
+* **engine:** classify a result file that breaks its contract as a hard failure, not Crashed-Unknown ([#465](https://github.com/summerhammer/yellowhammer/issues/465)) ([7d524e9](https://github.com/summerhammer/yellowhammer/commit/7d524e95ff0384877451e993b4c8040b01db9380))
+* **engine:** exit 0 when an Act stands down on the Project Lease ([#454](https://github.com/summerhammer/yellowhammer/issues/454)) ([96ce77d](https://github.com/summerhammer/yellowhammer/commit/96ce77d134c15d7e30b6baa72f16774f19022011)), closes [#435](https://github.com/summerhammer/yellowhammer/issues/435)
+* **engine:** stop reporting a Worktree holder that predates the run as a leftover ([e9b8d13](https://github.com/summerhammer/yellowhammer/commit/e9b8d1322b12cdaaa5202e9655506956ac3a7b84)), closes [#438](https://github.com/summerhammer/yellowhammer/issues/438)
+* **instruction:** put the Work Card trailer in the worker's commit-message format ([d7dd689](https://github.com/summerhammer/yellowhammer/commit/d7dd689d9fda6428161e80bada9cfc1d7e832bf7))
+* **readiness:** treat Linear's Markdown rewrite of a Card description as unchanged ([47346d8](https://github.com/summerhammer/yellowhammer/commit/47346d88faa3a13c4b267414db2b7c68b58cc20c)), closes [#433](https://github.com/summerhammer/yellowhammer/issues/433)
+* **rehearsal:** answer authoring fixtures with the Project's own repos and stories ([#464](https://github.com/summerhammer/yellowhammer/issues/464)) ([b8fc8e4](https://github.com/summerhammer/yellowhammer/commit/b8fc8e45119e19f2a74c56a58274a46b13c10ab6))
+* **routing:** warn when a route lists itself among its fallbacks ([#460](https://github.com/summerhammer/yellowhammer/issues/460)) ([a06cb75](https://github.com/summerhammer/yellowhammer/commit/a06cb75fa2ec8e3375a4257fa6e8eb3468ef69a9))
+* **setup:** reuse saved configuration when installing jobs ([7b855e2](https://github.com/summerhammer/yellowhammer/commit/7b855e29db8a08fd11a2b5550f99f43275a8d1bb))
+* **setup:** use in-memory credential stores in tests to prevent Keychain leaks ([#455](https://github.com/summerhammer/yellowhammer/issues/455)) ([0531ca0](https://github.com/summerhammer/yellowhammer/commit/0531ca053338791dca7fd69406709d894c73ae7a))
+* **summary:** count Authoring Halt Cards as waiting decisions ([#457](https://github.com/summerhammer/yellowhammer/issues/457)) ([2fd636c](https://github.com/summerhammer/yellowhammer/commit/2fd636c2f3800f9bb6e1dcf0a268f7ad9bdcc409))
+
 ## [0.12.0](https://github.com/summerhammer/yellowhammer/compare/v0.11.0...v0.12.0) (2026-10-11)
 
 
