@@ -339,6 +339,22 @@ struct SetupTests {
         #expect(output.lines.contains { $0.hasPrefix("warning:") && $0.contains("single CLI") })
     }
 
+    @Test("Routing warnings are printed when a route lists itself among its fallbacks (#441)")
+    func routingWarningsPrintedForSelfFallback() async throws {
+        let directory = ConfigurationDirectory()
+        let board = await makeBoard()
+        let arguments = makeArguments(
+            cli: ["claude", "codex"], route: "claude/opus/high", fallback: ["claude/opus/high"],
+            operatorID: "user-op"
+        )
+        let output = RecordingOutput()
+        let setup = try makeSetup(arguments: arguments, directory: directory, board: board, output: output)
+
+        try await setup.run()
+
+        #expect(output.lines.contains { $0.hasPrefix("warning:") && $0.contains("lists its primary route") })
+    }
+
     @Test("An invalid Project already in the directory is reported; a valid sibling is still provisioned")
     func invalidProjectSiblingStillProvisions() async throws {
         let directory = ConfigurationDirectory()
