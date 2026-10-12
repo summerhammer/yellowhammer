@@ -274,6 +274,7 @@ extension PulseSnapshot {
             "No Cards touched"
         }
         return NightPulse(
+            id: night.id,
             state: night.state == .opened ? .running : .done,
             startedAt: night.openedAt,
             verdictLine: count > 0 ? "\(count) Act run\(count == 1 ? "" : "s") failed — see Health" : nil,

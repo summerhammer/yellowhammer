@@ -242,6 +242,7 @@ func nightState() throws {
     let opening = try journal.openNight(nightStart: nightStart, mode: .real, act: .author, runID: run, now: epoch)
 
     let running = try #require(try PulseSnapshot.read(from: journal, status: .idle).night)
+    #expect(running.id == opening.night.id)
     #expect(running.state == .running)
     #expect(running.startedAt == epoch)
     #expect(running.verdictLine == nil)

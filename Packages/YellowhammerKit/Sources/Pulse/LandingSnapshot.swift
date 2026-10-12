@@ -67,6 +67,7 @@ public struct ProjectSnapshot: Identifiable, Equatable, Sendable {
         case let .feature(id): pulse.feature?.id == id
         case let .attempt(id): pulse.now.attempts.contains { $0.id == id }
         case let .repo(repo): repos.contains(repo)
+        case let .night(id): pulse.night?.id == id
         }
     }
 

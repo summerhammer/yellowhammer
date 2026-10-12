@@ -203,6 +203,7 @@ struct PulseComposedVariant: View {
         case let .feature(id): project.pulse.feature?.id == id
         case let .attempt(id): project.pulse.now.attempts.contains { $0.id == id }
         case let .repo(repo): project.repos.contains(repo)
+        case let .night(id): project.pulse.night?.id == id
         }
     }
 }

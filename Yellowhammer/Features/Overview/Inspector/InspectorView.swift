@@ -3,8 +3,8 @@ import Pulse
 import SwiftUI
 
 /// The Inspector: the detail of the current selection, beside the Pulse. A Card opens its Card detail,
-/// read from this Project's own Journal. The Feature, an Attempt and a Repo each open a pane rendered
-/// from the landing snapshot.
+/// read from this Project's own Journal, and so does the Night (its account, OQ158 ruling item 14). The
+/// Feature, an Attempt and a Repo each open a pane rendered from the landing snapshot.
 ///
 /// It shows a selection only while that selection names something in `project`, so the Inspector never
 /// shows another Project's Card, Attempt or Repo beside this Project's Pulse (R20). Its ways out open
@@ -23,7 +23,7 @@ struct InspectorView: View {
             ContentUnavailableView(
                 "Nothing Selected",
                 systemImage: "sidebar.trailing",
-                description: Text("Select a Card, the Feature, an Attempt or a Repo.")
+                description: Text("Select a Card, the Feature, an Attempt, a Repo or the Night.")
             )
         }
     }
@@ -53,6 +53,12 @@ struct InspectorView: View {
                 attempt: project.runningAttempt(for: repo),
                 decisionCardIDs: decisionCardIDs
             )
+        case let .night(id):
+            if let night = project.pulse.night, night.id == id {
+                // One view, and one read, per Night of one Project, like the Card detail above.
+                NightDetailView(project: project.id, night: night, asOf: asOf)
+                    .id(NightDetailIdentity(project: project.id, night: id))
+            }
         }
     }
 }
@@ -60,4 +66,9 @@ struct InspectorView: View {
 private struct CardDetailIdentity: Hashable {
     let project: ProjectID
     let card: String
+}
+
+private struct NightDetailIdentity: Hashable {
+    let project: ProjectID
+    let night: Int64
 }
