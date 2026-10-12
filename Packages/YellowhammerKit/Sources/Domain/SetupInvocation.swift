@@ -210,6 +210,13 @@ public struct SetupInvocation: Equatable, Sendable {
         ["project", "set-code-hosting-connection", project, connection]
     }
 
+    /// Regenerates a Project's installed LaunchAgents whose schedule differs from `[schedule]`
+    /// (`yh doctor --fix --project <project> --check launchd --json`). `--check launchd` stays: the orphans
+    /// check under `--fix` asks y/n.
+    public static func regenerateScheduledJobsArguments(project: String) -> [String] {
+        ["doctor", "--fix", "--project", project, "--check", "launchd", "--json"]
+    }
+
     /// `"name,role,path,check"`. `name`, `role` and `path` may not contain a comma — `--repo` splits on
     /// the first three only, so a comma there would silently corrupt a later field — and none of the
     /// four may be empty.
