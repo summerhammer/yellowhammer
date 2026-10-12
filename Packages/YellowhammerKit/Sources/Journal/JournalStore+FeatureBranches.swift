@@ -100,6 +100,61 @@ extension JournalStore {
         }
     }
 
+    /// The commit the land Act last pushed for `featureID`'s `repository`, nil when it has not pushed
+    /// there (or pushed before the Journal recorded landed commits). The tip the predecessor gate tests,
+    /// pinned in the main clone at `refs/yellowhammer/landed/<branch>`.
+    public func landedCommit(featureID: Int64, repository: String) throws -> String? {
+        try read { db in
+            try String.fetchOne(
+                db,
+                sql: "SELECT landed_commit FROM feature_repository WHERE feature_id = ? AND repository = ?",
+                arguments: [featureID, repository]
+            )
+        }
+    }
+
+    /// ``landedCommit(featureID:repository:)`` for every repository of `featureID` that has one, from one
+    /// read. A repository with no landed commit is omitted.
+    public func landedCommits(featureID: Int64) throws -> [String: String] {
+        try read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: "SELECT repository, landed_commit FROM feature_repository "
+                    + "WHERE feature_id = ? AND landed_commit IS NOT NULL",
+                arguments: [featureID]
+            )
+            var commits: [String: String] = [:]
+            for row in rows {
+                let repository: String = row["repository"]
+                let commit: String = row["landed_commit"]
+                commits[repository] = commit
+            }
+            return commits
+        }
+    }
+
+    /// Records the commit the land Act just pushed for `featureID`'s `repository`. One write transaction,
+    /// revalidating the Act-scoped lease first. A later push overwrites: the latest pushed tip is the one
+    /// the pull request carries. A pushed repository is by definition one the Feature touches, so the
+    /// pair's row is created when it does not exist yet (its `branch` stays NULL until allocation records
+    /// it); an unknown Feature throws ``JournalError/featureUnknown(featureID:)``.
+    public func recordLandedCommit(
+        featureID: Int64, repository: String, commit: String, runID: RunID, now: Date = Date()
+    ) throws {
+        try write { db in
+            _ = try Self.revalidateActLease(db, runID: runID, now: now)
+
+            guard try Int.fetchOne(db, sql: "SELECT 1 FROM feature WHERE id = ?", arguments: [featureID]) != nil else {
+                throw JournalError.featureUnknown(featureID: featureID)
+            }
+            try Self.insertFeatureRepositories(db, featureID: featureID, repositories: [repository])
+            try db.execute(
+                sql: "UPDATE feature_repository SET landed_commit = ? WHERE feature_id = ? AND repository = ?",
+                arguments: [commit, featureID, repository]
+            )
+        }
+    }
+
     /// The Feature Branch to use for `repository`: the recorded one, else the Feature's Worktree name.
     /// The fallback is deliberate — an unallocated lane's ref cannot exist, so ref probes fail as before.
     public func resolvedFeatureBranch(feature: FeatureRecord, repository: String) throws -> FeatureBranch? {

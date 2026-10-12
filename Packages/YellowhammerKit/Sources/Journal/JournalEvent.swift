@@ -390,6 +390,14 @@ public enum JournalEvent: Equatable, Sendable {
     /// not a failure; it takes `repository` out of the set the merged fraction and the predecessor gate
     /// read (``JournalStore/pushedRepositories(featureID:)``). Appended once per Feature and repository.
     case noPushedBranchOutcome(cycleID: Int64, featureIssueID: String, repository: String)
+    /// The ref `refs/yellowhammer/landed/<branch>` could not be written (`pin`) or deleted (`unpin`) in
+    /// `repository`'s main clone. Journal-only, by ruling: the push itself counted and the landed commit is
+    /// recorded in the Journal regardless, so this is never an Exception Notification, a Night Card line or
+    /// a Night Summary exception.
+    case landedPinFailed(
+        featureIssueID: String, repository: String, branch: String, commit: String,
+        operation: LandedPinOperation, reason: String
+    )
     /// Verification judged this Cycle's Definition of Done clause by clause (roadmap P10.5): once per
     /// Cycle. Counts only — never a pass/fail headline; the per-clause verdicts are in the report.
     case featureVerified(cycleID: Int64, met: Int, unmet: Int, unresolved: Int)

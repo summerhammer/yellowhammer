@@ -203,6 +203,8 @@ extension JournalEvent {
             .cycleLanded
         case .noPushedBranchOutcome:
             .noPushedBranchOutcome
+        case .landedPinFailed:
+            .landedPinFailed
         case .featureVerified:
             .featureVerified
         case .featureReturned:

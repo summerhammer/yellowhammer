@@ -145,10 +145,12 @@ struct ProjectRemoval {
         }
 
         do {
-            _ = try journal.recordProjectRemoval(
+            let runID = RunID()
+            let removal = try journal.recordProjectRemoval(
                 NewProjectRemoval(featureIssueID: featureIssueID, releasedWorktreeIDs: releasedWorktreeIDs),
-                runID: RunID(), now: now
+                runID: runID, now: now
             )
+            await unpinLandedTips(removal, journal: journal, project: project, runID: runID)
             return true
         } catch {
             output("refused: \(error)")

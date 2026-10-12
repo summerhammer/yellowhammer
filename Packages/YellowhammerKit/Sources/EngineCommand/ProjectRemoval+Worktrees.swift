@@ -160,6 +160,23 @@ extension ProjectRemoval {
         await finishRemoval(worktree, outcome: outcome)
     }
 
+    /// Deletes the landed pins of the Feature the removal abandoned, after the Journal write that abandons
+    /// it. A clone the Operator already deleted has nothing to unpin; a pin that cannot be deleted is
+    /// reported in the Journal and never fails the removal.
+    func unpinLandedTips(
+        _ removal: ProjectRemovalRecord, journal: JournalStore, project: ProjectConfiguration, runID: RunID
+    ) async {
+        guard
+            let featureID = removal.releasedFeatureID,
+            let feature = try? journal.feature(id: featureID)
+        else {
+            return
+        }
+        await LandedPinRelease(pin: LandedTipPin(git: git), act: nil, runID: runID, nightID: nil).release(
+            feature: feature, repositories: project.repositories.workingRepos, journal: journal
+        )
+    }
+
     /// The ref an unpushed rehearsal Feature Branch tip is kept at once its Worktree is removed.
     static func removedRef(_ branch: FeatureBranch) -> String {
         "refs/yellowhammer/removed/\(branch.name)"
