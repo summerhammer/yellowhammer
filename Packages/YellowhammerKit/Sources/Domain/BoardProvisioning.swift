@@ -62,11 +62,13 @@ public struct BoardWorkspace: Hashable, Sendable {
     public var id: String
     public var name: String
     public var urlKey: String
+    public var viewer: BoardIdentity?
 
-    public init(id: String, name: String, urlKey: String) {
+    public init(id: String, name: String, urlKey: String, viewer: BoardIdentity? = nil) {
         self.id = id
         self.name = name
         self.urlKey = urlKey
+        self.viewer = viewer
     }
 }
 

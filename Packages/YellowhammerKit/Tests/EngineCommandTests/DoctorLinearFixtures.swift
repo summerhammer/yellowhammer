@@ -53,7 +53,13 @@ struct DoctorLinearFixture: ~Copyable {
     static func board(workspaceName: String, project: String, provisioned: Bool = true) async -> FakeProvisioningBoard {
         let scope = BoardProjectScope(id: BoardObjectID(rawValue: project), name: project, teams: [engineeringTeam])
         let board = await makeBoard(project: scope, members: [operatorMember])
-        await board.setWorkspace(BoardWorkspace(id: "ws", name: workspaceName, urlKey: "ws"))
+        await board.setWorkspace(BoardWorkspace(
+            id: "ws-\(project == "lp-alpha" ? "acme" : "globex")", name: workspaceName, urlKey: "ws",
+            viewer: BoardIdentity(
+                id: BoardObjectID(rawValue: "app-user-\(project == "lp-alpha" ? "acme" : "globex")"),
+                name: "yellowhammer", displayName: "Yellowhammer"
+            )
+        ))
         // Healthy means provisioned: setup has run (with a Routing Table, so the `Override` group exists
         // too), so Check 4's provisioning verification passes.
         if provisioned {

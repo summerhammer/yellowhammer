@@ -8,6 +8,7 @@ struct OperatorIdentityRow: View {
     let name: String
     /// Prefixes every accessibility identifier: `<prefix>-<name>`, `<prefix>-choose-<name>`, and so on.
     let identifierPrefix: String
+    var liveIdentity: BoardIdentity?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -43,7 +44,16 @@ struct OperatorIdentityRow: View {
         if let configured = model.configured {
             VStack(alignment: .trailing, spacing: 2) {
                 if let candidate = model.configuredCandidate {
-                    Text("\(candidate.displayName) (\(candidate.name))")
+                    Text(LinearIdentityLabel.humanName(
+                        name: candidate.name, displayName: candidate.displayName, fallback: configured.rawValue
+                    ))
+                        .accessibilityIdentifier("\(identifierPrefix)-name-\(name)")
+                } else if let liveIdentity, liveIdentity.id == configured {
+                    Text(LinearIdentityLabel.humanName(
+                        name: liveIdentity.name, displayName: liveIdentity.displayName ?? "",
+                        fallback: configured.rawValue
+                    ))
+                        .accessibilityIdentifier("\(identifierPrefix)-name-\(name)")
                 }
                 Text(configured.rawValue)
                     .font(.caption.monospaced())
@@ -74,7 +84,10 @@ struct OperatorIdentityRow: View {
                 Picker("Operator identity", selection: $model.selection) { // glossary:ignore GL001
                     Text("Choose one").tag(String?.none)
                     ForEach(model.candidates, id: \.id) { candidate in
-                        Text("\(candidate.displayName) (\(candidate.name))").tag(Optional(candidate.id))
+                        Text(LinearIdentityLabel.humanName(
+                            name: candidate.name, displayName: candidate.displayName, fallback: candidate.id
+                        ))
+                            .tag(Optional(candidate.id))
                     }
                 }
                 .labelsHidden()
@@ -90,5 +103,16 @@ struct OperatorIdentityRow: View {
                     .accessibilityIdentifier("\(identifierPrefix)-save-\(name)")
             }
         }
+    }
+}
+
+enum LinearIdentityLabel {
+    static func humanName(name: String, displayName: String, fallback: String) -> String {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if displayName.isEmpty { return name.isEmpty ? fallback : name }
+        if name.isEmpty { return displayName }
+        if name == displayName { return displayName }
+        return "\(displayName) (\(name))"
     }
 }

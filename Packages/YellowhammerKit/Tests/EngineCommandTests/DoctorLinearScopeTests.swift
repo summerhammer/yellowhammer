@@ -146,6 +146,12 @@ struct DoctorLinearScopeTests {
         let auth = try #require(rows.first { $0.installation == "acme" && $0.subject == "authorization" })
         #expect(auth.workspace == "ws-acme")
         #expect(auth.workspaceName == "Acme Inc")
+        #expect(auth.yellowhammerIdentity == BoardIdentity(
+            id: BoardObjectID(rawValue: "app-user-acme"), name: "yellowhammer", displayName: "Yellowhammer"
+        ))
+        #expect(auth.operatorIdentity == BoardIdentity(
+            id: BoardObjectID(rawValue: "user-op"), name: "operator", displayName: "Operator Person"
+        ))
         #expect(auth.projects == ["alpha", "gamma"])
         #expect(auth.severity == "pass")
         let info = try #require(rows.first { $0.severity == "info" })
@@ -154,5 +160,39 @@ struct DoctorLinearScopeTests {
         let team = try #require(rows.first { $0.subject == "team" && $0.projects == ["alpha"] })
         #expect(team.installation == "acme")
         #expect(team.workspaceName == "Acme Inc")
+        #expect(team.yellowhammerIdentity == auth.yellowhammerIdentity)
+        #expect(team.operatorIdentity == auth.operatorIdentity)
+    }
+
+    @Test("A configured inactive Operator keeps its live name on the warning row")
+    func inactiveOperatorNamePropagates() async throws {
+        let fixture = try await DoctorLinearFixture(operators: ["acme": "user-dead"])
+        await fixture.acme.setMembers([deactivatedMember])
+
+        let findings = await fixture.doctor(checks: [.linear]).run()
+        let warning = try #require(findings.linear("acme", subject: "operator").first)
+
+        #expect(warning.severity == .warning)
+        #expect(warning.installation?.operatorIdentity == BoardIdentity(
+            id: BoardObjectID(rawValue: "user-dead"), name: "gone", displayName: "Gone"
+        ))
+        let rows = try #require(DoctorFindingRow.decodeLastLine([DoctorCommand.encodeFindingsJSON(findings)]))
+        let row = try #require(rows.first { $0.installation == "acme" && $0.subject == "operator" })
+        #expect(row.operatorIdentity?.id == BoardObjectID(rawValue: "user-dead"))
+        #expect(row.severity == "warning")
+    }
+
+    @Test("A workspace name lookup failure leaves authorization and candidate reporting intact")
+    func workspaceNameFailureDoesNotChangeAuthorization() async throws {
+        let fixture = try await DoctorLinearFixture()
+        await fixture.acme.failWorkspace(with: .unreachable("names unavailable"))
+
+        let findings = await fixture.doctor(checks: [.linear]).run()
+
+        #expect(findings.linear("acme", subject: "authorization").first?.severity == .pass)
+        #expect(findings.linear("acme", subject: "operator").first?.severity == .pass)
+        #expect(findings.linear("acme", subject: "authorization").first?.installation?.workspaceName == nil)
+        #expect(findings.linear("acme", subject: "operator").first?.installation?.operatorIdentity?.id
+            == BoardObjectID(rawValue: "user-op"))
     }
 }

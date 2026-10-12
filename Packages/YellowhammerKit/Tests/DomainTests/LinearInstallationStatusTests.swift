@@ -73,6 +73,49 @@ struct LinearInstallationStatusTests {
         #expect(LinearInstallationStatus.workspaceName(in: rows, installation: "none") == nil)
     }
 
+    @Test("Live names are accepted only for the configured workspace and identity IDs")
+    func identityNamesRequireMatchingIDs() {
+        let app = BoardIdentity(
+            id: BoardObjectID(rawValue: "app-1"), name: "yellowhammer", displayName: "Yellowhammer"
+        )
+        let operatorIdentity = BoardIdentity(
+            id: BoardObjectID(rawValue: "user-1"), name: "alice", displayName: "Alice"
+        )
+        let rows = [
+            DoctorFindingRow(
+                check: "linear", subject: "operator", severity: "warning", message: "stale",
+                installation: "acme", workspace: "old-workspace", workspaceName: "Old Acme",
+                yellowhammerIdentity: app, operatorIdentity: operatorIdentity
+            ),
+            DoctorFindingRow(
+                check: "linear", subject: "authorization", severity: "pass", message: "ok",
+                installation: "acme", workspace: "workspace-1", workspaceName: "Acme Inc",
+                yellowhammerIdentity: app, operatorIdentity: operatorIdentity
+            )
+        ]
+
+        #expect(LinearInstallationStatus.workspaceName(
+            in: rows, installation: "acme", workspaceID: "workspace-1"
+        ) == "Acme Inc")
+        #expect(LinearInstallationStatus.workspaceName(
+            in: rows, installation: "acme", workspaceID: "new-workspace"
+        ) == nil)
+        #expect(LinearInstallationStatus.yellowhammerIdentity(
+            in: rows, installation: "acme", workspaceID: "workspace-1", identityID: app.id
+        ) == app)
+        #expect(LinearInstallationStatus.yellowhammerIdentity(
+            in: rows, installation: "acme", workspaceID: "workspace-1",
+            identityID: BoardObjectID(rawValue: "new-app")
+        ) == nil)
+        #expect(LinearInstallationStatus.operatorIdentity(
+            in: rows, installation: "acme", workspaceID: "workspace-1", identityID: operatorIdentity.id
+        ) == operatorIdentity)
+        #expect(LinearInstallationStatus.operatorIdentity(
+            in: rows, installation: "acme", workspaceID: "workspace-1",
+            identityID: BoardObjectID(rawValue: "new-user")
+        ) == nil)
+    }
+
     @Test("The label falls back to the local name, never blank")
     func labelFallback() {
         #expect(LinearInstallationStatus.label(workspaceName: "Acme Inc", localName: "acme") == "Acme Inc")

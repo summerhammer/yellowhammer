@@ -17,6 +17,10 @@ public struct DoctorFindingRow: Codable, Equatable, Sendable {
     public var workspace: String?
     /// The workspace's name as read live from Linear.
     public var workspaceName: String?
+    /// Linear's Yellowhammer identity, when the live workspace query returned the configured user.
+    public var yellowhammerIdentity: BoardIdentity?
+    /// The configured Operator's live names, even when the Operator is no longer a candidate.
+    public var operatorIdentity: BoardIdentity?
     /// The ids of the Projects the installation serves.
     public var projects: [String]?
     /// `"authorized"`, `"refused"` or `"unreachable"` (``InstallationAuthorizationState``), only on the
@@ -28,6 +32,7 @@ public struct DoctorFindingRow: Codable, Equatable, Sendable {
     public init(
         check: String, subject: String, severity: String, message: String,
         installation: String? = nil, workspace: String? = nil, workspaceName: String? = nil,
+        yellowhammerIdentity: BoardIdentity? = nil, operatorIdentity: BoardIdentity? = nil,
         projects: [String]? = nil, authorization: String? = nil, connection: String? = nil
     ) {
         self.check = check
@@ -37,6 +42,8 @@ public struct DoctorFindingRow: Codable, Equatable, Sendable {
         self.installation = installation
         self.workspace = workspace
         self.workspaceName = workspaceName
+        self.yellowhammerIdentity = yellowhammerIdentity
+        self.operatorIdentity = operatorIdentity
         self.projects = projects
         self.authorization = authorization
         self.connection = connection

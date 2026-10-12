@@ -55,6 +55,8 @@ struct DoctorInstallationScope: Equatable, Sendable {
     let name: String
     let workspace: String?
     let workspaceName: String?
+    var yellowhammerIdentity: BoardIdentity?
+    var operatorIdentity: BoardIdentity?
     let projects: [ProjectID]
 }
 

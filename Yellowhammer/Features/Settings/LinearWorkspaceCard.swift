@@ -56,7 +56,8 @@ struct LinearWorkspaceCard: View {
             if let operatorModel = model.operatorModel(for: name) {
                 Divider()
                 OperatorIdentityRow(
-                    model: operatorModel, name: name, identifierPrefix: "settings-linear-operator"
+                    model: operatorModel, name: name, identifierPrefix: "settings-linear-operator",
+                    liveIdentity: model.statuses[name]?.operatorIdentity
                 )
             }
             if let reconnect = model.reconnectModel(for: name) {
@@ -92,11 +93,40 @@ struct LinearWorkspaceCard: View {
             }
             GridRow {
                 Text("Workspace").foregroundStyle(.secondary)
-                Text(workspace.workspaceID).font(.callout.monospaced()).textSelection(.enabled)
+                VStack(alignment: .leading, spacing: 2) {
+                    if let workspaceName = model.statuses[name]?.workspaceName {
+                        Text(workspaceName)
+                            .font(.callout)
+                            .accessibilityIdentifier("settings-linear-workspace-name-\(name)")
+                    } else {
+                        Text(workspace.name)
+                            .font(.callout)
+                            .accessibilityIdentifier("settings-linear-workspace-name-\(name)")
+                    }
+                    Text(workspace.workspaceID)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .accessibilityIdentifier("settings-linear-workspace-id-\(name)")
+                }
             }
             GridRow {
                 Text("Yellowhammer identity").foregroundStyle(.secondary)
-                Text(workspace.appUser.rawValue).font(.callout.monospaced()).textSelection(.enabled)
+                VStack(alignment: .leading, spacing: 2) {
+                    if let identity = model.statuses[name]?.yellowhammerIdentity {
+                        Text(LinearIdentityLabel.humanName(
+                            name: identity.name, displayName: identity.displayName ?? "",
+                            fallback: identity.id.rawValue
+                        ))
+                            .font(.callout)
+                            .accessibilityIdentifier("settings-linear-yellowhammer-name-\(name)")
+                    }
+                    Text(workspace.appUser.rawValue)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .accessibilityIdentifier("settings-linear-yellowhammer-id-\(name)")
+                }
             }
             GridRow {
                 Text("Projects").foregroundStyle(.secondary)

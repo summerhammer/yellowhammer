@@ -38,6 +38,34 @@ public enum LinearInstallationStatus: Equatable, Sendable {
         rows.first { $0.installation == installation && !($0.workspaceName ?? "").isEmpty }?.workspaceName
     }
 
+    public static func workspaceName(
+        in rows: [DoctorFindingRow], installation: String, workspaceID: String
+    ) -> String? {
+        rows.first {
+            $0.installation == installation && $0.workspace == workspaceID
+                && !($0.workspaceName ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }?.workspaceName
+    }
+
+    public static func yellowhammerIdentity(
+        in rows: [DoctorFindingRow], installation: String, workspaceID: String, identityID: BoardObjectID
+    ) -> BoardIdentity? {
+        rows.first {
+            $0.installation == installation && $0.workspace == workspaceID
+                && $0.yellowhammerIdentity?.id == identityID
+        }?.yellowhammerIdentity
+    }
+
+    public static func operatorIdentity(
+        in rows: [DoctorFindingRow], installation: String, workspaceID: String, identityID: BoardObjectID?
+    ) -> BoardIdentity? {
+        guard let identityID else { return nil }
+        return rows.first {
+            $0.installation == installation && $0.workspace == workspaceID
+                && $0.operatorIdentity?.id == identityID
+        }?.operatorIdentity
+    }
+
     /// The name a row shows for an installation: the workspace name when known, else the local name. Never
     /// blank, and never the workspace ID (OQ117).
     public static func label(workspaceName: String?, localName: String) -> String {

@@ -100,6 +100,8 @@ public struct DoctorCommand: AsyncParsableCommand {
                 severity: severityString(finding.severity), message: finding.message,
                 installation: finding.installation?.name, workspace: finding.installation?.workspace,
                 workspaceName: finding.installation?.workspaceName,
+                yellowhammerIdentity: finding.installation?.yellowhammerIdentity,
+                operatorIdentity: finding.installation?.operatorIdentity,
                 projects: finding.installation?.projects.map(\.rawValue)
                     ?? finding.codeHosting?.projects.map(\.rawValue)
                     ?? gitHubProjects(of: finding),

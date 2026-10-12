@@ -34,6 +34,24 @@ struct DoctorFindingRowTests {
         #expect(DoctorFindingRow.decodeLastLine([line]) == [base])
     }
 
+    @Test("identity names round-trip and older rows decode without them")
+    func identityNames() {
+        let row = DoctorFindingRow(
+            check: "linear", subject: "operator", severity: "warning", message: "stale",
+            installation: "work", workspace: "ws-1", workspaceName: "Acme",
+            yellowhammerIdentity: BoardIdentity(
+                id: BoardObjectID(rawValue: "app-1"), name: "yellowhammer", displayName: "Yellowhammer"
+            ),
+            operatorIdentity: BoardIdentity(
+                id: BoardObjectID(rawValue: "user-1"), name: "alice", displayName: "Alice"
+            )
+        )
+        let decoded = DoctorFindingRow.decodeLastLine([DoctorFindingRow.encodeLine([row])])
+        #expect(decoded == [row])
+        let old = #"[{"check":"linear","message":"old","severity":"warning","subject":"operator"}]"#
+        #expect(DoctorFindingRow.decodeLastLine([old])?.first?.operatorIdentity == nil)
+    }
+
     @Test("decodeLastLine skips trailing blank lines and ignores earlier ones")
     func skipsBlankLines() {
         let line = DoctorFindingRow.encodeLine([base])
