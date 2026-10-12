@@ -101,6 +101,27 @@ public struct AncestryTester: Sendable {
         return FeatureAncestryReport(branches: branches, results: results)
     }
 
+    /// Evaluates ancestry across `repos`, each against its own ``TestedTip``: the recorded commit when the
+    /// repository still has it, else the Feature Branch. A repository absent from `tips`, or whose tip
+    /// resolves to no commit, is reported indeterminate (no branch commit).
+    public func evaluateAncestry(
+        tips: [String: TestedTip],
+        repos: [Repo],
+        mainlines: ResolvedMainlines? = nil
+    ) async -> FeatureAncestryReport {
+        var results: [RepoAncestryResult] = []
+        for repo in repos {
+            let tip = tips[repo.name] ?? TestedTip(branch: nil)
+            results.append(
+                await testAncestry(
+                    branch: tip.branchName, recordedCommit: tip.recordedCommit, in: repo,
+                    mainline: mainlines?[repo.name]
+                )
+            )
+        }
+        return FeatureAncestryReport(branches: tips.compactMapValues(\.branch), results: results)
+    }
+
     /// Tests whether a Feature Branch is an ancestor of a single repository's mainline.
     public func testAncestry(
         branch: FeatureBranch,
@@ -116,6 +137,17 @@ public struct AncestryTester: Sendable {
         in repo: Repo,
         mainline: ResolvedMainline? = nil
     ) async -> RepoAncestryResult {
+        await testAncestry(branch: branch, recordedCommit: nil, in: repo, mainline: mainline)
+    }
+
+    /// Tests whether `recordedCommit` — or, when no commit was recorded or the repository no longer has it,
+    /// the branch name — is an ancestor of a single repository's mainline.
+    public func testAncestry(
+        branch: String,
+        recordedCommit: String?,
+        in repo: Repo,
+        mainline: ResolvedMainline? = nil
+    ) async -> RepoAncestryResult {
         let path = (repo.path as NSString).expandingTildeInPath
         guard FileManager.default.fileExists(atPath: path) else {
             return RepoAncestryResult(
@@ -127,8 +159,10 @@ public struct AncestryTester: Sendable {
             )
         }
 
-        // 1. Resolve branch commit SHA in the repository
-        guard let branchCommit = await resolveCommit(forRef: branch, in: path) else {
+        // 1. Resolve the tested commit in the repository: the recorded one, else the branch
+        let recorded = await git.existingCommit(recordedCommit, in: path)
+        let resolved = if let recorded { recorded } else { await resolveTipBranch(branch, in: path) }
+        guard let branchCommit = resolved else {
             return RepoAncestryResult(
                 repository: repo.name,
                 branch: branch,
@@ -188,6 +222,12 @@ public struct AncestryTester: Sendable {
             descendantCommitOrRef
         ])
         return result.exitCode == 0
+    }
+
+    /// The commit a branch name resolves to; nil for the empty name a tip with no Feature Branch carries.
+    private func resolveTipBranch(_ branch: String, in path: String) async -> String? {
+        guard !branch.isEmpty else { return nil }
+        return await resolveCommit(forRef: branch, in: path)
     }
 
     private func resolveCommit(forRef ref: String, in path: String) async -> String? {

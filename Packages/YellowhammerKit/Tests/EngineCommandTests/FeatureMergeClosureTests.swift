@@ -145,6 +145,30 @@ struct FeatureMergeClosureTests {
         #expect(line?.contains("closed by merge") == true)
     }
 
+    @Test("Content evidence counts like ancestry: a squash and a merge commit together close by merge")
+    func contentEvidenceClosesByMerge() async throws {
+        let world = try await makeMergeWorld(mergedRepositories: ["backend"], squashedRepositories: ["mobile"])
+        let context = try world.makeContext(repositories: mergeWorldRepositories(world))
+
+        let outcome = try await PredecessorAncestryGate(closure: FeatureMergeClosure()).check(context)
+
+        #expect(outcome == .landed)
+        #expect(try world.journal.landings(featureID: world.featureID).keys.sorted() == ["backend", "mobile"])
+        #expect(try world.journal.landingEvidence(featureID: world.featureID) == [
+            "backend": .ancestry, "mobile": .content
+        ])
+        let row = try mergeFeatureRow(world.journal, featureID: world.featureID)
+        #expect(row.closedBy == "merge")
+        #expect(try world.journal.events(ofType: .featureClosedByMerge).count == 1)
+        // The evidence is Journal-only: no board text names it.
+        let comments = await world.boards.writing.comments
+        #expect(!comments.contains { $0.body.localizedCaseInsensitiveContains("evidence") })
+        let observed = try #require(try world.journal.events(ofType: .predecessorAncestryObserved).first)
+        #expect(observed.event == .predecessorAncestryObserved(
+            featureIssueID: "FEAT-1", mergedRepositories: ["backend", "mobile"], unmergedRepositories: []
+        ))
+    }
+
     @Test("The Cycle landing in the observing Night itself marks the observing Night triaged")
     func landingInTheObservingNightMarksIt() async throws {
         let world = try await makeMergeWorld(mergedRepositories: ["backend", "mobile"], landInObservingNight: true)
@@ -181,8 +205,12 @@ struct FeatureMergeClosureTests {
         let repositories = mergeWorldRepositories(world)
         // Records the landings the closure itself reads, exactly what the gate would have done first.
         let context = try world.makeContext(repositories: repositories)
-        try world.journal.recordLanding(featureID: world.featureID, repository: "backend", mainlineCommit: "b1")
-        try world.journal.recordLanding(featureID: world.featureID, repository: "mobile", mainlineCommit: "m1")
+        try world.journal.recordLanding(
+            featureID: world.featureID, repository: "backend", mainlineCommit: "b1", evidence: .ancestry
+        )
+        try world.journal.recordLanding(
+            featureID: world.featureID, repository: "mobile", mainlineCommit: "m1", evidence: .ancestry
+        )
         let (feature, _) = try #require(try world.journal.inFlightFeature())
 
         let closure = FeatureMergeClosure()

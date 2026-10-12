@@ -177,6 +177,13 @@ func runningAttemptsAcrossRepos() throws {
     #expect(attempts.allSatisfy { $0.round == 1 })
 }
 
+/// An Observed Merge for `featureID` in `repository`, observed at the fixture epoch.
+private func recordFixtureLanding(_ journal: JournalStore, featureID: Int64, repository: String) throws {
+    try journal.recordLanding(
+        featureID: featureID, repository: repository, mainlineCommit: "abc", evidence: .ancestry, now: epoch
+    )
+}
+
 @Test("Feature lanes count done/total, prioritise landed and decisions, and otherwise require activity")
 func featureLanes() throws {
     let fixture = try JournalFixture()
@@ -198,7 +205,7 @@ func featureLanes() throws {
     try insertCard(journal, cycleID: cycle, issueID: "D-1", repository: "d", state: .inProgress, order: 1)
     try insertCard(journal, cycleID: cycle, issueID: "D-2", repository: "d", state: .done, order: 2)
     try insertCard(journal, cycleID: cycle, issueID: "D-3", repository: "d", state: .shelved, order: 3)
-    _ = try journal.recordLanding(featureID: feature.featureID, repository: "a", mainlineCommit: "abc", now: epoch)
+    try recordFixtureLanding(journal, featureID: feature.featureID, repository: "a")
     let run = RunID()
     _ = try journal.claimActLease(act: .land, runID: run, mode: .real, now: epoch)
     let opening = try journal.openNight(nightStart: nightStart, mode: .real, act: .land, runID: run, now: epoch)
@@ -324,7 +331,7 @@ func noPushedBranchRepositoryStaysAListedLane() throws {
         try JournalStore.insertFeatureRepositories(db, featureID: feature.featureID, repositories: ["a", "web"])
     }
     try journal.append(.noPushedBranchOutcome(cycleID: feature.cycleID, featureIssueID: "F-1", repository: "web"))
-    _ = try journal.recordLanding(featureID: feature.featureID, repository: "a", mainlineCommit: "abc", now: epoch)
+    try recordFixtureLanding(journal, featureID: feature.featureID, repository: "a")
 
     let snapshot = try #require(try PulseSnapshot.read(from: journal, status: .idle).feature)
     let lanes = Dictionary(uniqueKeysWithValues: snapshot.lanes.map { ($0.repo, $0) })

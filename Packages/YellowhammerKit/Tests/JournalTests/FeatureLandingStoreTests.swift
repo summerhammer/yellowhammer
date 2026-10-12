@@ -64,15 +64,63 @@ struct FeatureLandingStoreTests {
         let journal = try fixture.open()
         let featureID = try insertFixtureFeature(journal, issueID: "FEAT-1")
 
-        let first = try journal.recordLanding(featureID: featureID, repository: "backend", mainlineCommit: "aaa")
-        let second = try journal.recordLanding(featureID: featureID, repository: "backend", mainlineCommit: "bbb")
-        _ = try journal.recordLanding(featureID: featureID, repository: "mobile", mainlineCommit: "ccc")
+        let first = try journal.recordLanding(
+            featureID: featureID, repository: "backend", mainlineCommit: "aaa", evidence: .ancestry
+        )
+        let second = try journal.recordLanding(
+            featureID: featureID, repository: "backend", mainlineCommit: "bbb", evidence: .ancestry
+        )
+        _ = try journal.recordLanding(
+            featureID: featureID, repository: "mobile", mainlineCommit: "ccc", evidence: .ancestry
+        )
 
         #expect(first)
         #expect(!second)
         let landings = try journal.landings(featureID: featureID)
         #expect(landings["backend"] == "aaa")
         #expect(landings["mobile"] == "ccc")
+    }
+
+    @Test("recordLanding keeps the evidence of the first observation, and landingEvidence reads each repository")
+    func recordLandingKeepsTheFirstEvidence() throws {
+        let fixture = try JournalFixture()
+        let journal = try fixture.open()
+        let featureID = try insertFixtureFeature(journal, issueID: "FEAT-1")
+
+        try journal.recordLanding(
+            featureID: featureID, repository: "backend", mainlineCommit: "aaa", evidence: .content
+        )
+        let overwritten = try journal.recordLanding(
+            featureID: featureID, repository: "backend", mainlineCommit: "bbb", evidence: .ancestry
+        )
+        try journal.recordLanding(
+            featureID: featureID, repository: "mobile", mainlineCommit: "ccc", evidence: .ancestry
+        )
+
+        #expect(!overwritten)
+        #expect(try journal.landingEvidence(featureID: featureID) == ["backend": .content, "mobile": .ancestry])
+        // Callers that need only the repository set are unaffected by the evidence.
+        #expect(try journal.landings(featureID: featureID) == ["backend": "aaa", "mobile": "ccc"])
+    }
+
+    @Test("A landing whose evidence is neither ancestry nor content is unreadable")
+    func unknownEvidenceIsUnreadable() throws {
+        let fixture = try JournalFixture()
+        let journal = try fixture.open()
+        let featureID = try insertFixtureFeature(journal, issueID: "FEAT-1")
+        try journal.write { db in
+            try db.execute(
+                sql: """
+                INSERT INTO feature_landing (feature_id, repository, mainline_commit, observed_at, evidence)
+                VALUES (?, 'backend', 'aaa', ?, 'guess')
+                """,
+                arguments: [featureID, JournalStore.timestamp(epoch)]
+            )
+        }
+
+        #expect(throws: JournalError.landingEvidenceUnreadable(featureID: featureID, repository: "backend")) {
+            _ = try journal.landingEvidence(featureID: featureID)
+        }
     }
 
     @Test("markFeatureAbandoned sets abandoned_at; a second Feature is untouched")

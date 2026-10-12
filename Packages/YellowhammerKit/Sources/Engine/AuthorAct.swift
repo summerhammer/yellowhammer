@@ -9,8 +9,9 @@ public enum PredecessorGateOutcome: Equatable, Sendable {
     case landed
     /// The predecessor Feature has not landed in one or more repositories: authoring must not proceed.
     case notLanded(predecessorIssueID: String, repositories: [String])
-    /// The predecessor Feature's Feature Branch could not be found in one or more repositories that
-    /// have no recorded landing either (roadmap P9.9): authoring must not proceed, but this is not the
+    /// Neither the commit the land Act recorded nor the Feature Branch of the predecessor Feature could be
+    /// found in one or more repositories that have no Observed Merge either (roadmap P9.9; spec:
+    /// feature-authoring/select-the-next-feature, #tested-tip): authoring must not proceed, but this is not the
     /// same as a known unmerged branch — takes precedence over ``notLanded`` when any repository is
     /// indeterminate.
     case indeterminate(predecessorIssueID: String, repositories: [String])

@@ -110,10 +110,14 @@ final class MergeWorld {
 /// an earlier Night than the one the world's context observes ancestry on, so the triaged-Night rule
 /// has two distinct Nights to tell apart, unless `landInObservingNight` says otherwise.
 func makeMergeWorld(
-    mergedRepositories: Set<String>, landInObservingNight: Bool = false
+    mergedRepositories: Set<String>, squashedRepositories: Set<String> = [], landInObservingNight: Bool = false
 ) async throws -> MergeWorld {
-    let backend = try await makeMergeRepository("backend", merged: mergedRepositories.contains("backend"))
-    let mobile = try await makeMergeRepository("mobile", merged: mergedRepositories.contains("mobile"))
+    let backend = try await makeMergeRepository(
+        "backend", merged: mergedRepositories.contains("backend"), squashed: squashedRepositories.contains("backend")
+    )
+    let mobile = try await makeMergeRepository(
+        "mobile", merged: mergedRepositories.contains("mobile"), squashed: squashedRepositories.contains("mobile")
+    )
 
     let fixture = try OutboxJournalFixture()
     let journal = try fixture.open()
@@ -179,15 +183,19 @@ func mergeNightTriagedAt(_ journal: JournalStore, nightID: Int64) throws -> Date
     try journal.night(id: nightID)?.triagedAt
 }
 
-/// One fixture repository with the Feature Branch cut from `main` and, when `merged`, merged back into it.
-private func makeMergeRepository(_ name: String, merged: Bool) async throws -> GateGitFixture {
+/// One fixture repository with the Feature Branch cut from `main` and, when `merged`, merged back into it —
+/// with a merge commit, or with Squash and merge when `squashed`, which leaves the branch no ancestor of `main`.
+private func makeMergeRepository(_ name: String, merged: Bool, squashed: Bool = false) async throws -> GateGitFixture {
     let repository = GateGitFixture(name: "merge-closure-\(name)-\(UUID().uuidString)")
     await repository.initRepo()
     _ = try await repository.commit(message: "init")
     _ = await repository.run(["checkout", "-b", mergeClosureBranch])
     _ = try await repository.commit(filename: "feat.txt", content: "feat", message: "feature commit")
     _ = await repository.run(["checkout", "main"])
-    if merged {
+    if squashed {
+        _ = await repository.run(["merge", "--squash", mergeClosureBranch])
+        _ = await repository.run(["commit", "-m", "squash"])
+    } else if merged {
         _ = await repository.run(["merge", "--no-ff", "-m", "merge", mergeClosureBranch])
     }
     return repository

@@ -173,6 +173,9 @@ extension JournalMigrations {
             table.column("repository", .text).notNull()
             table.column("mainline_commit", .text).notNull()
             table.column("observed_at", .text).notNull()
+            // How the merge was observed: `ancestry` (the tested tip is an ancestor of mainline) or
+            // `content` (a squash or rebase merge, found by the content test). Journal-only.
+            table.column("evidence", .text).notNull()
             table.primaryKey(["feature_id", "repository"])
         }
     }

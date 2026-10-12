@@ -160,7 +160,9 @@ struct FeatureSettleGestureTests {
     @Test("abandon on a Partial Landing: worktree release is a no-op, abandoned repositories recorded")
     func abandonedOnAPartialLanding() async throws {
         let world = try await makeSettleWorld(landed: true)
-        try world.journal.recordLanding(featureID: world.featureID, repository: "backend", mainlineCommit: "c1")
+        try world.journal.recordLanding(
+            featureID: world.featureID, repository: "backend", mainlineCommit: "c1", evidence: .ancestry
+        )
         try world.journal.recordPullRequest(
             featureID: world.featureID, repository: "mobile", url: nil, nightID: world.previousNightID, runID: RunID()
         )

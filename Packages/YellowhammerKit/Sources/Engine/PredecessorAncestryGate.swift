@@ -12,8 +12,9 @@ public protocol PostMergeClosure: Sendable {
 
 /// What is wrong with the predecessor Feature's recorded state, such that the gate refuses to guess.
 public enum PredecessorAncestryGateError: Error, Sendable, Equatable {
-    /// A predecessor Feature exists but has no recorded Feature Branch, and at least one repository in N
-    /// has no recorded landing to fall back on.
+    /// A repository in N has no recorded Feature Branch and no recorded landed commit, and no Observed Merge:
+    /// a Journal fault, not an unresolvable tip. The Feature's Worktree name does not stand in for the
+    /// branch here. An unresolvable tip with a recorded name or commit is indeterminate instead.
     case predecessorBranchMissing(featureIssueID: String)
     /// The predecessor's Cycle pushed a Feature Branch for a repository this Project has no configuration for.
     case predecessorRepositoryNotConfigured(featureIssueID: String, repository: String)
@@ -26,7 +27,10 @@ extension PredecessorAncestryGateError: CustomStringConvertible {
     public var description: String {
         switch self {
         case .predecessorBranchMissing(let featureIssueID):
-            return "Predecessor Feature '\(featureIssueID)' has no recorded Feature Branch."
+            return """
+                Predecessor Feature '\(featureIssueID)' has a repository with neither a recorded Feature Branch \
+                nor a recorded pushed commit.
+                """
         case .predecessorRepositoryNotConfigured(let featureIssueID, let repository):
             return """
                 Predecessor Feature '\(featureIssueID)' touched repository '\(repository)', which is not \
@@ -44,8 +48,13 @@ extension PredecessorAncestryGateError: CustomStringConvertible {
 ///
 /// Runs its ancestry pass every Night, on whichever Feature is relevant (roadmap P9.9): the in-flight
 /// Feature when one is open and its Cycle has landed, or the walk's predecessor when nothing is in
-/// flight. A repository already recorded landed reads no git at all; a Feature with a nil branch only
-/// throws when some repository still needs a fresh ancestry test.
+/// flight. A repository already recorded landed (an Observed Merge) reads no git at all; a repository with
+/// neither a recorded branch nor a recorded commit only throws when it still needs a fresh test.
+///
+/// The merge test per repository is ancestry first, then — only where that fails — the content test, so a
+/// predecessor merged with Squash and merge or Rebase and merge opens the gate too. The tested tip is the
+/// commit the land Act recorded, not a branch ref (see ``TestedTip``). The test itself is in
+/// `PredecessorAncestryGate+MergeTest.swift`.
 ///
 /// The pass runs over N (``JournalStore/pushedRepositories(featureID:)``), never over a repository with a
 /// No-Pushed-Branch Outcome: its Feature Branch sits at its base and is trivially an ancestor of
@@ -56,15 +65,19 @@ public struct PredecessorAncestryGate: PredecessorGate {
     public let mergeTester: MergeTester
     /// The real closure seam is ``FeatureMergeClosure`` (P10.8); nil skips it (see ``PostMergeClosure``).
     public let closure: (any PostMergeClosure)?
+    /// Deletes a repository's `refs/yellowhammer/landed/<branch>` pin once its Observed Merge is recorded.
+    public let landedTipPin: LandedTipPin
 
     public init(
         ancestryTester: AncestryTester = AncestryTester(),
         mergeTester: MergeTester = MergeTester(),
-        closure: (any PostMergeClosure)? = nil
+        closure: (any PostMergeClosure)? = nil,
+        landedTipPin: LandedTipPin = LandedTipPin()
     ) {
         self.ancestryTester = ancestryTester
         self.mergeTester = mergeTester
         self.closure = closure
+        self.landedTipPin = landedTipPin
     }
 
     public func check(_ context: ActContext) async throws -> PredecessorGateOutcome {
@@ -116,20 +129,11 @@ public struct PredecessorAncestryGate: PredecessorGate {
         )
     }
 
-    /// One pass's repositories, split by what this pass found: freshly merged (a landing was just
-    /// recorded), unmerged (a known commit, not an ancestor) and indeterminate (no commit could be
-    /// resolved for the branch at all). A named type rather than a wide tuple.
-    private struct AncestryTestResult {
-        var merged: [String] = []
-        var unmerged: [String] = []
-        var indeterminate: [String] = []
-    }
-
-    /// One pass over one Feature's pushed repositories (N): repositories with a recorded landing are
-    /// counted merged with no git read at all; the rest are ancestry-tested, a fresh landing recorded
-    /// for each that merged, and a Mainline Conflict re-tested for each that did not. Records
-    /// `predecessorAncestryObserved` every time it runs, and fires the closure seam the first pass that
-    /// finds every repository in N merged.
+    /// One pass over one Feature's pushed repositories (N): repositories with an Observed Merge are
+    /// counted merged with no git read at all; the rest are merge-tested (ancestry, then the content test),
+    /// an Observed Merge recorded for each that passed, and a Mainline Conflict reported for each that did
+    /// not. Records `predecessorAncestryObserved` every time it runs, and fires the closure seam the first
+    /// pass that finds every repository in N merged.
     private func runAncestryPass(
         feature: FeatureRecord, pushedRepositories: [String], context: ActContext
     ) async throws -> PredecessorGateOutcome {
@@ -147,45 +151,6 @@ public struct PredecessorAncestryGate: PredecessorGate {
             unmergedRepositories: tested.unmerged.sorted(),
             indeterminateRepositories: tested.indeterminate.sorted(), context: context
         )
-    }
-
-    /// Ancestry-tests the repositories with no recorded landing yet: a fresh landing is recorded for
-    /// each that merged, and a Mainline Conflict is re-tested for each that did not. Empty input skips
-    /// git entirely.
-    private func testUntestedRepositories(
-        _ toTest: [String], feature: FeatureRecord, context: ActContext
-    ) async throws -> AncestryTestResult {
-        guard !toTest.isEmpty else { return AncestryTestResult() }
-        let branches = try context.journal.resolvedFeatureBranches(feature: feature, repositories: toTest)
-        guard toTest.allSatisfy({ branches[$0] != nil }) else {
-            throw PredecessorAncestryGateError.predecessorBranchMissing(featureIssueID: feature.issueID)
-        }
-        let repos = try Self.resolveRepos(featureIssueID: feature.issueID, names: toTest, in: context.repositories)
-        let ancestryReport = await ancestryTester.evaluateAncestry(
-            branches: branches, repos: repos, mainlines: context.mainlines
-        )
-
-        var result = AncestryTestResult()
-        for repoResult in ancestryReport.results {
-            if repoResult.isAncestor, let mainlineCommit = repoResult.mainlineCommit {
-                try context.journal.recordLanding(
-                    featureID: feature.id, repository: repoResult.repository, mainlineCommit: mainlineCommit
-                )
-                result.merged.append(repoResult.repository)
-            } else if repoResult.branchCommit == nil {
-                result.indeterminate.append(repoResult.repository)
-            } else {
-                result.unmerged.append(repoResult.repository)
-            }
-        }
-
-        if !result.unmerged.isEmpty {
-            try await reportMainlineConflicts(
-                branches: branches, repos: repos, unmergedRepositories: result.unmerged.sorted(),
-                feature: feature, context: context
-            )
-        }
-        return result
     }
 
     /// Fires the closure seam the first pass that finds every repository in N merged, records
@@ -226,46 +191,5 @@ public struct PredecessorAncestryGate: PredecessorGate {
             return .notLanded(predecessorIssueID: feature.issueID, repositories: unmergedRepositories)
         }
         return .landed
-    }
-
-    /// Resolves the Project's configured `Repo`s for every repository name given. Throws when this
-    /// Project has no repositories at all, or when one of them is not among its own — the gate never
-    /// guesses, and never reads a repo outside this Project's scope.
-    private static func resolveRepos(
-        featureIssueID: String, names: [String], in repositories: ProjectRepositories?
-    ) throws -> [Repo] {
-        guard let repositories else {
-            throw PredecessorAncestryGateError.noRepositoriesConfigured(featureIssueID: featureIssueID)
-        }
-        return try names.map { name in
-            guard let repo = repositories.workingRepo(named: name) else {
-                throw PredecessorAncestryGateError.predecessorRepositoryNotConfigured(
-                    featureIssueID: featureIssueID, repository: name
-                )
-            }
-            return repo
-        }
-    }
-
-    /// Re-runs the merge test on the unmerged repositories only, and records one
-    /// `mainlineConflictDetected` per repository whose test found a Mainline Conflict.
-    private func reportMainlineConflicts(
-        branches: [String: FeatureBranch], repos: [Repo], unmergedRepositories: [String],
-        feature: FeatureRecord, context: ActContext
-    ) async throws {
-        let unmergedRepos = repos.filter { unmergedRepositories.contains($0.name) }
-        let mergeReport = await mergeTester.evaluateMerge(
-            branches: branches, repos: unmergedRepos, mainlines: context.mainlines
-        )
-        for result in mergeReport.results where result.isMainlineConflict {
-            try context.journal.append(
-                .mainlineConflictDetected(
-                    featureIssueID: feature.issueID,
-                    repository: result.repository,
-                    paths: result.conflictingPaths
-                ),
-                act: context.act, runID: context.runID, nightID: context.night.id
-            )
-        }
     }
 }

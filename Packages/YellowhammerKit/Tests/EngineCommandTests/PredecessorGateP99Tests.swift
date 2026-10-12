@@ -315,10 +315,10 @@ struct PredecessorGateLandingTests {
         )
 
         let firstInserted = try journal.recordLanding(
-            featureID: featureID, repository: "backend", mainlineCommit: "aaa"
+            featureID: featureID, repository: "backend", mainlineCommit: "aaa", evidence: .ancestry
         )
         let secondInserted = try journal.recordLanding(
-            featureID: featureID, repository: "backend", mainlineCommit: "bbb"
+            featureID: featureID, repository: "backend", mainlineCommit: "bbb", evidence: .ancestry
         )
 
         #expect(firstInserted)
