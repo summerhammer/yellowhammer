@@ -225,4 +225,10 @@ struct SetupInvocationTests {
         #expect(SetupInvocation.connectGitHubCLIArguments(connection: "gh")
             == ["config", "connect-code-hosting", "gh", "--gh-cli"])
     }
+
+    @Test("Regenerating a Project\u{2019}s LaunchAgents fixes only the launchd check, as JSON")
+    func regenerateScheduledJobsArguments() {
+        #expect(SetupInvocation.regenerateScheduledJobsArguments(project: "acme")
+            == ["doctor", "--fix", "--project", "acme", "--check", "launchd", "--json"])
+    }
 }

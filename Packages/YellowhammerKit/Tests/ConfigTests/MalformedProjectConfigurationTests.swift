@@ -72,6 +72,9 @@ private let limitsAndScheduleFixtures: [MalformedFixture] = [
     MalformedFixture("build-every-zero", line: 12, key: "schedule.build_every_minutes", .notPositive(0)),
     MalformedFixture("invalid-time-hour", line: 12, key: "schedule.night_start", .invalidTimeOfDay("25:00")),
     MalformedFixture("invalid-time-format", line: 12, key: "schedule.night_end", .invalidTimeOfDay("9:00")),
+    MalformedFixture(
+        "schedule-24-hour-window", line: 13, key: "schedule.night_end", .twentyFourHourNightWindow("22:00")
+    ),
     MalformedFixture("unknown-schedule-key", line: 12, key: "schedule.weird_time", .unknownKey)
 ]
 

@@ -346,8 +346,8 @@ struct DoctorLaunchdScheduleTests {
         #expect(author.message.contains("not installed"))
     }
 
-    @Test("A [schedule] the grid refuses warns, naming the error, and never crashes")
-    func refusedScheduleWarns() async throws {
+    @Test("A 24-hour [schedule] is refused at load: the configuration check fails it, naming the error")
+    func twentyFourHourScheduleIsRefusedAtLoad() async throws {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
         try directory.writeProjectFile(id: "alpha", """
@@ -373,9 +373,9 @@ struct DoctorLaunchdScheduleTests {
             directory: directory, homeDirectory: home, fix: true, checks: [.configuration, .launchd]
         ).run()
 
-        let refusal = try #require(findings.first { $0.message.contains("cannot be scheduled") })
-        #expect(refusal.severity == .warning)
-        #expect(refusal.message.contains("24-hour Night window"))
+        let refusal = try #require(findings.first { $0.message.contains("24-hour Night window") })
+        #expect(refusal.check == .configuration)
+        #expect(refusal.severity == .failure)
     }
 }
 

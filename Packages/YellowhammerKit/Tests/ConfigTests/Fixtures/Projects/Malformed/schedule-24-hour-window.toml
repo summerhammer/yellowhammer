@@ -1,0 +1,16 @@
+id = "schedule-24-hour-window"
+name = "Twenty-four Hour Window"
+board = { linear = { connection = "acme", project = "TFW" } }
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"
+
+[schedule]
+night_start = "22:00"
+night_end = "22:00"
+
+[code_hosting]
+connection = "github"

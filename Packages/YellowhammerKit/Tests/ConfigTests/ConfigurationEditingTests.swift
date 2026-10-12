@@ -44,6 +44,26 @@ struct ConfigurationEditingTests {
 
     // MARK: - Edits round-trip through the loader
 
+    @Test("Editing the schedule round-trips through the loader")
+    func scheduleEditRoundTrips() throws {
+        let project = try testEditingProject(id: "editschedule")
+        let directory = try makeEditingDirectory(machine: try testEditingMachine(), projects: [project])
+        defer { cleanupEditingDirectory(directory) }
+        let file = editingProjectFileURL(directory, "editschedule")
+        let originalText = try String(contentsOf: file, encoding: .utf8)
+
+        var draft = ProjectFileDraft(project)
+        draft.schedule = ScheduleDraft(nightStart: "21:30", nightEnd: "05:45", buildEveryMinutes: "20")
+        try Configuration.save(draft.renderedTOML, to: file, in: directory, replacing: originalText)
+
+        let reloaded = try #require(Configuration.load(directory: directory).projects.first)
+        #expect(reloaded.schedule == Schedule(
+            nightStart: try #require(TimeOfDay("21:30")),
+            nightEnd: try #require(TimeOfDay("05:45")),
+            buildEveryMinutes: 20
+        ))
+    }
+
     @Test("Editing name, linear project, adding a Repo, a Bound and a routing override round-trips")
     func projectEditRoundTrips() throws {
         let machine = try testEditingMachine()

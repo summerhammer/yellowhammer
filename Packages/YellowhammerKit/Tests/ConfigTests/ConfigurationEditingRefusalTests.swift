@@ -34,6 +34,51 @@ struct ConfigurationEditingRefusalTests {
         }
     }
 
+    @Test("A night_start the loader cannot read is refused with invalidTimeOfDay, and nothing is written")
+    func scheduleBadTimeIsRefused() throws {
+        try expectProjectEditRefused(id: "badtime") { draft in
+            draft.schedule.nightStart = "25:00"
+        } assertReason: { reason, key in
+            #expect(reason == .invalidTimeOfDay("25:00"))
+            #expect(key == "schedule.night_start")
+        }
+    }
+
+    @Test("A non-numeric build_every_minutes is refused with typeMismatch")
+    func scheduleIntervalNonNumericIsRefused() throws {
+        try expectProjectEditRefused(id: "intervalabc") { draft in
+            draft.schedule.buildEveryMinutes = "abc"
+        } assertReason: { reason, key in
+            guard case .typeMismatch(let expected, _) = reason else {
+                Issue.record("expected .typeMismatch, got \(reason)")
+                return
+            }
+            #expect(expected == "integer")
+            #expect(key == "schedule.build_every_minutes")
+        }
+    }
+
+    @Test("A build_every_minutes of 0 is refused with notPositive")
+    func scheduleIntervalZeroIsRefused() throws {
+        try expectProjectEditRefused(id: "intervalzero") { draft in
+            draft.schedule.buildEveryMinutes = "0"
+        } assertReason: { reason, key in
+            #expect(reason == .notPositive(0))
+            #expect(key == "schedule.build_every_minutes")
+        }
+    }
+
+    @Test("Equal night_start and night_end are refused as a 24-hour Night window")
+    func scheduleEqualTimesAreRefused() throws {
+        try expectProjectEditRefused(id: "equaltimes") { draft in
+            draft.schedule.nightStart = "21:00"
+            draft.schedule.nightEnd = "21:00"
+        } assertReason: { reason, key in
+            #expect(reason == .twentyFourHourNightWindow("21:00"))
+            #expect(key == "schedule.night_end")
+        }
+    }
+
     @Test("A routing override naming an undeclared CLI is refused")
     func overrideUndeclaredCLIIsRefused() throws {
         try expectProjectEditRefused(id: "undeclaredcli") { draft in

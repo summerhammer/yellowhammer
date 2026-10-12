@@ -54,7 +54,7 @@ struct ProjectConfigurationView: View {
 /// The form itself, split out so it only ever runs with a non-nil draft. The draft binding falls back to
 /// the draft this body saw rather than unwrapping `model.draft`: `Binding($model.draft)` traps when a
 /// reload clears the draft while a field still reads it, as can happen mid-teardown.
-private struct ProjectConfigurationFormView: View {
+struct ProjectConfigurationFormView: View {
     @Bindable var model: ProjectConfigurationModel
     @State private var modelDiscovery = RouteModelDiscoveryState()
     let onSaved: () -> Void
@@ -73,6 +73,7 @@ private struct ProjectConfigurationFormView: View {
                     specSourceBlock(specSource)
                 }
                 reposBlock(draft)
+                nightBlock(draft)
                 boundsBlock(draft)
                 routingBlock(draft)
             } footer: {
@@ -81,12 +82,17 @@ private struct ProjectConfigurationFormView: View {
                         + "are not kept. Editing the file directly stays supported.",
                     failure: model.failure,
                     isDirty: model.isDirty,
-                    canSave: !model.isChangingCodeHosting && modelDiscovery.isValid(
+                    canSave: !model.isChangingCodeHosting && !model.isRegeneratingJobs && modelDiscovery.isValid(
                         draft.wrappedValue.routingOverrides, preserving: model.saved?.routingOverrides ?? []
                     ),
                     identifierPrefix: "configuration",
                     onRevert: { model.revert() },
-                    onSave: { if model.save() { onSaved() } }
+                    onSave: {
+                        if model.save() {
+                            onSaved()
+                            Task { await model.regenerateScheduledJobs() }
+                        }
+                    }
                 )
             }
             .environment(\.routeModelDiscovery, modelDiscovery)

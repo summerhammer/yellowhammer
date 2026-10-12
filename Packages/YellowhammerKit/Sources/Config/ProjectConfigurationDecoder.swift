@@ -4,7 +4,7 @@ import Domain
 ///
 /// Within each table, unknown keys are reported first, in file order, then the known keys in a fixed order.
 struct ProjectConfigurationDecoder {
-    private let decoding: ConfigurationDecoding
+    let decoding: ConfigurationDecoding
     /// When set, the `id` must equal it.
     private let fileStem: String?
 
@@ -175,30 +175,6 @@ struct ProjectConfigurationDecoder {
             consecutiveRefusalsMax: try bound("consecutive_refusals_max", defaults.consecutiveRefusalsMax),
             failedAdoptionsMax: try bound("failed_adoptions_max", defaults.failedAdoptionsMax)
         )
-    }
-
-    private func schedule(in root: TOMLTable) throws(ConfigurationError) -> Schedule {
-        let defaults = Schedule()
-        guard let value = root["schedule"] else { return defaults }
-        let table = try decoding.table(value, key: "schedule")
-        try decoding.rejectUnknownKeys(
-            in: table, path: "schedule", allowed: ["night_start", "night_end", "build_every_minutes"]
-        )
-        return Schedule(
-            nightStart: try timeOfDay("night_start", in: table) ?? defaults.nightStart,
-            nightEnd: try timeOfDay("night_end", in: table) ?? defaults.nightEnd,
-            buildEveryMinutes: try decoding.positiveInteger("build_every_minutes", in: table, path: "schedule")
-                ?? defaults.buildEveryMinutes
-        )
-    }
-
-    private func timeOfDay(_ key: String, in table: TOMLTable) throws(ConfigurationError) -> TimeOfDay? {
-        guard let string = try decoding.optionalString(key, in: table, path: "schedule") else { return nil }
-        guard let time = TimeOfDay(string) else {
-            let line = table[key]?.line ?? table.line
-            throw decoding.error(line: line, key: "schedule.\(key)", .invalidTimeOfDay(string))
-        }
-        return time
     }
 
     // MARK: - GitHub, git and templates
