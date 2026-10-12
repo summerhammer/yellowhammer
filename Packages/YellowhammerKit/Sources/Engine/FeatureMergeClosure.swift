@@ -13,21 +13,27 @@ import Journal
 /// The Cycle is archived `closed_by = merge`; the Feature Issue is archived (`issueArchive`) and never
 /// moved to Done — the spec leaves the merge-closed state deliberately unnamed, which is how "closed by
 /// merge" stays distinguishable from "closed by verification". Never merges or closes a pull request,
-/// never reads GitHub.
+/// never reads GitHub. A Feature already closed by Verification closes nothing further: its merge
+/// records triage only (issue #447) — the landing Night's `triaged_at` and its Done Cards accepted —
+/// with no auto-Block, detachment, archival or board write.
 public struct FeatureMergeClosure: PostMergeClosure, Sendable {
     public init() { }
 
     public func closeByMerge(feature: FeatureRecord, context: ActContext) async throws {
-        // An abandon (P10.9) lands nothing; a Feature already closed by verification is already closed
-        // — its merge closes nothing further.
+        // An abandon (P10.9) lands nothing.
         guard feature.abandonedAt == nil else { return }
-        guard feature.closedBy != .verification else { return }
 
         let journal = context.journal
         // Defence in depth: at N = 0 nothing was merged, and nothing over the empty set reads as merged.
         guard !(try journal.pushedRepositories(featureID: feature.id)).isEmpty else { return }
         guard let cycleID = try journal.cycleID(featureID: feature.id) else {
             throw CycleArchiveFault(reason: "Feature '\(feature.issueID)' has no recorded Cycle to close by merge")
+        }
+
+        // Already closed by verification: nothing further to close; record the triage only (issue #447).
+        guard feature.closedBy != .verification else {
+            try recordVerifiedMerge(feature: feature, cycleID: cycleID, context: context)
+            return
         }
 
         try await CardAutoBlock.waitingOnYou(cycleID: cycleID, context: context)
@@ -56,6 +62,22 @@ public struct FeatureMergeClosure: PostMergeClosure, Sendable {
             acceptedCards: acceptedCards, triagedNightID: triagedNightID
         )
         try await postBoardWrites(computed, context: context)
+    }
+
+    /// The triage record of a verification-closed Feature's merge: the same triaged-Night rule and
+    /// accepted Cards as the Partial Landing path, written in one Journal transaction.
+    private func recordVerifiedMerge(feature: FeatureRecord, cycleID: Int64, context: ActContext) throws {
+        let journal = context.journal
+        let cards = try journal.cards(cycleID: cycleID).filter { !$0.isRemovedFromBoard }
+        let observed = NewVerifiedFeatureMergeObserved(
+            cycleID: cycleID, featureIssueID: feature.issueID,
+            triagedNightID: try journal.triagedNightID(cycleID: cycleID, currentNightID: context.night.id),
+            mergedRepositories: try journal.pushedRepositories(featureID: feature.id),
+            acceptedCards: cards.filter { $0.state == .done }.map(\.issueID).sorted()
+        )
+        try journal.recordVerifiedFeatureMergeObserved(
+            observed, runID: context.runID, act: context.act, nightID: context.night.id
+        )
     }
 
     /// What ``closeByMerge(feature:context:)`` computed, bundled so

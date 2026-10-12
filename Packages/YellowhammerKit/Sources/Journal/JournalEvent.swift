@@ -410,6 +410,15 @@ public enum JournalEvent: Equatable, Sendable {
         cycleID: Int64, featureIssueID: String, repositories: [String], carriedForward: [String],
         acceptedCards: [String], triagedNightID: Int64
     )
+    /// An Observed Merge of a Feature already closed by Verification (spec: morning-report/
+    /// triage-the-morning; issue #447): the Cycle is not closed again. Records the landing Night triaged
+    /// and its Done Cards accepted — the same record merge closure writes for a Partial Landing.
+    /// `repositories` are the merged repositories (sorted); `acceptedCards` the Cycle's Done Cards'
+    /// issue ids (sorted); `triagedNightID` per the triaged-Night rule.
+    case verifiedFeatureMergeObserved(
+        cycleID: Int64, featureIssueID: String, repositories: [String], acceptedCards: [String],
+        triagedNightID: Int64
+    )
     /// A Spec Citation answered the Feature's Refusal (P9.8): `from` is the state it was in, `open` or
     /// `expired`. The consecutive count is untouched.
     case refusalAnswered(feature: String, citation: String, from: String)

@@ -219,6 +219,55 @@ struct NightSummaryInstrumentedRatesTests {
 }
 
 extension NightSummaryInstrumentedRatesTests {
+    @Test("Done Cards named by a verified Feature's Observed Merge count as accepted (issue #447)")
+    func verifiedFeatureMergeObservedCountsAsAccepted() throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let run = RunID()
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+        _ = try journal.claimActLease(act: .author, runID: run, mode: .real, now: base)
+        let first = try journal.openNight(
+            nightStart: try #require(NightStart(rawValue: "2026-09-23")), mode: .real, act: .author, runID: run,
+            now: base
+        ).night
+        let ids = try seedCards(journal, at: base)
+        for (cardID, issueID) in [(ids.first, "CARD-1"), (ids.second, "CARD-2")] {
+            try journal.append(
+                .cardStateTransitioned(cardID: cardID, issueID: issueID, from: .todo, to: .done,
+                                       waitingReason: nil, blockReason: nil),
+                nightID: first.id, now: base.addingTimeInterval(1)
+            )
+        }
+        try journal.write { db in
+            try db.execute(sql: "UPDATE card SET state = 'Done' WHERE id IN (?, ?)", arguments: [ids.first, ids.second])
+        }
+        _ = try journal.closeNight(
+            id: first.id, reason: .nightEnd, act: .land, runID: run, now: base.addingTimeInterval(2)
+        )
+        let second = try journal.openNight(
+            nightStart: try #require(NightStart(rawValue: "2026-09-24")), mode: .real, act: .author, runID: run,
+            now: base.addingTimeInterval(3)
+        ).night
+
+        let before = try NightSummary.instrumentedRateLines(
+            night: try #require(try journal.night(id: second.id)), journal: journal, bounds: .init()
+        )
+        #expect(before.contains { $0.contains("Green Cards accepted") && $0.contains("0/2 (0%)") })
+
+        try journal.append(
+            .verifiedFeatureMergeObserved(
+                cycleID: ids.cycle, featureIssueID: "FEAT-1", repositories: ["backend"],
+                acceptedCards: ["CARD-1", "CARD-2"], triagedNightID: first.id
+            ),
+            nightID: second.id, now: base.addingTimeInterval(4)
+        )
+
+        let after = try NightSummary.instrumentedRateLines(
+            night: try #require(try journal.night(id: second.id)), journal: journal, bounds: .init()
+        )
+        #expect(after.contains { $0.contains("Green Cards accepted") && $0.contains("2/2 (100%)") })
+    }
+
     @Test("Two Nights retain hand-counted fractions, opening snapshots and the citation count")
     // swiftlint:disable:next function_body_length
     func twoNightRates() throws {

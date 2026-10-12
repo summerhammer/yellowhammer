@@ -73,7 +73,8 @@ extension NightSummary {
         events.reduce(into: [String: Date]()) { cards, record in
             switch record.event {
             case .featureSettled(_, _, let accepted, _),
-                 .featureClosedByMerge(_, _, _, _, let accepted, _):
+                 .featureClosedByMerge(_, _, _, _, let accepted, _),
+                 .verifiedFeatureMergeObserved(_, _, _, let accepted, _):
                 for card in accepted where cards[card] == nil { cards[card] = record.occurredAt }
             default: break
             }

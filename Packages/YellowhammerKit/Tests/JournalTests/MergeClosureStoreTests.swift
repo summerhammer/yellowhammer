@@ -228,6 +228,89 @@ struct MergeClosureStoreTests {
     }
 }
 
+@Suite("Observed Merge of a verification-closed Feature, the Journal store (issue #447)")
+struct VerifiedFeatureMergeObservedStoreTests {
+    private func observed(cycleID: Int64, nightID: Int64) -> NewVerifiedFeatureMergeObserved {
+        NewVerifiedFeatureMergeObserved(
+            cycleID: cycleID, featureIssueID: "FEAT-1", triagedNightID: nightID,
+            mergedRepositories: ["backend", "mobile"], acceptedCards: ["BACK-1"]
+        )
+    }
+
+    @Test("A first call stamps triaged_at and appends one event; the Cycle's closure is untouched")
+    func recordsOnFirstCall() throws {
+        let fixture = try JournalFixture()
+        let journal = try fixture.open()
+        let featureID = try makeFeature(journal)
+        let cycleID = try makeCycle(journal, featureID: featureID)
+        let runID = RunID()
+        guard case .claimed = try journal.claimActLease(act: .author, runID: runID, mode: .real, now: epoch) else {
+            Issue.record("expected the lease to be claimed")
+            return
+        }
+        let night = try journal.openNight(
+            nightStart: mergeClosureStoreNightStart, mode: .real, act: .author, runID: runID, now: epoch
+        ).night
+        try journal.archiveCycle(
+            cycleID: cycleID, featureID: featureID, closedBy: .verification, runID: runID, now: epoch
+        )
+        let before = try featureRow(journal, featureID: featureID)
+
+        let first = try journal.recordVerifiedFeatureMergeObserved(
+            observed(cycleID: cycleID, nightID: night.id), runID: runID, act: .author, nightID: night.id, now: epoch
+        )
+        let second = try journal.recordVerifiedFeatureMergeObserved(
+            observed(cycleID: cycleID, nightID: night.id), runID: runID, act: .author, nightID: night.id, now: epoch
+        )
+
+        #expect(first)
+        #expect(!second)
+        #expect(try journal.night(id: night.id)?.triagedAt != nil)
+        let events = try journal.events(ofType: .verifiedFeatureMergeObserved)
+        #expect(events.count == 1)
+        let expected: JournalEvent = .verifiedFeatureMergeObserved(
+            cycleID: cycleID, featureIssueID: "FEAT-1", repositories: ["backend", "mobile"],
+            acceptedCards: ["BACK-1"], triagedNightID: night.id
+        )
+        #expect(events[0].event == expected)
+        let after = try featureRow(journal, featureID: featureID)
+        #expect(after.state == before.state)
+        #expect(after.closedBy == "verification")
+        #expect(try journal.events(ofType: .featureClosedByMerge).isEmpty)
+        #expect(try journal.events(ofType: .cycleArchived).isEmpty)
+    }
+
+    @Test("A Night already triaged keeps its original triaged_at and gets no event")
+    func alreadyTriagedNightIsLeftAlone() throws {
+        let fixture = try JournalFixture()
+        let journal = try fixture.open()
+        let featureID = try makeFeature(journal)
+        let cycleID = try makeCycle(journal, featureID: featureID)
+        let runID = RunID()
+        guard case .claimed = try journal.claimActLease(act: .author, runID: runID, mode: .real, now: epoch) else {
+            Issue.record("expected the lease to be claimed")
+            return
+        }
+        let night = try journal.openNight(
+            nightStart: mergeClosureStoreNightStart, mode: .real, act: .author, runID: runID, now: epoch
+        ).night
+        try journal.write { db in
+            try db.execute(
+                sql: "UPDATE night SET triaged_at = '2026-01-01T00:00:00.000Z' WHERE id = ?", arguments: [night.id]
+            )
+        }
+        let original = try #require(try journal.night(id: night.id)?.triagedAt)
+
+        let wrote = try journal.recordVerifiedFeatureMergeObserved(
+            observed(cycleID: cycleID, nightID: night.id), runID: runID, act: .author, nightID: night.id, now: epoch
+        )
+
+        #expect(!wrote)
+        #expect(try journal.night(id: night.id)?.triagedAt == original)
+        #expect(try journal.events(ofType: .verifiedFeatureMergeObserved).isEmpty)
+    }
+}
+
 @Suite("The triaged-Night rule (P10.8)")
 struct TriagedNightRuleTests {
     @Test("With no recorded landing, the observing Night itself is triaged")

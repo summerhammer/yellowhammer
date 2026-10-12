@@ -26,6 +26,8 @@ extension JournalEvent {
             )
         case .featureClosedByMerge:
             try decodeFeatureClosedByMerge(reader)
+        case .verifiedFeatureMergeObserved:
+            try decodeVerifiedFeatureMergeObserved(reader)
         default:
             try decodeLandStep(reader)
         }
@@ -35,7 +37,7 @@ extension JournalEvent {
     /// closure by merge — dispatched here so the exhaustive payload switch stays one line for all four.
     var landActPayload: [String: String]? {
         featureVerifiedPayload ?? featureReturnedPayload ?? cycleArchivedPayload ?? featureClosedByMergePayload
-            ?? noPushedBranchOutcomePayload
+            ?? verifiedFeatureMergeObservedPayload ?? noPushedBranchOutcomePayload
     }
 
     /// The `noPushedBranchOutcome` event's payload.
@@ -56,6 +58,21 @@ extension JournalEvent {
             "cycle_id": String(cycleID), "feature_issue_id": featureIssueID,
             "repositories": repositories.joined(separator: "\u{1F}"),
             "carried_forward": carriedForward.joined(separator: "\u{1F}"),
+            "accepted_cards": acceptedCards.joined(separator: "\u{1F}"),
+            "triaged_night_id": String(triagedNightID)
+        ]
+    }
+
+    /// The `verifiedFeatureMergeObserved` event's payload (issue #447).
+    var verifiedFeatureMergeObservedPayload: [String: String]? {
+        guard case .verifiedFeatureMergeObserved(
+            let cycleID, let featureIssueID, let repositories, let acceptedCards, let triagedNightID
+        ) = self else {
+            return nil
+        }
+        return [
+            "cycle_id": String(cycleID), "feature_issue_id": featureIssueID,
+            "repositories": repositories.joined(separator: "\u{1F}"),
             "accepted_cards": acceptedCards.joined(separator: "\u{1F}"),
             "triaged_night_id": String(triagedNightID)
         ]
@@ -118,6 +135,18 @@ extension JournalEvent {
             featureIssueID: try reader.require("feature_issue_id"),
             repositories: rawRepositories.isEmpty ? [] : rawRepositories.components(separatedBy: "\u{1F}"),
             carriedForward: rawCarriedForward.isEmpty ? [] : rawCarriedForward.components(separatedBy: "\u{1F}"),
+            acceptedCards: rawAcceptedCards.isEmpty ? [] : rawAcceptedCards.components(separatedBy: "\u{1F}"),
+            triagedNightID: try reader.int64("triaged_night_id")
+        )
+    }
+
+    static func decodeVerifiedFeatureMergeObserved(_ reader: PayloadReader) throws -> JournalEvent {
+        let rawRepositories = try reader.require("repositories")
+        let rawAcceptedCards = try reader.require("accepted_cards")
+        return .verifiedFeatureMergeObserved(
+            cycleID: try reader.int64("cycle_id"),
+            featureIssueID: try reader.require("feature_issue_id"),
+            repositories: rawRepositories.isEmpty ? [] : rawRepositories.components(separatedBy: "\u{1F}"),
             acceptedCards: rawAcceptedCards.isEmpty ? [] : rawAcceptedCards.components(separatedBy: "\u{1F}"),
             triagedNightID: try reader.int64("triaged_night_id")
         )
