@@ -214,8 +214,8 @@ struct FeatureMergeClosureTests {
         #expect(try !world.journal.predecessorAncestryPreviouslyFullyMerged(featureIssueID: "FEAT-1"))
     }
 
-    @Test("A Feature already closed by verification reaching k = N writes nothing")
-    func alreadyClosedByVerificationWritesNothing() async throws {
+    @Test("A Feature already closed by verification reaching k = N records triage only (issue #447)")
+    func alreadyClosedByVerificationRecordsTriageOnly() async throws {
         let world = try await makeMergeWorld(mergedRepositories: ["backend", "mobile"])
         let repositories = mergeWorldRepositories(world)
         let context = try world.makeContext(repositories: repositories)
@@ -228,7 +228,27 @@ struct FeatureMergeClosureTests {
 
         try await FeatureMergeClosure().closeByMerge(feature: feature, context: context)
 
+        // The landing Night is triaged and names the Done Card accepted.
+        #expect(try mergeNightTriagedAt(world.journal, nightID: world.landingNightID) != nil)
+        #expect(try mergeNightTriagedAt(world.journal, nightID: context.night.id) == nil)
+        let observed = try world.journal.events(ofType: .verifiedFeatureMergeObserved)
+        #expect(observed.count == 1)
+        #expect(observed[0].event == .verifiedFeatureMergeObserved(
+            cycleID: world.cycleID, featureIssueID: "FEAT-1", repositories: ["backend", "mobile"],
+            acceptedCards: ["BACK-1"], triagedNightID: world.landingNightID
+        ))
+
+        // Nothing else: still closed by verification, no merge-closure records, no board writes,
+        // and the Waiting on You Card is not auto-Blocked.
+        #expect(try mergeFeatureRow(world.journal, featureID: world.featureID).closedBy == "verification")
         #expect(try world.journal.events(ofType: .featureClosedByMerge).isEmpty)
+        #expect(try world.journal.events(ofType: .cycleArchived).isEmpty)
+        #expect(try world.journal.card(id: world.waitingCardID).state == .waitingOnYou)
+        #expect(await world.boards.writing.createCommentCalls == 0)
+
+        // A second call writes nothing further.
+        try await FeatureMergeClosure().closeByMerge(feature: feature, context: context)
+        #expect(try world.journal.events(ofType: .verifiedFeatureMergeObserved).count == 1)
         #expect(await world.boards.writing.createCommentCalls == 0)
     }
 

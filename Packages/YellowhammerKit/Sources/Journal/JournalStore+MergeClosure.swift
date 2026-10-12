@@ -10,7 +10,9 @@ import GRDB
 // (``JournalStore/settleTriagedNightID(currentNightID:)``, JournalStore+Settle.swift) is simpler —
 // unbounded by any Cycle's landing — because a settle write is never racing a merge closure for the
 // same Feature: once a Feature is closed by merge it is no longer in flight, and the settle seam is
-// never called for it (roadmap P10.9's own wiring in AuthorAct.swift).
+// never called for it (roadmap P10.9's own wiring in AuthorAct.swift). A Feature already closed by
+// Verification closes nothing further on merge: it records triage only (issue #447), via
+// ``JournalStore/recordVerifiedFeatureMergeObserved(_:runID:act:nightID:now:)``.
 
 extension JournalStore {
     /// The Feature's 1:1 Cycle, archived or not; nil for a Feature the Journal never gave one (never
@@ -107,6 +109,70 @@ extension JournalStore {
             )
             return true
         }
+    }
+}
+
+extension JournalStore {
+    /// Records the Observed Merge of a Feature already closed by Verification (issue #447),
+    /// revalidating the Act Lease first. One write transaction: sets `night.triaged_at` on
+    /// `triagedNightID` only if it is still unset — first write wins — and appends
+    /// `.verifiedFeatureMergeObserved` only when this call wrote the stamp. Never touches the Cycle, its
+    /// `closed_by`, its Cards or the Outbox. Idempotent: returns false, appending nothing, when the Night
+    /// was already triaged.
+    @discardableResult
+    public func recordVerifiedFeatureMergeObserved(
+        _ observed: NewVerifiedFeatureMergeObserved, runID: RunID, act: Act?, nightID: Int64?, now: Date = Date()
+    ) throws -> Bool {
+        try write { db in
+            _ = try Self.revalidateActLease(db, runID: runID, now: now)
+
+            guard
+                let nightRow = try Row.fetchOne(
+                    db, sql: "SELECT triaged_at FROM night WHERE id = ?", arguments: [observed.triagedNightID]
+                )
+            else {
+                throw JournalError.nightUnknown(id: observed.triagedNightID)
+            }
+            guard (nightRow["triaged_at"] as String?) == nil else { return false }
+            let timestamp = JournalStore.timestamp(JournalStore.stored(now))
+            try db.execute(
+                sql: "UPDATE night SET triaged_at = ? WHERE id = ?",
+                arguments: [timestamp, observed.triagedNightID]
+            )
+
+            _ = try Self.insertEvent(
+                db,
+                .verifiedFeatureMergeObserved(
+                    cycleID: observed.cycleID, featureIssueID: observed.featureIssueID,
+                    repositories: observed.mergedRepositories, acceptedCards: observed.acceptedCards,
+                    triagedNightID: observed.triagedNightID
+                ),
+                stamp: EventStamp(act: act, runID: runID, nightID: nightID, now: now)
+            )
+            return true
+        }
+    }
+}
+
+/// Everything recording a verified Feature's Observed Merge needs, bundled so
+/// ``JournalStore/recordVerifiedFeatureMergeObserved(_:runID:act:nightID:now:)`` stays under the
+/// parameter-count limit.
+public struct NewVerifiedFeatureMergeObserved: Sendable {
+    public let cycleID: Int64
+    public let featureIssueID: String
+    public let triagedNightID: Int64
+    public let mergedRepositories: [String]
+    public let acceptedCards: [String]
+
+    public init(
+        cycleID: Int64, featureIssueID: String, triagedNightID: Int64, mergedRepositories: [String],
+        acceptedCards: [String]
+    ) {
+        self.cycleID = cycleID
+        self.featureIssueID = featureIssueID
+        self.triagedNightID = triagedNightID
+        self.mergedRepositories = mergedRepositories
+        self.acceptedCards = acceptedCards
     }
 }
 

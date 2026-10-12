@@ -57,7 +57,8 @@ func eventTypeRawValues() {
         "RefusalOpened", "RefusalRepeated", "RefusalExpired", "RefusalCountReset",
         "LandStep", "CycleLanded", "NoPushedBranchOutcome", "FeatureVerified", "FeatureReturned", "CycleArchived",
         "RefusalAnswered", "AuthoringHaltOpened", "AuthoringHaltRepeated", "AuthoringHaltExpired",
-        "AuthoringHaltCleared", "FeatureClosedByMerge", "FeatureSettled", "FeatureReleased",
+        "AuthoringHaltCleared", "FeatureClosedByMerge", "VerifiedFeatureMergeObserved",
+        "FeatureSettled", "FeatureReleased",
         "SettleValueNotHonoured", "CardUnansweredBoundFired",
         "AdoptionRefused", "CardAdopted", "AdoptionUntestable",
         "FeatureReselected", "ReselectionBoundReached", "RefusalPromotedToStandingItem", "AppInstallationTokenRefresh",
@@ -66,6 +67,25 @@ func eventTypeRawValues() {
     ]
     let actual = JournalEventType.allCases.map { $0.rawValue }.sorted()
     #expect(actual == expected.sorted())
+}
+
+@Test("verifiedFeatureMergeObserved event round-trips, including empty lists")
+func verifiedFeatureMergeObservedRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let full: JournalEvent = .verifiedFeatureMergeObserved(
+        cycleID: 7, featureIssueID: "FEAT-1", repositories: ["backend", "mobile"],
+        acceptedCards: ["BACK-1", "MOB-3"], triagedNightID: 4
+    )
+    let empty: JournalEvent = .verifiedFeatureMergeObserved(
+        cycleID: 8, featureIssueID: "FEAT-2", repositories: [], acceptedCards: [], triagedNightID: 5
+    )
+
+    _ = try journal.append(full, act: .author, runID: RunID(), now: epoch)
+    _ = try journal.append(empty, act: .author, runID: RunID(), now: epoch)
+    let records = try journal.events(ofType: .verifiedFeatureMergeObserved)
+
+    #expect(records.map(\.event) == [full, empty])
 }
 
 @Test("actStarted event round-trips")
