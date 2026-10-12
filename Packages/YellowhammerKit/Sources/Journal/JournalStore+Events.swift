@@ -62,6 +62,20 @@ extension JournalStore {
         }
     }
 
+    /// Every event stamped with one Night, in append order, filtered in SQL. Events stamped with a sibling
+    /// Night, and unstamped ones (`night_id` NULL, e.g. an Act that failed during invocation setup), are not
+    /// included.
+    public func events(nightID: Int64) throws -> [JournalEventRecord] {
+        try read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: "SELECT * FROM event WHERE night_id = ? ORDER BY id ASC",
+                arguments: [nightID]
+            )
+            return try Self.decodeEvents(rows)
+        }
+    }
+
     /// Selected Night rows plus unstamped failures since the supplied boundary, filtered in SQL.
     /// Unstamped failures can precede Night opening when an Act fails during invocation setup.
     public func pulseEvents(nightID: Int64?, unstampedFailuresSince: Date) throws -> [JournalEventRecord] {

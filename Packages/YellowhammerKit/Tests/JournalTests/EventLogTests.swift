@@ -242,3 +242,32 @@ func unknownTypeIsSkipped() throws {
     #expect(all.suffix(2).map(\.event) == [.actStarted, .actEnded])
     let pulse = try journal.pulseEvents(nightID: night, unstampedFailuresSince: epoch)
     #expect(pulse.suffix(2).map(\.event) == [.actStarted, .actEnded])}
+
+@Test("events(nightID:) returns that Night's events in append order, without a sibling Night's or unstamped ones")
+func eventsForOneNight() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+    let nights = try ["2026-09-29", "2026-09-30"].map { start in
+        try journal.write { db in
+            try db.execute(
+                sql: "INSERT INTO night (project_id, night_start, mode, state, opened_at) VALUES (?, ?, ?, ?, ?)",
+                arguments: [fixture.projectID.rawValue, start, "real", "opened", JournalStore.timestamp(epoch)]
+            )
+            return db.lastInsertedRowID
+        }
+    }
+
+    let first = try journal.append(.actStarted, act: .build, runID: run, nightID: nights[0], now: epoch)
+    try journal.append(.actStarted, act: .build, runID: run, nightID: nights[1], now: epoch.addingTimeInterval(1))
+    try journal.append(.mainlineFetchFailed(repository: "backend", reason: "failed"), runID: run, now: epoch)
+    let last = try journal.append(
+        .actEnded, act: .build, runID: run, nightID: nights[0], now: epoch.addingTimeInterval(2)
+    )
+
+    let records = try journal.events(nightID: nights[0])
+    #expect(records.map(\.id) == [first, last])
+    #expect(records.allSatisfy { $0.nightID == nights[0] })
+    #expect(try journal.events(nightID: nights[1]).count == 1)
+    #expect(try journal.events(nightID: 404).isEmpty)
+}

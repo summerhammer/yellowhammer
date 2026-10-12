@@ -1,0 +1,144 @@
+import Domain
+import Foundation
+import Journal
+
+// How a Journal event reads in a Night's account (OQ158 ruling items 14 and 16).
+//
+// The Journal module's payloads stay internal, so this pattern-matches `JournalEvent` and words only the
+// families that matter. Every other event reads as its type's name in plain words, with no detail.
+//
+// Nothing here renders agent output or model-authored free text: a Check's output tail, a Feature
+// selection's reasoning, a question or reply, a review's requested changes and process output are never
+// read. What is worded is what the engine recorded about itself — identifiers, repos, routes, states,
+// counts, results and reasons.
+
+extension NightAccount.Entry {
+    /// The entry for one Journal event. `cardNames` maps a Card's Journal id to its display identifier;
+    /// a Card it does not name reads as `Card <id>`.
+    init(record: JournalEventRecord, cardNames: [Int64: String]) {
+        let wording = NightWording(act: record.act, cardNames: cardNames)
+        let words = wording.words(for: record.event)
+        self.init(
+            id: record.id,
+            occurredAt: record.occurredAt,
+            headline: words.headline,
+            detail: words.detail,
+            isProblem: NightAccount.isProblem(record)
+        )
+    }
+}
+
+extension NightAccount {
+    /// The Card a worded event names by its Journal row id, so the read can name each Card once. Covers the
+    /// events ``NightWording`` words with a Card's name.
+    static func cardID(of event: JournalEvent) -> Int64? {
+        switch event {
+        case .attemptEnded(let id, _, _, _, _, _),
+            .checkRan(let id, _, _, _, _, _, _),
+            .cardStateTransitioned(let id, _, _, _, _, _),
+            .cardLeaseReclaimed(let id, _, _):
+            id
+        default:
+            nil
+        }
+    }
+
+    /// The Night's close reason in plain words.
+    static func words(closeReason: NightCloseReason) -> String {
+        switch closeReason {
+        case .nightEnd: "reached Night end"
+        case .openedAndDied: "opened and died"
+        case .projectRemoved: "Project removed"
+        }
+    }
+
+    /// Why an Act did nothing, in plain words.
+    static func words(idleReason: ActIdleReason) -> String {
+        switch idleReason {
+        case .unfinishedCardsPresent: "Cards are still left to work, so there is nothing to author"
+        case .noFeatureInFlight: "no Feature is in flight"
+        case .cycleHasNoUnfinishedCards: "the Cycle has nothing left to build"
+        case .cycleHasUnfinishedCards: "the Cycle still has unfinished Cards"
+        case .cycleAlreadyLanded: "the Cycle has already landed"
+        }
+    }
+
+    /// Event types that are a problem whatever their payload. ``isProblem(_:)`` adds the three events whose
+    /// payload decides.
+    private static let problemTypes: Set<JournalEventType> = [
+        .linearAuthorizationHalted, .linearUnreachableHalted, .mainlineFetchFailed, .absentNightDetected,
+        .nightOpenedAndDied, .leaseReclaimed, .cardLeaseReclaimed, .notificationDeliveryFailed,
+        .boardWriteFailed, .outboxGroupRolledBack, .managedBlockDelimiterBroken, .worktreeNameCollision,
+        .boardScopeUnresolved, .rateBudgetExhausted, .authoringInvariantBroken, .worktreeLost,
+        .worktreeReconciliationFailed, .featureAuthoringFailed, .featureSelectionFailed,
+        .mainlineConflictDetected, .readinessCheckFailed, .waitingOnYouUnbacked
+    ]
+
+    /// Whether the event is a problem the account puts first. Agrees with `JournalFailures` where they
+    /// overlap: an `actIncomplete`, and a `repoLaneEnded` that records a failure. A Check declared none
+    /// ran nothing, so only a failed Check is one.
+    static func isProblem(_ record: JournalEventRecord) -> Bool {
+        switch record.event {
+        case .actIncomplete: true
+        case .repoLaneEnded(_, _, .some, _): true
+        case .checkRan(_, _, _, let result, _, _, _): result == .failed
+        default: problemTypes.contains(record.type)
+        }
+    }
+
+    /// An event type's name in plain words: `WorktreeWIPCommitted` reads `Worktree WIP committed`. An
+    /// acronym stays as written; every other word after the first is lowercase.
+    static func plainName(of type: JournalEventType) -> String {
+        let characters = Array(type.rawValue)
+        var words: [String] = []
+        var current = ""
+        for (index, character) in characters.enumerated() {
+            if !current.isEmpty, startsWord(at: index, in: characters) {
+                words.append(current)
+                current = ""
+            }
+            current.append(character)
+        }
+        words.append(current)
+        return words.enumerated().map { index, word in
+            index == 0 || isAcronym(word) ? word : word.lowercased()
+        }.joined(separator: " ")
+    }
+
+    /// Whether an upper-case letter opens a word: after a lower-case letter or digit, or as the last
+    /// capital of an acronym that a lower-case letter follows (`CLIProcess` splits before the `P`).
+    private static func startsWord(at index: Int, in characters: [Character]) -> Bool {
+        guard index > 0, characters[index].isUppercase else { return false }
+        let previous = characters[index - 1]
+        if previous.isLowercase || previous.isNumber { return true }
+        return index + 1 < characters.count && characters[index + 1].isLowercase
+    }
+
+    private static func isAcronym(_ word: String) -> Bool {
+        word.count > 1 && word.allSatisfy { $0.isUppercase || $0.isNumber }
+    }
+}
+
+/// A headline and an optional detail line.
+struct NightWords {
+    var headline: String
+    var detail: String?
+}
+
+/// Words one event, given the Act that recorded it and the Cards' display identifiers.
+struct NightWording {
+    let act: Act?
+    let cardNames: [Int64: String]
+
+    /// `Build Act`, or `Act` when the event records no Act.
+    var actName: String { act.map { "\($0.rawValue.capitalized) Act" } ?? "Act" }
+
+    func card(_ id: Int64) -> String { cardNames[id] ?? "Card \(id)" }
+
+    func count(_ number: Int, _ noun: String) -> String { "\(number) \(noun)\(number == 1 ? "" : "s")" }
+
+    func words(for event: JournalEvent) -> NightWords {
+        lifecycle(event) ?? night(event) ?? infrastructure(event) ?? cards(event) ?? authoring(event)
+            ?? landing(event) ?? NightWords(headline: NightAccount.plainName(of: event.type))
+    }
+}

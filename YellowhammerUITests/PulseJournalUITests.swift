@@ -173,6 +173,21 @@ final class PulseJournalUITests: XCTestCase {
         )
     }
 
+    /// The Night's account (OQ158 ruling item 14): the seeded Night's one Act run recorded a failed Check
+    /// for ARC-11, so with Problems only on it lists that run and counts one problem.
+    func testTheNightOpensItsAccountInTheInspector() {
+        click("night-account-link")
+        let title = element("night-detail-title")
+        XCTAssertTrue(title.waitForExistence(timeout: 5), "the Night account pane never opened")
+        XCTAssertTrue(element("night-detail-run-1").waitForExistence(timeout: 10), "the Night account never loaded")
+        XCTAssertEqual(text(of: title), "Night of 2026-09-21")
+        XCTAssertEqual(text(of: "night-detail-problem-count"), "1")
+        XCTAssertEqual(text(of: "night-detail-open-linear"), "Open ARC-20 in Linear")
+        XCTAssertFalse(element("night-detail-no-problems").exists)
+        XCTAssertFalse(element("night-detail-journal-missing").exists)
+        XCTAssertFalse(element("night-detail-failure").exists)
+    }
+
     /// Every external way out the Journal recorded a link for is offered, named by the issue's Linear
     /// identifier. None is clicked: each opens its URL in the browser.
     func testRecordedWaysOutAreOffered() {
@@ -187,11 +202,13 @@ final class PulseJournalUITests: XCTestCase {
         XCTAssertEqual(text(of: linear), "Open ARC-11 in Linear")
     }
 
-    /// The app is read-only on every Journal: rendering the Pulse and reading a Card's account leave the
-    /// file byte-for-byte as installed, and add no file beside it.
+    /// The app is read-only on every Journal: rendering the Pulse and reading a Card's account and the
+    /// Night's account leave the file byte-for-byte as installed, and add no file beside it.
     func testRenderingThePopulatedPulseWritesNothingToTheJournal() throws {
         click("needs-you-card-\(issueID(11))")
         XCTAssertTrue(element("card-detail-attempt-1").waitForExistence(timeout: 10), "the Card account never loaded")
+        click("night-account-link")
+        XCTAssertTrue(element("night-detail-run-1").waitForExistence(timeout: 10), "the Night account never loaded")
         app.terminate()
 
         XCTAssertEqual(try Data(contentsOf: journal), try Data(contentsOf: try Self.fixture()))

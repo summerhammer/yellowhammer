@@ -9,6 +9,8 @@ public enum PulseSelection: Hashable, Sendable {
     case feature(String)
     case attempt(String)
     case repo(String)
+    /// A Night's account, by the Night's row id in its own Project's Journal (OQ158 ruling item 14).
+    case night(Int64)
 }
 
 /// Where a Pulse element leads. None of these is a triage gesture: each opens something, and the

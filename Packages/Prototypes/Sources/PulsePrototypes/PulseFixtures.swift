@@ -244,7 +244,13 @@ enum PulseFixtures {
         case .done: "advanced — 6 Cards done, 2 need you"
         case .starved: "starved — no Card was dispatched"
         }
+        let id: Int64 = switch state {
+        case .running: 3
+        case .done: 2
+        case .starved: 1
+        }
         return NightPulse(
+            id: id,
             state: state,
             startedAt: time(1, 30),
             verdictLine: verdict ?? defaultVerdict,

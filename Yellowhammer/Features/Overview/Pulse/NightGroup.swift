@@ -4,7 +4,8 @@ import SwiftUI
 
 /// The Pulse's Tonight / last Night group: `verdict_line`, `cards_by_disposition` counts, and the
 /// Night's state (running / done / halted / starved). Opens the Night Card — the decision itself stays in
-/// Linear.
+/// Linear. Per the spec story `app/land-on-the-sidebar-and-pulse`, every Pulse element opens its selection
+/// in the Inspector, so a second link opens the Night's account there (OQ158 ruling item 14).
 ///
 /// The Journal read supplies a factual failure count; a full Night Summary remains unknown.
 struct NightGroup: View {
@@ -48,6 +49,11 @@ struct NightGroup: View {
                 } else {
                     NightDispositionCounts(counts: night.cardsByDisposition)
                 }
+                Button("Show the Night\u{2019}s account") {
+                    openDestination(.inspector(.night(night.id)))
+                }
+                .buttonStyle(.link)
+                .accessibilityIdentifier("night-account-link")
             } else {
                 Label("No Night yet", systemImage: "moon.zzz")
                     .foregroundStyle(.secondary)

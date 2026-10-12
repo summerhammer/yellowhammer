@@ -478,6 +478,19 @@ func projectContainsSelection() throws {
     #expect(!alpha.contains(.repo("mobile")))
 }
 
+@Test("A Project contains its own Night, and no other Night nor any when it shows none")
+func projectContainsNight() throws {
+    var pulse = PulseSnapshot.empty
+    let project = try #require(ProjectID(rawValue: "alpha"))
+    let withoutNight = ProjectSnapshot(id: project, name: "Alpha", repos: [], pulse: pulse)
+    pulse.night = NightPulse(id: 3, state: .running, startedAt: epoch, verdictLine: nil, cardsByDisposition: [])
+    let withNight = ProjectSnapshot(id: project, name: "Alpha", repos: [], pulse: pulse)
+
+    #expect(withNight.contains(.night(3)))
+    #expect(!withNight.contains(.night(4)))
+    #expect(!withoutNight.contains(.night(3)))
+}
+
 @Test("A schema-1 Journal is that Project's failure: the app refuses a Journal older than this build")
 func landingSchemaOneJournal() throws {
     let fixture = try ConfigurationFixture()

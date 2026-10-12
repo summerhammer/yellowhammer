@@ -5,6 +5,8 @@ import Foundation
 
 /// Tonight / last Night: `verdict_line`, `cards_by_disposition` counts, and Night state.
 public struct NightPulse: Equatable, Sendable {
+    /// The Night's row id in its own Project's Journal; the Inspector's Night account is found by it.
+    public var id: Int64
     public var state: NightPulseState
     public var startedAt: Date
     /// A factual failure count from the Journal, otherwise nil; the full Night Summary lives in Engine.
@@ -17,6 +19,7 @@ public struct NightPulse: Equatable, Sendable {
     public var nightCard: LinearIssueLink?
 
     public init(
+        id: Int64,
         state: NightPulseState,
         startedAt: Date,
         verdictLine: String?,
@@ -24,6 +27,7 @@ public struct NightPulse: Equatable, Sendable {
         cardsAbsence: String = "No Cards touched",
         nightCard: LinearIssueLink? = nil
     ) {
+        self.id = id
         self.state = state
         self.startedAt = startedAt
         self.verdictLine = verdictLine
