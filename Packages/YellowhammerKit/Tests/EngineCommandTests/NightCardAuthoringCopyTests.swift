@@ -169,9 +169,11 @@ struct NightCardAuthoringCopyTests {
             featureIssueID: featureUUID, repositories: ["web", "backend"]
         )
         let line = try #require(NightCardMaintenance.authoringLine(for: event, journal: journal))
-        #expect(line.contains("Not an ancestor of mainline: `yh-feature-web` in web, `yh-feature-backend` in backend."))
-        #expect(line.contains("Squash and merge"))
-        #expect(line.contains("merge commit"))
+        #expect(line.contains("has not merged in web, backend."))
+        #expect(line.contains("Not found in mainline: `yh-feature-web` in web, `yh-feature-backend` in backend."))
+        #expect(line.contains(PullRequestBody.mergeCommitRecommendation))
+        #expect(line.contains("(`git merge -s ours`) with a merge commit opens this gate."))
+        #expect(!line.contains("An edit to the same lines"))
         #expect(line.hasSuffix("A quiet Night, not a failure."))
     }
 
@@ -179,8 +181,84 @@ struct NightCardAuthoringCopyTests {
     func notLandedLineWithoutJournal() throws {
         let event = JournalEvent.authoringPredecessorNotLanded(featureIssueID: "FEAT-1", repositories: ["backend"])
         let line = try #require(NightCardMaintenance.authoringLine(for: event))
-        #expect(!line.contains("Not an ancestor of mainline"))
-        #expect(line.contains("Squash and merge"))
+        #expect(!line.contains("Not found in mainline"))
+        #expect(line.contains(PullRequestBody.mergeCommitRecommendation))
         #expect(line.hasSuffix("A quiet Night, not a failure."))
+    }
+
+    @Test("The merge-commit recommendation is word for word the same in both bodies and the Night Card line")
+    func recommendationIsSharedAcrossSurfaces() throws {
+        let sentences = [
+            "Merging with **Create a merge commit** always releases the next Feature.",
+            "Squash and merge or Rebase and merge works too, but it is recognised only while mainline "
+                + "still shows this branch's changes."
+        ]
+        #expect(PullRequestBody.mergeCommitRecommendation == sentences.joined(separator: " "))
+
+        let done = PullRequestBodyCard(
+            title: "BACK-1", repository: "backend", state: .done, routeSummary: "r", checkSummary: "c", roundCount: 1
+        )
+        let blocked = PullRequestBodyCard(
+            title: "BACK-2", repository: "backend", state: .blocked, routeSummary: "r", checkSummary: "c",
+            roundCount: 1, blockReason: "route failure"
+        )
+        func body(_ cards: [PullRequestBodyCard]) -> String {
+            PullRequestBody.render(PullRequestBodyInput(
+                featureTitle: "Widgets", featureIssueURL: nil, nightID: 3, nightTimestamp: "2026-09-16",
+                repository: "backend", pushedRepositoryCount: 1, mergedCount: 0, cycleCards: cards,
+                mergeVerdict: PullRequestBodyMergeVerdict(conflict: false, untestable: true), unmetClauses: []
+            ))
+        }
+        let complete = body([done])
+        let partial = body([done, blocked])
+        let card = try #require(NightCardMaintenance.authoringLine(
+            for: .authoringPredecessorNotLanded(featureIssueID: "FEAT-1", repositories: ["backend"])
+        ))
+
+        let editSentence =
+            "An edit to the same lines before the next Night holds the next Feature back."
+        for surface in [complete, partial, card] {
+            for sentence in sentences { #expect(surface.contains(sentence)) }
+        }
+        for pullRequestBody in [complete, partial] {
+            #expect(pullRequestBody.contains(editSentence))
+            #expect(!pullRequestBody.contains("git merge -s ours"))
+        }
+        #expect(complete.contains(
+            "Merging this pull request is what releases the next Feature; leaving it open costs tomorrow night."
+                + "\n" + PullRequestBody.mergeCommitRecommendation + " " + editSentence
+        ))
+        #expect(partial.contains(
+            "Merging satisfies the landing gate for the repositories it reached and releases the next Feature."
+                + "\n" + PullRequestBody.mergeCommitRecommendation + " " + editSentence
+        ))
+        #expect(!card.contains(editSentence))
+    }
+
+    @Test("No surface says a squash or rebase merge stalls the next Feature, or that one happened")
+    func oldStallPhrasesAppearNowhere() throws {
+        let done = PullRequestBodyCard(
+            title: "BACK-1", repository: "backend", state: .done, routeSummary: "r", checkSummary: "c", roundCount: 1
+        )
+        let blocked = PullRequestBodyCard(
+            title: "BACK-2", repository: "backend", state: .blocked, routeSummary: "r", checkSummary: "c",
+            roundCount: 1, blockReason: "route failure"
+        )
+        let surfaces = [[done], [done, blocked]].map { cards in
+            PullRequestBody.render(PullRequestBodyInput(
+                featureTitle: "Widgets", featureIssueURL: nil, nightID: 3, nightTimestamp: "2026-09-16",
+                repository: "backend", pushedRepositoryCount: 1, mergedCount: 0, cycleCards: cards,
+                mergeVerdict: PullRequestBodyMergeVerdict(conflict: false, untestable: true), unmetClauses: []
+            ))
+        } + [try #require(NightCardMaintenance.authoringLine(
+            for: .authoringPredecessorNotLanded(featureIssueID: "FEAT-1", repositories: ["backend"])
+        ))]
+        let banned = [
+            "never becomes an ancestor", "never authored", "writes new commits", "Not an ancestor of mainline",
+            "has not landed", "was squash", "was rebase", "was merged with Squash"
+        ]
+        for surface in surfaces {
+            for phrase in banned { #expect(!surface.contains(phrase), "found: \(phrase)") }
+        }
     }
 }
