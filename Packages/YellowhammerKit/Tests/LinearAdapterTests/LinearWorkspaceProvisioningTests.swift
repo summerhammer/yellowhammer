@@ -118,19 +118,39 @@ struct LinearWorkspaceProvisioningTests {
 
 @Suite("Linear workspace identity")
 struct LinearWorkspaceIdentityTests {
-    @Test("workspace() decodes the organization's id, name and urlKey")
+    @Test("workspace() decodes the organization and viewer identity")
     func workspaceDecodes() async throws {
         let transport = StubHTTPTransport([
             Fixture.token(),
-            Fixture.json(#"{"data":{"organization":{"id":"org-1","name":"Acme","urlKey":"acme"}}}"#)
+            Fixture.json("""
+                {"data":{"organization":{"id":"org-1","name":"Acme","urlKey":"acme"},
+                 "viewer":{"id":"app-1","name":"yellowhammer","displayName":"Yellowhammer Bot"}}}
+                """)
         ])
         let adapter = Fixture.adapter(transport)
 
         let workspace = try await adapter.workspace()
 
-        #expect(workspace == BoardWorkspace(id: "org-1", name: "Acme", urlKey: "acme"))
+        #expect(workspace == BoardWorkspace(
+            id: "org-1", name: "Acme", urlKey: "acme",
+            viewer: BoardIdentity(
+                id: BoardObjectID(rawValue: "app-1"), name: "yellowhammer", displayName: "Yellowhammer Bot"
+            )
+        ))
         let query = try #require(try Fixture.body(transport.requests[1])["query"] as? String)
-        #expect(query.contains("organization { id name urlKey }"))
+        #expect(query.contains("organization { id name urlKey } viewer { id name displayName }"))
+    }
+
+    @Test("workspace() accepts responses without viewer identity names")
+    func workspaceWithoutViewer() async throws {
+        let adapter = Fixture.adapter(StubHTTPTransport([
+            Fixture.token(),
+            Fixture.json(#"{"data":{"organization":{"id":"org-1","name":"Acme","urlKey":"acme"}}}"#)
+        ]))
+
+        let workspace = try await adapter.workspace()
+
+        #expect(workspace.viewer == nil)
     }
 
     @Test("A refused workspace read maps like the sibling reads")

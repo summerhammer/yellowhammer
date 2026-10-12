@@ -71,12 +71,19 @@ struct LinearWorkflowStateCreateData: Decodable {
 
 struct LinearWorkspacePayload: Decodable {
     let organization: LinearWorkspaceNode
+    let viewer: LinearViewerIdentityNode?
 }
 
 struct LinearWorkspaceNode: Decodable {
     let id: String
     let name: String
     let urlKey: String
+}
+
+struct LinearViewerIdentityNode: Decodable {
+    let id: String
+    let name: String
+    let displayName: String
 }
 
 struct LinearUsersPayload: Decodable {

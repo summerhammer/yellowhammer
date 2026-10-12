@@ -7,7 +7,7 @@ private let provisioningWorkflowStateColor = "#95a2b3"
 extension LinearGraphQL {
     /// The workspace's own identity, read as the installation's Yellowhammer identity.
     static let workspaceQuery = """
-        query YellowhammerWorkspace { organization { id name urlKey } }
+        query YellowhammerWorkspace { organization { id name urlKey } viewer { id name displayName } }
         """
 }
 
@@ -15,7 +15,10 @@ extension LinearAdapter: BoardProvisioning {
     public func workspace() async throws(BoardError) -> BoardWorkspace {
         let payload: LinearWorkspacePayload = try await perform(LinearGraphQL.workspaceQuery, variables: [:])
         let organization = payload.organization
-        return BoardWorkspace(id: organization.id, name: organization.name, urlKey: organization.urlKey)
+        let viewer = payload.viewer.map {
+            BoardIdentity(id: BoardObjectID(rawValue: $0.id), name: $0.name, displayName: $0.displayName)
+        }
+        return BoardWorkspace(id: organization.id, name: organization.name, urlKey: organization.urlKey, viewer: viewer)
     }
 
     public func workspaceMembers() async throws(BoardError) -> [BoardMember] {

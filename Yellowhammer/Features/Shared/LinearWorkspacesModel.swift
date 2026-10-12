@@ -34,6 +34,8 @@ final class LinearWorkspacesModel {
     /// What `yh doctor --check linear --json` said about one installation.
     struct Status: Equatable {
         let workspaceName: String?
+        let yellowhammerIdentity: BoardIdentity?
+        let operatorIdentity: BoardIdentity?
         let check: LinearInstallationStatus
         /// The live check's verdict on its authorization; only `.refused` offers *Remove anyway…* (OQ121).
         var authorization: InstallationAuthorizationState?
@@ -173,11 +175,23 @@ final class LinearWorkspacesModel {
             var updated: [String: Status] = [:]
             for workspace in workspaces {
                 let check = LinearInstallationStatus.interpret(rows, installation: workspace.name)
-                let name = LinearInstallationStatus.workspaceName(in: rows, installation: workspace.name)
+                let name = LinearInstallationStatus.workspaceName(
+                    in: rows, installation: workspace.name, workspaceID: workspace.workspaceID
+                )
+                let yellowhammerIdentity = LinearInstallationStatus.yellowhammerIdentity(
+                    in: rows, installation: workspace.name, workspaceID: workspace.workspaceID,
+                    identityID: workspace.appUser
+                )
+                let operatorIdentity = LinearInstallationStatus.operatorIdentity(
+                    in: rows, installation: workspace.name, workspaceID: workspace.workspaceID,
+                    identityID: workspace.operatorIdentity
+                )
                 let authorization = DoctorFindingRow.authorizationState(in: rows, installation: workspace.name)
-                if check != .unknown || name != nil || authorization != nil {
+                if check != .unknown || name != nil || yellowhammerIdentity != nil || operatorIdentity != nil
+                    || authorization != nil {
                     updated[workspace.name] = Status(
-                        workspaceName: name, check: check, authorization: authorization
+                        workspaceName: name, yellowhammerIdentity: yellowhammerIdentity,
+                        operatorIdentity: operatorIdentity, check: check, authorization: authorization
                     )
                 }
             }
@@ -255,8 +269,15 @@ final class LinearWorkspacesModel {
     // MARK: Private
 
     private func apply(_ rows: [Workspace]) {
+        let previous = Dictionary(uniqueKeysWithValues: workspaces.map { ($0.name, $0) })
         workspaces = rows
         let names = Set(rows.map(\.name))
+        for row in rows where previous[row.name].map({
+            $0.workspaceID != row.workspaceID || $0.appUser != row.appUser
+                || $0.operatorIdentity != row.operatorIdentity
+        }) == true {
+            statuses[row.name] = nil
+        }
         for name in reconnectModels.keys where !names.contains(name) {
             reconnectModels[name]?.terminate()
             reconnectModels[name] = nil
@@ -282,6 +303,9 @@ final class LinearWorkspacesModel {
                 model.onSaved = { [weak self] in
                     self?.load()
                     self?.onChanged?()
+                    if let self {
+                        Task { await self.refreshStatus() }
+                    }
                 }
                 operatorModels[row.name] = model
             }

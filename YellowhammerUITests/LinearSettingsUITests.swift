@@ -190,11 +190,15 @@ extension LinearSettingsUITests {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
         XCTAssertTrue(text(of: acme).contains("Acme Corp"), text(of: acme))
+        XCTAssertEqual(text(of: element("settings-linear-workspace-name-acme")), "Acme Corp")
         let scratch = element("settings-linear-workspace-scratch")
         XCTAssertTrue(scratch.exists)
         XCTAssertTrue(text(of: scratch).contains("scratch"), text(of: scratch))
 
         XCTAssertTrue(text(of: element("settings-linear-operator-acme")).contains("user-op"))
+        XCTAssertEqual(text(of: element("settings-linear-operator-name-acme")), "Operator Person (operator)")
+        XCTAssertEqual(text(of: element("settings-linear-yellowhammer-name-acme")), "Yellowhammer Bot (yellowhammer)")
+        XCTAssertTrue(text(of: element("settings-linear-workspace-id-acme")).contains("workspace-1"))
         XCTAssertTrue(text(of: element("settings-linear-operator-scratch")).contains("user-old"))
         XCTAssertTrue(text(of: element("settings-linear-projects-acme")).contains("alpha"))
         let status = element("settings-linear-status-scratch")

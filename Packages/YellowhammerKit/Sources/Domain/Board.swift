@@ -77,12 +77,14 @@ extension Board {
 }
 
 /// Who the board says Yellowhammer is.
-public struct BoardIdentity: Hashable, Sendable {
+public struct BoardIdentity: Codable, Hashable, Sendable {
     public var id: BoardObjectID
     public var name: String
+    public var displayName: String?
 
-    public init(id: BoardObjectID, name: String) {
+    public init(id: BoardObjectID, name: String, displayName: String? = nil) {
         self.id = id
         self.name = name
+        self.displayName = displayName
     }
 }

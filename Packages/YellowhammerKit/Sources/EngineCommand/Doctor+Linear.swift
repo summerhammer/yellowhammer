@@ -59,10 +59,14 @@ extension Doctor {
         _ installation: LinearInstallation, serving served: [ProjectConfiguration]
     ) async -> [DoctorFinding] {
         let projectIDs = served.map(\.id)
-        func scope(_ workspaceName: String?) -> DoctorInstallationScope {
+        func scope(
+            _ workspaceName: String?, yellowhammerIdentity: BoardIdentity? = nil,
+            operatorIdentity: BoardIdentity? = nil
+        ) -> DoctorInstallationScope {
             DoctorInstallationScope(
                 name: installation.name, workspace: installation.workspace.rawValue,
-                workspaceName: workspaceName, projects: projectIDs
+                workspaceName: workspaceName, yellowhammerIdentity: yellowhammerIdentity,
+                operatorIdentity: operatorIdentity, projects: projectIDs
             )
         }
 
@@ -70,31 +74,46 @@ extension Doctor {
         let probe = await InstallationAuthorizationProbe(
             credentials: credentials, bindProvisioning: { _, _ in board }
         ).check(installation)
-        let workspaceName = probe.askedLinear ? try? await board.workspace().name : nil
+        let liveWorkspace = probe.askedLinear ? try? await board.workspace() : nil
+        let workspaceName = liveWorkspace?.name
         let members = probe.members
-        if let failure = authorizationFailure(probe.authorization, installation, scope(workspaceName)) {
+        let identities = identityNames(for: installation, workspace: liveWorkspace, members: members)
+        let installationScope = scope(
+            workspaceName, yellowhammerIdentity: identities.yellowhammer,
+            operatorIdentity: identities.operatorIdentity
+        )
+        if let failure = authorizationFailure(probe.authorization, installation, installationScope) {
             return [failure]
         }
 
+        return await authorizedInstallationFindings(
+            installation: installation, serving: served, members: members, scope: installationScope
+        )
+    }
+
+    private func authorizedInstallationFindings(
+        installation: LinearInstallation, serving served: [ProjectConfiguration], members: [BoardMember],
+        scope installationScope: DoctorInstallationScope
+    ) async -> [DoctorFinding] {
         var findings = [
             linearFinding(
-                scope(workspaceName), "authorization", .pass, "Linear authorization succeeded",
+                installationScope, "authorization", .pass, "Linear authorization succeeded",
                 authorization: .authorized
             ),
             operatorIdentityFinding(
-                installation: installation, members: members, scope: scope(workspaceName)
+                installation: installation, members: members, scope: installationScope
             )
         ]
         if served.isEmpty {
             findings.append(linearFinding(
-                scope(workspaceName), "connection", .info,
+                installationScope, "connection", .info,
                 "no Project uses this Board Connection; if you no longer use it, run "
                     + "`yh config remove-board-connection \(installation.name)`"
             ))
         }
         for project in served {
             let membership = await boardMembershipFindings(
-                project: project, installation: installation, workspaceName: workspaceName
+                project: project, installation: installation, scope: installationScope
             )
             findings += membership
             guard membership.allSatisfy({ $0.severity == .pass }) else { continue }
@@ -102,11 +121,27 @@ extension Doctor {
                 project: project, installation: installation,
                 scope: DoctorInstallationScope(
                     name: installation.name, workspace: installation.workspace.rawValue,
-                    workspaceName: workspaceName, projects: [project.id]
+                    workspaceName: installationScope.workspaceName,
+                    yellowhammerIdentity: installationScope.yellowhammerIdentity,
+                    operatorIdentity: installationScope.operatorIdentity, projects: [project.id]
                 )
             )
         }
         return findings
+    }
+
+    private func identityNames(
+        for installation: LinearInstallation, workspace: BoardWorkspace?, members: [BoardMember]
+    ) -> (yellowhammer: BoardIdentity?, operatorIdentity: BoardIdentity?) {
+        let yellowhammer = workspace?.viewer.flatMap {
+            $0.id.rawValue == installation.appUser.rawValue ? $0 : nil
+        }
+        let operatorIdentity = installation.operatorIdentity.flatMap { configured in
+            members.first(where: { $0.id == configured }).map {
+                BoardIdentity(id: $0.id, name: $0.name, displayName: $0.displayName)
+            }
+        }
+        return (yellowhammer, operatorIdentity)
     }
 
     /// The one failure finding for a probe result that is not `.authorized`; nil when it is.

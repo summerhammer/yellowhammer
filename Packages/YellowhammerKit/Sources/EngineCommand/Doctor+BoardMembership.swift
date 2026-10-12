@@ -6,11 +6,12 @@ extension Doctor {
     /// installation that serves the Project (Board Provisioning Ruling, OQ80). Provisioned items (states,
     /// labels) are verified by ``boardProvisioningFindings(project:installation:scope:)``.
     func boardMembershipFindings(
-        project: ProjectConfiguration, installation: LinearInstallation, workspaceName: String?
+        project: ProjectConfiguration, installation: LinearInstallation, scope sourceScope: DoctorInstallationScope
     ) async -> [DoctorFinding] {
         let scope = DoctorInstallationScope(
             name: installation.name, workspace: installation.workspace.rawValue,
-            workspaceName: workspaceName, projects: [project.id]
+            workspaceName: sourceScope.workspaceName, yellowhammerIdentity: sourceScope.yellowhammerIdentity,
+            operatorIdentity: sourceScope.operatorIdentity, projects: [project.id]
         )
         let prefix = "Project \(project.id) (Board Connection \(installation.name)): " // glossary:ignore GL001
         func team(_ severity: DoctorSeverity, _ message: String) -> DoctorFinding {
