@@ -24,6 +24,9 @@ public struct ConfigurationError: Error, Equatable, Sendable {
         case duplicateRepo(firstLine: Int)
         case notPositive(Int64)
         case invalidTimeOfDay(String)
+        /// `night_start` and `night_end` are the same time: a 24-hour Night window has no land firing to
+        /// close the Night.
+        case twentyFourHourNightWindow(String)
         case noSpecificationSource
         case secondSpecificationSource(firstLine: Int)
         case undeclaredCLIAdapter(String)
@@ -112,6 +115,9 @@ extension ConfigurationError.Reason: CustomStringConvertible {
             return "must be an integer >= 1, got \(value)"
         case .invalidTimeOfDay(let value):
             return "must be in HH:MM format with hours 00-23 and minutes 00-59, got \"\(value)\""
+        case .twentyFourHourNightWindow(let value):
+            return "night_start and night_end are both \"\(value)\"; a 24-hour Night window has no land firing "
+                + "to close the Night, so night_end must differ from night_start"
         case .noSpecificationSource:
             return "a Project must declare exactly one specification source: "
                 + "a spec_source path or one repo with role \"spec\"; found none"

@@ -217,27 +217,32 @@ there; the repo-local consequences are:
 
 ## Git
 
-`origin` is `summerhammer/yellowhammer`; `main` is the trunk. The umbrella at `..` and
-`../yellowhammer-spec` are separate git repos — work only in this one unless asked.
+`origin`: `summerhammer/yellowhammer`; trunk: `main`. `..` and `../yellowhammer-spec`
+are separate repos; work only here unless asked.
 
-Roadmap work ships as **stacked PRs via `gh stack`** — `gh stack init <branch>` for the
-first layer, `gh stack add <branch>` for each one above it, then
-`gh stack submit --auto --open`. Never hand-set a PR base. One roadmap item is one
-layer; mark the item `[x]` in `doc/implementation-roadmap.md` in its own commit on that
-layer.
+Roadmap work uses **stacked PRs via `gh stack`**: `gh stack init <branch>` first,
+`gh stack add <branch>` above it, then `gh stack submit --auto --open`.
+Never hand-set PR bases. Each roadmap item gets one layer; mark it `[x]` in
+`doc/implementation-roadmap.md` in its own commit on that layer.
 
-Every pull request titled `feat`, `fix`, `perf` or `revert` carries the traceability line
-(or `Spec-Exempt: <reason>` when no story applies; other title types, and pull requests Yellowhammer
-itself opens from a Feature Branch whose last path segment starts with `yh-`, need neither):
+PRs titled `feat`, `fix`, `perf` or `revert` require this body line,
+or `Spec-Exempt: <reason>` when no story applies:
 
 ```
 Spec: <epic>/<story> @ <spec commit sha>
 ```
 
-Cite story IDs in commit messages too. `/spec-cite` assembles the line.
+Other title types and PRs Yellowhammer opens from Feature Branches whose last path
+segment starts with `yh-` need neither. Cite story IDs in commits; `/spec-cite`
+assembles the line.
 
-Commit messages and pull request titles follow Conventional Commits (`type(scope): subject`;
-`feat`, `fix`, `perf`, `revert`, `docs`, `refactor`, `test`, `ci`, `build`, `chore`; `!` or a
-`BREAKING CHANGE:` footer for a breaking change) — see CONTRIBUTING.md's "Commits and releases"
-section for the full rule and how it drives versioning. Releases happen only by merging the
-release-please pull request; never create or push a `vX.Y.Z` tag by hand.
+Before creating a PR, validate its complete body with `scripts/ci/check_spec_line.py`
+using `PR_BODY`, `PR_TITLE`, and `PR_HEAD_REF`. Include required traceability at
+creation, never afterward. Never automatically publish an unfilled template. Before
+reporting completion, verify the remote PR body and confirm Spec Traceability passes.
+
+Commits and PR titles use Conventional Commits: `type(scope): subject`;
+`feat`, `fix`, `perf`, `revert`, `docs`, `refactor`, `test`, `ci`, `build`, `chore`;
+breaking changes require `!` or a `BREAKING CHANGE:` footer. Rules and versioning:
+CONTRIBUTING.md, "Commits and releases". Release only by merging the release-please PR;
+never create or push `vX.Y.Z` tags by hand.

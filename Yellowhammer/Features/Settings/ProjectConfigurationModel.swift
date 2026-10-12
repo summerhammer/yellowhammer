@@ -20,6 +20,16 @@ final class ProjectConfigurationModel {
     private(set) var isChangingCodeHosting = false
     private(set) var codeHostingFailure: String?
     @ObservationIgnored private let codeHostingEngine = SetupEngine()
+    @ObservationIgnored private let jobsEngine = SetupEngine()
+    /// Whether the last ``save()`` wrote a changed `[schedule]`, so its installed LaunchAgents are owed a
+    /// regeneration (``regenerateScheduledJobs()``). Cleared by the regeneration or a failed/other save.
+    private(set) var scheduleChangedOnLastSave = false
+    private(set) var isRegeneratingJobs = false
+    /// What regenerating the LaunchAgents did after the last save that changed the Night, in words; nil
+    /// when nothing was regenerated.
+    private(set) var jobsRegenerationResult: String?
+    /// Why the LaunchAgents were not regenerated; the file itself was saved.
+    private(set) var jobsRegenerationFailure: String?
 
     /// The text on disk when this model last loaded successfully, used by
     /// ``Config/Configuration/save(_:to:in:replacing:)`` to detect a concurrent hand edit.
@@ -95,15 +105,73 @@ final class ProjectConfigurationModel {
     /// written, so a caller that shows the configuration elsewhere can read it again.
     @discardableResult
     func save() -> Bool {
-        guard !isChangingCodeHosting, let draft, let originalText else { return false }
+        guard !isChangingCodeHosting, !isRegeneratingJobs, let draft, let originalText else { return false }
+        // Read before writing: `load()` replaces `saved` with what is now on disk.
+        let scheduleChanged = saved?.schedule != draft.schedule
         do {
             try Configuration.save(draft.renderedTOML, to: file, in: directory, replacing: originalText)
             load()
+            scheduleChangedOnLastSave = scheduleChanged
+            jobsRegenerationResult = nil
+            jobsRegenerationFailure = nil
             return true
         } catch {
             failure = error.description
+            scheduleChangedOnLastSave = false
             return false
         }
+    }
+
+    /// After a save that changed the Night, regenerates this Project's installed LaunchAgents through
+    /// `yh doctor --fix --check launchd`, which skips a running Act. The file is already saved either way;
+    /// a failure is shown beside the Night, not as a save failure.
+    func regenerateScheduledJobs() async {
+        guard scheduleChangedOnLastSave, !isRegeneratingJobs,
+              !ConfigurationDirectory.isOverridden || SetupEngine.isStubbed else { return }
+        scheduleChangedOnLastSave = false
+        isRegeneratingJobs = true
+        jobsRegenerationResult = nil
+        jobsRegenerationFailure = nil
+        defer { isRegeneratingJobs = false }
+        var lines: [String] = []
+        do {
+            let status = try await jobsEngine.run(
+                arguments: SetupInvocation.regenerateScheduledJobsArguments(project: projectID.rawValue)
+            ) { lines.append($0) }
+            let rows = jobFindingRows(in: lines)
+            let warnings = rows?.filter { $0.severity != "pass" }.map(\.message)
+            if status != 0 {
+                jobsRegenerationFailure = Self.jobsFailureText(messages: warnings, lines: lines, status: status)
+            } else if let warnings, !warnings.isEmpty {
+                // Exit 0 with warnings: no LaunchAgent installed, or one skipped because its Act is running.
+                jobsRegenerationResult = warnings.joined(separator: "\n")
+            } else if let rows, !rows.isEmpty {
+                jobsRegenerationResult = rows.map(\.message).joined(separator: "\n")
+            } else {
+                jobsRegenerationResult = "This Project\u{2019}s LaunchAgents match the Night."
+            }
+        } catch {
+            jobsRegenerationFailure = "The Night was saved, but the LaunchAgents could not be regenerated: \(error)"
+        }
+    }
+
+    /// This Project's own LaunchAgent findings, whose messages are shown in doctor's words; nil when the
+    /// output is not doctor's JSON. Machine-wide launchd findings (the `yh` symlink) are left out.
+    private func jobFindingRows(in lines: [String]) -> [DoctorFindingRow]? {
+        let labels = Set(Act.allCases.map { $0.launchdLabel(projectID: projectID) })
+        return DoctorFindingRow.decodeLastLine(lines).map { rows in
+            rows.filter { $0.check == "launchd" && labels.contains($0.subject) }
+        }
+    }
+
+    /// The Project's failing LaunchAgent findings, one per line, else the raw output.
+    private static func jobsFailureText(messages: [String]?, lines: [String], status: Int32) -> String {
+        let prefix = "The Night was saved, but its LaunchAgents were not regenerated"
+        if let messages, !messages.isEmpty {
+            return ([prefix + ":"] + messages).joined(separator: "\n")
+        }
+        let output = lines.joined(separator: "\n")
+        return output.isEmpty ? "\(prefix): yh exited \(status)." : "\(prefix):\n\(output)"
     }
 
     /// Discards unsaved edits, restoring the last-loaded draft.
@@ -115,7 +183,7 @@ final class ProjectConfigurationModel {
     /// Reloads from disk only when there is nothing unsaved to lose, so a direct TOML edit shows up
     /// without ever discarding a form edit the Operator has not saved.
     func reloadIfClean() {
-        guard !isDirty, !isChangingCodeHosting else { return }
+        guard !isDirty, !isChangingCodeHosting, !isRegeneratingJobs else { return }
         load()
     }
 

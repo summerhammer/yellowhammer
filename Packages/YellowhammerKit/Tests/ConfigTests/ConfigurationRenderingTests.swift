@@ -468,3 +468,22 @@ func registryRendersOneTablePerConnection() throws {
 
         """)
 }
+
+@Test("a ScheduleDraft renders a bare integer interval and quotes garbage")
+func scheduleDraftRendering() throws {
+    var draft = ProjectFileDraft(try testEditingProject(id: "renderschedule"))
+    draft.schedule = ScheduleDraft(nightStart: " 21:30 ", nightEnd: "05:45", buildEveryMinutes: " 20 ")
+    #expect(draft.renderedTOML.contains("""
+        [schedule]
+        night_start = "21:30"
+        night_end = "05:45"
+        build_every_minutes = 20
+        """))
+    draft.schedule = ScheduleDraft(nightStart: "25:00", nightEnd: "", buildEveryMinutes: "abc")
+    #expect(draft.renderedTOML.contains("""
+        [schedule]
+        night_start = "25:00"
+        night_end = ""
+        build_every_minutes = "abc"
+        """))
+}

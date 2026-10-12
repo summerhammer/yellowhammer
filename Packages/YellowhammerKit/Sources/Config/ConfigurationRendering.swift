@@ -150,13 +150,14 @@ enum ConfigurationRendering {
         """
     }
 
-    /// All three `[schedule]` keys, explicit.
-    static func renderedSchedule(_ schedule: Schedule) -> String {
+    /// All three `[schedule]` keys, explicit. The times are quoted as typed (surrounding whitespace
+    /// trimmed) and the interval through ``boundValue(_:)``, so the loader refuses a garbage value.
+    static func renderedSchedule(_ schedule: ScheduleDraft) -> String {
         """
         [schedule]
-        night_start = \(quoted(schedule.nightStart.description))
-        night_end = \(quoted(schedule.nightEnd.description))
-        build_every_minutes = \(schedule.buildEveryMinutes)
+        night_start = \(quoted(schedule.nightStart.trimmingCharacters(in: .whitespaces)))
+        night_end = \(quoted(schedule.nightEnd.trimmingCharacters(in: .whitespaces)))
+        build_every_minutes = \(boundValue(schedule.buildEveryMinutes))
         """
     }
 }

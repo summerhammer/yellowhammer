@@ -125,10 +125,32 @@ public struct BoundsDraft: Equatable, Sendable {
     }
 }
 
+/// A Project's `[schedule]` keys as typed, so a garbage value (`"25:00"`, `"abc"`) reaches the loader
+/// instead of being coerced or refused a second time here.
+public struct ScheduleDraft: Equatable, Sendable {
+    public var nightStart: String
+    public var nightEnd: String
+    public var buildEveryMinutes: String
+
+    public init(nightStart: String, nightEnd: String, buildEveryMinutes: String) {
+        self.nightStart = nightStart
+        self.nightEnd = nightEnd
+        self.buildEveryMinutes = buildEveryMinutes
+    }
+
+    public init(_ schedule: Schedule) {
+        self.init(
+            nightStart: schedule.nightStart.description,
+            nightEnd: schedule.nightEnd.description,
+            buildEveryMinutes: String(schedule.buildEveryMinutes)
+        )
+    }
+}
+
 /// A Project file's fields, editable through the app's form: the Operator edits every field but the
 /// identity (``id``) and the Spec Source (``specSource``, shown read-only — the app never edits it),
 /// as strings, and ``renderedTOML`` is handed to the loader (``Configuration/save(_:to:in:replacing:)``)
-/// to validate. ``schedule``, ``changeType``, the Message Templates and the
+/// to validate. ``changeType``, the Message Templates and the
 /// rehearsal declarations (``rehearsalLinearProject``, ``rehearsalJournal``) are carried through
 /// untouched: this slice of the app does not edit them, and saving any other field must never drop
 /// them. A key whose value is its default is not written back (``renderedTOML``).
@@ -145,7 +167,7 @@ public struct ProjectFileDraft: Equatable, Sendable {
     public var repos: [RepoDraft]
     public var bounds: BoundsDraft
     public var routingOverrides: [RoutingEntryDraft]
-    var schedule: Schedule
+    public var schedule: ScheduleDraft
     var changeType: ChangeType
     var pullRequestTitle: MessageTemplate
     var commitMessage: MessageTemplate
@@ -163,7 +185,7 @@ public struct ProjectFileDraft: Equatable, Sendable {
         repos = project.repos.map(RepoDraft.init)
         bounds = BoundsDraft(project.bounds)
         routingOverrides = project.routingOverrides.map(RoutingEntryDraft.init)
-        schedule = project.schedule
+        schedule = ScheduleDraft(project.schedule)
         changeType = project.changeType
         pullRequestTitle = project.pullRequestTitle
         commitMessage = project.commitMessage
