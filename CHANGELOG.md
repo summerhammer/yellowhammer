@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.14.0](https://github.com/summerhammer/yellowhammer/compare/v0.13.0...v0.14.0) (2026-10-12)
+
+
+### Features
+
+* **app:** edit a Project's Night window and build interval in Settings ([4cd847f](https://github.com/summerhammer/yellowhammer/commit/4cd847fc58ca0ee89709df304668bf51e758f1a2))
+* **app:** read a Night's account from the Journal in the Inspector ([#470](https://github.com/summerhammer/yellowhammer/issues/470)) ([c3c9a9a](https://github.com/summerhammer/yellowhammer/commit/c3c9a9a8555f233ea4494b01eb2880b78a095923))
+
+
+### Bug Fixes
+
+* **engine:** record a verified Feature's merge as its landing Night's triage ([6818f52](https://github.com/summerhammer/yellowhammer/commit/6818f52fd674826b585f9882a06d4776b0008847)), closes [#447](https://github.com/summerhammer/yellowhammer/issues/447)
+* **settings:** show readable Linear workspace and identity names ([f683f39](https://github.com/summerhammer/yellowhammer/commit/f683f39989a96090f748fadeae89453003d6c556))
+
 ## [0.13.0](https://github.com/summerhammer/yellowhammer/compare/v0.12.0...v0.13.0) (2026-10-11)
 
 
