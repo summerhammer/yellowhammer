@@ -19,6 +19,9 @@ public struct AddProjectContext: Equatable, Sendable {
     public var linearProjects: [SetupChoices.LinearProject] // glossary:ignore GL001
     /// The machine-wide Code Hosting Connection registry, in config order.
     public var codeHostingConnections: [CodeHostingConnection] = []
+    /// The Repo Roles the wizard offers, by name: the standard ones, then those declared in the machine file
+    /// and those the loaded Projects already use.
+    public var repoRoles: [String]
     /// The Linear Board Connection registry (`[board.linear.connections.*]`), in config order.
     public var linearInstallations: [LinearInstallation]
     /// What each kept Journal records, by Project id. The app fills it; Config never opens a Journal.
@@ -40,9 +43,11 @@ public struct AddProjectContext: Equatable, Sendable {
         linearProjects: [SetupChoices.LinearProject] = [],
         linearInstallations: [LinearInstallation] = [],
         codeHostingConnections: [CodeHostingConnection] = [],
+        repoRoles: [String] = RepoRole.standard.map(\.rawValue),
         keptJournals: [String: KeptJournal] = [:]
     ) {
         self.codeHostingConnections = codeHostingConnections
+        self.repoRoles = repoRoles
         self.linearInstallations = linearInstallations
         self.keptJournals = keptJournals
         self.linearProjects = linearProjects
@@ -81,6 +86,7 @@ public struct AddProjectContext: Equatable, Sendable {
             linearProjects: linearProjects,
             linearInstallations: configuration.machine.linearInstallations,
             codeHostingConnections: configuration.machine.codeHostingConnections,
+            repoRoles: configuration.machine.offeredRepoRoles(with: configuration.projects).map(\.rawValue),
             keptJournals: keptJournals
         )
     }

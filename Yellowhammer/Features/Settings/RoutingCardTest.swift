@@ -49,10 +49,11 @@ struct CardTest {
         isOpen = true
     }
 
-    /// Fills a blank question with the first Kind and Repo Role the catalog offers.
+    /// Fills a blank question with the first Kind the catalog offers and its first working Repo Role: the
+    /// standard roles lead with `spec`, and a Card in a spec Repo is the less usual question to try.
     mutating func prime(kinds: [String], repoRoles: [String]) {
         if query.kind.isEmpty { query.kind = kinds.first ?? "impl" }
-        if query.repoRole.isEmpty { query.repoRole = repoRoles.first ?? "" }
+        if query.repoRole.isEmpty { query.repoRole = repoRoles.first { $0 != "spec" } ?? repoRoles.first ?? "" }
     }
 }
 
@@ -99,20 +100,14 @@ struct TryPanel: View {
                 Text("Kind")
                 KindPopUp(value: $query.kind, purpose: .question, kinds: catalog.kinds(in: table))
                 Text("in a")
-                if catalog.repoRoles.isEmpty {
-                    TextField("Repo Role", text: $query.repoRole, prompt: Text("backend"))
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 120)
-                } else {
-                    Picker("Repo Role", selection: $query.repoRole) {
-                        ForEach(catalog.repoRoles, id: \.self) { Text($0).tag($0) }
-                        if !catalog.repoRoles.contains(query.repoRole) {
-                            Text(query.repoRole).tag(query.repoRole)
-                        }
+                Picker("Repo Role", selection: $query.repoRole) {
+                    ForEach(catalog.repoRoles, id: \.self) { Text($0).tag($0) }
+                    if !catalog.repoRoles.contains(query.repoRole) {
+                        Text(query.repoRole).tag(query.repoRole)
                     }
-                    .labelsHidden()
-                    .fixedSize()
                 }
+                .labelsHidden()
+                .fixedSize()
                 Text("Repo")
             }
             answer

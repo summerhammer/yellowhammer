@@ -27,7 +27,7 @@ struct RoutingCatalog {
     static let empty = RoutingCatalog(clis: [], repoRoles: [], kinds: [], replacedIn: [:])
 
     let clis: [DeclaredCLI]
-    /// Every Repo Role a Project on this Mac declares or a Routing Entry names, sorted.
+    /// The standard Repo Roles, those declared in the machine file, and every one a Project or Routing Entry names.
     let repoRoles: [String]
     /// Every Kind a Routing Entry on this Mac names, but the reserved authoring Kind, sorted.
     let kinds: [String]
@@ -80,12 +80,7 @@ extension RoutingCatalog {
                 executable: $0.executable
             )
         }
-        let declaredRoles = projects.flatMap(\.repos).map(\.role.rawValue)
-        let namedRoles = entries.compactMap { entry -> String? in
-            guard case .role(let role) = entry.repoRole else { return nil }
-            return role.rawValue
-        }
-        repoRoles = (declaredRoles + namedRoles).uniqued().sorted()
+        repoRoles = machine.offeredRepoRoles(with: projects).map(\.rawValue)
         kinds = Self.cardKinds(entries.map(\.kind.description)).sorted()
         var replacedIn: [RoutingEntry.Key: [String]] = [:]
         let baseKeys = Set(machine.routingTable.map(\.key))

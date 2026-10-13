@@ -110,6 +110,8 @@ struct SettingsWindow: View {
             CodeHostingSettingsPane(model: codeHostingConnections)
         case .agentCLIs:
             AgentCLIsPane()
+        case .repoRoles:
+            RepoRolesPane()
         case .baseRoutingTable:
             BaseRoutingTablePane()
         case .refusedFiles:

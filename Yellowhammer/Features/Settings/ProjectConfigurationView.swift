@@ -60,6 +60,7 @@ struct ProjectConfigurationFormView: View {
     let onSaved: () -> Void
     let workspaceLabel: (String) -> String
     @Environment(\.showSettingsSection) private var showSettingsSection
+    @Environment(\.routingCatalog) private var catalog
     @Environment(SettingsRequest.self) private var settingsRequest
 
     var body: some View {
@@ -241,8 +242,7 @@ struct ProjectConfigurationFormView: View {
                 }
                 GridRow {
                     fieldLabel("Repo Role")
-                    TextField("Repo Role", text: draft.repos[index].role)
-                        .accessibilityIdentifier("repo-role")
+                    RepoRoleChoice(role: draft.repos[index].role, roles: catalog.repoRoles, identifier: "repo-role")
                 }
                 GridRow {
                     fieldLabel("Check")

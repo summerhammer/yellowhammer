@@ -57,7 +57,7 @@ struct RoutingEntriesEditor: View {
             }
             GridRow {
                 fieldLabel("Repo Role")
-                TextField("Repo Role", text: $entries[index].repoRole, prompt: Text("any"))
+                RepoRolePicker(repoRole: $entries[index].repoRole)
             }
             GridRow {
                 fieldLabel("Route")

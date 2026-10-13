@@ -73,11 +73,12 @@ struct AddProjectDraftNavigationTests {
 
     @Test("Roles are guessed from the folder name; spec never comes back as a working role")
     func roles() {
-        #expect(AddProjectDraft.guessedRole(for: "/w/acme-backend") == "backend")
-        #expect(AddProjectDraft.guessedRole(for: "/w/acme-spec") == "spec")
-        #expect(AddProjectDraft.guessedRole(for: "/w/acme") == "")
-        #expect(AddProjectDraft.workingRole(for: "/w/acme-spec") == "")
-        #expect(AddProjectDraft.workingRole(for: "/w/acme-web") == "web")
+        let draft = AddProjectDraft()
+        #expect(draft.guessedRole(for: "/w/acme-backend") == "backend")
+        #expect(draft.guessedRole(for: "/w/acme-spec") == "spec")
+        #expect(draft.guessedRole(for: "/w/acme") == "")
+        #expect(draft.workingRole(for: "/w/acme-spec") == "")
+        #expect(draft.workingRole(for: "/w/acme-web") == "web")
         #expect(AddProjectDraft.suggestedChecks.last == "none")
     }
 
