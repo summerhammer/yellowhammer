@@ -100,7 +100,7 @@ struct CLIAdapterDispatchTests {
                 == URL(filePath: "/config/runs/proj/run-1/BACK-1/7-worker", directoryHint: .isDirectory)
         )
         #expect(!mapped.runDirectory.path(percentEncoded: false).hasPrefix("/wt/backend"))
-        // What the agent is told to write is what the adapter's dual-key check reads back.
+        // The configured result path is where the adapter persists the response it validates.
         #expect(mapped.instruction.contains("/config/runs/proj/run-1/BACK-1/7-worker/result.json"))
     }
 

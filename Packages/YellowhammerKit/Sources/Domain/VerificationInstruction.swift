@@ -39,7 +39,7 @@ public struct VerificationInstruction: Equatable, Sendable {
     public let clauses: [VerificationClause]
     public let specificationSource: ProjectSpecificationSource
     public let repositories: [VerificationRepository]
-    /// The absolute path the CLI must write its result file to.
+    /// The absolute path where the CLI Adapter persists the final structured response.
     public let resultFilePath: String
 
     public init(
@@ -119,7 +119,8 @@ public struct VerificationInstruction: Equatable, Sendable {
         """
         ## Result contract
 
-        Write the result file to `\(resultFilePath)` on completion. It must declare \
+        Return one JSON object as your final structured response, conforming to the supplied JSON schema. The \
+        CLI/adapter persists it to `\(resultFilePath)`; do not create or edit that file with tools. It must declare \
         `"schema": "\(RunPass.verifier.schemaIdentifier)"` and `"version": 1`. Permitted outcomes for \
         this pass: reported, failed. `reported` carries `clauses`, one entry per clause with `issue_id`, \
         `cid`, `verdict` (`met` or `unmet`), `what_was_checked` and `interpretation`; `failed` carries \

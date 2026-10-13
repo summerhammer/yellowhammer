@@ -167,7 +167,7 @@ public struct Instruction: Equatable, Sendable {
     public let payloads: InstructionPayloads
     /// The commit message the worker pass is asked to write; nil omits the section.
     public let commitMessage: CommitMessageRequest?
-    /// The absolute path the CLI must write its result file to.
+    /// The absolute path where the CLI Adapter persists the final structured response.
     public let resultFilePath: String
 
     public init(

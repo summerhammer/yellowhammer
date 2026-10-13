@@ -90,7 +90,8 @@ extension AuthoringInstruction {
         """
         ## Result contract
 
-        Write the result file to `\(resultFilePath)` on completion. It must declare \
+        Return one JSON object as your final structured response, conforming to the supplied JSON schema. The \
+        CLI/adapter persists it to `\(resultFilePath)`; do not create or edit that file with tools. It must declare \
         `"schema": "\(pass.schemaIdentifier)"` and `"version": 1`. Permitted outcomes for this pass: \
         \(permittedOutcomes.joined(separator: ", ")). \(fieldsSentence)\(briefAudienceSentence) An empty or \
         missing result file is treated as a crash.
