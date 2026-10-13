@@ -68,6 +68,28 @@ extension NightPulseState {
     }
 }
 
+extension NightAccount.RunOutcome {
+    var style: some ShapeStyle { token }
+
+    /// Never `warning`: that rings a problem, and a run with one is ringed separately.
+    fileprivate var token: ThemeShapeStyle<Color> {
+        switch self {
+        case .ended: .success
+        case .idle, .stoodDown: .neutral
+        case .incomplete: .error
+        case .notEnded: .info
+        }
+    }
+}
+
+extension NightMoment.ActState {
+    /// The style of the run the time is in or after; `neutral` before the Act's first run.
+    var style: some ShapeStyle {
+        let style: ThemeShapeStyle<Color> = run?.outcome.token ?? .neutral
+        return style
+    }
+}
+
 extension PullRequestState {
     var style: some ShapeStyle {
         let style: ThemeShapeStyle<Color> = switch self {

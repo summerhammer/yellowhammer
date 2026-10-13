@@ -3,8 +3,9 @@ import Pulse
 import SwiftUI
 
 /// The Inspector: the detail of the current selection, beside the Pulse. A Card opens its Card detail,
-/// read from this Project's own Journal, and so does the Night (its account, OQ158 ruling item 14). The
-/// Feature, an Attempt and a Repo each open a pane rendered from the landing snapshot.
+/// read from this Project's own Journal. The Night opens its facts and its way out to the Night Card (OQ158
+/// ruling item 14), from the same read as the Night's account in the main area, which takes the Pulse's
+/// place. The Feature, an Attempt and a Repo each open a pane rendered from the landing snapshot.
 ///
 /// It shows a selection only while that selection names something in `project`, so the Inspector never
 /// shows another Project's Card, Attempt or Repo beside this Project's Pulse (R20). Its ways out open
@@ -14,6 +15,9 @@ struct InspectorView: View {
     let selection: PulseSelection?
     /// The landing snapshot's instant: a pane that reads beside the snapshot reads again when it changes.
     let asOf: Date
+    /// The window's read of the Night the main area shows, when it shows one. The Night's pane renders only
+    /// a model made for that Night of this Project.
+    let nightAccount: NightDetailModel?
     @Environment(\.openPulseDestination) private var openDestination
 
     var body: some View {
@@ -54,10 +58,9 @@ struct InspectorView: View {
                 decisionCardIDs: decisionCardIDs
             )
         case let .night(id):
-            if let night = project.pulse.night, night.id == id {
-                // One view, and one read, per Night of one Project, like the Card detail above.
-                NightDetailView(project: project.id, night: night, asOf: asOf)
-                    .id(NightDetailIdentity(project: project.id, night: id))
+            if let night = project.pulse.night, night.id == id,
+               let nightAccount, nightAccount.project == project.id, nightAccount.nightID == id {
+                NightDetailView(night: night, model: nightAccount)
             }
         }
     }
@@ -66,9 +69,4 @@ struct InspectorView: View {
 private struct CardDetailIdentity: Hashable {
     let project: ProjectID
     let card: String
-}
-
-private struct NightDetailIdentity: Hashable {
-    let project: ProjectID
-    let night: Int64
 }

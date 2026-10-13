@@ -9,7 +9,10 @@ public enum PulseSelection: Hashable, Sendable {
     case feature(String)
     case attempt(String)
     case repo(String)
-    /// A Night's account, by the Night's row id in its own Project's Journal (OQ158 ruling item 14).
+    /// A Night's account, by the Night's row id in its own Project's Journal (OQ158 ruling item 14). Unlike
+    /// the others it also takes the main area: the Night's Journal events, along a playhead, replace the Pulse
+    /// until the selection is cleared, and the Inspector carries the Night's facts and its way out to the
+    /// Night Card.
     case night(Int64)
 }
 

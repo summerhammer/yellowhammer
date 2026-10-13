@@ -5,7 +5,9 @@ import SwiftUI
 /// The Pulse's Tonight / last Night group: `verdict_line`, `cards_by_disposition` counts, and the
 /// Night's state (running / done / halted / starved). Opens the Night Card — the decision itself stays in
 /// Linear. Per the spec story `app/land-on-the-sidebar-and-pulse`, every Pulse element opens its selection
-/// in the Inspector, so a second link opens the Night's account there (OQ158 ruling item 14).
+/// in the Inspector, so a second link selects the Night's account (OQ158 ruling item 14): its Journal events,
+/// along a playhead, take the Pulse's place in the main area, and the Inspector shows the Night's facts and
+/// its way out to the Night Card.
 ///
 /// The Journal read supplies a factual failure count; a full Night Summary remains unknown.
 struct NightGroup: View {

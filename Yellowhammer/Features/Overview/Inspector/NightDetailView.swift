@@ -2,26 +2,20 @@ import Domain
 import Pulse
 import SwiftUI
 
-/// The Inspector's Night account: the Night from the Pulse, and the Journal events its own Project's
-/// Journal recorded for it, grouped by Act run, in plain words, problems first (OQ158 ruling item 14).
-/// Journal events only, never agent output (item 16).
+/// The Inspector's Night: the Night from the Pulse, and the facts its own Project's Journal recorded for it
+/// (OQ158 ruling item 14). The Night's Journal events are the main area's, laid along a playhead
+/// (`NightAccountView`); this pane carries the Night's header, its facts and its way out. Journal events
+/// only, never agent output (item 16).
 ///
 /// Read-only. Nothing here triages: its one way out opens the Night Card in Linear, where the decision is
 /// made.
 ///
-/// The header comes from the Pulse snapshot the Night was opened from, so it shows at once; the account is
-/// read beside it, and read again each time the snapshot is (`asOf` changes).
+/// The header comes from the Pulse snapshot the Night was opened from, so it shows at once. The account is
+/// read by `model`, which the main area reads through too and re-reads each time the snapshot is; this pane
+/// only shows what the model has read.
 struct NightDetailView: View {
     let night: NightPulse
-    /// The landing snapshot's instant. A new one means the snapshot was re-read, so the account is too.
-    let asOf: Date
-    @State private var model: NightDetailModel
-
-    init(project: ProjectID, night: NightPulse, asOf: Date) {
-        self.night = night
-        self.asOf = asOf
-        _model = State(initialValue: NightDetailModel(project: project, nightID: night.id))
-    }
+    let model: NightDetailModel
 
     var body: some View {
         InspectorPane(
@@ -45,7 +39,6 @@ struct NightDetailView: View {
         } content: {
             content
         }
-        .task(id: asOf) { await model.load() }
     }
 
     private var account: NightAccount? {
@@ -66,7 +59,7 @@ struct NightDetailView: View {
                     .accessibilityIdentifier("night-detail-loading")
             }
         case let .account(account):
-            NightDetailAccount(account: account)
+            NightDetailFacts(account: account)
         case .noSuchNight:
             Section {
                 Text("The Journal no longer records this Night.")
