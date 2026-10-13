@@ -269,8 +269,8 @@ struct RecordedTipAncestryTests {
         #expect(byCommit.isAncestor)
     }
 
-    @Test("No recorded commit, or one the repository lacks, reads the branch; with neither the tip is unresolved")
-    func fallsBackToTheBranchName() async throws {
+    @Test("Only with no recorded commit is the branch read; a recorded commit the repository lacks is unresolved")
+    func readsTheBranchNameOnlyWithoutARecordedCommit() async throws {
         let fixture = GitFixture(name: "tip-fallback-\(UUID().uuidString)")
         let tip = try await populateMerged(fixture)
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
@@ -283,7 +283,9 @@ struct RecordedTipAncestryTests {
         let malformed = await tester.testAncestry(branch: "nope", recordedCommit: "--all", in: repo)
 
         #expect(none.branchCommit == tip)
-        #expect(gone.branchCommit == tip)
+        // A live branch does not stand in for a lost recorded commit (#tested-tip).
+        #expect(gone.branchCommit == nil)
+        #expect(!gone.isAncestor)
         #expect(neither.branchCommit == nil)
         #expect(malformed.branchCommit == nil)
     }

@@ -142,9 +142,9 @@ public struct MergeTester: Sendable {
         return FeatureMergeReport(branches: branches, results: results)
     }
 
-    /// Evaluates the merge test across `repos`, each against its own ``TestedTip``: the recorded commit when
-    /// the repository still has it, else the Feature Branch. A repository absent from `tips`, or whose tip
-    /// resolves to no commit, is untestable.
+    /// Evaluates the merge test across `repos`, each against its own ``TestedTip``: the recorded commit alone
+    /// when one was recorded, else the Feature Branch (#tested-tip). A repository absent from `tips`, or whose
+    /// tip resolves to no commit (including a recorded commit the repository lost), is untestable.
     public func evaluateMerge(
         tips: [String: TestedTip],
         repos: [Repo],
@@ -181,9 +181,11 @@ public struct MergeTester: Sendable {
         await testMerge(branch: branch, recordedCommit: nil, in: repo, mainline: mainline)
     }
 
-    /// Test-merges `recordedCommit` — or, when no commit was recorded or the repository no longer has it, the
-    /// branch name — against a single repository's Mainline. One `git merge-tree` read gives both the
-    /// Mainline Conflict verdict and the content test's merged tree.
+    /// Test-merges `recordedCommit` — or, only when no commit was recorded, the branch name — against a single
+    /// repository's Mainline (feature-authoring/select-the-next-feature, #tested-tip). A recorded commit the
+    /// repository no longer has is untestable and the branch is never consulted, so commits added to the pull
+    /// request on GitHub are not part of the test. One `git merge-tree` read gives both the Mainline Conflict
+    /// verdict and the content test's merged tree.
     public func testMerge(
         branch: String,
         recordedCommit: String?,
@@ -199,14 +201,13 @@ public struct MergeTester: Sendable {
             )
         }
 
-        // 1. Resolve the tested commit in the repository: the recorded one, else the branch
-        let recorded = await git.existingCommit(recordedCommit, in: path)
-        let resolved = if let recorded { recorded } else { await resolveTipBranch(branch, in: path) }
-        guard let branchCommit = resolved else {
+        // 1. Resolve the tested commit in the repository: the recorded one alone when there is one, else the branch
+        let tested = await resolveTestedCommit(branch: branch, recordedCommit: recordedCommit, in: path)
+        guard let branchCommit = tested.commit else {
             return RepoMergeResult(
                 repository: repo.name,
                 branch: branch,
-                verdict: .untestable(reason: "could not resolve branch \(branch)")
+                verdict: .untestable(reason: tested.unresolvedReason)
             )
         }
 
@@ -310,6 +311,21 @@ public struct MergeTester: Sendable {
         }
 
         return Array(Set(paths)).sorted()
+    }
+
+    /// The commit under test (#tested-tip): `recordedCommit` when one was recorded — nil if the repository no
+    /// longer has it, and the branch is then never read — else the commit the branch name resolves to. The
+    /// reason says which of the two could not be resolved.
+    private func resolveTestedCommit(
+        branch: String, recordedCommit: String?, in path: String
+    ) async -> (commit: String?, unresolvedReason: String) {
+        if let recordedCommit {
+            return (
+                await git.existingCommit(recordedCommit, in: path),
+                "recorded commit \(recordedCommit) is not in the repository"
+            )
+        }
+        return (await resolveTipBranch(branch, in: path), "could not resolve branch \(branch)")
     }
 
     /// The commit a branch name resolves to; nil for the empty name a tip with no Feature Branch carries.
