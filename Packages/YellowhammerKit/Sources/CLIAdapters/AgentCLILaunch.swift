@@ -11,7 +11,7 @@ public struct AgentCLILaunch: Sendable {
     public var environment: [String: String]
     /// The process's cwd. Must exist as a directory — checked before spawning.
     public var worktreePath: String
-    /// Where the CLI is told to write its result file, and where the dual-key check reads it back.
+    /// Where the adapter persists the CLI's structured response, and where the dual-key check reads it back.
     public var resultFile: URL
     public var pass: RunPass
     /// SIGTERM-to-the-group deadline. Escalates to SIGKILL after the runner's grace period.
