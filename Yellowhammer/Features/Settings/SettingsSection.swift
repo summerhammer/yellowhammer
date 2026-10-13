@@ -11,6 +11,8 @@ enum SettingsSection: Hashable {
     case codeHosting
     /// The declared Agent CLIs, their latest Probe Results, and a Probe on demand.
     case agentCLIs
+    /// The Repo Roles this Mac offers: the built-in ones and those the Operator declared.
+    case repoRoles
     /// The machine-wide base Routing Table.
     case baseRoutingTable
     /// The Project configuration files the loader refused, with their errors.
@@ -26,6 +28,7 @@ enum SettingsSection: Hashable {
         case .boards: "Boards"
         case .codeHosting: "Code Hosting"
         case .agentCLIs: "Agent CLIs"
+        case .repoRoles: "Repo Roles"
         case .baseRoutingTable: "Base Routing Table"
         case .refusedFiles: "Refused Files"
         case let .project(id): configured?.entry(for: id)?.name ?? id.rawValue
