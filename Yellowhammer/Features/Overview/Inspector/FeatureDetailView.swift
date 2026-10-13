@@ -4,7 +4,8 @@ import SwiftUI
 
 /// The Inspector's Feature detail: the in-flight Feature and each of its Repo Lanes with its member
 /// Cards and pull request chip, all read from the Pulse snapshot. `title`, `state` and `rollup_state`
-/// are stated as unknown while the snapshot does not have them, as the Pulse's Feature group does.
+/// are stated as unknown while the snapshot does not have them, as the Pulse's Feature group does; a
+/// verified Feature adds its clause tally.
 ///
 /// Read-only. Settle and merge stay in Linear and GitHub: the one way out opens the Feature Issue.
 struct FeatureDetailView: View {
@@ -26,7 +27,7 @@ struct FeatureDetailView: View {
         ) {
             Group {
                 if let state = feature.state {
-                    PulseCountBadge(text: state, style: .neutral)
+                    PulseCountBadge(text: state, style: feature.stateStyle)
                 } else {
                     Text("state unknown").font(.caption).foregroundStyle(.secondary)
                 }
@@ -38,6 +39,11 @@ struct FeatureDetailView: View {
             }
             .accessibilityIdentifier("feature-detail-state")
         } content: {
+            if let verification = feature.verification {
+                Section("Verification") {
+                    Text(verification.summary).accessibilityIdentifier("feature-detail-verification")
+                }
+            }
             if feature.lanes.isEmpty {
                 Section("Repo Lanes") {
                     Label("No Repo Lane yet", systemImage: "square.stack.3d.up.slash")

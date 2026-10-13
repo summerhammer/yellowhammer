@@ -59,83 +59,6 @@ public struct LinearIssueLink: Equatable, Sendable {
     }
 }
 
-/// Needs you: the Project's decision Cards, Blocked and Waiting on You alike.
-public struct NeedsYou: Equatable, Sendable {
-    public var cards: [DecisionCard]
-
-    public init(cards: [DecisionCard]) {
-        self.cards = cards
-    }
-
-    public var waitingOnYouCount: Int {
-        cards.count { $0.state == .waitingOnYou }
-    }
-
-    /// Blocked Cards counted by Block Reason, most frequent first.
-    public var blockReasonCounts: [(reason: BlockReason, count: Int)] {
-        let reasons = cards.compactMap(\.blockReason)
-        return BlockReason.allCases
-            .compactMap { reason in
-                let tally = reasons.count { $0 == reason }
-                return tally > 0 ? (reason: reason, count: tally) : nil
-            }
-            .sorted { $0.count > $1.count }
-    }
-}
-
-/// A Card that needs a decision, opened in one hop into the Inspector.
-public struct DecisionCard: Identifiable, Equatable, Sendable {
-    /// The Linear issue id, as the Journal records it.
-    public let id: String
-    /// The readable issue identifier (e.g. `ENG-123`), recorded for display.
-    public var issueIDForDisplay: String?
-    public var title: String
-    /// `.blocked` or `.waitingOnYou`.
-    public var state: CardState
-    /// Set only when `state` is `.blocked`.
-    public var blockReason: BlockReason?
-    public var repo: String
-    /// The Card's Linear issue; nil until the Delta Read has recorded its identifier and URL.
-    public var link: LinearIssueLink?
-
-    public init(
-        id: String,
-        issueIDForDisplay: String? = nil,
-        title: String,
-        state: CardState,
-        blockReason: BlockReason?,
-        repo: String,
-        link: LinearIssueLink? = nil
-    ) {
-        self.id = id
-        self.issueIDForDisplay = issueIDForDisplay
-        self.title = title
-        self.state = state
-        self.blockReason = blockReason
-        self.repo = repo
-        self.link = link
-    }
-
-    public init(
-        id: String,
-        title: String,
-        state: CardState,
-        blockReason: BlockReason?,
-        repo: String,
-        link: LinearIssueLink? = nil
-    ) {
-        self.init(
-            id: id,
-            issueIDForDisplay: nil,
-            title: title,
-            state: state,
-            blockReason: blockReason,
-            repo: repo,
-            link: link
-        )
-    }
-}
-
 /// Now: status, running Act, next scheduled Act, and running Attempts with a one-line status each.
 public struct Now: Equatable, Sendable {
     public var status: ProjectStatus
@@ -257,10 +180,13 @@ public struct FeatureInFlight: Equatable, Sendable {
     public var issueIDForDisplay: String?
     /// Nil from a Journal read: the Feature Issue's title lives in Linear.
     public var title: String?
-    /// The Feature Issue's Linear workflow state. Nil from a Journal read: it lives in Linear.
+    /// The Journal's own state for the Feature (`selected`, `returned`, `closed`), not Linear's workflow state.
     public var state: String?
-    /// Nil from a Journal read: only Engine's `FeatureRollUp` computes it, and the app may not link Engine.
+    /// The Roll-up word (``RollUpLattice``) over the Feature's Cards, Verification and merged fraction, read
+    /// from the Journal. Nil when every Card is Shelved.
     public var rollupState: RollUpState?
+    /// The clause verdicts of the Cycle's recorded Verification; nil until the land Act has verified it.
+    public var verification: VerificationCounts?
     public var lanes: [RepoLaneSnapshot]
     /// The Feature Issue's Linear issue; nil until the Delta Read has recorded its identifier and URL.
     public var link: LinearIssueLink?
@@ -272,13 +198,15 @@ public struct FeatureInFlight: Equatable, Sendable {
         state: String?,
         rollupState: RollUpState?,
         lanes: [RepoLaneSnapshot],
-        link: LinearIssueLink? = nil
+        link: LinearIssueLink? = nil,
+        verification: VerificationCounts? = nil
     ) {
         self.id = id
         self.issueIDForDisplay = issueIDForDisplay
         self.title = title
         self.state = state
         self.rollupState = rollupState
+        self.verification = verification
         self.lanes = lanes
         self.link = link
     }

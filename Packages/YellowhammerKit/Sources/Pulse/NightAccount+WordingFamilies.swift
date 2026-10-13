@@ -124,18 +124,18 @@ extension NightWording {
         case .authoringNoWorkAvailable:
             NightWords(headline: "Nothing to author")
         case .authoringSkippedFeatureInFlight(let featureIssueID):
-            NightWords(headline: "Authored nothing — a Feature is already in flight", detail: featureIssueID)
+            NightWords(headline: "Authored nothing — a Feature is already in flight", detail: feature(featureIssueID))
         case .authoringPredecessorNotLanded(let featureIssueID, let repositories):
             NightWords(
                 headline: "Authored nothing — the predecessor Feature has not landed",
-                detail: "\(featureIssueID) in \(repositories.joined(separator: ", "))"
+                detail: "\(feature(featureIssueID)) in \(repositories.joined(separator: ", "))"
             )
         case .featureSelected(let payload):
             NightWords(headline: "Selected the Feature “\(payload.name)”")
         case .featureAuthored(let payload):
             NightWords(
                 headline: "Authored the Feature “\(payload.name)”",
-                detail: "\(payload.featureIssueID), \(count(payload.cardCount, "Card"))"
+                detail: "\(feature(payload.featureIssueID)), \(count(payload.cardCount, "Card"))"
             )
         case .featureAuthoringFailed(let name, _, let reason):
             NightWords(headline: "Authoring the Feature “\(name)” failed", detail: reason)
@@ -158,7 +158,7 @@ extension NightWording {
             )
         case .featureReturned(_, let featureIssueID, let unmet, let unresolved):
             NightWords(
-                headline: "The Feature \(featureIssueID) was returned to you",
+                headline: "The Feature \(feature(featureIssueID)) was returned to you",
                 detail: "\(unmet) unmet, \(unresolved) unresolved"
             )
         default:

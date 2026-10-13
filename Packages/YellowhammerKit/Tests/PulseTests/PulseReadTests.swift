@@ -223,8 +223,9 @@ func featureLanes() throws {
 
     #expect(snapshot.id == "F-1")
     #expect(snapshot.title == nil)
-    #expect(snapshot.state == nil)
-    #expect(snapshot.rollupState == nil)
+    #expect(snapshot.state == "selected")
+    // The Cycle has not landed (running half) and Cards wait on you.
+    #expect(snapshot.rollupState == .waiting)
     #expect(lanes["a"]?.state == .landed)
     #expect(lanes["b"]?.state == .blocked)
     #expect(lanes["c"]?.state == .waitingOnYou)

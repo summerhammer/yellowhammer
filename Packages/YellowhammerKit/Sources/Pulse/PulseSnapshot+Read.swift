@@ -8,7 +8,7 @@ extension PulseSnapshot {
     /// The read is HANDED a store and never opens one, so it structurally cannot reach a sibling
     /// Project's Journal (ADR-002): every value below comes from this one store. It only reads.
     ///
-    /// What the Journal cannot say stays nil: `now.nextAct`, the Feature's title/state/rollup state, a
+    /// What the Journal cannot say stays nil: `now.nextAct`, the Feature's title, a
     /// pull request's state, an Attempt's status line, and the full Night Summary.
     ///
     /// `status` is handed in as the launchd fallback. An unexpired Journal lease is the authoritative
@@ -36,7 +36,7 @@ extension PulseSnapshot {
         let outboxFlags = try Self.undeliveredBoardWrites(journal)
         let liveRunID = runningAct != nil ? try journal.currentActLease()?.runID : nil
         return PulseSnapshot(
-            needsYou: try needsYou(journal),
+            needsYou: try needsYou(journal, inFlight: inFlight),
             now: now,
             feature: try feature(
                 journal, inFlight: inFlight, now: now,
@@ -70,7 +70,9 @@ extension PulseSnapshot {
 
     // MARK: Needs you
 
-    private static func needsYou(_ journal: JournalStore) throws -> NeedsYou {
+    private static func needsYou(
+        _ journal: JournalStore, inFlight: (feature: FeatureRecord, cycleID: Int64)?
+    ) throws -> NeedsYou {
         let cards = try journal.cards().compactMap { card -> DecisionCard? in
             guard card.state == .blocked || card.state == .waitingOnYou else { return nil }
             return DecisionCard(
@@ -83,7 +85,38 @@ extension PulseSnapshot {
                 link: LinearIssueLink.link(key: card.issueIDForDisplay ?? card.issueKey, url: card.issueURL)
             )
         }
-        return NeedsYou(cards: cards)
+        return NeedsYou(cards: cards, returnedFeature: try returnedFeature(journal, inFlight: inFlight))
+    }
+
+    /// The Journal's Feature state once the land Act has returned the Feature to the Operator.
+    private static let returnedState = "returned"
+
+    /// The in-flight Feature as a Needs you row when the land Act returned it to the Operator.
+    private static func returnedFeature(
+        _ journal: JournalStore, inFlight: (feature: FeatureRecord, cycleID: Int64)?
+    ) throws -> ReturnedFeature? {
+        guard let inFlight, inFlight.feature.state == Self.returnedState else { return nil }
+        let feature = inFlight.feature
+        let key = feature.issueIDForDisplay ?? feature.issueKey
+        return ReturnedFeature(
+            id: feature.issueID,
+            issueIDForDisplay: key,
+            verification: try verificationCounts(journal, cycleID: inFlight.cycleID),
+            link: LinearIssueLink.link(key: key, url: feature.issueURL)
+        )
+    }
+
+    /// The verdict tally of the Cycle's recorded Verification; nil when none is recorded.
+    private static func verificationCounts(_ journal: JournalStore, cycleID: Int64) throws -> VerificationCounts? {
+        try journal.featureVerification(cycleID: cycleID).map(counts(of:))
+    }
+
+    private static func counts(of record: FeatureVerificationRecord) -> VerificationCounts {
+        VerificationCounts(
+            met: record.clauses.count { $0.verdict == .met },
+            unmet: record.clauses.count { $0.verdict == .unmet },
+            unresolved: record.clauses.count { $0.verdict == .unresolved }
+        )
     }
 
     // MARK: Now
@@ -171,18 +204,48 @@ extension PulseSnapshot {
         let lanes = repos.map { repo in
             repoLane(repo: repo, context: context)
         }
+        let verification = try journal.featureVerification(cycleID: inFlight.cycleID)
         return FeatureInFlight(
             id: inFlight.feature.issueID,
             issueIDForDisplay: inFlight.feature.issueIDForDisplay ?? inFlight.feature.issueKey,
             title: nil,
-            state: nil,
-            rollupState: nil,
+            state: inFlight.feature.state,
+            rollupState: try rollupState(
+                journal, inFlight: inFlight, cards: cards, landings: landed, verification: verification
+            ),
             lanes: lanes,
             link: LinearIssueLink.link(
                 key: inFlight.feature.issueIDForDisplay ?? inFlight.feature.issueKey,
                 url: inFlight.feature.issueURL
-            )
+            ),
+            verification: verification.map(counts(of:))
         )
+    }
+
+    /// The Feature's Roll-up word, from the same inputs Engine's `FeatureRollUpMaintenance.maintain` reads
+    /// (reimplemented because Pulse may not import Engine). A Feature with a Cycle is past the zero-Card
+    /// standings, so no Cards reads `authoring`; every Card Shelved reads nil.
+    private static func rollupState(
+        _ journal: JournalStore,
+        inFlight: (feature: FeatureRecord, cycleID: Int64),
+        cards: [CardRecord],
+        landings: [String: String],
+        verification: FeatureVerificationRecord?
+    ) throws -> RollUpState? {
+        guard !cards.isEmpty else { return .authoring }
+        let live = cards.map(\.state).filter { $0 != .shelved }
+        guard !live.isEmpty else { return nil }
+        // N, not the touched repositories: a repository with a No-Pushed-Branch Outcome has no Feature Branch.
+        let pushed = try journal.pushedRepositories(featureID: inFlight.feature.id)
+        return RollUpLattice.rollUp(
+            liveCardStates: live,
+            lanesPushed: try journal.isCycleLanded(cycleID: inFlight.cycleID),
+            verificationPassed: verification?.clauses.allSatisfy { $0.verdict == .met } ?? false,
+            unmetClauseCount: verification?.clauses.count { $0.verdict != .met },
+            mergedFraction: MergedFraction(
+                mergedCount: Set(landings.keys).intersection(pushed).count, totalCount: pushed.count
+            )
+        ).state
     }
 
     private struct FeatureLaneContext {
@@ -277,7 +340,9 @@ extension PulseSnapshot {
             id: night.id,
             state: night.state == .opened ? .running : .done,
             startedAt: night.openedAt,
-            verdictLine: count > 0 ? "\(count) Act run\(count == 1 ? "" : "s") failed — see Health" : nil,
+            verdictLine: try verdictLine(
+                nightEvents: events.filter { $0.nightID == night.id }, failedRunCount: count, journal: journal
+            ),
             cardsByDisposition: try dispositions(night: night, journal: journal, events: events),
             cardsAbsence: absence,
             nightCard: LinearIssueLink.link(
