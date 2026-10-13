@@ -47,7 +47,8 @@ final class SettingsWindowUITests: XCTestCase {
 
     func testCommandCommaOpensTheSettingsWindow() {
         showSettings()
-        for id in ["settings-general", "settings-boards", "settings-agent-clis", "settings-base-routing-table",
+        for id in ["settings-general", "settings-boards", "settings-agent-clis", "settings-repo-roles",
+                   "settings-base-routing-table",
                    "settings-refused-files", "settings-project-archive", "settings-project-owner",
                    "settings-project-reader"] {
             XCTAssertTrue(element(id).waitForExistence(timeout: 5), "\(id) is missing")

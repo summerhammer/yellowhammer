@@ -44,12 +44,16 @@ public struct LinearInstallation: Equatable, Sendable {
 }
 
 /// The machine-wide configuration file: the registry of Linear Board Connections (ADR-005), the registry of
-/// Code Hosting Connections, the declared CLI Adapters and the base Routing Table.
+/// Code Hosting Connections, the Operator-declared Repo Roles, the declared CLI Adapters and the base Routing Table.
 public struct MachineConfiguration: Equatable, Sendable {
     /// The registry of Board Connections, in file order; zero or more.
     public var linearInstallations: [LinearInstallation]
     /// The registry of Code Hosting Connections, in file order; zero or more.
     public var codeHostingConnections: [CodeHostingConnection]
+    /// The Repo Roles the Operator declared (`repo_roles`), beyond the built-in ``RepoRole/standard`` ones, in
+    /// file order. Non-validating: the registry feeds the pickers, and a Repo or Routing Entry naming an
+    /// undeclared Repo Role still loads.
+    public var repoRoles: [RepoRole]
     /// In file order.
     public var cliAdapters: [CLIAdapterDeclaration]
     /// The base Routing Table, in file order.
@@ -58,11 +62,13 @@ public struct MachineConfiguration: Equatable, Sendable {
     public init(
         linearInstallations: [LinearInstallation] = [],
         codeHostingConnections: [CodeHostingConnection] = [],
+        repoRoles: [RepoRole] = [],
         cliAdapters: [CLIAdapterDeclaration],
         routingTable: [RoutingEntry]
     ) {
         self.linearInstallations = linearInstallations
         self.codeHostingConnections = codeHostingConnections
+        self.repoRoles = repoRoles
         self.cliAdapters = cliAdapters
         self.routingTable = routingTable
     }

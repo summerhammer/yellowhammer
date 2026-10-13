@@ -13,7 +13,10 @@ struct MachineConfigurationDecoder {
     /// The base Routing Table is checked against this file's own `[cli]` declarations: every route
     /// must name a declared CLI Adapter.
     func decode(_ root: TOMLTable) throws(ConfigurationError) -> MachineConfiguration {
-        try decoding.rejectUnknownKeys(in: root, path: nil, allowed: ["board", "code_hosting", "cli", "routing"])
+        try decoding.rejectUnknownKeys(in: root, path: nil, allowed: [
+            "repo_roles", "board", "code_hosting", "cli", "routing"
+        ])
+        let repoRoles = try repoRoles(in: root)
         let linearInstallations = try linearInstallations(in: root)
         let codeHostingConnections = try codeHostingConnections(in: root)
         let cliAdapters = try cliAdapters(in: root)
@@ -22,12 +25,44 @@ struct MachineConfigurationDecoder {
         return MachineConfiguration(
             linearInstallations: linearInstallations,
             codeHostingConnections: codeHostingConnections,
+            repoRoles: repoRoles,
             cliAdapters: cliAdapters,
             routingTable: try routingDecoding.routingTable(in: root)
         )
     }
 
     // MARK: - Sections
+
+    /// `repo_roles`, an optional array of strings: the Repo Roles the Operator declared, beyond the standard
+    /// ones. Each must pass ``RepoRole/isValidName`` and be declared once; a standard Repo Role is refused,
+    /// as every Mac offers it already. The registry only feeds pickers: nothing else checks a Repo's `role`
+    /// or a Routing Entry's `repo_role` against it.
+    private func repoRoles(in root: TOMLTable) throws(ConfigurationError) -> [RepoRole] {
+        guard let value = root["repo_roles"] else { return [] }
+        let key = "repo_roles"
+        guard case .array(let elements) = value.content else {
+            throw decoding.error(line: value.line, key: key, .typeMismatch(expected: "array", found: value.typeName))
+        }
+        var roles: [RepoRole] = []
+        for element in elements {
+            guard case .string(let name) = element.content else {
+                let reason = ConfigurationError.Reason.typeMismatch(expected: "string", found: element.typeName)
+                throw decoding.error(line: element.line, key: key, reason)
+            }
+            guard !name.isEmpty else {
+                throw decoding.error(line: element.line, key: key, .emptyString)
+            }
+            guard RepoRole.isValidName(name) else {
+                throw decoding.error(line: element.line, key: key, .invalidRepoRoleName(name))
+            }
+            let role = RepoRole(rawValue: name)
+            guard !role.isStandard, !roles.contains(role) else {
+                throw decoding.error(line: element.line, key: key, .duplicateRepoRole(name))
+            }
+            roles.append(role)
+        }
+        return roles
+    }
 
     /// `[board.linear.connections.<name>]`, zero or more: the registry of Board Connections. Each
     /// carries a required `credential`, `workspace` and `yellowhammer_identity` and an optional Operator identity

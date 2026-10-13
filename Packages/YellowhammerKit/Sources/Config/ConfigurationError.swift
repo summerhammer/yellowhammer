@@ -48,6 +48,11 @@ public struct ConfigurationError: Error, Equatable, Sendable {
         case unknownTemplateToken(name: String, key: String, accepted: [String])
         /// A Message Template has a `{` with no closing `}`.
         case unterminatedTemplateBrace(key: String)
+        /// A `repo_roles` name that is not lowercase letters, digits, `_` and `-` starting with a letter or digit.
+        case invalidRepoRoleName(String)
+        /// A `repo_roles` name that is declared twice, or is one of the standard Repo Roles, which every Mac
+        /// offers already.
+        case duplicateRepoRole(String)
     }
 
     public let file: String
@@ -146,6 +151,13 @@ extension ConfigurationError.Reason: CustomStringConvertible {
             return "names {\(name)}, which is not a \(key) token; the tokens are \(accepted.joined(separator: ", "))"
         case .unterminatedTemplateBrace(let key):
             return "has a \"{\" with no closing \"}\"; a \(key) names its tokens as {name}"
+        case .invalidRepoRoleName(let name):
+            return "Repo Role \"\(name)\" must contain only lowercase letters, digits, underscores and hyphens, "
+                + "and start with a letter or digit"
+        case .duplicateRepoRole(let name):
+            let standard = RepoRole(rawValue: name).isStandard
+            let reason = standard ? "is a standard Repo Role, offered already" : "is declared twice"
+            return "Repo Role \"\(name)\" \(reason)"
         }
     }
 }

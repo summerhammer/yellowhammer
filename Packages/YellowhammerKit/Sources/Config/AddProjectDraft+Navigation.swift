@@ -59,23 +59,25 @@ extension AddProjectDraft {
 
     // MARK: Repos and the Spec Source
 
-    public static let suggestedRoles = ["backend", "mobile", "web", "infra", "spec"]
-
     public static let suggestedChecks = ["make test", "swift test", "npm test", "./scripts/check", "none"]
 
-    /// The suggested role a folder's name ends with, or none.
-    public static func guessedRole(for path: String) -> String {
-        suggestedRoles.first { path.hasSuffix($0) } ?? ""
+    /// The offered Repo Role (``AddProjectContext/repoRoles``) a folder's name ends with, the longest match
+    /// winning, or none.
+    public func guessedRole(for path: String) -> String {
+        let folder = (path as NSString).lastPathComponent
+        return context.repoRoles
+            .filter { !$0.isEmpty && folder.hasSuffix($0) }
+            .max { $0.count < $1.count } ?? ""
     }
 
     /// The guessed role, never "spec": what a Repo goes back to when it stops being the spec.
-    public static func workingRole(for path: String) -> String {
+    public func workingRole(for path: String) -> String {
         let role = guessedRole(for: path)
         return role == "spec" ? "" : role
     }
 
     public mutating func addRepo(path: String) {
-        repos.append(Repo(path: path, role: Self.guessedRole(for: path)))
+        repos.append(Repo(path: path, role: guessedRole(for: path)))
     }
 
     public mutating func removeRepo(_ id: Repo.ID) {
@@ -87,7 +89,7 @@ extension AddProjectDraft {
         specChoice = .path
         specSourcePath = path
         for index in repos.indices where repos[index].role == "spec" {
-            repos[index].role = Self.workingRole(for: repos[index].path)
+            repos[index].role = workingRole(for: repos[index].path)
         }
     }
 
@@ -100,7 +102,7 @@ extension AddProjectDraft {
                 repos[index].role = "spec"
                 if repos[index].check.isEmpty { repos[index].check = "none" }
             } else if repos[index].role == "spec" {
-                repos[index].role = Self.workingRole(for: repos[index].path)
+                repos[index].role = workingRole(for: repos[index].path)
             }
         }
     }

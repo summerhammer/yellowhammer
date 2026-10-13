@@ -249,12 +249,19 @@ extension ProjectFileDraft {
 }
 
 extension MachineConfiguration {
-    /// Renders one `[board.linear.connections.<name>]` table per Board Connection, one
-    /// `[code_hosting.github.connections.<name>]` table per Code Hosting Connection, one `[cli.<name>]` table
-    /// per declared adapter and the given base Routing Table, in the shape ``MachineConfigurationDecoder``
-    /// reads back. Everything but the Routing Table is carried from `self`.
+    /// Renders the `repo_roles` declaration, one `[board.linear.connections.<name>]` table per Board
+    /// Connection, one `[code_hosting.github.connections.<name>]` table per Code Hosting Connection, one
+    /// `[cli.<name>]` table per declared adapter and the given base Routing Table, in the shape
+    /// ``MachineConfigurationDecoder`` reads back. Everything but the Routing Table is carried from `self`.
     public func renderedTOML(routingTable: [RoutingEntryDraft]) -> String {
         var sections: [String] = []
+
+        // A top-level key written after a `[table]` header would be read as that table's key, so
+        // `repo_roles` must come before every header.
+        if !repoRoles.isEmpty {
+            let names = repoRoles.map { ConfigurationRendering.quoted($0.rawValue) }.joined(separator: ", ")
+            sections.append("repo_roles = [\(names)]")
+        }
 
         for installation in linearInstallations {
             var lines = [

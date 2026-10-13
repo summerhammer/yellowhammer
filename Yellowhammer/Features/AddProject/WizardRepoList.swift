@@ -88,7 +88,7 @@ private struct RepoCard: View {
                         repo.name = url.lastPathComponent
                     }
                     if repo.role.isEmpty {
-                        repo.role = AddProjectDraft.guessedRole(for: repo.path)
+                        repo.role = draft.guessedRole(for: repo.path)
                     }
                 }
                 .buttonStyle(.bordered)
@@ -105,13 +105,7 @@ private struct RepoCard: View {
                 Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
                     GridRow {
                         Text("Repo Role").foregroundStyle(.secondary)
-                        Picker("Repo Role", selection: $repo.role) {
-                            Text("Choose…").tag("")
-                            ForEach(AddProjectDraft.suggestedRoles, id: \.self) { Text($0).tag($0) }
-                        }
-                        .labelsHidden()
-                        .fixedSize()
-                        .accessibilityIdentifier("setup-repo-role")
+                        RepoRoleChoice(role: $repo.role, roles: draft.context.repoRoles, identifier: "setup-repo-role")
                     }
                     GridRow {
                         Text("Check").foregroundStyle(.secondary)
