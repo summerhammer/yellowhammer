@@ -54,8 +54,8 @@ private struct PulseSummaryFigure: View {
     private var figure: (String, String) {
         switch group {
         case .needsYou:
-            let caption = pulse.needsYou.cards.isEmpty ? "nothing needs you" : "Cards need you"
-            return ("\(pulse.needsYou.cards.count)", caption)
+            let caption = pulse.needsYou.isEmpty ? "nothing needs you" : "need you"
+            return ("\(pulse.needsYou.count)", caption)
         case .now:
             if pulse.now.attempts.isEmpty {
                 return (pulse.now.status.rawValue, pulse.now.nextActLine)

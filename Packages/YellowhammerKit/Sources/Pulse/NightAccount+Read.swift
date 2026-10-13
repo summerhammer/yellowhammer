@@ -34,6 +34,7 @@ extension NightAccount {
         guard let night = try journal.night(id: nightID) else { return nil }
         let records = try journal.events(nightID: nightID)
         let cardNames = try cardNames(for: records, in: journal)
+        let featureNames = try featureNames(for: records, in: journal)
         return NightAccount(
             id: night.id,
             nightStart: night.nightStart.rawValue,
@@ -46,7 +47,7 @@ extension NightAccount {
                 key: night.nightCardIssueIDForDisplay ?? night.nightCardIssueKey,
                 url: night.nightCardIssueURL
             ),
-            runs: ActRun.runs(from: records, cardNames: cardNames)
+            runs: ActRun.runs(from: records, cardNames: cardNames, featureNames: featureNames)
         )
     }
 
@@ -66,6 +67,20 @@ extension NightAccount {
         }
         return names
     }
+
+    /// The display identifier of every Feature Issue the entries name, each read once. A Feature the Journal
+    /// has no row for is left out and read as its raw issue id.
+    private static func featureNames(
+        for records: [JournalEventRecord], in journal: JournalStore
+    ) throws -> [String: String] {
+        var names: [String: String] = [:]
+        for issueID in Set(records.compactMap { NightAccount.featureIssueID(of: $0.event) }) {
+            if let feature = try journal.feature(issueID: issueID) {
+                names[issueID] = feature.displayIdentifier
+            }
+        }
+        return names
+    }
 }
 
 extension NightAccount.ActRun {
@@ -74,7 +89,9 @@ extension NightAccount.ActRun {
 
     /// Groups `records`, already in append order, by run id. A run is placed by its first event, and its
     /// entries stay in append order.
-    static func runs(from records: [JournalEventRecord], cardNames: [Int64: String]) -> [NightAccount.ActRun] {
+    static func runs(
+        from records: [JournalEventRecord], cardNames: [Int64: String], featureNames: [String: String]
+    ) -> [NightAccount.ActRun] {
         var order: [String] = []
         var groups: [String: [JournalEventRecord]] = [:]
         for record in records {
@@ -83,19 +100,19 @@ extension NightAccount.ActRun {
             groups[key, default: []].append(record)
         }
         return order.compactMap { key in
-            groups[key].map { run(id: key, records: $0, cardNames: cardNames) }
+            groups[key].map { run(id: key, records: $0, cardNames: cardNames, featureNames: featureNames) }
         }
     }
 
     private static func run(
-        id: String, records: [JournalEventRecord], cardNames: [Int64: String]
+        id: String, records: [JournalEventRecord], cardNames: [Int64: String], featureNames: [String: String]
     ) -> NightAccount.ActRun {
         NightAccount.ActRun(
             id: id,
             act: id == unstampedID ? nil : records.lazy.compactMap(\.act).first?.rawValue,
             startedAt: records.first?.occurredAt ?? Date(timeIntervalSince1970: 0),
             outcome: outcome(of: records),
-            entries: records.map { NightAccount.Entry(record: $0, cardNames: cardNames) }
+            entries: records.map { NightAccount.Entry(record: $0, cardNames: cardNames, featureNames: featureNames) }
         )
     }
 

@@ -2,8 +2,8 @@ import Domain
 import Pulse
 import SwiftUI
 
-/// The Pulse's Needs you group: the Waiting on You count, the top Block Reasons as counts, and every
-/// decision Card, Blocked or Waiting on You. A Card opens in the Inspector in one hop, never through
+/// The Pulse's Needs you group: the Waiting on You count, the top Block Reasons as counts, a Feature
+/// returned with unmet clauses, and every decision Card, Blocked or Waiting on You. A Card opens in the Inspector in one hop, never through
 /// the Night Card; the decision itself stays in Linear.
 struct NeedsYouGroup: View {
     let needsYou: NeedsYou
@@ -13,7 +13,7 @@ struct NeedsYouGroup: View {
 
     var body: some View {
         PulseCard(group: .needsYou, summary: PulseGroup.summary(of: needsYou)) {
-            if needsYou.cards.isEmpty {
+            if needsYou.isEmpty {
                 Label("Nothing needs you", systemImage: "checkmark.circle")
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("needs-you-absence")
@@ -22,6 +22,14 @@ struct NeedsYouGroup: View {
                     waitingOnYouCount: needsYou.waitingOnYouCount,
                     blockReasonCounts: needsYou.blockReasonCounts
                 )
+                if let returned = needsYou.returnedFeature {
+                    Button { openDestination(.inspector(.feature(returned.id))) } label: {
+                        ReturnedFeatureRow(returned: returned)
+                            .pulseRowHighlight(inspected == .feature(returned.id))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("needs-you-feature")
+                }
                 ForEach(needsYou.cards) { card in
                     Button { openDestination(.inspector(.card(card.id))) } label: {
                         DecisionCardRow(card: card)
@@ -55,6 +63,29 @@ private struct NeedsYouCounts: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("needs-you-counts")
+    }
+}
+
+/// The Feature the land Act returned to the Operator: it is in the same disposition as a Card waiting on them.
+private struct ReturnedFeatureRow: View {
+    let returned: ReturnedFeature
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "arrow.uturn.backward.circle.fill")
+                .foregroundStyle(.attention)
+                .accessibilityHidden(true)
+            Text(line).lineLimit(2).multilineTextAlignment(.leading)
+            Spacer(minLength: 8)
+            PulseCountBadge(text: "returned", style: .attention)
+        }
+    }
+
+    /// `Feature YLH-347 returned — 4 of 22 clauses unmet`; the tally is left out when none is recorded.
+    private var line: String {
+        let name = returned.issueIDForDisplay ?? returned.id
+        guard let verification = returned.verification else { return "Feature \(name) returned" }
+        return "Feature \(name) returned — \(verification.summary)"
     }
 }
 

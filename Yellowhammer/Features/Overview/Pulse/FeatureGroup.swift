@@ -6,10 +6,10 @@ import SwiftUI
 /// Lanes with pull request chips. The Feature and each Repo open in the Inspector; a pull request chip
 /// opens the pull request on GitHub. There is no settle CTA here: settle and merge stay in Linear/GitHub.
 ///
-/// `state`, `rollupState` and a pull request's `state` are nil from a Journal read — they live in
-/// Linear, Engine's `FeatureRollUp` and GitHub respectively, none of which the app may reach here — so
-/// the group states `state` and `rollupState` as unknown rather than inventing one. A pull request's own
-/// state is a per-chip detail, so it is simply omitted when unknown.
+/// `state` is the Journal's own Feature state and `rollupState` the Roll-up word computed from the Journal;
+/// either is stated as unknown when nil rather than invented. A returned Feature carries its clause tally
+/// under the header. A pull request's `state` is nil from a Journal read — it lives in GitHub — so a chip
+/// simply omits it.
 struct FeatureGroup: View {
     let feature: FeatureInFlight?
     /// What the Inspector shows, so the Feature or Repo it names is marked.
@@ -45,7 +45,7 @@ struct FeatureGroup: View {
     }
 }
 
-/// The Feature's title over its id, `state` and `rollup_state`. The whole header opens the Feature's
+/// The Feature's title over its id, `state` and `rollup_state`, and its clause tally once verified. The whole header opens the Feature's
 /// detail in the Inspector.
 private struct FeatureHeader: View {
     let feature: FeatureInFlight
@@ -58,7 +58,7 @@ private struct FeatureHeader: View {
             HStack(spacing: 6) {
                 Text(feature.issueIDForDisplay ?? feature.id).font(.caption.monospaced()).foregroundStyle(.secondary)
                 if let state = feature.state {
-                    PulseCountBadge(text: state, style: .neutral)
+                    PulseCountBadge(text: state, style: feature.stateStyle)
                 } else {
                     Text("state unknown").font(.caption).foregroundStyle(.secondary)
                 }
@@ -70,6 +70,12 @@ private struct FeatureHeader: View {
             }
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("feature-state")
+            if let verification = feature.verification {
+                Text(verification.summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("feature-verification")
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

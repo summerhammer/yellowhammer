@@ -14,9 +14,10 @@ import Journal
 
 extension NightAccount.Entry {
     /// The entry for one Journal event. `cardNames` maps a Card's Journal id to its display identifier;
-    /// a Card it does not name reads as `Card <id>`.
-    init(record: JournalEventRecord, cardNames: [Int64: String]) {
-        let wording = NightWording(act: record.act, cardNames: cardNames)
+    /// a Card it does not name reads as `Card <id>`. `featureNames` maps a Feature Issue's id to its display
+    /// identifier; a Feature it does not name reads as the raw issue id.
+    init(record: JournalEventRecord, cardNames: [Int64: String], featureNames: [String: String] = [:]) {
+        let wording = NightWording(act: record.act, cardNames: cardNames, featureNames: featureNames)
         let words = wording.words(for: record.event)
         self.init(
             id: record.id,
@@ -38,6 +39,21 @@ extension NightAccount {
             .cardStateTransitioned(let id, _, _, _, _, _),
             .cardLeaseReclaimed(let id, _, _):
             id
+        default:
+            nil
+        }
+    }
+
+    /// The Feature Issue a worded event names by its issue id, so the read can name each Feature once. Covers the
+    /// events ``NightWording`` words with a Feature's name.
+    static func featureIssueID(of event: JournalEvent) -> String? {
+        switch event {
+        case .authoringSkippedFeatureInFlight(let id),
+            .authoringPredecessorNotLanded(let id, _),
+            .featureReturned(_, let id, _, _):
+            id
+        case .featureAuthored(let payload):
+            payload.featureIssueID
         default:
             nil
         }
@@ -125,15 +141,20 @@ struct NightWords {
     var detail: String?
 }
 
-/// Words one event, given the Act that recorded it and the Cards' display identifiers.
+/// Words one event, given the Act that recorded it and the Cards' and Features' display identifiers.
 struct NightWording {
     let act: Act?
     let cardNames: [Int64: String]
+    /// A Feature Issue's id to its display identifier.
+    let featureNames: [String: String]
 
     /// `Build Act`, or `Act` when the event records no Act.
     var actName: String { act.map { "\($0.rawValue.capitalized) Act" } ?? "Act" }
 
     func card(_ id: Int64) -> String { cardNames[id] ?? "Card \(id)" }
+
+    /// A Feature Issue's display identifier, or its raw issue id when the Journal has no Feature row for it.
+    func feature(_ issueID: String) -> String { featureNames[issueID] ?? issueID }
 
     func count(_ number: Int, _ noun: String) -> String { "\(number) \(noun)\(number == 1 ? "" : "s")" }
 

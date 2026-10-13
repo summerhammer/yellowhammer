@@ -9,7 +9,8 @@ public struct NightPulse: Equatable, Sendable {
     public var id: Int64
     public var state: NightPulseState
     public var startedAt: Date
-    /// A factual failure count from the Journal, otherwise nil; the full Night Summary lives in Engine.
+    /// A Journal fact, never the engine's `verdict_line`: this Night's returned (or fully verified) Feature, then the
+    /// failed Act run count, joined by " · "; nil when neither applies. The full Night Summary lives in Engine.
     public var verdictLine: String?
     /// Cards counted by disposition, in display order; zero counts are omitted.
     public var cardsByDisposition: [DispositionCount]
