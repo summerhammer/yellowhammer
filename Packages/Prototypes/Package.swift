@@ -14,7 +14,8 @@ let package = Package(
         // A product per target only so Xcode offers a scheme to render its previews.
         .library(name: "PulsePrototypes", targets: ["PulsePrototypes"]),
         .library(name: "AddProjectPrototypes", targets: ["AddProjectPrototypes"]),
-        .library(name: "SettingsPrototypes", targets: ["SettingsPrototypes"])
+        .library(name: "SettingsPrototypes", targets: ["SettingsPrototypes"]),
+        .library(name: "NightAccountPrototypes", targets: ["NightAccountPrototypes"])
     ],
     dependencies: [
         .package(path: "../YellowhammerKit")
@@ -39,6 +40,16 @@ let package = Package(
         // reads no `config.toml` and runs no `yh`.
         .target(
             name: "SettingsPrototypes",
+            swiftSettings: [.defaultIsolation(MainActor.self)]
+        ),
+        // Ways to read a Night's account outside today's narrow Inspector list. It renders `NightAccount` fixtures
+        // only: it reads no Journal and runs no `yh`.
+        .target(
+            name: "NightAccountPrototypes",
+            dependencies: [
+                .product(name: "Domain", package: "YellowhammerKit"),
+                .product(name: "Pulse", package: "YellowhammerKit")
+            ],
             swiftSettings: [.defaultIsolation(MainActor.self)]
         )
     ]
