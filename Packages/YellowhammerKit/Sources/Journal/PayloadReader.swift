@@ -126,6 +126,14 @@ struct PayloadReader: Sendable {
         return step
     }
 
+    func landedPinOperation(_ key: String) throws -> LandedPinOperation {
+        let text = try require(key)
+        guard let operation = LandedPinOperation(rawValue: text) else {
+            throw JournalError.eventUnreadable(id: rowID)
+        }
+        return operation
+    }
+
     func landStepOutcome(_ key: String) throws -> LandStepOutcome {
         let text = try require(key)
         guard let outcome = LandStepOutcome(rawValue: text) else {

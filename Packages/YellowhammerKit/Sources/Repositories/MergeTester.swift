@@ -17,6 +17,13 @@ public struct RepoMergeResult: Equatable, Sendable {
     /// The ref the verdict was read against, e.g. "refs/remotes/origin/main".
     public let mainlineRef: String?
     public let mainlineCommit: String?
+    /// The tree OID `git merge-tree --write-tree` printed for a clean merge; nil for any other verdict.
+    public let mergedTree: String?
+    /// The tree of `mainlineCommit`; read only for a clean merge.
+    public let mainlineTree: String?
+    /// Whether the tip's tree differs from the tree of `git merge-base <mainline> <tip>` — the branch has a
+    /// net change at all. Read only for a clean merge; nil when it could not be read.
+    public let tipHasNetChange: Bool?
 
     /// Whether this result is a Mainline Conflict: a Feature Branch that will not merge cleanly.
     public var isMainlineConflict: Bool {
@@ -30,13 +37,26 @@ public struct RepoMergeResult: Equatable, Sendable {
         return []
     }
 
+    /// Whether mainline still shows the tip's net changes although the tip is not an ancestor of it — a
+    /// Squash and merge or Rebase and merge (feature-authoring/select-the-next-feature, #merge-test). All
+    /// three hold: the tip has a net change; the merge is clean; and it produces exactly mainline's tree, so
+    /// merging would add nothing. A branch with no net change (a commit and its revert) is never merged,
+    /// though the other two would hold for it.
+    public var isContentMerged: Bool {
+        guard tipHasNetChange == true, case .clean = verdict, let mergedTree else { return false }
+        return mergedTree == mainlineTree
+    }
+
     public init(
         repository: String,
         branch: String,
         verdict: MergeVerdict,
         branchCommit: String? = nil,
         mainlineRef: String? = nil,
-        mainlineCommit: String? = nil
+        mainlineCommit: String? = nil,
+        mergedTree: String? = nil,
+        mainlineTree: String? = nil,
+        tipHasNetChange: Bool? = nil
     ) {
         self.repository = repository
         self.branch = branch
@@ -44,6 +64,9 @@ public struct RepoMergeResult: Equatable, Sendable {
         self.branchCommit = branchCommit
         self.mainlineRef = mainlineRef
         self.mainlineCommit = mainlineCommit
+        self.mergedTree = mergedTree
+        self.mainlineTree = mainlineTree
+        self.tipHasNetChange = tipHasNetChange
     }
 }
 
@@ -119,6 +142,27 @@ public struct MergeTester: Sendable {
         return FeatureMergeReport(branches: branches, results: results)
     }
 
+    /// Evaluates the merge test across `repos`, each against its own ``TestedTip``: the recorded commit when
+    /// the repository still has it, else the Feature Branch. A repository absent from `tips`, or whose tip
+    /// resolves to no commit, is untestable.
+    public func evaluateMerge(
+        tips: [String: TestedTip],
+        repos: [Repo],
+        mainlines: ResolvedMainlines? = nil
+    ) async -> FeatureMergeReport {
+        var results: [RepoMergeResult] = []
+        for repo in repos {
+            let tip = tips[repo.name] ?? TestedTip(branch: nil)
+            results.append(
+                await testMerge(
+                    branch: tip.branchName, recordedCommit: tip.recordedCommit, in: repo,
+                    mainline: mainlines?[repo.name]
+                )
+            )
+        }
+        return FeatureMergeReport(branches: tips.compactMapValues(\.branch), results: results)
+    }
+
     /// Test-merges a Feature Branch against a single repository's Mainline.
     public func testMerge(
         branch: FeatureBranch,
@@ -134,6 +178,18 @@ public struct MergeTester: Sendable {
         in repo: Repo,
         mainline: ResolvedMainline? = nil
     ) async -> RepoMergeResult {
+        await testMerge(branch: branch, recordedCommit: nil, in: repo, mainline: mainline)
+    }
+
+    /// Test-merges `recordedCommit` — or, when no commit was recorded or the repository no longer has it, the
+    /// branch name — against a single repository's Mainline. One `git merge-tree` read gives both the
+    /// Mainline Conflict verdict and the content test's merged tree.
+    public func testMerge(
+        branch: String,
+        recordedCommit: String?,
+        in repo: Repo,
+        mainline: ResolvedMainline? = nil
+    ) async -> RepoMergeResult {
         let path = (repo.path as NSString).expandingTildeInPath
         guard FileManager.default.fileExists(atPath: path) else {
             return RepoMergeResult(
@@ -143,8 +199,10 @@ public struct MergeTester: Sendable {
             )
         }
 
-        // 1. Resolve branch commit SHA in the repository
-        guard let branchCommit = await resolveCommit(forRef: branch, in: path) else {
+        // 1. Resolve the tested commit in the repository: the recorded one, else the branch
+        let recorded = await git.existingCommit(recordedCommit, in: path)
+        let resolved = if let recorded { recorded } else { await resolveTipBranch(branch, in: path) }
+        guard let branchCommit = resolved else {
             return RepoMergeResult(
                 repository: repo.name,
                 branch: branch,
@@ -175,19 +233,29 @@ public struct MergeTester: Sendable {
 
         // 3. Test-merge with `git merge-tree`: writes tree objects only, never a commit or ref,
         // and never touches the working tree.
-        let verdict = await mergeTree(mainlineCommit: targetMainlineCommit, branchCommit: branchCommit, in: path)
+        let merge = await mergeTree(mainlineCommit: targetMainlineCommit, branchCommit: branchCommit, in: path)
+
+        // 4. The content test's other two reads (see MergeTester+ContentTest.swift), only for a clean merge.
+        let content = await contentReads(
+            verdict: merge.verdict, tip: branchCommit, mainline: targetMainlineCommit, in: path
+        )
 
         return RepoMergeResult(
             repository: repo.name,
             branch: branch,
-            verdict: verdict,
+            verdict: merge.verdict,
             branchCommit: branchCommit,
             mainlineRef: mainlineRef,
-            mainlineCommit: targetMainlineCommit
+            mainlineCommit: targetMainlineCommit,
+            mergedTree: merge.tree,
+            mainlineTree: content.mainlineTree,
+            tipHasNetChange: content.tipHasNetChange
         )
     }
 
-    private func mergeTree(mainlineCommit: String, branchCommit: String, in path: String) async -> MergeVerdict {
+    private func mergeTree(
+        mainlineCommit: String, branchCommit: String, in path: String
+    ) async -> (verdict: MergeVerdict, tree: String?) {
         let result = await git.run([
             "-C", path,
             "merge-tree",
@@ -199,17 +267,23 @@ public struct MergeTester: Sendable {
 
         switch result.exitCode {
         case 0:
-            return .clean
+            return (.clean, mergedTree(fromStdout: result.stdout))
         case 1:
             let paths = conflictingPaths(fromStdout: result.stdout)
             if paths.isEmpty {
-                return .untestable(reason: "merge-tree reported a conflict without paths")
+                return (.untestable(reason: "merge-tree reported a conflict without paths"), nil)
             }
-            return .conflicting(paths: paths)
+            return (.conflicting(paths: paths), nil)
         default:
             let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-            return .untestable(reason: "git merge-tree exited \(result.exitCode): \(stderr)")
+            return (.untestable(reason: "git merge-tree exited \(result.exitCode): \(stderr)"), nil)
         }
+    }
+
+    /// The result tree OID: line 1 of `git merge-tree --write-tree` stdout.
+    private func mergedTree(fromStdout stdout: String) -> String? {
+        let first = stdout.components(separatedBy: "\n").first?.trimmingCharacters(in: .whitespaces) ?? ""
+        return first.isEmpty ? nil : first
     }
 
     /// Parses the conflicting paths out of `git merge-tree --write-tree --name-only` stdout.
@@ -236,6 +310,12 @@ public struct MergeTester: Sendable {
         }
 
         return Array(Set(paths)).sorted()
+    }
+
+    /// The commit a branch name resolves to; nil for the empty name a tip with no Feature Branch carries.
+    private func resolveTipBranch(_ branch: String, in path: String) async -> String? {
+        guard !branch.isEmpty else { return nil }
+        return await resolveCommit(forRef: branch, in: path)
     }
 
     private func resolveCommit(forRef ref: String, in path: String) async -> String? {

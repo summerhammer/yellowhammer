@@ -33,7 +33,8 @@ struct PredecessorAncestryGatePrefixTests {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let featureID = try insertGateFeature(
-            journal, issueID: "FEAT-P", branch: "yh-proj-pre", repositories: ["backend", "mobile"]
+            journal, issueID: "FEAT-P", branch: "yh-proj-pre", repositories: ["backend", "mobile"],
+            recordBranch: false
         )
         try journal.recordFeatureBranch(
             featureID: featureID, repository: "backend", branch: FeatureBranch(name: "rozd/yh-proj-pre")

@@ -186,6 +186,12 @@ public struct FeatureSettleGesture: FeatureSettle, Sendable {
         )
         guard wrote else { return }
 
+        // After the Journal write, so the pins outlive nothing but a crash between the two; a pin that
+        // cannot be deleted is reported in the Journal and never fails the abandon.
+        await LandedPinRelease(act: context.act, runID: context.runID, nightID: context.night.id).release(
+            feature: feature, repositories: context.repositories?.workingRepos ?? [], journal: journal
+        )
+
         let computed = AbandonComputed(
             cycleID: cycleID, feature: feature, blockedCards: blockedCards, acceptedCards: acceptedCards,
             abandonedRepositories: abandonedRepositories, triagedNightID: triagedNightID

@@ -159,6 +159,11 @@ extension JournalMigrations {
             // `refs/yellowhammer/recovery/<branch>`. NULL except between that purge and the
             // re-allocation that verifies the re-created branch (OQ123).
             table.column("recovery_commit", .text)
+            // The commit the land Act last pushed for this Feature in this repository, pinned in the main
+            // clone at `refs/yellowhammer/landed/<branch>`. NULL until the first push, and for a Feature
+            // pushed before this column existed; a later push overwrites it, since the latest pushed tip
+            // is the one the pull request carries.
+            table.column("landed_commit", .text)
             table.primaryKey(["feature_id", "repository"])
         }
 
@@ -168,6 +173,9 @@ extension JournalMigrations {
             table.column("repository", .text).notNull()
             table.column("mainline_commit", .text).notNull()
             table.column("observed_at", .text).notNull()
+            // How the merge was observed: `ancestry` (the tested tip is an ancestor of mainline) or
+            // `content` (a squash or rebase merge, found by the content test). Journal-only.
+            table.column("evidence", .text).notNull()
             table.primaryKey(["feature_id", "repository"])
         }
     }
