@@ -104,6 +104,34 @@ struct CLIAdapterDispatchTests {
         #expect(mapped.instruction.contains("/config/runs/proj/run-1/BACK-1/7-worker/result.json"))
     }
 
+    @Test("The text handed to the CLI keeps the worker's commit-message request after the result file is stamped")
+    func stampedInstructionKeepsTheCommitMessageRequest() throws {
+        // Night 2026-10-12 (and #437 before it): the stamped copy dropped the request, so no worker ever
+        // saw the `## Commit messages` section and every commit lacked the Yellowhammer-Work-Card trailer.
+        let worker = request()
+        let instruction = try #require(worker.instruction.cardInstruction)
+        let withRequest = Instruction(
+            pass: .worker, card: instruction.card, brief: instruction.brief,
+            definitionOfDone: instruction.definitionOfDone, repository: instruction.repository,
+            route: instruction.route, payloads: instruction.payloads,
+            commitMessage: CommitMessageRequest(message: "feat(auth): BACK-1 [YLH-7] backend", workCardKey: "YLH-7"),
+            resultFilePath: ""
+        )
+        let stamped = AgentDispatchRequest(
+            runID: worker.runID, issueID: worker.issueID, attemptID: worker.attemptID, route: worker.route,
+            pass: .worker, instruction: .card(withRequest), worktreePath: worker.worktreePath,
+            resumeSession: nil, additionalReadableDirectories: worker.additionalReadableDirectories,
+            additionalWritableDirectories: worker.additionalWritableDirectories
+        )
+
+        let mapped = makeDispatch().makeDispatch(for: stamped, executable: "/bin/claude")
+
+        #expect(mapped.instruction.contains("## Commit messages"))
+        #expect(mapped.instruction.contains("    feat(auth): BACK-1 [YLH-7] backend\n"))
+        #expect(mapped.instruction.contains("Yellowhammer-Work-Card: YLH-7"))
+        #expect(mapped.instruction.contains("/config/runs/proj/run-1/BACK-1/7-worker/result.json"))
+    }
+
     @Test("A pass with no session to resume starts a fresh one")
     func noSessionMeansNoResume() {
         let mapped = makeDispatch().makeDispatch(for: request(), executable: "/bin/claude")
