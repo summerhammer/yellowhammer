@@ -92,7 +92,7 @@ struct CLIAdapterDispatch: AgentDispatch {
     }
 
     /// The request as a ``CLIDispatch``. The Instruction's result file is the `result.json` the adapter
-    /// places in the run directory, so what the agent is told to write is what the dual-key check reads.
+    /// places in the run directory, where the adapter persists the structured response for validation.
     func makeDispatch(for request: AgentDispatchRequest, executable: String) -> CLIDispatch {
         let directory = runDirectory(for: request)
         let resultFile = directory.appending(component: "result.json", directoryHint: .notDirectory)

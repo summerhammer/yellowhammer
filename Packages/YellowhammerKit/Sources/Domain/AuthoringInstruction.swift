@@ -20,7 +20,7 @@ public struct AuthoringInstruction: Equatable, Sendable {
     public let refusedThisNight: [FeatureName]
     /// The validated Feature to break down; non-nil exactly for the breakdown pass.
     public let selectedFeature: SelectedFeature?
-    /// The absolute path the CLI must write its result file to.
+    /// The absolute path where the CLI Adapter persists the final structured response.
     public let resultFilePath: String
 
     public init(
