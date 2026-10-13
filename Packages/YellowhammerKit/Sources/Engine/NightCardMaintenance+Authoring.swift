@@ -91,8 +91,8 @@ extension NightCardMaintenance {
             let named = repositories.joined(separator: ", ")
             let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)
             return """
-                Authoring was skipped: neither the pushed commit nor the Feature Branch of predecessor \
-                Feature \(featureRef) could be found in \(named). A quiet Night, not a failure.
+                Authoring was skipped: the pushed tip of predecessor Feature \(featureRef) could not be \
+                found in \(named). A quiet Night, not a failure.
                 """
         case .predecessorWalkSkippedReleasedFeature(let featureIssueID):
             let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)

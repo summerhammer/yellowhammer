@@ -428,8 +428,8 @@ struct ContentMergeTests {
         #expect(result.isContentMerged)
     }
 
-    @Test("With no recorded commit, or one the repository no longer has, the branch name is read")
-    func fallsBackToTheBranchName() async throws {
+    @Test("Only with no recorded commit is the branch name read; a recorded commit the repository lacks is untestable")
+    func readsTheBranchNameOnlyWithoutARecordedCommit() async throws {
         let fixture = GitFixture(name: "content-fallback-\(UUID().uuidString)")
         let tip = try await populateFeature(fixture)
         let missing = String(repeating: "ab", count: 20)
@@ -439,7 +439,9 @@ struct ContentMergeTests {
         let neither = await test(fixture, tip: missing, branch: "no-such-branch")
 
         #expect(noRecord.branchCommit == tip)
-        #expect(goneRecord.branchCommit == tip)
+        // A live branch does not stand in for a lost recorded commit (#tested-tip), and the reason says so.
+        #expect(goneRecord.branchCommit == nil)
+        #expect(goneRecord.verdict == .untestable(reason: "recorded commit \(missing) is not in the repository"))
         #expect(neither.branchCommit == nil)
         #expect(neither.verdict != .clean)
     }

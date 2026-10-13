@@ -101,9 +101,10 @@ public struct AncestryTester: Sendable {
         return FeatureAncestryReport(branches: branches, results: results)
     }
 
-    /// Evaluates ancestry across `repos`, each against its own ``TestedTip``: the recorded commit when the
-    /// repository still has it, else the Feature Branch. A repository absent from `tips`, or whose tip
-    /// resolves to no commit, is reported indeterminate (no branch commit).
+    /// Evaluates ancestry across `repos`, each against its own ``TestedTip``: the recorded commit alone when
+    /// one was recorded, else the Feature Branch (#tested-tip). A repository absent from `tips`, or whose tip
+    /// resolves to no commit (including a recorded commit the repository lost), is reported indeterminate
+    /// (no branch commit).
     public func evaluateAncestry(
         tips: [String: TestedTip],
         repos: [Repo],
@@ -140,8 +141,10 @@ public struct AncestryTester: Sendable {
         await testAncestry(branch: branch, recordedCommit: nil, in: repo, mainline: mainline)
     }
 
-    /// Tests whether `recordedCommit` — or, when no commit was recorded or the repository no longer has it,
-    /// the branch name — is an ancestor of a single repository's mainline.
+    /// Tests whether `recordedCommit` — or, only when no commit was recorded, the branch name — is an ancestor of
+    /// a single repository's mainline (feature-authoring/select-the-next-feature, #tested-tip). A recorded
+    /// commit the repository no longer has is indeterminate (no branch commit); the branch is never consulted
+    /// then, so commits added to the pull request on GitHub are not part of the test.
     public func testAncestry(
         branch: String,
         recordedCommit: String?,
@@ -159,10 +162,9 @@ public struct AncestryTester: Sendable {
             )
         }
 
-        // 1. Resolve the tested commit in the repository: the recorded one, else the branch
-        let recorded = await git.existingCommit(recordedCommit, in: path)
-        let resolved = if let recorded { recorded } else { await resolveTipBranch(branch, in: path) }
-        guard let branchCommit = resolved else {
+        // 1. Resolve the tested commit in the repository: the recorded one alone when there is one, else the branch
+        guard let branchCommit = await resolveTestedCommit(branch: branch, recordedCommit: recordedCommit, in: path)
+        else {
             return RepoAncestryResult(
                 repository: repo.name,
                 branch: branch,
@@ -222,6 +224,15 @@ public struct AncestryTester: Sendable {
             descendantCommitOrRef
         ])
         return result.exitCode == 0
+    }
+
+    /// The commit under test (#tested-tip): `recordedCommit` when one was recorded — nil if the repository no
+    /// longer has it, and the branch is then never read — else the commit the branch name resolves to.
+    private func resolveTestedCommit(branch: String, recordedCommit: String?, in path: String) async -> String? {
+        if recordedCommit != nil {
+            return await git.existingCommit(recordedCommit, in: path)
+        }
+        return await resolveTipBranch(branch, in: path)
     }
 
     /// The commit a branch name resolves to; nil for the empty name a tip with no Feature Branch carries.

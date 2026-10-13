@@ -12,9 +12,10 @@ public protocol PostMergeClosure: Sendable {
 
 /// What is wrong with the predecessor Feature's recorded state, such that the gate refuses to guess.
 public enum PredecessorAncestryGateError: Error, Sendable, Equatable {
-    /// A repository in N has no recorded Feature Branch and no recorded landed commit, and no Observed Merge:
-    /// a Journal fault, not an unresolvable tip. The Feature's Worktree name does not stand in for the
-    /// branch here. An unresolvable tip with a recorded name or commit is indeterminate instead.
+    /// A repository in N has no recorded Feature Branch and no Observed Merge — whether or not a landed commit
+    /// was recorded: a fault in Yellowhammer's own Journal, never a quiet Night (feature-authoring/
+    /// select-the-next-feature, #tested-tip). The Feature's Worktree name does not stand in for the branch
+    /// here. A recorded branch whose tip cannot be resolved is indeterminate instead.
     case predecessorBranchMissing(featureIssueID: String)
     /// The predecessor's Cycle pushed a Feature Branch for a repository this Project has no configuration for.
     case predecessorRepositoryNotConfigured(featureIssueID: String, repository: String)
@@ -28,8 +29,7 @@ extension PredecessorAncestryGateError: CustomStringConvertible {
         switch self {
         case .predecessorBranchMissing(let featureIssueID):
             return """
-                Predecessor Feature '\(featureIssueID)' has a repository with neither a recorded Feature Branch \
-                nor a recorded pushed commit.
+                Predecessor Feature '\(featureIssueID)' has a repository with no recorded Feature Branch.
                 """
         case .predecessorRepositoryNotConfigured(let featureIssueID, let repository):
             return """
@@ -49,7 +49,7 @@ extension PredecessorAncestryGateError: CustomStringConvertible {
 /// Runs its ancestry pass every Night, on whichever Feature is relevant (roadmap P9.9): the in-flight
 /// Feature when one is open and its Cycle has landed, or the walk's predecessor when nothing is in
 /// flight. A repository already recorded landed (an Observed Merge) reads no git at all; a repository with
-/// neither a recorded branch nor a recorded commit only throws when it still needs a fresh test.
+/// no recorded Feature Branch only throws when it still needs a fresh test.
 ///
 /// The merge test per repository is ancestry first, then — only where that fails — the content test, so a
 /// predecessor merged with Squash and merge or Rebase and merge opens the gate too. The tested tip is the
