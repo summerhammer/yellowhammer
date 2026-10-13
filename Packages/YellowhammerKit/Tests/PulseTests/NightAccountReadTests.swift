@@ -375,3 +375,41 @@ func nightAccountProblemEntries() {
     #expect(!entry(.linearReached).isProblem)
     #expect(!entry(.actEnded).isProblem)
 }
+
+@Test("A Feature is named by its display identifier, not its issue UUID, and the raw id is the fallback")
+func nightAccountNamesFeaturesByDisplayIdentifier() throws {
+    let fixture = JournalsFixture()
+    let featureUUID = "6f0c2b1e-3a52-4d6a-9d1c-0a7a4b9f1e11"
+    let unknownUUID = "b3d7a9e0-77c4-4f0e-8a65-2f1d9c3b5e22"
+    let nightID: Int64
+    do {
+        let journal = try fixture.openJournal("alpha")
+        _ = try insertFeature(journal, issueID: featureUUID)
+        try journal.write { db in
+            try db.execute(
+                sql: "UPDATE feature SET issue_id_for_display = 'YLH-347' WHERE issue_id = ?",
+                arguments: [featureUUID]
+            )
+        }
+        let run = RunID()
+        _ = try journal.claimActLease(act: .land, runID: run, mode: .real, now: epoch)
+        let opening = try journal.openNight(nightStart: nightStart, mode: .real, act: .land, runID: run, now: epoch)
+        nightID = opening.night.id
+        try journal.append(
+            .featureReturned(cycleID: 1, featureIssueID: featureUUID, unmet: 4, unresolved: 0),
+            act: .land, runID: run, nightID: nightID, now: epoch.addingTimeInterval(1)
+        )
+        try journal.append(
+            .authoringSkippedFeatureInFlight(featureIssueID: unknownUUID),
+            act: .land, runID: run, nightID: nightID, now: epoch.addingTimeInterval(2)
+        )
+    }
+
+    let entries = try account(try fixture.read(nightID, in: "alpha")).runs.flatMap(\.entries)
+
+    let returned = try #require(entries.first { $0.headline.contains("returned to you") })
+    #expect(returned.headline == "The Feature YLH-347 was returned to you")
+    #expect(!returned.headline.contains(featureUUID))
+    let skipped = try #require(entries.first { $0.headline.contains("already in flight") })
+    #expect(skipped.detail == unknownUUID)
+}

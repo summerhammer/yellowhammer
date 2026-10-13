@@ -158,6 +158,22 @@ extension JournalStore {
         }
     }
 
+    /// The Feature `cycleID` belongs to, nil when the Journal has no such Cycle (or no such Feature).
+    public func feature(cycleID: Int64) throws -> FeatureRecord? {
+        try read { db in
+            guard
+                let row = try Row.fetchOne(
+                    db,
+                    sql: "SELECT feature.* FROM feature JOIN cycle ON cycle.feature_id = feature.id WHERE cycle.id = ?",
+                    arguments: [cycleID]
+                )
+            else {
+                return nil
+            }
+            return try Self.featureRecord(from: row)
+        }
+    }
+
     /// Records the Worktree name for `featureID`. A simple update: the author Act records this
     /// once, and tests set it up directly for the phases that read it before author writes it.
     public func recordWorktreeName(featureID: Int64, worktreeName: WorktreeName) throws {

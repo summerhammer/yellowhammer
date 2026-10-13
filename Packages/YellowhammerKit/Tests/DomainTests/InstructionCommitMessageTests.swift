@@ -80,3 +80,18 @@ func noRequestRendersNoSection() {
     let text = makeInstruction(pass: .worker, commitMessage: nil).render()
     #expect(!text.contains("## Commit messages"))
 }
+
+@Test("stamping the result file path keeps the request, so the text the CLI receives still asks for the trailer")
+func stampingTheResultFilePathKeepsTheRequest() {
+    // Night 2026-10-12: every worker commit lacked the trailer because the stamped copy dropped the request.
+    let request = CommitMessageRequest(message: "feat: YLH-42 a card", workCardKey: "YLH-42")
+    let stamped = makeInstruction(pass: .worker, commitMessage: request)
+        .withResultFilePath("/runs/proj/run-1/YLH-42/1-worker/result.json")
+
+    #expect(stamped.commitMessage == request)
+    #expect(stamped.resultFilePath == "/runs/proj/run-1/YLH-42/1-worker/result.json")
+    let text = stamped.render()
+    #expect(text.contains("## Commit messages"))
+    #expect(text.contains("Yellowhammer-Work-Card: YLH-42"))
+    #expect(text.contains("/runs/proj/run-1/YLH-42/1-worker/result.json"))
+}

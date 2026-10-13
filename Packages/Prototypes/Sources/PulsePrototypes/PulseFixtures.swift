@@ -47,9 +47,14 @@ enum PulseScenario: String, CaseIterable, Identifiable, CustomStringConvertible 
             pulse.setWaitingOnYou(2)
             pulse.setBlocked(3)
             pulse.feature = PulseFixtures.feature(rollup: .waiting)
+            // The waiting Feature is one the land Act returned: it is a Needs you row, too.
+            pulse.needsYou.returnedFeature = ReturnedFeature(
+                id: "YH-120", issueIDForDisplay: "YH-120", verification: PulseFixtures.returnedVerification,
+                link: PulseFixtures.issueLink("YH-120")
+            )
             pulse.night = PulseFixtures.night(
                 .done,
-                verdict: "advanced — 6 Cards done, 5 need you",
+                verdict: "Feature YH-120 returned — 4 of 22 clauses unmet",
                 dispositions: [
                     .init(disposition: .done, count: 6), .init(disposition: .blocked, count: 3),
                     .init(disposition: .waitingOnYou, count: 2)
@@ -178,6 +183,10 @@ enum PulseFixtures {
 
     // MARK: Feature
 
+    /// The Verification of the returned Feature: 18 of 22 clauses met.
+    static let returnedVerification = VerificationCounts(met: 18, unmet: 4, unresolved: 0)
+
+    /// A `.waiting` Feature is the returned one: Journal state `returned`, with its clause tally.
     static func feature(rollup: RollUpState, repos: [String] = defaultRepos) -> FeatureInFlight {
         let laneState: LaneState = switch rollup {
         case .authoring, .running: .running
@@ -197,10 +206,11 @@ enum PulseFixtures {
         return FeatureInFlight(
             id: "YH-120",
             title: "Recalibrate the Routing Table from the last seven Nights",
-            state: rollup == .authoring ? "Todo" : "In Progress",
+            state: rollup == .waiting ? "returned" : (rollup == .authoring ? "Todo" : "In Progress"),
             rollupState: rollup,
             lanes: rollup == .authoring ? [] : lanes,
-            link: issueLink("YH-120")
+            link: issueLink("YH-120"),
+            verification: rollup == .waiting ? returnedVerification : nil
         )
     }
 

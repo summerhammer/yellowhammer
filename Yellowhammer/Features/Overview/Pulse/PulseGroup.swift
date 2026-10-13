@@ -52,9 +52,10 @@ enum PulseGroup: String, CaseIterable, Identifiable {
     // stated as unknown, never invented.
 
     static func summary(of needsYou: NeedsYou) -> String {
+        // A returned Feature counts as Waiting on You; it is never a Blocked Card.
         let waiting = needsYou.waitingOnYouCount
-        let blocked = needsYou.cards.count - waiting
-        return needsYou.cards.isEmpty ? "Nothing needs you" : "\(waiting) Waiting on You · \(blocked) Blocked"
+        let blocked = needsYou.cards.count { $0.state == .blocked }
+        return needsYou.isEmpty ? "Nothing needs you" : "\(waiting) Waiting on You · \(blocked) Blocked"
     }
 
     static func summary(of now: Now) -> String {
@@ -66,7 +67,8 @@ enum PulseGroup: String, CaseIterable, Identifiable {
 
     static func summary(of feature: FeatureInFlight?) -> String {
         guard let feature else { return "No Feature in flight" }
-        return [feature.id, feature.rollupState?.rawValue ?? "rollup state unknown"].joined(separator: " · ")
+        let rollUp = feature.rollupState?.rawValue ?? "rollup state unknown"
+        return [feature.issueIDForDisplay ?? feature.id, rollUp].joined(separator: " · ")
     }
 
     static func summary(of night: NightPulse?) -> String {
@@ -98,5 +100,21 @@ extension FeatureInFlight {
     /// Cards done and total across every Repo Lane.
     var cardProgress: (done: Int, total: Int) {
         (lanes.map(\.cardsDone).reduce(0, +), lanes.map(\.cardsTotal).reduce(0, +))
+    }
+}
+
+extension FeatureInFlight {
+    /// The Feature's Journal state as a badge colour: a returned Feature needs the Operator.
+    var stateStyle: ThemeShapeStyle<Color> {
+        state == "returned" ? .attention : .neutral
+    }
+}
+
+extension VerificationCounts {
+    /// `4 of 22 clauses unmet` (`, 1 unresolved` when any), or `all 22 clauses met`.
+    var summary: String {
+        guard unmet + unresolved > 0 else { return "all \(total) clauses met" }
+        let unresolvedNote = unresolved > 0 ? ", \(unresolved) unresolved" : ""
+        return "\(unmet) of \(total) clauses unmet\(unresolvedNote)"
     }
 }

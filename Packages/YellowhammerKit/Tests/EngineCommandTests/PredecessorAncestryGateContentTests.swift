@@ -80,13 +80,14 @@ struct PredecessorAncestryGateContentTests {
         let tip = try await populateFeatureRepository(repo)
         _ = try await repo.commit(filename: "other.txt", content: "other\n", message: "unrelated mainline commit")
         _ = await repo.run(["cherry-pick", "\(gateBranch)~1", gateBranch])
-        // The branch ref is gone and no Feature Branch is recorded: only the recorded commit is left to test.
+        // The branch ref is gone from the repository (its name is still recorded): only the recorded commit is
+        // left to test.
         _ = await repo.run(["branch", "-D", gateBranch])
 
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let featureID = try insertGateFeature(
-            journal, issueID: "FEAT-RB", branch: gateBranch, repositories: ["backend"], recordBranch: false,
+            journal, issueID: "FEAT-RB", branch: gateBranch, repositories: ["backend"],
             landedCommits: ["backend": tip]
         )
         let (context, _) = try makeGateContext(journal, repositories: repositories(repo))
@@ -387,8 +388,8 @@ struct PredecessorAncestryGateUnresolvedTests {
         #expect(try journal.events().map(\.type).last == .actEnded)
     }
 
-    @Test("A recorded commit the repository lost is indeterminate; the Worktree name does not stand in for the branch")
-    func lostCommitWithoutARecordedBranchIsIndeterminate() async throws {
+    @Test("A recorded commit with no recorded Feature Branch is a fault; the Worktree name does not stand in")
+    func lostCommitWithoutARecordedBranchIsAFault() async throws {
         let repo = GateGitFixture(name: "unresolved-no-branch")
         _ = try await populateFeatureRepository(repo)
         await squashMerge(repo)
@@ -404,9 +405,33 @@ struct PredecessorAncestryGateUnresolvedTests {
         )
         let (context, _) = try makeGateContext(journal, repositories: repositories(repo))
 
+        await #expect(throws: PredecessorAncestryGateError.predecessorBranchMissing(featureIssueID: "FEAT-LN")) {
+            _ = try await PredecessorAncestryGate().check(context)
+        }
+    }
+
+    @Test("A recorded commit the repository lost is indeterminate even when the recorded branch is live and merged")
+    func lostCommitIsNeverReplacedByALiveBranch() async throws {
+        let repo = GateGitFixture(name: "unresolved-lost-commit-live-branch")
+        _ = try await populateFeatureRepository(repo)
+        await squashMerge(repo)
+        let lost = String(repeating: "cd", count: 20)
+
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        // The branch is recorded and live, and the content test would pass through it; but a commit was
+        // recorded, so the branch (which may carry commits added on GitHub) is never consulted.
+        let featureID = try insertGateFeature(
+            journal, issueID: "FEAT-LB", branch: gateBranch, repositories: ["backend"],
+            landedCommits: ["backend": lost]
+        )
+        let (context, _) = try makeGateContext(journal, repositories: repositories(repo))
+
         let outcome = try await PredecessorAncestryGate().check(context)
 
-        #expect(outcome == .indeterminate(predecessorIssueID: "FEAT-LN", repositories: ["backend"]))
+        #expect(outcome == .indeterminate(predecessorIssueID: "FEAT-LB", repositories: ["backend"]))
+        #expect(try journal.landings(featureID: featureID).isEmpty)
+        #expect(try journal.events(ofType: .mainlineConflictDetected).isEmpty)
     }
 
     @Test("A repository in N with no recorded Feature Branch and no recorded commit is a fault, not a quiet Night")
