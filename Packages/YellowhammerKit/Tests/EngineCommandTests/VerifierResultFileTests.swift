@@ -143,7 +143,7 @@ struct VerificationInstructionTests {
         #expect(text.contains("Feature Branch: yh-proj-feat"))
         #expect(text.contains("`/runs/verification/result.json`"))
         #expect(text.contains("final structured response"))
-        #expect(text.contains("CLI/adapter persists it"))
+        #expect(text.contains("CLI Adapter persists it"))
         #expect(text.contains("do not create or edit that file with tools"))
         #expect(!text.contains("Write the result file"))
         #expect(text.contains("\"schema\": \"yellowhammer.result.verifier\""))

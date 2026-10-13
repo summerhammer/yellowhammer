@@ -86,7 +86,7 @@ struct StructuredResultDeliveryTests {
         let prompt = result.prompt
         let resultPath = result.runDirectory.appendingPathComponent("result.json").path
         #expect(prompt.contains("Return one JSON object as your final structured response"))
-        #expect(prompt.contains("CLI/adapter persists it to `\(resultPath)`"))
+        #expect(prompt.contains("CLI Adapter persists it to `\(resultPath)`"))
         #expect(prompt.contains("do not create or edit that file with tools"))
         #expect(prompt.contains("Ending without a final structured response is treated as a crash"))
         #expect(!prompt.contains("Write the result file"))

@@ -140,7 +140,7 @@ func resultContractNamesPathSchemaAndOutcomes() {
     let rendered = instruction.render()
     #expect(rendered.contains(instruction.resultFilePath))
     #expect(rendered.contains("final structured response"))
-    #expect(rendered.contains("CLI/adapter persists it"))
+    #expect(rendered.contains("CLI Adapter persists it"))
     #expect(rendered.contains("do not create or edit that file with tools"))
     #expect(!rendered.contains("Write the result file"))
     #expect(rendered.contains("yellowhammer.result.worker"))
