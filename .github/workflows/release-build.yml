@@ -131,6 +131,17 @@ jobs:
           # dmg-notarization-submit.json and dmg-notarization-log.json land in
           # build/artifacts/ directly — already covered by the artifact upload below.
 
+      - name: Add the unversioned disk image
+        # The landing page links to releases/latest/download/Yellowhammer.dmg, which
+        # GitHub resolves against the latest published release, so every release carries
+        # a byte-identical copy of its DMG under that one stable name. The stapled
+        # ticket lives inside the image, so the copy is notarized too. The upload's
+        # *.dmg glob picks it up; its checksum is appended to SHA256SUMS.
+        run: |
+          cp "build/artifacts/Yellowhammer-$MARKETING_VERSION-$CURRENT_PROJECT_VERSION.dmg" \
+            build/artifacts/Yellowhammer.dmg
+          (cd build/artifacts && shasum -a 256 Yellowhammer.dmg >> SHA256SUMS)
+
       - name: Sign the update and write the appcast
         env:
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}

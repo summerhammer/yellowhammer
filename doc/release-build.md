@@ -62,8 +62,9 @@ it, notarizes and staples it, and packages a signed and notarized DMG — see
 [Packaging and distribution](#packaging-and-distribution-p164) below — then publishes to
 the release release-please already created:
 
-1. Uploads the DMG, the notarized zip and `SHA256SUMS` to the existing (draft) release
-   with `gh release upload --clobber`.
+1. Uploads the DMG (under its versioned name and as `Yellowhammer.dmg` — see
+   [Where the release is hosted](#where-the-release-is-hosted)), the notarized zip and
+   `SHA256SUMS` to the existing (draft) release with `gh release upload --clobber`.
 2. Sets the release body to release-please's own changelog (already on the release)
    followed by a "Spec" section from `scripts/release/release-notes.sh`, appended below a
    `<!-- spec-notes -->` marker — `gh release edit --notes-file`.
@@ -168,9 +169,21 @@ edit the release; the workflow's top-level permission stays `contents: read`.
 ### Where the release is hosted
 
 Releases are published to this repository's own GitHub Releases
-(`summerhammer/yellowhammer`). The repository is currently private, so downloading a
-release — DMG, zip or `SHA256SUMS` — requires access to the repository; there is no
-separate public distribution point yet.
+(`summerhammer/yellowhammer`), which is public, so every asset downloads without
+authentication.
+
+The landing page's download link is the one URL that never changes:
+
+```
+https://github.com/summerhammer/yellowhammer/releases/latest/download/Yellowhammer.dmg
+```
+
+GitHub resolves `releases/latest` to the most recently published release, so the link
+needs an asset with the same name on every release. After `package-dmg.sh`, the job copies
+`Yellowhammer-<version>-<build>.dmg` to `Yellowhammer.dmg` byte for byte — the stapled
+ticket lives inside the image, so the copy is notarized as well — and appends its checksum
+to `SHA256SUMS`. Both names are uploaded. Since a release stays a draft until its assets
+are uploaded, the link never points at a release without a DMG.
 
 ### Manual acceptance check
 
