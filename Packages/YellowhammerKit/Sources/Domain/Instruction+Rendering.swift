@@ -186,7 +186,8 @@ extension Instruction {
             CLI/adapter persists it to `\(resultFilePath)`; do not create or edit that file with tools. It must \
             declare \
             `"schema": "\(pass.schemaIdentifier)"` and `"version": 1`. Permitted outcomes for this pass: \
-            \(permittedOutcomes.joined(separator: ", ")). An empty or missing result file is treated as a crash.
+            \(permittedOutcomes.joined(separator: ", ")). Ending without a final structured response is treated as a \
+            crash.
             """
         if let authoringInvariantSentence {
             text += " \(authoringInvariantSentence)"

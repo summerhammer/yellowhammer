@@ -5,11 +5,11 @@ import Repositories
 import Testing
 
 /// Runs production instructions through EngineCommand dispatch and each adapter's launch/collection path.
-/// Stub executables stand in for Codex and Claude; no live CLI is run.
+/// Stub executables stand in for Codex, Claude and Antigravity; no live CLI is run.
 @Suite("Structured result delivery through CLI adapters")
 struct StructuredResultDeliveryTests {
     @Test(
-        "Each production pass delivers structured output through fresh and resumed Codex and Claude runs",
+        "Each production pass delivers structured output through fresh and resumed Codex, Claude and agy runs",
         arguments: DeliveryCase.all
     )
     func everyPassUsesAdapterResultDelivery(_ testCase: DeliveryCase) async throws {
@@ -17,6 +17,20 @@ struct StructuredResultDeliveryTests {
         try assertCollectedResult(result)
         try assertPrompt(result)
         try assertAdapterArguments(result)
+    }
+
+    struct DeliveryCase: Sendable, CustomStringConvertible {
+        let cli: String
+        let pass: RunPass
+        let resume: Bool
+
+        static let all = RegisteredCLIAdapters.names.flatMap { cli in
+            RunPass.allCases.flatMap { pass in
+                [false, true].map { DeliveryCase(cli: cli, pass: pass, resume: $0) }
+            }
+        }
+
+        var description: String { "\(cli) \(pass.rawValue) resumed=\(resume)" }
     }
 
     private func run(_ testCase: DeliveryCase) async throws -> DeliveryResult {
@@ -64,7 +78,8 @@ struct StructuredResultDeliveryTests {
         #expect(result.resultExists)
         let object = try #require(JSONSerialization.jsonObject(with: Data(result.response.utf8)) as? [String: Any])
         #expect(object["schema"] as? String == result.testCase.pass.schemaIdentifier)
-        #expect(!result.response.contains("null"))
+        // Nullable-field normalization: the adapter drops the `null` members the forced schema requires.
+        #expect(!object.values.contains { $0 is NSNull })
     }
 
     private func assertPrompt(_ result: DeliveryResult) throws {
@@ -73,7 +88,9 @@ struct StructuredResultDeliveryTests {
         #expect(prompt.contains("Return one JSON object as your final structured response"))
         #expect(prompt.contains("CLI/adapter persists it to `\(resultPath)`"))
         #expect(prompt.contains("do not create or edit that file with tools"))
+        #expect(prompt.contains("Ending without a final structured response is treated as a crash"))
         #expect(!prompt.contains("Write the result file"))
+        #expect(!prompt.contains("result file is treated as a crash"))
         if result.testCase.pass == .worker {
             #expect(prompt.contains("You commit your work in the Worktree on the Feature branch"))
             #expect(prompt.contains("40-hex SHA of the commit you made"))
@@ -89,10 +106,15 @@ struct StructuredResultDeliveryTests {
         if result.testCase.resume {
             #expect(args.contains("prior-session"))
         }
-        if cli == "codex" {
+        switch cli {
+        case "codex":
             try assertCodexArguments(args, pass: pass, result: result, schemaPath: schemaPath)
-        } else {
+        case "claude":
             assertClaudeArguments(args, pass: pass)
+        case "agy":
+            assertAntigravityArguments(args, pass: pass, resume: result.testCase.resume)
+        default:
+            Issue.record("no argument assertions for `\(cli)`")
         }
     }
 
@@ -118,8 +140,27 @@ struct StructuredResultDeliveryTests {
         }
     }
 
+    /// agy has no sandbox and no tool deny list: the rendered instruction is the only thing keeping a
+    /// read-only pass from writing `result.json` itself, so the prompt assertions carry the most weight here.
+    private func assertAntigravityArguments(_ args: String, pass: RunPass, resume: Bool) {
+        #expect(args.contains("--json-schema\n"))
+        #expect(args.contains(pass.schemaIdentifier))
+        #expect(args.contains("--dangerously-skip-permissions\n"))
+        #expect(!args.contains("--sandbox"))
+        if resume {
+            #expect(args.contains("--conversation\nprior-session\n"))
+        } else {
+            #expect(!args.contains("--conversation\n"))
+        }
+    }
+
     private static func route(for cli: String) -> Route {
-        Route(cli: cli, model: cli == "codex" ? "gpt-5.4" : "sonnet", effort: "medium")!
+        let model = switch cli {
+        case "codex": "gpt-5.4"
+        case "agy": "gemini-3-pro"
+        default: "sonnet"
+        }
+        return Route(cli: cli, model: model, effort: "medium")!
     }
 
     private static func request(
@@ -192,37 +233,42 @@ struct StructuredResultDeliveryTests {
         }
     }
 
+    /// Codex takes the instruction as the last positional argument; Claude and agy take it after `-p`.
     private static func stubScript(in root: URL, cli: String) throws -> URL {
         let script = root.appendingPathComponent("stub-\(cli).sh")
         let capture = """
             printf '%s\\n' "$@" > "$CAPTURE"
-            if [ "$CLI" = "claude" ]; then
+            if [ "$CLI" = "codex" ]; then
+                last=""
+                for arg in "$@"; do last="$arg"; done
+                printf '%s' "$last" > "$PROMPT"
+            else
                 previous=""
                 for arg in "$@"; do
                     if [ "$previous" = "-p" ]; then printf '%s' "$arg" > "$PROMPT"; break; fi
                     previous="$arg"
                 done
-            else
-                last=""
-                for arg in "$@"; do last="$arg"; done
-                printf '%s' "$last" > "$PROMPT"
             fi
             """
-        let output: String
-        if cli == "codex" {
-            output = """
-                out=""
-                while [ "$#" -gt 0 ]; do
-                    if [ "$1" = "-o" ]; then out="$2"; fi
-                    shift
-                done
-                printf '%s' "$RESPONSE" > "$out"
-                printf '{"type":"thread.started","thread_id":"stub-session"}\\n'
-                """
-        } else {
-            output = """
-                printf '{"session_id":"stub-session","is_error":false,"structured_output":%s}' "$RESPONSE"
-                """
+        let output = switch cli {
+        case "codex":
+            """
+            out=""
+            while [ "$#" -gt 0 ]; do
+                if [ "$1" = "-o" ]; then out="$2"; fi
+                shift
+            done
+            printf '%s' "$RESPONSE" > "$out"
+            printf '{"type":"thread.started","thread_id":"stub-session"}\\n'
+            """
+        case "agy":
+            """
+            printf '{"conversation_id":"stub-session","status":"SUCCESS","structured_output":%s}' "$RESPONSE"
+            """
+        default:
+            """
+            printf '{"session_id":"stub-session","is_error":false,"structured_output":%s}' "$RESPONSE"
+            """
         }
         try "#!/bin/sh\n\(capture)\n\(output)\n".write(to: script, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
@@ -230,22 +276,8 @@ struct StructuredResultDeliveryTests {
     }
 }
 
-struct DeliveryCase: Sendable, CustomStringConvertible {
-    let cli: String
-    let pass: RunPass
-    let resume: Bool
-
-    static let all = ["codex", "claude"].flatMap { cli in
-        RunPass.allCases.flatMap { pass in
-            [false, true].map { DeliveryCase(cli: cli, pass: pass, resume: $0) }
-        }
-    }
-
-    var description: String { "\(cli) \(pass.rawValue) resumed=\(resume)" }
-}
-
 private struct DeliveryResult {
-    let testCase: DeliveryCase
+    let testCase: StructuredResultDeliveryTests.DeliveryCase
     let report: AgentDispatchReport
     let runDirectory: URL
     let resultExists: Bool

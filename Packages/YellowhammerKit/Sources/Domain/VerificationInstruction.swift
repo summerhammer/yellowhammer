@@ -124,7 +124,7 @@ public struct VerificationInstruction: Equatable, Sendable {
         `"schema": "\(RunPass.verifier.schemaIdentifier)"` and `"version": 1`. Permitted outcomes for \
         this pass: reported, failed. `reported` carries `clauses`, one entry per clause with `issue_id`, \
         `cid`, `verdict` (`met` or `unmet`), `what_was_checked` and `interpretation`; `failed` carries \
-        `reason`. An empty or missing result file is treated as a crash.
+        `reason`. Ending without a final structured response is treated as a crash.
         """
     }
 }
