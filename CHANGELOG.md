@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.15.0](https://github.com/summerhammer/yellowhammer/compare/v0.14.0...v0.15.0) (2026-10-13)
+
+
+### Features
+
+* **app:** add the Yellowhammer app icon as an Icon Composer bundle ([38c41da](https://github.com/summerhammer/yellowhammer/commit/38c41da61959d2b1a34491cc5f206894c87ca1e6))
+* **app:** read a Night's account along a playhead in place of the Pulse ([#475](https://github.com/summerhammer/yellowhammer/issues/475)) ([d2fec1f](https://github.com/summerhammer/yellowhammer/commit/d2fec1f834a3a052cbf32e9d17daa92a5ee29d74))
+* **config:** declare Repo Roles in the machine file and offer them in every picker ([fe7c38c](https://github.com/summerhammer/yellowhammer/commit/fe7c38c4aaa4317e2a8eab1374f5855c2c4c2e26))
+* **feature-authoring:** Squash and rebase merges open the predecessor gate: content merge test, Observed Merge record, landed-tip pin ([aaa2f20](https://github.com/summerhammer/yellowhammer/commit/aaa2f203c795862d8cc4519737248af5c43c0de4))
+* **gate:** open the predecessor gate on squash and rebase merges, record Observed Merge evidence ([509f2e2](https://github.com/summerhammer/yellowhammer/commit/509f2e215e2aa11a5dfb8b77c5b489ce5b896a3d))
+* **land:** recommend a merge commit and say why, on the pull request body and the Night Card ([0751918](https://github.com/summerhammer/yellowhammer/commit/0751918bbfd5c2ad046c850ae03c435094de6ef4))
+* **land:** record the pushed tip and pin it at refs/yellowhammer/landed/&lt;branch&gt; ([bb8e8b7](https://github.com/summerhammer/yellowhammer/commit/bb8e8b7b070191e6cfa21e54131a1c51bb42afe1))
+
+
+### Bug Fixes
+
+* **app:** head the Night's account with the Project's name ([ba9efea](https://github.com/summerhammer/yellowhammer/commit/ba9efea15cee2dfa6a9fabf6ee9ae7a8c054c26e)), closes [#476](https://github.com/summerhammer/yellowhammer/issues/476)
+* **dispatch:** keep the commit-message request when the result file path is stamped ([4183c48](https://github.com/summerhammer/yellowhammer/commit/4183c48d4dc2b6a06e0a3dbb389e8c1efb08c2a7))
+* **gate:** test the recorded commit alone, and fault a repository with no recorded Feature Branch ([6e548b1](https://github.com/summerhammer/yellowhammer/commit/6e548b1f882ec7e42a0672da0e2f4f395db9d170))
+* **pulse:** show a returned Feature in Needs you, the Feature group and the Night line ([65e93b1](https://github.com/summerhammer/yellowhammer/commit/65e93b15c47397bd283c525635d0b90981a86f47))
+
 ## [0.14.0](https://github.com/summerhammer/yellowhammer/compare/v0.13.0...v0.14.0) (2026-10-12)
 
 
