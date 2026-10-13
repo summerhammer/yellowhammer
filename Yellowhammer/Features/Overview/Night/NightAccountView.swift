@@ -12,28 +12,43 @@ import SwiftUI
 /// model, which the Inspector reads too. Nothing here runs by itself, so the playhead moves only when the
 /// Operator moves it.
 ///
+/// The Project's `name` heads the main area, as it heads the Pulse, so the account always says whose Night
+/// it is; it stays put while the account scrolls under it.
+///
 /// The way back is a toolbar button that clears the Inspector's selection, which brings the Pulse back.
 struct NightAccountView: View {
     let model: NightDetailModel
+    /// The selected Project's `name`, heading the main area.
+    let projectName: String
     /// The landing snapshot's instant. A new one means the snapshot was re-read, so the account is too.
     let asOf: Date
     /// Returns to the Pulse.
     let close: () -> Void
 
     var body: some View {
-        content
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .toolbar {
-                ToolbarItem(placement: .navigation) {
-                    Button(action: close) {
-                        Label("Pulse", systemImage: "chevron.backward")
-                    }
-                    .help("Back to the Pulse")
-                    .keyboardShortcut(.cancelAction)
-                    .accessibilityIdentifier("night-account-close")
+        VStack(alignment: .leading, spacing: 0) {
+            Text(projectName)
+                .font(.headline)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .accessibilityIdentifier("night-account-project")
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button(action: close) {
+                    Label("Pulse", systemImage: "chevron.backward")
                 }
+                .help("Back to the Pulse")
+                .keyboardShortcut(.cancelAction)
+                .accessibilityIdentifier("night-account-close")
             }
-            .task(id: asOf) { await model.load() }
+        }
+        .task(id: asOf) { await model.load() }
     }
 
     @ViewBuilder private var content: some View {

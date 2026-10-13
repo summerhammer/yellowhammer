@@ -9,12 +9,15 @@ extension PulseJournalUITests {
     /// The seeded failed Check for ARC-11, the Night's one problem, 2026-09-21T20:04:00Z.
     private static let failedCheckAt = Date(timeIntervalSince1970: 1_790_021_040)
 
-    /// The account takes the Pulse's place with its playhead on the problem, the Inspector keeps the Night's
-    /// facts and its way out to the Night Card, and the back button brings the Pulse back.
+    /// The account takes the Pulse's place, headed by the Project's name, with its playhead on the problem;
+    /// the Inspector keeps the Night's facts and its way out to the Night Card, and the back button brings
+    /// the Pulse back.
     func testTheNightOpensItsAccountInPlaceOfThePulse() {
         click("night-account-link")
         let clock = element("night-account-clock")
         XCTAssertTrue(clock.waitForExistence(timeout: 10), "the Night account never loaded")
+        XCTAssertEqual(text(of: "night-account-project"), "Zed Archive", "the Project's name does not head the account")
+        XCTAssertEqual(text(of: "night-account-title"), "Night of 2026-09-21")
         XCTAssertEqual(text(of: clock), Self.clockTime(Self.failedCheckAt))
         XCTAssertEqual(text(of: "night-account-problem-count"), "1 problem")
         XCTAssertTrue(element("night-account-entry-3").exists, "the failed Check is not in the log")

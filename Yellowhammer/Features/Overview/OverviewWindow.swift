@@ -181,8 +181,11 @@ struct OverviewWindow: View {
             if let selected = snapshot.project(scopedProject) {
                 if let night = inspectedNight, let model = account(of: night) {
                     // One view per Night, so the playhead survives the account being read again.
-                    NightAccountView(model: model, asOf: snapshot.asOf, close: { inspected = nil })
-                        .id(night)
+                    NightAccountView(
+                        model: model, projectName: selected.name, asOf: snapshot.asOf,
+                        close: { inspected = nil }
+                    )
+                    .id(night)
                 } else {
                     PulseView(
                         project: selected, asOf: snapshot.asOf, inspected: inspected,
