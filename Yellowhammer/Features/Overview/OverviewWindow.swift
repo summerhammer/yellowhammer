@@ -16,6 +16,10 @@ import SwiftUI
 ///   unless a link named it.
 /// - **The Inspector's selection** is `inspected`. It is cleared whenever the selected Project changes,
 ///   and the Inspector shows it only while it names something in that Project.
+/// - **The Night's account** is `nightAccount`, one read for two columns. While `inspected` names a Night
+///   of the selected Project, the main area shows the Night's account (its Journal events along a playhead)
+///   in place of the Pulse, and the Inspector shows the Night's facts and its way out to the Night Card.
+///   Both read the one model the window makes for that Night. Clearing `inspected` brings the Pulse back.
 /// - **The snapshot** belongs to `OverviewModel`, and is read again on appear and whenever the app
 ///   becomes active.
 ///
@@ -27,6 +31,9 @@ struct OverviewWindow: View {
     @Binding var project: ProjectID?
     @State private var model = OverviewModel()
     @State private var inspected: PulseSelection?
+    /// The read of the Night `inspected` names, made when the selection comes to name one and dropped when it
+    /// stops. A model is never re-pointed (`NightDetailModel`).
+    @State private var nightAccount: NightDetailModel?
     @State private var inspectorShown = true
     @State private var stop = EngineStopModel()
     @State private var confirmingStop = false
@@ -125,6 +132,9 @@ struct OverviewWindow: View {
         .onChange(of: staleProject, initial: true) { _, stale in
             if stale != nil { unscope() }
         }
+        .onChange(of: inspectedNight, initial: true) { _, night in
+            nightAccount = night.map { NightDetailModel(project: $0.project, nightID: $0.night) }
+        }
         // Every main window can take a deep link, so a link never opens a stray window of its own.
         .handlesExternalEvents(preferring: [ProjectDeepLink.scheme], allowing: [ProjectDeepLink.scheme])
         .onOpenURL(perform: open)
@@ -169,10 +179,16 @@ struct OverviewWindow: View {
             OverviewUnavailable(reason: .configurationUnreadable(failure))
         } else if let snapshot = model.snapshot {
             if let selected = snapshot.project(scopedProject) {
-                PulseView(
-                    project: selected, asOf: snapshot.asOf, inspected: inspected,
-                    deliverNow: deliverNow, canDeliverNow: canDeliverNow
-                )
+                if let night = inspectedNight, let model = account(of: night) {
+                    // One view per Night, so the playhead survives the account being read again.
+                    NightAccountView(model: model, asOf: snapshot.asOf, close: { inspected = nil })
+                        .id(night)
+                } else {
+                    PulseView(
+                        project: selected, asOf: snapshot.asOf, inspected: inspected,
+                        deliverNow: deliverNow, canDeliverNow: canDeliverNow
+                    )
+                }
             } else if let scopedProject {
                 // Only a deep link keeps the window scoped to an id that is not configured: any other
                 // such value is dropped (`staleProject`).
@@ -191,7 +207,7 @@ struct OverviewWindow: View {
 
     @ViewBuilder private var inspector: some View {
         if let snapshot = model.snapshot, let selected = snapshot.project(scopedProject) {
-            InspectorView(project: selected, selection: inspected, asOf: snapshot.asOf)
+            InspectorView(project: selected, selection: inspected, asOf: snapshot.asOf, nightAccount: nightAccount)
         } else {
             ContentUnavailableView("No Project Selected", systemImage: "sidebar.trailing")
         }
@@ -292,5 +308,31 @@ struct OverviewWindow: View {
         } else {
             openWindow(id: Self.windowID, value: link.project)
         }
+    }
+}
+
+// MARK: - The Night's account
+
+/// One Night of one Project: what the window's Night account is made for, and what a view of it is keyed on.
+private struct InspectedNight: Hashable {
+    let project: ProjectID
+    let night: Int64
+}
+
+private extension OverviewWindow {
+    /// The Night `inspected` names, while the selected Project's Pulse has it. Nil otherwise, and so while
+    /// the Pulse is shown.
+    var inspectedNight: InspectedNight? {
+        guard case let .night(id)? = inspected, let selected = selectedSnapshot, selected.contains(.night(id))
+        else { return nil }
+        return InspectedNight(project: selected.id, night: id)
+    }
+
+    /// The window's read of `night`, once it has been made for exactly that Night of that Project. It is
+    /// made when the selection changes, a moment after it, so for that moment the Pulse is still shown.
+    func account(of night: InspectedNight) -> NightDetailModel? {
+        guard let nightAccount, nightAccount.project == night.project, nightAccount.nightID == night.night
+        else { return nil }
+        return nightAccount
     }
 }
