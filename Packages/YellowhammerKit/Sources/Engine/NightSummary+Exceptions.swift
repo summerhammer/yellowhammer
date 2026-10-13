@@ -113,7 +113,10 @@ extension NightSummary {
     ) throws -> [String] {
         var lines: [String] = []
         let events = try nightEvents(night: night, journal: journal)
-        for record in events {
+        // `landedPinFailed` is excluded by name: Journal-only by ruling (feature-authoring/
+        // select-the-next-feature, OQ164). The push counted and the landed commit is recorded, so a pin that
+        // could not be written or deleted is no Exception and no Night Card line.
+        for record in events where record.type != .landedPinFailed {
             switch record.event {
             case .boardWriteFailed(_, let operation, let issueID, let reason):
                 let named = issueID.map { " on `\($0)`" } ?? ""

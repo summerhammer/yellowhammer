@@ -17,23 +17,46 @@ extension JournalStore {
         try read { db in try Self.touchedRepositories(db, featureID: featureID) }
     }
 
-    /// Records that `repository`'s mainline has merged `featureID`'s Feature Branch, first-observation
-    /// wins: a later pass that finds the same repository still merged never overwrites the commit a
-    /// first pass recorded. Returns whether this call inserted a new row.
+    /// Records that `repository`'s mainline has merged `featureID`'s Feature Branch (an Observed Merge),
+    /// first-observation wins: a later pass that finds the same repository still merged never overwrites
+    /// the commit or the evidence a first pass recorded. Returns whether this call inserted a new row.
     @discardableResult
     public func recordLanding(
-        featureID: Int64, repository: String, mainlineCommit: String, now: Date = Date()
+        featureID: Int64, repository: String, mainlineCommit: String, evidence: ObservedMergeEvidence,
+        now: Date = Date()
     ) throws -> Bool {
         try write { db in
             let timestamp = JournalStore.timestamp(JournalStore.stored(now))
             try db.execute(
                 sql: """
-                INSERT OR IGNORE INTO feature_landing (feature_id, repository, mainline_commit, observed_at)
-                VALUES (?, ?, ?, ?)
+                INSERT OR IGNORE INTO feature_landing (feature_id, repository, mainline_commit, observed_at, evidence)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                arguments: [featureID, repository, mainlineCommit, timestamp]
+                arguments: [featureID, repository, mainlineCommit, timestamp, evidence.rawValue]
             )
             return db.changesCount == 1
+        }
+    }
+
+    /// How each Observed Merge of `featureID` was observed, keyed by repository name. Kept apart from
+    /// ``landings(featureID:)``, which callers that only need the repository set keep using: both kinds
+    /// of evidence count identically there.
+    public func landingEvidence(featureID: Int64) throws -> [String: ObservedMergeEvidence] {
+        try read { db in
+            let rows = try Row.fetchAll(
+                db, sql: "SELECT repository, evidence FROM feature_landing WHERE feature_id = ?",
+                arguments: [featureID]
+            )
+            var result: [String: ObservedMergeEvidence] = [:]
+            for row in rows {
+                let repository: String = row["repository"]
+                let raw: String = row["evidence"]
+                guard let evidence = ObservedMergeEvidence(rawValue: raw) else {
+                    throw JournalError.landingEvidenceUnreadable(featureID: featureID, repository: repository)
+                }
+                result[repository] = evidence
+            }
+            return result
         }
     }
 

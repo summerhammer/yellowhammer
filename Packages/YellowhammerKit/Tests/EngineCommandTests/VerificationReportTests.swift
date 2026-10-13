@@ -146,8 +146,7 @@ struct VerificationPullRequestBodyTests {
         let partial = PullRequestBody.render(bodyInput(cards: [doneCard, blockedCard]))
         #expect(!complete.contains("Definition of Done clauses unmet:"))
         for body in [complete, partial] {
-            #expect(body.contains("Create a merge commit"))
-            #expect(body.contains("Squash and merge"))
+            #expect(body.contains(PullRequestBody.mergeCommitRecommendation))
         }
     }
 }

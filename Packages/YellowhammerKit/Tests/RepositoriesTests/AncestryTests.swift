@@ -223,3 +223,88 @@ struct AncestryTests {
         #expect(olderResult.isAncestor == false)
     }
 }
+
+// feature-authoring/select-the-next-feature #tested-tip: the recorded pushed commit is tested, and the branch
+// name only when none was recorded or the repository no longer has it.
+@Suite("Ancestry of a recorded tip")
+struct RecordedTipAncestryTests {
+    private func populateMerged(_ fixture: borrowing GitFixture) async throws -> String {
+        await fixture.initRepo(defaultBranch: "main")
+        _ = try await fixture.commit(message: "init")
+        _ = await fixture.run(["checkout", "-b", "yh-feature"])
+        let tip = try await fixture.commit(filename: "feat.txt", content: "feat", message: "feature commit")
+        _ = await fixture.run(["checkout", "main"])
+        _ = await fixture.run(["merge", "--no-ff", "-m", "merge", "yh-feature"])
+        return tip
+    }
+
+    @Test("The recorded commit is an ancestor although its branch ref is gone")
+    func recordedCommitWithoutBranchRef() async throws {
+        let fixture = GitFixture(name: "tip-no-ref-\(UUID().uuidString)")
+        let tip = try await populateMerged(fixture)
+        _ = await fixture.run(["branch", "-D", "yh-feature"])
+        let repo = Repo(name: "app", path: fixture.path, role: .backend)
+
+        let result = await AncestryTester().testAncestry(branch: "yh-feature", recordedCommit: tip, in: repo)
+
+        #expect(result.branchCommit == tip)
+        #expect(result.isAncestor)
+    }
+
+    @Test("The recorded commit is tested, not a branch that has moved on")
+    func recordedCommitWinsOverALaterBranchTip() async throws {
+        let fixture = GitFixture(name: "tip-later-\(UUID().uuidString)")
+        let tip = try await populateMerged(fixture)
+        _ = await fixture.run(["checkout", "yh-feature"])
+        let later = try await fixture.commit(filename: "later.txt", content: "later", message: "after the push")
+        _ = await fixture.run(["checkout", "main"])
+        let repo = Repo(name: "app", path: fixture.path, role: .backend)
+        let tester = AncestryTester()
+
+        let byBranch = await tester.testAncestry(branch: "yh-feature", in: repo)
+        let byCommit = await tester.testAncestry(branch: "yh-feature", recordedCommit: tip, in: repo)
+
+        #expect(byBranch.branchCommit == later)
+        #expect(!byBranch.isAncestor)
+        #expect(byCommit.isAncestor)
+    }
+
+    @Test("No recorded commit, or one the repository lacks, reads the branch; with neither the tip is unresolved")
+    func fallsBackToTheBranchName() async throws {
+        let fixture = GitFixture(name: "tip-fallback-\(UUID().uuidString)")
+        let tip = try await populateMerged(fixture)
+        let repo = Repo(name: "app", path: fixture.path, role: .backend)
+        let missing = String(repeating: "cd", count: 20)
+        let tester = AncestryTester()
+
+        let none = await tester.testAncestry(branch: "yh-feature", recordedCommit: nil, in: repo)
+        let gone = await tester.testAncestry(branch: "yh-feature", recordedCommit: missing, in: repo)
+        let neither = await tester.testAncestry(branch: "nope", recordedCommit: missing, in: repo)
+        let malformed = await tester.testAncestry(branch: "nope", recordedCommit: "--all", in: repo)
+
+        #expect(none.branchCommit == tip)
+        #expect(gone.branchCommit == tip)
+        #expect(neither.branchCommit == nil)
+        #expect(malformed.branchCommit == nil)
+    }
+
+    @Test("Tips: a repository absent from the map, or with no branch and no commit, is unresolved")
+    func evaluateAncestryByTips() async throws {
+        let fixture = GitFixture(name: "tip-map-\(UUID().uuidString)")
+        let tip = try await populateMerged(fixture)
+        let repos = ["merged", "bare", "absent"].map { Repo(name: $0, path: fixture.path, role: .backend) }
+
+        let report = await AncestryTester().evaluateAncestry(
+            tips: [
+                "merged": TestedTip(branch: nil, recordedCommit: tip),
+                "bare": TestedTip(branch: nil)
+            ],
+            repos: repos
+        )
+
+        #expect(report["merged"]?.isAncestor == true)
+        #expect(report["bare"]?.branchCommit == nil)
+        #expect(report["absent"]?.branchCommit == nil)
+        #expect(report.mergedFraction == MergedFraction(mergedCount: 1, totalCount: 3))
+    }
+}

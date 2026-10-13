@@ -208,6 +208,7 @@ extension LandAct {
             let outcome = try await push.push(laneContext)
             if outcome.pushed, let commit = outcome.commit {
                 recordPushedCommit(commit, laneContext: laneContext, context: context)
+                try await recordLandedTip(commit: commit, laneContext: laneContext, context: context)
             }
             await recordPushOutcome(outcome, laneContext: laneContext, context: context)
             return (pushStepResult(for: outcome), outcome)

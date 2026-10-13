@@ -163,14 +163,18 @@ public struct PullRequestBodyInput: Equatable, Sendable {
 /// per-repository, landing/announce-a-partial-landing). Pure: a value in, a `String` out, no Journal
 /// or board access. Never renders model-authored content (diffs, verdict prose, briefs).
 public enum PullRequestBody {
-    /// Why a squash or rebase merge stalls the predecessor-ancestry gate; shared by this body and the
-    /// Night Card's not-landed line so the two cannot drift (issue #448).
-    static let squashMergeWarning =
-        "A pull request merged with Squash and merge or Rebase and merge writes new commits, so its "
-        + "Feature Branch never becomes an ancestor of mainline"
+    /// The merge-commit recommendation and its reason (OQ164; spec: landing/open-one-pull-request-per-
+    /// repository#merge-commit-recommendation). Shared word for word by this body and the Night Card's
+    /// not-landed line so the two cannot drift. A squash or rebase merge is recognised only while
+    /// mainline still shows the branch's changes; it is never claimed to have happened.
+    static let mergeCommitRecommendation =
+        "Merging with **Create a merge commit** always releases the next Feature. "
+        + "Squash and merge or Rebase and merge works too, but it is recognised only while mainline "
+        + "still shows this branch's changes."
 
     private static let mergeCommitLine =
-        "Merge it with **Create a merge commit**. \(squashMergeWarning), and the next Feature is never authored."
+        mergeCommitRecommendation
+        + " An edit to the same lines before the next Night holds the next Feature back."
 
     public static func render(_ input: PullRequestBodyInput) -> String {
         input.isPartialLanding ? renderPartial(input) : renderComplete(input)

@@ -81,7 +81,9 @@ final class SettleWorld {
 
     /// Builds a fresh `ActContext` for an author Act firing on `nightStart`: claims the Act Lease,
     /// opens the Night, and wires a fresh Outbox, board and Workspace to it.
-    func makeContext(nightStart: NightStart = settleObservingNightStart) throws -> ActContext {
+    func makeContext(
+        nightStart: NightStart = settleObservingNightStart, repositories: ProjectRepositories? = nil
+    ) throws -> ActContext {
         let runID = RunID()
         guard case .claimed = try journal.claimActLease(act: .author, runID: runID, mode: .real) else {
             throw JournalError.actLeaseLost(runID: runID, holder: nil)
@@ -93,7 +95,7 @@ final class SettleWorld {
         let board = ActBoard(reading: reading, writing: boards.writing, provisioning: boards.provisioning)
         return ActContext(
             act: .author, mode: .real, trigger: .scheduled, runID: runID, journal: journal, night: opening.night,
-            outbox: outbox, board: board, workspace: workspace
+            outbox: outbox, board: board, workspace: workspace, repositories: repositories
         )
     }
 

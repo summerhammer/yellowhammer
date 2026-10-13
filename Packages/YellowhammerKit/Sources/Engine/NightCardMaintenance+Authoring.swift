@@ -91,8 +91,8 @@ extension NightCardMaintenance {
             let named = repositories.joined(separator: ", ")
             let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)
             return """
-                Authoring was skipped: predecessor Feature \(featureRef)'s Feature Branch could not be \
-                found in \(named). A quiet Night, not a failure.
+                Authoring was skipped: neither the pushed commit nor the Feature Branch of predecessor \
+                Feature \(featureRef) could be found in \(named). A quiet Night, not a failure.
                 """
         case .predecessorWalkSkippedReleasedFeature(let featureIssueID):
             let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)
@@ -167,9 +167,11 @@ extension NightCardMaintenance {
         }
     }
 
-    /// The not-landed line (issue #448): names the branches the gate found not to be ancestors, resolved
-    /// from the Journal rather than the event payload, and says how to open the gate. It never claims a
-    /// squash merge happened: the engine cannot tell an open pull request from a squash-merged one.
+    /// The not-landed line (issue #448; OQ164): names the branches the gate did not find in mainline,
+    /// resolved from the Journal rather than the event payload, recommends a merge commit with the reason
+    /// (``PullRequestBody/mergeCommitRecommendation``), and says how to open the gate when mainline
+    /// already has the changes. It never claims a squash or rebase merge happened, and never says one
+    /// stalls the next Feature for good: the engine cannot tell an open pull request from a merged one.
     private static func predecessorNotLandedLine(
         featureIssueID: String, repositories: [String], journal: JournalStore?
     ) -> String {
@@ -182,13 +184,14 @@ extension NightCardMaintenance {
                 branches[repository].map { "`\($0.name)` in \(repository)" }
             }
             if !listed.isEmpty {
-                branchSentence = " Not an ancestor of mainline: \(listed.joined(separator: ", "))."
+                branchSentence = " Not found in mainline: \(listed.joined(separator: ", "))."
             }
         }
-        return "Authoring was skipped: predecessor Feature \(featureRef) has not landed in \(named)."
+        return "Authoring was skipped: predecessor Feature \(featureRef) has not merged in \(named)."
             + branchSentence
-            + " \(PullRequestBody.squashMergeWarning): merge the Feature Branch with a merge commit "
-            + "(Create a merge commit) to open this gate. A quiet Night, not a failure."
+            + " \(PullRequestBody.mergeCommitRecommendation)"
+            + " If mainline already has the changes, a content-free merge of the Feature Branch "
+            + "(`git merge -s ours`) with a merge commit opens this gate. A quiet Night, not a failure."
     }
 
     /// The exception wording an authoring fault reads as (roadmap P9.10): a rolled-back Outbox group

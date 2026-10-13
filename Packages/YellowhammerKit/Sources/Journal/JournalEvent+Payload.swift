@@ -453,7 +453,7 @@ extension JournalEvent {
             }()
         case .cycleLanded(let cycleID): ["cycle_id": String(cycleID)]
         case .featureVerified, .featureReturned, .cycleArchived, .featureClosedByMerge,
-            .verifiedFeatureMergeObserved, .noPushedBranchOutcome:
+            .verifiedFeatureMergeObserved, .noPushedBranchOutcome, .landedPinFailed:
             landActPayload
         case .refusalAnswered, .authoringHaltOpened, .authoringHaltRepeated, .authoringHaltExpired,
             .authoringHaltCleared:

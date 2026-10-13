@@ -24,6 +24,12 @@ extension JournalEvent {
                 cycleID: try reader.int64("cycle_id"), featureIssueID: try reader.require("feature_issue_id"),
                 repository: try reader.require("repository")
             )
+        case .landedPinFailed:
+            .landedPinFailed(
+                featureIssueID: try reader.require("feature_issue_id"), repository: try reader.require("repository"),
+                branch: try reader.require("branch"), commit: try reader.require("commit"),
+                operation: try reader.landedPinOperation("operation"), reason: try reader.require("reason")
+            )
         case .featureClosedByMerge:
             try decodeFeatureClosedByMerge(reader)
         case .verifiedFeatureMergeObserved:
@@ -37,7 +43,20 @@ extension JournalEvent {
     /// closure by merge — dispatched here so the exhaustive payload switch stays one line for all four.
     var landActPayload: [String: String]? {
         featureVerifiedPayload ?? featureReturnedPayload ?? cycleArchivedPayload ?? featureClosedByMergePayload
-            ?? verifiedFeatureMergeObservedPayload ?? noPushedBranchOutcomePayload
+            ?? verifiedFeatureMergeObservedPayload ?? noPushedBranchOutcomePayload ?? landedPinFailedPayload
+    }
+
+    /// The `landedPinFailed` event's payload.
+    var landedPinFailedPayload: [String: String]? {
+        guard case .landedPinFailed(
+            let featureIssueID, let repository, let branch, let commit, let operation, let reason
+        ) = self else {
+            return nil
+        }
+        return [
+            "feature_issue_id": featureIssueID, "repository": repository, "branch": branch, "commit": commit,
+            "operation": operation.rawValue, "reason": reason
+        ]
     }
 
     /// The `noPushedBranchOutcome` event's payload.
