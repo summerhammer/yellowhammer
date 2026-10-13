@@ -91,7 +91,7 @@ extension AuthoringInstruction {
         ## Result contract
 
         Return one JSON object as your final structured response, conforming to the supplied JSON schema. The \
-        CLI/adapter persists it to `\(resultFilePath)`; do not create or edit that file with tools. It must declare \
+        CLI Adapter persists it to `\(resultFilePath)`; do not create or edit that file with tools. It must declare \
         `"schema": "\(pass.schemaIdentifier)"` and `"version": 1`. Permitted outcomes for this pass: \
         \(permittedOutcomes.joined(separator: ", ")). \(fieldsSentence)\(briefAudienceSentence) Ending without a \
         final structured response is treated as a crash.
