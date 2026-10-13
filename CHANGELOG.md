@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.15.1](https://github.com/summerhammer/yellowhammer/compare/v0.15.0...v0.15.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* **dispatch:** drop the missing-result-file crash wording from every pass ([5771a96](https://github.com/summerhammer/yellowhammer/commit/5771a96abe63bb7ac2ae7f61019a53fc2c9531b6))
+* **dispatch:** name the CLI Adapter by its glossary term in every pass prompt ([f209051](https://github.com/summerhammer/yellowhammer/commit/f209051e01fa84f1e55bc8a3dbcf25cfd1fb556c))
+* **dispatch:** return structured results without tool writes ([fd8d5f2](https://github.com/summerhammer/yellowhammer/commit/fd8d5f296e2055fbb7aaf17321178bbad1b46e6f))
+
 ## [0.15.0](https://github.com/summerhammer/yellowhammer/compare/v0.14.0...v0.15.0) (2026-10-13)
 
 
