@@ -114,7 +114,7 @@ extension Instruction {
     public func withResultFilePath(_ path: String) -> Instruction {
         Instruction(
             pass: pass, card: card, brief: brief, definitionOfDone: definitionOfDone, repository: repository,
-            route: route, payloads: payloads, resultFilePath: path
+            route: route, payloads: payloads, commitMessage: commitMessage, resultFilePath: path
         )
     }
 }
