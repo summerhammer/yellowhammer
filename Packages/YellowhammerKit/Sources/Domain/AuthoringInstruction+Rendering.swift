@@ -93,9 +93,20 @@ extension AuthoringInstruction {
         Return one JSON object as your final structured response, conforming to the supplied JSON schema. The \
         CLI Adapter persists it to `\(resultFilePath)`; do not create or edit that file with tools. It must declare \
         `"schema": "\(pass.schemaIdentifier)"` and `"version": 1`. Permitted outcomes for this pass: \
-        \(permittedOutcomes.joined(separator: ", ")). \(fieldsSentence)\(briefAudienceSentence) Ending without a \
-        final structured response is treated as a crash.
+        \(permittedOutcomes.joined(separator: ", ")). \(fieldsSentence)\(descriptionBudgetSentence)\
+        \(briefAudienceSentence) Ending without a final structured response is treated as a crash.
         """
+    }
+
+    /// Breakdown pass only: the size a Card's description must fit, kept apart from how a contract path is
+    /// read. Contract files are not copied onto the Card, so what counts is its `brief` and Definition of
+    /// Done. Empty for the selection pass, and when the board enforces no budget.
+    private var descriptionBudgetSentence: String {
+        guard pass == .breakdown, let descriptionBudget else { return "" }
+        return " Separately from contract paths: a Card's description on the board holds its `brief` and "
+            + "`definition_of_done`, and must fit the board's description budget of \(descriptionBudget.value) "
+            + "\(descriptionBudget.limit.unit.plural); a Card over it makes the breakdown invalid output. "
+            + "Contract files do not count against it."
     }
 
     /// Breakdown pass only: who reads a Card's `brief` (issue #444). Empty for the selection pass.
@@ -122,8 +133,9 @@ extension AuthoringInstruction {
                 + "is a story ID `<epic>/<story>` or a goal ID) and `cards` "
                 + "(each with `repository`, `kind`, `title`, `unit_of_work`, `brief`, `definition_of_done` "
                 + "and `contracts` naming a `repository`, its `paths`, `ranges` and an optional `symbol`); "
-                + "each contract path names one regular file; a path without a range is inlined whole into "
-                + "the worker's instruction, so `ranges` bound what the worker receives; a `ranges` entry is "
+                + "each contract path names one regular file at mainline, never a directory, a submodule or "
+                + "a symbolic link; a path without a range is inlined whole into the worker's instruction, "
+                + "so `ranges` bound what the worker receives; a `ranges` entry is "
                 + "`{path, start, end}`, 1-based and inclusive, several are allowed per path, and every range "
                 + "must lie within the file at mainline; `failed` carries `reason`."
         default:
