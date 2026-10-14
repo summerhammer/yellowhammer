@@ -39,10 +39,12 @@ public struct AuthoringRoute: Sendable {
 
     /// Dispatches `pass` on the first Route that answers, in `worktreePath` (the specification source's
     /// local path). `instruction` composes the pass's instruction for the Route it is about to run on.
-    /// Throws ``AuthoringDispatchFault`` when no Route answered.
+    /// `accept` judges a completed result: a reason excludes the Route as invalid output, like a broken
+    /// result contract, and the walk goes on. Throws ``AuthoringDispatchFault`` when no Route answered.
     func run(
         pass: RunPass, worktreePath: String, context: ActContext,
         additionalReadableDirectories: [String] = [],
+        accept: (DispatchResult) async -> String? = { _ in nil },
         instruction: (Route) -> AuthoringInstruction
     ) async throws -> DispatchResult {
         var tried: Set<Route> = []
@@ -72,9 +74,15 @@ public struct AuthoringRoute: Sendable {
             try record(report.origin, pass: pass, route: route, ordinal: Int(ordinal), context: context)
             switch report.outcome {
             case .completed(let result):
-                guard let reason = result.authoringFailureReason else { return result }
-                tried.insert(route)
-                lastFailure = "\(pass.rawValue) on \(route) reported failed: \(reason)"
+                if let reason = result.authoringFailureReason {
+                    tried.insert(route)
+                    lastFailure = "\(pass.rawValue) on \(route) reported failed: \(reason)"
+                } else if let rejection = await accept(result) {
+                    tried.insert(route)
+                    lastFailure = "\(pass.rawValue) on \(route) returned invalid output: \(rejection)"
+                } else {
+                    return result
+                }
             case .failed(let exitStatus):
                 tried.insert(route)
                 lastFailure = "\(pass.rawValue) on \(route) exited with status \(exitStatus)"

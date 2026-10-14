@@ -7,11 +7,19 @@ import Foundation
 /// ``AuthoringTransaction`` validates what it returns and writes it as one transaction.
 /// ``RoutedFeatureBreakdown`` is the agent CLI implementation; it throws ``AuthoringDispatchFault`` when
 /// no Route answered, which ``AuthoringTransaction`` records as an authoring fault.
+///
+/// `accepting` judges each drafted breakdown inside the Route walk: nil accepts it, and a reason makes
+/// it invalid breakdown output, so the next Route is tried — a contract range out of bounds at mainline,
+/// which another model may name correctly (spec: feature-authoring/author-an-architectural-brief).
 public protocol FeatureBreakdownDrafting: Sendable {
     func breakdown(
-        for selection: SelectedFeature, mainlines: ResolvedMainlines, context: ActContext
+        for selection: SelectedFeature, mainlines: ResolvedMainlines, context: ActContext,
+        accepting: @escaping BreakdownAcceptance
     ) async throws -> FeatureBreakdown
 }
+
+/// Returns nil to accept a drafted breakdown, or why it is invalid breakdown output.
+public typealias BreakdownAcceptance = @Sendable (FeatureBreakdown) async -> String?
 
 /// Why a breakdown was refused before anything was accepted into the Outbox.
 public enum FeatureBreakdownError: Error, Equatable, Sendable, CustomStringConvertible {

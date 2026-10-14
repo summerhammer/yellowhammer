@@ -28,12 +28,15 @@ extension MainlineReader: ContractTranscribing {
 }
 
 /// What transcribing a ``FeatureBreakdown``'s drafted contracts found: the blocks to carry in each new
-/// Card's brief, or every contract that could not be read.
+/// Card's brief, every contract that could not be read, and every line range that does not fit its file.
 struct AuthoringTranscriptionResult {
     /// Per-Card transcribed blocks, aligned by index with the breakdown's `cards`.
     let cardTranscriptions: [[TranscriptionBlock]]
     /// Every contract that could not be read, across every Card, in draft order.
     let unreadable: [UnreadableContract]
+    /// Why each contract whose path was read names a line range out of bounds at mainline, in draft
+    /// order. Invalid breakdown output, never "cannot read": the Route walk tries the next Route.
+    let invalidRanges: [String]
 
     var isReadable: Bool { unreadable.isEmpty }
 }
@@ -59,12 +62,15 @@ enum AuthoringTranscriptions {
         _ breakdown: FeatureBreakdown, using transcriber: any ContractTranscribing, context: ActContext
     ) async -> AuthoringTranscriptionResult {
         var unreadable: [UnreadableContract] = []
+        var invalidRanges: [String] = []
         var cardTranscriptions: [[TranscriptionBlock]] = []
         for card in breakdown.cards {
             var blocks: [TranscriptionBlock] = []
             for contract in card.contracts {
                 do {
                     blocks.append(try await transcribeOne(contract, transcriber: transcriber, context: context))
+                } catch let rangeError as TranscriptionRangeError {
+                    invalidRanges.append("Work Card \"\(card.title)\": \(rangeError)")
                 } catch {
                     unreadable.append(UnreadableContract(
                         workCardTitle: card.title, repository: contract.repository, paths: contract.paths,
@@ -74,7 +80,20 @@ enum AuthoringTranscriptions {
             }
             cardTranscriptions.append(blocks)
         }
-        return AuthoringTranscriptionResult(cardTranscriptions: cardTranscriptions, unreadable: unreadable)
+        return AuthoringTranscriptionResult(
+            cardTranscriptions: cardTranscriptions, unreadable: unreadable, invalidRanges: invalidRanges
+        )
+    }
+
+    /// The Route walk's acceptance of a drafted breakdown: why it is invalid breakdown output when any
+    /// contract names a line range out of bounds at mainline (any one rejects the whole output, whatever
+    /// else it names), or nil. An unreadable path is not judged here: it halts after the walk.
+    static func rangeRejection(
+        _ breakdown: FeatureBreakdown, using transcriber: any ContractTranscribing, context: ActContext
+    ) async -> String? {
+        let invalid = await resolve(breakdown, using: transcriber, context: context).invalidRanges
+        return invalid.isEmpty ? nil : "a contract names lines its file does not have (" +
+            invalid.joined(separator: "; ") + ")"
     }
 
     private static func transcribeOne(

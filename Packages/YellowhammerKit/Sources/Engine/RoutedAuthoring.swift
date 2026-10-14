@@ -42,7 +42,8 @@ public struct RoutedFeatureBreakdown: FeatureBreakdownDrafting {
     }
 
     public func breakdown(
-        for selection: SelectedFeature, mainlines: ResolvedMainlines, context: ActContext
+        for selection: SelectedFeature, mainlines: ResolvedMainlines, context: ActContext,
+        accepting: @escaping BreakdownAcceptance
     ) async throws -> FeatureBreakdown {
         guard let repositories = context.repositories,
             case .resolved(let source) = repositories.specificationSourceLookup
@@ -56,15 +57,21 @@ public struct RoutedFeatureBreakdown: FeatureBreakdownDrafting {
         }
         let result = try await route.run(
             pass: .breakdown, worktreePath: source.path, context: context,
-            additionalReadableDirectories: repositories.workingRepos.map(\.path)
-        ) { route in
-            AuthoringInstruction(
-                pass: .breakdown, route: route, specificationSource: source,
-                specificationMainline: specificationMainline, repos: repositories.workingRepos,
-                mainlines: mainlines, namedFeature: context.trigger.namedFeature, adoptionCandidates: [],
-                selectedFeature: selection, resultFilePath: ""
-            )
-        }
+            additionalReadableDirectories: repositories.workingRepos.map(\.path),
+            accept: { result in
+                guard case .breakdown(let breakdown) = result, case .drafted(let drafted) = breakdown.outcome
+                else { return nil }
+                return await accepting(drafted)
+            },
+            instruction: { route in
+                AuthoringInstruction(
+                    pass: .breakdown, route: route, specificationSource: source,
+                    specificationMainline: specificationMainline, repos: repositories.workingRepos,
+                    mainlines: mainlines, namedFeature: context.trigger.namedFeature, adoptionCandidates: [],
+                    selectedFeature: selection, resultFilePath: ""
+                )
+            }
+        )
         guard case .breakdown(let breakdown) = result, case .drafted(let drafted) = breakdown.outcome else {
             preconditionFailure("a routed breakdown returns only a completed, drafted result")
         }
