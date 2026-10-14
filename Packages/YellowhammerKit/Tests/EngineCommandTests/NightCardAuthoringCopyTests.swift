@@ -261,4 +261,56 @@ struct NightCardAuthoringCopyTests {
             for phrase in banned { #expect(!surface.contains(phrase), "found: \(phrase)") }
         }
     }
+
+    @Test("Authoring fault line reads 'Nothing is left on the board' and trims a trailing period (issue #489)")
+    func authoringFaultLineReadsNothingIsLeftOnTheBoard() throws {
+        let failedWithPeriod = JournalEvent.featureAuthoringFailed(
+            name: "Show pending Proposals", groupKey: "grp", reason: "board write failed."
+        )
+        let lineWithPeriod = try #require(NightCardMaintenance.authoringLine(for: failedWithPeriod))
+        #expect(lineWithPeriod.contains("failed: board write failed. Nothing is left on the board"))
+        #expect(!lineWithPeriod.contains(".."))
+        #expect(!lineWithPeriod.contains("Nothing was written to the board"))
+
+        let failedWithoutPeriod = JournalEvent.featureAuthoringFailed(
+            name: "Show pending Proposals", groupKey: "grp", reason: "board write failed"
+        )
+        let lineWithoutPeriod = try #require(NightCardMaintenance.authoringLine(for: failedWithoutPeriod))
+        #expect(lineWithoutPeriod.contains("failed: board write failed. Nothing is left on the board"))
+        #expect(!lineWithoutPeriod.contains(".."))
+
+        let breakdownRejected = JournalEvent.featureBreakdownRejected(
+            name: "Show pending Proposals", reason: "permission denied."
+        )
+        let breakdownLine = try #require(NightCardMaintenance.authoringLine(for: breakdownRejected))
+        #expect(breakdownLine.contains("failed: permission denied. Nothing is left on the board"))
+        #expect(!breakdownLine.contains(".."))
+    }
+
+    @Test("Feature selection failure and settle value not honoured trim trailing period (issue #489)")
+    func failureLinesEndingInPeriodRenderSinglePeriod() throws {
+        let selectionWithPeriod = JournalEvent.featureSelectionFailed(reason: "no Route left.")
+        let selectionLineWithPeriod = try #require(NightCardMaintenance.authoringLine(for: selectionWithPeriod))
+        #expect(selectionLineWithPeriod.contains("failed: no Route left. Nothing was written to the board"))
+        #expect(!selectionLineWithPeriod.contains(".."))
+
+        let selectionWithoutPeriod = JournalEvent.featureSelectionFailed(reason: "no Route left")
+        let selectionLineWithoutPeriod = try #require(NightCardMaintenance.authoringLine(for: selectionWithoutPeriod))
+        #expect(selectionLineWithoutPeriod.contains("failed: no Route left. Nothing was written to the board"))
+        #expect(!selectionLineWithoutPeriod.contains(".."))
+
+        let settleWithPeriod = JournalEvent.settleValueNotHonoured(
+            featureIssueID: "FEAT-1", value: "kept in flight", reason: "already closed."
+        )
+        let settleLineWithPeriod = try #require(NightCardMaintenance.authoringLine(for: settleWithPeriod))
+        #expect(settleLineWithPeriod.contains("not honoured: already closed. Treated as unsettled."))
+        #expect(!settleLineWithPeriod.contains(".."))
+
+        let settleWithoutPeriod = JournalEvent.settleValueNotHonoured(
+            featureIssueID: "FEAT-1", value: "kept in flight", reason: "already closed"
+        )
+        let settleLineWithoutPeriod = try #require(NightCardMaintenance.authoringLine(for: settleWithoutPeriod))
+        #expect(settleLineWithoutPeriod.contains("not honoured: already closed. Treated as unsettled."))
+        #expect(!settleLineWithoutPeriod.contains(".."))
+    }
 }
