@@ -28,6 +28,11 @@ extension NightSummary {
                     "`\(issueID)`'s Managed Block delimiter was broken: the fenced block could not be " +
                         "located, so it was not rewritten this Night."
                 )
+            case .managedBlockOverBudget(let issueID, let length, let budget):
+                append(
+                    "`\(issueID)`'s description was not rewritten: it would be \(length) long against a " +
+                        "description budget of \(budget)."
+                )
             case .authoringInvariantBroken(_, let issueID, let reason):
                 append("`\(issueID)` violates an authoring invariant: \(reason).")
             default:

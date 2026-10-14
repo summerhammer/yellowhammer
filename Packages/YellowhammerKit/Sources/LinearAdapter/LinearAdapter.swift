@@ -14,6 +14,11 @@ public actor LinearAdapter: Board {
     private let transport: any HTTPTransport
     private let tokens: LinearInstallationTokenSource
 
+    /// The longest description Linear's `issueCreate` and `issueUpdate` accept: 250,000, counted as a
+    /// JavaScript string's `length`, so in UTF-16 code units. The unit is an inference from that
+    /// counting; it is owed a live check against the scratch workspace.
+    public static let descriptionLimit = BoardDescriptionLimit(maximum: 250_000, unit: .utf16CodeUnits)
+
     public private(set) var latestBudget: BoardBudget?
 
     public init(

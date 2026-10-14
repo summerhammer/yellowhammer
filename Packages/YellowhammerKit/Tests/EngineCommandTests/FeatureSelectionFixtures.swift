@@ -62,7 +62,7 @@ final class ScriptedSelectedFeatureAuthoring: SelectedFeatureAuthoring, Sendable
 func makeSelectionContext(
     _ journal: JournalStore, repositories: ProjectRepositories?, boards: NightCardTestBoards? = nil,
     trigger: ActTrigger = .scheduled, workspace: (any Workspace)? = nil,
-    mainlines: ResolvedMainlines = selectionMainlines()
+    mainlines: ResolvedMainlines = selectionMainlines(), descriptionBudget: DescriptionBudget? = nil
 ) throws -> (context: ActContext, runID: RunID) {
     let runID = RunID()
     guard case .claimed = try journal.claimActLease(act: .author, runID: runID, mode: .rehearsal) else {
@@ -77,7 +77,10 @@ func makeSelectionContext(
         outbox = Outbox(
             journal: journal, board: boards.writing, runID: runID, act: .author, nightID: opening.night.id
         )
-        actBoard = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        actBoard = ActBoard(
+            reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning,
+            descriptionBudget: descriptionBudget
+        )
     }
     let context = ActContext(
         act: .author, mode: .rehearsal, trigger: trigger, runID: runID, journal: journal,

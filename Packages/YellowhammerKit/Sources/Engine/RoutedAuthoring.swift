@@ -77,4 +77,10 @@ public struct RoutedFeatureBreakdown: FeatureBreakdownDrafting {
         }
         return drafted
     }
+
+    public var widestRoute: Route? {
+        route.resolver.table.entries
+            .flatMap { [$0.route] + $0.fallbacks }
+            .max { $0.description.count < $1.description.count }
+    }
 }

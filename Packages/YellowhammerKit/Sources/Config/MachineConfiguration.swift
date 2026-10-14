@@ -16,19 +16,57 @@ public struct LinearInstallation: Equatable, Sendable {
     /// empty — a missing Operator identity is never a load-time validation failure (Operator Identity
     /// Ruling — 2026-09-23).
     public var operatorIdentity: BoardObjectID?
+    /// The configured `description_budget`, nil when unset (``DescriptionBudget/defaultValue`` applies). At
+    /// least 1 once loaded; the ceiling is the board's, so ``descriptionBudget(limit:)`` checks it.
+    public var descriptionBudget: Int?
+    /// Where `description_budget` was read, for an error found later. Nil for an installation built in
+    /// code; not part of equality.
+    public var descriptionBudgetSource: ConfigurationSource?
 
     public init(
         name: String,
         credential: CredentialReference,
         workspace: BoardObjectID,
         appUser: BoardObjectID,
-        operatorIdentity: BoardObjectID? = nil
+        operatorIdentity: BoardObjectID? = nil,
+        descriptionBudget: Int? = nil,
+        descriptionBudgetSource: ConfigurationSource? = nil
     ) {
         self.name = name
         self.credential = credential
         self.workspace = workspace
         self.appUser = appUser
         self.operatorIdentity = operatorIdentity
+        self.descriptionBudget = descriptionBudget
+        self.descriptionBudgetSource = descriptionBudgetSource
+    }
+
+    public static func == (lhs: LinearInstallation, rhs: LinearInstallation) -> Bool {
+        lhs.name == rhs.name && lhs.credential == rhs.credential && lhs.workspace == rhs.workspace
+            && lhs.appUser == rhs.appUser && lhs.operatorIdentity == rhs.operatorIdentity
+            && lhs.descriptionBudget == rhs.descriptionBudget
+    }
+
+    /// The description budget this Board Connection's board enforces: ``descriptionBudget`` or the
+    /// default, checked against the ceiling of the board's `limit`, which the board's adapter supplies.
+    /// A value above the ceiling is refused as the `description_budget` key, naming the ceiling.
+    public func descriptionBudget(limit: BoardDescriptionLimit) throws(ConfigurationError) -> DescriptionBudget {
+        do {
+            return try DescriptionBudget(configured: descriptionBudget, limit: limit)
+        } catch {
+            let reason: ConfigurationError.Reason
+            switch error {
+            case .belowOne(let value):
+                reason = .notPositive(Int64(value))
+            case .aboveCeiling(let value, let ceiling):
+                reason = .aboveDescriptionBudgetCeiling(value: value, ceiling: ceiling, limit: limit)
+            }
+            throw ConfigurationError(
+                file: descriptionBudgetSource?.file ?? "config.toml", line: descriptionBudgetSource?.line ?? 1,
+                key: TOMLKey.path(TOMLKey.path("board.linear.connections", name), "description_budget"),
+                reason: reason
+            )
+        }
     }
 
     /// Whether `name` is a valid local name: `^[a-z0-9][a-z0-9_-]*$`. Setup proposes only names that pass;
@@ -40,6 +78,18 @@ public struct LinearInstallation: Equatable, Sendable {
 
     private static func isLocalNameAlphanumeric(_ scalar: Unicode.Scalar) -> Bool {
         ("a"..."z").contains(scalar) || ("0"..."9").contains(scalar)
+    }
+}
+
+/// A line of a configuration file.
+public struct ConfigurationSource: Sendable {
+    public let file: String
+    /// 1-based.
+    public let line: Int
+
+    public init(file: String, line: Int) {
+        self.file = file
+        self.line = line
     }
 }
 

@@ -5,6 +5,12 @@ import Journal
 // The plan half of the authoring transaction (roadmap P9.4): what goes into the one Outbox group, under
 // which deterministic keys, and what the Journal is told about it.
 
+/// One prose section of a Feature Issue's description, named for a message that sizes it.
+struct FeatureDescriptionSection: Equatable {
+    let title: String
+    let text: String
+}
+
 /// The Outbox group and the durable plan that describes it.
 struct AuthoringPlan: Equatable {
     let writes: [OutboxWrite]
@@ -159,44 +165,40 @@ struct AuthoringPlanner {
         clauses.map { DefinitionOfDoneClauseLine.render(cid: $0.cid, text: $0.text, citation: $0.citation) }
     }
 
-    /// Every issue this transaction creates carries a well-formed (near-empty) Managed Block fence, so a
-    /// later rewrite finds its delimiters; the prose sits outside it, where a rewrite preserves it. The
-    /// Feature's carries the sequence and its reasoning when the selection is one step of a sequence. Its
-    /// Definition of Done is authored as prose (outside the fence) — the checklist the Operator reads.
-    private func featureDescription(clauses: [PlannedClause], adoptions: [PlannedAdoption]) -> String {
+    /// The Feature Issue's prose sections, in order: its Definition of Done (the checklist the Operator
+    /// reads), the reasoning, the adopted Cards, and the sequence when the selection is one step of one.
+    func featureSections(clauses: [PlannedClause], adoptions: [PlannedAdoption]) -> [FeatureDescriptionSection] {
         let checklist = Self.definitionOfDoneLines(clauses).joined(separator: "\n")
-        var prose = """
-            ## Definition of done
-
-            \(checklist)
-
-            ## Why this Feature
-
-            \(selection.reasoning)
-            """
+        var sections = [
+            FeatureDescriptionSection(title: "Definition of Done", text: "## Definition of done\n\n\(checklist)"),
+            FeatureDescriptionSection(title: "Why this Feature", text: "## Why this Feature\n\n\(selection.reasoning)")
+        ]
         if !adoptions.isEmpty {
             let lines = adoptions.map { "- \($0.cardIssueID), adopted from \($0.previousFeatureIssueID)" }
                 .joined(separator: "\n")
-            prose += """
-
-
-                ## Adopted Cards
-
-                \(lines)
-                """
+            sections.append(FeatureDescriptionSection(title: "Adopted Cards", text: "## Adopted Cards\n\n\(lines)"))
         }
         if let sequence = selection.sequence {
-            prose += """
-
-
+            let text = """
                 ## Sequence
 
                 - Preceded by: \(sequence.precededBy)
                 - Followed by: \(sequence.followedBy)
                 - Seam: \(sequence.seam)
                 """
+            sections.append(FeatureDescriptionSection(title: "Sequence", text: text))
         }
-        return ManagedBlockFence.initialDescription(rendered: "") + "\n\n" + prose
+        return sections
+    }
+
+    /// Every issue this transaction creates carries a well-formed (near-empty) Managed Block fence, so a
+    /// later rewrite finds its delimiters; the prose sits outside it, where a rewrite preserves it. The
+    /// Feature's carries the sequence and its reasoning when the selection is one step of a sequence. Its
+    /// Definition of Done is authored as prose (outside the fence) — the checklist the Operator reads.
+    /// `rolledUp` is what the fence holds: nothing at creation, the Roll-up in a later rewrite.
+    func featureDescription(clauses: [PlannedClause], adoptions: [PlannedAdoption], rolledUp: String = "") -> String {
+        let prose = featureSections(clauses: clauses, adoptions: adoptions).map(\.text).joined(separator: "\n\n")
+        return ManagedBlockFence.initialDescription(rendered: rolledUp) + "\n\n" + prose
     }
 
     /// A Card's Architectural Brief and Definition of Done are both authored inside the Managed Block

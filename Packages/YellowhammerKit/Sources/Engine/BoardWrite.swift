@@ -28,6 +28,12 @@ public enum BoardWrite: Codable, Equatable, Sendable {
     /// it. `undo` is what a rollback applies — the Card's previous parent. Additive: it never changes how
     /// any earlier case encodes or decodes.
     case adoptIssue(issue: BoardObjectID, parentKey: String, undo: BoardIssueChange?)
+    /// A Managed Block rewrite that may compact to stay within the Board Connection's description budget:
+    /// `renderings` run from the full one to the most compacted, and delivery writes the first whose whole
+    /// replaced description fits (spec: board-projection/maintain-the-managed-block, budget on rewrite).
+    /// Additive, like ``adoptIssue(issue:parentKey:undo:)``: ``rewriteManagedBlock(issue:rendered:)``
+    /// encodes and decodes as it always did, because pending payloads persist in Journals.
+    case rewriteManagedBlockCompacting(issue: BoardObjectID, renderings: [String])
 
     /// The operation as the Journal names it.
     public var operation: String {
@@ -36,6 +42,7 @@ public enum BoardWrite: Codable, Equatable, Sendable {
         case .createComment: "commentCreate"
         case .attachLink: "attachmentCreate"
         case .rewriteManagedBlock: "descriptionRewrite"
+        case .rewriteManagedBlockCompacting: "descriptionRewrite"
         case .updateManagedBlockLine: "descriptionRewrite"
         case .updateIssue: "issueUpdate"
         case .archiveIssue: "issueArchive"
@@ -49,6 +56,7 @@ public enum BoardWrite: Codable, Equatable, Sendable {
         case .createIssue:
             nil
         case .createComment(let issue, _), .attachLink(let issue, _, _), .rewriteManagedBlock(let issue, _),
+             .rewriteManagedBlockCompacting(let issue, _),
              .updateIssue(let issue, _, _), .archiveIssue(let issue), .adoptIssue(let issue, _, _),
              .updateManagedBlockLine(let issue, _, _):
             issue
@@ -59,7 +67,8 @@ public enum BoardWrite: Codable, Equatable, Sendable {
     var isCreate: Bool {
         switch self {
         case .createIssue, .createComment, .attachLink: true
-        case .rewriteManagedBlock, .updateManagedBlockLine, .updateIssue, .archiveIssue, .adoptIssue: false
+        case .rewriteManagedBlock, .rewriteManagedBlockCompacting, .updateManagedBlockLine, .updateIssue,
+             .archiveIssue, .adoptIssue: false
         }
     }
 }

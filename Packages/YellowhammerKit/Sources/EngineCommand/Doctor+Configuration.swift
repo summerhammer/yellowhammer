@@ -1,6 +1,7 @@
 import Config
 import Domain
 import Foundation
+import LinearAdapter
 
 extension Doctor {
     /// Check 1: `Configuration.load(directory:)`. A machine-file error is a failure and stops every
@@ -18,6 +19,18 @@ extension Doctor {
                 "\(machineFileURL.path(percentEncoded: false)) is invalid: \(error)"
             ))
             return nil
+        }
+        // A description budget above Linear's ceiling is invalid configuration, as it is where an Act binds.
+        for installation in configuration.machine.linearInstallations {
+            do {
+                _ = try installation.descriptionBudget(limit: LinearAdapter.descriptionLimit)
+            } catch {
+                findings.append(finding(
+                    .configuration, subject: machineFileURL.path(percentEncoded: false), .failure,
+                    "\(machineFileURL.path(percentEncoded: false)) is invalid: \(error)"
+                ))
+                return nil
+            }
         }
 
         for invalid in configuration.invalidProjects {

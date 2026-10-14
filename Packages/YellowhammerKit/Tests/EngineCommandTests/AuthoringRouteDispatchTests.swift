@@ -183,6 +183,30 @@ struct AuthoringRouteDispatchTests {
         ])
     }
 
+    @Test("A Work Card over the description budget is invalid output: the next Route is tried")
+    func overBudgetWorkCardTriesTheNextRoute() async throws {
+        let rig = try await AuthoringRig()
+        rig.descriptionBudget = try DescriptionBudget(
+            configured: 2_000, limit: BoardDescriptionLimit(maximum: 250_000, unit: .utf16CodeUnits)
+        )
+        let dispatch = ScriptedRouteDispatch([
+            primary: .answer(try briefedBreakdown(String(repeating: "Approach. ", count: 400))),
+            fallback: .answer(try briefedBreakdown("Approach."))
+        ])
+
+        let outcome = try await rangedSelection(dispatch).selectAndAuthor(try rig.context())
+
+        #expect(outcome == .authored)
+        #expect(dispatch.requests.map(\.route) == [primary, fallback])
+        #expect(try rig.journal.events(ofType: .featureBreakdownRejected).isEmpty)
+    }
+
+    @Test("The widest Route is taken from the whole Routing Table, fallbacks included")
+    func widestRouteSpansTheTable() {
+        let drafting = RoutedFeatureBreakdown(route: authoringRoute(ScriptedRouteDispatch([:])))
+        #expect(drafting.widestRoute == [primary, fallback].max { $0.description.count < $1.description.count })
+    }
+
     @Test("A breakdown that no Route answers is an authoring fault: the transaction records it and ends")
     func breakdownExhaustionEndsTheAct() async throws {
         let rig = try await AuthoringRig()
@@ -280,4 +304,14 @@ private func rangedSelection(_ dispatch: ScriptedRouteDispatch) throws -> Featur
             transcribing: FakeContractTranscriber(fileLineCount: 100), provenance: FakeProvenanceTester()
         )
     )
+}
+
+/// A drafted breakdown whose one backend Card carries `brief` and no contract.
+private func briefedBreakdown(_ brief: String) throws -> DispatchResult {
+    let card = CardDraft(
+        repository: "backend", kind: try authoringKind(), title: "Briefed", unitOfWork: "Build it",
+        brief: brief, definitionOfDone: [authoringClause("Briefed is done.")]
+    )
+    let breakdown = FeatureBreakdown(definitionOfDone: [authoringClause("The Feature is done.")], cards: [card])
+    return .breakdown(BreakdownResult(outcome: .drafted(breakdown)))
 }

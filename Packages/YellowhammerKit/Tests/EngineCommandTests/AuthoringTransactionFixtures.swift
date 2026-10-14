@@ -9,30 +9,60 @@ import Testing
 // The breakdown here is scripted — the model-authored content is never asserted, only the wiring.
 
 /// A `FeatureBreakdownDrafting` that hands back a scripted breakdown per call (the last one repeats)
-/// and counts its calls. It is one Route: a breakdown `accepting` refuses is an exhausted walk.
+/// and counts its calls. Built from breakdowns alone it is one Route: a breakdown `accepting` refuses is an
+/// exhausted walk. Built with `routes`, each call walks them in order as the real drafting does, the i-th
+/// Route answering with the i-th breakdown, and records each Route's dispatch.
 final class ScriptedBreakdown: FeatureBreakdownDrafting, Sendable {
-    private let state = Mutex(0)
+    private struct Calls {
+        var count = 0
+        var dispatched: [Route] = []
+    }
+
+    private let state = Mutex(Calls())
     private let breakdowns: [FeatureBreakdown]
+    private let routes: [Route]
 
     init(_ breakdowns: FeatureBreakdown...) {
         self.breakdowns = breakdowns
+        self.routes = []
     }
 
-    var callCount: Int { state.withLock { $0 } }
+    init(routes: [Route], breakdowns: [FeatureBreakdown]) {
+        self.breakdowns = breakdowns
+        self.routes = routes
+    }
+
+    var callCount: Int { state.withLock { $0.count } }
+
+    /// Every Route a call answered on or walked past, in order.
+    var dispatchedRoutes: [Route] { state.withLock { $0.dispatched } }
+
+    var widestRoute: Route? { routes.max { $0.description.count < $1.description.count } }
 
     func breakdown(
         for selection: SelectedFeature, mainlines: ResolvedMainlines, context: ActContext,
         accepting: @escaping BreakdownAcceptance
     ) async throws -> FeatureBreakdown {
-        let index = state.withLock { count -> Int in
-            defer { count += 1 }
-            return count
+        let index = state.withLock { calls -> Int in
+            defer { calls.count += 1 }
+            return calls.count
         }
-        let breakdown = breakdowns[min(index, breakdowns.count - 1)]
-        if let rejection = await accepting(breakdown) {
-            throw AuthoringDispatchFault(reason: rejection)
+        guard !routes.isEmpty else {
+            let breakdown = breakdowns[min(index, breakdowns.count - 1)]
+            if let rejection = await accepting(breakdown) {
+                throw AuthoringDispatchFault(reason: rejection)
+            }
+            return breakdown
         }
-        return breakdown
+        var lastFailure: String?
+        for (position, route) in routes.enumerated() {
+            state.withLock { $0.dispatched.append(route) }
+            let breakdown = breakdowns[min(position, breakdowns.count - 1)]
+            guard let rejection = await accepting(breakdown) else { return breakdown }
+            lastFailure = "breakdown on \(route) returned invalid output: \(rejection)"
+        }
+        let table = "the Routing Table has no Route left for the authoring Kind"
+        throw AuthoringDispatchFault(reason: lastFailure.map { "\(table); last failure: \($0)" } ?? table)
     }
 }
 
@@ -82,6 +112,8 @@ final class AuthoringRig {
     let selector: ScriptedFeatureSelector
     let drafting: ScriptedBreakdown
     let selection: FeatureSelection
+    /// The description budget the Board Connection gives the next context; nil enforces none.
+    var descriptionBudget: DescriptionBudget?
 
     init(
         adopting adopted: [String] = [], sequence: FeatureSequence? = nil, drafting: ScriptedBreakdown? = nil,
@@ -115,7 +147,9 @@ final class AuthoringRig {
         if let previous {
             try journal.releaseActLease(runID: previous.runID)
         }
-        return try makeSelectionContext(journal, repositories: selectionRepositories(), boards: boards).context
+        return try makeSelectionContext(
+            journal, repositories: selectionRepositories(), boards: boards, descriptionBudget: descriptionBudget
+        ).context
     }
 
     func run(_ context: ActContext) async throws -> FeatureAuthoringOutcome {

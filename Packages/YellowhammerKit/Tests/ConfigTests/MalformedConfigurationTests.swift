@@ -56,6 +56,14 @@ private let shapeFixtures: [MalformedFixture] = [
     MalformedFixture(
         "installation-unknown-key", line: 4, key: "board.linear.connections.acme.client_id", .unknownKey
     ),
+    MalformedFixture(
+        "installation-description-budget-zero", line: 5,
+        key: "board.linear.connections.acme.description_budget", .notPositive(0)
+    ),
+    MalformedFixture(
+        "installation-description-budget-string", line: 5,
+        key: "board.linear.connections.acme.description_budget", .typeMismatch(expected: "integer", found: "string")
+    ),
     MalformedFixture("installation-empty-name", line: 1, key: "board.linear.connections.\"\"", .emptyString),
     // A Keychain token connection must name a non-empty Credential Reference.
     MalformedFixture(

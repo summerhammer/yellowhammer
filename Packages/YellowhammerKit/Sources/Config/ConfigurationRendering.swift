@@ -238,7 +238,7 @@ extension MachineConfiguration {
     /// A textual edit of an existing, hand-maintained `config.toml`: preserves every other line,
     /// including comments. Adds or replaces the entry called `installation.name`. When its table exists,
     /// `credential`, `workspace` and `yellowhammer_identity` are set in place (inserted when missing) and `operator`
-    /// is written only when the installation has one, so a re-connect keeps the Operator identity. When it
+    /// and `description_budget` are written only when the installation has one, so a re-connect keeps both. When it
     /// does not, a new table is appended at the end of the file. Applying it twice equals applying it once.
     public static func settingLinearInstallation(
         _ installation: LinearInstallation, inFileText text: String
@@ -259,6 +259,9 @@ extension MachineConfiguration {
             if let operatorIdentity = installation.operatorIdentity {
                 table.append("operator = \(ConfigurationRendering.quoted(operatorIdentity.rawValue))")
             }
+            if let descriptionBudget = installation.descriptionBudget {
+                table.append("description_budget = \(descriptionBudget)")
+            }
             return result + table.joined(separator: "\n") + "\n"
         }
         setKey("credential", to: installation.credential.rawValue, tableAt: header, in: &lines)
@@ -266,6 +269,9 @@ extension MachineConfiguration {
         setKey("yellowhammer_identity", to: installation.appUser.rawValue, tableAt: header, in: &lines)
         if let operatorIdentity = installation.operatorIdentity {
             setKey("operator", to: operatorIdentity.rawValue, tableAt: header, in: &lines)
+        }
+        if let descriptionBudget = installation.descriptionBudget {
+            setKey("description_budget", toLiteral: "\(descriptionBudget)", tableAt: header, in: &lines)
         }
         return lines.joined(separator: "\n")
     }
@@ -320,7 +326,14 @@ extension MachineConfiguration {
     /// Sets `key = "value"` in the table whose header is at `header`: replaces the key's line, or inserts
     /// it after the table's last key line (right after the header when it has none).
     fileprivate static func setKey(_ key: String, to value: String, tableAt header: Int, in lines: inout [String]) {
-        let newLine = "\(key) = \(ConfigurationRendering.quoted(value))"
+        setKey(key, toLiteral: ConfigurationRendering.quoted(value), tableAt: header, in: &lines)
+    }
+
+    /// Sets `key = <literal>`, the literal written as given (an integer, say), as ``setKey(_:to:tableAt:in:)`` does.
+    fileprivate static func setKey(
+        _ key: String, toLiteral literal: String, tableAt header: Int, in lines: inout [String]
+    ) {
+        let newLine = "\(key) = \(literal)"
         var end = header + 1
         var lastKey = header
         while end < lines.count, !isAnyTableHeader(lines[end]) {

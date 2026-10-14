@@ -55,6 +55,8 @@ extension JournalEvent {
             ]
         case .managedBlockDelimiterBroken(let issueID):
             ["issue_id": issueID]
+        case .managedBlockOverBudget(let issueID, let length, let budget):
+            ["issue_id": issueID, "length": String(length), "budget": String(budget)]
         case .notificationDeliveryFailed(let notification, let reason):
             ["notification": notification, "reason": reason]
         case .worktreeNameCollision(let repository, let requested, let reported):

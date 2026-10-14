@@ -45,6 +45,8 @@ extension JournalEvent {
             .mainlineConflictDetected
         case .managedBlockDelimiterBroken:
             .managedBlockDelimiterBroken
+        case .managedBlockOverBudget:
+            .managedBlockOverBudget
         case .notificationDeliveryFailed:
             .notificationDeliveryFailed
         case .worktreeNameCollision:

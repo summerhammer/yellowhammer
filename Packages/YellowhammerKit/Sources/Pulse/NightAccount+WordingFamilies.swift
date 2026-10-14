@@ -65,6 +65,11 @@ extension NightWording {
             NightWords(headline: "A notification was not delivered", detail: "\(notification): \(reason)")
         case .boardWriteFailed(_, let operation, _, let reason):
             NightWords(headline: "Linear was not updated", detail: "\(operation): \(reason)")
+        case .managedBlockOverBudget(let issueID, let length, let budget):
+            NightWords(
+                headline: "A description was not rewritten — it would be over its budget",
+                detail: "\(issueID): \(length) against a budget of \(budget)"
+            )
         case .rateBudgetExhausted(let degradation, _):
             NightWords(headline: "Linear's request budget ran out", detail: degradation)
         case .boardScopeUnresolved(let steps):

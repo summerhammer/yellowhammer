@@ -91,7 +91,12 @@ enum AuthoringTranscriptions {
     static func rangeRejection(
         _ breakdown: FeatureBreakdown, using transcriber: any ContractTranscribing, context: ActContext
     ) async -> String? {
-        let invalid = await resolve(breakdown, using: transcriber, context: context).invalidRanges
+        rangeRejection(await resolve(breakdown, using: transcriber, context: context))
+    }
+
+    /// ``rangeRejection(_:using:context:)`` for a breakdown already transcribed.
+    static func rangeRejection(_ result: AuthoringTranscriptionResult) -> String? {
+        let invalid = result.invalidRanges
         return invalid.isEmpty ? nil : "a contract names lines its file does not have (" +
             invalid.joined(separator: "; ") + ")"
     }

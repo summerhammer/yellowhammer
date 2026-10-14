@@ -53,6 +53,9 @@ public struct ConfigurationError: Error, Equatable, Sendable {
         /// A `repo_roles` name that is declared twice, or is one of the standard Repo Roles, which every Mac
         /// offers already.
         case duplicateRepoRole(String)
+        /// A Board Connection's `description_budget` is above 90% of its board's own description limit, which
+        /// the board's adapter supplies.
+        case aboveDescriptionBudgetCeiling(value: Int, ceiling: Int, limit: BoardDescriptionLimit)
     }
 
     public let file: String
@@ -158,6 +161,9 @@ extension ConfigurationError.Reason: CustomStringConvertible {
             let standard = RepoRole(rawValue: name).isStandard
             let reason = standard ? "is a standard Repo Role, offered already" : "is declared twice"
             return "Repo Role \"\(name)\" \(reason)"
+        case .aboveDescriptionBudgetCeiling(let value, let ceiling, let limit):
+            return "must be at most \(ceiling) (90% of the board's description limit of \(limit.maximum) "
+                + "\(limit.unit.plural)), got \(value)"
         }
     }
 }

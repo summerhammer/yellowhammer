@@ -16,6 +16,15 @@ public protocol FeatureBreakdownDrafting: Sendable {
         for selection: SelectedFeature, mainlines: ResolvedMainlines, context: ActContext,
         accepting: @escaping BreakdownAcceptance
     ) async throws -> FeatureBreakdown
+
+    /// The Route with the widest `description` in the whole Routing Table, entries' Routes and fallbacks of
+    /// every Kind: a Work Card's Attempts are dispatched on Card Routes, so the room its compacted Attempts
+    /// section needs on the card is sized with it. Nil for a drafting with no Routing Table.
+    var widestRoute: Route? { get }
+}
+
+extension FeatureBreakdownDrafting {
+    public var widestRoute: Route? { nil }
 }
 
 /// Returns nil to accept a drafted breakdown, or why it is invalid breakdown output.

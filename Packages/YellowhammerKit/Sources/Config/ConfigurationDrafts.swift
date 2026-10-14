@@ -273,6 +273,9 @@ extension MachineConfiguration {
             if let operatorIdentity = installation.operatorIdentity {
                 lines.append("operator = \(ConfigurationRendering.quoted(operatorIdentity.rawValue))")
             }
+            if let descriptionBudget = installation.descriptionBudget {
+                lines.append("description_budget = \(descriptionBudget)")
+            }
             sections.append(lines.joined(separator: "\n"))
         }
 

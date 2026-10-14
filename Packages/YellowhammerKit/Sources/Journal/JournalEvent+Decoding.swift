@@ -54,6 +54,11 @@ extension JournalEvent {
             try Self.decodeMainlineConflictDetected(reader)
         case .managedBlockDelimiterBroken:
             .managedBlockDelimiterBroken(issueID: try reader.require("issue_id"))
+        case .managedBlockOverBudget:
+            .managedBlockOverBudget(
+                issueID: try reader.require("issue_id"), length: try reader.int("length"),
+                budget: try reader.int("budget")
+            )
         case .notificationDeliveryFailed:
             .notificationDeliveryFailed(
                 notification: try reader.require("notification"),

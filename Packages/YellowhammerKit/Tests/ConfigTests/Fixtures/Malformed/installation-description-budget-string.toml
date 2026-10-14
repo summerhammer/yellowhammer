@@ -1,0 +1,8 @@
+[board.linear.connections.acme]
+credential = "keychain:linear-acme"
+workspace = "ws-1"
+yellowhammer_identity = "app-1"
+description_budget = "10000"
+
+[code_hosting.github.connections]
+github = { type = "keychain", credential = "keychain:github" }

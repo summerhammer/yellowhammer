@@ -40,8 +40,14 @@ public enum NightCardBlock {
         pullRequestLines: [String] = [], answerLines: [String] = [], anomalies: [String] = [],
         crashesAndReclaims: [String] = [], leftoverProcesses: [String] = [], exceptions: [String] = [],
         bounds: [String] = [], standingItems: [String] = [], unadoptedCards: [String] = [],
-        inFlightFeature: [String] = [], instrumentedRates: [String] = []
+        inFlightFeature: [String] = [], instrumentedRates: [String] = [],
+        cardShortLines: [String] = [], compaction: NightCardCompaction = NightCardCompaction()
     ) -> String {
+        let cardLines = compaction.cardLines(detailed: cardLines, short: cardShortLines)
+        let standingItems = compaction.standing(standingItems)
+        let unadoptedCards = compaction.standing(unadoptedCards)
+        let inFlightFeature = compaction.standing(inFlightFeature)
+        let exceptions = compaction.exceptions(exceptions)
         var lines = header(night: night, projectID: projectID)
         if let completedAt = night.completedAt {
             lines.append("**Completed:** \(iso8601(completedAt)) at `night_end`")

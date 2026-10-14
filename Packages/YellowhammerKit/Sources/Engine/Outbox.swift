@@ -38,6 +38,9 @@ public struct Outbox: Sendable {
     /// The Board Connection the board writes through, named on a rate-budget record. Nil for a board
     /// bound through none.
     public let installation: AppInstallationLabel?
+    /// The size every description this Outbox writes must fit, in the board's unit; nil enforces none. A
+    /// Managed Block rewrite is measured over the whole description after the fence replace.
+    public let descriptionBudget: DescriptionBudget?
 
     let clock: @Sendable () -> Date
     /// The one scrub every narrative passes (OQ146/OQ147, R23), applied when a write is accepted so the
@@ -59,12 +62,13 @@ public struct Outbox: Sendable {
         act: Act? = nil,
         nightID: Int64? = nil,
         installation: AppInstallationLabel? = nil,
+        descriptionBudget: DescriptionBudget? = nil,
         clock: @escaping @Sendable () -> Date = { Date() },
         scrub: @escaping @Sendable () -> NarrativeScrub = { .none }
     ) {
         self.init(
             journal: journal, board: board, reading: reading, runID: runID, act: act, nightID: nightID,
-            installation: installation, clock: clock, scrub: scrub
+            installation: installation, descriptionBudget: descriptionBudget, clock: clock, scrub: scrub
         ) { _ in }
     }
 
@@ -76,6 +80,7 @@ public struct Outbox: Sendable {
         act: Act? = nil,
         nightID: Int64? = nil,
         installation: AppInstallationLabel? = nil,
+        descriptionBudget: DescriptionBudget? = nil,
         clock: @escaping @Sendable () -> Date = { Date() },
         scrub: @escaping @Sendable () -> NarrativeScrub = { .none },
         interrupt: @escaping @Sendable (OutboxEntry) throws -> Void
@@ -86,6 +91,7 @@ public struct Outbox: Sendable {
         self.reading = reading
         self.runID = runID
         self.installation = installation
+        self.descriptionBudget = descriptionBudget
         self.act = act
         self.nightID = nightID
         self.clock = clock
@@ -256,6 +262,10 @@ public struct Outbox: Sendable {
         case updated
         case fenced(ManagedBlockFence.Replacement, renderedHash: String)
         case unfenced(ManagedBlockFence.Failure)
+        /// Every rendering offered would make the whole description longer than the budget. `length` is the
+        /// composed size of the most compacted one; `renderingAloneFits` says whether that rendering, with
+        /// none of the issue's other text, would fit.
+        case overBudget(length: Int, budget: DescriptionBudget, renderingAloneFits: Bool)
     }
 
     private func perform(_ write: BoardWrite, for entry: OutboxEntry) async throws -> Performed {
@@ -270,9 +280,13 @@ public struct Outbox: Sendable {
         case .attachLink(let issue, let url, let title):
             return .created(try await board.attachLink(to: issue, url: url, title: title, clientID: entry.clientID))
         case .rewriteManagedBlock(let issue, let rendered):
-            return try await performManagedBlock(issue: issue, rendered: rendered, entry: entry)
+            return try await performManagedBlock(issue: issue, renderings: [rendered], entry: entry)
+        case .rewriteManagedBlockCompacting(let issue, let renderings):
+            return try await performManagedBlock(issue: issue, renderings: renderings, entry: entry)
         case .updateManagedBlockLine(let issue, let prefix, let line):
-            return try await performManagedBlock(issue: issue, rendered: line, replacingPrefix: prefix, entry: entry)
+            return try await performManagedBlock(
+                issue: issue, renderings: [line], replacingPrefix: prefix, entry: entry
+            )
         case .updateIssue(let issue, let change, _):
             _ = try await board.updateIssue(issue, change)
             return .updated
@@ -322,21 +336,11 @@ public struct Outbox: Sendable {
             ))
             return OutboxDelivery(entry: applied, outcome: .applied(nil))
         case .unfenced(let failure):
-            guard let issue = write.issueID else { throw OutboxError.payloadUnreadable(entryID: entry.id) }
-            let reason = "Managed Block delimiters broken: \(failure)"
-            let aborted = try journal.markOutboxAborted(id: entry.id, reason: reason, now: now)
-            try append(.managedBlockDelimiterBroken(issueID: issue.rawValue))
-            // The Operator is told on the issue itself, through the Outbox like every other write, under a
-            // key derived from the aborted entry so a repeated abort of the same write posts one comment.
-            let diagnostic = try accept(OutboxWrite(
-                key: "diagnostic:managed-block:\(entry.clientID.uuidString.lowercased())",
-                write: .createComment(issue: issue, body: Self.diagnosticComment(for: failure)),
-                cardID: entry.cardID
-            ))
-            if diagnostic.state == .pending {
-                _ = try await deliver(diagnostic)
-            }
-            return OutboxDelivery(entry: aborted, outcome: .aborted(reason: reason))
+            return try await abortUnfenced(entry, write: write, failure: failure)
+        case .overBudget(let length, let budget, let renderingAloneFits):
+            return try await abortOverBudget(
+                entry, write: write, length: length, budget: budget, renderingAloneFits: renderingAloneFits
+            )
         }
     }
 
@@ -387,13 +391,5 @@ public struct Outbox: Sendable {
 
     func append(_ event: JournalEvent) throws {
         try journal.append(event, act: act, runID: runID, nightID: nightID, now: clock())
-    }
-
-    static func diagnosticComment(for failure: ManagedBlockFence.Failure) -> String {
-        """
-        Yellowhammer could not update this issue's Managed Block: \(failure). The description was left \
-        untouched. Restore the `\(ManagedBlockFence.start)` and `\(ManagedBlockFence.end)` delimiters, \
-        on their own lines with the block between them, and updates resume on the next Act.
-        """
     }
 }

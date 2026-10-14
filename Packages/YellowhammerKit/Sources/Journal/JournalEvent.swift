@@ -97,6 +97,10 @@ public enum JournalEvent: Equatable, Sendable {
     /// changes, no Block Reason.
     case mainlineConflictDetected(featureIssueID: String, repository: String, paths: [String])
     case managedBlockDelimiterBroken(issueID: String)
+    /// A Managed Block rewrite was refused: the whole description, composed after the fence replace,
+    /// would be `length` long against the Board Connection's description `budget`, even in the most
+    /// compacted rendering. Both are in the board's unit. The description was left untouched.
+    case managedBlockOverBudget(issueID: String, length: Int, budget: Int)
     /// Fire-and-forget: the failure is recorded, never acted on.
     case notificationDeliveryFailed(notification: String, reason: String)
     /// Orca ADE reported a branch for a requested Worktree that Yellowhammer does not accept; the build

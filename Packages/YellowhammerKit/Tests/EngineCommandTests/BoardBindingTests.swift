@@ -147,4 +147,47 @@ struct BoardBindingTests {
         #expect(message.contains("\"gone\""))
         #expect(machine.linearInstallation(for: orphan) == nil)
     }
+
+    private func machine(descriptionBudget: Int?) throws -> MachineConfiguration {
+        let budgetLine = descriptionBudget.map { "description_budget = \($0)" } ?? ""
+        return try MachineConfiguration.parse("""
+            [board.linear.connections.acme]
+            credential = "keychain:yh-test-budget-\(UUID().uuidString)"
+            workspace = "workspace-1"
+            yellowhammer_identity = "app-user-1"
+            \(budgetLine)
+
+            [code_hosting.github.connections.github]
+            type = "keychain"
+            credential = "keychain:github"
+            """, file: "config.toml")
+    }
+
+    @Test("An Act's board carries the Board Connection's description budget, 10,000 when unset")
+    func actBoardCarriesDescriptionBudget() throws {
+        let project = try ProjectConfiguration.parse(projectFile(id: "alpha", installation: "acme"), file: "alpha.toml")
+        let unset = try BoardBinding.actBoard(machine: try machine(descriptionBudget: nil), project: project)
+        #expect(unset.descriptionBudget?.value == 10_000)
+        #expect(unset.descriptionBudget?.limit == BoardDescriptionLimit(maximum: 250_000, unit: .utf16CodeUnits))
+        let ceiling = try BoardBinding.actBoard(machine: try machine(descriptionBudget: 225_000), project: project)
+        #expect(ceiling.descriptionBudget?.value == 225_000)
+    }
+
+    @Test("A description budget above Linear's ceiling is refused at binding, naming the ceiling")
+    func descriptionBudgetAboveCeilingRefused() throws {
+        let project = try ProjectConfiguration.parse(projectFile(id: "alpha", installation: "acme"), file: "alpha.toml")
+        let configured = try machine(descriptionBudget: 225_001)
+        do {
+            _ = try BoardBinding.actBoard(machine: configured, project: project)
+            Issue.record("expected 225001 to be refused")
+        } catch let error as ConfigurationError {
+            #expect(error.key == "board.linear.connections.acme.description_budget")
+            #expect(error.reason == .aboveDescriptionBudgetCeiling(
+                value: 225_001, ceiling: 225_000, limit: BoardDescriptionLimit(maximum: 250_000, unit: .utf16CodeUnits)
+            ))
+            #expect(error.description.contains("225000"))
+        } catch {
+            Issue.record("expected a ConfigurationError, got \(error)")
+        }
+    }
 }
