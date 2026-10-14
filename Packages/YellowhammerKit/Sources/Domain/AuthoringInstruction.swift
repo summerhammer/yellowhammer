@@ -22,6 +22,9 @@ public struct AuthoringInstruction: Equatable, Sendable {
     public let selectedFeature: SelectedFeature?
     /// The absolute path where the CLI Adapter persists the final structured response.
     public let resultFilePath: String
+    /// The description budget of the Board Connection the Cards are authored onto, which the breakdown is
+    /// told so it keeps each Card's description within it. Nil when the board enforces none.
+    public let descriptionBudget: DescriptionBudget?
 
     public init(
         pass: RunPass,
@@ -34,7 +37,8 @@ public struct AuthoringInstruction: Equatable, Sendable {
         adoptionCandidates: [AdoptionCandidate],
         refusedThisNight: [FeatureName] = [],
         selectedFeature: SelectedFeature?,
-        resultFilePath: String
+        resultFilePath: String,
+        descriptionBudget: DescriptionBudget? = nil
     ) {
         self.pass = pass
         self.route = route
@@ -47,6 +51,7 @@ public struct AuthoringInstruction: Equatable, Sendable {
         self.refusedThisNight = refusedThisNight
         self.selectedFeature = selectedFeature
         self.resultFilePath = resultFilePath
+        self.descriptionBudget = descriptionBudget
     }
 
     /// This instruction with its result file path replaced.
@@ -55,7 +60,8 @@ public struct AuthoringInstruction: Equatable, Sendable {
             pass: pass, route: route, specificationSource: specificationSource,
             specificationMainline: specificationMainline, repos: repos, mainlines: mainlines,
             namedFeature: namedFeature, adoptionCandidates: adoptionCandidates,
-            refusedThisNight: refusedThisNight, selectedFeature: selectedFeature, resultFilePath: path
+            refusedThisNight: refusedThisNight, selectedFeature: selectedFeature, resultFilePath: path,
+            descriptionBudget: descriptionBudget
         )
     }
 }
