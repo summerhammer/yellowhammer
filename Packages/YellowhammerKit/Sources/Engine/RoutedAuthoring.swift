@@ -68,7 +68,8 @@ public struct RoutedFeatureBreakdown: FeatureBreakdownDrafting {
                     pass: .breakdown, route: route, specificationSource: source,
                     specificationMainline: specificationMainline, repos: repositories.workingRepos,
                     mainlines: mainlines, namedFeature: context.trigger.namedFeature, adoptionCandidates: [],
-                    selectedFeature: selection, resultFilePath: ""
+                    selectedFeature: selection, resultFilePath: "",
+                    descriptionBudget: context.board?.descriptionBudget
                 )
             }
         )

@@ -303,7 +303,8 @@ struct AuthoringFixtureTests {
         #expect(rendered.contains("must not tell the worker not to commit"))
         // Contracts may bound a path to line ranges, and the model is told what an unranged path costs.
         #expect(rendered.contains("`contracts` naming a `repository`, its `paths`, `ranges` and an optional `symbol`"))
-        #expect(rendered.contains("each contract path names one regular file"))
+        #expect(rendered.contains("each contract path names one regular file at mainline, never a directory"))
+        #expect(rendered.contains("a submodule or a symbolic link"))
         #expect(rendered.contains("a path without a range is inlined whole into the worker's instruction"))
         #expect(rendered.contains("`{path, start, end}`, 1-based and inclusive"))
         #expect(rendered.contains("every range must lie within the file at mainline"))
@@ -315,5 +316,34 @@ struct AuthoringFixtureTests {
         )
         #expect(!selection.render().contains("autonomous worker agent CLI"))
         #expect(instruction.withResultFilePath("/other.json").render().contains("/other.json"))
+    }
+
+    @Test("The breakdown is told the description budget, apart from how a contract path is read; selection is not")
+    func descriptionBudgetIsToldToTheBreakdownOnly() throws {
+        let route = Route(cli: "claude", model: "opus", effort: "high")!
+        let budget = try DescriptionBudget(
+            configured: 12_345, limit: BoardDescriptionLimit(maximum: 250_000, unit: .utf16CodeUnits)
+        )
+        func instruction(_ pass: RunPass, budget: DescriptionBudget?) -> AuthoringInstruction {
+            AuthoringInstruction(
+                pass: pass, route: route, specificationSource: .specSource(SpecSource(path: "/spec")),
+                specificationMainline: nil, repos: [Repo(name: "backend", path: "/b", role: .backend)],
+                mainlines: ResolvedMainlines(), namedFeature: nil, adoptionCandidates: [], selectedFeature: nil,
+                resultFilePath: "/runs/result.json", descriptionBudget: budget
+            )
+        }
+        let breakdown = instruction(.breakdown, budget: budget).render()
+        #expect(breakdown.contains("must fit the board's description budget of 12345 UTF-16 code units"))
+        #expect(breakdown.contains("holds its `brief` and `definition_of_done`"))
+        #expect(breakdown.contains("Contract files do not count against it."))
+        // The budget is its own point: it follows the contract-path sentence and names the board, not a vendor.
+        let paths = try #require(breakdown.range(of: "every range must lie within the file at mainline"))
+        let sentence = try #require(breakdown.range(of: "Separately from contract paths"))
+        #expect(paths.upperBound <= sentence.lowerBound)
+        #expect(!breakdown.contains("Linear"))
+        #expect(!instruction(.selection, budget: budget).render().contains("description budget"))
+        #expect(!instruction(.breakdown, budget: nil).render().contains("description budget"))
+        #expect(instruction(.breakdown, budget: budget).withResultFilePath("/other.json").render() == breakdown
+            .replacingOccurrences(of: "/runs/result.json", with: "/other.json"))
     }
 }
