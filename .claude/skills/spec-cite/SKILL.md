@@ -5,7 +5,7 @@ description: Build the mandated `Spec: <epic>/<story> @ <sha>` traceability line
 
 # Spec citation line
 
-`../yellowhammer-spec/CONSUMING.md` mandates this line on every pull request that
+`$SPEC_DIR/CONSUMING.md` mandates this line on every pull request that
 implements spec'd behavior — it is the only mechanism that makes spec drift
 detectable later:
 
@@ -17,13 +17,28 @@ Story IDs go in commit messages too. One line per story if a change covers sever
 
 ## Steps
 
+0. **Resolve the spec checkout.** It is a sibling of this repo's *main checkout*, not
+   of the directory you are in — from an Orca ADE Worktree, `../yellowhammer-spec`
+   does not exist. Resolve it the way `.mcp.json` does:
+
+   ```
+   SPEC_DIR="${SPEC_DIR:-$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/../yellowhammer-spec}"
+   git -C "$SPEC_DIR" rev-parse --show-toplevel
+   ```
+
+   Use the absolute path it prints wherever `$SPEC_DIR` appears below: a shell
+   variable may not survive from one command to the next. If that fails, stop and report that the spec could not be resolved. **Do not search
+   the filesystem for it** (`find ~`, `find /`, walking other directories): under a
+   Night, touching a macOS-protected folder blocks the pass on a privacy prompt
+   charged to Yellowhammer.app (issue #482).
+
 1. **Resolve the story ID.** Prefer `$ARGUMENTS`. Otherwise take it from the
    conversation, or from the branch name. The ID is the story's *path* under
-   `../yellowhammer-spec/docs/requirements/epics/`, as `<epic>/<story>` — no
+   `$SPEC_DIR/docs/requirements/epics/`, as `<epic>/<story>` — no
    `.md`, no `stories/` segment. Confirm it exists:
 
    ```
-   ls ../yellowhammer-spec/docs/requirements/epics/<epic>/stories/<story>.md
+   ls "$SPEC_DIR/docs/requirements/epics/<epic>/stories/<story>.md"
    ```
 
    If it does not resolve, stop and ask — do not guess an ID. A wrong ID is worse
@@ -32,16 +47,16 @@ Story IDs go in commit messages too. One line per story if a change covers sever
 2. **Resolve the spec version.**
 
    ```
-   git -C ../yellowhammer-spec rev-parse --short=12 HEAD
+   git -C "$SPEC_DIR" rev-parse --short=12 HEAD
    ```
 
 3. **Check the citation is resolvable, and report any of these that is true.** Do
    not silently emit a line that nobody else can resolve.
 
    ```
-   git -C ../yellowhammer-spec status --porcelain -- docs/
-   git -C ../yellowhammer-spec rev-parse --abbrev-ref HEAD
-   git -C ../yellowhammer-spec rev-list --count origin/main..HEAD
+   git -C "$SPEC_DIR" status --porcelain -- docs/
+   git -C "$SPEC_DIR" rev-parse --abbrev-ref HEAD
+   git -C "$SPEC_DIR" rev-list --count origin/main..HEAD
    ```
 
    - **Uncommitted changes under `docs/`** — the spec you read does not match any

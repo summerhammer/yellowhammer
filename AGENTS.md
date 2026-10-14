@@ -19,10 +19,31 @@ Yellowhammer never writes a line of code, and it never merges to main.
 
 ## Product spec
 
-The authoritative product spec lives at `../yellowhammer-spec`. Read
-`../yellowhammer-spec/skill.md` before working on spec'd behavior — it explains how to
-find, read, and correctly apply it. Query it through the `spec` MCP server
-(`spec_search`, `spec_read`, `spec_grep`, `spec_list`, `spec_glossary`) or `/spec-lookup`.
+The authoritative product spec is the `yellowhammer-spec` repo, a sibling of this repo's
+**main checkout** — not of the directory you are in. From an Orca ADE Worktree (or any
+`git worktree`), `..` is the Worktree's parent, so `../yellowhammer-spec` does not
+resolve there. Resolve it the way `.mcp.json` does, honoring `$SPEC_DIR` when it is set:
+
+```
+SPEC_DIR="${SPEC_DIR:-$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/../yellowhammer-spec}"
+```
+
+Paths written `$SPEC_DIR/...` in this file are in that checkout. Read `$SPEC_DIR/skill.md`
+before working on spec'd behavior — it explains how to find, read, and correctly apply
+it. Prefer the `spec` MCP server (`spec_search`, `spec_read`, `spec_grep`, `spec_list`,
+`spec_glossary`): it already resolves the spec this way, from a Worktree too.
+`/spec-lookup` and `/spec-implement` are relative symlinks into the spec checkout, so
+they resolve from the main checkout only; `/spec-cite` resolves `$SPEC_DIR` itself.
+
+**Never search the filesystem for the spec** — no `find ~`, no `find /`, no walking
+`~/orca` or any other directory outside the Worktree. Under a Night, the worker runs
+with `yh` as its responsible process, so a touch of a macOS-protected folder (Music,
+Photos, Desktop, Documents, Downloads) is charged to Yellowhammer.app and blocks on a
+privacy prompt nobody answers; the pass times out and the Attempt is spent (issue #482).
+If `$SPEC_DIR` does not resolve, stop: leave the `Spec:` trailer out rather than guess a
+sha, and say the spec could not be resolved in your summary or reply. A worker never
+needs the spec commit to do its Card — what the Card needs from the spec is in its
+Architectural Brief and its Definition of Done's citations.
 
 **Do not copy spec content into this repo.** Anything pasted here stops tracking the
 spec the moment it lands, and nothing detects the drift. Read it from the spec repo at
@@ -50,7 +71,7 @@ dropping one.
 
 ## Ubiquitous language
 
-`../yellowhammer-spec/docs/glossary.md` is authoritative. Use its terms verbatim — in
+`$SPEC_DIR/docs/glossary.md` is authoritative. Use its terms verbatim — in
 type and function names, SQLite columns, commit messages, and UI copy. Do not coin a
 synonym for a term that already exists; if a concept you need has no entry, that is a
 gap in the spec, so raise it.
@@ -118,7 +139,7 @@ Attempt is Crashed-Unknown, is consumed, and does not exclude its route.
 
 Swift Testing (`@Test` / `#expect`), not XCTest. Repo-local choice; the spec names neither.
 
-`../yellowhammer-spec/docs/tech/system-overview.md` constrains what may be asserted.
+`$SPEC_DIR/docs/tech/system-overview.md` constrains what may be asserted.
 Read it before writing tests for engine behavior. (There are no machine-wide Bounds;
 the per-Project Bounds' arithmetic *is* assertable.) **Do not write tests asserting**
 anything model-authored (diffs, review verdicts,
@@ -167,7 +188,7 @@ optimisation.
 
 ## Decided — read the ruling, do not re-open
 
-The spec's Decision Gates Ruling (`../yellowhammer-spec/docs/requirements/vision/risks.md`,
+The spec's Decision Gates Ruling (`$SPEC_DIR/docs/requirements/vision/risks.md`,
 `#decision-gates-ruling-2026-09-15`) closed the decisions this section used to list. Read it
 there; the repo-local consequences are:
 
@@ -210,15 +231,15 @@ there; the repo-local consequences are:
 - **Probe owed before the code that depends on it:** Linear exposing a threaded
   reply's parent comment to the Delta Read (G-8). The G-6 settle probe has run — read
   `docs/tech/investigations/2026-09-23-g6-settle-state-probe.md` in the spec.
-- **Brand is entirely unfilled.** `../yellowhammer-spec/docs/brand/*.md` are
+- **Brand is entirely unfilled.** `$SPEC_DIR/docs/brand/*.md` are
   unpopulated templates — the hex values are `#000000` placeholders and no fonts are
   chosen. The one real artifact is the semantic text-style table, which maps 1:1 onto
   SwiftUI `Font.TextStyle`. Use Apple HIG defaults; do not invent brand values.
 
 ## Git
 
-`origin`: `summerhammer/yellowhammer`; trunk: `main`. `..` and `../yellowhammer-spec`
-are separate repos; work only here unless asked.
+`origin`: `summerhammer/yellowhammer`; trunk: `main`. The main checkout's parent folder
+and `$SPEC_DIR` are separate repos; work only here unless asked.
 
 Roadmap work uses **stacked PRs via `gh stack`**: `gh stack init <branch>` first,
 `gh stack add <branch>` above it, then `gh stack submit --auto --open`.
