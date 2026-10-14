@@ -33,7 +33,8 @@ struct Recalibrate {
             unansweredNightsMax: project.bounds.unansweredNightsMax,
             reselectionsMax: project.bounds.reselectionsMax,
             consecutiveRefusalsMax: project.bounds.consecutiveRefusalsMax,
-            failedAdoptionsMax: project.bounds.failedAdoptionsMax
+            failedAdoptionsMax: project.bounds.failedAdoptionsMax,
+            consecutiveAuthoringFaultsMax: project.bounds.consecutiveAuthoringFaultsMax
         )
 
         let night = try journal.flatMap { try Self.thisNight(journal: $0) }
@@ -85,6 +86,7 @@ struct Recalibrate {
         case "overdue_nights_max": return bounds.unansweredNightsMax
         case "reselections_max": return bounds.reselectionsMax
         case "consecutive_refusals_max": return bounds.consecutiveRefusalsMax
+        case "consecutive_authoring_faults_max": return bounds.consecutiveAuthoringFaultsMax
         default: return bounds.failedAdoptionsMax
         }
     }
@@ -96,7 +98,7 @@ struct Recalibrate {
         let wording: String
     }
 
-    /// Every Bound's consequence, in the same six-Bound order ``BoundProximity`` reports.
+    /// Every Bound's consequence, in the same seven-Bound order ``BoundProximity`` reports.
     private static let consequences: [Consequence] = [
         Consequence(name: "review_rounds_max", shape: "stops", wording: "stops work on a Card"),
         Consequence(name: "attempts_per_work_card", shape: "stops", wording: "stops work on a Card"),
@@ -105,7 +107,10 @@ struct Recalibrate {
         ),
         Consequence(name: "reselections_max", shape: "stops", wording: "stops the Night's authoring"),
         Consequence(name: "consecutive_refusals_max", shape: "promotes", wording: "promotes to a standing item"),
-        Consequence(name: "failed_adoptions_max", shape: "promotes", wording: "promotes to a standing item")
+        Consequence(name: "failed_adoptions_max", shape: "promotes", wording: "promotes to a standing item"),
+        Consequence(
+            name: "consecutive_authoring_faults_max", shape: "stops", wording: "halts a Feature's authoring"
+        )
     ]
 
     private static func encode(_ report: RecalibrateReport) throws -> String {

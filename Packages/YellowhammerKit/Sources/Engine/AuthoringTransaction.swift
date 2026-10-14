@@ -52,11 +52,12 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
     /// consecutive failed Adoptions a Card may carry before it is promoted to a standing item. Defaults
     /// to the glossary's own default of 2.
     public let failedAdoptionsMax: Int
+    public let consecutiveAuthoringFaultsMax: Int
 
     public init(
         drafting: any FeatureBreakdownDrafting, citations: any CitationResolving,
         transcribing: any ContractTranscribing, provenance: any ProvenanceTesting,
-        consecutiveRefusalsMax: Int = 3, failedAdoptionsMax: Int = 2
+        consecutiveRefusalsMax: Int = 3, failedAdoptionsMax: Int = 2, consecutiveAuthoringFaultsMax: Int = 3
     ) {
         self.drafting = drafting
         self.citations = citations
@@ -64,12 +65,13 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         self.provenance = provenance
         self.consecutiveRefusalsMax = consecutiveRefusalsMax
         self.failedAdoptionsMax = failedAdoptionsMax
+        self.consecutiveAuthoringFaultsMax = consecutiveAuthoringFaultsMax
     }
 
     public func author(
         _ selection: SelectedFeature, reselectionDepth: Int = 0, context: ActContext
     ) async throws -> FeatureAuthoringOutcome {
-        guard let outbox = context.outbox, context.board != nil else {
+        guard context.outbox != nil, context.board != nil else {
             throw AuthoringTransactionError.noBoard
         }
         // Every Card the selection tries to adopt is re-validated before the breakdown is drafted
@@ -78,8 +80,10 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
             selection, provenance: provenance, context: context, failedAdoptionsMax: failedAdoptionsMax
         )
         let selection = revalidated.selection
-        guard let breakdown = try await draft(selection, context: context) else {
-            return .authoringRolledBack
+        let breakdown: FeatureBreakdown
+        switch try await draft(selection, hadAdoptionRefusals: revalidated.hadRefusals, context: context) {
+        case .drafted(let value): breakdown = value
+        case .stopped(let outcome): return outcome
         }
         if let rejection = try await validateBreakdown(
             breakdown, for: selection, revalidated: revalidated, context: context
@@ -105,7 +109,7 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         // speculatively — the whole Feature halts, naming every repository it could not read.
         let transcriptions = await AuthoringTranscriptions.resolve(breakdown, using: transcribing, context: context)
         if !transcriptions.invalidRanges.isEmpty {
-            return try rejectBreakdown(transcriptions.invalidRanges, for: selection, context: context)
+            return try await rejectBreakdown(transcriptions.invalidRanges, for: selection, context: context)
         }
         if !transcriptions.isReadable {
             return try await AuthoringHalt.record(
@@ -114,15 +118,21 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
             )
         }
 
-        // The Route walk already refused a Work Card over the description budget. A Feature Card over it
-        // faults here at once, with no walk: no breakdown shrinks its selection prose. So does a Work Card
-        // from a drafting that skipped the walk's check.
+        return try await accept(selection, breakdown: breakdown, resolution: resolution,
+                                transcriptions: transcriptions, context: context)
+    }
+
+    private func accept(
+        _ selection: SelectedFeature, breakdown: FeatureBreakdown, resolution: AuthoringCitationResolution,
+        transcriptions: AuthoringTranscriptionResult, context: ActContext
+    ) async throws -> FeatureAuthoringOutcome {
+        guard let outbox = context.outbox else { throw AuthoringTransactionError.noBoard }
         let (plan, violation) = try await measuredPlan(
             breakdown, for: selection, citations: resolution, transcriptions: transcriptions.cardTranscriptions,
             context: context
         )
         if let violation {
-            return try rejectBreakdown([violation.reason], for: selection, context: context)
+            return try await rejectBreakdown([violation.reason], for: selection, context: context)
         }
         let journal = context.journal
         _ = try journal.acceptOutbox(
@@ -155,11 +165,11 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
             if case .noCards = error, revalidated.hadRefusals {
                 return .noWorkAvailable
             }
-            try context.journal.append(
-                .featureBreakdownRejected(name: selection.name.rawValue, reason: error.description),
-                act: context.act, runID: context.runID, nightID: context.night.id
+            return try await recordFault(
+                feature: selection.name, reason: error.description,
+                event: .featureBreakdownRejected(name: selection.name.rawValue, reason: error.description),
+                context: context
             )
-            return .authoringRolledBack
         }
     }
 
@@ -168,12 +178,12 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
     /// Halt. A Feature Card over the budget faults here too.
     private func rejectBreakdown(
         _ reasons: [String], for selection: SelectedFeature, context: ActContext
-    ) throws -> FeatureAuthoringOutcome {
-        try context.journal.append(
-            .featureBreakdownRejected(name: selection.name.rawValue, reason: reasons.joined(separator: "; ")),
-            act: context.act, runID: context.runID, nightID: context.night.id
+    ) async throws -> FeatureAuthoringOutcome {
+        return try await recordFault(
+            feature: selection.name, reason: reasons.joined(separator: "; "),
+            event: .featureBreakdownRejected(name: selection.name.rawValue, reason: reasons.joined(separator: "; ")),
+            context: context
         )
-        return .authoringRolledBack
     }
 
     /// Runs the model-authored breakdown; nil when no Route answered it. That is an authoring fault
@@ -181,21 +191,67 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
     /// rejected breakdown and the Act ends normally. A Route whose breakdown names a contract line range
     /// out of bounds at mainline is invalid output, so the next Route is tried (spec: feature-authoring/
     /// author-an-architectural-brief); with none left, that too is this authoring fault.
-    private func draft(_ selection: SelectedFeature, context: ActContext) async throws -> FeatureBreakdown? {
+    private enum DraftOutcome {
+        case drafted(FeatureBreakdown)
+        case stopped(FeatureAuthoringOutcome)
+    }
+
+    private func draft(
+        _ selection: SelectedFeature, hadAdoptionRefusals: Bool, context: ActContext
+    ) async throws -> DraftOutcome {
         let transaction = self
         do {
-            return try await drafting.breakdown(
+            let breakdown = try await drafting.breakdown(
                 for: selection, mainlines: context.mainlines, context: context
             ) { breakdown in
-                await transaction.acceptance(of: breakdown, for: selection, context: context)
+                do {
+                    try FeatureBreakdownValidation.validate(breakdown, for: selection)
+                } catch let error as FeatureBreakdownError {
+                    if case .noCards = error, hadAdoptionRefusals { return nil }
+                    return error.description
+                } catch { return String(describing: error) }
+                return await transaction.acceptance(of: breakdown, for: selection, context: context)
             }
+            return .drafted(breakdown)
         } catch let fault as AuthoringDispatchFault {
+            if fault.rejectedBreakdown {
+                let outcome = try await recordFault(
+                    feature: selection.name, reason: fault.reason,
+                    event: .featureBreakdownRejected(name: selection.name.rawValue, reason: fault.reason),
+                    context: context
+                )
+                return .stopped(outcome)
+            }
             try context.journal.append(
                 .featureBreakdownRejected(name: selection.name.rawValue, reason: fault.reason),
                 act: context.act, runID: context.runID, nightID: context.night.id
             )
-            return nil
+            return .stopped(.authoringRolledBack)
         }
+    }
+
+    /// The first N walks are allowed. Only a forced run re-halts immediately after adding its fault;
+    /// an ordinary run leaves the next selection to apply the Bound.
+    private func recordFault(
+        feature: FeatureName, reason: String, event: JournalEvent,
+        operationKey: String? = nil, context: ActContext
+    ) async throws -> FeatureAuthoringOutcome {
+        let faults = try context.journal.recordAuthoringFault(
+            feature: feature, reason: reason,
+            operationKey: operationKey ?? "walk:\(feature.rawValue):\(context.runID.rawValue)",
+            event: event, nightID: context.night.id, act: context.act, runID: context.runID
+        )
+        let stopped = try context.journal.authoringHalts(feature: feature).contains {
+            $0.causeKind == "authoring-repeatedly-faulted" && $0.state != .cleared
+        }
+        if context.trigger.isForced || stopped, faults.count >= consecutiveAuthoringFaultsMax {
+            return try await AuthoringHalt.record(
+                feature: feature,
+                cause: .authoringRepeatedlyFaulted(count: faults.count, lastReason: faults.lastReason),
+                context: context
+            )
+        }
+        return .authoringRolledBack
     }
 
     public func resumeUnfinished(_ context: ActContext) async throws -> FeatureAuthoringOutcome? {
@@ -216,18 +272,20 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         let broken = entries.filter { $0.state == .failed || $0.state == .aborted }
         if !broken.isEmpty {
             let reason = broken.compactMap(\.lastError).first ?? "an authoring write was refused"
-            try journal.append(
-                .featureAuthoringFailed(name: plan.name, groupKey: plan.groupKey, reason: reason),
-                act: context.act, runID: context.runID, nightID: context.night.id
+            guard let feature = FeatureName(rawValue: plan.name) else { return .authoringRolledBack }
+            return try await recordFault(
+                feature: feature, reason: reason,
+                event: .featureAuthoringFailed(name: plan.name, groupKey: plan.groupKey, reason: reason),
+                operationKey: "transaction:\(plan.groupKey)", context: context
             )
-            return .authoringRolledBack
         }
         guard !entries.isEmpty, entries.allSatisfy({ $0.state == .applied }) else {
             return .authoringPending
         }
 
         func createdID(_ key: String) throws -> String {
-            guard let id = entries.first(where: { $0.clientID == outbox.clientID(for: key) })?.result else {
+            let entry = try journal.outboxEntry(clientID: outbox.clientID(for: key))
+            guard let id = entry?.result, entry?.state == .applied else {
                 throw AuthoringTransactionError.appliedEntryWithoutID(key: key)
             }
             return id

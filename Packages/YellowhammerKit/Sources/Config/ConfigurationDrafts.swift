@@ -87,7 +87,7 @@ public struct RepoDraft: Equatable, Sendable {
     }
 }
 
-/// A Project's six Bounds, as typed strings, so a garbage value (`"0"`, `"abc"`) reaches the loader
+/// A Project's seven Bounds, as typed strings, so a garbage value (`"0"`, `"abc"`) reaches the loader
 /// instead of being coerced or refused a second time here.
 public struct BoundsDraft: Equatable, Sendable {
     public var reviewRoundsMax: String
@@ -96,6 +96,7 @@ public struct BoundsDraft: Equatable, Sendable {
     public var reselectionsMax: String
     public var consecutiveRefusalsMax: String
     public var failedAdoptionsMax: String
+    public var consecutiveAuthoringFaultsMax: String
 
     public init(
         reviewRoundsMax: String,
@@ -103,7 +104,8 @@ public struct BoundsDraft: Equatable, Sendable {
         unansweredNightsMax: String,
         reselectionsMax: String,
         consecutiveRefusalsMax: String,
-        failedAdoptionsMax: String
+        failedAdoptionsMax: String,
+        consecutiveAuthoringFaultsMax: String = String(Bounds().consecutiveAuthoringFaultsMax)
     ) {
         self.reviewRoundsMax = reviewRoundsMax
         self.attemptsPerWorkCard = attemptsPerWorkCard
@@ -111,6 +113,7 @@ public struct BoundsDraft: Equatable, Sendable {
         self.reselectionsMax = reselectionsMax
         self.consecutiveRefusalsMax = consecutiveRefusalsMax
         self.failedAdoptionsMax = failedAdoptionsMax
+        self.consecutiveAuthoringFaultsMax = consecutiveAuthoringFaultsMax
     }
 
     public init(_ bounds: Bounds) {
@@ -120,7 +123,8 @@ public struct BoundsDraft: Equatable, Sendable {
             unansweredNightsMax: String(bounds.unansweredNightsMax),
             reselectionsMax: String(bounds.reselectionsMax),
             consecutiveRefusalsMax: String(bounds.consecutiveRefusalsMax),
-            failedAdoptionsMax: String(bounds.failedAdoptionsMax)
+            failedAdoptionsMax: String(bounds.failedAdoptionsMax),
+            consecutiveAuthoringFaultsMax: String(bounds.consecutiveAuthoringFaultsMax)
         )
     }
 }

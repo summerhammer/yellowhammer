@@ -8,8 +8,10 @@ import Journal
 /// it, record it and end the Act as ``FeatureAuthoringOutcome/authoringRolledBack``.
 public struct AuthoringDispatchFault: Error, Equatable, Sendable, CustomStringConvertible {
     public let reason: String
+    public let rejectedBreakdown: Bool
 
-    public init(reason: String) {
+    public init(reason: String, rejectedBreakdown: Bool = false) {
+        self.rejectedBreakdown = rejectedBreakdown
         self.reason = reason
     }
 
@@ -49,12 +51,12 @@ public struct AuthoringRoute: Sendable {
     ) async throws -> DispatchResult {
         var tried: Set<Route> = []
         var lastFailure: String?
+        var rejectedBreakdown = false
         var ordinal: Int64 = 0
         while true {
             let request = RouteRequest(kind: .authoring, repoRole: nil, override: .none, excludedRoutes: tried)
             guard case .resolved(let resolved) = try resolver.resolve(request) else {
-                let table = "the Routing Table has no Route left for the authoring Kind"
-                throw AuthoringDispatchFault(reason: lastFailure.map { "\(table); last failure: \($0)" } ?? table)
+                throw Self.exhausted(lastFailure: lastFailure, rejectedBreakdown: rejectedBreakdown)
             }
             let route = resolved.route
             ordinal += 1
@@ -78,6 +80,7 @@ public struct AuthoringRoute: Sendable {
                     tried.insert(route)
                     lastFailure = "\(pass.rawValue) on \(route) reported failed: \(reason)"
                 } else if let rejection = await accept(result) {
+                    rejectedBreakdown = rejectedBreakdown || Self.producedBreakdown(result)
                     tried.insert(route)
                     lastFailure = "\(pass.rawValue) on \(route) returned invalid output: \(rejection)"
                 } else {
@@ -96,6 +99,19 @@ public struct AuthoringRoute: Sendable {
                 )
             }
         }
+    }
+
+    private static func producedBreakdown(_ result: DispatchResult) -> Bool {
+        if case .breakdown(let breakdown) = result, case .drafted = breakdown.outcome { return true }
+        return false
+    }
+
+    private static func exhausted(lastFailure: String?, rejectedBreakdown: Bool) -> AuthoringDispatchFault {
+        let table = "the Routing Table has no Route left for the authoring Kind"
+        return AuthoringDispatchFault(
+            reason: lastFailure.map { "\(table); last failure: \($0)" } ?? table,
+            rejectedBreakdown: rejectedBreakdown
+        )
     }
 
     private func record(

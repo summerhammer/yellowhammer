@@ -11,7 +11,7 @@ import GRDB
 /// migration this build does not.
 enum JournalMigrations {
     /// The identifier of the single schema migration. Bump it whenever the schema changes.
-    static let schemaIdentifier = "journal-schema-11"
+    static let schemaIdentifier = "journal-schema-12"
 
     /// Every identifier this build knows, in registration order. Derived from the migrator so that
     /// the list and the registrations cannot drift apart.
@@ -55,6 +55,18 @@ enum JournalMigrations {
             try createCardScopeTable(db)
             try createRefusalTable(db)
             try createAuthoringHaltTable(db)
+            try db.execute(sql: """
+                CREATE TABLE authoring_fault (
+                    id INTEGER PRIMARY KEY,
+                    feature_name TEXT NOT NULL,
+                    operation_key TEXT NOT NULL UNIQUE,
+                    consecutive_faults INTEGER NOT NULL,
+                    reason TEXT NOT NULL,
+                    night_id INTEGER,
+                    event_id INTEGER NOT NULL
+                );
+                CREATE INDEX authoring_fault_feature_history ON authoring_fault (feature_name, id DESC);
+                """)
             try createFeatureLandingTables(db)
             try createPullRequestTable(db)
             try createFeatureVerificationTables(db)

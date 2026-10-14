@@ -362,7 +362,7 @@ extension NightSummaryInstrumentedRatesTests {
         #expect(lines.contains("`author_supplied_citation_count`: 1 (at this Night's close)."))
         #expect(lines.contains("`reselections_max`: 0 of 2."))
         #expect(lines.contains("`consecutive_refusals_max`: 0 of 3."))
-        #expect(lines.filter { $0.contains("_max`:") || $0.contains("attempts_per_work_card`:") }.count == 6)
+        #expect(lines.filter { $0.contains("_max`:") || $0.contains("attempts_per_work_card`:") }.count == 7)
 
         let firstLines = try NightSummary.instrumentedRateLines(
             night: try #require(try journal.night(id: first.id)), journal: journal, bounds: .init()

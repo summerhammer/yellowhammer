@@ -62,6 +62,12 @@ private let repoFixtures: [MalformedFixture] = [
 ]
 
 private let limitsAndScheduleFixtures: [MalformedFixture] = [
+    MalformedFixture(
+        "authoring-faults-zero", line: 12, key: "limits.consecutive_authoring_faults_max", .notPositive(0)
+    ),
+    MalformedFixture(
+        "authoring-faults-negative", line: 12, key: "limits.consecutive_authoring_faults_max", .notPositive(-1)
+    ),
     MalformedFixture("bounds-zero", line: 12, key: "limits.overdue_nights_max", .notPositive(0)),
     MalformedFixture("bounds-negative", line: 12, key: "limits.attempts_per_work_card", .notPositive(-1)),
     MalformedFixture(

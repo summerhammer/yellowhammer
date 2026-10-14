@@ -23,9 +23,10 @@ struct RecalibrateTests {
 
         #expect(report.project == "alpha")
         #expect(report.night == nil)
-        #expect(report.bounds.count == 6)
+        #expect(report.bounds.count == 7)
         #expect(report.bounds.allSatisfy { $0.proximity == nil && $0.measure == nil })
         #expect(report.bounds.first { $0.name == "review_rounds_max" }?.value == 2)
+        #expect(report.bounds.first { $0.name == "consecutive_authoring_faults_max" }?.value == 3)
         #expect(output.lines.contains { $0.contains("no Night recorded in this Project's Journal") })
         #expect(output.lines.contains { $0.contains("no Night recorded") && $0.contains("review_rounds_max") })
     }
@@ -83,9 +84,11 @@ struct RecalibrateTests {
         try directory.writeMachineFile()
         try directory.writeValidProjectFile(id: "alpha")
 
-        let (_, project) = try ProjectResolution.resolve(
+        let (_, loaded) = try ProjectResolution.resolve(
             projectArgument: "alpha", configurationDirectory: directory.url
         )
+        var project = loaded
+        project.bounds.consecutiveAuthoringFaultsMax = 7
         let output = RecordingOutput()
         let recalibrate = Recalibrate(configurationDirectory: directory.url, output: { output.record($0) }, json: true)
         try recalibrate.run(project: project)
@@ -96,7 +99,7 @@ struct RecalibrateTests {
         let decoded = try JSONDecoder().decode(RecalibrateReport.self, from: data)
         #expect(decoded.project == "alpha")
         #expect(decoded.night == nil)
-        #expect(decoded.bounds.count == 6)
+        #expect(decoded.bounds.count == 7)
         let json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
         #expect(json["project"] as? String == "alpha")
         #expect(json["night"] is NSNull)
@@ -110,6 +113,9 @@ struct RecalibrateTests {
         let refusals = try #require(bounds.first { $0["name"] as? String == "consecutive_refusals_max" })
         #expect(refusals["consequenceShape"] as? String == "promotes")
         #expect(refusals["consequence"] as? String == "promotes to a standing item")
+        let faults = try #require(bounds.first { $0["name"] as? String == "consecutive_authoring_faults_max" })
+        #expect(faults["consequenceShape"] as? String == "stops")
+        #expect(faults["value"] as? Int == 7)
     }
 
     @Test("More than one configured Project without --project is refused, listing the configured ids")

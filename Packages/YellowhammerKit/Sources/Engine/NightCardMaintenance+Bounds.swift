@@ -16,10 +16,12 @@ extension NightCardMaintenance {
         public let reselectionsMax: Int
         public let consecutiveRefusalsMax: Int
         public let failedAdoptionsMax: Int
+        public let consecutiveAuthoringFaultsMax: Int
 
         public init(
             reviewRoundsMax: Int = 2, attemptsPerWorkCard: Int = 3, unansweredNightsMax: Int = 3,
-            reselectionsMax: Int = 2, consecutiveRefusalsMax: Int = 3, failedAdoptionsMax: Int = 2
+            reselectionsMax: Int = 2, consecutiveRefusalsMax: Int = 3, failedAdoptionsMax: Int = 2,
+            consecutiveAuthoringFaultsMax: Int = 3
         ) {
             self.reviewRoundsMax = reviewRoundsMax
             self.attemptsPerWorkCard = attemptsPerWorkCard
@@ -27,6 +29,7 @@ extension NightCardMaintenance {
             self.reselectionsMax = reselectionsMax
             self.consecutiveRefusalsMax = consecutiveRefusalsMax
             self.failedAdoptionsMax = failedAdoptionsMax
+            self.consecutiveAuthoringFaultsMax = consecutiveAuthoringFaultsMax
         }
     }
 
@@ -55,8 +58,15 @@ extension NightCardMaintenance {
         return [
             reselectionsLine(reselections),
             refusalsLine(refusalOrder, counts: refusalCounts),
-            try adoptionsLine(adoptionRefusedCardIDs)
+            try adoptionsLine(adoptionRefusedCardIDs),
+            try authoringFaultsLine(night: night)
         ]
+    }
+
+    private func authoringFaultsLine(night: NightRecord) throws -> String {
+        let current = try journal.events().filter { $0.nightID == night.id }
+        let proximity = try NightSummary.authoringFaultProximity(current: current, journal: journal, bounds: bounds)
+        return NightSummary.boundProximityLines([proximity])[0]
     }
 
     private func reselectionsLine(_ reselections: Int) -> String {

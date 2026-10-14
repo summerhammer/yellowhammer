@@ -62,7 +62,7 @@ func projectFullRoundTrip() throws {
         ],
         bounds: Bounds(
             reviewRoundsMax: 3, attemptsPerWorkCard: 5, unansweredNightsMax: 4,
-            reselectionsMax: 3, consecutiveRefusalsMax: 5, failedAdoptionsMax: 3
+            reselectionsMax: 3, consecutiveRefusalsMax: 5, failedAdoptionsMax: 3, consecutiveAuthoringFaultsMax: 7
         ),
         schedule: Schedule(
             nightStart: try #require(TimeOfDay(hour: 23, minute: 0)),
@@ -95,6 +95,7 @@ func projectRendersExplicitDefaultBounds() throws {
         repos: [RepoDeclaration(name: "only-repo", path: "~/dev/bd", role: .backend, check: .none)]
     )
     #expect(project.renderedTOML.contains("overdue_nights_max = 3"))
+    #expect(project.renderedTOML.contains("consecutive_authoring_faults_max = 3"))
 }
 
 // MARK: - Machine file round-trip

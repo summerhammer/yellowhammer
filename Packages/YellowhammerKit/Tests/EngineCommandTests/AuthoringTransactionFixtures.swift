@@ -50,7 +50,7 @@ final class ScriptedBreakdown: FeatureBreakdownDrafting, Sendable {
         guard !routes.isEmpty else {
             let breakdown = breakdowns[min(index, breakdowns.count - 1)]
             if let rejection = await accepting(breakdown) {
-                throw AuthoringDispatchFault(reason: rejection)
+                throw AuthoringDispatchFault(reason: rejection, rejectedBreakdown: true)
             }
             return breakdown
         }
@@ -62,7 +62,10 @@ final class ScriptedBreakdown: FeatureBreakdownDrafting, Sendable {
             lastFailure = "breakdown on \(route) returned invalid output: \(rejection)"
         }
         let table = "the Routing Table has no Route left for the authoring Kind"
-        throw AuthoringDispatchFault(reason: lastFailure.map { "\(table); last failure: \($0)" } ?? table)
+        throw AuthoringDispatchFault(
+            reason: lastFailure.map { "\(table); last failure: \($0)" } ?? table,
+            rejectedBreakdown: lastFailure != nil
+        )
     }
 }
 

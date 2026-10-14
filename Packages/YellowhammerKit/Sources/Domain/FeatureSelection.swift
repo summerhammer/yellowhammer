@@ -143,6 +143,7 @@ public enum AuthoringHaltCause: Equatable, Sendable {
     /// P9.6, spec: feature-authoring/author-an-architectural-brief). A Card is never authored
     /// speculatively without it.
     case contractUnreadable(contracts: [UnreadableContract])
+    case authoringRepeatedlyFaulted(count: Int, lastReason: String)
 
     /// A stable, machine-readable name for this cause, for the Journal's payload.
     public var kind: String {
@@ -151,6 +152,7 @@ public enum AuthoringHaltCause: Equatable, Sendable {
         case .repositoriesUndetermined: "repositories-undetermined"
         case .contractOutsideProject: "contract-outside-project"
         case .contractUnreadable: "contract-unreadable"
+        case .authoringRepeatedlyFaulted: "authoring-repeatedly-faulted"
         }
     }
 
@@ -160,6 +162,7 @@ public enum AuthoringHaltCause: Equatable, Sendable {
         switch self {
         case .noBackwardCompatibleSeam(let seam): seam
         case .repositoriesUndetermined: nil
+        case .authoringRepeatedlyFaulted(let count, let reason): "\(count): \(reason)"
         case .contractOutsideProject(let repository): repository
         case .contractUnreadable(let contracts):
             contracts.map { "\($0.workCardTitle):\($0.repository):\($0.paths.joined(separator: ","))" }
@@ -177,6 +180,8 @@ extension AuthoringHaltCause: CustomStringConvertible {
             return "The repositories this Feature touches could not be determined."
         case .contractOutsideProject(let repository):
             return "Repository '\(repository)' is not configured for this Project."
+        case .authoringRepeatedlyFaulted(let count, let reason):
+            return "authoring repeatedly faulted: faulted on its last \(count) authoring runs; last fault: \(reason)"
         case .contractUnreadable(let contracts):
             let named = contracts.map { contract -> String in
                 "Card '\(contract.workCardTitle)': repository '\(contract.repository)' " +

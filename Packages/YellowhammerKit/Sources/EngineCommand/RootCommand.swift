@@ -154,7 +154,8 @@ extension ActCommand {
             unansweredNightsMax: project.bounds.unansweredNightsMax,
             reselectionsMax: project.bounds.reselectionsMax,
             consecutiveRefusalsMax: project.bounds.consecutiveRefusalsMax,
-            failedAdoptionsMax: project.bounds.failedAdoptionsMax
+            failedAdoptionsMax: project.bounds.failedAdoptionsMax,
+            consecutiveAuthoringFaultsMax: project.bounds.consecutiveAuthoringFaultsMax
         )
     }
 

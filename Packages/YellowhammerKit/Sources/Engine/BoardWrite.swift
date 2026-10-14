@@ -14,8 +14,11 @@ public enum BoardWrite: Codable, Equatable, Sendable {
     case createComment(issue: BoardObjectID, body: String)
     case attachLink(issue: BoardObjectID, url: String, title: String)
     /// Replaces the text between the Managed Block delimiters with `rendered`, after a pre-flight
-    /// read of the description as it is at that instant. The only way a description is written.
+    /// read of the description as it is at that instant. Description operations validate their owned fences.
     case rewriteManagedBlock(issue: BoardObjectID, rendered: String)
+    /// Replaces the engine-authored Feature prose outside the Roll-up's Managed Block, preserving
+    /// unrelated text. Used only when an accepted transaction reuses a stopped Feature Issue.
+    case rewriteFeatureAuthoring(issue: BoardObjectID, prose: String)
     /// Replaces matching report lines at delivery time, preserving the rest of the current block.
     case updateManagedBlockLine(issue: BoardObjectID, prefix: String, line: String)
     /// Workflow state, labels, assignment, `parentId` and title. Never a description: the Outbox
@@ -41,7 +44,7 @@ public enum BoardWrite: Codable, Equatable, Sendable {
         case .createIssue: "issueCreate"
         case .createComment: "commentCreate"
         case .attachLink: "attachmentCreate"
-        case .rewriteManagedBlock: "descriptionRewrite"
+        case .rewriteManagedBlock, .rewriteFeatureAuthoring: "descriptionRewrite"
         case .rewriteManagedBlockCompacting: "descriptionRewrite"
         case .updateManagedBlockLine: "descriptionRewrite"
         case .updateIssue: "issueUpdate"
@@ -56,7 +59,7 @@ public enum BoardWrite: Codable, Equatable, Sendable {
         case .createIssue:
             nil
         case .createComment(let issue, _), .attachLink(let issue, _, _), .rewriteManagedBlock(let issue, _),
-             .rewriteManagedBlockCompacting(let issue, _),
+             .rewriteManagedBlockCompacting(let issue, _), .rewriteFeatureAuthoring(let issue, _),
              .updateIssue(let issue, _, _), .archiveIssue(let issue), .adoptIssue(let issue, _, _),
              .updateManagedBlockLine(let issue, _, _):
             issue
@@ -67,7 +70,8 @@ public enum BoardWrite: Codable, Equatable, Sendable {
     var isCreate: Bool {
         switch self {
         case .createIssue, .createComment, .attachLink: true
-        case .rewriteManagedBlock, .rewriteManagedBlockCompacting, .updateManagedBlockLine, .updateIssue,
+        case .rewriteManagedBlock, .rewriteFeatureAuthoring, .rewriteManagedBlockCompacting,
+             .updateManagedBlockLine, .updateIssue,
              .archiveIssue, .adoptIssue: false
         }
     }

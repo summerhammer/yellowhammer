@@ -1,6 +1,6 @@
 import Foundation
 
-/// How the Add Project wizard explains each of the six per-Project Bounds. Each fires when its count
+/// How the Add Project wizard explains each of the seven per-Project Bounds. Each fires when its count
 /// exceeds its value, so the copy says "up to".
 extension Bounds {
     /// What happens when a Bound fires: the glossary's two consequence shapes, with "stops work" split
@@ -46,7 +46,7 @@ extension Bounds {
         public var defaultValue: Int { Bounds()[keyPath: keyPath] }
     }
 
-    /// The six Bounds, in the order the wizard lists them.
+    /// The seven Bounds, in the order the wizard lists them.
     public static let fields = [
         Field(
             key: "review_rounds_max", title: "Review Rounds per Attempt", unit: "round", units: "rounds",
@@ -90,6 +90,13 @@ extension Bounds {
                 + "Waiting on You before it becomes a standing decision for you.",
             sentence: ("Allow up to", "in a row for one Card, then raise it to you."),
             consequence: .raisesToYou, keyPath: \Bounds.failedAdoptionsMax
+        ),
+        Field(
+            key: "consecutive_authoring_faults_max", title: "Authoring faults in a row", unit: "fault", units: "faults",
+            explanation: "How many times in a row one Feature's authoring can fault. Past this, its next "
+                + "selection halts authoring and asks you to force a new run. Accepted authoring resets it.",
+            sentence: ("Allow up to", "in a row for one Feature, then halt its next authoring run."),
+            consequence: .stopsAuthoring, keyPath: \Bounds.consecutiveAuthoringFaultsMax
         )
     ]
 

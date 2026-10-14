@@ -46,7 +46,8 @@ extension AuthoringTransaction {
         let planner = AuthoringPlanner(
             selection: selection, breakdown: breakdown, scope: scope, attempt: attempt,
             nightID: context.night.id, journal: context.journal, citations: resolution,
-            transcriptions: transcriptions
+            transcriptions: transcriptions,
+            existingFeatureIssueID: try AuthoringStopBoard.knownIssueID(selection.name, context.journal)
         )
         let plan = try planner.plan()
         guard let budget = board.descriptionBudget else { return (plan, nil) }

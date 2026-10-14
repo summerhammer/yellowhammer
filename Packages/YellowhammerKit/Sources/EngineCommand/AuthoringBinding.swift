@@ -34,9 +34,11 @@ enum AuthoringBinding {
                 transcribing: MainlineReader(refresher: refresher),
                 provenance: ProvenanceDiffTester(),
                 consecutiveRefusalsMax: project.bounds.consecutiveRefusalsMax,
-                failedAdoptionsMax: project.bounds.failedAdoptionsMax
+                failedAdoptionsMax: project.bounds.failedAdoptionsMax,
+                consecutiveAuthoringFaultsMax: project.bounds.consecutiveAuthoringFaultsMax
             ),
-            reselectionsMax: project.bounds.reselectionsMax
+            reselectionsMax: project.bounds.reselectionsMax,
+            consecutiveAuthoringFaultsMax: project.bounds.consecutiveAuthoringFaultsMax
         )
     }
 }
