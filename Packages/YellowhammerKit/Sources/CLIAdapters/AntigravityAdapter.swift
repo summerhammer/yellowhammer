@@ -23,7 +23,9 @@ import Foundation
 ///
 /// A tool permission denied in headless mode still exits 0 with `status: "SUCCESS"` but carries no
 /// `structured_output`, so ``collect(end:dispatch:)`` materializes `result.json` only from a present
-/// structured-output object.
+/// structured-output object. agy can retain `status: "ERROR"` and an earlier API error after a
+/// retry recovers and calls `finish`, so the status is not a completion signal. The engine applies
+/// the exit-0 and schema-valid result-file contract after collection.
 public struct AntigravityAdapter: CLIAdapter {
     public let cli = "agy"
     public let adapterVersion = "1"
@@ -75,8 +77,7 @@ public struct AntigravityAdapter: CLIAdapter {
 
         let session = (object["conversation_id"] as? String).map(CLISession.init(rawValue:)) ?? dispatch.resume
 
-        let status = object["status"] as? String
-        if status == nil || status == "SUCCESS", let structuredOutput = object["structured_output"] as? [String: Any] {
+        if let structuredOutput = object["structured_output"] as? [String: Any] {
             let resultFile = dispatch.runDirectory.appendingPathComponent("result.json")
             // The forced schema declares optional fields nullable; the Domain schema wants them absent.
             let members = structuredOutput.filter { !($0.value is NSNull) }

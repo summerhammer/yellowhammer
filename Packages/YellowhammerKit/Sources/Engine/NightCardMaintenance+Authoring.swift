@@ -132,8 +132,9 @@ extension NightCardMaintenance {
                 Blocked awaiting Adoption.
                 """
         case .featureSelectionFailed(let reason):
+            let trimmedReason = trimTrailingPeriod(reason)
             return """
-                Selecting a Feature failed: \(reason). Nothing was written to the board, so there is no \
+                Selecting a Feature failed: \(trimmedReason). Nothing was written to the board, so there is no \
                 Feature card to open and nothing to answer; the author Act stood down without authoring. \
                 The next author Act selects afresh.
                 """
@@ -153,8 +154,9 @@ extension NightCardMaintenance {
                 """
         case .settleValueNotHonoured(let featureIssueID, let value, let reason):
             let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)
+            let trimmedReason = trimTrailingPeriod(reason)
             return """
-                Feature \(featureRef)'s settle read `\(value)`, not honoured: \(reason). Treated as \
+                Feature \(featureRef)'s settle read `\(value)`, not honoured: \(trimmedReason). Treated as \
                 unsettled.
                 """
         case .featureReselected, .reselectionBoundReached, .refusalPromotedToStandingItem,
@@ -195,15 +197,23 @@ extension NightCardMaintenance {
     }
 
     /// The exception wording an authoring fault reads as (roadmap P9.10): a rolled-back Outbox group
-    /// and a breakdown validation rejection say exactly the same thing — neither ever wrote to the
+    /// and a breakdown validation rejection say exactly the same thing — nothing is left on the
     /// board, so there is no Feature card to open and nothing to answer, and the author Act stood down
     /// without authoring. Never "halt"; never "A quiet Night, not a failure" (that phrase is reserved
     /// for a quiet skip, not a fault).
     private static func authoringFaultLine(feature name: String, reason: String) -> String {
-        """
-        Authoring Feature `\(name)` failed: \(reason). Nothing was written to the board, so there is no \
+        let trimmedReason = trimTrailingPeriod(reason)
+        return """
+        Authoring Feature `\(name)` failed: \(trimmedReason). Nothing is left on the board, so there is no \
         Feature card to open and nothing to answer; the author Act stood down without authoring. The \
         next author Act authors it afresh.
         """
+    }
+
+    private static func trimTrailingPeriod(_ string: String) -> String {
+        if string.hasSuffix(".") {
+            return String(string.dropLast())
+        }
+        return string
     }
 }
