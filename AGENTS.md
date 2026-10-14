@@ -41,8 +41,9 @@ with `yh` as its responsible process, so a touch of a macOS-protected folder (Mu
 Photos, Desktop, Documents, Downloads) is charged to Yellowhammer.app and blocks on a
 privacy prompt nobody answers; the pass times out and the Attempt is spent (issue #482).
 If `$SPEC_DIR` does not resolve, stop: leave the `Spec:` trailer out rather than guess a
-sha, and say the spec could not be resolved in your summary or reply. A worker never
-needs the spec commit to do its Card — what the Card needs from the spec is in its
+sha, and say the spec could not be resolved in your summary or reply. When it does
+resolve — it does from an Orca ADE Worktree — write the trailer as usual. A worker never
+needs the spec itself to do its Card: what the Card needs from the spec is in its
 Architectural Brief and its Definition of Done's citations.
 
 **Do not copy spec content into this repo.** Anything pasted here stops tracking the
