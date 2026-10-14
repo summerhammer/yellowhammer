@@ -49,7 +49,7 @@ enum AuthoringTranscriptions {
         "this Project has no repositories configured to read contracts against"
     private static let noPathsReason = "the contract names no path to read"
     private static let unroundtrippableReason =
-        "the transcribed content contains a line that could not round-trip through the Managed Block"
+        "the reference cannot be rendered as a well-formed Transcription Block stamp"
 
     /// Transcribes every contract named by the breakdown's new Cards, Card by Card in draft order,
     /// against `context.repositories` and `context.mainlines` — one refresh of the mainlines for the
@@ -87,21 +87,27 @@ enum AuthoringTranscriptions {
             throw AuthoringTranscriptionError.noRepositories
         }
         let block = try await transcriber.transcribe(contract, in: repositories, mainlines: context.mainlines)
-        guard !containsUnroundtrippableLine(block.content) else {
+        guard !isUnrenderable(block) else {
             throw AuthoringTranscriptionError.unroundtrippable
         }
         return block
     }
 
-    /// True when `content` carries a line that would break round-tripping through
-    /// ``CardManagedBlockParser`` — the Transcription Block's own end marker, or either Managed Block
-    /// fence delimiter. Compared trimmed, as the parser compares them: an indented marker ends a block too.
-    private static func containsUnroundtrippableLine(_ content: String) -> Bool {
-        content.components(separatedBy: "\n").contains {
-            let line = $0.trimmingCharacters(in: .whitespaces)
-            return line == TranscriptionBlockLine.endMarker || line == ManagedBlockFence.start
-                || line == ManagedBlockFence.end
-        }
+    /// True when the block's reference — what the Card shows of it — would not come back from
+    /// ``CardManagedBlockParser`` as the same repository, paths, ranges, symbol and commit: a symbol that
+    /// carries ` commit=`, a path with a `,`, or anything that would end the stamp's HTML comment early
+    /// (`-->`) or spill onto another line. Only the reference is on the Card, so only it is checked;
+    /// the transcribed lines never reach the Card.
+    private static func isUnrenderable(_ block: TranscriptionBlock) -> Bool {
+        let lines = TranscriptionBlockLine.render(block)
+        guard lines.count == 4, !lines.contains(where: { $0.contains("\n") }),
+            lines[1].components(separatedBy: "-->").count == 2
+        else { return true }
+        let parsed = CardManagedBlockParser.parse(block: lines.joined(separator: "\n")).transcriptions
+        guard parsed.count == 1, let stamp = parsed.first else { return true }
+        return stamp.repository != block.repository || stamp.paths != block.paths
+            || stamp.ranges != block.ranges.filter { !$0.value.isEmpty } || stamp.symbol != block.symbol
+            || stamp.commitField != (block.mainlineCommit ?? "Operator-supplied")
     }
 
     private static func reason(for error: Error) -> String {

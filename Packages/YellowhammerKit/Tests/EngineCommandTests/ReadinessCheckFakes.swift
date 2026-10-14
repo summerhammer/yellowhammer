@@ -57,7 +57,7 @@ struct FakeContractTranscriber: ContractTranscribing {
         let commit = mainlines[contract.repository]?.commit ?? mainlines.specSource?.commit ?? "deadbeef"
         let content = "Transcribed \(contract.paths.joined(separator: ",")) from \(contract.repository)."
         return TranscriptionBlock(
-            repository: contract.repository, paths: contract.paths, symbol: contract.symbol,
+            repository: contract.repository, paths: contract.paths, ranges: contract.ranges, symbol: contract.symbol,
             mainlineCommit: commit, content: content, contentHash: MainlineReader.sha256(content),
             authorSupplied: false
         )

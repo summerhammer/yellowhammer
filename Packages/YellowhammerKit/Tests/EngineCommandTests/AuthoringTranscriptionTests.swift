@@ -57,7 +57,8 @@ struct AuthoringTranscriptionTests {
     @Test("""
         Authored Card description carries the brief before the Definition of Done, both inside the \
         fence, and the Transcription Block's start marker carries repo, every path, symbol and the \
-        mainline commit from context.mainlines, with hash == sha256(content)
+        mainline commit from context.mainlines; the Card shows the reference and none of the \
+        transcribed lines, which live in the Journal with their hash
         """)
     func briefAndTranscriptionBlockAreRenderedInFence() async throws {
         let kind = try authoringKind()
@@ -90,19 +91,27 @@ struct AuthoringTranscriptionTests {
         #expect(parts.block.contains("Approach for Backend one."))
 
         let expectedContent = "Transcribed a.swift,b.swift from mobile."
-        let expectedHash = MainlineReader.sha256(expectedContent)
         let expectedCommit = try #require(selectionMainlines()["mobile"]?.commit)
         let expectedMarker = "<!-- yh:transcription:start repo=mobile paths=a.swift,b.swift " +
-            "symbol=Foo commit=\(expectedCommit) hash=\(expectedHash) -->"
+            "symbol=Foo commit=\(expectedCommit) -->"
         #expect(parts.block.contains(expectedMarker))
-        #expect(parts.block.contains(expectedContent))
+        #expect(parts.block.contains(
+            "Contract: `mobile` · `a.swift` · `b.swift` · symbol `Foo` · commit `\(expectedCommit)`"
+        ))
+        #expect(!parts.block.contains(expectedContent))
+        #expect(!parts.block.contains("hash="))
         #expect(parts.block.contains("<!-- yh:transcription:end -->"))
+
+        let cardID = try #require(try rig.journal.card(issueID: backendOne.id.rawValue)).id
+        let record = try #require(try rig.journal.transcriptionBlocks(cardID: cardID).first)
+        #expect(record.content == expectedContent)
+        #expect(record.contentHash == MainlineReader.sha256(expectedContent))
     }
 
     @Test("""
-        The authored description round-trips through the parser: a Transcription Block's parsed \
-        contentHash equals its recordedHash, including content with a trailing newline and multiple \
-        paths, and clause cids parse back unchanged
+        The authored description round-trips through the parser: a Transcription Block's stamp parses \
+        back to its reference (paths and ranges included) and the content, trailing newline and all, \
+        stays off the Card, and clause cids parse back unchanged
         """)
     func roundTripsThroughParser() async throws {
         struct TrailingNewlineTranscriber: ContractTranscribing {
@@ -111,7 +120,8 @@ struct AuthoringTranscriptionTests {
             ) async throws -> TranscriptionBlock {
                 let content = "line one\nline two\n"
                 return TranscriptionBlock(
-                    repository: contract.repository, paths: contract.paths, symbol: contract.symbol,
+                    repository: contract.repository, paths: contract.paths, ranges: contract.ranges,
+                    symbol: contract.symbol,
                     mainlineCommit: "deadbeef", content: content, contentHash: MainlineReader.sha256(content),
                     authorSupplied: false
                 )
@@ -126,7 +136,10 @@ struct AuthoringTranscriptionTests {
                     repository: "backend", kind: kind, title: "Backend one", unitOfWork: "Do it",
                     brief: "Approach for Backend one.",
                     definitionOfDone: [authoringClause("Backend one is done.")],
-                    contracts: [ContractDraft(repository: "mobile", paths: ["x.swift", "y.swift"])]
+                    contracts: [ContractDraft(
+                        repository: "mobile", paths: ["x.swift", "y.swift"],
+                        ranges: ["y.swift": [LineRange(start: 3, end: 9)]]
+                    )]
                 )
             ]
         )
@@ -148,8 +161,9 @@ struct AuthoringTranscriptionTests {
         #expect(parsed.transcriptions.count == 1)
         let transcription = try #require(parsed.transcriptions.first)
         #expect(transcription.paths == ["x.swift", "y.swift"])
-        #expect(transcription.content == "line one\nline two\n")
-        #expect(transcription.contentHash == transcription.recordedHash)
+        #expect(transcription.ranges == ["y.swift": [LineRange(start: 3, end: 9)]])
+        #expect(transcription.commitField == "deadbeef")
+        #expect(!description.contains("line one"))
 
         #expect(parsed.clauses.count == 1)
         #expect(parsed.clauses.first?.cid == "c1")
@@ -169,7 +183,11 @@ struct AuthoringTranscriptionTests {
                     repository: "backend", kind: kind, title: "Backend one", unitOfWork: "Do it",
                     brief: "Approach for Backend one.",
                     definitionOfDone: [authoringClause("Backend one is done.")],
-                    contracts: [ContractDraft(repository: "mobile", paths: ["a.swift"], symbol: "Foo")]
+                    contracts: [ContractDraft(
+                        repository: "mobile", paths: ["a.swift"],
+                        ranges: ["a.swift": [LineRange(start: 2, end: 6)]],
+                        symbol: "Foo"
+                    )]
                 ),
                 CardDraft(
                     repository: "mobile", kind: kind, title: "Mobile one", unitOfWork: "Do it",
@@ -199,6 +217,8 @@ struct AuthoringTranscriptionTests {
         #expect(block.symbol == "Foo")
         #expect(block.mainlineCommit != nil)
         #expect(block.authorSupplied == false)
+        // finaliseAuthoring carries the ranges the plan recorded into the Journal row.
+        #expect(block.ranges == ["a.swift": [LineRange(start: 2, end: 6)]])
 
         // A Card with no contracts has a brief and zero blocks.
         #expect(try rig.journal.transcriptionBlocks(cardID: mobileRow.id).isEmpty)

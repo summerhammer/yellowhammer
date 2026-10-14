@@ -33,7 +33,7 @@ extension ReadinessCheck {
         let prose = try boardBlock?.briefProse ?? journal.architecturalBriefProse(cardID: card.id)
         let records = try journal.transcriptionBlocks(cardID: card.id)
         if let boardBlock, boardBlock.transcriptions.count != records.count { return .unknown }
-        let blocks = overlayTranscriptions(records, parsed: boardBlock?.transcriptions)
+        let blocks = records.map(\.block)
         let clauses = try openingClauses(card: card, boardBlock: boardBlock, journal: journal)
         if (prose ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && blocks.isEmpty {
             return .notReady
@@ -100,22 +100,6 @@ extension ReadinessCheck {
             return boardBlock.clauses.map { OpeningClause(citation: $0.citation ?? "") }
         }
         return try journal.clauses(issueID: card.issueID).map { OpeningClause(citation: $0.locationID) }
-    }
-
-    private func overlayTranscriptions(
-        _ records: [TranscriptionBlockRecord], parsed: [ParsedTranscription]?
-    ) -> [TranscriptionBlock] {
-        records.enumerated().map { index, record in
-            guard let parsed, index < parsed.count else { return record.block }
-            // An unedited block is Linear's re-serialisation of ours (#433): keep the recorded one.
-            guard Self.isEdited(parsed[index], against: record) else { return record.block }
-            return TranscriptionBlock(
-                repository: record.repository, paths: record.paths, symbol: record.symbol,
-                mainlineCommit: record.authorSupplied ? record.mainlineCommit : nil,
-                content: parsed[index].content, contentHash: parsed[index].contentHash,
-                authorSupplied: true
-            )
-        }
     }
 
     private func isReadFailure(_ reason: String?) -> Bool {

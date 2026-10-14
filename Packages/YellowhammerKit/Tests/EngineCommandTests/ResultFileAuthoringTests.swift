@@ -301,6 +301,12 @@ struct AuthoringFixtureTests {
         #expect(rendered.hasSuffix("\n"))
         #expect(rendered.contains("composed into the instruction of an autonomous worker agent CLI"))
         #expect(rendered.contains("must not tell the worker not to commit"))
+        // Contracts may bound a path to line ranges, and the model is told what an unranged path costs.
+        #expect(rendered.contains("`contracts` naming a `repository`, its `paths`, `ranges` and an optional `symbol`"))
+        #expect(rendered.contains("each contract path names one regular file"))
+        #expect(rendered.contains("a path without a range is inlined whole into the worker's instruction"))
+        #expect(rendered.contains("`{path, start, end}`, 1-based and inclusive"))
+        #expect(rendered.contains("every range must lie within the file at mainline"))
         let selection = AuthoringInstruction(
             pass: .selection, route: Route(cli: "claude", model: "opus", effort: "high")!,
             specificationSource: .specSource(SpecSource(path: "/spec")), specificationMainline: nil,

@@ -112,13 +112,19 @@ func linearNormalisedRewriteIsNotAnEdit() async throws {
     #expect(passed.contains(scenario.issueOne))
 }
 
-@Test("A real Operator edit inside a Linear-normalised block still voids the stamp")
-func operatorEditInsideNormalisedBlockVoidsStamp() async throws {
+@Test("Text edited inside a Linear-normalised block voids nothing and changes nothing in the Journal")
+func operatorEditInsideNormalisedBlockChangesNothing() async throws {
     let scenario = try await makeReadinessScenario()
     defer { cleanup(scenario) }
-    let edited = linearContent.replacingOccurrences(of: "let y = 2", with: "let y = 3")
-    let description = linearDescription(of: try seedRenderedCard(scenario), content: edited)
-    await scenario.boards.writing.seed(issue: scenario.issueOne, description: description)
+    // The Card carries a block's reference only, and the board's text inside a block is never read back:
+    // an edit to the reference line, and a line added where legacy content used to sit, are both ignored.
+    let edited = linearDescription(of: try seedRenderedCard(scenario))
+        .replacingOccurrences(of: "Contract: `backend`", with: "EDITED BY THE OPERATOR")
+        .replacingOccurrences(
+            of: "<!-- yh:transcription:end -->", with: "let y = 3\n<!-- yh:transcription:end -->"
+        )
+    #expect(edited.contains("EDITED BY THE OPERATOR") && edited.contains("let y = 3"))
+    await scenario.boards.writing.seed(issue: scenario.issueOne, description: edited)
     let readiness = ReadinessCheck(
         provenance: FakeProvenanceTester(verdicts: ["backend": .clean]),
         citations: FakeCitationResolver(resolvable: ["resolvable/story"])
@@ -126,13 +132,15 @@ func operatorEditInsideNormalisedBlockVoidsStamp() async throws {
 
     try await runReadinessAct(
         scenario, readiness: readiness,
-        updatedObjects: [object(scenario.issueOne, state: stateTodo, description: description)]
+        updatedObjects: [object(scenario.issueOne, state: stateTodo, description: edited)]
     )
 
-    #expect(try scenario.journal.events(ofType: .transcriptionStampVoided).count == 1)
+    #expect(try scenario.journal.events(ofType: .transcriptionStampVoided).isEmpty)
     let rows = try scenario.journal.transcriptionBlocks(cardID: scenario.cardOne)
-    #expect(rows[0].authorSupplied == true)
-    #expect(rows[0].mainlineCommit == nil)
+    #expect(rows[0].content == ourContent)
+    #expect(rows[0].contentHash == ManagedBlockFence.sha256(ourContent))
+    #expect(rows[0].authorSupplied == false)
+    #expect(rows[0].mainlineCommit == "deadbeef")
     #expect(try scenario.journal.events(ofType: .clauseInvalidated).isEmpty)
 }
 

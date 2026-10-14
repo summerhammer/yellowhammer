@@ -57,6 +57,26 @@ public struct LineRange: Equatable, Hashable, Sendable, Codable, Comparable {
         return ranges
     }
 
+    /// One ``token(for:)`` per path, aligned by index with `paths` — the shape the Card stamp and the
+    /// Journal both store. Nil when no path has ranges, so a block without any stores nothing at all.
+    public static func tokens(for ranges: [String: [LineRange]], paths: [String]) -> [String]? {
+        guard paths.contains(where: { !(ranges[$0] ?? []).isEmpty }) else { return nil }
+        return paths.map { token(for: ranges[$0] ?? []) }
+    }
+
+    /// The ranges per path that ``tokens(for:paths:)`` stood for; `[:]` for no tokens at all. Nil when
+    /// the count differs from `paths` or any token is malformed.
+    public static func ranges(fromTokens tokens: [String]?, paths: [String]) -> [String: [LineRange]]? {
+        guard let tokens else { return [:] }
+        guard tokens.count == paths.count else { return nil }
+        var result: [String: [LineRange]] = [:]
+        for (path, token) in zip(paths, tokens) {
+            guard let parsed = ranges(fromToken: token) else { return nil }
+            if !parsed.isEmpty { result[path] = parsed }
+        }
+        return result
+    }
+
     /// Plain ASCII digits only: `Int("+5")` and `Int("-5")` would otherwise read as numbers.
     private static func number(_ text: Substring) -> Int? {
         guard !text.isEmpty, text.allSatisfy({ $0 >= "0" && $0 <= "9" }) else { return nil }

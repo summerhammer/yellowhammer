@@ -39,14 +39,12 @@ func parserRoundTripsRenderedBlock() throws {
     #expect(parsed.transcriptions[0].paths == ["a.swift", "b.swift"])
     #expect(parsed.transcriptions[0].symbol == "Foo")
     #expect(parsed.transcriptions[0].commitField == "deadbeef")
-    #expect(parsed.transcriptions[0].content == "func foo() {}")
-    #expect(parsed.transcriptions[0].contentHash == transcription1.contentHash)
+    #expect(parsed.transcriptions[0].ranges == [:])
 
     #expect(parsed.transcriptions[1].repository == "spec_source")
     #expect(parsed.transcriptions[1].paths == ["docs/goals.md"])
     #expect(parsed.transcriptions[1].symbol == nil)
     #expect(parsed.transcriptions[1].commitField == "Operator-supplied")
-    #expect(parsed.transcriptions[1].content == "Goal text")
 
     #expect(parsed.clauses.count == 3)
     #expect(parsed.clauses[0] == ParsedClause(cid: "c1", text: "First clause", citation: "epic/story"))
@@ -122,33 +120,95 @@ func parserHandlesScopeNoneDeclared() throws {
 }
 
 @Test("""
-    A transcription whose content carries its own '### Definition of Done', another heading and a \
-    checklist-shaped line adds no clauses and does not truncate or alter the real brief prose or clauses \
+    A legacy card whose Transcription Block still carries content with its own '### Definition of Done', \
+    another heading and a checklist-shaped line adds no clauses, and its content is skipped, never parsed \
     (roadmap P9.6)
     """)
-func parserHazardTranscribedMarkdownNeverLeaksIntoHeadingsOrClauses() throws {
-    let hazardContent = """
+func parserHazardLegacyContentNeverLeaksIntoHeadingsOrClauses() throws {
+    let legacy = """
+        ### Architectural Brief
+        The real approach.
+
+        <!-- yh:transcription:start repo=spec_source paths=story.md symbol=- commit=deadbeef hash=abc123 -->
         ### Definition of Done
         ### Something
         - [ ] not a clause
-        """
-    let transcription = TranscriptionBlock(
-        repository: "spec_source", paths: ["story.md"], mainlineCommit: "deadbeef",
-        content: hazardContent, contentHash: ManagedBlockFence.sha256(hazardContent), authorSupplied: false
-    )
-    let brief = ArchitecturalBrief(prose: "The real approach.", transcriptions: [transcription])
-    let clauses = [
-        DoDClause(cid: "c1", text: "Real clause", citation: "epic/story", citationProvenance: "machine-found")
-    ]
-    let block = CardManagedBlock(
-        kind: "card", repository: "backend", state: .todo, lanePosition: 1, laneLength: 1,
-        brief: brief, definitionOfDone: clauses, attempts: []
-    )
+        <!-- yh:transcription:end -->
 
-    let parsed = CardManagedBlockParser.parse(block: block.render())
+        ### Definition of Done
+        - [ ] <!-- yh:clause:c1 --> Real clause (epic/story)
+        """
+
+    let parsed = CardManagedBlockParser.parse(block: legacy)
 
     #expect(parsed.briefProse == "The real approach.")
-    #expect(parsed.transcriptions.count == 1)
-    #expect(parsed.transcriptions[0].content == hazardContent)
+    #expect(parsed.transcriptions == [ParsedTranscription(
+        repository: "spec_source", paths: ["story.md"], symbol: nil, commitField: "deadbeef"
+    )])
     #expect(parsed.clauses == [ParsedClause(cid: "c1", text: "Real clause", citation: "epic/story")])
+}
+
+@Test("A stamp with ranges parses them aligned with its paths; the reference line is skipped")
+func parserRoundTripsRanges() throws {
+    let transcription = TranscriptionBlock(
+        repository: "api", paths: ["openapi.yaml", "models.swift"],
+        ranges: ["openapi.yaml": [LineRange(start: 120, end: 180), LineRange(start: 200, end: 210)]],
+        symbol: "ClassList", mainlineCommit: "deadbeef", content: "x", contentHash: "h", authorSupplied: false
+    )
+    let rendered = TranscriptionBlockLine.render(transcription).joined(separator: "\n")
+
+    let parsed = CardManagedBlockParser.parse(block: rendered)
+
+    #expect(parsed.transcriptions == [ParsedTranscription(
+        repository: "api", paths: ["openapi.yaml", "models.swift"],
+        ranges: ["openapi.yaml": [LineRange(start: 120, end: 180), LineRange(start: 200, end: 210)]],
+        symbol: "ClassList", commitField: "deadbeef"
+    )])
+}
+
+@Test("A stamp without ranges= parses to no ranges")
+func parserNoRanges() throws {
+    let stamp = "<!-- yh:transcription:start repo=api paths=a.swift symbol=- commit=deadbeef -->\n"
+        + "<!-- yh:transcription:end -->"
+    #expect(CardManagedBlockParser.parse(block: stamp).transcriptions.first?.ranges == [:])
+}
+
+@Test("A malformed ranges= field, or one not aligned with the paths, parses to nil")
+func parserMalformedRanges() throws {
+    for ranges in ["1-x", "-,-", "", "5-"] {
+        let stamp = "<!-- yh:transcription:start repo=api paths=a.swift ranges=\(ranges) symbol=- commit=d -->\n"
+            + "<!-- yh:transcription:end -->"
+        let parsed = try #require(CardManagedBlockParser.parse(block: stamp).transcriptions.first)
+        #expect(parsed.ranges == nil, "ranges=\(ranges)")
+        #expect(parsed.commitField == "d")
+    }
+}
+
+@Test("The rendered reference holds repo, paths, ranges, symbol and commit, and never a transcribed line")
+func renderedBlockHoldsReferenceOnly() throws {
+    let content = "distinctive line one\ndistinctive line two"
+    let transcription = TranscriptionBlock(
+        repository: "api", paths: ["openapi.yaml", "models.swift"],
+        ranges: ["openapi.yaml": [LineRange(start: 120, end: 180), LineRange(start: 200, end: 210)]],
+        symbol: "ClassList", mainlineCommit: "deadbeef", content: content,
+        contentHash: ManagedBlockFence.sha256(content), authorSupplied: false
+    )
+    let rendered = TranscriptionBlockLine.render(transcription)
+
+    #expect(rendered.count == 4)
+    #expect(rendered[1] == "<!-- yh:transcription:start repo=api paths=openapi.yaml,models.swift "
+        + "ranges=120-180+200-210,- symbol=ClassList commit=deadbeef -->")
+    #expect(rendered[2] == "Contract: `api` · `openapi.yaml` lines 120–180, 200–210 · `models.swift` · "
+        + "symbol `ClassList` · commit `deadbeef`")
+    #expect(rendered[3] == TranscriptionBlockLine.endMarker)
+    #expect(!rendered.joined(separator: "\n").contains("distinctive"))
+    #expect(!rendered.joined(separator: "\n").contains("hash="))
+
+    let plain = TranscriptionBlock(
+        repository: "api", paths: ["a.swift"], mainlineCommit: "deadbeef", content: content,
+        contentHash: "h", authorSupplied: false
+    )
+    let plainLines = TranscriptionBlockLine.render(plain)
+    #expect(plainLines[1] == "<!-- yh:transcription:start repo=api paths=a.swift symbol=- commit=deadbeef -->")
+    #expect(plainLines[2] == "Contract: `api` · `a.swift` · commit `deadbeef`")
 }

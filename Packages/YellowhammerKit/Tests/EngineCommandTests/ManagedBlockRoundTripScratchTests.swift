@@ -96,11 +96,11 @@ struct ManagedBlockRoundTripScratchTests {
         let parsed = CardManagedBlockParser.parse(block: parts.block)
         #expect(parsed.transcriptions.count == 1)
         #expect(parsed.clauses.count == 1)
+        // The Card carries the block's reference only, so the stamp is what must survive Linear's rewrite.
         for transcription in parsed.transcriptions {
-            #expect(
-                MarkdownEquivalence.rendersSame(transcription.content, transcriptionContent),
-                "the transcription read back as: \(transcription.content)"
-            )
+            #expect(transcription.repository == "backend", "the stamp read back as: \(transcription)")
+            #expect(transcription.paths == ["Sources/a.swift"], "the stamp read back as: \(transcription)")
+            #expect(transcription.commitField == "deadbeef", "the stamp read back as: \(transcription)")
         }
         for clause in parsed.clauses {
             #expect(

@@ -128,6 +128,48 @@ struct AuthoringTranscriptionHaltTests {
         #expect(unreadable.reason.contains("no repositories configured"))
     }
 
+    private func resolveReference(_ contract: ContractDraft) async throws -> AuthoringTranscriptionResult {
+        let breakdown = FeatureBreakdown(
+            definitionOfDone: [authoringClause("The Feature is done.")],
+            cards: [
+                CardDraft(
+                    repository: "backend", kind: try authoringKind(), title: "Backend one", unitOfWork: "Do it",
+                    brief: "Approach.", definitionOfDone: [authoringClause("Backend one is done.")],
+                    contracts: [contract]
+                )
+            ]
+        )
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let (context, _) = try makeSelectionContext(journal, repositories: ProjectRepositories(workingRepos: []))
+        return await AuthoringTranscriptions.resolve(breakdown, using: FakeContractTranscriber(), context: context)
+    }
+
+    @Test("A normal ranged block passes the reference check")
+    func rangedReferencePasses() async throws {
+        let resolution = try await resolveReference(ContractDraft(
+            repository: "mobile", paths: ["a.swift", "b.swift"],
+            ranges: ["a.swift": [LineRange(start: 120, end: 180), LineRange(start: 200, end: 210)]], symbol: "Foo"
+        ))
+        #expect(resolution.isReadable)
+        let block = try #require(resolution.cardTranscriptions.first?.first)
+        #expect(block.ranges == ["a.swift": [LineRange(start: 120, end: 180), LineRange(start: 200, end: 210)]])
+    }
+
+    @Test("A symbol or path that would break the stamp halts as not renderable", arguments: [
+        ContractDraft(repository: "mobile", paths: ["a.swift"], symbol: "Foo commit=abc"),
+        ContractDraft(repository: "mobile", paths: ["a.swift"], symbol: "Foo --> Bar"),
+        ContractDraft(repository: "mobile", paths: ["a.swift"], symbol: "-"),
+        ContractDraft(repository: "mobile", paths: ["a,b.swift"]),
+        ContractDraft(repository: "mobile", paths: ["a.swift"], symbol: "two\nlines")
+    ])
+    func unrenderableReferenceHalts(contract: ContractDraft) async throws {
+        let resolution = try await resolveReference(contract)
+        #expect(!resolution.isReadable)
+        let unreadable = try #require(resolution.unreadable.first)
+        #expect(unreadable.reason.contains("well-formed Transcription Block stamp"))
+    }
+
     @Test("Two unreadable contracts in different repositories both halt authoring, and both are named")
     func twoUnreadableContractsBothNamed() async throws {
         let kind = try authoringKind()

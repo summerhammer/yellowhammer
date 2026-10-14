@@ -56,4 +56,21 @@ struct LineRangeTests {
         #expect(LineRange.displayText([range(7, 7)]) == "line 7")
         #expect(LineRange.displayText([range(7, 7), range(9, 12)]) == "lines 7, 9–12")
     }
+
+    @Test("Per-path tokens align with the paths; no ranges anywhere is no tokens")
+    func perPathTokens() {
+        let ranges = ["a": [range(1, 5)], "c": [range(7, 7), range(9, 10)]]
+        let tokens = LineRange.tokens(for: ranges, paths: ["a", "b", "c"])
+        #expect(tokens == ["1-5", "-", "7-7+9-10"])
+        #expect(LineRange.ranges(fromTokens: tokens, paths: ["a", "b", "c"]) == ranges)
+        #expect(LineRange.tokens(for: [:], paths: ["a"]) == nil)
+        #expect(LineRange.tokens(for: ["a": []], paths: ["a"]) == nil)
+        #expect(LineRange.ranges(fromTokens: nil, paths: ["a"]) == [:])
+    }
+
+    @Test("Tokens that do not match the paths, or are malformed, are nil")
+    func misalignedTokens() {
+        #expect(LineRange.ranges(fromTokens: ["1-5"], paths: ["a", "b"]) == nil)
+        #expect(LineRange.ranges(fromTokens: ["1-x", "-"], paths: ["a", "b"]) == nil)
+    }
 }

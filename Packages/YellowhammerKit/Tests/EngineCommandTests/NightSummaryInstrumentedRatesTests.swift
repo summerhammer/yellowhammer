@@ -116,9 +116,9 @@ struct NightSummaryInstrumentedRatesTests {
         #expect(try journal.currentCardLease(cardID: ids.first) == nil)
     }
 
-    @Test("Opening inspection applies protected scope and edited transcription without reconciliation writes")
+    @Test("Opening inspection applies protected scope and ignores board text in a block, without writes")
     // swiftlint:disable:next function_body_length
-    func protectedScopeAndEditedTranscription() async throws {
+    func protectedScopeAndIgnoredBoardBlockText() async throws {
         let fixture = try NightCardJournalFixture()
         let journal = try fixture.open()
         let ids = try seedCards(journal, at: Date())
@@ -132,21 +132,20 @@ struct NightSummaryInstrumentedRatesTests {
             contentHash: ManagedBlockFence.sha256("old"), authorSupplied: false
         )
         try journal.recordTranscriptionBlocks(cardID: ids.first, [original])
-        let edited = TranscriptionBlock(
-            repository: "backend", paths: ["source.swift"], mainlineCommit: "deadbeef", content: "edited",
-            contentHash: ManagedBlockFence.sha256("edited"), authorSupplied: false
-        )
         let clause = DoDClause(
             cid: "c1", text: "Build it", citation: "resolvable/story", citationProvenance: "machine-found"
         )
-        func object(scope: [String], transcriptions: [TranscriptionBlock] = [edited]) -> BoardObject {
+        func object(scope: [String], transcriptions: [TranscriptionBlock] = [original]) -> BoardObject {
             var boardObject = openingBoardObject("CARD-1")
             let block = CardManagedBlock(
                 kind: "card", repository: "backend", scope: scope, state: .todo, lanePosition: 1, laneLength: 1,
                 brief: ArchitecturalBrief(prose: "A concrete brief", transcriptions: transcriptions),
                 definitionOfDone: [clause], attempts: []
             )
-            boardObject.description = ManagedBlockFence.initialDescription(rendered: block.render())
+            // The Operator's edit inside the block: the board's text there is never read back.
+            boardObject.description = ManagedBlockFence.initialDescription(
+                rendered: block.render().replacingOccurrences(of: "Contract: `backend`", with: "EDITED `backend`")
+            )
             return boardObject
         }
         let card = try journal.card(id: ids.first)
@@ -170,9 +169,11 @@ struct NightSummaryInstrumentedRatesTests {
             repositories: repositories, mainlines: ResolvedMainlines()
         )
         #expect(protected == .notReady)
-        #expect(editedVerdict == .ready)
+        // The edit voids nothing: the Journal's block is provenance-tested, and it is stale.
+        #expect(editedVerdict == .notReady)
         #expect(mismatchedVerdict == .unknown)
         #expect(try journal.transcriptionBlocks(cardID: ids.first)[0].content == "old")
+        #expect(try journal.transcriptionBlocks(cardID: ids.first)[0].authorSupplied == false)
         #expect(try journal.currentCardLease(cardID: ids.first) == nil)
     }
 

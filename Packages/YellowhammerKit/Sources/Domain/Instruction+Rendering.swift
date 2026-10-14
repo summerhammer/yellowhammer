@@ -40,19 +40,16 @@ extension Instruction {
             } else {
                 mainlineLabel = "none"
             }
+            var header = ["```", "Repository: \(block.repository)", "Paths: \(block.paths.joined(separator: ", "))"]
+            // A ranged path carries only those lines below; naming them tells the worker the block is a
+            // slice of the file, not the file.
+            let ranged = block.paths.compactMap { path in
+                block.ranges[path].flatMap { $0.isEmpty ? nil : "\(path) \(LineRange.displayText($0))" }
+            }
+            if !ranged.isEmpty { header.append("Lines: \(ranged.joined(separator: "; "))") }
+            header += ["Symbol: \(block.symbol ?? "none")", "Mainline: \(mainlineLabel)", "", block.content, "```"]
             lines.append("")
-            lines.append(
-                """
-                ```
-                Repository: \(block.repository)
-                Paths: \(block.paths.joined(separator: ", "))
-                Symbol: \(block.symbol ?? "none")
-                Mainline: \(mainlineLabel)
-
-                \(block.content)
-                ```
-                """
-            )
+            lines.append(header.joined(separator: "\n"))
         }
         return lines.joined(separator: "\n")
     }

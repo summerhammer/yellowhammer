@@ -100,9 +100,13 @@ extension JournalMigrations {
             table.column("author_supplied", .integer).notNull().defaults(to: 0)
             table.column("author_supplied_night_id", .integer)
                 .references("night", column: "id", onDelete: .cascade)
-            // The Transcription Block's own content (the renderer's round-trip source), nullable
-            // because a block has none until it is next parsed (Readiness Check, P8.2).
+            // The transcribed lines, written at authoring: the worker's instruction is built from here,
+            // never from the Card, which carries only the block's reference. Nullable only for a row
+            // recorded without any.
             table.column("content", .text)
+            // The line ranges per path, one token per path aligned with `paths` and joined by `\n`
+            // (`LineRange.token(for:)`); `''` when no path has any, so every path was transcribed whole.
+            table.column("ranges", .text).notNull().defaults(to: "")
         }
         try db.create(index: "idx_transcription_block_card_id", on: "transcription_block", columns: ["card_id"])
     }
