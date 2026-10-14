@@ -38,13 +38,13 @@ func parserRoundTripsRenderedBlock() throws {
     #expect(parsed.transcriptions[0].repository == "backend")
     #expect(parsed.transcriptions[0].paths == ["a.swift", "b.swift"])
     #expect(parsed.transcriptions[0].symbol == "Foo")
-    #expect(parsed.transcriptions[0].commitField == "deadbeef")
+    #expect(parsed.transcriptions[0].commit == "deadbeef")
     #expect(parsed.transcriptions[0].ranges == [:])
 
     #expect(parsed.transcriptions[1].repository == "spec_source")
     #expect(parsed.transcriptions[1].paths == ["docs/goals.md"])
     #expect(parsed.transcriptions[1].symbol == nil)
-    #expect(parsed.transcriptions[1].commitField == "Operator-supplied")
+    #expect(parsed.transcriptions[1].commit == nil)
 
     #expect(parsed.clauses.count == 3)
     #expect(parsed.clauses[0] == ParsedClause(cid: "c1", text: "First clause", citation: "epic/story"))
@@ -143,12 +143,12 @@ func parserHazardLegacyContentNeverLeaksIntoHeadingsOrClauses() throws {
 
     #expect(parsed.briefProse == "The real approach.")
     #expect(parsed.transcriptions == [ParsedTranscription(
-        repository: "spec_source", paths: ["story.md"], symbol: nil, commitField: "deadbeef"
+        repository: "spec_source", paths: ["story.md"], symbol: nil, commit: "deadbeef"
     )])
     #expect(parsed.clauses == [ParsedClause(cid: "c1", text: "Real clause", citation: "epic/story")])
 }
 
-@Test("A stamp with ranges parses them aligned with its paths; the reference line is skipped")
+@Test("A block with ranges parses them from the visible line, which also carries the raw line")
 func parserRoundTripsRanges() throws {
     let transcription = TranscriptionBlock(
         repository: "api", paths: ["openapi.yaml", "models.swift"],
@@ -162,7 +162,9 @@ func parserRoundTripsRanges() throws {
     #expect(parsed.transcriptions == [ParsedTranscription(
         repository: "api", paths: ["openapi.yaml", "models.swift"],
         ranges: ["openapi.yaml": [LineRange(start: 120, end: 180), LineRange(start: 200, end: 210)]],
-        symbol: "ClassList", commitField: "deadbeef"
+        symbol: "ClassList", commit: "deadbeef",
+        line: "Contract: `api` · `openapi.yaml` lines 120–180, 200–210 · `models.swift` · "
+            + "symbol `ClassList` · commit `deadbeef`"
     )])
 }
 
@@ -173,14 +175,14 @@ func parserNoRanges() throws {
     #expect(CardManagedBlockParser.parse(block: stamp).transcriptions.first?.ranges == [:])
 }
 
-@Test("A malformed ranges= field, or one not aligned with the paths, parses to nil")
+@Test("A malformed ranges= field, or one not aligned with the paths, is a failure for a stamp-only block")
 func parserMalformedRanges() throws {
     for ranges in ["1-x", "-,-", "", "5-"] {
         let stamp = "<!-- yh:transcription:start repo=api paths=a.swift ranges=\(ranges) symbol=- commit=d -->\n"
             + "<!-- yh:transcription:end -->"
         let parsed = try #require(CardManagedBlockParser.parse(block: stamp).transcriptions.first)
-        #expect(parsed.ranges == nil, "ranges=\(ranges)")
-        #expect(parsed.commitField == "d")
+        #expect(parsed.failure != nil, "ranges=\(ranges)")
+        #expect(parsed.line == nil)
     }
 }
 

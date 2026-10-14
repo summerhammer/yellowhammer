@@ -100,7 +100,7 @@ struct ManagedBlockRoundTripScratchTests {
         for transcription in parsed.transcriptions {
             #expect(transcription.repository == "backend", "the stamp read back as: \(transcription)")
             #expect(transcription.paths == ["Sources/a.swift"], "the stamp read back as: \(transcription)")
-            #expect(transcription.commitField == "deadbeef", "the stamp read back as: \(transcription)")
+            #expect(transcription.commit == "deadbeef", "the stamp read back as: \(transcription)")
         }
         for clause in parsed.clauses {
             #expect(

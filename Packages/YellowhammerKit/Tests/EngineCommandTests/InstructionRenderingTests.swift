@@ -26,7 +26,7 @@ private func makeInstruction(
                 repository: "yellowhammer-spec",
                 paths: ["docs/glossary.md"],
                 symbol: nil,
-                mainlineCommit: nil,
+                mainlineCommit: String(repeating: "d", count: 40),
                 content: "Operator-supplied clarification.",
                 contentHash: "hash2",
                 authorSupplied: true,
@@ -114,6 +114,31 @@ func sectionsRenderInFixedOrder() {
         return range.lowerBound
     }
     #expect(indices == indices.sorted())
+}
+
+@Test("An Operator-supplied block's Mainline line carries its commit and the Night the edit was seen")
+func operatorSuppliedBlockMainlineLabel() {
+    let rendered = makeInstruction(payloads: .none).render()
+    #expect(rendered.contains("Mainline: \(String(repeating: "c", count: 40))\n"))
+    #expect(rendered.contains("Mainline: \(String(repeating: "d", count: 40)) (Operator-supplied, as of 2026-09-17)\n"))
+
+    let undated = TranscriptionBlock(
+        repository: "api", paths: ["a.md"], mainlineCommit: "abc1234", content: "x", contentHash: "h",
+        authorSupplied: true
+    )
+    let repo = Repo(name: "yellowhammer", path: "/repos/yellowhammer", role: .backend)
+    let copy = Instruction(
+        pass: .worker, card: InstructionCard(key: "ENG-1", title: "Card", description: "Do it."),
+        brief: ArchitecturalBrief(prose: "Approach.", transcriptions: [undated]),
+        definitionOfDone: [DoDClause(id: "D-1", text: "Done.", citation: nil)],
+        repository: InstructionRepository(
+            repo: repo, worktreePath: "/worktrees/yellowhammer/ENG-1", featureBranch: "feature/eng-1",
+            check: .command("swift test")
+        ),
+        route: Route(cli: "claude", model: "sonnet", effort: "medium")!, payloads: .none,
+        resultFilePath: "/worktrees/yellowhammer/ENG-1/.yellowhammer/result.json"
+    )
+    #expect(copy.render().contains("Mainline: abc1234 (Operator-supplied)\n"))
 }
 
 @Test("Banked replies section states the unverified, dated, Operator-supplied caveat")

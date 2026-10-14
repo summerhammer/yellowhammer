@@ -67,7 +67,15 @@ extension Outbox {
     }
 
     static func diagnosticComment(for failure: ManagedBlockFence.Failure) -> String {
-        """
+        if failure == .transcriptionDelimiterUnpaired {
+            return """
+            Yellowhammer could not update this issue's Managed Block: \(failure). The description was left \
+            untouched. Restore the missing `\(TranscriptionBlockLine.startPrefix)…-->` or \
+            `\(TranscriptionBlockLine.endMarker)` delimiter, or delete the whole Transcription Block (both \
+            delimiters and its `Contract:` line), and updates resume on the next Act.
+            """
+        }
+        return """
         Yellowhammer could not update this issue's Managed Block: \(failure). The description was left \
         untouched. Restore the `\(ManagedBlockFence.start)` and `\(ManagedBlockFence.end)` delimiters, \
         on their own lines with the block between them, and updates resume on the next Act.

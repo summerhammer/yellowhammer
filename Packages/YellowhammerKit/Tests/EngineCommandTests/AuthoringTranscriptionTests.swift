@@ -167,7 +167,7 @@ struct AuthoringTranscriptionTests {
         let transcription = try #require(parsed.transcriptions.first)
         #expect(transcription.paths == ["x.swift", "y.swift"])
         #expect(transcription.ranges == ["y.swift": [LineRange(start: 3, end: 9)]])
-        #expect(transcription.commitField == "deadbeef")
+        #expect(transcription.commit == "deadbeef")
         #expect(!description.contains("line one"))
 
         #expect(parsed.clauses.count == 1)

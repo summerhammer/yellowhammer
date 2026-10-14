@@ -77,8 +77,8 @@ struct ManagedBlockFenceTranscriptionTests {
         #expect(replacement.preservedProse == originalParts.preservedProse)
     }
 
-    @Test("An unterminated Transcription Block start does not mask the real end delimiter")
-    func unterminatedTranscriptionDoesNotMaskRealEnd() throws {
+    @Test("An unterminated Transcription Block start does not mask the real end delimiter: it is unpaired")
+    func unterminatedTranscriptionDoesNotMaskRealEnd() {
         let description = """
             Prefix prose.
             \(ManagedBlockFence.start)
@@ -88,11 +88,10 @@ struct ManagedBlockFenceTranscriptionTests {
             Suffix prose.
             """
 
-        let replacement = try ManagedBlockFence.replace(in: description, rendered: "NEW").get()
-        #expect(replacement.description.contains("NEW"))
-        let parts = try ManagedBlockFence.parts(of: description).get()
-        #expect(parts.block.contains(transcriptionOpen))
-        #expect(parts.block.contains("unterminated content, never closed"))
+        // The real end is still found (not `.endMissing`); the lone start is what is refused.
+        let unpaired = Result<Bool, ManagedBlockFence.Failure>.failure(.transcriptionDelimiterUnpaired)
+        #expect(ManagedBlockFence.replace(in: description, rendered: "NEW").map { _ in true } == unpaired)
+        #expect(ManagedBlockFence.parts(of: description).map { _ in true } == unpaired)
     }
 
     @Test("Genuinely duplicated delimiters outside any Transcription Block still fail")
@@ -136,5 +135,88 @@ struct ManagedBlockFenceTranscriptionTests {
         #expect(parts.block == "old block")
         #expect(parts.preservedProseHash == replacement.preservedProseHash)
         #expect(parts.preservedProse == replacement.preservedProse)
+    }
+}
+
+// spec: feature-authoring/author-an-architectural-brief#edited-reference — a Transcription Block with one
+// delimiter left behind is a broken delimiter, refused exactly like a broken `yh:managed` fence.
+
+private let blockLine = "Contract: `r` · `p` · commit `c`"
+
+private func card(_ managed: String) -> String {
+    "Prefix prose.\n\(ManagedBlockFence.start)\n\(managed)\n\(ManagedBlockFence.end)\nSuffix prose."
+}
+
+@Suite("ManagedBlockFence refuses an unpaired Transcription Block delimiter")
+struct ManagedBlockFenceUnpairedTests {
+    private func failures(_ description: String) -> [ManagedBlockFence.Failure?] {
+        let replaced: ManagedBlockFence.Failure?
+        if case .failure(let failure) = ManagedBlockFence.replace(in: description, rendered: "NEW") {
+            replaced = failure
+        } else {
+            replaced = nil
+        }
+        let parted: ManagedBlockFence.Failure?
+        if case .failure(let failure) = ManagedBlockFence.parts(of: description) {
+            parted = failure
+        } else {
+            parted = nil
+        }
+        return [replaced, parted]
+    }
+
+    @Test("A start deleted (the line and the end left behind) fails")
+    func startDeleted() {
+        let description = card("Prose\n\(blockLine)\n\(transcriptionClose)\n### Definition of Done")
+        #expect(failures(description) == [.transcriptionDelimiterUnpaired, .transcriptionDelimiterUnpaired])
+    }
+
+    @Test("An end deleted (the start and the line left behind) fails")
+    func endDeleted() {
+        let description = card("Prose\n\(transcriptionOpen)\n\(blockLine)\n### Definition of Done")
+        #expect(failures(description) == [.transcriptionDelimiterUnpaired, .transcriptionDelimiterUnpaired])
+    }
+
+    @Test("A second end with no start before it fails")
+    func strayEnd() {
+        let description = card("\(transcriptionOpen)\n\(blockLine)\n\(transcriptionClose)\n\(transcriptionClose)")
+        #expect(failures(description) == [.transcriptionDelimiterUnpaired, .transcriptionDelimiterUnpaired])
+    }
+
+    @Test("A well-formed card, several blocks, and a card with none all pass")
+    func wellFormed() {
+        let one = "\(transcriptionOpen)\n\(blockLine)\n\(transcriptionClose)"
+        #expect(failures(card(one)) == [nil, nil])
+        #expect(failures(card("\(one)\n\(one)")) == [nil, nil])
+        #expect(failures(card("### Architectural Brief\nProse")) == [nil, nil])
+        #expect(failures(card("  \(transcriptionOpen)\n  \(blockLine)\n  \(transcriptionClose)")) == [nil, nil])
+    }
+
+    @Test("A start nested inside a block is interior, as in the masking reader")
+    func nestedStartIsInterior() {
+        let nested = "\(transcriptionOpen)\n\(transcriptionOpen)\n\(transcriptionClose)"
+        #expect(failures(card(nested)) == [nil, nil])
+    }
+
+    @Test("A delimiter quoted inside the delimited Brief prose is prose, never counted")
+    func delimiterQuotedInProseIsIgnored() {
+        let prose = "### Architectural Brief\n<!-- yh:brief-prose:start id=0 -->\nQuoted: \(transcriptionClose)\n"
+            + "<!-- yh:brief-prose:end id=0 -->"
+        #expect(failures(card(prose)) == [nil, nil])
+    }
+
+    @Test("A start deleted after a delimited Brief prose still fails")
+    func startDeletedAfterDelimitedProse() {
+        let prose = "### Architectural Brief\n<!-- yh:brief-prose:start id=0 -->\nProse\n"
+            + "<!-- yh:brief-prose:end id=0 -->"
+        let description = card("\(prose)\n\(blockLine)\n\(transcriptionClose)\n### Definition of Done")
+        #expect(failures(description) == [.transcriptionDelimiterUnpaired, .transcriptionDelimiterUnpaired])
+    }
+
+    @Test("Text outside the Managed Block is never checked")
+    func outsideIsIgnored() {
+        let description = "\(transcriptionClose)\n\(ManagedBlockFence.start)\nprose\n\(ManagedBlockFence.end)\n"
+            + "\(transcriptionOpen)\nstray"
+        #expect(failures(description) == [nil, nil])
     }
 }

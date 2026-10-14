@@ -112,17 +112,17 @@ func renderArchitecturalBrief() {
     #expect(rendered.contains("<!-- yh:transcription:end -->"))
 }
 
-@Test("Operator-supplied transcription shows Operator-supplied as commit")
+@Test("An Operator-supplied transcription keeps its commit in the stamp and says so, with the Night, on the line")
 func operatorSuppliedTranscription() {
     let transcription = TranscriptionBlock(
         repository: "backend",
         paths: ["config.json"],
         symbol: nil,
-        mainlineCommit: nil,
+        mainlineCommit: "abc123def",
         content: "{ \"key\": \"value\" }",
         contentHash: "hash456",
         authorSupplied: true,
-        authorSuppliedNight: NightStart(rawValue: "2026-01-15T08:30:00Z")
+        authorSuppliedNight: NightStart(rawValue: "2026-01-15")
     )
     let brief = ArchitecturalBrief(prose: "Brief", transcriptions: [transcription])
     let block = CardManagedBlock(
@@ -138,7 +138,30 @@ func operatorSuppliedTranscription() {
 
     let rendered = block.render()
 
-    #expect(rendered.contains("commit=Operator-supplied"))
+    #expect(rendered.contains("symbol=- commit=abc123def -->"))
+    #expect(!rendered.contains("commit=Operator-supplied"))
+    #expect(rendered.contains(
+        "Contract: `backend` · `config.json` · commit `abc123def` · Operator-supplied, as of 2026-01-15"
+    ))
+}
+
+@Test("A block with no commit says `-`; an unread edit's line is written verbatim after a stamp from its fields")
+func noCommitAndUnreadEdit() {
+    let none = TranscriptionBlock(
+        repository: "backend", paths: ["a.md"], content: "", contentHash: "", authorSupplied: true
+    )
+    let noneLines = TranscriptionBlockLine.render(none)
+    #expect(noneLines[1] == "<!-- yh:transcription:start repo=backend paths=a.md symbol=- commit=- -->")
+    #expect(noneLines[2] == "Contract: `backend` · `a.md` · commit `-` · Operator-supplied")
+
+    let edited = "Contract:   `backend`  ·  `a.md` lines 3-4 · commit `abc1234`"
+    let unread = TranscriptionBlock(
+        repository: "backend", paths: ["a.md"], symbol: "Old", mainlineCommit: "deadbeef", content: "",
+        contentHash: "", authorSupplied: true, editedReference: edited
+    )
+    let lines = TranscriptionBlockLine.render(unread)
+    #expect(lines[1] == "<!-- yh:transcription:start repo=backend paths=a.md symbol=Old commit=deadbeef -->")
+    #expect(lines[2] == edited)
 }
 
 @Test("Definition of Done with clauses renders with checkboxes and citations")

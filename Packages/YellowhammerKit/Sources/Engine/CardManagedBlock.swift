@@ -273,19 +273,7 @@ public struct CardManagedBlock: Equatable, Sendable {
     }
 
     func renderTranscriptions() -> [String] {
-        var lines: [String] = []
-        for transcription in brief.transcriptions {
-            let commitStr: String
-            if transcription.authorSupplied, let night = transcription.authorSuppliedNight {
-                commitStr = "Operator-supplied as of \(night.rawValue)"
-            } else if transcription.authorSupplied {
-                commitStr = "Operator-supplied"
-            } else {
-                commitStr = transcription.mainlineCommit ?? "Operator-supplied"
-            }
-            lines.append(contentsOf: TranscriptionBlockLine.render(transcription, commitField: commitStr))
-        }
-        return lines
+        brief.transcriptions.flatMap { TranscriptionBlockLine.render($0) }
     }
 
     func renderDefinitionOfDone() -> [String] {

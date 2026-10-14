@@ -6,57 +6,58 @@ import Testing
 @Suite("Provenance transcription tests")
 struct ProvenanceTranscriptionTests {
 
-    @Test("Operator-supplied transcription block -> operatorSupplied, isStillGood == true, isDiverged == false")
-    func operatorSuppliedBlock() async throws {
+    @Test("Operator-supplied block with a commit is diffed like any other: stale when its path moved, clean when not")
+    func operatorSuppliedBlockIsDiffed() async throws {
         let fixture = GitFixture(name: "prov-operator-supplied-1")
         await fixture.initRepo(defaultBranch: "main")
+        let c1 = try await fixture.commit(filename: "contract.swift", content: "protocol Contract {}", message: "v1")
+        let c2 = try await fixture.commit(filename: "stable.swift", content: "let stable = 1", message: "stable")
+        _ = try await fixture.commit(filename: "contract.swift", content: "protocol Contract2 {}", message: "v2")
         let repo = Repo(name: "app", path: fixture.path, role: .backend)
         let tester = ProvenanceDiffTester()
-
-        // 1. authorSupplied: true with commit
         let night = NightStart(rawValue: "2026-09-16")
-        let block1 = TranscriptionBlock(
-            repository: "app",
-            paths: ["contract.swift"],
-            mainlineCommit: "abc1234",
-            content: "custom content",
-            contentHash: "hash1",
-            authorSupplied: true,
-            authorSuppliedNight: night
-        )
-        let result1 = await tester.testTranscriptionBlock(block1, in: repo)
-        #expect(result1.verdict == .operatorSupplied)
-        #expect(result1.isStillGood == true)
-        #expect(result1.isDiverged == false)
-        #expect(result1.changedPaths == [])
 
-        // 2. authorSupplied: false with nil commit
-        let block2 = TranscriptionBlock(
-            repository: "app",
-            paths: ["contract.swift"],
-            mainlineCommit: nil,
-            content: "custom content",
-            contentHash: "hash2",
-            authorSupplied: false
+        let moved = TranscriptionBlock(
+            repository: "app", paths: ["contract.swift"], mainlineCommit: c1,
+            content: "custom content", contentHash: "hash1", authorSupplied: true, authorSuppliedNight: night
         )
-        let result2 = await tester.testTranscriptionBlock(block2, in: repo)
-        #expect(result2.verdict == .operatorSupplied)
-        #expect(result2.isStillGood == true)
-        #expect(result2.isDiverged == false)
+        let movedResult = await tester.testTranscriptionBlock(moved, in: repo)
+        #expect(movedResult.verdict == .stale(changedPaths: ["contract.swift"]))
+        #expect(movedResult.isDiverged == true)
+        #expect(movedResult.isStillGood == false)
 
-        // 3. authorSupplied: false with empty commit
-        let block3 = TranscriptionBlock(
-            repository: "app",
-            paths: ["contract.swift"],
-            mainlineCommit: "",
-            content: "custom content",
-            contentHash: "hash3",
-            authorSupplied: false
+        let unmoved = TranscriptionBlock(
+            repository: "app", paths: ["stable.swift"], mainlineCommit: c2,
+            content: "custom content", contentHash: "hash1", authorSupplied: true, authorSuppliedNight: night
         )
-        let result3 = await tester.testTranscriptionBlock(block3, in: repo)
-        #expect(result3.verdict == .operatorSupplied)
-        #expect(result3.isStillGood == true)
-        #expect(result3.isDiverged == false)
+        let unmovedResult = await tester.testTranscriptionBlock(unmoved, in: repo)
+        #expect(unmovedResult.verdict == .clean)
+        #expect(unmovedResult.isStillGood == true)
+        #expect(unmovedResult.isDiverged == false)
+    }
+
+    @Test("A block with a nil or empty commit is untestable, however it got there")
+    func blockWithoutCommitIsUntestable() async throws {
+        let fixture = GitFixture(name: "prov-no-commit-1")
+        await fixture.initRepo(defaultBranch: "main")
+        _ = try await fixture.commit(filename: "contract.swift", content: "protocol Contract {}", message: "v1")
+        let repo = Repo(name: "app", path: fixture.path, role: .backend)
+        let projectRepos = ProjectRepositories(workingRepos: [repo])
+        let tester = ProvenanceDiffTester()
+
+        for (commit, supplied) in [(nil, true), (nil, false), ("", true), ("", false)] as [(String?, Bool)] {
+            let block = TranscriptionBlock(
+                repository: "app", paths: ["contract.swift"], mainlineCommit: commit,
+                content: "", contentHash: "", authorSupplied: supplied
+            )
+            let direct = await tester.testTranscriptionBlock(block, in: repo)
+            let viaProject = await tester.testTranscriptionBlock(block, projectRepositories: projectRepos)
+            for result in [direct, viaProject] {
+                #expect(result.verdict == .untestable(reason: "the reference names no commit"))
+                #expect(result.isStillGood == false)
+                #expect(result.isDiverged == false)
+            }
+        }
     }
 
     @Test("Pinned ResolvedMainlines / ResolvedMainline is honoured")
@@ -306,7 +307,7 @@ struct ProvenanceReportRollUpTests {
             content: "s", contentHash: "h3", authorSupplied: false
         )
         let b4 = TranscriptionBlock(
-            repository: "app", paths: ["custom.swift"], mainlineCommit: "abc",
+            repository: "app", paths: ["custom.swift"], mainlineCommit: appC1,
             content: "c", contentHash: "h4", authorSupplied: true
         )
         let brief = ArchitecturalBrief(prose: "Approach", transcriptions: [b1, b2, b3, b4])
@@ -322,6 +323,7 @@ struct ProvenanceReportRollUpTests {
         #expect(report["app"]?.isDiverged == true)
         #expect(report["backend"]?.verdict == ProvenanceVerdict.clean)
         #expect(report["spec_source"]?.isDiverged == true)
+        #expect(report.results[3].verdict == .clean)
     }
 
     @Test("Multi-transcription / multi-repo CardProvenanceReport roll-up all clean")

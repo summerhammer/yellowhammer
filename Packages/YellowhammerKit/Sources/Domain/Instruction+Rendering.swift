@@ -32,13 +32,10 @@ extension Instruction {
     private var briefSection: String {
         var lines = ["## Architectural Brief", "", brief.prose]
         for block in brief.transcriptions {
-            let mainlineLabel: String
-            if let commit = block.mainlineCommit {
-                mainlineLabel = commit
-            } else if block.authorSupplied {
-                mainlineLabel = "Operator-supplied"
-            } else {
-                mainlineLabel = "none"
+            var mainlineLabel = block.mainlineCommit ?? "none"
+            if block.authorSupplied {
+                mainlineLabel += block.authorSuppliedNight.map { " (Operator-supplied, as of \($0.rawValue))" }
+                    ?? " (Operator-supplied)"
             }
             var header = ["```", "Repository: \(block.repository)", "Paths: \(block.paths.joined(separator: ", "))"]
             // A ranged path carries only those lines below; naming them tells the worker the block is a

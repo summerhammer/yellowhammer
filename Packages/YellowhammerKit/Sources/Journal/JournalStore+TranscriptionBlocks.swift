@@ -16,10 +16,17 @@ public struct TranscriptionBlockRecord: Equatable, Sendable {
     public let ranges: [String: [LineRange]]
     public let symbol: String?
     public let mainlineCommit: String?
+    /// The transcribed lines; nil exactly when the row is unread (an Operator-edited reference not yet
+    /// read from local mainline).
     public let content: String?
-    public let contentHash: String
+    public let contentHash: String?
     public let authorSupplied: Bool
     public let authorSuppliedNightID: Int64?
+    /// The Night `authorSuppliedNightID` names, joined from `night`; nil when no Night is recorded.
+    public let authorSuppliedNight: NightStart?
+    /// The Operator's edited `Contract:` line as read from the board, for an unread row; nil for a read
+    /// row, or an edited reference that came from a legacy stamp with no line.
+    public let referenceText: String?
 
     public init(
         id: Int64,
@@ -30,9 +37,11 @@ public struct TranscriptionBlockRecord: Equatable, Sendable {
         symbol: String?,
         mainlineCommit: String?,
         content: String?,
-        contentHash: String,
+        contentHash: String?,
         authorSupplied: Bool,
-        authorSuppliedNightID: Int64?
+        authorSuppliedNightID: Int64?,
+        authorSuppliedNight: NightStart? = nil,
+        referenceText: String? = nil
     ) {
         self.id = id
         self.cardID = cardID
@@ -45,11 +54,15 @@ public struct TranscriptionBlockRecord: Equatable, Sendable {
         self.contentHash = contentHash
         self.authorSupplied = authorSupplied
         self.authorSuppliedNightID = authorSuppliedNightID
+        self.authorSuppliedNight = authorSuppliedNight
+        self.referenceText = referenceText
     }
 
-    /// The Domain `TranscriptionBlock` this row carries. `content` is `""` when the row has none
-    /// recorded yet, and `authorSuppliedNight` is left nil — mapping a night id to a `NightStart` is
-    /// not cheap from this row alone, and nil is an acceptable placeholder for the renderer.
+    /// True once the lines have been read: unread <=> `content IS NULL`.
+    public var isRead: Bool { content != nil }
+
+    /// The Domain `TranscriptionBlock` this row carries. An unread row has `content` and `contentHash`
+    /// `""`, and its `editedReference` is the Operator's line (`referenceText`).
     public var block: TranscriptionBlock {
         TranscriptionBlock(
             repository: repository,
@@ -58,26 +71,54 @@ public struct TranscriptionBlockRecord: Equatable, Sendable {
             symbol: symbol,
             mainlineCommit: mainlineCommit,
             content: content ?? "",
-            contentHash: contentHash,
+            contentHash: contentHash ?? "",
             authorSupplied: authorSupplied,
-            authorSuppliedNight: nil
+            authorSuppliedNight: authorSuppliedNight,
+            editedReference: content == nil ? referenceText : nil
         )
     }
 }
 
 /// The fields one Transcription Block row needs, bundled so ``JournalStore/insertTranscriptionBlock(_:cardID:_:)``
 /// stays under the parameter-count limit — shared by ``JournalStore/recordTranscriptionBlocks(cardID:_:)``
-/// (from a Domain `TranscriptionBlock`) and `finaliseAuthoring` (from a plan's `PlannedTranscription`,
-/// roadmap P9.6), which carry different sets of fields.
-struct NewTranscriptionBlock {
-    let repository: String
-    let paths: [String]
-    let ranges: [String: [LineRange]]
-    let symbol: String?
-    let mainlineCommit: String?
-    let content: String
-    let contentHash: String
-    let authorSupplied: Bool
+/// (from a Domain `TranscriptionBlock`), ``JournalStore/replaceTranscriptionBlocks(cardID:_:)`` and
+/// `finaliseAuthoring` (from a plan's `PlannedTranscription`, roadmap P9.6), which carry different sets of
+/// fields. An unread row has nil `content` and `contentHash`.
+public struct NewTranscriptionBlock: Sendable {
+    public let repository: String
+    public let paths: [String]
+    public let ranges: [String: [LineRange]]
+    public let symbol: String?
+    public let mainlineCommit: String?
+    public let content: String?
+    public let contentHash: String?
+    public let authorSupplied: Bool
+    public let authorSuppliedNightID: Int64?
+    public let referenceText: String?
+
+    public init(
+        repository: String,
+        paths: [String],
+        ranges: [String: [LineRange]],
+        symbol: String?,
+        mainlineCommit: String?,
+        content: String?,
+        contentHash: String?,
+        authorSupplied: Bool,
+        authorSuppliedNightID: Int64? = nil,
+        referenceText: String? = nil
+    ) {
+        self.repository = repository
+        self.paths = paths
+        self.ranges = ranges
+        self.symbol = symbol
+        self.mainlineCommit = mainlineCommit
+        self.content = content
+        self.contentHash = contentHash
+        self.authorSupplied = authorSupplied
+        self.authorSuppliedNightID = authorSuppliedNightID
+        self.referenceText = referenceText
+    }
 }
 
 extension JournalStore {
@@ -86,7 +127,13 @@ extension JournalStore {
         try read { db in
             let rows = try Row.fetchAll(
                 db,
-                sql: "SELECT * FROM transcription_block WHERE card_id = ? ORDER BY id ASC",
+                sql: """
+                SELECT transcription_block.*, night.night_start AS author_supplied_night_start
+                FROM transcription_block
+                LEFT JOIN night ON night.id = transcription_block.author_supplied_night_id
+                WHERE transcription_block.card_id = ?
+                ORDER BY transcription_block.id ASC
+                """,
                 arguments: [cardID]
             )
             return rows.map(Self.transcriptionBlockRecord(from:))
@@ -94,8 +141,7 @@ extension JournalStore {
     }
 
     /// Replaces a Card's Transcription Blocks with `blocks`, in one transaction: delete-then-insert, in
-    /// the order given, so ``transcriptionBlocks(cardID:)`` reads them back paired by position with
-    /// what the brief's renderer emitted.
+    /// the order given (authored order). For authoring and maintenance callers holding Domain blocks.
     public func recordTranscriptionBlocks(cardID: Int64, _ blocks: [TranscriptionBlock]) throws {
         try write { db in
             try db.execute(sql: "DELETE FROM transcription_block WHERE card_id = ?", arguments: [cardID])
@@ -109,6 +155,43 @@ extension JournalStore {
         }
     }
 
+    /// Replaces a Card's Transcription Blocks with `blocks`, in one transaction: delete-then-insert, in
+    /// the order given. Unlike ``recordTranscriptionBlocks(cardID:_:)`` it can write unread rows (nil
+    /// `content`) and the Night an Operator's edit was seen.
+    public func replaceTranscriptionBlocks(cardID: Int64, _ blocks: [NewTranscriptionBlock]) throws {
+        try write { db in
+            try db.execute(sql: "DELETE FROM transcription_block WHERE card_id = ?", arguments: [cardID])
+            for block in blocks {
+                try Self.insertTranscriptionBlock(db, cardID: cardID, block)
+            }
+        }
+    }
+
+    /// Records the read of an unread (Operator-edited) reference: the commit the lines were read at, the
+    /// ranges actually transcribed, the lines and their hash. Clears `reference_text`. Leaves
+    /// `author_supplied` and `author_supplied_night_id` alone — the label survives the read.
+    public func recordTranscriptionRead(
+        id: Int64, mainlineCommit: String, ranges: [String: [LineRange]], content: String, contentHash: String
+    ) throws {
+        try write { db in
+            guard let pathsRaw = try String.fetchOne(
+                db, sql: "SELECT paths FROM transcription_block WHERE id = ?", arguments: [id]
+            ) else { return }
+            let paths = pathsRaw.isEmpty ? [] : pathsRaw.split(separator: "\n").map(String.init)
+            try db.execute(
+                sql: """
+                UPDATE transcription_block
+                SET mainline_commit = ?, ranges = ?, content = ?, content_hash = ?, reference_text = NULL
+                WHERE id = ?
+                """,
+                arguments: [
+                    mainlineCommit, (LineRange.tokens(for: ranges, paths: paths) ?? []).joined(separator: "\n"),
+                    content, contentHash, id
+                ]
+            )
+        }
+    }
+
     /// Inserts one Transcription Block row. Shared with ``finaliseAuthoring(_:runID:act:nightID:now:)``
     /// (roadmap P9.6) so a newly authored Card's blocks are written in the same transaction as its
     /// Feature, Cycle and Card rows, without duplicating the SQL.
@@ -117,31 +200,16 @@ extension JournalStore {
             sql: """
             INSERT INTO transcription_block (
                 card_id, repository, paths, ranges, symbol, mainline_commit, content, content_hash,
-                author_supplied, author_supplied_night_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                author_supplied, author_supplied_night_id, reference_text
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             arguments: [
                 cardID, block.repository, block.paths.joined(separator: "\n"),
                 (LineRange.tokens(for: block.ranges, paths: block.paths) ?? []).joined(separator: "\n"),
-                block.symbol, block.mainlineCommit, block.content, block.contentHash, block.authorSupplied ? 1 : 0, nil
+                block.symbol, block.mainlineCommit, block.content, block.contentHash, block.authorSupplied ? 1 : 0,
+                block.authorSuppliedNightID, block.referenceText
             ]
         )
-    }
-
-    /// Voids a Transcription Block's stamp: an Operator edit inside it means the block is no longer
-    /// backed by a recorded mainline commit. `author_supplied = 1`, `author_supplied_night_id = nightID`,
-    /// `mainline_commit = NULL`. Permanent: nothing in this module clears it again.
-    public func voidTranscriptionStamp(id: Int64, nightID: Int64?) throws {
-        try write { db in
-            try db.execute(
-                sql: """
-                UPDATE transcription_block
-                SET author_supplied = 1, author_supplied_night_id = ?, mainline_commit = NULL
-                WHERE id = ?
-                """,
-                arguments: [nightID, id]
-            )
-        }
     }
 
     private static func transcriptionBlockRecord(from row: Row) -> TranscriptionBlockRecord {
@@ -161,7 +229,9 @@ extension JournalStore {
             content: row["content"],
             contentHash: row["content_hash"],
             authorSupplied: ((row["author_supplied"] as Int?) ?? 0) != 0,
-            authorSuppliedNightID: row["author_supplied_night_id"]
+            authorSuppliedNightID: row["author_supplied_night_id"],
+            authorSuppliedNight: (row["author_supplied_night_start"] as String?).flatMap(NightStart.init(rawValue:)),
+            referenceText: row["reference_text"]
         )
     }
 }

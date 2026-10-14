@@ -24,10 +24,15 @@ private struct ReconcileContext {
 
 // Reconciling the board's copy of a Card's Managed Block into the Journal, before readiness is judged
 // (P8.2): an edit to the prose is simply recorded, and Definition of Done clause edits are reconciled by
-// identity. A Transcription Block is never read back: the Card shows its reference only, and the
-// transcribed lines and their hash live in the Journal.
+// identity. A Transcription Block's REFERENCE is read back (the visible `Contract:` line is the reference;
+// spec: feature-authoring/author-an-architectural-brief#edited-reference) and matched against the Journal's
+// records by what it says, never by position; the transcribed lines and their hash live in the Journal and
+// are never read from the Card.
 extension ReadinessCheck {
-    func reconcile(parsed: ParsedCardBlock, card: CardRecord, context: BuildActContext) async throws {
+    /// Folds the board's copy into the Journal. Returns whether the Card's Managed Block now needs a rewrite
+    /// (a clause was minted, or its Transcription Blocks changed): the caller makes the one rewrite per
+    /// evaluation, after any unread reference has been read.
+    func reconcile(parsed: ParsedCardBlock, card: CardRecord, context: BuildActContext) throws -> Bool {
         let stamp = ReconcileContext(context)
         let journal = stamp.journal
 
@@ -46,15 +51,53 @@ extension ReadinessCheck {
         }
 
         let mintedAny = try reconcileClauses(parsed: parsed, card: card, stamp: stamp)
+        let blocksChanged = try reconcileTranscriptions(parsed: parsed, card: card, context: context)
+        return mintedAny || blocksChanged
+    }
 
-        if mintedAny, let outbox = context.act.outbox {
-            let brief = ArchitecturalBrief(
-                prose: try journal.architecturalBriefProse(cardID: card.id) ?? "",
-                transcriptions: try journal.transcriptionBlocks(cardID: card.id).map(\.block)
-            )
-            let maintenance = ManagedBlockMaintenance(journal: journal, outbox: outbox)
-            _ = try await maintenance.maintain(card: card, brief: brief)
+    /// Matches the board's Transcription Blocks to the Journal's records and writes the result, only when
+    /// something changed. Returns whether it did.
+    private func reconcileTranscriptions(
+        parsed: ParsedCardBlock, card: CardRecord, context: BuildActContext
+    ) throws -> Bool {
+        let journal = context.act.journal
+        let records = try journal.transcriptionBlocks(cardID: card.id)
+        let matching = TranscriptionReferenceMatch.match(board: parsed.transcriptions, records: records)
+
+        let keptRecords = matching.blocks.compactMap { match -> TranscriptionBlockRecord? in
+            if case .kept(let record, _) = match { return record }
+            return nil
         }
+        let changed = !matching.deletions.isEmpty
+            || keptRecords.count != matching.blocks.count
+            || matching.blocks.contains { match in
+                if case .kept(let record, let symbol) = match { return record.symbol != symbol }
+                return false
+            }
+            || keptRecords.map(\.id) != keptRecords.map(\.id).sorted()
+        guard changed else { return false }
+
+        let nightID = context.act.night.id
+        let rows = matching.blocks.map { match -> NewTranscriptionBlock in
+            switch match {
+            case .kept(let record, let symbol):
+                return NewTranscriptionBlock(
+                    repository: record.repository, paths: record.paths, ranges: record.ranges, symbol: symbol,
+                    mainlineCommit: record.mainlineCommit, content: record.content, contentHash: record.contentHash,
+                    authorSupplied: record.authorSupplied, authorSuppliedNightID: record.authorSuppliedNightID,
+                    referenceText: record.referenceText
+                )
+            case .edited(let edit):
+                // An unreadable line leaves nothing to record but the line itself; the read step reports why.
+                return NewTranscriptionBlock(
+                    repository: edit.repository, paths: edit.paths, ranges: edit.ranges, symbol: edit.symbol,
+                    mainlineCommit: edit.commit, content: nil, contentHash: nil, authorSupplied: true,
+                    authorSuppliedNightID: nightID, referenceText: edit.line
+                )
+            }
+        }
+        try journal.replaceTranscriptionBlocks(cardID: card.id, rows)
+        return true
     }
 
     /// Returns whether any untagged clause was minted this pass.

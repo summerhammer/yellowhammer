@@ -14,7 +14,7 @@ struct FakeProvenanceTester: ProvenanceTesting {
         let results = blocks.map { block in
             RepoProvenanceResult(
                 repository: block.repository, recordedPaths: block.paths, recordedCommit: block.mainlineCommit,
-                verdict: block.authorSupplied ? .operatorSupplied : (verdicts[block.repository] ?? .clean)
+                verdict: verdicts[block.repository] ?? .clean
             )
         }
         return CardProvenanceReport(results: results)

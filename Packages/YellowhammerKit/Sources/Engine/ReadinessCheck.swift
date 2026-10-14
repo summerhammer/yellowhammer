@@ -19,6 +19,41 @@ public protocol CitationResolving: Sendable {
     ) async -> SpecCitationResolution
 }
 
+/// Why an Operator-edited Transcription Block reference could not be read from local mainline.
+public struct ReferenceReadFailure: Error, Equatable, Sendable, CustomStringConvertible {
+    public let reason: String
+
+    public init(reason: String) {
+        self.reason = reason
+    }
+
+    public var description: String { reason }
+}
+
+/// Reads an Operator-edited Transcription Block reference from local mainline, without the Readiness Check
+/// needing to know it is talking to git. Never throws for an unreadable reference: that is a
+/// ``ReferenceReadFailure``, which makes the Card not Ready.
+public protocol ReferenceReading: Sendable {
+    func read(
+        _ record: TranscriptionBlockRecord, in projectRepositories: ProjectRepositories, mainlines: ResolvedMainlines
+    ) async -> Result<TranscriptionBlock, ReferenceReadFailure>
+}
+
+extension MainlineReader: ReferenceReading {
+    public func read(
+        _ record: TranscriptionBlockRecord, in projectRepositories: ProjectRepositories, mainlines: ResolvedMainlines
+    ) async -> Result<TranscriptionBlock, ReferenceReadFailure> {
+        do {
+            return .success(try await readEditedReference(
+                repository: record.repository, paths: record.paths, ranges: record.ranges, symbol: record.symbol,
+                commit: record.mainlineCommit, in: projectRepositories, mainlines: mainlines
+            ))
+        } catch {
+            return .failure(ReferenceReadFailure(reason: "\(error)"))
+        }
+    }
+}
+
 extension ProvenanceDiffTester: ProvenanceTesting {
     public func evaluate(
         _ blocks: [TranscriptionBlock], projectRepositories: ProjectRepositories, mainlines: ResolvedMainlines
@@ -42,6 +77,9 @@ public enum ReadinessFailure: Equatable, Sendable, CustomStringConvertible {
     case citationUnresolved(cid: String, citation: String, reason: String)
     case transcriptionUntestable(repository: String, reason: String)
     case repositoriesUnconfigured
+    /// An Operator-edited Transcription Block reference that cannot be read (or parsed): the Card is not
+    /// Ready, and the reason goes on the Card.
+    case referenceUnreadable(repository: String, reference: String, reason: String)
 
     public var description: String {
         switch self {
@@ -55,6 +93,8 @@ public enum ReadinessFailure: Equatable, Sendable, CustomStringConvertible {
             "the Transcription Block for repository '\(repository)' could not be tested: \(reason)"
         case .repositoriesUnconfigured:
             "the Project has no repositories configured"
+        case .referenceUnreadable(_, let reference, let reason):
+            "the edited Transcription Block reference \(reference) could not be read: \(reason)"
         }
     }
 }
@@ -118,10 +158,15 @@ public enum ReadinessVerdict: Equatable, Sendable {
 public struct ReadinessCheck: Sendable {
     let provenance: any ProvenanceTesting
     let citations: any CitationResolving
+    let references: any ReferenceReading
 
-    public init(provenance: any ProvenanceTesting, citations: any CitationResolving) {
+    public init(
+        provenance: any ProvenanceTesting, citations: any CitationResolving,
+        references: any ReferenceReading = MainlineReader()
+    ) {
         self.provenance = provenance
         self.citations = citations
+        self.references = references
     }
 
     /// Evaluates one Card: reconciles the board's copy of its Managed Block into the Journal first (an
@@ -154,13 +199,18 @@ public struct ReadinessCheck: Sendable {
     private func judge(card: CardRecord, context: BuildActContext) async throws -> ReadinessVerdict {
         let journal = context.act.journal
 
-        try await reconcileBoardCopy(card: card, context: context)
+        var rewriteNeeded = try reconcileBoardCopy(card: card, context: context)
+        let reads = try await readUnreadReferences(card: card, context: context)
+        rewriteNeeded = rewriteNeeded || reads.anyRead
+        // One Managed Block rewrite per evaluation, from the Journal as it now stands: an unread edit is
+        // rendered verbatim, so a rewrite never overwrites an Operator's edit with the old reference.
+        if rewriteNeeded { try await rewriteManagedBlock(card: card, context: context) }
 
         let matches = try protectedPathMatches(card: card, context: context)
         if let match = matches.first {
             // Overreach retains precedence over all other readiness failures except Divergence.
             if let repositories = context.act.repositories {
-                let blocks = try journal.transcriptionBlocks(cardID: card.id)
+                let blocks = try journal.transcriptionBlocks(cardID: card.id).filter(\.isRead)
                 let report = await provenance.evaluate(
                     blocks.map(\.block), projectRepositories: repositories, mainlines: context.act.mainlines
                 )
@@ -178,6 +228,7 @@ public struct ReadinessCheck: Sendable {
         let repositories = context.act.repositories
 
         var failures = structuralFailures(prose: prose, blocks: blocks, clauses: clauses)
+        failures += reads.failures
         failures += await citationFailures(clauses: clauses, repositories: repositories, context: context)
 
         if let repositories {
@@ -220,14 +271,15 @@ public struct ReadinessCheck: Sendable {
 
     /// Parses the board's current copy of the Card's Managed Block (from the Delta Read) and folds any
     /// Operator edit into the Journal, before readiness is judged against it.
-    private func reconcileBoardCopy(card: CardRecord, context: BuildActContext) async throws {
+    /// Returns whether the Card's Managed Block needs a rewrite as a result.
+    private func reconcileBoardCopy(card: CardRecord, context: BuildActContext) throws -> Bool {
         let change = context.deltaRead?.cardChanges.first { $0.card.id == card.id }
         guard let description = change?.object.description,
               case .success(let parts) = ManagedBlockFence.parts(of: description) else {
-            return
+            return false
         }
         let parsed = CardManagedBlockParser.parse(block: parts.block)
-        try await reconcile(parsed: parsed, card: card, context: context)
+        return try reconcile(parsed: parsed, card: card, context: context)
     }
 
     /// The Journal-only failures: a missing brief, an empty Definition of Done, and (in place of
@@ -280,8 +332,10 @@ public struct ReadinessCheck: Sendable {
         blocks: [TranscriptionBlockRecord], repositories: ProjectRepositories, card: CardRecord,
         context: BuildActContext
     ) async throws -> ProvenanceOutcome {
+        // Only READ records are tested: an unread one is already a failure, and has no commit to diff from.
         let report = await provenance.evaluate(
-            blocks.map(\.block), projectRepositories: repositories, mainlines: context.act.mainlines
+            blocks.filter(\.isRead).map(\.block), projectRepositories: repositories,
+            mainlines: context.act.mainlines
         )
         var failures: [ReadinessFailure] = []
         for result in report.results {
