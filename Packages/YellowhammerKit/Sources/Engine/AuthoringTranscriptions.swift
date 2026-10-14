@@ -20,7 +20,8 @@ extension MainlineReader: ContractTranscribing {
         _ contract: ContractDraft, in projectRepositories: ProjectRepositories, mainlines: ResolvedMainlines
     ) async throws -> TranscriptionBlock {
         try await transcribe(
-            paths: contract.paths, repository: contract.repository, in: projectRepositories,
+            paths: contract.paths, ranges: contract.ranges, repository: contract.repository,
+            in: projectRepositories,
             symbol: contract.symbol, mainlines: mainlines
         )
     }

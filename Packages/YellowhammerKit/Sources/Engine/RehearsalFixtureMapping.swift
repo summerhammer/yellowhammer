@@ -73,7 +73,10 @@ struct RehearsalFixtureMapping: Equatable, Sendable {
                     unitOfWork: card.unitOfWork, brief: card.brief,
                     definitionOfDone: card.definitionOfDone.map(apply),
                     contracts: card.contracts.map {
-                        ContractDraft(repository: repository($0.repository), paths: $0.paths, symbol: $0.symbol)
+                        ContractDraft(
+                            repository: repository($0.repository), paths: $0.paths, ranges: $0.ranges,
+                            symbol: $0.symbol
+                        )
                     }
                 )
             }

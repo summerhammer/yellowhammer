@@ -122,8 +122,41 @@ extension ResultFile {
             symbol = try nonEmptyString(contract, "symbol", path: path)
         }
         return ContractDraft(
-            repository: try nonEmptyString(contract, "repository", path: path), paths: paths, symbol: symbol
+            repository: try nonEmptyString(contract, "repository", path: path), paths: paths,
+            ranges: try lineRanges(contract, paths: paths, path: path), symbol: symbol
         )
+    }
+
+    /// The contract's `ranges` grouped by path in the order given, unioned later. Optional: absent or
+    /// null means no ranges, which is how older results and fixtures omit it. A range this structurally
+    /// cannot be one (starts before line 1, reversed, names a path the contract does not list) is a
+    /// contract violation; whether it fits the file is the reader's check.
+    private static func lineRanges(
+        _ contract: [String: Any], paths: [String], path: String
+    ) throws(ResultFileError) -> [String: [LineRange]] {
+        guard let raw = contract["ranges"], !(raw is NSNull) else { return [:] }
+        let field = "\(path).ranges"
+        guard let entries = raw as? [[String: Any]] else {
+            throw .invalid(field: field, reason: "must be an array of objects")
+        }
+        var grouped: [String: [LineRange]] = [:]
+        for (index, entry) in entries.enumerated() {
+            let entryPath = "\(field)[\(index)]"
+            let rangePath = try string(entry, "path", path: entryPath)
+            let start = try integer(entry, "start", path: entryPath)
+            let end = try integer(entry, "end", path: entryPath)
+            guard paths.contains(rangePath) else {
+                throw .invalid(field: "\(entryPath).path", reason: "names a path the contract does not list")
+            }
+            guard start >= 1 else {
+                throw .invalid(field: "\(entryPath).start", reason: "a line range starts at line 1 or later")
+            }
+            guard end >= start else {
+                throw .invalid(field: "\(entryPath).end", reason: "a line range must not be reversed")
+            }
+            grouped[rangePath, default: []].append(LineRange(start: start, end: end))
+        }
+        return grouped
     }
 
     private static func clauseDrafts(
@@ -171,6 +204,19 @@ extension ResultFile {
         let value = try string(object, key, path: path)
         guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw .invalid(field: "\(path).\(key)", reason: "must not be empty")
+        }
+        return value
+    }
+
+    /// `key` as a whole number. JSONSerialization yields NSNumber for booleans and fractions too, so
+    /// both are rejected: `true` is not line 1 and `1.5` is not a line.
+    private static func integer(
+        _ object: [String: Any], _ key: String, path: String
+    ) throws(ResultFileError) -> Int {
+        guard let number = object[key] as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+            let value = Int(exactly: number.doubleValue), value as NSNumber == number
+        else {
+            throw .invalid(field: "\(path).\(key)", reason: "missing or not an integer")
         }
         return value
     }
