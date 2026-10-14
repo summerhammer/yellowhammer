@@ -32,7 +32,7 @@ extension ReadinessCheck {
 
         let prose = try boardBlock?.briefProse ?? journal.architecturalBriefProse(cardID: card.id)
         let records = try journal.transcriptionBlocks(cardID: card.id)
-        if let boardBlock, boardBlock.transcriptions.count != records.count { return .unknown }
+        if referencesAwaitDispatch(records, boardBlock: boardBlock) { return .unknown }
         let blocks = records.map(\.block)
         let clauses = try openingClauses(card: card, boardBlock: boardBlock, journal: journal)
         if (prose ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && blocks.isEmpty {
@@ -45,6 +45,16 @@ extension ReadinessCheck {
         let provenanceStatus = await checkProvenance(blocks, repositories: repositories, mainlines: mainlines)
         if provenanceStatus == .notReady { return .notReady }
         return citationStatus == .unknown || provenanceStatus == .unknown ? .unknown : .ready
+    }
+
+    /// An edited, added or removed reference, or one still unread, is read at dispatch: this snapshot reads
+    /// nothing and writes nothing, so it cannot say.
+    private func referencesAwaitDispatch(_ records: [TranscriptionBlockRecord], boardBlock: ParsedCardBlock?) -> Bool {
+        if records.contains(where: { !$0.isRead }) { return true }
+        guard let boardBlock else { return false }
+        let matching = TranscriptionReferenceMatch.match(board: boardBlock.transcriptions, records: records)
+        let anyEdited = matching.blocks.contains { if case .edited = $0 { return true } else { return false } }
+        return anyEdited || !matching.deletions.isEmpty
     }
 
     private func openingBoardStatus(card: CardRecord, object: BoardObject) -> OpeningCardReadiness {
@@ -83,7 +93,7 @@ extension ReadinessCheck {
             switch result.verdict {
             case .stale: return .notReady
             case .untestable: unknown = true
-            case .clean, .operatorSupplied: break
+            case .clean: break
             }
         }
         return unknown ? .unknown : .ready

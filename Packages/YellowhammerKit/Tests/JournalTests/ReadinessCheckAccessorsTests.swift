@@ -52,7 +52,7 @@ private struct ReadinessFixture: ~Copyable {
     }
 }
 
-@Test("Transcription Blocks round-trip, including a voided stamp")
+@Test("Transcription Blocks round-trip through the Journal")
 func transcriptionBlocksRoundTrip() throws {
     let fixture = try ReadinessFixture()
     let journal = try fixture.open()
@@ -64,14 +64,6 @@ func transcriptionBlocksRoundTrip() throws {
     )
     try journal.recordTranscriptionBlocks(cardID: cardID, [block])
 
-    let nightID = try journal.write { db in
-        try db.execute(
-            sql: "INSERT INTO night (project_id, night_start, mode, state, opened_at) VALUES (?, ?, ?, ?, ?)",
-            arguments: ["fixture", "2026-09-15", "real", "open", JournalStore.timestamp(Date())]
-        )
-        return db.lastInsertedRowID
-    }
-
     let rows = try journal.transcriptionBlocks(cardID: cardID)
     #expect(rows.count == 1)
     #expect(rows[0].repository == "backend")
@@ -81,12 +73,66 @@ func transcriptionBlocksRoundTrip() throws {
     #expect(rows[0].content == "func foo() {}")
     #expect(rows[0].contentHash == "hash1")
     #expect(rows[0].authorSupplied == false)
+    #expect(rows[0].authorSuppliedNight == nil)
+    #expect(rows[0].isRead)
+    #expect(rows[0].block.editedReference == nil)
+}
 
-    try journal.voidTranscriptionStamp(id: rows[0].id, nightID: nightID)
-    let voided = try journal.transcriptionBlocks(cardID: cardID)
-    #expect(voided[0].authorSupplied == true)
-    #expect(voided[0].authorSuppliedNightID == nightID)
-    #expect(voided[0].mainlineCommit == nil)
+@Test("An unread edited reference is replaced in, then read, keeping its Operator-supplied Night")
+func unreadReferenceIsReadLater() throws {
+    let fixture = try ReadinessFixture()
+    let journal = try fixture.open()
+    let cardID = try fixture.insertCard(journal: journal)
+    let nightID = try journal.write { db in
+        try db.execute(
+            sql: "INSERT INTO night (project_id, night_start, mode, state, opened_at) VALUES (?, ?, ?, ?, ?)",
+            arguments: ["fixture", "2026-09-15", "real", "open", JournalStore.timestamp(Date())]
+        )
+        return db.lastInsertedRowID
+    }
+    let line = "Contract: `backend` · `a.swift` lines 3–5 · commit `abc1234`"
+    let kept = NewTranscriptionBlock(
+        repository: "backend", paths: ["b.swift"], ranges: [:], symbol: nil, mainlineCommit: "def5678",
+        content: "kept", contentHash: "h-kept", authorSupplied: false
+    )
+    let unread = NewTranscriptionBlock(
+        repository: "backend", paths: ["a.swift"], ranges: ["a.swift": [LineRange(start: 3, end: 5)]],
+        symbol: "Foo", mainlineCommit: nil, content: nil, contentHash: nil, authorSupplied: true,
+        authorSuppliedNightID: nightID, referenceText: line
+    )
+    try journal.replaceTranscriptionBlocks(cardID: cardID, [kept, unread])
+
+    let before = try journal.transcriptionBlocks(cardID: cardID)
+    #expect(before.map(\.isRead) == [true, false])
+    #expect(before[1].content == nil)
+    #expect(before[1].contentHash == nil)
+    #expect(before[1].referenceText == line)
+    #expect(before[1].authorSuppliedNightID == nightID)
+    #expect(before[1].authorSuppliedNight == NightStart(rawValue: "2026-09-15"))
+    #expect(before[1].block.editedReference == line)
+    #expect(before[1].block.content.isEmpty)
+    #expect(before[0].block.editedReference == nil)
+
+    try journal.recordTranscriptionRead(
+        id: before[1].id, mainlineCommit: "abc1234deadbeef", ranges: ["a.swift": [LineRange(start: 3, end: 5)]],
+        content: "c\nd\ne", contentHash: "h-read"
+    )
+
+    let after = try journal.transcriptionBlocks(cardID: cardID)
+    #expect(after.map(\.isRead) == [true, true])
+    #expect(after[1].content == "c\nd\ne")
+    #expect(after[1].contentHash == "h-read")
+    #expect(after[1].mainlineCommit == "abc1234deadbeef")
+    #expect(after[1].ranges == ["a.swift": [LineRange(start: 3, end: 5)]])
+    #expect(after[1].referenceText == nil)
+    #expect(after[1].block.editedReference == nil)
+    #expect(after[1].authorSupplied)
+    #expect(after[1].authorSuppliedNightID == nightID)
+    #expect(after[1].authorSuppliedNight == NightStart(rawValue: "2026-09-15"))
+    #expect(after[0] == before[0])
+
+    try journal.replaceTranscriptionBlocks(cardID: cardID, [])
+    #expect(try journal.transcriptionBlocks(cardID: cardID).isEmpty)
 }
 
 @Test("A block's line ranges round-trip through the Journal, aligned with its paths, and a whole path has none")

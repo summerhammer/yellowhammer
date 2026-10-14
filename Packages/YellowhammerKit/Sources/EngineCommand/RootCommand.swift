@@ -121,7 +121,8 @@ extension ActCommand {
             workspace: workspace,
             nightCardBounds: Self.nightCardBounds(project),
             openingReadiness: ReadinessCheck(
-                provenance: ProvenanceDiffTester(), citations: MainlineReader(refresher: refresher)
+                provenance: ProvenanceDiffTester(), citations: MainlineReader(refresher: refresher),
+                references: MainlineReader(refresher: refresher)
             ),
             operatorIdentity: operatorIdentity,
             notifier: notifier,

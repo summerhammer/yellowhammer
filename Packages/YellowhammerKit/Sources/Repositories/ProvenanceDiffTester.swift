@@ -212,27 +212,40 @@ public struct ProvenanceDiffTester: Sendable {
 // MARK: - Transcription Block & Brief Evaluation
 
 extension ProvenanceDiffTester {
+    /// The commit a block was read at, or nil when it has none (nil or blank).
+    private static func recordedCommit(of block: TranscriptionBlock) -> String? {
+        guard let commit = block.mainlineCommit, !commit.isEmpty else { return nil }
+        return commit
+    }
+
+    /// A block with no commit has nothing to diff from — an Operator-edited reference that names none.
+    private static func noCommitResult(
+        for block: TranscriptionBlock, mainline: ResolvedMainline?
+    ) -> RepoProvenanceResult {
+        RepoProvenanceResult(
+            repository: block.repository,
+            recordedPaths: block.paths,
+            recordedCommit: block.mainlineCommit,
+            mainlineRef: mainline?.ref,
+            mainlineCommit: mainline?.commit,
+            verdict: .untestable(reason: "the reference names no commit")
+        )
+    }
+
     /// Tests a Transcription Block against a working repository.
     public func testTranscriptionBlock(
         _ block: TranscriptionBlock,
         in repo: Repo,
         mainline: ResolvedMainline? = nil
     ) async -> RepoProvenanceResult {
-        if block.authorSupplied || block.mainlineCommit == nil || block.mainlineCommit?.isEmpty == true {
-            return RepoProvenanceResult(
-                repository: block.repository,
-                recordedPaths: block.paths,
-                recordedCommit: block.mainlineCommit,
-                mainlineRef: mainline?.ref,
-                mainlineCommit: mainline?.commit,
-                verdict: .operatorSupplied
-            )
+        guard let recordedCommit = Self.recordedCommit(of: block) else {
+            return Self.noCommitResult(for: block, mainline: mainline)
         }
 
         return await testProvenance(
             repository: repo,
             paths: block.paths,
-            recordedCommit: block.mainlineCommit!,
+            recordedCommit: recordedCommit,
             mainline: mainline
         )
     }
@@ -243,21 +256,14 @@ extension ProvenanceDiffTester {
         in specSource: SpecSource,
         mainline: ResolvedMainline? = nil
     ) async -> RepoProvenanceResult {
-        if block.authorSupplied || block.mainlineCommit == nil || block.mainlineCommit?.isEmpty == true {
-            return RepoProvenanceResult(
-                repository: block.repository,
-                recordedPaths: block.paths,
-                recordedCommit: block.mainlineCommit,
-                mainlineRef: mainline?.ref,
-                mainlineCommit: mainline?.commit,
-                verdict: .operatorSupplied
-            )
+        guard let recordedCommit = Self.recordedCommit(of: block) else {
+            return Self.noCommitResult(for: block, mainline: mainline)
         }
 
         return await testProvenance(
             specSource: specSource,
             paths: block.paths,
-            recordedCommit: block.mainlineCommit!,
+            recordedCommit: recordedCommit,
             mainline: mainline,
             repositoryName: block.repository
         )
@@ -269,17 +275,10 @@ extension ProvenanceDiffTester {
         projectRepositories: ProjectRepositories,
         mainlines: ResolvedMainlines? = nil
     ) async -> RepoProvenanceResult {
-        if block.authorSupplied || block.mainlineCommit == nil || block.mainlineCommit?.isEmpty == true {
+        if Self.recordedCommit(of: block) == nil {
             let resolved = mainlines?[block.repository]
                 ?? ((block.repository == "spec_source" || block.repository == "spec") ? mainlines?.specSource : nil)
-            return RepoProvenanceResult(
-                repository: block.repository,
-                recordedPaths: block.paths,
-                recordedCommit: block.mainlineCommit,
-                mainlineRef: resolved?.ref,
-                mainlineCommit: resolved?.commit,
-                verdict: .operatorSupplied
-            )
+            return Self.noCommitResult(for: block, mainline: resolved)
         }
 
         if let repo = projectRepositories.workingRepos.first(where: { $0.name == block.repository }) {

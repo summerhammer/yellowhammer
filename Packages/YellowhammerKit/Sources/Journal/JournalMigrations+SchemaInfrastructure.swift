@@ -96,14 +96,21 @@ extension JournalMigrations {
             table.column("paths", .text).notNull()
             table.column("symbol", .text)
             table.column("mainline_commit", .text)
-            table.column("content_hash", .text).notNull()
+            // The SHA-256 of `content`. NULL exactly when `content` is NULL (an unread row).
+            table.column("content_hash", .text)
+            // "Operator-supplied, as of the Night the edit was seen": set when an Operator's edit to the
+            // block's reference was honoured. Independent of `mainline_commit`.
             table.column("author_supplied", .integer).notNull().defaults(to: 0)
             table.column("author_supplied_night_id", .integer)
                 .references("night", column: "id", onDelete: .cascade)
-            // The transcribed lines, written at authoring: the worker's instruction is built from here,
-            // never from the Card, which carries only the block's reference. Nullable only for a row
-            // recorded without any.
+            // The transcribed lines: the worker's instruction is built from here, never from the Card,
+            // which carries only the block's reference. NULL means the row is UNREAD — an Operator-edited
+            // reference not yet read from local mainline (then `content_hash` is NULL too). Unread
+            // <=> `content IS NULL`.
             table.column("content", .text)
+            // The Operator's edited `Contract:` line exactly as read from the board, for an unread row;
+            // NULL once the row is read, or when the edited reference came from a legacy stamp with no line.
+            table.column("reference_text", .text)
             // The line ranges per path, one token per path aligned with `paths` and joined by `\n`
             // (`LineRange.token(for:)`); `''` when no path has any, so every path was transcribed whole.
             table.column("ranges", .text).notNull().defaults(to: "")

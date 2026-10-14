@@ -63,7 +63,8 @@ extension ActCommand {
             return BuildAct(
                 cardRunner: cardRunner,
                 readiness: ReadinessCheck(
-                    provenance: ProvenanceDiffTester(), citations: MainlineReader(refresher: refresher)
+                    provenance: ProvenanceDiffTester(), citations: MainlineReader(refresher: refresher),
+                    references: MainlineReader(refresher: refresher)
                 ),
                 // Bound in both modes (P8.10): a rehearsal Night writes no result files, so this simply
                 // finds none, and the lease-reclaim sweep falls to the event log and Crashed-Unknown.

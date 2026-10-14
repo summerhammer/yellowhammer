@@ -118,20 +118,26 @@ enum AuthoringTranscriptions {
     }
 
     /// True when the block's reference — what the Card shows of it — would not come back from
-    /// ``CardManagedBlockParser`` as the same repository, paths, ranges, symbol and commit: a symbol that
-    /// carries ` commit=`, a path with a `,`, or anything that would end the stamp's HTML comment early
-    /// (`-->`) or spill onto another line. Only the reference is on the Card, so only it is checked;
-    /// the transcribed lines never reach the Card.
-    private static func isUnrenderable(_ block: TranscriptionBlock) -> Bool {
+    /// ``CardManagedBlockParser`` as the same repository, paths, ranges, symbol and commit: a path or
+    /// symbol with a `·` or a backtick (the visible line's separators), a path with a `,` (the stamp's),
+    /// or anything that would end the stamp's HTML comment early (`-->`) or spill onto another line. The
+    /// visible line is read first, then the stamp alone — the mirror a card without a line falls back to.
+    /// Only the reference is on the Card, so only it is checked; the transcribed lines never reach it.
+    static func isUnrenderable(_ block: TranscriptionBlock) -> Bool {
         let lines = TranscriptionBlockLine.render(block)
         guard lines.count == 4, !lines.contains(where: { $0.contains("\n") }),
             lines[1].components(separatedBy: "-->").count == 2
         else { return true }
+        let stampOnly = [lines[1], lines[3]]
+        return [lines, stampOnly].contains { !readsBack(block, from: $0) }
+    }
+
+    private static func readsBack(_ block: TranscriptionBlock, from lines: [String]) -> Bool {
         let parsed = CardManagedBlockParser.parse(block: lines.joined(separator: "\n")).transcriptions
-        guard parsed.count == 1, let stamp = parsed.first else { return true }
-        return stamp.repository != block.repository || stamp.paths != block.paths
-            || stamp.ranges != block.ranges.filter { !$0.value.isEmpty } || stamp.symbol != block.symbol
-            || stamp.commitField != (block.mainlineCommit ?? "Operator-supplied")
+        guard parsed.count == 1, let reference = parsed.first, reference.failure == nil else { return false }
+        return reference.repository == block.repository && reference.paths == block.paths
+            && reference.ranges == block.ranges.filter { !$0.value.isEmpty } && reference.symbol == block.symbol
+            && reference.commit == block.mainlineCommit
     }
 
     private static func reason(for error: Error) -> String {

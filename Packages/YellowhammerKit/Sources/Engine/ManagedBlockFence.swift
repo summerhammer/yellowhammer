@@ -18,6 +18,8 @@ public enum ManagedBlockFence {
         case endDuplicated
         case endBeforeStart
         case featureAuthoringMalformed
+        /// A Transcription Block inside the Managed Block lost one of its delimiters (or gained a stray one).
+        case transcriptionDelimiterUnpaired
 
         public var description: String {
             switch self {
@@ -29,6 +31,9 @@ public enum ManagedBlockFence {
             case .startDuplicated: "the `\(ManagedBlockFence.start)` delimiter appears more than once"
             case .endDuplicated: "the `\(ManagedBlockFence.end)` delimiter appears more than once"
             case .endBeforeStart: "the `\(ManagedBlockFence.end)` delimiter comes before `\(ManagedBlockFence.start)`"
+            case .transcriptionDelimiterUnpaired:
+                "a `\(TranscriptionBlockLine.startPrefix)…-->` or `\(TranscriptionBlockLine.endMarker)` "
+                    + "delimiter has no partner"
             }
         }
     }
@@ -61,6 +66,9 @@ public enum ManagedBlockFence {
         guard starts.count == 1 else { return .failure(.startDuplicated) }
         guard ends.count == 1 else { return .failure(.endDuplicated) }
         guard startRange.upperBound <= endRange.lowerBound else { return .failure(.endBeforeStart) }
+        guard transcriptionDelimitersPaired(in: description[startRange.upperBound..<endRange.lowerBound]) else {
+            return .failure(.transcriptionDelimiterUnpaired)
+        }
 
         let prefix = description[..<startRange.upperBound]
         let suffix = description[endRange.lowerBound...]
@@ -98,6 +106,9 @@ public enum ManagedBlockFence {
         guard starts.count == 1 else { return .failure(.startDuplicated) }
         guard ends.count == 1 else { return .failure(.endDuplicated) }
         guard startRange.upperBound <= endRange.lowerBound else { return .failure(.endBeforeStart) }
+        guard transcriptionDelimitersPaired(in: description[startRange.upperBound..<endRange.lowerBound]) else {
+            return .failure(.transcriptionDelimiterUnpaired)
+        }
 
         var block = description[startRange.upperBound..<endRange.lowerBound]
         if block.first == "\n" { block = block.dropFirst() }
@@ -117,6 +128,27 @@ public enum ManagedBlockFence {
     /// SHA-256 of the UTF-8 bytes, as lowercase hex.
     public static func sha256(_ text: String) -> String {
         SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// Whether every Transcription Block start line in `managed` (the text between the Managed Block's
+    /// delimiters) has an end line after it, and every end line closes a start. Read the way
+    /// ``TranscriptionBlockMasking`` reads: after a start, everything up to the first end line is interior,
+    /// so a start nested inside is interior too. Text outside the Managed Block is never looked at, and
+    /// neither is the Architectural Brief's prose: it is opaque, so a marker quoted there is prose.
+    private static func transcriptionDelimitersPaired(in managed: Substring) -> Bool {
+        let lines = managed.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        let prose = ArchitecturalBriefProseRegion.maskedLineIndices(lines)
+        var open = false
+        for (index, line) in lines.enumerated() where !prose.contains(index) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed == TranscriptionBlockLine.endMarker {
+                guard open else { return false }
+                open = false
+            } else if !open, trimmed.hasPrefix(TranscriptionBlockLine.startPrefix), trimmed.hasSuffix("-->") {
+                open = true
+            }
+        }
+        return !open
     }
 
     /// `occurrences`, less any that fall inside opaque Brief prose or terminated Transcription Blocks.

@@ -6,7 +6,6 @@ import Foundation
 public enum ProvenanceVerdict: Equatable, Sendable {
     case clean
     case stale(changedPaths: [String])
-    case operatorSupplied
     case untestable(reason: String)
 }
 
@@ -31,10 +30,10 @@ public struct RepoProvenanceResult: Equatable, Sendable {
         return []
     }
 
-    /// True for `.clean` and `.operatorSupplied`.
+    /// True only for `.clean`.
     public var isStillGood: Bool {
         switch verdict {
-        case .clean, .operatorSupplied:
+        case .clean:
             return true
         case .stale, .untestable:
             return false

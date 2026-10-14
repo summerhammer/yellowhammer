@@ -146,4 +146,41 @@ struct OutboxManagedBlockTests {
         _ = try await outbox.post(write)
         #expect(await board.comments.count == 1)
     }
+
+    @Test("A Transcription Block with one delimiter left behind aborts the write like a broken fence")
+    func unpairedTranscriptionDelimiterAbortsSafely() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let board = FakeWritingBoard()
+        let broken = """
+            Prose above.
+            \(ManagedBlockFence.start)
+            ### Architectural Brief
+            <!-- yh:brief-prose:start id=0 -->
+            Approach.
+            <!-- yh:brief-prose:end id=0 -->
+            Contract: `api` · `a.swift` · commit `abc1234`
+            <!-- yh:transcription:end -->
+            \(ManagedBlockFence.end)
+            """
+        let issue = await board.seed(issue: "issue-1", description: broken)
+        let outbox = try outbox(journal, board: board)
+        let write = OutboxWrite(key: "block:issue-1", write: .rewriteManagedBlock(issue: issue, rendered: "new"))
+
+        let delivery = try await outbox.post(write)
+
+        guard case .aborted(let reason) = delivery.outcome else {
+            Issue.record("expected aborted, got \(delivery.outcome)")
+            return
+        }
+        let unpaired = ManagedBlockFence.Failure.transcriptionDelimiterUnpaired
+        #expect(reason == "Managed Block delimiters broken: \(unpaired)")
+        #expect(await board.updateCalls == 0)
+        #expect(await board.issue(issue)?.description == broken)
+        #expect(try journal.events(ofType: .managedBlockDelimiterBroken).map(\.event)
+            == [.managedBlockDelimiterBroken(issueID: "issue-1")])
+        let comments = await board.comments
+        #expect(comments.count == 1)
+        #expect(comments.first?.body.contains("yh:transcription:end") == true)
+    }
 }

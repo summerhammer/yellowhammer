@@ -1,30 +1,35 @@
 import Domain
 import Foundation
 
-/// A Transcription Block's stamp as read back from the board's copy of a Card's Managed Block: the
-/// renderer's `<!-- yh:transcription:start ... -->` comment. The lines between it and the end marker (the
-/// visible reference, or the content a legacy card still carries) are skipped, never parsed: the card
-/// holds a reference only, and the transcribed lines live in the Journal.
+/// A Transcription Block's REFERENCE as read back from the board's copy of a Card's Managed Block
+/// (spec: feature-authoring/author-an-architectural-brief#edited-reference). The visible `Contract:` line
+/// between the delimiters is the reference — an Operator may have edited it — and it wins over the
+/// `<!-- yh:transcription:start ... -->` stamp, which is only the machine's mirror. A card with no such
+/// line (one written before the Card showed a reference only) is read from its stamp.
 public struct ParsedTranscription: Equatable, Sendable {
     public var repository: String
     public var paths: [String]
-    /// The line ranges per path from the stamp's `ranges=` field: `[:]` when the stamp has none, and nil
-    /// when the field is malformed (a bad token, or a token count other than the path count).
-    public var ranges: [String: [LineRange]]?
+    /// The line ranges per path, as written (not unioned or validated); `[:]` for none.
+    public var ranges: [String: [LineRange]]
     public var symbol: String?
-    /// The raw `commit=` field, exactly as the renderer wrote it: a commit sha, or
-    /// `Operator-supplied` / `Operator-supplied as of <night>` when the block is Operator-supplied.
-    public var commitField: String
+    /// The commit named; nil when the reference names none (`-`, or a legacy `Operator-supplied` stamp).
+    public var commit: String?
+    /// The raw visible `Contract:` line, trimmed, when the block's interior had one.
+    public var line: String?
+    /// Why the reference could not be parsed; when non-nil the field values above are meaningless.
+    public var failure: String?
 
     public init(
-        repository: String, paths: [String], ranges: [String: [LineRange]]? = [:], symbol: String?,
-        commitField: String
+        repository: String, paths: [String], ranges: [String: [LineRange]] = [:], symbol: String? = nil,
+        commit: String? = nil, line: String? = nil, failure: String? = nil
     ) {
         self.repository = repository
         self.paths = paths
         self.ranges = ranges
         self.symbol = symbol
-        self.commitField = commitField
+        self.commit = commit
+        self.line = line
+        self.failure = failure
     }
 }
 
@@ -119,33 +124,57 @@ public enum CardManagedBlockParser {
                 index += 1
                 continue
             }
-            let fields = parseTranscriptionFields(trimmed)
-            // Everything up to the end marker is interior: skipped, never read.
+            let stamp = trimmed
+            // Everything up to the end marker is interior; the first `Contract:` line in it is the reference.
             index += 1
+            var contractLine: String?
             while index < lines.count, lines[index].trimmingCharacters(in: .whitespaces) != transcriptionEnd {
+                let interior = lines[index].trimmingCharacters(in: .whitespacesAndNewlines)
+                if contractLine == nil, interior.hasPrefix(referencePrefix) { contractLine = interior }
                 index += 1
             }
             // index now at the end marker (or past the end of the text if malformed); skip it.
             if index < lines.count { index += 1 }
 
-            let pathsRaw = fields["paths"] ?? ""
-            let paths = pathsRaw.isEmpty ? [] : pathsRaw.split(separator: ",").map(String.init)
-            let symbolRaw = fields["symbol"]
-            let symbol = (symbolRaw == nil || symbolRaw == "-") ? nil : symbolRaw
-
-            let tokens = fields["ranges"].map {
-                $0.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
-            }
-
-            results.append(ParsedTranscription(
-                repository: fields["repo"] ?? "",
-                paths: paths,
-                ranges: LineRange.ranges(fromTokens: tokens, paths: paths),
-                symbol: symbol,
-                commitField: fields["commit"] ?? ""
-            ))
+            results.append(contractLine.map(parsedFromLine) ?? parsedFromStamp(stamp))
         }
         return results
+    }
+
+    private static func parsedFromLine(_ line: String) -> ParsedTranscription {
+        switch parseReference(line: line) {
+        case .success(let reference):
+            return ParsedTranscription(
+                repository: reference.repository, paths: reference.paths, ranges: reference.ranges,
+                symbol: reference.symbol, commit: reference.commit, line: line
+            )
+        case .failure(let failure):
+            return ParsedTranscription(repository: "", paths: [], line: line, failure: failure.reason)
+        }
+    }
+
+    /// The reference a legacy block states in its stamp alone. A `commit=` of `-` or
+    /// `Operator-supplied…` names no commit.
+    private static func parsedFromStamp(_ stamp: String) -> ParsedTranscription {
+        let fields = parseTranscriptionFields(stamp)
+        let pathsRaw = fields["paths"] ?? ""
+        let paths = pathsRaw.isEmpty ? [] : pathsRaw.split(separator: ",").map(String.init)
+        let symbolRaw = fields["symbol"]
+        let symbol = (symbolRaw == nil || symbolRaw == "-") ? nil : symbolRaw
+        let tokens = fields["ranges"].map {
+            $0.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
+        }
+        guard let ranges = LineRange.ranges(fromTokens: tokens, paths: paths) else {
+            return ParsedTranscription(
+                repository: "", paths: [], failure: "the stamp's `ranges=` field is malformed"
+            )
+        }
+        let commitRaw = fields["commit"] ?? ""
+        let commit = (commitRaw.isEmpty || commitRaw == TranscriptionBlockLine.noCommit
+            || commitRaw.hasPrefix("Operator-supplied")) ? nil : commitRaw
+        return ParsedTranscription(
+            repository: fields["repo"] ?? "", paths: paths, ranges: ranges, symbol: symbol, commit: commit
+        )
     }
 
     /// Parses `key=value` pairs from a transcription start comment. The `commit=` field's value may
