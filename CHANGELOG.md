@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.16.0](https://github.com/summerhammer/yellowhammer/compare/v0.15.1...v0.16.0) (2026-10-14)
+
+
+### Features
+
+* **authoring:** transcribe only a contract path's named line ranges, and keep lines off the card ([#497](https://github.com/summerhammer/yellowhammer/issues/497)) ([1d50612](https://github.com/summerhammer/yellowhammer/commit/1d50612f27abee88d891c237be0f8613d73df120))
+* **bounds:** halt Features after repeated authoring faults ([58ee6dd](https://github.com/summerhammer/yellowhammer/commit/58ee6ddf59316f6a86d31e1eecb0c8e00cc24b1c))
+* **engine:** honour an Operator's edit to a Transcription Block reference as a new reference ([3d2b514](https://github.com/summerhammer/yellowhammer/commit/3d2b5140d95db630540c524556c289b08b036320)), closes [#491](https://github.com/summerhammer/yellowhammer/issues/491)
+
+
+### Bug Fixes
+
+* **authoring:** tell the breakdown the description budget, apart from how a contract path is read ([c061525](https://github.com/summerhammer/yellowhammer/commit/c061525e310a42912773eb65823675abf63524cb)), closes [#486](https://github.com/summerhammer/yellowhammer/issues/486)
+* **author:** refuse directory and non-regular contract paths ([#495](https://github.com/summerhammer/yellowhammer/issues/495)) ([5470473](https://github.com/summerhammer/yellowhammer/commit/547047329b1dbb64ba27be463bf0132e885264f1))
+* **cli-adapters:** preserve agy output after recovered API errors ([89e6088](https://github.com/summerhammer/yellowhammer/commit/89e608887e6083534cff8f1d99d19b82395eae14)), closes [#484](https://github.com/summerhammer/yellowhammer/issues/484)
+* **engine:** correct authoring fault wording and trim trailing period ([#494](https://github.com/summerhammer/yellowhammer/issues/494)) ([6e2aac4](https://github.com/summerhammer/yellowhammer/commit/6e2aac4c01d8b22d93b98e344b326f8311faadf5)), closes [#489](https://github.com/summerhammer/yellowhammer/issues/489)
+* **engine:** keep every board description within the Board Connection's description budget ([7fbdbaf](https://github.com/summerhammer/yellowhammer/commit/7fbdbaf742cf79f38a3e171572ad8aee109bcbb2)), closes [#485](https://github.com/summerhammer/yellowhammer/issues/485)
+* **engine:** preserve the full Operator Architectural Brief ([#500](https://github.com/summerhammer/yellowhammer/issues/500)) ([a3e4e4c](https://github.com/summerhammer/yellowhammer/commit/a3e4e4c126a1e6ca12bbc067df384dec2a1a1bf2))
+
 ## [0.15.1](https://github.com/summerhammer/yellowhammer/compare/v0.15.0...v0.15.1) (2026-10-13)
 
 
