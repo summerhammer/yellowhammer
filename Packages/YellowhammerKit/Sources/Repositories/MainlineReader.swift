@@ -207,9 +207,11 @@ public struct MainlineReader: Sendable {
 
         throw MainlineReadError.unconfiguredRepository(repository)
     }
+}
 
-    // MARK: - Internal Helpers
+// MARK: - Internal Helpers
 
+extension MainlineReader {
     func resolveCommit(
         requestedCommit: String?,
         fallbackCommit: String?,
@@ -260,12 +262,51 @@ public struct MainlineReader: Sendable {
         repositoryPath: String,
         repositoryName: String
     ) async throws -> String {
-        let catResult = await git.run(["-C", repositoryPath, "cat-file", "-e", "\(commit):\(path)"])
-        guard catResult.isSuccess else {
+        let rawTrimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !rawTrimmed.isEmpty else {
             throw MainlineReadError.fileNotFound(path: path, commit: commit, repository: repositoryName)
         }
 
-        let showResult = await git.run(["-C", repositoryPath, "show", "\(commit):\(path)"])
+        var cleanPath = rawTrimmed
+        while cleanPath.hasPrefix("./") {
+            cleanPath.removeFirst(2)
+        }
+        while cleanPath.hasSuffix("/") {
+            cleanPath.removeLast()
+        }
+        guard !cleanPath.isEmpty else {
+            throw MainlineReadError.notAFile(path: path, commit: commit, repository: repositoryName)
+        }
+
+        let lsResult = await git.run(["-C", repositoryPath, "ls-tree", commit, "--", cleanPath])
+        guard lsResult.isSuccess else {
+            throw MainlineReadError.fileNotFound(path: path, commit: commit, repository: repositoryName)
+        }
+
+        let output = lsResult.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !output.isEmpty else {
+            throw MainlineReadError.fileNotFound(path: path, commit: commit, repository: repositoryName)
+        }
+
+        let lines = output.components(separatedBy: "\n").filter { !$0.isEmpty }
+        let matchingEntry = lines.first { line in
+            let parts = line.split(separator: "\t", maxSplits: 1)
+            guard parts.count == 2 else { return false }
+            let entryPath = parts[1]
+            return entryPath == cleanPath || entryPath == "\"\(cleanPath)\""
+        }
+
+        guard let entry = matchingEntry else {
+            throw MainlineReadError.notAFile(path: path, commit: commit, repository: repositoryName)
+        }
+
+        let metadata = entry.split(separator: "\t", maxSplits: 1)[0]
+        let mode = metadata.split(separator: " ").first.map(String.init)
+        guard mode == "100644" || mode == "100755" else {
+            throw MainlineReadError.notAFile(path: path, commit: commit, repository: repositoryName)
+        }
+
+        let showResult = await git.run(["-C", repositoryPath, "show", "\(commit):\(cleanPath)"])
         guard showResult.isSuccess else {
             let stderr = showResult.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
             throw MainlineReadError.gitError(stderr.isEmpty ? "Failed to read \(path) at \(commit)" : stderr)

@@ -35,6 +35,7 @@ public enum MainlineReadError: Error, Equatable, Sendable, CustomStringConvertib
     case unresolvableMainline(repository: String, reason: String)
     case unresolvableCommit(repository: String, commit: String)
     case fileNotFound(path: String, commit: String, repository: String)
+    case notAFile(path: String, commit: String, repository: String)
     case noSpecificationSource
     case multipleSpecificationSources([String])
     case gitError(String)
@@ -55,6 +56,9 @@ public enum MainlineReadError: Error, Equatable, Sendable, CustomStringConvertib
             return "Commit '\(commit)' could not be resolved in repository '\(repo)'."
         case .fileNotFound(let path, let commit, let repo):
             return "File '\(path)' not found at commit '\(commit)' in repository '\(repo)'."
+        case .notAFile(let path, let commit, let repo):
+            return "Path '\(path)' at commit '\(commit)' in repository '\(repo)' " +
+                "names a directory, symlink, or submodule, not a regular file."
         case .noSpecificationSource:
             return "Project has no specification source configured."
         case .multipleSpecificationSources(let sources):

@@ -94,6 +94,111 @@ struct AuthoringTranscriptionHaltTests {
         #expect(detail?.contains("mobile") == true)
     }
 
+    @Test("A directory path named as a contract halts authoring, naming the repository and path (issue #488)")
+    func directoryPathOnMainlineHaltsAuthoring() async throws {
+        let fixture = EngineGitFixture()
+        await fixture.initRepo()
+        try await fixture.commit(filename: "docs/tech/decisions/0001.md", content: "# Decision 1")
+        let repo = Repo(name: "mobile", path: fixture.path, role: .mobile)
+        let repositories = ProjectRepositories(
+            workingRepos: [Repo(name: "backend", path: "/repos/backend", role: .backend), repo],
+            specSource: SpecSource(path: "/repos/spec")
+        )
+
+        let kind = try authoringKind()
+        let breakdown = FeatureBreakdown(
+            definitionOfDone: [authoringClause("The Feature is done.")],
+            cards: [
+                CardDraft(
+                    repository: "backend", kind: kind, title: "Backend one", unitOfWork: "Do it",
+                    brief: "Approach.",
+                    definitionOfDone: [authoringClause("Backend one is done.")],
+                    contracts: [ContractDraft(repository: "mobile", paths: ["docs/tech/decisions"])]
+                )
+            ]
+        )
+        let rig = try await AuthoringRig(drafting: ScriptedBreakdown(breakdown), transcribing: MainlineReader())
+        let context = try makeSelectionContext(
+            rig.journal, repositories: repositories, boards: rig.boards, mainlines: ResolvedMainlines()
+        ).context
+
+        let outcome = try await rig.run(context)
+
+        #expect(outcome == .halted)
+        #expect(try tableRowCount(rig.journal, table: "card") == 0)
+        let event = try #require(try rig.journal.events().first { $0.type == .featureAuthoringHalted })
+        guard case .featureAuthoringHalted(_, let kind, let detail) = event.event else {
+            Issue.record("expected featureAuthoringHalted")
+            return
+        }
+        #expect(kind == "contract-unreadable")
+        #expect(detail?.contains("mobile") == true)
+        #expect(detail?.contains("docs/tech/decisions") == true)
+
+        let live = await rig.boards.writing.liveIssues
+        let issue = try #require(live.first { $0.title == "FEAT-1" })
+        #expect(try await issue.workflowState == waitingOnYouStateID(rig.boards))
+        let comments = await rig.boards.writing.comments
+        #expect(comments.contains {
+            $0.issue == issue.id && $0.body.contains("mobile") && $0.body.contains("docs/tech/decisions")
+                && $0.body.contains("names a directory, symlink, or submodule, not a regular file")
+        })
+    }
+
+    @Test("A symlink path or submodule path named as a contract halts authoring (issue #488)")
+    func symlinkAndSubmoduleOnMainlineHaltAuthoring() async throws {
+        let fixture = EngineGitFixture()
+        await fixture.initRepo()
+        try await fixture.commit(filename: "target.swift", content: "struct Target {}")
+        let symlinkURL = fixture.url.appendingPathComponent("link.swift")
+        try FileManager.default.createSymbolicLink(atPath: symlinkURL.path, withDestinationPath: "target.swift")
+        _ = await fixture.run(["add", "link.swift"])
+        _ = await fixture.run([
+            "update-index", "--add", "--cacheinfo", "160000",
+            "0123456789abcdef0123456789abcdef01234567", "submodule-ref"
+        ])
+        _ = await fixture.run(["commit", "-m", "add symlink and submodule"])
+
+        let repo = Repo(name: "mobile", path: fixture.path, role: .mobile)
+        let repositories = ProjectRepositories(
+            workingRepos: [Repo(name: "backend", path: "/repos/backend", role: .backend), repo],
+            specSource: SpecSource(path: "/repos/spec")
+        )
+
+        let kind = try authoringKind()
+        let breakdown = FeatureBreakdown(
+            definitionOfDone: [authoringClause("The Feature is done.")],
+            cards: [
+                CardDraft(
+                    repository: "backend", kind: kind, title: "Backend one", unitOfWork: "Do it",
+                    brief: "Approach.",
+                    definitionOfDone: [authoringClause("Backend one is done.")],
+                    contracts: [
+                        ContractDraft(repository: "mobile", paths: ["link.swift"]),
+                        ContractDraft(repository: "mobile", paths: ["submodule-ref"])
+                    ]
+                )
+            ]
+        )
+        let rig = try await AuthoringRig(drafting: ScriptedBreakdown(breakdown), transcribing: MainlineReader())
+        let context = try makeSelectionContext(
+            rig.journal, repositories: repositories, boards: rig.boards, mainlines: ResolvedMainlines()
+        ).context
+
+        let outcome = try await rig.run(context)
+
+        #expect(outcome == .halted)
+        #expect(try tableRowCount(rig.journal, table: "card") == 0)
+        let event = try #require(try rig.journal.events().first { $0.type == .featureAuthoringHalted })
+        guard case .featureAuthoringHalted(_, let kind, let detail) = event.event else {
+            Issue.record("expected featureAuthoringHalted")
+            return
+        }
+        #expect(kind == "contract-unreadable")
+        #expect(detail?.contains("link.swift") == true)
+        #expect(detail?.contains("submodule-ref") == true)
+    }
+
     @Test("Nil Project repositories makes every contract unreadable (AuthoringTranscriptions unit)")
     func nilRepositoriesMakesContractsUnreadable() async throws {
         // A nil `context.repositories` also makes every drafted clause uncitable, so the full

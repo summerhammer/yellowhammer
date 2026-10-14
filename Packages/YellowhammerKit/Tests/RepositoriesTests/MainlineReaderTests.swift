@@ -273,4 +273,126 @@ struct MainlineReaderTests {
             )
         }
     }
+
+    @Test("Reading a directory path throws notAFile")
+    func directoryPathThrowsNotAFile() async throws {
+        let fixture = GitFixture(name: "mlr-directory-9")
+        await fixture.initRepo(defaultBranch: "main")
+        let sha = try await fixture.commit(filename: "docs/tech/decisions/0001.md", content: "# Decision 1")
+
+        let repo = Repo(name: "specs", path: fixture.path, role: .backend)
+        let repos = ProjectRepositories(workingRepos: [repo])
+        let reader = MainlineReader()
+
+        // 1. Directory path without trailing slash
+        await #expect(
+            throws: MainlineReadError.notAFile(path: "docs/tech/decisions", commit: sha, repository: "specs")
+        ) {
+            try await reader.readFile(
+                path: "docs/tech/decisions",
+                repository: "specs",
+                in: repos,
+                commit: sha
+            )
+        }
+
+        // 2. Directory path with trailing slash sanitizes to without trailing slash
+        await #expect(
+            throws: MainlineReadError.notAFile(path: "docs/tech/decisions", commit: sha, repository: "specs")
+        ) {
+            try await reader.readFile(
+                path: "docs/tech/decisions/",
+                repository: "specs",
+                in: repos,
+                commit: sha
+            )
+        }
+
+        // 3. Description names directory, symlink, or submodule, and not a regular file
+        let error = MainlineReadError.notAFile(path: "docs/tech/decisions", commit: sha, repository: "specs")
+        #expect(error.description.contains("docs/tech/decisions"))
+        #expect(error.description.contains("specs"))
+        #expect(error.description.contains("directory"))
+        #expect(error.description.contains("not a regular file"))
+    }
+
+    @Test("Reading a symlink path throws notAFile")
+    func symlinkPathThrowsNotAFile() async throws {
+        let fixture = GitFixture(name: "mlr-symlink-10")
+        await fixture.initRepo(defaultBranch: "main")
+        try await fixture.commit(filename: "target.txt", content: "target content")
+        let symlinkURL = fixture.url.appendingPathComponent("link.txt")
+        try FileManager.default.createSymbolicLink(atPath: symlinkURL.path, withDestinationPath: "target.txt")
+        _ = await fixture.run(["add", "link.txt"])
+        _ = await fixture.run(["commit", "-m", "add symlink"])
+        let sha = try #require(await fixture.revParse("HEAD"))
+
+        let repo = Repo(name: "service", path: fixture.path, role: .backend)
+        let repos = ProjectRepositories(workingRepos: [repo])
+        let reader = MainlineReader()
+
+        await #expect(throws: MainlineReadError.notAFile(path: "link.txt", commit: sha, repository: "service")) {
+            try await reader.readFile(
+                path: "link.txt",
+                repository: "service",
+                in: repos,
+                commit: sha
+            )
+        }
+    }
+
+    @Test("Reading a submodule path throws notAFile")
+    func submodulePathThrowsNotAFile() async throws {
+        let fixture = GitFixture(name: "mlr-submodule-11")
+        await fixture.initRepo(defaultBranch: "main")
+        try await fixture.commit(filename: "init.txt", content: "init")
+        _ = await fixture.run([
+            "update-index", "--add", "--cacheinfo", "160000",
+            "0123456789abcdef0123456789abcdef01234567", "submodule-lane"
+        ])
+        _ = await fixture.run(["commit", "-m", "add submodule gitlink"])
+        let sha = try #require(await fixture.revParse("HEAD"))
+
+        let repo = Repo(name: "service", path: fixture.path, role: .backend)
+        let repos = ProjectRepositories(workingRepos: [repo])
+        let reader = MainlineReader()
+
+        await #expect(throws: MainlineReadError.notAFile(
+            path: "submodule-lane", commit: sha, repository: "service"
+        )) {
+            try await reader.readFile(
+                path: "submodule-lane",
+                repository: "service",
+                in: repos,
+                commit: sha
+            )
+        }
+    }
+
+    @Test("Reads executable file (mode 100755) successfully")
+    func executableFileRead() async throws {
+        let fixture = GitFixture(name: "mlr-exec-12")
+        await fixture.initRepo(defaultBranch: "main")
+        let fileURL = fixture.url.appendingPathComponent("script.sh")
+        try "#!/bin/sh\necho hi".write(to: fileURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fileURL.path)
+        _ = await fixture.run(["add", "script.sh"])
+        _ = await fixture.run(["commit", "-m", "add executable script"])
+        let sha = try #require(await fixture.revParse("HEAD"))
+
+        let repo = Repo(name: "tools", path: fixture.path, role: .backend)
+        let repos = ProjectRepositories(workingRepos: [repo])
+        let reader = MainlineReader()
+
+        let read = try await reader.readFile(
+            path: "script.sh",
+            repository: "tools",
+            in: repos,
+            commit: sha
+        )
+        #expect(read.content == "#!/bin/sh\necho hi")
+        #expect(read.commit == sha)
+        #expect(read.repository == "tools")
+        #expect(read.path == "script.sh")
+    }
 }
