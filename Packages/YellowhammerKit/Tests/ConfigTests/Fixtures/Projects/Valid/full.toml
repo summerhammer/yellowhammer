@@ -32,6 +32,7 @@ overdue_nights_max = 4
 reselections_max = 3
 consecutive_refusals_max = 5
 failed_adoptions_max = 3
+consecutive_authoring_faults_max = 7
 
 [schedule]
 night_start = "23:00"

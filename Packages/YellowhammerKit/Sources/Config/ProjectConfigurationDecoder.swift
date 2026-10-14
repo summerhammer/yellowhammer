@@ -161,7 +161,8 @@ struct ProjectConfigurationDecoder {
             path: "limits",
             allowed: [
                 "review_rounds_max", "attempts_per_work_card", "overdue_nights_max",
-                "reselections_max", "consecutive_refusals_max", "failed_adoptions_max"
+                "reselections_max", "consecutive_refusals_max", "failed_adoptions_max",
+                "consecutive_authoring_faults_max"
             ]
         )
         func bound(_ key: String, _ defaultValue: Int) throws(ConfigurationError) -> Int {
@@ -173,7 +174,10 @@ struct ProjectConfigurationDecoder {
             unansweredNightsMax: try bound("overdue_nights_max", defaults.unansweredNightsMax),
             reselectionsMax: try bound("reselections_max", defaults.reselectionsMax),
             consecutiveRefusalsMax: try bound("consecutive_refusals_max", defaults.consecutiveRefusalsMax),
-            failedAdoptionsMax: try bound("failed_adoptions_max", defaults.failedAdoptionsMax)
+            failedAdoptionsMax: try bound("failed_adoptions_max", defaults.failedAdoptionsMax),
+            consecutiveAuthoringFaultsMax: try bound(
+                "consecutive_authoring_faults_max", defaults.consecutiveAuthoringFaultsMax
+            )
         )
     }
 

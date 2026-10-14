@@ -12,7 +12,8 @@ import Journal
 /// touches a Refusal or any consecutive count.
 ///
 /// Once a halt has expired, a repeat writes nothing to the board at all: the Feature Issue stays
-/// Blocked, no re-create into Waiting on You and no repeated comment.
+/// Blocked, no re-create into Waiting on You and no repeated comment. Repeated authoring faults append
+/// the forced run's result even after expiry, keeping the existing state.
 enum AuthoringHalt {
     static func record(
         feature: FeatureName, cause: AuthoringHaltCause, context: ActContext
@@ -25,12 +26,15 @@ enum AuthoringHalt {
             feature: feature, causeKind: cause.kind, detail: cause.detail, content: cause.description,
             nightID: context.night.id, act: context.act, runID: context.runID
         )
-        if outcome.alreadyExpired { return .halted }
-        let reopenKey = outcome.newlyOpened
+        let repeatedFault: Bool
+        if case .authoringRepeatedlyFaulted = cause { repeatedFault = true } else { repeatedFault = false }
+        if outcome.alreadyExpired, !repeatedFault { return .halted }
+        let reopenKey = outcome.newlyOpened && !repeatedFault
             ? "feature:\(feature.rawValue):authoring-halt:\(outcome.record.id):reenter"
             : nil
         try await AuthoringStopBoard.post(
-            feature: feature, body: cause.description, context: context, reopenKey: reopenKey
+            feature: feature, body: cause.description, context: context, reopenKey: reopenKey,
+            commentSuffix: repeatedFault ? context.runID.rawValue : nil
         ) {
             try context.journal.recordAuthoringHaltIssue(feature: feature, issueID: $0)
         }

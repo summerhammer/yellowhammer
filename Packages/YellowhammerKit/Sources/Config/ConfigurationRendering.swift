@@ -137,7 +137,7 @@ enum ConfigurationRendering {
         return "\(template.kind.key) = \(quoted(template.text))"
     }
 
-    /// All six Bounds, explicit — see the spec citation on ``ConfigurationRendering``.
+    /// All seven Bounds, explicit — see the spec citation on ``ConfigurationRendering``.
     static func renderedLimits(_ bounds: BoundsDraft) -> String {
         """
         [limits]
@@ -147,6 +147,7 @@ enum ConfigurationRendering {
         reselections_max = \(boundValue(bounds.reselectionsMax))
         consecutive_refusals_max = \(boundValue(bounds.consecutiveRefusalsMax))
         failed_adoptions_max = \(boundValue(bounds.failedAdoptionsMax))
+        consecutive_authoring_faults_max = \(boundValue(bounds.consecutiveAuthoringFaultsMax))
         """
     }
 
@@ -435,7 +436,7 @@ extension MachineConfiguration {
 }
 
 extension ProjectConfiguration {
-    /// Renders the Project's identity, Board and Code Hosting selections, Repos, `[limits]` (all six Bounds,
+    /// Renders the Project's identity, Board and Code Hosting selections, Repos, `[limits]` (all seven Bounds,
     /// explicit) and `[schedule]` (all three keys, explicit) — see the spec citation on
     /// ``ConfigurationRendering`` — plus a `[github]` title when it is not the default and any Routing Table
     /// overrides.

@@ -98,7 +98,7 @@ struct SpecBlock: View {
 
 // MARK: - Bounds
 
-/// The six per-Project Bounds, grouped by their consequence and presented as sentences.
+/// The seven per-Project Bounds, grouped by their consequence and presented as sentences.
 struct BoundsBlock: View {
     @Binding var draft: AddProjectDraft
 

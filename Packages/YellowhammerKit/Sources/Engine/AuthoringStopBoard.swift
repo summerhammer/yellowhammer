@@ -15,7 +15,7 @@ enum AuthoringStopBoard {
     /// is handed the Feature Issue's id before the comment is posted, so the Journal row carries it.
     static func post(
         feature: FeatureName, body: String, context: ActContext,
-        reopenKey: String? = nil, recordIssue: (String) throws -> Void
+        reopenKey: String? = nil, commentSuffix: String? = nil, recordIssue: (String) throws -> Void
     ) async throws {
         guard let outbox = context.outbox, let board = context.board else { return }
         let scope = try await BoardStateScope.resolve(using: board.provisioning)
@@ -65,14 +65,15 @@ enum AuthoringStopBoard {
             ))
         }
 
-        let commentKey = "feature:\(feature.rawValue):halt:\(context.night.nightStart.rawValue):comment"
+        let commentStamp = commentSuffix ?? context.night.nightStart.rawValue
+        let commentKey = "feature:\(feature.rawValue):halt:\(commentStamp):comment"
         _ = try await outbox.post(OutboxWrite(key: commentKey, write: .createComment(issue: createdID, body: body)))
     }
 }
 
 extension AuthoringStopBoard {
     /// The Feature Issue id a Refusal or Authoring Halt row already holds for `feature`, newest first.
-    private static func knownIssueID(_ feature: FeatureName, _ journal: JournalStore) throws -> BoardObjectID? {
+    static func knownIssueID(_ feature: FeatureName, _ journal: JournalStore) throws -> BoardObjectID? {
         let refused = try journal.refusals(feature: feature).compactMap(\.issueID)
         let halted = try journal.authoringHalts(feature: feature).compactMap(\.issueID)
         let ids = refused + halted

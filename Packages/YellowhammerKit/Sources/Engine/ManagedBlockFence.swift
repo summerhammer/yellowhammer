@@ -17,10 +17,12 @@ public enum ManagedBlockFence {
         case startDuplicated
         case endDuplicated
         case endBeforeStart
+        case featureAuthoringMalformed
 
         public var description: String {
             switch self {
             case .malformedBriefProse: "the Architectural Brief prose delimiter is malformed"
+            case .featureAuthoringMalformed: "the Feature authoring prose delimiters are malformed"
             case .noDescription: "the issue has no description"
             case .startMissing: "the `\(ManagedBlockFence.start)` delimiter is missing"
             case .endMissing: "the `\(ManagedBlockFence.end)` delimiter is missing"

@@ -279,10 +279,8 @@ public struct Outbox: Sendable {
             return .created(try await board.createComment(on: issue, body: body, clientID: entry.clientID))
         case .attachLink(let issue, let url, let title):
             return .created(try await board.attachLink(to: issue, url: url, title: title, clientID: entry.clientID))
-        case .rewriteManagedBlock(let issue, let rendered):
-            return try await performManagedBlock(issue: issue, renderings: [rendered], entry: entry)
-        case .rewriteManagedBlockCompacting(let issue, let renderings):
-            return try await performManagedBlock(issue: issue, renderings: renderings, entry: entry)
+        case .rewriteManagedBlock, .rewriteFeatureAuthoring, .rewriteManagedBlockCompacting:
+            return try await performDescription(write, entry: entry)
         case .updateManagedBlockLine(let issue, let prefix, let line):
             return try await performManagedBlock(
                 issue: issue, renderings: [line], replacingPrefix: prefix, entry: entry

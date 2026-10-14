@@ -315,3 +315,50 @@ private func briefedBreakdown(_ brief: String) throws -> DispatchResult {
     let breakdown = FeatureBreakdown(definitionOfDone: [authoringClause("The Feature is done.")], cards: [card])
     return .breakdown(BreakdownResult(outcome: .drafted(breakdown)))
 }
+
+extension AuthoringRouteDispatchTests {
+    @Test("A rejected breakdown then unavailable fallback counts one walk; successful fallback counts nothing",
+          arguments: [false, true])
+    func rejectedBreakdownWalk(successfulFallback: Bool) async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBuildActBoards()
+        let context = try makeSelectionContext(journal, repositories: selectionRepositories(), boards: boards).context
+        let invalid = FeatureBreakdown(definitionOfDone: [authoringClause("x")], cards: [])
+        let valid = try authoringBreakdown()
+        let dispatch = ScriptedRouteDispatch([
+            primary: .answer(.breakdown(BreakdownResult(outcome: .drafted(invalid)))),
+            fallback: successfulFallback
+                ? .answer(.breakdown(BreakdownResult(outcome: .drafted(valid)))) : .refuse
+        ])
+        let transaction = AuthoringTransaction(
+            drafting: RoutedFeatureBreakdown(route: authoringRoute(dispatch)), citations: FakeCitationResolver(),
+            transcribing: FakeContractTranscriber(), provenance: FakeProvenanceTester()
+        )
+        let outcome = try await transaction.author(authoringSelection(), context: context)
+        #expect(outcome == (successfulFallback ? .authored : .authoringRolledBack))
+        #expect(dispatch.requests.map(\.route) == [primary, fallback])
+        #expect(try journal.authoringFaultCount(feature: authoringSelection().name).count
+            == (successfulFallback ? 0 : 1))
+    }
+}
+
+extension AuthoringRouteDispatchTests {
+    @Test("An exhausted over-budget Route walk increments consecutive authoring faults once")
+    func overBudgetWalkCountsOnce() async throws {
+        let rig = try await AuthoringRig()
+        rig.descriptionBudget = try DescriptionBudget(
+            configured: 2_000, limit: BoardDescriptionLimit(maximum: 250_000, unit: .utf16CodeUnits)
+        )
+        let dispatch = ScriptedRouteDispatch([
+            primary: .answer(try briefedBreakdown(String(repeating: "Approach. ", count: 400))),
+            fallback: .answer(try briefedBreakdown(String(repeating: "Approach. ", count: 500)))
+        ])
+        #expect(try await rangedSelection(dispatch).selectAndAuthor(rig.context()) == .authoringRolledBack)
+        #expect(dispatch.requests.map(\.route) == [primary, fallback])
+        let faults = try rig.journal.authoringFaultCount(feature: authoringSelection().name)
+        #expect(faults.count == 1)
+        #expect(faults.lastReason.contains("description budget"))
+        #expect(try rig.journal.events(ofType: .featureBreakdownRejected).count == 1)
+    }
+}

@@ -83,13 +83,16 @@ public struct FeatureSelection: FeatureAuthoring {
     /// Night may walk past, after the first selection, before authoring gives up. Defaults to the
     /// glossary's own default of 2.
     public let reselectionsMax: Int
+    public let consecutiveAuthoringFaultsMax: Int
 
     public init(
-        selector: any FeatureSelecting, transaction: (any SelectedFeatureAuthoring)? = nil, reselectionsMax: Int = 2
+        selector: any FeatureSelecting, transaction: (any SelectedFeatureAuthoring)? = nil, reselectionsMax: Int = 2,
+        consecutiveAuthoringFaultsMax: Int = 3
     ) {
         self.selector = selector
         self.transaction = transaction
         self.reselectionsMax = reselectionsMax
+        self.consecutiveAuthoringFaultsMax = consecutiveAuthoringFaultsMax
     }
 
     public func selectAndAuthor(_ context: ActContext) async throws -> FeatureAuthoringOutcome {
@@ -255,6 +258,14 @@ public struct FeatureSelection: FeatureAuthoring {
             act: context.act, runID: context.runID, nightID: context.night.id
         )
 
+        let faults = try context.journal.authoringFaultCount(feature: validated.name)
+        if !context.trigger.isForced, faults.count >= consecutiveAuthoringFaultsMax {
+            return try await recordHalt(
+                feature: validated.name,
+                cause: .authoringRepeatedlyFaulted(count: faults.count, lastReason: faults.lastReason),
+                context: context
+            )
+        }
         guard let transaction else {
             throw EngineInvocationError.notImplemented(.author)
         }

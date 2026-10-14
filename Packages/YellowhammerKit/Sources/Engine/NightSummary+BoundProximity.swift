@@ -4,8 +4,8 @@ import Journal
 
 /// One Project Bound's proximity at a Night's close: what the Bound allows (`value`), what this Night
 /// recorded against it (`observed`), and — when the Night Summary's line names what it counted — the
-/// `measure` phrase. Always in the same six-Bound order: `review_rounds_max`, `attempts_per_work_card`,
-/// `overdue_nights_max`, `reselections_max`, `consecutive_refusals_max`, `failed_adoptions_max`.
+/// `measure` phrase. Always in the same seven-Bound order: `review_rounds_max`, `attempts_per_work_card`,
+/// `overdue_nights_max`, `reselections_max`, `consecutive_refusals_max`, `failed_adoptions_max`, `consecutive_authoring_faults_max`.
 public struct BoundProximity: Sendable, Equatable {
     public let name: String
     public let value: Int
@@ -60,6 +60,7 @@ extension NightSummary {
         let refusals = cardCounts.refusals
         let unanswered = cardCounts.unanswered
         let failedAdoptions = cardCounts.failedAdoptions
+        let faultProximity = try authoringFaultProximity(current: current, journal: journal, bounds: bounds)
         return [
             BoundProximity(
                 name: "review_rounds_max", value: bounds.reviewRoundsMax, observed: rounds,
@@ -81,8 +82,24 @@ extension NightSummary {
             ),
             BoundProximity(
                 name: "failed_adoptions_max", value: bounds.failedAdoptionsMax, observed: failedAdoptions, measure: nil
-            )
+            ),
+            faultProximity
         ]
+    }
+
+    static func authoringFaultProximity(
+        current: [JournalEventRecord], journal: JournalStore, bounds: NightCardMaintenance.Bounds
+    ) throws -> BoundProximity {
+        var selected: FeatureName?
+        for record in current {
+            if case .featureSelected(let selection) = record.event { selected = FeatureName(rawValue: selection.name) }
+        }
+        let cutoff = current.map(\.id).max() ?? 0
+        let count = try selected.map { try journal.authoringFaultCount(feature: $0, throughEventID: cutoff).count } ?? 0
+        return BoundProximity(
+            name: "consecutive_authoring_faults_max", value: bounds.consecutiveAuthoringFaultsMax,
+            observed: count, measure: selected.map { "Feature `\($0.rawValue)`" }
+        )
     }
 
     /// `review_rounds_max`/`attempts_per_work_card`'s counters: the highest Rounds an Attempt reached, and the

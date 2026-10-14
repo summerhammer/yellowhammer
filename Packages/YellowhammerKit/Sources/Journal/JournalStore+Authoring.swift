@@ -149,7 +149,12 @@ extension JournalStore {
                 name: plan.name, groupKey: plan.groupKey, featureIssueID: featureIssueID, cycleID: cycleID,
                 cardCount: cards.count, adoptedCount: plan.adoptions.count
             )
-            _ = try Self.insertEvent(db, .featureAuthored(payload), stamp: stamp)
+            let eventID = try Self.insertEvent(db, .featureAuthored(payload), stamp: stamp)
+            try db.execute(sql: """
+                INSERT INTO authoring_fault
+                (feature_name, operation_key, consecutive_faults, reason, night_id, event_id)
+                VALUES (?, ?, 0, '', ?, ?)
+                """, arguments: [plan.name, "accepted:\(plan.groupKey)", nightID, eventID])
             return cycleID
         }
     }

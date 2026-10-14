@@ -1,0 +1,15 @@
+id = "authoring-faults-zero"
+name = "Bounds Zero"
+board = { linear = { connection = "acme", project = "BZ" } }
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"
+
+[limits]
+consecutive_authoring_faults_max = 0
+
+[code_hosting]
+connection = "github"

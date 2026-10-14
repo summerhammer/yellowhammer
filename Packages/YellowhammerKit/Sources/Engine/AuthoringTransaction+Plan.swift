@@ -34,7 +34,10 @@ struct AuthoringPlanner {
     let transcriptions: [[TranscriptionBlock]]
 
     private var prefix: String { "\(selection.name.rawValue):\(attempt)" }
-    private var featureKey: String { "feature:\(prefix):create" }
+    private var featureKey: String {
+        existingFeatureIssueID == nil ? "feature:\(prefix):create" : "feature:\(selection.name.rawValue):halt:create"
+    }
+    let existingFeatureIssueID: BoardObjectID?
 
     /// The group: the Feature Issue create, one adoption per adopted Card, then one Card create per draft
     /// nested under the Feature Issue — so the Feature Issue is applied before anything names it, and a
@@ -51,7 +54,7 @@ struct AuthoringPlanner {
         var nextOrder: [String: Int] = [:]
         let featureClauses = Self.mint(citations.featureClauses)
         let (adoptions, adoptionWrites) = try adopt(nextOrder: &nextOrder)
-        let featureWrite = try featureCreate(clauses: featureClauses, adoptions: adoptions)
+        let featureWrites = try featureCreate(clauses: featureClauses, adoptions: adoptions)
         let (cards, cardWrites) = try create(nextOrder: &nextOrder)
         let uncitable = citations.uncitable.map {
             PlannedUncitableClause(
@@ -60,7 +63,9 @@ struct AuthoringPlanner {
             )
         }
         return AuthoringPlan(
-            writes: [featureWrite] + adoptionWrites + cardWrites,
+            writes: existingFeatureIssueID == nil
+                ? featureWrites + adoptionWrites + cardWrites
+                : adoptionWrites + cardWrites + featureWrites,
             record: FeatureAuthoringAcceptedPayload(
                 name: selection.name.rawValue, groupKey: "authoring:\(prefix)", featureKey: featureKey,
                 nightID: nightID, cards: cards, adoptions: adoptions,
@@ -97,15 +102,29 @@ struct AuthoringPlanner {
         return id
     }
 
-    private func featureCreate(clauses: [PlannedClause], adoptions: [PlannedAdoption]) throws -> OutboxWrite {
-        OutboxWrite(key: featureKey, write: .createIssue(
+    private func featureCreate(clauses: [PlannedClause], adoptions: [PlannedAdoption]) throws -> [OutboxWrite] {
+        if let issue = existingFeatureIssueID {
+            let description = featureDescription(clauses: clauses, adoptions: adoptions)
+            let prose = String(description.dropFirst(ManagedBlockFence.initialDescription(rendered: "").count))
+            return [
+                OutboxWrite(
+                    key: "feature:\(prefix):description", write: .rewriteFeatureAuthoring(
+                        issue: issue, prose: prose.trimmingCharacters(in: .whitespacesAndNewlines)
+                    )
+                ),
+                OutboxWrite(key: "feature:\(prefix):accept", write: .updateIssue(
+                    issue: issue, change: try scope.featureContentionChange(), undo: nil
+                ))
+            ]
+        }
+        return [OutboxWrite(key: featureKey, write: .createIssue(
             BoardIssueDraft(
                 team: scope.team, title: selection.name.rawValue,
                 description: featureDescription(clauses: clauses, adoptions: adoptions),
                 labels: [try label(.featureCard)], workflowState: try scope.id(for: .todo)
             ),
             parentKey: nil
-        ))
+        ))]
     }
 
     private func adopt(nextOrder: inout [String: Int]) throws -> ([PlannedAdoption], [OutboxWrite]) {

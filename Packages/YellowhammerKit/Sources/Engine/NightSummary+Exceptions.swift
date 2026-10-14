@@ -159,9 +159,34 @@ extension NightSummary {
             }
         }
         return lines
+            + (try repeatedAuthoringFaultLines(events: events, journal: journal))
             + recoveredFailureLines(events: events, renderingRunID: renderingRunID, timeZone: timeZone)
             + (try worktreeLossLines(night: night, journal: journal))
             + (try overrideRefusalLines(night: night, journal: journal))
+    }
+
+    private static func repeatedAuthoringFaultLines(
+        events: [JournalEventRecord], journal: JournalStore
+    ) throws -> [String] {
+        var lines: [String] = []
+        for record in events {
+            let name: String
+            switch record.event {
+            case .featureBreakdownRejected(let feature, _), .featureAuthoringFailed(let feature, _, _):
+                name = feature
+            case .featureAuthoringHalted(let feature, let kind, _) where kind == "authoring-repeatedly-faulted":
+                name = feature
+            default: continue
+            }
+            guard let feature = FeatureName(rawValue: name) else { continue }
+            let count = try journal.authoringFaultCount(feature: feature, throughEventID: record.id).count
+            guard count > 0 else { continue }
+            let issue = try AuthoringStopBoard.knownIssueID(feature, journal)
+                .map { " (Feature Card `\($0.rawValue)`)" } ?? ""
+            let line = "Feature `\(name)`\(issue) faulted on its last \(count) authoring runs."
+            if !lines.contains(line) { lines.append(line) }
+        }
+        return lines
     }
 
     /// One line per Card and reason an Override was refused for this Night (OQ126).

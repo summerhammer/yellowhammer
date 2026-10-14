@@ -15,6 +15,8 @@ extension BoardWrite {
             return .attachLink(issue: issue, url: url, title: scrub.apply(title))
         case .rewriteManagedBlock(let issue, let rendered):
             return .rewriteManagedBlock(issue: issue, rendered: scrub.apply(rendered))
+        case .rewriteFeatureAuthoring(let issue, let prose):
+            return .rewriteFeatureAuthoring(issue: issue, prose: scrub.apply(prose))
         case .rewriteManagedBlockCompacting(let issue, let renderings):
             return .rewriteManagedBlockCompacting(issue: issue, renderings: renderings.map(scrub.apply))
         case .updateManagedBlockLine(let issue, let prefix, let line):
