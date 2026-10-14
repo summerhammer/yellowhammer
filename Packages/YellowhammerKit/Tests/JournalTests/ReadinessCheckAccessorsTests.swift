@@ -89,6 +89,36 @@ func transcriptionBlocksRoundTrip() throws {
     #expect(voided[0].mainlineCommit == nil)
 }
 
+@Test("A block's line ranges round-trip through the Journal, aligned with its paths, and a whole path has none")
+func transcriptionBlockRangesRoundTrip() throws {
+    let fixture = try ReadinessFixture()
+    let journal = try fixture.open()
+    let cardID = try fixture.insertCard(journal: journal)
+    let ranged = TranscriptionBlock(
+        repository: "api", paths: ["openapi.yaml", "models.swift", "notes.md"],
+        ranges: [
+            "openapi.yaml": [LineRange(start: 120, end: 180), LineRange(start: 200, end: 210)],
+            "notes.md": [LineRange(start: 7, end: 7)]
+        ],
+        symbol: nil, mainlineCommit: "abc123", content: "x", contentHash: "h", authorSupplied: false
+    )
+    let whole = TranscriptionBlock(
+        repository: "api", paths: ["models.swift"], mainlineCommit: "abc123", content: "y",
+        contentHash: "h2", authorSupplied: false
+    )
+
+    try journal.recordTranscriptionBlocks(cardID: cardID, [ranged, whole])
+
+    let rows = try journal.transcriptionBlocks(cardID: cardID)
+    #expect(rows[0].ranges == ranged.ranges)
+    #expect(rows[0].block.ranges == ranged.ranges)
+    #expect(rows[1].ranges.isEmpty)
+    let stored: [String] = try journal.read { db in
+        try String.fetchAll(db, sql: "SELECT ranges FROM transcription_block ORDER BY id")
+    }
+    #expect(stored == ["120-180+200-210\n-\n7-7", ""])
+}
+
 @Test("Architectural Brief prose upserts")
 func architecturalBriefUpserts() throws {
     let fixture = try ReadinessFixture()

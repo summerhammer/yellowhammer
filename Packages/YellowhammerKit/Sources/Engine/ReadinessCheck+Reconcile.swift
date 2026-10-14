@@ -23,14 +23,13 @@ private struct ReconcileContext {
 }
 
 // Reconciling the board's copy of a Card's Managed Block into the Journal, before readiness is judged
-// (P8.2): an Operator's edit inside a Transcription Block voids its stamp, an edit to the prose is
-// simply recorded, and Definition of Done clause edits are reconciled by identity.
+// (P8.2): an edit to the prose is simply recorded, and Definition of Done clause edits are reconciled by
+// identity. A Transcription Block is never read back: the Card shows its reference only, and the
+// transcribed lines and their hash live in the Journal.
 extension ReadinessCheck {
     func reconcile(parsed: ParsedCardBlock, card: CardRecord, context: BuildActContext) async throws {
         let stamp = ReconcileContext(context)
         let journal = stamp.journal
-
-        try reconcileTranscriptions(parsed: parsed, card: card, stamp: stamp)
 
         if let scope = parsed.scope {
             let existingScope = try journal.declaredScope(cardID: card.id)
@@ -55,35 +54,6 @@ extension ReadinessCheck {
             )
             let maintenance = ManagedBlockMaintenance(journal: journal, outbox: outbox)
             _ = try await maintenance.maintain(card: card, brief: brief)
-        }
-    }
-
-    /// Whether the board's copy of a Transcription Block was edited by the Operator, as opposed to merely
-    /// re-serialised by Linear: its Markdown must render differently from the Journal's content. A row
-    /// with no content falls back to comparing hashes. Shared with the opening inspection so both judge
-    /// an edit by the same rule.
-    static func isEdited(_ parsed: ParsedTranscription, against record: TranscriptionBlockRecord) -> Bool {
-        guard let recorded = record.content else { return parsed.contentHash != record.contentHash }
-        return !MarkdownEquivalence.rendersSame(parsed.content, recorded)
-    }
-
-    private func reconcileTranscriptions(parsed: ParsedCardBlock, card: CardRecord, stamp: ReconcileContext) throws {
-        let journal = stamp.journal
-        let existingBlocks = try journal.transcriptionBlocks(cardID: card.id)
-        for (index, parsedBlock) in parsed.transcriptions.enumerated() where index < existingBlocks.count {
-            let row = existingBlocks[index]
-            // Linear re-serialises the Markdown it was given (#433), so an unedited block rarely comes
-            // back byte-identical: leave the Journal's mainline-derived content and hash alone.
-            guard Self.isEdited(parsedBlock, against: row) else { continue }
-            if !row.authorSupplied {
-                try journal.voidTranscriptionStamp(id: row.id, nightID: stamp.nightID)
-                try stamp.append(
-                    .transcriptionStampVoided(cardID: card.id, issueID: card.issueID, repository: row.repository)
-                )
-            }
-            try journal.updateTranscriptionContent(
-                id: row.id, content: parsedBlock.content, contentHash: parsedBlock.contentHash
-            )
         }
     }
 

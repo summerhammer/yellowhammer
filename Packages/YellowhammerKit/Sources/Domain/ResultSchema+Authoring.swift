@@ -108,10 +108,23 @@ extension ResultSchema {
                     "items": {
                       "type": "object",
                       "additionalProperties": false,
-                      "required": ["repository", "paths", "symbol"],
+                      "required": ["repository", "paths", "ranges", "symbol"],
                       "properties": {
                         "repository": { "type": "string" },
                         "paths": { "type": "array", "items": { "type": "string" } },
+                        "ranges": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["path", "start", "end"],
+                            "properties": {
+                              "path": { "type": "string" },
+                              "start": { "type": "integer" },
+                              "end": { "type": "integer" }
+                            }
+                          }
+                        },
                         "symbol": { "type": ["string", "null"] }
                       }
                     }

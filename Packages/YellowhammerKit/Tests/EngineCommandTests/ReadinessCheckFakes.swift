@@ -49,15 +49,28 @@ struct FakeContractTranscriber: ContractTranscribing {
     }
 
     var unreadableRepositories: Set<String> = []
+    /// When set, every file has this many lines, and a contract range past it throws the reader's own
+    /// out-of-bounds error.
+    var fileLineCount: Int?
 
     func transcribe(
         _ contract: ContractDraft, in projectRepositories: ProjectRepositories, mainlines: ResolvedMainlines
     ) async throws -> TranscriptionBlock {
         guard !unreadableRepositories.contains(contract.repository) else { throw Unreadable() }
         let commit = mainlines[contract.repository]?.commit ?? mainlines.specSource?.commit ?? "deadbeef"
+        if let fileLineCount {
+            for (path, ranges) in contract.ranges {
+                if let range = ranges.first(where: { $0.end > fileLineCount }) {
+                    throw TranscriptionRangeError.outOfBounds(
+                        repository: contract.repository, path: path, range: range, lineCount: fileLineCount,
+                        commit: commit
+                    )
+                }
+            }
+        }
         let content = "Transcribed \(contract.paths.joined(separator: ",")) from \(contract.repository)."
         return TranscriptionBlock(
-            repository: contract.repository, paths: contract.paths, symbol: contract.symbol,
+            repository: contract.repository, paths: contract.paths, ranges: contract.ranges, symbol: contract.symbol,
             mainlineCommit: commit, content: content, contentHash: MainlineReader.sha256(content),
             authorSupplied: false
         )

@@ -78,8 +78,8 @@ struct AuthoringPlanner {
     private static func mintTranscriptions(_ blocks: [TranscriptionBlock]) -> [PlannedTranscription] {
         blocks.map {
             PlannedTranscription(
-                repository: $0.repository, paths: $0.paths, symbol: $0.symbol, mainlineCommit: $0.mainlineCommit,
-                content: $0.content, contentHash: $0.contentHash
+                repository: $0.repository, paths: $0.paths, ranges: $0.ranges, symbol: $0.symbol,
+                mainlineCommit: $0.mainlineCommit, content: $0.content, contentHash: $0.contentHash
             )
         }
     }

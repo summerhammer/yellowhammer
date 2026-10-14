@@ -229,8 +229,9 @@ extension JournalStore {
         try Self.insertArchitecturalBrief(db, cardID: cardID, prose: card.brief, timestamp: timestamp)
         for transcription in card.transcriptions {
             try Self.insertTranscriptionBlock(db, cardID: cardID, NewTranscriptionBlock(
-                repository: transcription.repository, paths: transcription.paths, symbol: transcription.symbol,
-                mainlineCommit: transcription.mainlineCommit, content: transcription.content,
+                repository: transcription.repository, paths: transcription.paths, ranges: transcription.ranges,
+                symbol: transcription.symbol, mainlineCommit: transcription.mainlineCommit,
+                content: transcription.content,
                 contentHash: transcription.contentHash, authorSupplied: false
             ))
         }

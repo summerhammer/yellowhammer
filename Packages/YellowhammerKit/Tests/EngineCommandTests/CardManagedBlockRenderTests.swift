@@ -100,10 +100,15 @@ func renderArchitecturalBrief() {
     #expect(rendered.contains("This is the brief"))
     let expectedComment = (
         "<!-- yh:transcription:start repo=backend paths=main.swift,utils.swift "
-        + "symbol=MyClass commit=abc123def hash=xyz789 -->"
+        + "symbol=MyClass commit=abc123def -->"
     )
     #expect(rendered.contains(expectedComment))
-    #expect(rendered.contains("func example() {}"))
+    #expect(rendered.contains(
+        "Contract: `backend` · `main.swift` · `utils.swift` · symbol `MyClass` · commit `abc123def`"
+    ))
+    // The Card holds the reference only: the transcribed lines and their hash live in the Journal.
+    #expect(!rendered.contains("func example() {}"))
+    #expect(!rendered.contains("hash="))
     #expect(rendered.contains("<!-- yh:transcription:end -->"))
 }
 

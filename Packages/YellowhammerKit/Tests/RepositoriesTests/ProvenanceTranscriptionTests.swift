@@ -239,6 +239,35 @@ struct ProvenanceTranscriptionTests {
 @Suite("Provenance report roll-up tests")
 struct ProvenanceReportRollUpTests {
 
+    @Test("""
+        A ranged block is still stale when its file changes outside the range: the Readiness Check stays \
+        path-scoped and never parses the range (spec: feature-authoring/author-an-architectural-brief)
+        """)
+    func rangedBlockIsStaleOnAChangeOutsideItsRange() async throws {
+        let fixture = GitFixture(name: "prov-ranged-outside-\(UUID().uuidString)")
+        await fixture.initRepo(defaultBranch: "main")
+        let original = (1...10).map { "line \($0)" }.joined(separator: "\n") + "\n"
+        _ = try await fixture.commit(filename: "api.json", content: original, message: "v1")
+        let projectRepos = ProjectRepositories(
+            workingRepos: [Repo(name: "backend", path: fixture.path, role: .backend)]
+        )
+        let block = try await MainlineReader().transcribe(
+            path: "api.json", ranges: [LineRange(start: 2, end: 3)], repository: "backend", in: projectRepos
+        )
+        #expect(block.content == "line 2\nline 3")
+
+        let tester = ProvenanceDiffTester()
+        let before = await tester.evaluateTranscriptionBlocks([block], projectRepositories: projectRepos)
+        #expect(before.results.first?.verdict == .clean)
+
+        _ = try await fixture.commit(
+            filename: "api.json", content: original.replacingOccurrences(of: "line 9", with: "line nine"),
+            message: "v2, outside the range"
+        )
+        let after = await tester.evaluateTranscriptionBlocks([block], projectRepositories: projectRepos)
+        #expect(after.results.first?.verdict == .stale(changedPaths: ["api.json"]))
+    }
+
     @Test("Multi-transcription / multi-repo CardProvenanceReport roll-up with divergence")
     func multiTranscriptionRollUpWithDivergence() async throws {
         let fixtureApp = GitFixture(name: "prov-rollup-app-6")

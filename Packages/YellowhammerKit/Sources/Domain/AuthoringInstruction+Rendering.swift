@@ -121,8 +121,11 @@ extension AuthoringInstruction {
             return "`drafted` carries `definition_of_done` (clauses of `text` and `citation`, where `citation` "
                 + "is a story ID `<epic>/<story>` or a goal ID) and `cards` "
                 + "(each with `repository`, `kind`, `title`, `unit_of_work`, `brief`, `definition_of_done` "
-                + "and `contracts` naming a `repository`, its `paths` and an optional `symbol`); `failed` "
-                + "carries `reason`."
+                + "and `contracts` naming a `repository`, its `paths`, `ranges` and an optional `symbol`); "
+                + "each contract path names one regular file; a path without a range is inlined whole into "
+                + "the worker's instruction, so `ranges` bound what the worker receives; a `ranges` entry is "
+                + "`{path, start, end}`, 1-based and inclusive, several are allowed per path, and every range "
+                + "must lie within the file at mainline; `failed` carries `reason`."
         default:
             return "`selected` carries `name`, `reasoning`, `repositories`, `adopted_card_issue_ids` and an "
                 + "optional `sequence` (`preceded_by`, `followed_by`, `seam`); `halted` carries `feature` "

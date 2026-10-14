@@ -188,6 +188,79 @@ struct BreakdownResultFileTests {
     }
 }
 
+@Suite("Breakdown contract line ranges")
+struct BreakdownContractRangesTests {
+    /// A drafted breakdown whose one Card has one contract; `contractBody` is the rest of the contract.
+    private func drafted(_ contractBody: String) -> String {
+        breakdown("""
+            "outcome": "drafted", "cards": [{
+              "repository": "a", "kind": "impl.x", "title": "C", "unit_of_work": "U", "brief": "B",
+              "contracts": [{"repository": "b", "paths": ["p", "q"], \(contractBody)}]
+            }]
+            """)
+    }
+
+    private func contract(_ json: String) throws -> ContractDraft {
+        let result = try decode(json, .breakdown)
+        guard case .breakdown(let decoded) = result, case .drafted(let breakdown) = decoded.outcome else {
+            throw ResultFileError.unreadable("expected a drafted breakdown")
+        }
+        return try #require(breakdown.cards.first?.contracts.first)
+    }
+
+    @Test("Ranges decode grouped per path, in the order given and not yet unioned")
+    func grouped() throws {
+        let decoded = try contract(drafted("""
+            "ranges": [
+              {"path": "p", "start": 10, "end": 20},
+              {"path": "q", "start": 1, "end": 1},
+              {"path": "p", "start": 5, "end": 12}
+            ], "symbol": null
+            """))
+        #expect(decoded.ranges == [
+            "p": [LineRange(start: 10, end: 20), LineRange(start: 5, end: 12)],
+            "q": [LineRange(start: 1, end: 1)]
+        ])
+    }
+
+    @Test("An absent, null or empty ranges decodes to no ranges")
+    func absentNullEmpty() throws {
+        #expect(try contract(drafted(#""symbol": null"#)).ranges == [:])
+        #expect(try contract(drafted(#""ranges": null, "symbol": null"#)).ranges == [:])
+        #expect(try contract(drafted(#""ranges": [], "symbol": null"#)).ranges == [:])
+    }
+
+    @Test("A range that cannot be one is refused as a contract violation, naming its field")
+    func refusesMalformedRanges() {
+        let field = "cards[0].contracts[0].ranges[0]"
+        let cases: [(entry: String, field: String)] = [
+            (#"{"path": "p", "start": 0, "end": 5}"#, "\(field).start"),
+            (#"{"path": "p", "start": -3, "end": 5}"#, "\(field).start"),
+            (#"{"path": "p", "start": 9, "end": 5}"#, "\(field).end"),
+            (#"{"path": "other", "start": 1, "end": 5}"#, "\(field).path"),
+            (#"{"path": "p", "start": 1.5, "end": 5}"#, "\(field).start"),
+            (#"{"path": "p", "start": 1, "end": true}"#, "\(field).end"),
+            (#"{"path": "p", "start": "1", "end": 5}"#, "\(field).start"),
+            (#"{"path": "p", "start": null, "end": 5}"#, "\(field).start"),
+            (#"{"path": 7, "start": 1, "end": 5}"#, "\(field).path"),
+            (#"{"path": "p", "end": 5}"#, "\(field).start")
+        ]
+        for (entry, expected) in cases {
+            invalid(drafted(#""ranges": [\#(entry)], "symbol": null"#), .breakdown, field: expected)
+        }
+        invalid(
+            drafted(#""ranges": {"path": "p"}, "symbol": null"#), .breakdown,
+            field: "cards[0].contracts[0].ranges"
+        )
+    }
+
+    @Test("A range is not clamped or merged by the decoder, even a one-line one")
+    func keptAsGiven() throws {
+        let decoded = try contract(drafted(#""ranges": [{"path": "p", "start": 3, "end": 3}], "symbol": null"#))
+        #expect(decoded.ranges["p"] == [LineRange(start: 3, end: 3)])
+    }
+}
+
 @Suite("Authoring rehearsal fixtures (P9.11)")
 struct AuthoringFixtureTests {
     @Test("Every shipped authoring fixture decodes, and each pass has a default fixture")
@@ -228,6 +301,12 @@ struct AuthoringFixtureTests {
         #expect(rendered.hasSuffix("\n"))
         #expect(rendered.contains("composed into the instruction of an autonomous worker agent CLI"))
         #expect(rendered.contains("must not tell the worker not to commit"))
+        // Contracts may bound a path to line ranges, and the model is told what an unranged path costs.
+        #expect(rendered.contains("`contracts` naming a `repository`, its `paths`, `ranges` and an optional `symbol`"))
+        #expect(rendered.contains("each contract path names one regular file"))
+        #expect(rendered.contains("a path without a range is inlined whole into the worker's instruction"))
+        #expect(rendered.contains("`{path, start, end}`, 1-based and inclusive"))
+        #expect(rendered.contains("every range must lie within the file at mainline"))
         let selection = AuthoringInstruction(
             pass: .selection, route: Route(cli: "claude", model: "opus", effort: "high")!,
             specificationSource: .specSource(SpecSource(path: "/spec")), specificationMainline: nil,

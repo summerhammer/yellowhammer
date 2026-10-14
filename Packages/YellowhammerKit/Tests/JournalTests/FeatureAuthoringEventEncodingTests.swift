@@ -101,7 +101,8 @@ func featureAuthoringAcceptedRoundTripsBriefAndTranscriptions() throws {
                 brief: "Approach for One.",
                 transcriptions: [
                     PlannedTranscription(
-                        repository: "mobile", paths: ["a.swift", "b.swift"], symbol: "Foo",
+                        repository: "mobile", paths: ["a.swift", "b.swift"],
+                        ranges: ["b.swift": [LineRange(start: 3, end: 9)]], symbol: "Foo",
                         mainlineCommit: "deadbeef", content: "protocol Foo {}",
                         contentHash: "abc123"
                     )
@@ -119,6 +120,19 @@ func featureAuthoringAcceptedRoundTripsBriefAndTranscriptions() throws {
     #expect(read == withBrief)
     #expect(read.cards[0].brief == "Approach for One.")
     #expect(read.cards[0].transcriptions == withBrief.cards[0].transcriptions)
+    #expect(read.cards[0].transcriptions[0].ranges == ["b.swift": [LineRange(start: 3, end: 9)]])
+}
+
+@Test("A planned Transcription Block recorded before line ranges existed decodes with no ranges")
+func plannedTranscriptionDecodesWithoutRanges() throws {
+    let json = #"""
+        {"repository": "mobile", "paths": ["a.swift"], "symbol": null, "mainlineCommit": "deadbeef",
+         "content": "protocol Foo {}", "contentHash": "abc123"}
+        """#
+    let decoded = try JSONDecoder().decode(PlannedTranscription.self, from: Data(json.utf8))
+    #expect(decoded.ranges.isEmpty)
+    #expect(decoded.paths == ["a.swift"])
+    #expect(decoded.mainlineCommit == "deadbeef")
 }
 
 @Test("A P9.5-era featureAuthoringAccepted payload with no brief or transcriptions keys decodes empty")

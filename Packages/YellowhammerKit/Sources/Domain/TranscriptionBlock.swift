@@ -4,6 +4,8 @@ import Foundation
 public struct TranscriptionBlock: Equatable, Sendable {
     public var repository: String
     public var paths: [String]
+    /// The unioned line ranges actually transcribed per path; a path absent here was transcribed whole.
+    public var ranges: [String: [LineRange]]
     public var symbol: String?
     public var mainlineCommit: String?  // nil when Operator-supplied
     public var content: String
@@ -14,6 +16,7 @@ public struct TranscriptionBlock: Equatable, Sendable {
     public init(
         repository: String,
         paths: [String],
+        ranges: [String: [LineRange]] = [:],
         symbol: String? = nil,
         mainlineCommit: String? = nil,
         content: String,
@@ -23,6 +26,7 @@ public struct TranscriptionBlock: Equatable, Sendable {
     ) {
         self.repository = repository
         self.paths = paths
+        self.ranges = ranges
         self.symbol = symbol
         self.mainlineCommit = mainlineCommit
         self.content = content

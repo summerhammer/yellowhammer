@@ -21,11 +21,18 @@ public struct ContractDraft: Equatable, Sendable {
     /// Every path the contract must be read from — the stamp the Readiness Check later diffs is only as
     /// good as the paths named here.
     public let paths: [String]
+    /// The line ranges the model named per path, exactly as it gave them — not yet unioned, and not yet
+    /// checked against the file. A path absent here (or mapped to no ranges) is transcribed whole.
+    public let ranges: [String: [LineRange]]
+    /// An unparsed label for what the contract is; it never selects lines.
     public let symbol: String?
 
-    public init(repository: String, paths: [String], symbol: String? = nil) {
+    public init(
+        repository: String, paths: [String], ranges: [String: [LineRange]] = [:], symbol: String? = nil
+    ) {
         self.repository = repository
         self.paths = paths
+        self.ranges = ranges
         self.symbol = symbol
     }
 }

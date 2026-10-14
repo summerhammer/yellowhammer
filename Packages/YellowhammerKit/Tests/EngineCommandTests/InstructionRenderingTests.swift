@@ -245,3 +245,40 @@ func renderedInstructionNeverCarriesTheSpecSourcePath() async throws {
     #expect(rendered.contains("spec_source"))
     #expect(rendered.contains("A Card is the smallest unit of work."))
 }
+
+@Test("A ranged block names its lines in the header and holds the Journal's transcribed lines")
+func rangedBlockHeaderNamesItsLines() {
+    let ranged = TranscriptionBlock(
+        repository: "api", paths: ["openapi.yaml", "models.swift", "notes.md"],
+        ranges: [
+            "openapi.yaml": [LineRange(start: 120, end: 180), LineRange(start: 200, end: 210)],
+            "notes.md": [LineRange(start: 7, end: 7)]
+        ],
+        symbol: "ClassList", mainlineCommit: String(repeating: "a", count: 40),
+        content: "distinctive transcribed line", contentHash: "h", authorSupplied: false
+    )
+    let whole = TranscriptionBlock(
+        repository: "api", paths: ["models.swift"], mainlineCommit: nil, content: "whole file",
+        contentHash: "h2", authorSupplied: false
+    )
+    let repo = Repo(name: "yellowhammer", path: "/repos/yellowhammer", role: .backend)
+    let instruction = Instruction(
+        pass: .worker, card: InstructionCard(key: "ENG-1", title: "Card", description: "Do it."),
+        brief: ArchitecturalBrief(prose: "Approach.", transcriptions: [ranged, whole]),
+        definitionOfDone: [DoDClause(id: "D-1", text: "Done.", citation: nil)],
+        repository: InstructionRepository(
+            repo: repo, worktreePath: "/worktrees/yellowhammer/ENG-1", featureBranch: "feature/eng-1",
+            check: .command("swift test")
+        ),
+        route: Route(cli: "claude", model: "sonnet", effort: "medium")!, payloads: .none,
+        resultFilePath: "/worktrees/yellowhammer/ENG-1/.yellowhammer/result.json"
+    )
+
+    let rendered = instruction.render()
+
+    #expect(rendered.contains("Paths: openapi.yaml, models.swift, notes.md\nLines: "
+        + "openapi.yaml lines 120–180, 200–210; notes.md line 7\nSymbol: ClassList"))
+    #expect(rendered.contains("distinctive transcribed line"))
+    // The unranged block has no Lines: line at all.
+    #expect(rendered.components(separatedBy: "Lines: ").count == 2)
+}

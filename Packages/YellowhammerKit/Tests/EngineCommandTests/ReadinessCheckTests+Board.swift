@@ -7,7 +7,7 @@ import Repositories
 import Testing
 
 // roadmap P8.2: the Readiness Check's reconciliation of the board's copy of a Card's Managed Block —
-// Divergence, an Operator edit voiding a Transcription Block's stamp, minting an untagged clause, and
+// Divergence, a board edit inside a Transcription Block being ignored, minting an untagged clause, and
 // tagged clause edits. Fixture helpers live in ReadinessCheckTests.swift.
 
 @Test("A stale Transcription Block diverges the Card, incrementing and resetting the counter")
@@ -66,10 +66,9 @@ func staleBlockDiverges() async throws {
     #expect(try scenario.journal.consecutiveDivergences(cardID: scenario.cardOne) == 0)
 }
 
-@Test("An Operator edit inside a Transcription Block voids its stamp, without a Divergence, and dispatches")
-func operatorEditVoidsStamp() async throws {
-    let scenario = try await makeReadinessScenario()
-    defer { cleanup(scenario) }
+/// A scenario whose Journal holds one authored block, and a board description whose copy of that block's
+/// text the Operator has edited (reference line and interior alike).
+private func seedEditedBlockOnBoard(_ scenario: ReadinessScenario) async throws -> String {
     try scenario.journal.recordArchitecturalBrief(cardID: scenario.cardOne, prose: "A brief.")
     try scenario.journal.insertClause(JournalStore.NewClause(
         cid: "c1", issueID: scenario.issueOne, level: "card", text: "A clause",
@@ -84,35 +83,41 @@ func operatorEditVoidsStamp() async throws {
     let clause = DoDClause(
         cid: "c1", text: "A clause", citation: "resolvable/story", citationProvenance: "Author-supplied"
     )
-    let editedBlock = TranscriptionBlock(
-        repository: "backend", paths: ["a.swift"], mainlineCommit: "deadbeef", content: "EDITED content",
-        contentHash: ManagedBlockFence.sha256("EDITED content"), authorSupplied: false
-    )
-    let block = CardManagedBlock(
+    let rendered = CardManagedBlock(
         kind: "card", repository: "backend", state: .todo, lanePosition: 1, laneLength: 2,
-        brief: ArchitecturalBrief(prose: "A brief.", transcriptions: [editedBlock]),
+        brief: ArchitecturalBrief(prose: "A brief.", transcriptions: [originalBlock]),
         definitionOfDone: [clause], attempts: []
-    )
-    await scenario.boards.writing.seed(issue: scenario.issueOne, description: fenced(block: block.render()))
+    ).render()
+    let description = fenced(block: rendered
+        .replacingOccurrences(of: "Contract: `backend`", with: "EDITED Contract: `elsewhere`")
+        .replacingOccurrences(
+            of: "<!-- yh:transcription:end -->", with: "EDITED content\n<!-- yh:transcription:end -->"
+        ))
+    await scenario.boards.writing.seed(issue: scenario.issueOne, description: description)
+    return description
+}
 
-    // The fake would call this repository stale, but the block is now Operator-supplied and must not
-    // be tested as stale.
+@Test("Text edited inside a Transcription Block on the board voids nothing and changes nothing in the Journal")
+func operatorEditInsideBlockChangesNothing() async throws {
+    let scenario = try await makeReadinessScenario()
+    defer { cleanup(scenario) }
+    let description = try await seedEditedBlockOnBoard(scenario)
     let readiness = ReadinessCheck(
-        provenance: FakeProvenanceTester(verdicts: ["backend": .stale(changedPaths: ["a.swift"])]),
+        provenance: FakeProvenanceTester(verdicts: ["backend": .clean]),
         citations: FakeCitationResolver(resolvable: ["resolvable/story"])
     )
 
     try await runReadinessAct(
         scenario, readiness: readiness,
-        updatedObjects: [object(scenario.issueOne, state: stateTodo, description: fenced(block: block.render()))]
+        updatedObjects: [object(scenario.issueOne, state: stateTodo, description: description)]
     )
 
-    let voided = try scenario.journal.events(ofType: .transcriptionStampVoided)
-    #expect(voided.count == 1)
-
+    #expect(try scenario.journal.events(ofType: .transcriptionStampVoided).isEmpty)
     let rows = try scenario.journal.transcriptionBlocks(cardID: scenario.cardOne)
-    #expect(rows[0].authorSupplied == true)
-    #expect(rows[0].mainlineCommit == nil)
+    #expect(rows[0].content == "original content")
+    #expect(rows[0].contentHash == ManagedBlockFence.sha256("original content"))
+    #expect(rows[0].authorSupplied == false)
+    #expect(rows[0].mainlineCommit == "deadbeef")
 
     #expect(try scenario.journal.events(ofType: .cardDiverged).isEmpty)
     let card = try #require(try scenario.journal.card(issueID: scenario.issueOne))
@@ -124,6 +129,28 @@ func operatorEditVoidsStamp() async throws {
     }
     #expect(passedIssueIDs.contains(scenario.issueOne))
     #expect(scenario.recorder.seen.map(\.issueID).contains(scenario.issueOne))
+}
+
+@Test("A stale Journal block still diverges the Card when the Operator edited the board's copy of it")
+func staleJournalBlockDivergesDespiteBoardEdit() async throws {
+    let scenario = try await makeReadinessScenario()
+    defer { cleanup(scenario) }
+    let description = try await seedEditedBlockOnBoard(scenario)
+    // The edit does not make the block Operator-supplied, so its stamp is still provenance-tested.
+    let readiness = ReadinessCheck(
+        provenance: FakeProvenanceTester(verdicts: ["backend": .stale(changedPaths: ["a.swift"])]),
+        citations: FakeCitationResolver(resolvable: ["resolvable/story"])
+    )
+
+    try await runReadinessAct(
+        scenario, readiness: readiness,
+        updatedObjects: [object(scenario.issueOne, state: stateTodo, description: description)]
+    )
+
+    #expect(try scenario.journal.events(ofType: .transcriptionStampVoided).isEmpty)
+    #expect(try scenario.journal.events(ofType: .cardDiverged).count == 1)
+    let card = try #require(try scenario.journal.card(issueID: scenario.issueOne))
+    #expect(card.state == .waitingOnYou)
 }
 
 @Test("An untagged clause on the board mints a synthetic clause id and rewrites the Managed Block")

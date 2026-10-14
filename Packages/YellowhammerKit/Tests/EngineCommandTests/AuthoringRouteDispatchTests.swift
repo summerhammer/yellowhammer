@@ -210,4 +210,74 @@ struct AuthoringRouteDispatchTests {
         #expect(try rig.journal.events(ofType: .featureBreakdownRejected).count == 1)
         #expect(try tableRowCount(rig.journal, table: "outbox") == 0)
     }
+
+    @Test("A breakdown naming a contract range out of bounds is invalid output: the next Route is tried")
+    func outOfBoundsRangeTriesTheNextRoute() async throws {
+        let rig = try await AuthoringRig()
+        let dispatch = ScriptedRouteDispatch([
+            primary: .answer(try rangedBreakdown(LineRange(start: 900, end: 950))),
+            fallback: .answer(try rangedBreakdown(LineRange(start: 10, end: 20)))
+        ])
+
+        let outcome = try await rangedSelection(dispatch).selectAndAuthor(try rig.context())
+
+        #expect(outcome == .authored)
+        #expect(dispatch.requests.map(\.route) == [primary, fallback])
+        #expect(try rig.journal.events(ofType: .featureBreakdownRejected).isEmpty)
+        #expect(try rig.journal.events(ofType: .featureAuthoringHalted).isEmpty)
+        let card = try #require(try rig.journal.cards().first { $0.title == "Ranged" })
+        let block = try #require(try rig.journal.transcriptionBlocks(cardID: card.id).first)
+        #expect(block.ranges == ["api.json": [LineRange(start: 10, end: 20)]])
+    }
+
+    @Test("""
+        When every Route names a range out of bounds, it is an authoring fault naming the path, the range \
+        and the file's line count; never an Authoring Halt, and nothing reaches the Outbox
+        """)
+    func outOfBoundsOnEveryRouteIsAnAuthoringFault() async throws {
+        let rig = try await AuthoringRig()
+        let dispatch = ScriptedRouteDispatch([
+            primary: .answer(try rangedBreakdown(LineRange(start: 900, end: 950))),
+            fallback: .answer(try rangedBreakdown(LineRange(start: 99, end: 101)))
+        ])
+
+        let outcome = try await rangedSelection(dispatch).selectAndAuthor(try rig.context())
+
+        #expect(outcome == .authoringRolledBack)
+        #expect(dispatch.requests.map(\.route) == [primary, fallback])
+        #expect(try rig.journal.events(ofType: .featureAuthoringHalted).isEmpty)
+        #expect(try tableRowCount(rig.journal, table: "outbox") == 0)
+        let rejected = try #require(try rig.journal.events(ofType: .featureBreakdownRejected).first)
+        guard case .featureBreakdownRejected(_, let reason) = rejected.event else {
+            Issue.record("expected featureBreakdownRejected")
+            return
+        }
+        #expect(reason.contains("no Route left"))
+        #expect(reason.contains("api.json lines 99–101"))
+        #expect(reason.contains("the file has 100 lines"))
+        let line = try #require(NightCardMaintenance.authoringLine(for: rejected.event))
+        #expect(!line.lowercased().contains("halt"))
+    }
+}
+
+/// A drafted breakdown whose one backend Card consumes `api.json` lines `range` from `backend`.
+private func rangedBreakdown(_ range: LineRange) throws -> DispatchResult {
+    let card = CardDraft(
+        repository: "backend", kind: try authoringKind(), title: "Ranged", unitOfWork: "Build against the API",
+        brief: "Approach.", definitionOfDone: [authoringClause("Ranged is done.")],
+        contracts: [ContractDraft(repository: "backend", paths: ["api.json"], ranges: ["api.json": [range]])]
+    )
+    let breakdown = FeatureBreakdown(definitionOfDone: [authoringClause("The Feature is done.")], cards: [card])
+    return .breakdown(BreakdownResult(outcome: .drafted(breakdown)))
+}
+
+/// A selection authoring through the routed breakdown, against files of 100 lines.
+private func rangedSelection(_ dispatch: ScriptedRouteDispatch) throws -> FeatureSelection {
+    FeatureSelection(
+        selector: ScriptedFeatureSelector(outcome: .selected(try authoringSelection())),
+        transaction: AuthoringTransaction(
+            drafting: RoutedFeatureBreakdown(route: authoringRoute(dispatch)), citations: FakeCitationResolver(),
+            transcribing: FakeContractTranscriber(fileLineCount: 100), provenance: FakeProvenanceTester()
+        )
+    )
 }

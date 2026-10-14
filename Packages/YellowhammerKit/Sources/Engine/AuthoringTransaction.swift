@@ -104,6 +104,9 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         // P9.6): a Card that needs a contract this author Act cannot read is never authored
         // speculatively — the whole Feature halts, naming every repository it could not read.
         let transcriptions = await AuthoringTranscriptions.resolve(breakdown, using: transcribing, context: context)
+        if !transcriptions.invalidRanges.isEmpty {
+            return try rejectInvalidRanges(transcriptions.invalidRanges, for: selection, context: context)
+        }
         if !transcriptions.isReadable {
             return try await AuthoringHalt.record(
                 feature: selection.name, cause: .contractUnreadable(contracts: transcriptions.unreadable),
@@ -157,12 +160,31 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         }
     }
 
+    /// The Route walk already refuses a breakdown naming a contract range out of bounds; a drafting that
+    /// skipped it still faults here, since such a range is never an Authoring Halt and never clamped.
+    private func rejectInvalidRanges(
+        _ reasons: [String], for selection: SelectedFeature, context: ActContext
+    ) throws -> FeatureAuthoringOutcome {
+        try context.journal.append(
+            .featureBreakdownRejected(name: selection.name.rawValue, reason: reasons.joined(separator: "; ")),
+            act: context.act, runID: context.runID, nightID: context.night.id
+        )
+        return .authoringRolledBack
+    }
+
     /// Runs the model-authored breakdown; nil when no Route answered it. That is an authoring fault
     /// (roadmap P9.10, P9.11): nothing was ever accepted into the Outbox, so it is recorded like a
-    /// rejected breakdown and the Act ends normally.
+    /// rejected breakdown and the Act ends normally. A Route whose breakdown names a contract line range
+    /// out of bounds at mainline is invalid output, so the next Route is tried (spec: feature-authoring/
+    /// author-an-architectural-brief); with none left, that too is this authoring fault.
     private func draft(_ selection: SelectedFeature, context: ActContext) async throws -> FeatureBreakdown? {
+        let transcribing = self.transcribing
         do {
-            return try await drafting.breakdown(for: selection, mainlines: context.mainlines, context: context)
+            return try await drafting.breakdown(
+                for: selection, mainlines: context.mainlines, context: context
+            ) { breakdown in
+                await AuthoringTranscriptions.rangeRejection(breakdown, using: transcribing, context: context)
+            }
         } catch let fault as AuthoringDispatchFault {
             try context.journal.append(
                 .featureBreakdownRejected(name: selection.name.rawValue, reason: fault.reason),

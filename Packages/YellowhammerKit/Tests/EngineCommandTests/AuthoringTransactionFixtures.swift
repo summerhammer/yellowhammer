@@ -9,7 +9,7 @@ import Testing
 // The breakdown here is scripted — the model-authored content is never asserted, only the wiring.
 
 /// A `FeatureBreakdownDrafting` that hands back a scripted breakdown per call (the last one repeats)
-/// and counts its calls.
+/// and counts its calls. It is one Route: a breakdown `accepting` refuses is an exhausted walk.
 final class ScriptedBreakdown: FeatureBreakdownDrafting, Sendable {
     private let state = Mutex(0)
     private let breakdowns: [FeatureBreakdown]
@@ -21,13 +21,18 @@ final class ScriptedBreakdown: FeatureBreakdownDrafting, Sendable {
     var callCount: Int { state.withLock { $0 } }
 
     func breakdown(
-        for selection: SelectedFeature, mainlines: ResolvedMainlines, context: ActContext
+        for selection: SelectedFeature, mainlines: ResolvedMainlines, context: ActContext,
+        accepting: @escaping BreakdownAcceptance
     ) async throws -> FeatureBreakdown {
         let index = state.withLock { count -> Int in
             defer { count += 1 }
             return count
         }
-        return breakdowns[min(index, breakdowns.count - 1)]
+        let breakdown = breakdowns[min(index, breakdowns.count - 1)]
+        if let rejection = await accepting(breakdown) {
+            throw AuthoringDispatchFault(reason: rejection)
+        }
+        return breakdown
     }
 }
 

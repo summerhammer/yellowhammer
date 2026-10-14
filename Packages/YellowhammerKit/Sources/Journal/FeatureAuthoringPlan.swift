@@ -1,3 +1,4 @@
+import Domain
 import Foundation
 
 // The durable plan of one authoring transaction (roadmap P9.4; spec: feature-authoring/
@@ -21,26 +22,47 @@ public struct PlannedClause: Codable, Equatable, Sendable {
 
 /// One Transcription Block the plan minted for a Card, transcribed before it was accepted into the
 /// Outbox (roadmap P9.6; spec: feature-authoring/author-an-architectural-brief): the repository, every
-/// path it was read from, its symbol, the mainline commit it was read at, its content and content hash.
+/// path it was read from, the line ranges transcribed per path (a path absent was read whole), its symbol,
+/// the mainline commit it was read at, its content and content hash.
 /// Never Operator-supplied at authoring time — that flag is only ever set later, by an Operator's edit.
 public struct PlannedTranscription: Codable, Equatable, Sendable {
     public let repository: String
     public let paths: [String]
+    public let ranges: [String: [LineRange]]
     public let symbol: String?
     public let mainlineCommit: String?
     public let content: String
     public let contentHash: String
 
     public init(
-        repository: String, paths: [String], symbol: String?, mainlineCommit: String?, content: String,
-        contentHash: String
+        repository: String, paths: [String], ranges: [String: [LineRange]] = [:], symbol: String?,
+        mainlineCommit: String?, content: String, contentHash: String
     ) {
         self.repository = repository
         self.paths = paths
+        self.ranges = ranges
         self.symbol = symbol
         self.mainlineCommit = mainlineCommit
         self.content = content
         self.contentHash = contentHash
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case repository, paths, ranges, symbol, mainlineCommit, content, contentHash
+    }
+
+    /// `ranges` is absent from a plan recorded before line ranges existed: it decodes as no ranges.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            repository: try container.decode(String.self, forKey: .repository),
+            paths: try container.decode([String].self, forKey: .paths),
+            ranges: try container.decodeIfPresent([String: [LineRange]].self, forKey: .ranges) ?? [:],
+            symbol: try container.decodeIfPresent(String.self, forKey: .symbol),
+            mainlineCommit: try container.decodeIfPresent(String.self, forKey: .mainlineCommit),
+            content: try container.decode(String.self, forKey: .content),
+            contentHash: try container.decode(String.self, forKey: .contentHash)
+        )
     }
 }
 

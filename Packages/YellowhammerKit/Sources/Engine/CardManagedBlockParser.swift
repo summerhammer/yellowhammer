@@ -1,30 +1,30 @@
 import Domain
 import Foundation
 
-/// A Transcription Block as read back from the board's copy of a Card's Managed Block: the renderer's
-/// `<!-- yh:transcription:start ... -->` / `<!-- yh:transcription:end -->` pair and everything between.
+/// A Transcription Block's stamp as read back from the board's copy of a Card's Managed Block: the
+/// renderer's `<!-- yh:transcription:start ... -->` comment. The lines between it and the end marker (the
+/// visible reference, or the content a legacy card still carries) are skipped, never parsed: the card
+/// holds a reference only, and the transcribed lines live in the Journal.
 public struct ParsedTranscription: Equatable, Sendable {
     public var repository: String
     public var paths: [String]
+    /// The line ranges per path from the stamp's `ranges=` field: `[:]` when the stamp has none, and nil
+    /// when the field is malformed (a bad token, or a token count other than the path count).
+    public var ranges: [String: [LineRange]]?
     public var symbol: String?
     /// The raw `commit=` field, exactly as the renderer wrote it: a commit sha, or
     /// `Operator-supplied` / `Operator-supplied as of <night>` when the block is Operator-supplied.
     public var commitField: String
-    /// The `hash=` field the renderer stamped when this block was last posted.
-    public var recordedHash: String
-    public var content: String
-
-    public var contentHash: String { ManagedBlockFence.sha256(content) }
 
     public init(
-        repository: String, paths: [String], symbol: String?, commitField: String, recordedHash: String, content: String
+        repository: String, paths: [String], ranges: [String: [LineRange]]? = [:], symbol: String?,
+        commitField: String
     ) {
         self.repository = repository
         self.paths = paths
+        self.ranges = ranges
         self.symbol = symbol
         self.commitField = commitField
-        self.recordedHash = recordedHash
-        self.content = content
     }
 }
 
@@ -133,10 +133,9 @@ public enum CardManagedBlockParser {
                 continue
             }
             let fields = parseTranscriptionFields(trimmed)
-            var contentLines: [String] = []
+            // Everything up to the end marker is interior: skipped, never read.
             index += 1
             while index < lines.count, lines[index].trimmingCharacters(in: .whitespaces) != transcriptionEnd {
-                contentLines.append(lines[index])
                 index += 1
             }
             // index now at the end marker (or past the end of the text if malformed); skip it.
@@ -147,13 +146,16 @@ public enum CardManagedBlockParser {
             let symbolRaw = fields["symbol"]
             let symbol = (symbolRaw == nil || symbolRaw == "-") ? nil : symbolRaw
 
+            let tokens = fields["ranges"].map {
+                $0.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
+            }
+
             results.append(ParsedTranscription(
                 repository: fields["repo"] ?? "",
                 paths: paths,
+                ranges: LineRange.ranges(fromTokens: tokens, paths: paths),
                 symbol: symbol,
-                commitField: fields["commit"] ?? "",
-                recordedHash: fields["hash"] ?? "",
-                content: contentLines.joined(separator: "\n")
+                commitField: fields["commit"] ?? ""
             ))
         }
         return results
@@ -172,7 +174,9 @@ public enum CardManagedBlockParser {
         }
         text = text.trimmingCharacters(in: .whitespaces)
 
-        let knownKeys = ["repo=", "paths=", "symbol=", "commit=", "hash="]
+        // `hash=` is no longer written, but a legacy stamp still carries one: it stays known so it ends the
+        // field before it instead of spilling into `commit=`.
+        let knownKeys = ["repo=", "paths=", "ranges=", "symbol=", "commit=", "hash="]
         var fields: [String: String] = [:]
         var remaining = Substring(text)
         while !remaining.isEmpty {
