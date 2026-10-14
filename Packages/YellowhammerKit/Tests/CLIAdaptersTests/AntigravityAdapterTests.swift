@@ -171,20 +171,53 @@ struct AntigravityAdapterTests {
         #expect(!Self.resultExists(in: dispatch))
     }
 
-    @Test("collect: a non-SUCCESS status never materializes result.json")
-    func collectNonSuccessStatus() throws {
+    @Test("collect: recovered API errors preserve the same result bytes and session as SUCCESS")
+    func collectRecoveredAPIError() throws {
+        let fixture = try CLIDispatchFixture.make()
+        defer { fixture.cleanUp() }
+        let dispatch = fixture.dispatch(cli: "agy", pass: .architect)
+        let launch = try adapter.launch(for: dispatch)
+        try Self.writeStdout(try Self.architectStdout(status: "SUCCESS"), in: dispatch)
+        #expect(adapter.collect(end: .exited(status: 0), dispatch: dispatch) == CLISession(rawValue: "conv-1"))
+        let successBytes = try Data(contentsOf: launch.resultFile)
+
+        _ = try adapter.launch(for: dispatch)
+        try Self.writeStdout(try Self.architectStdout(status: "ERROR"), in: dispatch)
+        #expect(adapter.collect(end: .exited(status: 0), dispatch: dispatch) == CLISession(rawValue: "conv-1"))
+        let recoveredBytes = try Data(contentsOf: launch.resultFile)
+        #expect(recoveredBytes == successBytes)
+        let object = try #require(try JSONSerialization.jsonObject(with: recoveredBytes) as? [String: Any])
+        #expect(object["reason"] == nil)
+        #expect(object["authoring_invariant_violation"] == nil)
+        let decoded = try ResultFile.decode(recoveredBytes, expecting: .architect)
+        #expect(RunOutcome.classify(end: .exited(status: 0), resultFileAt: launch.resultFile, pass: .architect)
+            == .completed(decoded))
+    }
+
+    @Test("collect: without an output object writes no result.json",
+          arguments: ["SUCCESS", "ERROR"],
+          ["", #", "structured_output": null"#, #", "structured_output": []"#,
+           #", "structured_output": "unfinished""#, #", "structured_output": 1"#])
+    func collectWithoutOutputObject(status: String, outputMember: String) throws {
         let fixture = try CLIDispatchFixture.make()
         defer { fixture.cleanUp() }
         let dispatch = fixture.dispatch(cli: "agy")
         _ = try adapter.launch(for: dispatch)
         try Self.writeStdout(
-            #"{"conversation_id":"conv-1","status":"ERROR","structured_output":{"summary":"x"}}"#, in: dispatch
+            #"{"conversation_id":"conv-1","status":"\#(status)","error":"interrupted"\#(outputMember)}"#,
+            in: dispatch
         )
 
-        let session = adapter.collect(end: .exited(status: 0), dispatch: dispatch)
-
-        #expect(session == CLISession(rawValue: "conv-1"))
+        #expect(adapter.collect(end: .exited(status: 0), dispatch: dispatch) == CLISession(rawValue: "conv-1"))
         #expect(!Self.resultExists(in: dispatch))
+        if status == "ERROR" {
+            let resultFile = dispatch.runDirectory.appendingPathComponent("result.json")
+            let outcome = RunOutcome.classify(end: .exited(status: 0), resultFileAt: resultFile, pass: dispatch.pass)
+            guard case .crashedUnknown(.resultFile) = outcome else {
+                Issue.record("expected a missing result file to remain Crashed-Unknown, got \(outcome)")
+                return
+            }
+        }
     }
 
     @Test("collect: empty stdout on a first dispatch returns nil, never throws")
@@ -228,6 +261,28 @@ struct AntigravityAdapterTests {
     }
 
     // MARK: - Helpers
+
+    /// Matches agy's observed final stdout envelope, including sticky error metadata after recovery.
+    private static func architectStdout(status: String) throws -> String {
+        let object: [String: Any] = [
+            "conversation_id": "conv-1",
+            "status": status,
+            "error": status == "ERROR"
+                ? "API error (attempt 8): INTERNAL (code 500): Internal error encountered." : "",
+            "response": "",
+            "duration_seconds": 302.4,
+            "num_turns": 144,
+            "structured_output": [
+                "schema": "yellowhammer.result.architect", "version": 1, "outcome": "planned",
+                "plan": "Preserve structured output after recovered API retries.",
+                "affected_paths": ["Sources/CLIAdapters/AntigravityAdapter.swift"],
+                "reason": NSNull(), "authoring_invariant_violation": NSNull()
+            ],
+            "json_schema": try JSONSerialization.jsonObject(with: Data(CLIOutputSchema.gemini(for: .architect).utf8)),
+            "usage": ["input_tokens": 2048, "output_tokens": 512]
+        ]
+        return try #require(String(data: JSONSerialization.data(withJSONObject: object), encoding: .utf8))
+    }
 
     private static func resultExists(in dispatch: CLIDispatch) -> Bool {
         FileManager.default.fileExists(atPath: dispatch.runDirectory.appendingPathComponent("result.json").path)
