@@ -50,6 +50,11 @@ struct EngineGitFixture: ~Copyable {
         return try #require(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : result.stdout
             .trimmingCharacters(in: .whitespacesAndNewlines))
     }
+
+    @discardableResult
+    func run(_ args: [String]) async -> GitCommandResult {
+        await git.run(["-C", path] + args)
+    }
 }
 
 @Suite("Authoring transaction: Architectural Briefs and Transcription Blocks (P9.6)")
