@@ -66,16 +66,17 @@ public struct ParsedCardBlock: Equatable, Sendable {
 public enum CardManagedBlockParser {
     private static let transcriptionStartPrefix = TranscriptionBlockLine.startPrefix
     private static let transcriptionEnd = TranscriptionBlockLine.endMarker
-    private static let briefHeading = "### Architectural Brief"
     private static let dodHeading = "### Definition of Done"
     private static let noClausesLine = "_No clauses authored._"
 
     public static func parse(block: String) -> ParsedCardBlock {
         let lines = block.components(separatedBy: "\n")
         let briefProse = parseBriefProse(lines: lines)
-        let transcriptions = parseTranscriptions(lines: lines)
+        let proseMask = ArchitecturalBriefProseRegion.maskedLineIndices(lines)
+        let structuralLines = lines.enumerated().map { proseMask.contains($0.offset) ? "" : $0.element }
+        let transcriptions = parseTranscriptions(lines: structuralLines)
         let clauses = parseClauses(lines: lines)
-        let scope = parseScope(lines: lines)
+        let scope = parseScope(lines: structuralLines)
         return ParsedCardBlock(briefProse: briefProse, transcriptions: transcriptions, clauses: clauses, scope: scope)
     }
 
@@ -102,22 +103,8 @@ public enum CardManagedBlockParser {
     // MARK: - Brief prose
 
     private static func parseBriefProse(lines: [String]) -> String? {
-        guard let headingIndex = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == briefHeading })
-        else {
-            return nil
-        }
-        var proseLines: [String] = []
-        var index = headingIndex + 1
-        while index < lines.count {
-            let line = lines[index]
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix(transcriptionStartPrefix) || trimmed.hasPrefix("### ") {
-                break
-            }
-            proseLines.append(line)
-            index += 1
-        }
-        let prose = proseLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let region = ArchitecturalBriefProseRegion.read(lines), !region.malformed else { return nil }
+        let prose = lines[region.content].joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         return prose.isEmpty ? nil : prose
     }
 
@@ -199,12 +186,12 @@ public enum CardManagedBlockParser {
 
     // MARK: - Clauses
 
-    /// Every line index that sits inside a Transcription Block (its start marker, its content and its
+    /// Every line index that sits inside opaque Brief prose or a Transcription Block (its start marker, its
     /// end marker): a transcription of a specification story is markdown of its own, and may contain a
     /// `### ` heading or a `- [ ]` line that must never be read as this document's own (roadmap P9.6).
-    /// Delegates to ``TranscriptionBlockMasking``, shared with ``ManagedBlockFence`` (roadmap P9.10).
+    /// Shares the opaque-region reader with ``ManagedBlockFence``.
     private static func maskedLineIndices(_ lines: [String]) -> Set<Int> {
-        TranscriptionBlockMasking.maskedLineIndices(lines)
+        ArchitecturalBriefProseRegion.structureMasks(lines)
     }
 
     private static func parseClauses(lines: [String]) -> [ParsedClause] {

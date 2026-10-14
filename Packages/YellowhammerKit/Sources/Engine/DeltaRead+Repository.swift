@@ -7,11 +7,11 @@ extension DeltaRead {
     /// The repository a rendered Managed Block names on its `Repository:` line — the line the Card's
     /// block renders (roadmap P5.6) as `**Repository:** `name``. Bold and backticks are optional, so
     /// an Operator who retyped the line is still read. Nil when the block has no such line. Ignores
-    /// lines inside Transcription Blocks and code blocks (issue #446).
+    /// lines inside Architectural Brief prose, Transcription Blocks and code blocks (issues #446, #490).
     static func repository(inBlock block: String) -> String? {
         let normalized = block.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
         let lines = normalized.components(separatedBy: "\n")
-        let masked = TranscriptionBlockMasking.maskedLineIndices(lines)
+        let masked = ArchitecturalBriefProseRegion.structureMasks(lines)
 
         var inCodeFence: (character: Character, count: Int)?
 

@@ -37,13 +37,23 @@ let y = 2
 * second
 """#
 
+private let ourBriefProse = "A brief.\n### Implementation\nStored [bracket] and night.id here.\n\n- first\n- second"
+private let linearBriefProse = #"""
+A brief.
+### Implementation
+Stored \[bracket\] and [night.id](<http://night.id>) here.
+
+* first
+* second
+"""#
+
 private let ourClauseText = "Offsets are [22:19, 22:34] and fixture.open() works"
 private let linearClauseText = #"Offsets are \[22:19, 22:34\] and [fixture.open](<http://fixture.open>)() works"#
 
 /// Records, in the scenario's Journal, the Transcription Block, brief and clause Yellowhammer wrote, and
 /// returns the Managed Block it rendered for them.
 private func seedRenderedCard(_ scenario: ReadinessScenario) throws -> String {
-    try scenario.journal.recordArchitecturalBrief(cardID: scenario.cardOne, prose: "A brief.")
+    try scenario.journal.recordArchitecturalBrief(cardID: scenario.cardOne, prose: ourBriefProse)
     try scenario.journal.insertClause(JournalStore.NewClause(
         cid: "c1", issueID: scenario.issueOne, level: "card", text: ourClauseText,
         locationID: "resolvable/story", provenance: "Author-supplied", citationProvenance: "Author-supplied"
@@ -58,7 +68,7 @@ private func seedRenderedCard(_ scenario: ReadinessScenario) throws -> String {
     )
     return CardManagedBlock(
         kind: "card", repository: "backend", state: .todo, lanePosition: 1, laneLength: 2,
-        brief: ArchitecturalBrief(prose: "A brief.", transcriptions: [block]),
+        brief: ArchitecturalBrief(prose: ourBriefProse, transcriptions: [block]),
         definitionOfDone: [clause], attempts: []
     ).render()
 }
@@ -70,6 +80,7 @@ private func linearDescription(
 ) -> String {
     let block = rendered
         .replacingOccurrences(of: ourContent, with: content)
+        .replacingOccurrences(of: ourBriefProse, with: linearBriefProse)
         .replacingOccurrences(of: ourClauseText, with: clauseText)
         .replacingOccurrences(of: "### Architectural Brief\n", with: "### Architectural Brief\n\n")
         .replacingOccurrences(of: "### Definition of Done\n", with: "### Definition of Done\n\n")
@@ -103,7 +114,7 @@ func linearNormalisedRewriteIsNotAnEdit() async throws {
     #expect(rows[0].contentHash == ManagedBlockFence.sha256(ourContent))
     #expect(rows[0].authorSupplied == false)
     #expect(rows[0].mainlineCommit == "deadbeef")
-    #expect(try scenario.journal.architecturalBriefProse(cardID: scenario.cardOne) == "A brief.")
+    #expect(try scenario.journal.architecturalBriefProse(cardID: scenario.cardOne) == ourBriefProse)
     #expect(try scenario.journal.clauses(issueID: scenario.issueOne)[0].text == ourClauseText)
     let passed = try scenario.journal.events(ofType: .readinessCheckPassed).map { event -> String in
         if case .readinessCheckPassed(_, let issueID) = event.event { return issueID }
