@@ -250,7 +250,7 @@ public struct CardManagedBlock: Equatable, Sendable {
         // Architectural Brief section
         lines.append("")
         lines.append("### Architectural Brief")
-        lines.append(brief.prose)
+        lines.append(contentsOf: ArchitecturalBriefProseRegion.render(brief.prose))
 
         // Transcriptions
         lines.append(contentsOf: renderTranscriptions())

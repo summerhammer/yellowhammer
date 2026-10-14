@@ -230,6 +230,7 @@ struct DeltaReadReconciliationTests {
         ]
         ```
 
+        ### Definition of Done
         **Repository:** `yellowhammer`
         """
         #expect(DeltaRead.repository(inBlock: block) == "yellowhammer")

@@ -10,6 +10,7 @@ public enum ManagedBlockFence {
 
     /// Why a description cannot be fenced.
     public enum Failure: Error, Equatable, Sendable, CustomStringConvertible {
+        case malformedBriefProse
         case noDescription
         case startMissing
         case endMissing
@@ -19,6 +20,7 @@ public enum ManagedBlockFence {
 
         public var description: String {
             switch self {
+            case .malformedBriefProse: "the Architectural Brief prose delimiter is malformed"
             case .noDescription: "the issue has no description"
             case .startMissing: "the `\(ManagedBlockFence.start)` delimiter is missing"
             case .endMissing: "the `\(ManagedBlockFence.end)` delimiter is missing"
@@ -41,11 +43,15 @@ public enum ManagedBlockFence {
     }
 
     /// Replaces the text between the delimiters of `description` with `rendered`, on its own lines.
-    /// A Managed Block delimiter that appears inside a *terminated* Transcription Block's interior
+    /// A Managed Block delimiter that appears inside the Architectural Brief prose or a
+    /// *terminated* Transcription Block's interior
     /// (roadmap P9.10; spec: board-projection/maintain-the-managed-block, "A Transcription Block's
     /// interior is opaque") is ignored — a transcribed contract may itself quote either delimiter.
     public static func replace(in description: String?, rendered: String) -> Result<Replacement, Failure> {
         guard let description else { return .failure(.noDescription) }
+        guard briefRegion(in: description)?.malformed != true else {
+            return .failure(.malformedBriefProse)
+        }
         let starts = unmaskedRanges(description.ranges(of: start), in: description)
         let ends = unmaskedRanges(description.ranges(of: end), in: description)
         guard let startRange = starts.first else { return .failure(.startMissing) }
@@ -76,10 +82,13 @@ public enum ManagedBlockFence {
     }
 
     /// Takes a description apart at its delimiters, with the same failures as ``replace(in:rendered:)``.
-    /// Ignores a Managed Block delimiter inside a terminated Transcription Block's interior, the same
+    /// Ignores a Managed Block delimiter inside Brief prose or a terminated Transcription Block, the same
     /// way ``replace(in:rendered:)`` does.
     public static func parts(of description: String?) -> Result<Parts, Failure> {
         guard let description else { return .failure(.noDescription) }
+        guard briefRegion(in: description)?.malformed != true else {
+            return .failure(.malformedBriefProse)
+        }
         let starts = unmaskedRanges(description.ranges(of: start), in: description)
         let ends = unmaskedRanges(description.ranges(of: end), in: description)
         guard let startRange = starts.first else { return .failure(.startMissing) }
@@ -108,7 +117,7 @@ public enum ManagedBlockFence {
         SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
-    /// `occurrences`, less any that fall inside a terminated Transcription Block's interior.
+    /// `occurrences`, less any that fall inside opaque Brief prose or terminated Transcription Blocks.
     private static func unmaskedRanges(
         _ occurrences: [Range<String.Index>], in description: String
     ) -> [Range<String.Index>] {
@@ -117,13 +126,37 @@ public enum ManagedBlockFence {
         return occurrences.filter { occurrence in !masks.contains { $0.overlaps(occurrence) } }
     }
 
-    /// The character ranges of every *terminated* Transcription Block's interior in `description`
+    /// The character ranges of Brief prose and every *terminated* Transcription Block in `description`
     /// (start marker line through end marker line, inclusive), line-based like
     /// ``TranscriptionBlockMasking``'s own reader. Empty when the description has no Transcription Block.
     private static func maskedRanges(in description: String) -> [Range<String.Index>] {
         // Split on the description's own indices, so a masked line's range is exact whatever the text holds.
         let lines = description.split(separator: "\n", omittingEmptySubsequences: false)
-        let maskedLines = TranscriptionBlockMasking.maskedLineIndices(lines.map(String.init), requireTermination: true)
+        let source = lines.map(String.init)
+        let proseLines = linesInsideManagedBlock(source)
+        let prose = Set(briefRegion(in: proseLines)?.masked ?? 0..<0)
+        let structuralLines = source.enumerated().map { prose.contains($0.offset) ? "" : $0.element }
+        let maskedLines = prose.union(TranscriptionBlockMasking.maskedLineIndices(
+            structuralLines, requireTermination: true
+        ))
         return maskedLines.sorted().map { lines[$0].startIndex..<lines[$0].endIndex }
+    }
+
+    private static func linesInsideManagedBlock(_ lines: [String]) -> [String] {
+        let transcriptions = TranscriptionBlockMasking.maskedLineIndices(lines, requireTermination: true)
+        guard let startIndex = lines.indices.first(where: {
+            !transcriptions.contains($0) && lines[$0].contains(start)
+        }) else { return [] }
+        return lines.enumerated().map { $0.offset <= startIndex ? "" : $0.element }
+    }
+
+    private static func briefRegion(in description: String) -> ArchitecturalBriefProseRegion.Region? {
+        briefRegion(in: linesInsideManagedBlock(description.components(separatedBy: "\n")))
+    }
+
+    private static func briefRegion(in lines: [String]) -> ArchitecturalBriefProseRegion.Region? {
+        let transcriptions = TranscriptionBlockMasking.maskedLineIndices(lines, requireTermination: true)
+        let endIndex = lines.indices.first(where: { !transcriptions.contains($0) && lines[$0].contains(end) })
+        return ArchitecturalBriefProseRegion.read(lines, headingBefore: endIndex)
     }
 }
