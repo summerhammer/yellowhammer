@@ -38,7 +38,7 @@ extension EngineInvocation {
         guard let board else { return nil }
         var boxed = Outbox(
             journal: journal, board: board.writing, reading: board.reading, runID: runID, act: act, nightID: night.id,
-            installation: board.installation, scrub: narrativeScrub
+            installation: board.installation, descriptionBudget: board.descriptionBudget, scrub: narrativeScrub
         ) { [outboxKill] in outboxKill?.interrupt($0) }
         boxed.transientRetry = outboxTransientRetry
         boxed.countsTransientAttempts = !isFlushFiring

@@ -20,13 +20,19 @@ public struct ActBoard: Sendable {
     /// Installation (test fakes).
     public let installation: AppInstallationLabel?
 
+    /// The size every description composed for this board must fit, in the unit the board counts. Nil for a
+    /// board that enforces none (test fakes): the Engine holds no board's number of its own (ADR-001).
+    public let descriptionBudget: DescriptionBudget?
+
     public init(
         reading: any Board, writing: any BoardWriting, provisioning: any BoardProvisioning,
         tokenRefreshes: AppInstallationTokenRefreshLog? = nil,
-        installation: AppInstallationLabel? = nil
+        installation: AppInstallationLabel? = nil,
+        descriptionBudget: DescriptionBudget? = nil
     ) {
         self.tokenRefreshes = tokenRefreshes
         self.installation = installation
+        self.descriptionBudget = descriptionBudget
         self.reading = reading
         self.writing = writing
         self.provisioning = provisioning

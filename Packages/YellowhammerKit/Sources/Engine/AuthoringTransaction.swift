@@ -69,7 +69,7 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
     public func author(
         _ selection: SelectedFeature, reselectionDepth: Int = 0, context: ActContext
     ) async throws -> FeatureAuthoringOutcome {
-        guard let outbox = context.outbox, let board = context.board else {
+        guard let outbox = context.outbox, context.board != nil else {
             throw AuthoringTransactionError.noBoard
         }
         // Every Card the selection tries to adopt is re-validated before the breakdown is drafted
@@ -105,7 +105,7 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         // speculatively — the whole Feature halts, naming every repository it could not read.
         let transcriptions = await AuthoringTranscriptions.resolve(breakdown, using: transcribing, context: context)
         if !transcriptions.invalidRanges.isEmpty {
-            return try rejectInvalidRanges(transcriptions.invalidRanges, for: selection, context: context)
+            return try rejectBreakdown(transcriptions.invalidRanges, for: selection, context: context)
         }
         if !transcriptions.isReadable {
             return try await AuthoringHalt.record(
@@ -114,14 +114,17 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
             )
         }
 
-        let scope = try await BoardStateScope.resolve(using: board.provisioning)
+        // The Route walk already refused a Work Card over the description budget. A Feature Card over it
+        // faults here at once, with no walk: no breakdown shrinks its selection prose. So does a Work Card
+        // from a drafting that skipped the walk's check.
+        let (plan, violation) = try await measuredPlan(
+            breakdown, for: selection, citations: resolution, transcriptions: transcriptions.cardTranscriptions,
+            context: context
+        )
+        if let violation {
+            return try rejectBreakdown([violation.reason], for: selection, context: context)
+        }
         let journal = context.journal
-        let attempt = try journal.failedAuthoringTransactionCount(feature: selection.name.rawValue)
-        let plan = try AuthoringPlanner(
-            selection: selection, breakdown: breakdown, scope: scope, attempt: attempt,
-            nightID: context.night.id, journal: journal, citations: resolution,
-            transcriptions: transcriptions.cardTranscriptions
-        ).plan()
         _ = try journal.acceptOutbox(
             try outbox.drafts(plan.writes, groupID: plan.record.groupKey),
             runID: context.runID,
@@ -160,9 +163,10 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         }
     }
 
-    /// The Route walk already refuses a breakdown naming a contract range out of bounds; a drafting that
-    /// skipped it still faults here, since such a range is never an Authoring Halt and never clamped.
-    private func rejectInvalidRanges(
+    /// The Route walk already refuses a breakdown naming a contract range out of bounds, or a Work Card over
+    /// the description budget; a drafting that skipped it still faults here, since neither is an Authoring
+    /// Halt. A Feature Card over the budget faults here too.
+    private func rejectBreakdown(
         _ reasons: [String], for selection: SelectedFeature, context: ActContext
     ) throws -> FeatureAuthoringOutcome {
         try context.journal.append(
@@ -178,12 +182,12 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
     /// out of bounds at mainline is invalid output, so the next Route is tried (spec: feature-authoring/
     /// author-an-architectural-brief); with none left, that too is this authoring fault.
     private func draft(_ selection: SelectedFeature, context: ActContext) async throws -> FeatureBreakdown? {
-        let transcribing = self.transcribing
+        let transaction = self
         do {
             return try await drafting.breakdown(
                 for: selection, mainlines: context.mainlines, context: context
             ) { breakdown in
-                await AuthoringTranscriptions.rangeRejection(breakdown, using: transcribing, context: context)
+                await transaction.acceptance(of: breakdown, for: selection, context: context)
             }
         } catch let fault as AuthoringDispatchFault {
             try context.journal.append(

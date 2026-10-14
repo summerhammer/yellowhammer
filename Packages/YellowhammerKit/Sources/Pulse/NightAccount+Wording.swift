@@ -84,7 +84,8 @@ extension NightAccount {
     private static let problemTypes: Set<JournalEventType> = [
         .linearAuthorizationHalted, .linearUnreachableHalted, .mainlineFetchFailed, .absentNightDetected,
         .nightOpenedAndDied, .leaseReclaimed, .cardLeaseReclaimed, .notificationDeliveryFailed,
-        .boardWriteFailed, .outboxGroupRolledBack, .managedBlockDelimiterBroken, .worktreeNameCollision,
+        .boardWriteFailed, .outboxGroupRolledBack, .managedBlockDelimiterBroken, .managedBlockOverBudget,
+        .worktreeNameCollision,
         .boardScopeUnresolved, .rateBudgetExhausted, .authoringInvariantBroken, .worktreeLost,
         .worktreeReconciliationFailed, .featureAuthoringFailed, .featureSelectionFailed,
         .mainlineConflictDetected, .readinessCheckFailed, .waitingOnYouUnbacked

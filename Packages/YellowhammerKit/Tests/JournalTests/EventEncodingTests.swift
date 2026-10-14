@@ -35,7 +35,7 @@ func eventTypeRawValues() {
         "AuthoringSkippedFeatureInFlight", "AuthoringPredecessorNotLanded",
         "AuthoringPredecessorIndeterminate", "PredecessorWalkSkippedReleasedFeature",
         "PredecessorAncestryObserved", "MainlineConflictDetected",
-        "ManagedBlockDelimiterBroken", "NotificationDeliveryFailed", "RateBudgetExhausted",
+        "ManagedBlockDelimiterBroken", "ManagedBlockOverBudget", "NotificationDeliveryFailed", "RateBudgetExhausted",
         "LeaseReclaimed", "CardLeaseReclaimed", "NightOpened", "NightClosed", "NightOpenedAndDied",
         "ManagedBlockWritten", "NightCardOpened", "NightCardCompleted", "NightCardCompletionDeferred",
         "BoardWriteFailed", "OutboxGroupRolledBack",
@@ -283,6 +283,21 @@ func managedBlockDelimiterBrokenRoundTrips() throws {
         return
     }
     #expect(issueID == "GH-123")
+}
+
+@Test("managedBlockOverBudget event round-trips")
+func managedBlockOverBudgetRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let run = RunID()
+
+    try journal.append(
+        .managedBlockOverBudget(issueID: "GH-123", length: 420, budget: 300), act: .build, runID: run, now: epoch
+    )
+    let records = try journal.events()
+
+    #expect(records.map(\.event) == [.managedBlockOverBudget(issueID: "GH-123", length: 420, budget: 300)])
+    #expect(records.first?.type == .managedBlockOverBudget)
 }
 
 @Test("notificationDeliveryFailed event round-trips")

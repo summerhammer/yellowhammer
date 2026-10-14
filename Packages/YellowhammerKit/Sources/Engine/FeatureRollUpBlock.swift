@@ -1,4 +1,5 @@
 import Domain
+import Journal
 
 /// Renders a ``FeatureRollUp`` as the Feature Issue's Managed Block (roadmap P12.3; spec: board-
 /// projection/maintain-the-managed-block, second story): the bold sentence (with any Mainline
@@ -9,6 +10,63 @@ public struct FeatureRollUpBlock {
 
     public init(rollUp: FeatureRollUp) {
         self.rollUp = rollUp
+    }
+
+    /// The block as the Feature Issue's later rewrites can render it at its largest for these members, so a
+    /// description can be measured at authoring against the room those rewrites need. Each member takes the
+    /// longest closed-vocabulary state, reason and marker wording its line can have (a Blocked Card with the
+    /// longest Block Reason, a Waiting on You Card with the longest Waiting Reason, a banked answer, and
+    /// "adopted from" for an adopted Card), with the longest of the running and closed sentences and a
+    /// conflict and a no-pull-request note for every repository. `prototypes` supply each member's title,
+    /// issue id, repository and adoption; their state is replaced. Free text it cannot know is left out: a
+    /// title the board later gives a Card that has none here, and the issue id Linear will assign to a
+    /// new Card (its drafted title stands in for it, as the block names a titled Card by title).
+    public static func largestRendering(of prototypes: [RollUpMember], repositories: [String]) -> String {
+        let members = prototypes.map { longestMember($0) }
+        let candidates = [false, true].map { lanesPushed in
+            FeatureRollUpBlock(rollUp: FeatureRollUp(
+                members: members, lanesPushed: lanesPushed, verificationPassed: false,
+                unmetClauseCount: members.count,
+                mergedFraction: MergedFraction(mergedCount: 0, totalCount: repositories.count),
+                conflictingRepositories: repositories, noPullRequestRepositories: repositories,
+                issueStanding: .authoring
+            )).render()
+        }
+        return candidates.max { $0.count < $1.count } ?? ""
+    }
+
+    private static func longestMember(_ prototype: RollUpMember) -> RollUpMember {
+        var variants: [RollUpMember] = []
+        for state in CardState.allCases {
+            var member = prototype
+            member.state = state
+            member.waitingReason = nil
+            member.blockReason = nil
+            member.markers = [.bankedAnswer]
+            switch state {
+            case .blocked:
+                variants += BlockReason.allCases.map { reason in
+                    var blocked = member
+                    blocked.blockReason = reason.rawValue
+                    return blocked
+                }
+            case .waitingOnYou:
+                variants += WaitingReason.allCases.map { reason in
+                    var waiting = member
+                    waiting.waitingReason = reason
+                    return waiting
+                }
+            default:
+                variants.append(member)
+            }
+        }
+        func size(_ member: RollUpMember) -> Int {
+            FeatureRollUpBlock(rollUp: FeatureRollUp(
+                members: [member], lanesPushed: false, verificationPassed: false,
+                mergedFraction: MergedFraction(mergedCount: 0, totalCount: 1), issueStanding: .authoring
+            )).render().count
+        }
+        return variants.max { size($0) < size($1) } ?? prototype
     }
 
     public func render() -> String {

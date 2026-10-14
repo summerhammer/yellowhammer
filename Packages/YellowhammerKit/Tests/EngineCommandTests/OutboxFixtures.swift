@@ -62,6 +62,7 @@ func outbox(
     runID: RunID = RunID(),
     clock: ManualClock = ManualClock(),
     installation: AppInstallationLabel? = nil,
+    descriptionBudget: DescriptionBudget? = nil,
     interrupt: @escaping @Sendable (OutboxEntry) throws -> Void = { _ in },
     scrub: @escaping @Sendable () -> NarrativeScrub = { .none }
 ) throws -> Outbox {
@@ -70,8 +71,8 @@ func outbox(
         throw JournalError.actLeaseLost(runID: runID, holder: nil)
     }
     return Outbox(
-        journal: journal, board: board, runID: runID, act: .build, installation: installation, clock: clock.read,
-        scrub: scrub, interrupt: interrupt
+        journal: journal, board: board, runID: runID, act: .build, installation: installation,
+        descriptionBudget: descriptionBudget, clock: clock.read, scrub: scrub, interrupt: interrupt
     )
 }
 

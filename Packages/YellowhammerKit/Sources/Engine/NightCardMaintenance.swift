@@ -137,38 +137,13 @@ public struct NightCardMaintenance: Sendable {
         }
         let scope = try await NightCardScope.resolve(using: provisioning)
         let issue = BoardObjectID(rawValue: issueID)
-        // This Act renders the summary before its own terminal event, so the Night Summary counts it as ended.
-        let renderingRunID = outbox.runID
-        let verdict = try NightSummary.verdictLine(night: night, journal: journal, renderingRunID: renderingRunID)
-        let findings = try authoringLines(night: night)
-        let cardLines = try NightSummary.cardLines(night: night, journal: journal)
-        let dispositionLines = try NightSummary.dispositionLines(night: night, journal: journal)
-        let pullRequestLines = try NightSummary.pullRequestLines(night: night, journal: journal)
-        let answerLines = try NightSummary.answerLines(night: night, journal: journal)
-        let anomalies = try NightSummary.anomalyLines(night: night, journal: journal)
-        let crashesAndReclaims = try NightSummary.crashesAndReclaimsLines(night: night, journal: journal)
-        let leftoverProcesses = try NightSummary.leftoverProcessLines(night: night, journal: journal)
-        let exceptions = try NightSummary.exceptionLines(
-            night: night, journal: journal, renderingRunID: renderingRunID
-        )
-        let boundsLines = try self.boundsLines(night: night)
-        let standingItems = try standingItemLines()
-        let unadoptedCards = try NightSummary.unadoptedCardLines(night: night, journal: journal)
-        let inFlightFeature = try NightSummary.inFlightFeatureLines(night: night, journal: journal)
-        let instrumentedRates = try NightSummary.instrumentedRateLines(night: night, journal: journal, bounds: bounds)
-        let rendered = NightCardBlock.completed(
-            night: night, projectID: journal.projectID, verdictLine: verdict, authoringFindings: findings,
-            cardLines: cardLines, dispositionLines: dispositionLines, pullRequestLines: pullRequestLines,
-            answerLines: answerLines, anomalies: anomalies, crashesAndReclaims: crashesAndReclaims,
-            leftoverProcesses: leftoverProcesses,
-            exceptions: exceptions, bounds: boundsLines, standingItems: standingItems,
-            unadoptedCards: unadoptedCards, inFlightFeature: inFlightFeature,
-            instrumentedRates: instrumentedRates
-        )
-        let hash = ManagedBlockFence.sha256(rendered)
+        let renderings = try completedRenderings(night: night)
+        let hash = ManagedBlockFence.sha256(renderings[0])
         let summary = OutboxWrite(
             key: Self.summaryKey(nightStart: night.nightStart, issueID: issueID, hash: hash),
-            write: .rewriteManagedBlock(issue: issue, rendered: rendered)
+            write: renderings.count == 1
+                ? .rewriteManagedBlock(issue: issue, rendered: renderings[0])
+                : .rewriteManagedBlockCompacting(issue: issue, renderings: renderings)
         )
         let complete = OutboxWrite(
             key: Self.completeKey(nightStart: night.nightStart, issueID: issueID),

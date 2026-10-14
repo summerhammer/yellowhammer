@@ -62,10 +62,14 @@ public struct AttemptAccount: Equatable, Sendable {
         }
 
         // Outcome: result or "in progress"
-        self.outcome = record.result ?? "in progress"
+        self.outcome = record.result ?? Self.inProgressWording
 
         self.consumedHow = record.consumedHow
     }
+
+    static let noCheckWording = "green came from a model alone (`check = none`)"
+    static let checkNotRunWording = "not run"
+    static let inProgressWording = "in progress"
 
     /// The Check result of one Attempt, from its `checkRan` runs in append order: its last run's result,
     /// the commit it judged when recorded, and how many earlier runs failed (`passed on `b763aff` after 1
@@ -73,16 +77,21 @@ public struct AttemptAccount: Equatable, Sendable {
     /// by the Managed Block and the Night Card so the two never word it differently.
     public static func checkResult(checkDeclaredNone: Bool, runs: [CheckRunRecord]) -> String {
         if checkDeclaredNone || runs.last?.result == .declaredNone {
-            return "green came from a model alone (`check = none`)"
+            return noCheckWording
         }
         guard let last = runs.last else {
-            return "not run"
-        }
-        var text = last.result.rawValue
-        if let commit = last.judgedCommit {
-            text += " on `\(commit)`"
+            return checkNotRunWording
         }
         let earlierFailures = runs.dropLast().filter { $0.result == .failed }.count
+        return checkResult(last: last.result, judgedCommit: last.judgedCommit, earlierFailures: earlierFailures)
+    }
+
+    /// The wording of a Check result that ran: closed vocabulary, a commit and a count — never free text.
+    static func checkResult(last: CheckRunResult, judgedCommit: String?, earlierFailures: Int) -> String {
+        var text = last.rawValue
+        if let judgedCommit {
+            text += " on `\(judgedCommit)`"
+        }
         if earlierFailures > 0 {
             text += " after \(earlierFailures) failed run\(earlierFailures == 1 ? "" : "s")"
         }
@@ -199,6 +208,10 @@ public struct CardManagedBlock: Equatable, Sendable {
     }
 
     public func render() -> String {
+        render(compaction: AttemptsCompaction())
+    }
+
+    func render(compaction: AttemptsCompaction) -> String {
         var lines: [String] = []
 
         // Kind line
@@ -246,7 +259,7 @@ public struct CardManagedBlock: Equatable, Sendable {
         lines.append(contentsOf: renderDefinitionOfDone())
 
         // Attempts section
-        lines.append(contentsOf: renderAttempts())
+        lines.append(contentsOf: renderAttempts(compaction: compaction))
 
         if let adoptionRefusalNotice {
             lines.append("")
@@ -259,7 +272,7 @@ public struct CardManagedBlock: Equatable, Sendable {
         return lines.joined(separator: "\n")
     }
 
-    private func renderTranscriptions() -> [String] {
+    func renderTranscriptions() -> [String] {
         var lines: [String] = []
         for transcription in brief.transcriptions {
             let commitStr: String
@@ -275,7 +288,7 @@ public struct CardManagedBlock: Equatable, Sendable {
         return lines
     }
 
-    private func renderDefinitionOfDone() -> [String] {
+    func renderDefinitionOfDone() -> [String] {
         var lines: [String] = []
         lines.append("")
         lines.append("### Definition of Done")
@@ -289,70 +302,5 @@ public struct CardManagedBlock: Equatable, Sendable {
             }
         }
         return lines
-    }
-
-    private func renderAttempts() -> [String] {
-        var lines: [String] = []
-        lines.append("")
-        lines.append("### Attempts")
-        if attempts.isEmpty {
-            lines.append("_No Attempt yet._")
-        } else {
-            if let attemptConsumption {
-                let bound = attemptsPerWorkCard.map { " of \($0) allowed" } ?? ""
-                lines.append("- \(attemptConsumption.description)\(bound)")
-            }
-            for (index, attempt) in attempts.enumerated() {
-                if index > 0 {
-                    lines.append("")
-                }
-                lines.append("#### Attempt \(attempt.ordinal) — `\(attempt.route.description)`")
-                lines.append("- Check: \(attempt.checkResult)")
-                if attempt.rounds.isEmpty {
-                    lines.append("- Rounds: none")
-                } else {
-                    let roundTexts = attempt.rounds.enumerated().map { roundIndex, round in
-                        "\(roundIndex + 1). \(round.lens.rawValue) — \(round.verdict)"
-                    }
-                    lines.append("- Rounds: \(roundTexts.joined(separator: "; "))")
-                    lines.append(contentsOf: renderRoundDetails(attempt.rounds))
-                }
-                lines.append("- Outcome: \(attempt.outcome)")
-                if let consumedHow = attempt.consumedHow {
-                    lines.append("- Consumed: \(consumedHow)")
-                }
-            }
-        }
-        return lines
-    }
-
-    /// The judged commit and requested changes of each Round that has one: the one-line summary above
-    /// names every Round, this fills in what it judged. Quoted (`> `) so neither a heading nor a list
-    /// marker in a model's text can be read back as part of the Managed Block's own markdown.
-    private func renderRoundDetails(_ rounds: [RoundAccount]) -> [String] {
-        var lines: [String] = []
-        for (index, round) in rounds.enumerated() {
-            let ordinal = index + 1
-            if let commit = round.judgedCommit {
-                lines.append("  - Round \(ordinal) judged commit: `\(commit)`")
-            }
-            if let requestedChanges = round.requestedChanges, !requestedChanges.isEmpty {
-                lines.append("  - Round \(ordinal) requested changes:")
-                lines.append(contentsOf: Self.quoteRequestedChanges(requestedChanges))
-            }
-        }
-        return lines
-    }
-
-    /// The Round's requested changes, capped and quoted for the Managed Block: over the character limit,
-    /// truncated with an explicit marker (the full text is in the Round's own Card comment and the
-    /// Journal); every line prefixed so it can never start a Markdown heading or list item of its own.
-    private static let requestedChangesLimit = 500
-
-    private static func quoteRequestedChanges(_ text: String) -> [String] {
-        let capped = text.count > requestedChangesLimit
-            ? "\(text.prefix(requestedChangesLimit))… truncated"
-            : text
-        return capped.components(separatedBy: "\n").map { "    > \($0)" }
     }
 }

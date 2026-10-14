@@ -13,7 +13,8 @@ import LinearAdapter
 /// Project's own file. Construction never touches the Keychain (no eager read): a missing or revoked
 /// Installation surfaces as `.notAuthenticated` from the first Linear call the adapter makes, inside the
 /// Act — never from binding itself. A Project naming an installation the registry lacks cannot be bound:
-/// that is ``BoardBindingError/installationMissing(project:installation:)``.
+/// that is ``BoardBindingError/installationMissing(project:installation:)``. An Act's board also carries the
+/// Board Connection's description budget, checked against the ceiling of Linear's description limit.
 enum BoardBinding {
     static func board(
         machine: MachineConfiguration,
@@ -47,6 +48,8 @@ enum BoardBinding {
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
     ) throws -> ActBoard {
         let resolved = try installation(machine: machine, project: project)
+        // Refused here, before any adapter exists: a budget above the board's ceiling is invalid configuration.
+        let descriptionBudget = try resolved.descriptionBudget(limit: LinearAdapter.descriptionLimit)
         let label = AppInstallationLabel(name: resolved.name, workspace: resolved.workspace)
         let refreshes = AppInstallationTokenRefreshLog(installation: label)
         let adapter = makeLinearAdapter(
@@ -55,7 +58,8 @@ enum BoardBinding {
             refreshLog: refreshes
         )
         return ActBoard(
-            reading: adapter, writing: adapter, provisioning: adapter, tokenRefreshes: refreshes, installation: label
+            reading: adapter, writing: adapter, provisioning: adapter, tokenRefreshes: refreshes, installation: label,
+            descriptionBudget: descriptionBudget
         )
     }
 

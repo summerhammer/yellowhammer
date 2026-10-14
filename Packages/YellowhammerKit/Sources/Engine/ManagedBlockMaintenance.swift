@@ -31,6 +31,9 @@ public struct ManagedBlockMaintenance: Sendable {
     ///
     /// When the hash matches, returns `.skipped` without touching the Outbox or board.
     ///
+    /// The hash is that of the full rendering, and keys both writes. The block write carries the whole
+    /// compaction ladder: delivery writes the first rung that fits the description budget.
+    ///
     /// When the hash differs, accepts two OutboxWrites keyed on the rendered hash — one for the block
     /// rewrite, and one (when labels != nil) for the label change — and calls `deliverPending()`.
     /// Both deliveries are returned. The Outbox records the hash when the rewrite is applied.
@@ -58,18 +61,22 @@ public struct ManagedBlockMaintenance: Sendable {
             return .notMaintained(.removedFromBoard)
         }
 
-        let rendered = try renderManagedBlock(card: card, brief: brief)
-        let hash = ManagedBlockFence.sha256(rendered)
+        let renderings = try renderManagedBlock(card: card, brief: brief)
+        let hash = ManagedBlockFence.sha256(renderings[0])
 
-        // Check if unchanged
-        if let lastHash = try journal.managedBlockLastPostedHash(issueID: card.issueID), lastHash == hash {
+        // Check if unchanged. The write may have gone out as any rung of the compaction ladder, so the last
+        // posted hash is compared with every rendering's: a compacted post is not re-posted on every pass.
+        if let lastHash = try journal.managedBlockLastPostedHash(issueID: card.issueID),
+           renderings.contains(where: { ManagedBlockFence.sha256($0) == lastHash }) {
             return .skipped(hash: hash)
         }
 
         // Accept the block write
         let blockKey = "block:\(card.issueID):\(hash)"
         let issueID = BoardObjectID(rawValue: card.issueID)
-        let blockWrite = BoardWrite.rewriteManagedBlock(issue: issueID, rendered: rendered)
+        let blockWrite = renderings.count == 1
+            ? BoardWrite.rewriteManagedBlock(issue: issueID, rendered: renderings[0])
+            : BoardWrite.rewriteManagedBlockCompacting(issue: issueID, renderings: renderings)
         let blockOutboxWrite = OutboxWrite(key: blockKey, write: blockWrite, cardID: card.id)
 
         let blockDelivery = try await outbox.post(blockOutboxWrite)
@@ -95,8 +102,9 @@ public struct ManagedBlockMaintenance: Sendable {
         return .posted(hash: hash, block: blockDelivery, labels: labelDelivery)
     }
 
-    /// Builds the Card's Managed Block from the Journal and renders it.
-    private func renderManagedBlock(card: CardRecord, brief: ArchitecturalBrief) throws -> String {
+    /// Builds the Card's Managed Block from the Journal and renders it: the full rendering first, then each
+    /// more compacted one (``CardManagedBlock/renderings()``).
+    private func renderManagedBlock(card: CardRecord, brief: ArchitecturalBrief) throws -> [String] {
         let history = try journal.attemptHistory(cardID: card.id)
         let checkRuns = try journal.checkRuns(cardID: card.id)
         let attempts = history.attempts.enumerated().map { index, attempt in
@@ -128,7 +136,7 @@ public struct ManagedBlockMaintenance: Sendable {
             adoptionRefusalNotice: try adoptionRefusalNotice(card: card),
             unadoptedStanding: try unadoptedStanding(card: card)
         )
-        return managedBlock.render()
+        return managedBlock.renderings()
     }
 
     /// The Card's un-adopted standing (roadmap P12.1), `asOf` the latest recorded Night — read from the

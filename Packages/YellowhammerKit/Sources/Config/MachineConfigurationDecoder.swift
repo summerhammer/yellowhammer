@@ -106,7 +106,8 @@ struct MachineConfigurationDecoder {
         named name: String, in table: TOMLTable, path: String
     ) throws(ConfigurationError) -> LinearInstallation {
         try decoding.rejectUnknownKeys(
-            in: table, path: path, allowed: ["credential", "workspace", "yellowhammer_identity", "operator"]
+            in: table, path: path,
+            allowed: ["credential", "workspace", "yellowhammer_identity", "operator", "description_budget"]
         )
         let credentialString = try decoding.requiredString("credential", in: table, path: path)
         guard let credential = CredentialReference(credentialString) else {
@@ -116,12 +117,19 @@ struct MachineConfigurationDecoder {
         let workspace = try decoding.requiredString("workspace", in: table, path: path)
         let appUser = try decoding.requiredString("yellowhammer_identity", in: table, path: path)
         let operatorString = try decoding.optionalString("operator", in: table, path: path, allowEmpty: true)
+        // The ceiling belongs to the board, which this module cannot see: it is checked where the board is
+        // bound (``LinearInstallation/descriptionBudget(limit:)``), from the line recorded here.
+        let descriptionBudget = try decoding.positiveInteger("description_budget", in: table, path: path)
         return LinearInstallation(
             name: name,
             credential: credential,
             workspace: BoardObjectID(rawValue: workspace),
             appUser: BoardObjectID(rawValue: appUser),
-            operatorIdentity: operatorString.flatMap { $0.isEmpty ? nil : BoardObjectID(rawValue: $0) }
+            operatorIdentity: operatorString.flatMap { $0.isEmpty ? nil : BoardObjectID(rawValue: $0) },
+            descriptionBudget: descriptionBudget,
+            descriptionBudgetSource: table["description_budget"].map {
+                ConfigurationSource(file: decoding.file, line: $0.line)
+            }
         )
     }
 

@@ -3,7 +3,7 @@ import Foundation
 
 // MARK: - Card Record
 
-public enum WaitingReason: String, Sendable { case question, divergence, overreach }
+public enum WaitingReason: String, CaseIterable, Sendable { case question, divergence, overreach }
 
 /// How the Operator removed a Work Card's issue from the board (OQ142): trashed, or archived while
 /// the Card was in play. Orthogonal to ``CardState``: a removed Card keeps the state it stood in.

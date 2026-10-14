@@ -20,6 +20,20 @@ extension NightSummary {
         }
     }
 
+    /// The same Cards, in the same order, each as one short line: the Card's identifier, where it stands and
+    /// how many Attempts it had this Night. What ``cardLines(night:journal:)`` compacts to under a description
+    /// budget.
+    public static func cardShortLines(night: NightRecord, journal: JournalStore) throws -> [String] {
+        let events = try nightEvents(night: night, journal: journal)
+        return try touchedCards(events: events, journal: journal).map { card in
+            let name = cardName(card)
+            let attempts = touchedAttemptIDs(cardID: card.id, events: events).count
+            guard attempts > 0 else { return "\(name) — \(card.state.rawValue) · no Attempt this Night." }
+            return "\(name) — \(card.state.rawValue) · \(attempts) Attempt\(attempts == 1 ? "" : "s") this Night " +
+                "— see the Journal."
+        }
+    }
+
     private static func cardLine(
         card: CardRecord, events: [JournalEventRecord], journal: JournalStore
     ) throws -> String {
