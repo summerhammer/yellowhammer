@@ -56,6 +56,9 @@ private struct NightTimeField: View {
     var body: some View {
         DatePicker("Time", selection: date, displayedComponents: .hourAndMinute)
             .labelsHidden()
+            // The picker draws in its environment's zone; left at the Mac's, a stored 20:00 showed as 22:00.
+            .environment(\.timeZone, Self.calendar.timeZone)
+            .environment(\.calendar, Self.calendar)
     }
 
     /// A fixed calendar and zone, so the picker's hour and minute are the stored ones and never shift.
