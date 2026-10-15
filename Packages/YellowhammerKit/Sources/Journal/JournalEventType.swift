@@ -12,6 +12,7 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case linearUnreachableHalted = "LinearUnreachableHalted"
     case appInstallationTokenRefresh = "AppInstallationTokenRefresh"
     case mainlineFetchFailed = "MainlineFetchFailed"
+    case tagFetchFailed = "TagFetchFailed"
     case absentNightDetected = "AbsentNightDetected"
     case authoringNoWorkAvailable = "AuthoringNoWorkAvailable"
     case authoringSkippedFeatureInFlight = "AuthoringSkippedFeatureInFlight"
