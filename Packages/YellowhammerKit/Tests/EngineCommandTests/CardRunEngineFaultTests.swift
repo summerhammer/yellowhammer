@@ -23,6 +23,7 @@ struct CardRunEngineFaultTests {
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: FaultingDispatch(log: log, faultOn: .worker),
             check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
+            passTimeoutMinutes: 60,
             resetting: RecordingAttemptResetting(log: log)
         )
 
@@ -66,7 +67,7 @@ struct CardRunEngineFaultTests {
         }
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3, passTimeoutMinutes: 60,
             resetting: RecordingAttemptResetting(log: log)
         )
 

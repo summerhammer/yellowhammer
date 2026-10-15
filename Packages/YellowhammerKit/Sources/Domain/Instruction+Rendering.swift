@@ -18,6 +18,7 @@ extension Instruction {
         if let answeredQuestionSection { sections.append(answeredQuestionSection) }
         if let bankedRepliesSection { sections.append(bankedRepliesSection) }
         if let previousRoundsSection { sections.append(previousRoundsSection) }
+        if let timeLimitSection { sections.append(timeLimitSection) }
         sections.append(resultContractSection)
         return sections.joined(separator: "\n\n") + "\n"
     }
@@ -140,6 +141,28 @@ extension Instruction {
             )
         }
         return lines.joined(separator: "\n")
+    }
+
+    /// Architect and worker passes only (#507): how long the pass may run, from the same configured value the
+    /// engine kills it at. The worker is also told to commit a coherent step before a long verification run,
+    /// since uncommitted work is preserved but the Attempt is spent. Other passes are told nothing.
+    private var timeLimitSection: String? {
+        guard let minutes = passTimeoutMinutes else { return nil }
+        let body: String
+        switch pass {
+        case .worker:
+            body = "This pass may run for at most \(minutes) minutes, after which Yellowhammer stops it. Work you "
+                + "have not committed by then is preserved, but the Attempt is spent and the next Attempt, if any, "
+                + "runs on a different Route. So commit a coherent step before any long verification run (a full build "
+                + "or a Simulator or device test run). Run focused checks first. Do not wait on a background "
+                + "build or test that will not finish within the limit."
+        case .architect:
+            body = "This pass may run for at most \(minutes) minutes, after which Yellowhammer stops it and the "
+                + "Attempt is spent."
+        case .reviewer, .selection, .breakdown, .verifier:
+            return nil
+        }
+        return "## Time limit\n\n" + body
     }
 
     private var wipSection: String? {

@@ -22,7 +22,7 @@ private func makeRun(worker: RehearsalResultFixture, attemptsPerWorkCard: Int, l
     CardRun(
         resolver: twoRouteResolver(), dispatch: LoggingDispatch(log: log, script: [.worker: worker]),
         check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2,
-        attemptsPerWorkCard: attemptsPerWorkCard, resetting: RecordingAttemptResetting()
+        attemptsPerWorkCard: attemptsPerWorkCard, passTimeoutMinutes: 60, resetting: RecordingAttemptResetting()
     )
 }
 

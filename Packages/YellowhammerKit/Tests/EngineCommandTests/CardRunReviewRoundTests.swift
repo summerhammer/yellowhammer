@@ -40,7 +40,7 @@ struct CardRunReviewRoundTests {
         let check = RecordingCheck(log: log, results: checkResults)
         let card = CardRun(
             resolver: resolver, dispatch: dispatch, check: check, checks: checks,
-            reviewRoundsMax: reviewRoundsMax, attemptsPerWorkCard: attemptsPerWorkCard,
+            reviewRoundsMax: reviewRoundsMax, attemptsPerWorkCard: attemptsPerWorkCard, passTimeoutMinutes: 60,
             resetting: RecordingAttemptResetting()
         )
         return Run(card: card, dispatch: dispatch, check: check, log: log)

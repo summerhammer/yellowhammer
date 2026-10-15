@@ -16,6 +16,7 @@ struct CardRunLeaseTests {
         CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log, during: during),
             check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
+            passTimeoutMinutes: 60,
             leasePolicy: leasePolicy,
             resetting: RecordingAttemptResetting()
         )

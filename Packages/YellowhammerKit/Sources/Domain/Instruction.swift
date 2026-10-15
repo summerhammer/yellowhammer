@@ -170,6 +170,9 @@ public struct Instruction: Equatable, Sendable {
     /// The specification commit the Card's Spec Citations were resolved against at dispatch; worker pass
     /// only, nil omits the line (OQ165).
     public let specCommit: String?
+    /// The Project's pass timeout in minutes (`[limits] pass_timeout_minutes`), told to the architect and
+    /// worker passes only; nil omits the `## Time limit` section (#507).
+    public let passTimeoutMinutes: Int?
     /// The absolute path where the CLI Adapter persists the final structured response.
     public let resultFilePath: String
 
@@ -183,6 +186,7 @@ public struct Instruction: Equatable, Sendable {
         payloads: InstructionPayloads,
         commitMessage: CommitMessageRequest? = nil,
         specCommit: String? = nil,
+        passTimeoutMinutes: Int? = nil,
         resultFilePath: String
     ) {
         self.pass = pass
@@ -194,6 +198,7 @@ public struct Instruction: Equatable, Sendable {
         self.payloads = payloads
         self.commitMessage = commitMessage
         self.specCommit = specCommit
+        self.passTimeoutMinutes = passTimeoutMinutes
         self.resultFilePath = resultFilePath
     }
 }

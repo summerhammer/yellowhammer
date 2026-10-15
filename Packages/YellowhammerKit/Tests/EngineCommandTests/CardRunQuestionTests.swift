@@ -33,7 +33,7 @@ struct CardRunQuestionTests {
     ) -> CardRun {
         CardRun(
             resolver: cardRunResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3, passTimeoutMinutes: 60,
             resetting: resetting ?? RecordingAttemptResetting(log: log)
         )
     }

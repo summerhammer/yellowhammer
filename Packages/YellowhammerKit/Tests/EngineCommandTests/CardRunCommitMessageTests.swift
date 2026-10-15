@@ -35,12 +35,13 @@ private let specSha = "89abcdef0123456789abcdef0123456789abcdef"
 struct CardRunCommitMessageTests {
     private func makeRun(
         dispatch: any AgentDispatch, commitMessage: MessageTemplate = .default(.commitMessage),
-        changeType: ChangeType = .feat
+        changeType: ChangeType = .feat, passTimeoutMinutes: Int = 60
     ) -> CardRun {
         let log = CallLog()
         return CardRun(
             resolver: cardRunResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
             checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
+            passTimeoutMinutes: passTimeoutMinutes,
             resetting: RecordingAttemptResetting(log: log), commitMessage: commitMessage, changeType: changeType
         )
     }
@@ -98,6 +99,26 @@ struct CardRunCommitMessageTests {
             #expect(other.commitMessage == nil)
             #expect(!other.render().contains("## Commit messages"))
         }
+    }
+
+    @Test("The Project's pass timeout reaches the architect and worker instructions, and no other pass's (#507)")
+    func passTimeoutReachesArchitectAndWorkerInstructions() async throws {
+        let fixture = try OutboxJournalFixture()
+        let world = try await makeCardRunWorld(journal: try fixture.open())
+        try await scriptBoard(world)
+        let dispatch = LoggingDispatch(log: CallLog())
+        let cardRun = makeRun(dispatch: dispatch, passTimeoutMinutes: 90)
+
+        try await run(cardRun, in: world, readiness: readiness([clause("c1", citing: "G1")]))
+
+        for pass in [RunPass.architect, .worker] {
+            let instruction = try #require(dispatch.requests.passes(pass).first?.instruction.cardInstruction)
+            #expect(instruction.passTimeoutMinutes == 90)
+            #expect(instruction.render().contains("at most 90 minutes"))
+        }
+        let reviewer = try #require(dispatch.requests.passes(.reviewer).first?.instruction.cardInstruction)
+        #expect(reviewer.passTimeoutMinutes == nil)
+        #expect(!reviewer.render().contains("## Time limit"))
     }
 
     @Test("A Card citing only a goal ID renders an empty scope and story")

@@ -30,7 +30,7 @@ struct RehearsalBoundaryDispatchTests {
         let world = try await makeCardRunWorld(journal: journal, cards: [("BACK-1", "backend")])
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: RehearsalDispatch(), check: RecordingCheck(log: CallLog()),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3, passTimeoutMinutes: 60,
             resetting: RecordingAttemptResetting()
         )
 
@@ -57,7 +57,7 @@ struct RehearsalBoundaryDispatchTests {
         let world = try await makeCardRunWorld(journal: journal, cards: [("BACK-1", "backend")])
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: DefaultOriginDispatch(), check: RecordingCheck(log: CallLog()),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3, passTimeoutMinutes: 60,
             resetting: RecordingAttemptResetting()
         )
 
