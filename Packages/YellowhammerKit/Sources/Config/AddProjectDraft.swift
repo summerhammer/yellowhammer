@@ -190,6 +190,12 @@ public struct AddProjectDraft: Equatable, Sendable {
 
     // Repos
     public var repos: [Repo] = []
+    /// The Repo Dependencies the scan proposed among ``repos``; see ``scanDependencies()``.
+    public var dependencyProposals: [DependencyProposal] = []
+    /// The files the last scan could not read, as `"<file>: <reason>"`.
+    public var dependencyScanSkipped: [String] = []
+    /// Whether a scan ran over at least two Repos, so "nothing found" can be told from "not scanned".
+    public var dependencyScanned = false
 
     // Code Hosting
     public var codeHostingConnectionName: String?

@@ -75,6 +75,10 @@ extension Setup {
             machine: machine, at: path
         )
 
+        if options.mode == .initialize {
+            printRepoDependencyProposals(for: declaration)
+        }
+
         // Also before any Linear write: a token that cannot push to a Repo is a Night that fails at `land`.
         try await validateGitHub(for: declaration, machine: machine, connection: codeHostingConnection)
 

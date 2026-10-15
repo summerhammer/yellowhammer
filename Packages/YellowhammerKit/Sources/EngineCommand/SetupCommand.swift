@@ -89,6 +89,12 @@ public struct SetupCommand: AsyncParsableCommand {
     @Option(name: .customLong("repo"), help: "A Repo, as `name,role,path,check`.")
     public var repo: [String] = []
 
+    @Option(
+        name: .customLong("consumes"),
+        help: "A Repo Dependency, as `consumer,producer,via`; via is mainline or tag."
+    )
+    public var consumes: [String] = []
+
     @Flag(
         name: .customLong("install-jobs"),
         help: "Install LaunchAgents; reuse saved configuration unless configuration options are given."

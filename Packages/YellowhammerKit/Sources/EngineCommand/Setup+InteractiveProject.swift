@@ -35,9 +35,9 @@ extension Setup {
         let linearProject = try await askLinearProjectChoice(board: board)
         let specSource = try askSpecSource()
         let repos = try askRepos()
-        return ProjectDeclaration(
+        return declaringProposedRepoDependencies(ProjectDeclaration(
             id: id, name: name, linearProject: linearProject, specSource: specSource, repos: repos
-        )
+        ))
     }
 
     private func askProjectID() throws -> ProjectID {

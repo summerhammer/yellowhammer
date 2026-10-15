@@ -14,12 +14,21 @@ extension AddProjectDraft {
         switch step {
         case .project: identitySummary
         case .board: linearSummary
-        case .repos: repos.isEmpty ? "No Repos yet" : repos.map(\.name).formatted(Self.listStyle)
+        case .repos: reposSummary
         case .github: gitHubSummary
         case .specSource: specSourceSummary
         case .bounds: boundsSummary
         case .jobs: jobsSummary
         }
+    }
+
+    /// The Repo names, and how many Repo Dependencies are confirmed.
+    private var reposSummary: String {
+        guard !repos.isEmpty else { return "No Repos yet" }
+        let names = repos.map(\.name).formatted(Self.listStyle)
+        let count = confirmedDependencyCount
+        guard count > 0 else { return names }
+        return names + ", \(count) Repo \(count == 1 ? "Dependency" : "Dependencies")"
     }
 
     /// "Acme · acme".

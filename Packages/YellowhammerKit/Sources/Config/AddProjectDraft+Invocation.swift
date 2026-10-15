@@ -26,6 +26,7 @@ extension AddProjectDraft {
                     check: $0.check.trimmingCharacters(in: .whitespacesAndNewlines)
                 )
             },
+            dependencies: confirmedDependencies,
             nightStart: schedule.nightStart == defaults.nightStart ? nil : "\(schedule.nightStart)",
             nightEnd: schedule.nightEnd == defaults.nightEnd ? nil : "\(schedule.nightEnd)",
             buildEveryMinutes: schedule.buildEveryMinutes == defaults.buildEveryMinutes
