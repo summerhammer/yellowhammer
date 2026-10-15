@@ -180,7 +180,10 @@ final class AddProjectUITests: XCTestCase {
         let sheet = openAddProjectSheet()
         let guidance = sheet.descendants(matching: .any)["setup-privacy-prompt-guidance"]
         XCTAssertTrue(guidance.waitForExistence(timeout: 10))
-        XCTAssertTrue(guidance.label.contains("choose Don\u{2019}t Allow"))
+        // A Text's string is its value on macOS, not its label.
+        let text = try XCTUnwrap(guidance.value as? String)
+        XCTAssertTrue(text.contains("choose Don\u{2019}t Allow"))
+        XCTAssertTrue(text.contains("unless the folder holds one of this Project\u{2019}s repositories"))
         XCTAssertTrue(sheet.buttons["setup-continue"].exists || sheet.buttons["setup-add-project"].exists)
     }
 
