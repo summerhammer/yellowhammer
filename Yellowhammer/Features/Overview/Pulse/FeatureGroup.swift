@@ -25,6 +25,10 @@ struct FeatureGroup: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("feature-title")
+                if feature.state == "returned" {
+                    ReturnedFeatureGuidance()
+                        .accessibilityIdentifier("feature-returned-guidance")
+                }
                 if feature.lanes.isEmpty {
                     Label("No Repo Lane yet", systemImage: "hourglass")
                         .foregroundStyle(.secondary)

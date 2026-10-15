@@ -29,6 +29,8 @@ struct NeedsYouGroup: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("needs-you-feature")
+                    ReturnedFeatureGuidance()
+                        .accessibilityIdentifier("needs-you-feature-guidance")
                 }
                 ForEach(needsYou.cards) { card in
                     Button { openDestination(.inspector(.card(card.id))) } label: {
