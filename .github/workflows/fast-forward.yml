@@ -1,0 +1,29 @@
+name: Fast-forward merge
+
+on:
+  issue_comment:
+    types: [created, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  fast-forward:
+    if: contains(github.event.comment.body, '/fast-forward') && github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # An App token lets the resulting push trigger CI and release workflows.
+      - name: Mint a GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Fast-forward merge
+        uses: sequoia-pgp/fast-forward@abbab24f3c0f57b2653d8797472ff12dd7cbc0ed # v1.0.0
+        with:
+          github_token: ${{ steps.app-token.outputs.token }}
+          merge: true
+          comment: always
