@@ -168,13 +168,39 @@ struct StepHeading: View {
     }
 }
 
-/// The hub's footer: Cancel; what is still needed; Add Project — or, after the run, only Done or Close.
+/// The hub's footer: the privacy-prompt guidance, then Cancel; what is still needed; Add Project — or,
+/// after the run, only Done or Close.
 struct SetupWizardFooter: View {
     let model: SetupWizardModel
     let onAdded: @MainActor (ProjectID) -> Void
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            privacyPromptGuidance
+            buttons
+        }
+        .padding(16)
+    }
+
+    /// In the footer, so it is on screen whichever steps were opened, until Done (OQ165, R24): a recorded
+    /// denial makes a stray access fail at once instead of holding a pass on an unanswered prompt.
+    private var privacyPromptGuidance: some View {
+        Label {
+            Text("If macOS asks to let Yellowhammer.app access your music, photos, contacts, calendars or a "
+                + "folder, choose Don\u{2019}t Allow \u{2014} unless the folder holds one of this Project\u{2019}s "
+                + "repositories. An unanswered prompt holds the work until it times out.")
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: "hand.raised")
+        }
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("setup-privacy-prompt-guidance")
+    }
+
+    private var buttons: some View {
         HStack(spacing: 12) {
             if let status = model.runExitStatus {
                 Spacer()
@@ -207,7 +233,6 @@ struct SetupWizardFooter: View {
                 }
             }
         }
-        .padding(16)
     }
 
     /// "Continue to <next step>" until every step is complete, enabled once the open one is; then Add

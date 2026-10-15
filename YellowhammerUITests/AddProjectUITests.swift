@@ -172,6 +172,18 @@ final class AddProjectUITests: XCTestCase {
         XCTAssertTrue(files.filter { $0.hasSuffix(".toml") }.isEmpty)
     }
 
+    /// Before it completes, the sheet tells the Operator to answer Don't Allow to a macOS privacy prompt
+    /// unless it names a folder holding one of the Project's repositories (OQ165,
+    /// app/add-a-project-via-the-setup-wizard#privacy-prompt-guidance).
+    func testSheetShowsThePrivacyPromptGuidanceBeforeCompletion() throws {
+        try launchApp(machine: Self.readyMachineTOML)
+        let sheet = openAddProjectSheet()
+        let guidance = sheet.descendants(matching: .any)["setup-privacy-prompt-guidance"]
+        XCTAssertTrue(guidance.waitForExistence(timeout: 10))
+        XCTAssertTrue(guidance.label.contains("choose Don\u{2019}t Allow"))
+        XCTAssertTrue(sheet.buttons["setup-continue"].exists || sheet.buttons["setup-add-project"].exists)
+    }
+
     /// Each time the sheet opens, it starts a fresh session: it keeps no draft and no step from the last
     /// time it was open (issue #218).
     func testReopeningTheSheetStartsAFreshSession() throws {
