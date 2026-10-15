@@ -81,6 +81,8 @@ final class SetupEngine {
         var launchEnvironment: [String: String]?
         if SetupInvocation.composesScheduledJobPATH(arguments), !ConfigurationDirectory.isOverridden {
             let result = await LoginShellPATH.read()
+            // A caller cancelled during the read must not go on to write LaunchAgents with the bare `PATH`.
+            if result == .failed(.cancelled) || Task.isCancelled { throw CancellationError() }
             if case .failed(let reason) = result {
                 onOutput("\(reason.description) The LaunchAgents get the app\u{2019}s PATH instead.")
             }
