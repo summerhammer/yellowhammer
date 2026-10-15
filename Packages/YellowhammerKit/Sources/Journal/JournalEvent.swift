@@ -86,6 +86,16 @@ public enum JournalEvent: Equatable, Sendable {
     /// one or more repositories that have no recorded landing either: the author Act authored nothing,
     /// dispatched nothing. A quiet Night, not a failure.
     case authoringPredecessorIndeterminate(featureIssueID: String, repositories: [String])
+    /// A release-shaped tag of a producer Repo was first observed to contain a Feature's work there (an
+    /// Observed Release; feature-authoring/select-the-next-feature, `#release-gate`). Journal-only: no Night
+    /// Card or Night Summary line.
+    case observedReleaseRecorded(featureIssueID: String, repository: String, tagName: String, tagCommit: String)
+    /// The release gate held a consumer Repo the selected Feature touched: the consumer reads `producer` by
+    /// tag, and no release of the producer contains `producerFeatureIssueID` yet. The author Act authored
+    /// nothing. A quiet Night, not a failure. One per held edge.
+    case authoringReleaseGateHeld(
+        featureName: String, consumer: String, producer: String, producerFeatureIssueID: String
+    )
     /// The predecessor walk (roadmap P9.9) stepped past a released Feature on its way to the
     /// predecessor to check: more recent than the predecessor, its Cycle archived, and released. A
     /// released Feature satisfies the gate for no repository and is never itself checked.

@@ -38,7 +38,8 @@ enum AuthoringBinding {
                 consecutiveAuthoringFaultsMax: project.bounds.consecutiveAuthoringFaultsMax
             ),
             reselectionsMax: project.bounds.reselectionsMax,
-            consecutiveAuthoringFaultsMax: project.bounds.consecutiveAuthoringFaultsMax
+            consecutiveAuthoringFaultsMax: project.bounds.consecutiveAuthoringFaultsMax,
+            releaseGate: ObservedReleaseGate()
         )
     }
 }

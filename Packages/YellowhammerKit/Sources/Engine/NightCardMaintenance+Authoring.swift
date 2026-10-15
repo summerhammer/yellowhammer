@@ -73,6 +73,15 @@ extension NightCardMaintenance {
         return "`\(issueID)`"
     }
 
+    private static func releaseGateHeldLine(
+        consumer: String, producer: String, producerFeatureIssueID: String, journal: JournalStore?
+    ) -> String {
+        let featureRef = renderFeatureReference(issueID: producerFeatureIssueID, journal: journal)
+        return "Authoring was skipped: \(consumer) reads \(producer) by tag, and no release of \(producer) "
+            + "contains Feature \(featureRef) yet. Cut a release of \(producer) that includes it. "
+            + "A quiet Night, not a failure."
+    }
+
     // One case per authoring-line event: a growing enumeration, not a complexity problem to refactor.
     // swiftlint:disable:next cyclomatic_complexity function_body_length
     static func authoringLine(for event: JournalEvent, journal: JournalStore? = nil) -> String? {
@@ -94,6 +103,11 @@ extension NightCardMaintenance {
                 Authoring was skipped: the pushed tip of predecessor Feature \(featureRef) could not be \
                 found in \(named). A quiet Night, not a failure.
                 """
+        case .authoringReleaseGateHeld(_, let consumer, let producer, let producerFeatureIssueID):
+            return releaseGateHeldLine(
+                consumer: consumer, producer: producer, producerFeatureIssueID: producerFeatureIssueID,
+                journal: journal
+            )
         case .predecessorWalkSkippedReleasedFeature(let featureIssueID):
             let featureRef = renderFeatureReference(issueID: featureIssueID, journal: journal)
             return """

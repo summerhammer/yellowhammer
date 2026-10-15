@@ -36,6 +36,11 @@ public enum FeatureAuthoringOutcome: Equatable, Sendable {
     /// failure: recorded and routed to Waiting on You by ``FeatureSelection`` itself, before this
     /// outcome is even returned.
     case halted
+    /// A Feature was selected that touches a consumer Repo the release gate holds tonight: it reads a producer
+    /// by tag, and no release of the producer contains the producer's latest Feature yet
+    /// (feature-authoring/select-the-next-feature, `#release-gate`). Nothing is recorded as selected and
+    /// nothing is authored. A quiet Night, not a failure.
+    case releaseGateHeld
     /// A Feature was selected but its specification was too thin to cite a Definition of Done (roadmap
     /// P9.5, P9.8; glossary: Refusal). Not a halt: recorded and routed to Waiting on You by
     /// ``RefusalRecording``. A quiet Night for this Act.
@@ -189,7 +194,7 @@ public struct AuthorAct: Sendable {
             try journal.recordAuthoringNoWorkAvailable(
                 nightID: context.night.id, act: context.act, runID: context.runID
             )
-        case .authored, .halted, .refused, .authoringRolledBack, .authoringPending:
+        case .authored, .halted, .releaseGateHeld, .refused, .authoringRolledBack, .authoringPending:
             break
         }
         try await writeBack(context: context)

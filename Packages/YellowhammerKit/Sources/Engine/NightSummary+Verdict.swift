@@ -14,10 +14,11 @@ extension NightSummary {
     ]
 
     /// A quiet authoring reason this Night: skipped-in-flight, predecessor not landed or
-    /// indeterminate, a Refusal, or an Authoring Halt.
+    /// indeterminate, a Refusal, an Authoring Halt, or the release gate holding a consumer.
     private static let quietAuthoringEventTypes: Set<JournalEventType> = [
         .authoringSkippedFeatureInFlight, .authoringPredecessorNotLanded, .authoringPredecessorIndeterminate,
-        .refusalOpened, .refusalRepeated, .authoringHaltOpened, .authoringHaltRepeated, .featureAuthoringHalted
+        .refusalOpened, .refusalRepeated, .authoringHaltOpened, .authoringHaltRepeated, .featureAuthoringHalted,
+        .authoringReleaseGateHeld
     ]
 
     /// The Night Summary's one constant-time `**Verdict:**` line. A normal ending renders last
