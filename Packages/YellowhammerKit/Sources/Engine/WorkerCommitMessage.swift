@@ -14,6 +14,9 @@ enum WorkerCommitMessage {
         var featureTitle: String
         var repository: String
         var story: String?
+        /// The specification commit the Readiness Check resolved against; `{spec_commit}` renders it only
+        /// when `{story}` is non-empty (OQ165).
+        var specCommit: String?
     }
 
     static func render(template: MessageTemplate, changeType: ChangeType, inputs: Inputs) -> String {
@@ -26,6 +29,7 @@ enum WorkerCommitMessage {
             .workCardKey: inputs.workCardKey,
             .workCardTitle: inputs.workCardTitle,
             .story: inputs.story ?? "",
+            .specCommit: inputs.story == nil ? "" : (inputs.specCommit ?? ""),
             .scope: epic.map { "(\($0))" } ?? ""
         ])
     }

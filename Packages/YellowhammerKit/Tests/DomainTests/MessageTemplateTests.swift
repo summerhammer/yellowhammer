@@ -47,13 +47,21 @@ func messageTemplateRefusesForeignTokens() {
         Case(.wipCommitMessage, "{scope}", "scope"),
         Case(.wipCommitMessage, "{work_card_title}", "work_card_title"),
         Case(.pullRequestTitle, "{nonsense}", "nonsense"),
-        Case(.commitMessage, "{}", "")
+        Case(.commitMessage, "{}", ""),
+        Case(.pullRequestTitle, "{spec_commit}", "spec_commit"),
+        Case(.wipCommitMessage, "{spec_commit}", "spec_commit")
     ]
     for item in cases {
         #expect(throws: MessageTemplate.Refusal.unknownToken(item.name)) {
             try MessageTemplate(item.text, kind: item.kind)
         }
     }
+}
+
+@Test("{spec_commit} is a commit_message token and renders its value")
+func commitMessageAcceptsSpecCommit() throws {
+    let template = try MessageTemplate("{story} @ {spec_commit}", kind: .commitMessage)
+    #expect(template.render([.story: "auth/login", .specCommit: "abc123"]) == "auth/login @ abc123")
 }
 
 @Test("an empty or whitespace-only template is refused")

@@ -104,10 +104,14 @@ public enum ReadinessFailure: Equatable, Sendable, CustomStringConvertible {
 public struct CardReadiness: Equatable, Sendable {
     public var brief: ArchitecturalBrief
     public var clauses: [ClauseRecord]
+    /// The specification commit the first resolving Spec Citation resolved against; nil when none did
+    /// (OQ165, graph-execution/run-a-card#spec-commit).
+    public var specCommit: String?
 
-    public init(brief: ArchitecturalBrief, clauses: [ClauseRecord]) {
+    public init(brief: ArchitecturalBrief, clauses: [ClauseRecord], specCommit: String? = nil) {
         self.brief = brief
         self.clauses = clauses
+        self.specCommit = specCommit
     }
 }
 
@@ -229,7 +233,8 @@ public struct ReadinessCheck: Sendable {
 
         var failures = structuralFailures(prose: prose, blocks: blocks, clauses: clauses)
         failures += reads.failures
-        failures += await citationFailures(clauses: clauses, repositories: repositories, context: context)
+        let citationCheck = await citationFailures(clauses: clauses, repositories: repositories, context: context)
+        failures += citationCheck.failures
 
         if let repositories {
             switch try await provenanceStep(blocks: blocks, repositories: repositories, card: card, context: context) {
@@ -250,7 +255,7 @@ public struct ReadinessCheck: Sendable {
             act: context.act.act, runID: context.act.runID, nightID: context.act.night.id
         )
         let brief = ArchitecturalBrief(prose: prose ?? "", transcriptions: blocks.map(\.block))
-        return .ready(CardReadiness(brief: brief, clauses: clauses))
+        return .ready(CardReadiness(brief: brief, clauses: clauses, specCommit: citationCheck.specCommit))
     }
 
     /// Tests every declared path against this repository's configured Protected Paths.
@@ -300,24 +305,34 @@ public struct ReadinessCheck: Sendable {
 
     /// Every clause whose Spec Citation does not resolve, or a single `.repositoriesUnconfigured` when
     /// the Project has no repositories to resolve against.
+    ///
+    /// Also yields the commit of the first resolving citation, in clause order: the specification commit
+    /// the Readiness Check resolved against (OQ165, graph-execution/run-a-card#spec-commit).
     private func citationFailures(
         clauses: [ClauseRecord], repositories: ProjectRepositories?, context: BuildActContext
-    ) async -> [ReadinessFailure] {
+    ) async -> CitationCheck {
         guard let repositories else {
-            return [.repositoriesUnconfigured]
+            return CitationCheck(failures: [.repositoriesUnconfigured], specCommit: nil)
         }
-        var failures: [ReadinessFailure] = []
+        var check = CitationCheck(failures: [], specCommit: nil)
         for clause in clauses {
             let citation = SpecCitation(clause.locationID)
             let resolution = await citations.resolve(citation, in: repositories, mainlines: context.act.mainlines)
-            if !resolution.resolves {
-                failures.append(.citationUnresolved(
+            if resolution.resolves {
+                if check.specCommit == nil { check.specCommit = resolution.commit }
+            } else {
+                check.failures.append(.citationUnresolved(
                     cid: clause.cid, citation: clause.locationID,
                     reason: resolution.failureReason ?? "the citation could not be resolved"
                 ))
             }
         }
-        return failures
+        return check
+    }
+
+    private struct CitationCheck {
+        var failures: [ReadinessFailure]
+        var specCommit: String?
     }
 
     private enum ProvenanceOutcome {

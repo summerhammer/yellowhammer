@@ -167,6 +167,9 @@ public struct Instruction: Equatable, Sendable {
     public let payloads: InstructionPayloads
     /// The commit message the worker pass is asked to write; nil omits the section.
     public let commitMessage: CommitMessageRequest?
+    /// The specification commit the Card's Spec Citations were resolved against at dispatch; worker pass
+    /// only, nil omits the line (OQ165).
+    public let specCommit: String?
     /// The absolute path where the CLI Adapter persists the final structured response.
     public let resultFilePath: String
 
@@ -179,6 +182,7 @@ public struct Instruction: Equatable, Sendable {
         route: Route,
         payloads: InstructionPayloads,
         commitMessage: CommitMessageRequest? = nil,
+        specCommit: String? = nil,
         resultFilePath: String
     ) {
         self.pass = pass
@@ -189,6 +193,7 @@ public struct Instruction: Equatable, Sendable {
         self.route = route
         self.payloads = payloads
         self.commitMessage = commitMessage
+        self.specCommit = specCommit
         self.resultFilePath = resultFilePath
     }
 }

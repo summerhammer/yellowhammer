@@ -25,9 +25,11 @@ private func boardObject(_ id: String, key: String, title: String) -> BoardObjec
     return made
 }
 
-private func readiness(_ clauses: [ClauseRecord]) -> CardReadiness {
-    CardReadiness(brief: ArchitecturalBrief(prose: "", transcriptions: []), clauses: clauses)
+private func readiness(_ clauses: [ClauseRecord], specCommit: String? = nil) -> CardReadiness {
+    CardReadiness(brief: ArchitecturalBrief(prose: "", transcriptions: []), clauses: clauses, specCommit: specCommit)
 }
+
+private let specSha = "89abcdef0123456789abcdef0123456789abcdef"
 
 @Suite("Card run, worker commit message and trailer record (P19.4)")
 struct CardRunCommitMessageTests {
@@ -114,6 +116,48 @@ struct CardRunCommitMessageTests {
         let title = try world.card("BACK-1").title ?? "BACK-1"
         let worker = try #require(dispatch.requests.passes(.worker).first?.instruction.cardInstruction)
         #expect(worker.commitMessage?.message == "fix: \(title) [YLH-7]  backend")
+    }
+
+    @Test("The readiness spec commit reaches the worker instruction and fills {spec_commit} beside {story}")
+    func specCommitReachesWorkerInstructionAndTemplate() async throws {
+        let fixture = try OutboxJournalFixture()
+        let world = try await makeCardRunWorld(journal: try fixture.open())
+        try await scriptBoard(world)
+        let dispatch = LoggingDispatch(log: CallLog())
+        let cardRun = makeRun(
+            dispatch: dispatch, commitMessage: try MessageTemplate("{story} @ {spec_commit}", kind: .commitMessage)
+        )
+
+        try await run(cardRun, in: world, readiness: readiness(
+            [clause("c1", citing: "auth/login#ac-1")], specCommit: specSha
+        ))
+
+        let worker = try #require(dispatch.requests.passes(.worker).first?.instruction.cardInstruction)
+        #expect(worker.specCommit == specSha)
+        #expect(worker.commitMessage?.message == "auth/login @ \(specSha)")
+        #expect(worker.render().contains("Specification commit: \(specSha)"))
+        for pass in [RunPass.architect, .reviewer] {
+            let other = try #require(dispatch.requests.passes(pass).first?.instruction.cardInstruction)
+            #expect(other.specCommit == nil)
+            #expect(!other.render().contains(specSha))
+        }
+    }
+
+    @Test("{spec_commit} renders empty when no clause cites a story, though the instruction still names the commit")
+    func specCommitTokenEmptyWithoutStory() async throws {
+        let fixture = try OutboxJournalFixture()
+        let world = try await makeCardRunWorld(journal: try fixture.open())
+        try await scriptBoard(world)
+        let dispatch = LoggingDispatch(log: CallLog())
+        let cardRun = makeRun(
+            dispatch: dispatch, commitMessage: try MessageTemplate("[{story}][{spec_commit}]", kind: .commitMessage)
+        )
+
+        try await run(cardRun, in: world, readiness: readiness([clause("c1", citing: "G1")], specCommit: specSha))
+
+        let worker = try #require(dispatch.requests.passes(.worker).first?.instruction.cardInstruction)
+        #expect(worker.commitMessage?.message == "[][]")
+        #expect(worker.render().contains("Specification commit: \(specSha)"))
     }
 
     @Test("With no board object the key is empty and no trailer sentence is rendered")

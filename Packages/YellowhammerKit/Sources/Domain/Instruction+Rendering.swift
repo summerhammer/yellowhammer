@@ -12,6 +12,7 @@ extension Instruction {
             definitionOfDoneSection,
             repositorySection
         ]
+        if let specificationSection { sections.append(specificationSection) }
         if let commitMessagesSection { sections.append(commitMessagesSection) }
         if let wipSection { sections.append(wipSection) }
         if let answeredQuestionSection { sections.append(answeredQuestionSection) }
@@ -79,6 +80,41 @@ extension Instruction {
             Feature branch: \(repository.featureBranch)
             Check: \(checkLine)
             """
+    }
+
+    /// Worker pass only (OQ165, graph-execution/run-a-card#spec-commit): the specification commit the Card's
+    /// Spec Citations were resolved against, given as a fact, and the never-search sentence. It names no
+    /// filesystem path to the specification, and asserts nothing about the worker citing the commit.
+    private var specificationSection: String? {
+        guard pass == .worker, let stayInside = Self.stayInsideSentence(for: pass) else { return nil }
+        var lines = ["## Specification", ""]
+        if let specCommit {
+            lines.append("Specification commit: \(specCommit)")
+            lines.append("")
+            lines.append(
+                "This is the commit this Card's Spec Citations were resolved against when this pass was "
+                    + "dispatched. It is given as a fact, not as a requirement to cite it. What this Card needs "
+                    + "from the specification is in the Architectural Brief's transcriptions and the Definition "
+                    + "of Done's citations above."
+            )
+            lines.append("")
+        }
+        lines.append(stayInside)
+        return lines.joined(separator: "\n")
+    }
+
+    /// The never-search sentence (OQ165): the worker is told everything it needs from outside its Worktree
+    /// is in the instruction, and not to search the filesystem for it. Other passes carry none yet.
+    public static func stayInsideSentence(for pass: RunPass) -> String? {
+        switch pass {
+        case .worker:
+            return "Everything this Card needs from outside its Worktree is in this instruction. Never search "
+                + "the filesystem outside the Worktree — no `find ~`, no `find /`, no walking other "
+                + "directories. When something you need is missing, report the `question` outcome and ask "
+                + "for it rather than searching."
+        case .architect, .reviewer, .selection, .breakdown, .verifier:
+            return nil
+        }
     }
 
     /// Worker pass only: the rendered commit-message template and the `Yellowhammer-Work-Card` trailer. The

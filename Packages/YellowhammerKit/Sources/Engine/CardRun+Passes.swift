@@ -225,6 +225,7 @@ extension CardRun {
                 check: frame.check
             ),
             route: route, payloads: payloads, commitMessage: commitMessageRequest(for: pass, frame: frame),
+            specCommit: pass == .worker ? frame.readiness.specCommit : nil,
             resultFilePath: ""
         )
     }
@@ -242,7 +243,8 @@ extension CardRun {
                 workCardKey: frame.cardObject?.key ?? "", workCardTitle: frame.instructionCard.title,
                 featureKey: frame.featureObject?.key ?? "",
                 featureTitle: frame.featureObject?.title ?? frame.context.feature.issueID,
-                repository: frame.card.repository, story: story
+                repository: frame.card.repository, story: story,
+                specCommit: frame.readiness.specCommit
             )
         )
         return CommitMessageRequest(message: message, workCardKey: frame.cardObject?.key)
