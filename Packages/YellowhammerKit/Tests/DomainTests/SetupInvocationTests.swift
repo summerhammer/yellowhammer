@@ -132,6 +132,41 @@ struct SetupInvocationTests {
         #expect(throws: SetupInvocationError.self) { try invocation.arguments() }
     }
 
+    @Test("Repo Dependencies render as --consumes, in order, after the --repo arguments")
+    func dependenciesRenderAfterRepos() throws {
+        let repos = [
+            SetupInvocation.Repo(name: "backend", role: "backend", path: "~/dev/backend", check: "swift test"),
+            SetupInvocation.Repo(name: "contracts", role: "backend", path: "~/dev/contracts", check: "none")
+        ]
+        let dependencies = [
+            SetupInvocation.RepoDependency(consumer: "backend", producer: "contracts", via: "tag"),
+            SetupInvocation.RepoDependency(consumer: "contracts", producer: "spec", via: "mainline")
+        ]
+        let arguments = try SetupInvocation(project: SetupInvocation.Project(
+            id: "demo", linearProject: .existing("proj-1"), repos: repos, dependencies: dependencies
+        )).arguments()
+
+        let tail = Array(arguments.suffix(4))
+        #expect(tail == ["--consumes", "backend,contracts,tag", "--consumes", "contracts,spec,mainline"])
+        let lastRepo = try #require(arguments.lastIndex(of: "--repo"))
+        let firstConsumes = try #require(arguments.firstIndex(of: "--consumes"))
+        #expect(lastRepo < firstConsumes)
+    }
+
+    @Test("A comma or an empty field in a Repo Dependency is refused", arguments: [
+        SetupInvocation.RepoDependency(consumer: "back,end", producer: "contracts", via: "tag"),
+        SetupInvocation.RepoDependency(consumer: "backend", producer: "con,tracts", via: "tag"),
+        SetupInvocation.RepoDependency(consumer: "backend", producer: "contracts", via: "ta,g"),
+        SetupInvocation.RepoDependency(consumer: "", producer: "contracts", via: "tag")
+    ])
+    func badDependencyFieldIsRefused(dependency: SetupInvocation.RepoDependency) {
+        let invocation = SetupInvocation(project: SetupInvocation.Project(
+            id: "demo", linearProject: .existing("proj-1"), dependencies: [dependency]
+        ))
+
+        #expect(throws: SetupInvocationError.self) { try invocation.arguments() }
+    }
+
     @Test("choicesArguments builds --print-choices with only the Linear options") // glossary:ignore GL001
     func choicesArgumentsBuildsPrintChoices() {
         let arguments = SetupInvocation.choicesArguments(boardConnection: "main")

@@ -126,7 +126,8 @@ func makeArguments(
     installation: String? = nil,
     installationName: String? = nil,
     codeHostingConnection: String? = nil,
-    omitCodeHostingConnection: Bool = false
+    omitCodeHostingConnection: Bool = false,
+    consumes: [String] = []
 ) -> [String] {
     var arguments: [String] = []
     if initialize { arguments.append("--init") }
@@ -159,6 +160,7 @@ func makeArguments(
     appendRepeated(&arguments, "--cli", cli)
     appendRepeated(&arguments, "--fallback", fallback)
     appendRepeated(&arguments, "--repo", repo)
+    appendRepeated(&arguments, "--consumes", consumes)
     return arguments
 }
 

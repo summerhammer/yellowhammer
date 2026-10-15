@@ -19,6 +19,19 @@ public struct SetupInvocation: Equatable, Sendable {
         }
     }
 
+    /// One `--consumes consumer,producer,via` declaration (glossary: Repo Dependency); `via` is `mainline` or `tag`.
+    public struct RepoDependency: Equatable, Sendable {
+        public var consumer: String
+        public var producer: String
+        public var via: String
+
+        public init(consumer: String, producer: String, via: String) {
+            self.consumer = consumer
+            self.producer = producer
+            self.via = via
+        }
+    }
+
     /// How the Project's Linear project is named: an existing one, or one to create in a team.
     public enum LinearProject: Equatable, Sendable {
         case existing(String)
@@ -32,6 +45,8 @@ public struct SetupInvocation: Equatable, Sendable {
         public var linearProject: LinearProject
         public var specSource: String?
         public var repos: [Repo]
+        /// The Repo Dependencies declared among `repos`, rendered after them as repeated `--consumes`.
+        public var dependencies: [RepoDependency]
         /// `--night-start HH:MM`, `--night-end HH:MM`, `--build-every-minutes N`: the `[schedule]` window.
         /// Nil means the flag is not passed and the field keeps its default.
         public var nightStart: String?
@@ -40,7 +55,7 @@ public struct SetupInvocation: Equatable, Sendable {
 
         public init(
             id: String, name: String? = nil, linearProject: LinearProject,
-            specSource: String? = nil, repos: [Repo] = [],
+            specSource: String? = nil, repos: [Repo] = [], dependencies: [RepoDependency] = [],
             nightStart: String? = nil, nightEnd: String? = nil, buildEveryMinutes: Int? = nil
         ) {
             self.nightStart = nightStart
@@ -51,6 +66,7 @@ public struct SetupInvocation: Equatable, Sendable {
             self.linearProject = linearProject
             self.specSource = specSource
             self.repos = repos
+            self.dependencies = dependencies
         }
     }
 
@@ -127,6 +143,9 @@ public struct SetupInvocation: Equatable, Sendable {
             }
             for repo in project.repos {
                 arguments += ["--repo", try Self.repoArgument(repo)]
+            }
+            for dependency in project.dependencies {
+                arguments += ["--consumes", try Self.consumesArgument(dependency)]
             }
         }
         switch jobs {
@@ -245,14 +264,31 @@ public struct SetupInvocation: Equatable, Sendable {
         return "\(repo.name),\(repo.role),\(repo.path),\(repo.check)"
     }
 
-    private static func requireNonEmpty(_ value: String, field: String) throws(SetupInvocationError) {
-        guard value.isEmpty else { return }
-        throw SetupInvocationError("a Repo's \(field) must not be empty")
+    /// `"consumer,producer,via"`; no field may be empty or contain a comma.
+    private static func consumesArgument(_ dependency: RepoDependency) throws(SetupInvocationError)
+        -> String {
+        let fields = [
+            ("consumer", dependency.consumer), ("producer", dependency.producer), ("via", dependency.via)
+        ]
+        for (field, value) in fields {
+            try requireNonEmpty(value, field: field, owner: "a Repo Dependency's")
+            try requireNoComma(value, field: field, owner: "a Repo Dependency's")
+        }
+        return "\(dependency.consumer),\(dependency.producer),\(dependency.via)"
     }
 
-    private static func requireNoComma(_ value: String, field: String) throws(SetupInvocationError) {
+    private static func requireNonEmpty(
+        _ value: String, field: String, owner: String = "a Repo's"
+    ) throws(SetupInvocationError) {
+        guard value.isEmpty else { return }
+        throw SetupInvocationError("\(owner) \(field) must not be empty")
+    }
+
+    private static func requireNoComma(
+        _ value: String, field: String, owner: String = "a Repo's"
+    ) throws(SetupInvocationError) {
         guard value.contains(",") else { return }
-        throw SetupInvocationError("a Repo's \(field) must not contain a comma")
+        throw SetupInvocationError("\(owner) \(field) must not contain a comma")
     }
 
     /// Omitted when nil, or when trimmed empty.

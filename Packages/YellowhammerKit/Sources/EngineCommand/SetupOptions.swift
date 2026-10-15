@@ -99,7 +99,8 @@ struct SetupOptions {
         jobs = try Self.parseJobsRequest(command)
         hasProjectDeclarationOptions = command.projectName != nil || command.linearProject != nil
             || command.linearTeam != nil || command.specSource != nil || !command.repo.isEmpty
-            || command.nightStart != nil || command.nightEnd != nil || command.buildEveryMinutes != nil
+            || !command.consumes.isEmpty || command.nightStart != nil || command.nightEnd != nil
+            || command.buildEveryMinutes != nil
 
         try Self.validateProjectOptionScope(command)
         if let rawProject = command.project {
@@ -115,7 +116,8 @@ struct SetupOptions {
             linearTeam = command.linearTeam
             specSource = command.specSource
             schedule = try Self.parseSchedule(command)
-            repos = try command.repo.map(Self.parseRepo)
+            let declared = try command.repo.map(Self.parseRepo)
+            repos = try Self.foldConsumes(command.consumes, into: declared)
         } else {
             projectID = nil
             projectName = nil
@@ -211,25 +213,25 @@ struct SetupOptions {
         guard command.project == nil else { return }
         if command.printChoices && command.linearProject != nil {
             guard command.projectName == nil, command.linearTeam == nil,
-                  command.specSource == nil, command.repo.isEmpty, command.nightStart == nil,
-                  command.nightEnd == nil, command.buildEveryMinutes == nil
+                  command.specSource == nil, command.repo.isEmpty, command.consumes.isEmpty,
+                  command.nightStart == nil, command.nightEnd == nil, command.buildEveryMinutes == nil
             else {
                 throw ValidationError(
                     "--project-name, --linear-team, " // glossary:ignore GL001
                         + "--spec-source, --night-start, --night-end, --build-every-minutes " // glossary:ignore GL001
-                        + "and --repo require --project" // glossary:ignore GL001
+                        + "--repo and --consumes require --project" // glossary:ignore GL001
                 )
             }
             return
         }
         guard command.projectName == nil, command.linearProject == nil, command.linearTeam == nil,
-              command.specSource == nil, command.repo.isEmpty, command.nightStart == nil,
-              command.nightEnd == nil, command.buildEveryMinutes == nil
+              command.specSource == nil, command.repo.isEmpty, command.consumes.isEmpty,
+              command.nightStart == nil, command.nightEnd == nil, command.buildEveryMinutes == nil
         else {
             throw ValidationError(
                 "--project-name, --linear-project, --linear-team, " // glossary:ignore GL001
-                    + "--spec-source, --night-start, --night-end, --build-every-minutes " // glossary:ignore GL001
-                    + "and --repo require --project" // glossary:ignore GL001
+                    + "--spec-source, --night-start, --night-end, --build-every-minutes, " // glossary:ignore GL001
+                    + "--repo and --consumes require --project" // glossary:ignore GL001
             )
         }
     }
