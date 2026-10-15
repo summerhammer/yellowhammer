@@ -9,9 +9,11 @@ import SwiftUI
 struct RepoDependenciesBlock: View {
     @Binding var draft: AddProjectDraft
 
-    /// What the scan depends on: changing any of it scans again.
-    private var scanInputs: [String] {
-        draft.repos.map { $0.path + "\u{1F}" + $0.name + "\u{1F}" + $0.role }
+    /// What the scan depends on: changing any of it scans again, after a short pause so a name being typed
+    /// does not sweep every Repo's files on each keystroke.
+    private var scanKey: String {
+        (draft.repos.map { $0.path + "\u{1F}" + $0.name + "\u{1F}" + $0.role } + [String(describing: draft.specChoice)])
+            .joined(separator: "\u{1E}")
     }
 
     var body: some View {
@@ -41,9 +43,12 @@ struct RepoDependenciesBlock: View {
                 .font(.callout)
             }
         }
-        .onAppear { draft.scanDependencies() }
-        .onChange(of: scanInputs) { draft.scanDependencies() }
-        .onChange(of: draft.specChoice) { draft.scanDependencies() }
+        .task(id: scanKey) {
+            // Runs on appear and whenever the key changes, cancelling the previous wait: a debounce.
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            draft.scanDependencies()
+        }
     }
 }
 
