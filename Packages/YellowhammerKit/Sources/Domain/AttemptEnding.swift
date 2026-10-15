@@ -31,6 +31,9 @@ public enum HardFailureCause: Equatable, Sendable {
     /// Exit 0 and a result file that declares a Yellowhammer result schema but breaks its contract
     /// (``RunOutcome/contractViolation(_:)``). The CLI answered, so the cause is the Route's (#445).
     case contractViolation(ResultFileError)
+    /// The engine ended the pass at the Project's pass timeout (``RunOutcome/timedOut(after:)``, #507). The
+    /// CLI did not answer in time, so the Route is excluded like any other hard failure.
+    case timedOut(after: Duration)
 }
 
 /// The stored vocabulary of `attempt.result`.
@@ -85,9 +88,12 @@ extension AttemptEnding {
         self != .question && self != .cancelled && self != .aborted
     }
 
-    /// The `route_exclusion.reason` this ending writes, or nil when it excludes nothing.
+    /// The `route_exclusion.reason` this ending writes, or nil when it excludes nothing. Free text that is
+    /// only written, never read back, so a timeout names itself.
     public var exclusionReason: String? {
         switch self {
+        case .hardFailure(.timedOut):
+            "timed out"
         case .hardFailure:
             "hard failure"
         case .roundsExhausted:
@@ -108,6 +114,8 @@ extension AttemptEnding {
             "reported: \(reason)"
         case .hardFailure(.contractViolation(let error)):
             error.description
+        case .hardFailure(.timedOut(let after)):
+            "timed out after \(after.wholeMinutes) min"
         case .roundsExhausted(let rounds):
             "\(rounds) rounds"
         case .crashedUnknown(.resultFile(let error)):
@@ -135,6 +143,8 @@ extension AttemptEnding {
         switch self {
         case .success:
             "consumed"
+        case .hardFailure(.timedOut):
+            "consumed; route excluded (timed out)"
         case .hardFailure:
             "consumed; route excluded (hard failure)"
         case .roundsExhausted:
@@ -167,6 +177,8 @@ extension AttemptEnding {
             self = .crashedUnknown(cause)
         case .contractViolation(let error):
             self = .hardFailure(.contractViolation(error))
+        case .timedOut(let after):
+            self = .hardFailure(.timedOut(after: after))
         case .completed:
             return nil
         }

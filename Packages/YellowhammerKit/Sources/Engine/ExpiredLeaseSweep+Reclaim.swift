@@ -196,7 +196,7 @@ extension ExpiredLeaseSweep {
 
     /// Defensive classification of `attempt` (loop-state/reclaim-an-expired-lease, P8.10): a valid,
     /// schema-conforming result file of the dead run's last pass that ends the Attempt, else the event
-    /// log's last recorded pass step for it, else Crashed-Unknown.
+    /// log's last recorded pass step for it (a `failed(exit status N)` or a timeout), else Crashed-Unknown.
     private func classify(
         card: CardRecord, attempt: AttemptRecord, previousRunID: RunID, engineStop: String?
     ) throws -> Classification {
@@ -205,6 +205,9 @@ extension ExpiredLeaseSweep {
         }
         if let status = try lastFailedExitStatus(card: card, previousRunID: previousRunID) {
             return Classification(ending: .hardFailure(.exitStatus(status)), knownGoodCommit: nil)
+        }
+        if let after = try lastTimedOutDuration(card: card, previousRunID: previousRunID) {
+            return Classification(ending: .hardFailure(.timedOut(after: after)), knownGoodCommit: nil)
         }
         // After a finished pass (above), before the engine-stop and crash readings: mirrors the live path.
         if try journal.isOperatorAbortRequested(attemptID: attempt.id) {
@@ -287,6 +290,14 @@ extension ExpiredLeaseSweep {
             return nil
         }
         return CardRun.parseFailedExitStatus(detail)
+    }
+
+    /// The pass timeout the dead run's last recorded pass step names, when the engine killed that pass at it.
+    private func lastTimedOutDuration(card: CardRecord, previousRunID: RunID) throws -> Duration? {
+        guard let last = try lastPassStep(card: card, previousRunID: previousRunID), let detail = last.detail else {
+            return nil
+        }
+        return CardRun.parseTimedOut(detail)
     }
 
     /// A short, Operator-facing account of what was missing, from the dead run's last recorded pass step

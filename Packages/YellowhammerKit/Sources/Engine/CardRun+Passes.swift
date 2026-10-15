@@ -267,7 +267,24 @@ extension CardRun {
         case .failed(let status): "failed(exit status \(status))"
         case .contractViolation: "contract-violation"
         case .crashedUnknown: "crashed-unknown"
+        case .timedOut(let after): "timed-out(after \(Self.wholeSeconds(after)) s)"
         }
+    }
+
+    private static func wholeSeconds(_ duration: Duration) -> Int64 {
+        duration.components.seconds
+    }
+
+    /// Parses the `timed-out(after N s)` detail ``describe(_:)`` writes to a `cardRunStep` event, the way
+    /// ``parseFailedExitStatus(_:)`` reads `failed(exit status N)`. `nil` for every other detail string.
+    static func parseTimedOut(_ detail: String) -> Duration? {
+        let prefix = "timed-out(after "
+        let suffix = " s)"
+        guard detail.hasPrefix(prefix), detail.hasSuffix(suffix) else { return nil }
+        let start = detail.index(detail.startIndex, offsetBy: prefix.count)
+        let end = detail.index(detail.endIndex, offsetBy: -suffix.count)
+        guard start < end, let seconds = Int64(detail[start..<end]) else { return nil }
+        return .seconds(seconds)
     }
 
     /// Parses the `failed(exit status N)` detail ``describe(_:)`` writes to a `cardRunStep` event, for a

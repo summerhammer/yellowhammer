@@ -173,7 +173,7 @@ struct NightSummaryCardsTests {
             )
             try journal.endAttempt(
                 attemptID: first.id,
-                ending: .crashedUnknown(.terminated(.timedOut(after: .seconds(1800), forcedKill: false))),
+                ending: .crashedUnknown(.terminated(.aborted(forcedKill: false))),
                 runID: context.runID, act: context.act, nightID: context.night.id
             )
             try seedCheckFailedThenPassed(journal, context: context, cardID: seeded.cardID, issueID: issueID)

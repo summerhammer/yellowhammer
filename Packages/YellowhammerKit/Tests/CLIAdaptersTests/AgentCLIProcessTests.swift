@@ -133,7 +133,7 @@ struct AgentCLIProcessTests {
         let report = try await runner.run(fixture.launch(timeout: timeout))
 
         #expect(report.end == .timedOut(after: timeout, forcedKill: true))
-        #expect(report.outcome == .crashedUnknown(.terminated(report.end)))
+        #expect(report.outcome == .timedOut(after: timeout))
         #expect(FileManager.default.fileExists(atPath: fixture.scratch.appendingPathComponent("term").path))
 
         let childFile = fixture.scratch.appendingPathComponent("child")
