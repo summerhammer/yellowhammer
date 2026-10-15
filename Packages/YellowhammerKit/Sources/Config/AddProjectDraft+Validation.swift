@@ -172,7 +172,7 @@ extension AddProjectDraft {
                 problems.append("\(repo.displayPath) needs a \(missing.formatted(Self.listStyle)).")
             }
         }
-        return problems
+        return problems + dependencyProblems
     }
 
     /// The Repos a GitHub token must be able to publish: every Repo whose role is not `spec` (the Spec Source is

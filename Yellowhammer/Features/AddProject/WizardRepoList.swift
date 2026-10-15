@@ -21,6 +21,10 @@ struct RepoStepView<Trailing: View>: View {
                     Button("Add Repo\u{2026}", systemImage: "plus", action: addRepo)
                         .accessibilityIdentifier("setup-add-repo")
                 }
+                if draft.repos.count >= 2 {
+                    RepoDependenciesBlock(draft: $draft)
+                        .padding(.top, 8)
+                }
                 trailing.padding(.top, 8)
             }
             .padding(20)
