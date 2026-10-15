@@ -285,19 +285,19 @@ struct AuthoringTranscriptionHaltTests {
                     repository: "backend", kind: kind, title: "Backend one", unitOfWork: "Do it",
                     brief: "Approach.",
                     definitionOfDone: [authoringClause("Backend one is done.")],
-                    contracts: [ContractDraft(repository: "mobile", paths: ["a.swift"])]
+                    contracts: [ContractDraft(repository: "web", paths: ["a.swift"])]
                 ),
                 CardDraft(
                     repository: "mobile", kind: kind, title: "Mobile one", unitOfWork: "Do it",
                     brief: "Approach.",
                     definitionOfDone: [authoringClause("Mobile one is done.")],
-                    contracts: [ContractDraft(repository: "backend", paths: ["b.swift"])]
+                    contracts: [ContractDraft(repository: "spec_source", paths: ["b.swift"])]
                 )
             ]
         )
         let rig = try await AuthoringRig(
             drafting: ScriptedBreakdown(breakdown),
-            transcribing: FakeContractTranscriber(unreadableRepositories: ["mobile", "backend"])
+            transcribing: FakeContractTranscriber(unreadableRepositories: ["web", "spec_source"])
         )
 
         let outcome = try await rig.run(rig.context())
@@ -314,14 +314,14 @@ struct AuthoringTranscriptionHaltTests {
         }
         #expect(name == "FEAT-1")
         #expect(kind == "contract-unreadable")
-        #expect(detail?.contains("mobile") == true)
-        #expect(detail?.contains("backend") == true)
+        #expect(detail?.contains("web") == true)
+        #expect(detail?.contains("spec_source") == true)
 
         let live = await rig.boards.writing.liveIssues
         let issue = try #require(live.first { $0.title == "FEAT-1" })
         let comments = await rig.boards.writing.comments
         #expect(comments.contains {
-            $0.issue == issue.id && $0.body.contains("mobile") && $0.body.contains("backend")
+            $0.issue == issue.id && $0.body.contains("web") && $0.body.contains("spec_source")
         })
     }
 

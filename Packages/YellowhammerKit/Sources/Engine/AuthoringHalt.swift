@@ -7,7 +7,8 @@ import Journal
 /// dispatches nothing and records no Attempt.
 ///
 /// Shared by ``FeatureSelection`` (the seam and repository-determination halts, roadmap P9.3) and
-/// ``AuthoringTransaction`` (the unreadable contract, P9.6). Not the thin-spec finding: that is a
+/// ``AuthoringTransaction`` (the unreadable contract, P9.6, and a breakdown that consumes its own Feature's work,
+/// ``ContractOverlapCheck``). Not the thin-spec finding: that is a
 /// Refusal, recorded by ``RefusalRecording``. The two share only ``AuthoringStopBoard``. A halt never
 /// touches a Refusal or any consecutive count.
 ///

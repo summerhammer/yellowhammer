@@ -90,6 +90,9 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         ) {
             return rejection
         }
+        if let halted = try await haltIfConsumingOwnWork(breakdown, for: selection, context: context) {
+            return halted
+        }
 
         // Every drafted clause's citation is resolved before anything is accepted into the Outbox
         // (roadmap P9.5): a clause without a resolvable citation is never written speculatively, and a
@@ -143,6 +146,18 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
             nightID: context.night.id
         )
         return try await complete(plan.record, context: context, outbox: outbox)
+    }
+
+    /// The contract-overlap floor (``ContractOverlapCheck``): a Work Card reading what another Work Card of this
+    /// Feature writes is an Authoring Halt, recorded with no model call and no Route walk — nil when there is none.
+    private func haltIfConsumingOwnWork(
+        _ breakdown: FeatureBreakdown, for selection: SelectedFeature, context: ActContext
+    ) async throws -> FeatureAuthoringOutcome? {
+        let overlaps = ContractOverlapCheck.overlaps(in: breakdown)
+        guard !overlaps.isEmpty else { return nil }
+        return try await AuthoringHalt.record(
+            feature: selection.name, cause: .breakdownConsumesOwnFeatureWork(overlaps: overlaps), context: context
+        )
     }
 
     /// Validates the drafted breakdown, returning the outcome to return early with when it is rejected —
