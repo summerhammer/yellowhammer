@@ -217,6 +217,20 @@ public struct SetupInvocation: Equatable, Sendable {
         ["doctor", "--fix", "--project", project, "--check", "launchd", "--json"]
     }
 
+    /// Whether `arguments` is an invocation whose `PATH` becomes the Scheduled Invocations' `PATH`:
+    /// `yh setup` with `--install-jobs` or `--export-jobs`, and `yh doctor --fix`. Those bake the `PATH`
+    /// they run with into every LaunchAgent, so the app runs them with the login shell's `PATH`.
+    public static func composesScheduledJobPATH(_ arguments: [String]) -> Bool {
+        switch arguments.first {
+        case "setup":
+            return arguments.contains("--install-jobs") || arguments.contains("--export-jobs")
+        case "doctor":
+            return arguments.contains("--fix")
+        default:
+            return false
+        }
+    }
+
     /// `"name,role,path,check"`. `name`, `role` and `path` may not contain a comma — `--repo` splits on
     /// the first three only, so a comma there would silently corrupt a later field — and none of the
     /// four may be empty.

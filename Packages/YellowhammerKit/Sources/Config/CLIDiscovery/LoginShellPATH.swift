@@ -37,6 +37,15 @@ public enum LoginShellPATH {
         case failed(Failure)
     }
 
+    /// `inherited` with `PATH` replaced by the login shell's, every other variable kept; unchanged when the
+    /// read failed.
+    public static func environment(applying result: Result, to inherited: [String: String]) -> [String: String] {
+        guard case .path(let path) = result else { return inherited }
+        var environment = inherited
+        environment["PATH"] = path
+        return environment
+    }
+
     /// The Operator's login shell from the password database when it is an absolute executable path;
     /// otherwise `/bin/zsh`.
     public static func operatorShell() -> String {
