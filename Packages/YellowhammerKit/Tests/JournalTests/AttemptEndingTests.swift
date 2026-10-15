@@ -119,6 +119,27 @@ func hardFailureByExitStatusExcludes() throws {
     #expect(routeExcluded == true)
 }
 
+@Test("A timeout is a hard failure: it consumes the Attempt and excludes the Route with reason timed out (#507)")
+func hardFailureByTimeoutExcludes() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let cardID = try insertFixtureCard(journal)
+    let runID = RunID()
+    try claimLease(journal, runID: runID)
+    let attempt = try journal.recordAttempt(cardID: cardID, route: routeA, runID: runID, now: epoch)
+
+    let ended = try journal.endAttempt(
+        attemptID: attempt.id, ending: .hardFailure(.timedOut(after: .seconds(3600))), runID: runID, act: .build,
+        now: epoch.addingTimeInterval(10)
+    )
+
+    #expect(ended.result == "hard failure")
+    #expect(ended.classification == "timed out after 60 min")
+    #expect(ended.consumedHow == "consumed; route excluded (timed out)")
+    #expect(try journal.excludedRoutes(cardID: cardID) == [routeA])
+    #expect(try exclusionReason(journal, cardID: cardID, epoch: 0, route: routeA) == "timed out")
+}
+
 @Test("Hard failure reported by the pass's dual-key verdict excludes the Route")
 func hardFailureReportedExcludes() throws {
     let fixture = try JournalFixture()

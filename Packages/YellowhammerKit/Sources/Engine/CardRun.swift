@@ -58,6 +58,10 @@ public struct CardRun: CardRunner {
     /// The most Attempts a Card may consume in one budget epoch (`attempts_per_work_card`). Required: the ruled
     /// default lives in `Config`, and the Engine holds no configuration.
     public let attemptsPerWorkCard: Int
+    /// The Project's pass timeout in minutes (`pass_timeout_minutes`), stated in the architect and worker
+    /// instructions. Required, as the Bounds are: the ruled default lives in `Config`, and the same configured
+    /// value sets the timeout the Dispatch seam kills a pass at, so the sentence and the kill cannot disagree.
+    public let passTimeoutMinutes: Int
     /// The fence → WIP-commit → preserve → reset seam (Attempt, Block and Reset Ruling 2026-09-19,
     /// OQ60), run before every new Attempt, on every Block path and when a question puts the Card in
     /// Waiting on You (OQ106): required, with no default, so production can never forget to wire the real
@@ -88,6 +92,7 @@ public struct CardRun: CardRunner {
         checks: [String: Check],
         reviewRoundsMax: Int,
         attemptsPerWorkCard: Int,
+        passTimeoutMinutes: Int,
         leasePolicy: LeasePolicy = .ruled,
         resetting: any AttemptResetting,
         commitMessage: MessageTemplate = .default(.commitMessage),
@@ -103,6 +108,7 @@ public struct CardRun: CardRunner {
         self.checks = checks
         self.reviewRoundsMax = reviewRoundsMax
         self.attemptsPerWorkCard = attemptsPerWorkCard
+        self.passTimeoutMinutes = passTimeoutMinutes
         self.leasePolicy = leasePolicy
         self.resetting = resetting
         self.commitMessage = commitMessage

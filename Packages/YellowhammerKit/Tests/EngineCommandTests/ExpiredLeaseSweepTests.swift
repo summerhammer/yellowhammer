@@ -234,6 +234,27 @@ struct ExpiredLeaseSweepTests {
         #expect(try journal.excludedRoutes(cardID: card.cardID).contains(reclaimRoute))
     }
 
+    @Test("A recorded `timed-out(after N s)` step with no result file is a hard failure, Route excluded")
+    func recordedTimedOutStep() async throws {
+        let fixture = try ReconcilerJournalFixture()
+        let journal = try fixture.open()
+        let runID = RunID()
+        let deadRun = RunID()
+        let card = try makeReclaimFixture(journal: journal, runID: runID, deadRun: deadRun, worktreeDirectory: nil)
+        try appendPassStep(journal, card: card, step: .worker, detail: "timed-out(after 3600 s)", runID: deadRun)
+
+        let sweep = ExpiredLeaseSweep(
+            journal: journal, runID: runID, act: .build, nightID: nil, clock: { reclaimEpoch }
+        )
+        _ = try await sweep.sweep(featureID: card.featureID, cycleID: card.cycleID)
+
+        let history = try journal.attemptHistory(cardID: card.cardID)
+        let attempt = try #require(history.attempts.first)
+        #expect(attempt.result == AttemptOutcome.hardFailure.rawValue)
+        #expect(attempt.classification == "timed out after 60 min")
+        #expect(try journal.excludedRoutes(cardID: card.cardID).contains(reclaimRoute))
+    }
+
     @Test("A reviewer `approved` result file is a success: Card Done, known-good commit recorded")
     func reviewerApprovedResultFile() async throws {
         let fixture = try ReconcilerJournalFixture()

@@ -35,8 +35,8 @@ public enum CrashedUnknownCause: Equatable, Sendable {
     /// Codex SIGTERM failure mode). A file that declares a Yellowhammer result schema but breaks its
     /// contract is ``RunOutcome/contractViolation(_:)`` instead.
     case resultFile(ResultFileError)
-    /// Yellowhammer ended the run (timeout or abort). Only ``RunEnd/timedOut(after:forcedKill:)`` or
-    /// ``RunEnd/aborted(forcedKill:)`` are ever stored here.
+    /// Yellowhammer ended the run because the engine aborted. Only ``RunEnd/aborted(forcedKill:)`` is ever
+    /// stored here: a run ended at the pass timeout is ``RunOutcome/timedOut(after:)``, a hard failure (#507).
     case terminated(RunEnd)
     /// A signal Yellowhammer did not send ended the process.
     case signaled(Int32)
@@ -65,6 +65,10 @@ public enum RunOutcome: Equatable, Sendable {
     /// A non-zero exit status attributable to the CLI, recorded for route-failure classification. A
     /// result file, if any, is NOT read: exit 0 is one of the two keys.
     case failed(exitStatus: Int32)
+    /// Yellowhammer ended the run because the Project's pass timeout elapsed (`[limits] pass_timeout_minutes`).
+    /// The CLI did not get to answer, so no result file is read. The engine's own decision, not an unknown
+    /// crash: a hard failure that consumes the Attempt and excludes the Route (#507).
+    case timedOut(after: Duration)
 }
 
 extension RunOutcome: CustomStringConvertible {
@@ -78,6 +82,8 @@ extension RunOutcome: CustomStringConvertible {
             "contractViolation(\(error))"
         case .failed(let exitStatus):
             "failed(exitStatus: \(exitStatus))"
+        case .timedOut(let after):
+            "timedOut(after: \(after))"
         }
     }
 }
@@ -122,15 +128,25 @@ extension RunOutcome {
     }
 
     /// Shared for every `end` other than a clean exit(0): a non-zero exit is attributable to the
-    /// CLI, and every other ending is Crashed-Unknown by construction.
+    /// CLI, a timeout is the engine's own hard-failure decision (#507), and an abort or a foreign signal
+    /// is Crashed-Unknown by construction.
     private static func classify(nonZeroOrUnexited end: RunEnd) -> RunOutcome {
         switch end {
         case .exited(let status):
             .failed(exitStatus: status)
         case .signaled(let signal):
             .crashedUnknown(.signaled(signal))
-        case .timedOut, .aborted:
+        case .timedOut(let after, _):
+            .timedOut(after: after)
+        case .aborted:
             .crashedUnknown(.terminated(end))
         }
+    }
+}
+
+extension Duration {
+    /// The whole minutes in this duration, rounded down: how a pass timeout is named to the Operator.
+    public var wholeMinutes: Int {
+        Int(components.seconds / 60)
     }
 }

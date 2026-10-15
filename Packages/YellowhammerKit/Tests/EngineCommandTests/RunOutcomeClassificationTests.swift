@@ -145,11 +145,12 @@ func signaledIsCrashedUnknownSignaled() {
     #expect(outcome == .crashedUnknown(.signaled(15)))
 }
 
-@Test("A timeout is Crashed-Unknown, terminated, regardless of a valid file present")
-func timedOutIsCrashedUnknownTerminated() {
+@Test("A timeout is a timed-out hard failure, regardless of a valid file present (#507)")
+func timedOutIsTimedOut() {
     let end = RunEnd.timedOut(after: .seconds(30), forcedKill: true)
     let outcome = RunOutcome.classify(end: end, resultFile: validWorkerJSON, pass: .worker)
-    #expect(outcome == .crashedUnknown(.terminated(end)))
+    #expect(outcome == .timedOut(after: .seconds(30)))
+    #expect(AttemptEnding(failedRun: outcome) == .hardFailure(.timedOut(after: .seconds(30))))
 }
 
 @Test("An abort is Crashed-Unknown, terminated, regardless of a valid file present")

@@ -5,7 +5,7 @@ import Testing
 // asks for a Yellowhammer-Work-Card trailer; no other pass renders the section.
 
 private func makeInstruction(
-    pass: RunPass, commitMessage: CommitMessageRequest?, specCommit: String? = nil
+    pass: RunPass, commitMessage: CommitMessageRequest?, specCommit: String? = nil, passTimeoutMinutes: Int? = nil
 ) -> Instruction {
     Instruction(
         pass: pass,
@@ -22,6 +22,7 @@ private func makeInstruction(
         payloads: .none,
         commitMessage: commitMessage,
         specCommit: specCommit,
+        passTimeoutMinutes: passTimeoutMinutes,
         resultFilePath: "/worktrees/yellowhammer/YLH-42/result.json"
     )
 }
@@ -137,4 +138,60 @@ func otherPassesRenderNoSpecificationSection() {
         #expect(Instruction.stayInsideSentence(for: pass) == nil)
     }
     #expect(Instruction.stayInsideSentence(for: .worker) != nil)
+}
+
+// MARK: - Time limit (#507)
+
+@Test("a worker instruction states the pass timeout and to commit before a long verification run")
+func workerRendersTimeLimit() {
+    let text = makeInstruction(
+        pass: .worker, commitMessage: CommitMessageRequest(message: "feat: a card", workCardKey: "YLH-42"),
+        passTimeoutMinutes: 60
+    ).render()
+    #expect(
+        text.contains(
+            """
+            ## Time limit
+
+            This pass may run for at most 60 minutes, after which Yellowhammer stops it. Work you have not \
+            committed by then is preserved, but the Attempt is spent and the next Attempt, if any, runs on a different \
+            Route. So commit a coherent step before any long verification run (a full build or a Simulator or \
+            device test run). Run focused checks first. Do not wait on a background build or test that will \
+            not finish within the limit.
+            """
+        )
+    )
+    let commits = text.range(of: "## Commit messages")
+    let limit = text.range(of: "## Time limit")
+    let contract = text.range(of: "## Result contract")
+    #expect(commits != nil && limit != nil && contract != nil)
+    #expect(commits!.lowerBound < limit!.lowerBound)
+    #expect(limit!.lowerBound < contract!.lowerBound)
+    #expect(text.contains("A trailer separated from that block by a blank line is not read.\n\n## Time limit"))
+    #expect(text.contains("not finish within the limit.\n\n## Result contract"))
+}
+
+@Test("an architect instruction states the shorter time limit")
+func architectRendersShorterTimeLimit() {
+    let text = makeInstruction(pass: .architect, commitMessage: nil, passTimeoutMinutes: 45).render()
+    #expect(
+        text.contains(
+            "## Time limit\n\nThis pass may run for at most 45 minutes, after which Yellowhammer stops it and "
+                + "the Attempt is spent.\n\n## Result contract"
+        )
+    )
+    #expect(!text.contains("commit a coherent step"))
+}
+
+@Test("a reviewer instruction renders no time limit even with a timeout set")
+func reviewerRendersNoTimeLimit() {
+    let text = makeInstruction(pass: .reviewer, commitMessage: nil, passTimeoutMinutes: 60).render()
+    #expect(!text.contains("## Time limit"))
+}
+
+@Test("a nil pass timeout renders no time limit section on any pass")
+func nilTimeoutRendersNoTimeLimit() {
+    for pass in [RunPass.architect, .worker, .reviewer] {
+        #expect(!makeInstruction(pass: pass, commitMessage: nil).render().contains("## Time limit"))
+    }
 }

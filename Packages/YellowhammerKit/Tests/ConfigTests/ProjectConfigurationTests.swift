@@ -120,9 +120,20 @@ func projectFullFileLoads() throws {
                 route: try route("claude", "opus"),
                 fallbacks: [try route("codex", "gpt-5.4", "high")]
             )
-        ]
+        ],
+        passTimeoutMinutes: 90
     )
     #expect(configuration == expected)
+    #expect(configuration.passTimeoutMinutes == 90)
+    #expect(configuration.passTimeout == .seconds(90 * 60))
+}
+
+@Test("A Project file with no pass_timeout_minutes gets the 60-minute default")
+func projectPassTimeoutDefaultsToSixtyMinutes() throws {
+    let configuration = try ProjectConfiguration.load(contentsOf: fixture("minimal", in: "Valid"))
+    #expect(ProjectConfiguration.defaultPassTimeoutMinutes == 60)
+    #expect(configuration.passTimeoutMinutes == 60)
+    #expect(configuration.passTimeout == .seconds(60 * 60))
 }
 
 @Test("projectRepositories carries each Repo's protected paths through to Domain")

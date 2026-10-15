@@ -23,6 +23,11 @@ public struct ProjectConfiguration: Sendable {
     /// In file order; never empty.
     public var repos: [RepoDeclaration]
     public var bounds: Bounds
+    /// How many minutes one dispatched pass (architect, worker, reviewer, author Act, Verification) may run
+    /// before it is terminated (`[limits] pass_timeout_minutes`, an integer of at least 1; issue #507).
+    /// Read from `[limits]` but not a Bound: a Bound fires when a count exceeds it, and this is a duration.
+    /// ``defaultPassTimeoutMinutes`` when the file sets none.
+    public var passTimeoutMinutes: Int
     public var schedule: Schedule
     /// This Project's Routing Table overrides, in file order, not yet merged with the base table.
     public var routingOverrides: [RoutingEntry]
@@ -65,7 +70,8 @@ public struct ProjectConfiguration: Sendable {
         commitMessage: MessageTemplate = .default(.commitMessage),
         wipCommitMessage: MessageTemplate = .default(.wipCommitMessage),
         rehearsalLinearProject: String? = nil,
-        rehearsalJournal: String? = nil
+        rehearsalJournal: String? = nil,
+        passTimeoutMinutes: Int = ProjectConfiguration.defaultPassTimeoutMinutes
     ) {
         self.id = id
         self.name = name
@@ -83,6 +89,15 @@ public struct ProjectConfiguration: Sendable {
         self.wipCommitMessage = wipCommitMessage
         self.rehearsalLinearProject = rehearsalLinearProject
         self.rehearsalJournal = rehearsalJournal
+        self.passTimeoutMinutes = passTimeoutMinutes
+    }
+
+    /// The pass timeout when `[limits] pass_timeout_minutes` is absent (the sponsor's ruling for issue #507).
+    public static let defaultPassTimeoutMinutes = 60
+
+    /// ``passTimeoutMinutes`` as a duration.
+    public var passTimeout: Duration {
+        .seconds(passTimeoutMinutes * 60)
     }
 
     /// The Project's repositories expressed in Domain vocabulary, with home-directory tildes expanded
@@ -115,6 +130,7 @@ extension ProjectConfiguration: Equatable {
             && lhs.specSource == rhs.specSource
             && lhs.repos == rhs.repos
             && lhs.bounds == rhs.bounds
+            && lhs.passTimeoutMinutes == rhs.passTimeoutMinutes
             && lhs.schedule == rhs.schedule
             && lhs.routingOverrides == rhs.routingOverrides
             && lhs.changeType == rhs.changeType

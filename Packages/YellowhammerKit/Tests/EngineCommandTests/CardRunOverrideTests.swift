@@ -58,7 +58,7 @@ struct CardRunOverrideTests {
         let rehearsal = RehearsalDispatch()
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: rehearsal, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3, passTimeoutMinutes: 60,
             resetting: RecordingAttemptResetting(), preflighting: preflight
         )
 

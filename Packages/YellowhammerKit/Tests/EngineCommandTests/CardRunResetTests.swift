@@ -25,6 +25,7 @@ struct CardRunResetTests {
         let run = CardRun(
             resolver: twoRouteResolver(), dispatch: LoggingDispatch(log: log, script: [.worker: .workerFailed]),
             check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
+            passTimeoutMinutes: 60,
             resetting: resetting
         )
 
@@ -52,6 +53,7 @@ struct CardRunResetTests {
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log, script: [.worker: .workerFailed]),
             check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 1,
+            passTimeoutMinutes: 60,
             resetting: resetting
         )
 
@@ -76,7 +78,7 @@ struct CardRunResetTests {
         let dispatch = SequencedDispatch(log: log, sequences: sequences)
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 2,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 2, passTimeoutMinutes: 60,
             resetting: RecordingAttemptResetting(log: log)
         )
 

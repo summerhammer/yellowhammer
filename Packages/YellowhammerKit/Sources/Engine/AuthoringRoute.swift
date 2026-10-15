@@ -86,18 +86,30 @@ public struct AuthoringRoute: Sendable {
                 } else {
                     return result
                 }
-            case .failed(let exitStatus):
+            case .failed, .contractViolation, .timedOut:
                 tried.insert(route)
-                lastFailure = "\(pass.rawValue) on \(route) exited with status \(exitStatus)"
-            case .contractViolation(let error):
-                tried.insert(route)
-                lastFailure = "\(pass.rawValue) on \(route) broke the result contract: \(error)"
+                lastFailure = Self.failureAccount(of: report.outcome, pass: pass, route: route)
             case .crashedUnknown(let cause):
                 throw AuthoringDispatchFault(
                     reason: "\(pass.rawValue) on \(route) crashed with no outcome (\(cause)); a Crashed-Unknown "
                         + "run excludes no Route and ends authoring for this Act"
                 )
             }
+        }
+    }
+
+    /// What a Route's non-answer says about it: an exit status, a broken result contract (#445) or the pass
+    /// timeout (#507). Each is a capability failure that excludes the Route and falls through to the next.
+    private static func failureAccount(of outcome: RunOutcome, pass: RunPass, route: Route) -> String? {
+        switch outcome {
+        case .failed(let exitStatus):
+            "\(pass.rawValue) on \(route) exited with status \(exitStatus)"
+        case .contractViolation(let error):
+            "\(pass.rawValue) on \(route) broke the result contract: \(error)"
+        case .timedOut(let after):
+            "\(pass.rawValue) on \(route) ran out of time after \(after.wholeMinutes) min"
+        case .completed, .crashedUnknown:
+            nil
         }
     }
 

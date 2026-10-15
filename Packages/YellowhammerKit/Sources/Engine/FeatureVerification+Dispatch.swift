@@ -51,6 +51,9 @@ extension FeatureVerification {
             case .contractViolation(let error):
                 tried.insert(route)
                 lastFailure = "verifier on \(route) broke the result contract: \(error)"
+            case .timedOut(let after):
+                tried.insert(route)
+                lastFailure = "verifier on \(route) ran out of time after \(after.wholeMinutes) min"
             case .crashedUnknown(let cause):
                 throw VerificationDispatchFault(
                     reason: "verifier on \(route) crashed with no outcome (\(cause)); a Crashed-Unknown run "

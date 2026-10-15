@@ -98,6 +98,43 @@ func projectRendersExplicitDefaultBounds() throws {
     #expect(project.renderedTOML.contains("consecutive_authoring_faults_max = 3"))
 }
 
+@Test("A non-default pass_timeout_minutes round-trips through renderedTOML")
+func projectPassTimeoutRoundTrip() throws {
+    let project = ProjectConfiguration(
+        id: try projectID("pass-timeout"),
+        name: "Pass Timeout",
+        linearInstallationName: "acme",
+        linearProject: "PT",
+        codeHostingConnectionName: "github",
+        specSource: "~/dev/pt-spec",
+        repos: [RepoDeclaration(name: "only-repo", path: "~/dev/pt", role: .backend, check: .none)],
+        passTimeoutMinutes: 120
+    )
+    #expect(project.renderedTOML.contains("pass_timeout_minutes = 120"))
+    let parsed = try ProjectConfiguration.parse(project.renderedTOML, file: "pass-timeout.toml")
+    #expect(parsed == project)
+    #expect(parsed.passTimeoutMinutes == 120)
+}
+
+@Test("The default pass_timeout_minutes renders no line, so a file that never set it is not rewritten")
+func projectDefaultPassTimeoutRendersNoLine() throws {
+    let project = ProjectConfiguration(
+        id: try projectID("pass-timeout-default"),
+        name: "Pass Timeout Default",
+        linearInstallationName: "acme",
+        linearProject: "PTD",
+        codeHostingConnectionName: "github",
+        repos: [RepoDeclaration(name: "only-repo", path: "~/dev/ptd", role: .backend, check: .none)]
+    )
+    #expect(!project.renderedTOML.contains("pass_timeout_minutes"))
+    let explicitDefault = ProjectConfiguration(
+        id: project.id, name: project.name, linearInstallationName: "acme", linearProject: "PTD",
+        codeHostingConnectionName: "github", repos: project.repos,
+        passTimeoutMinutes: ProjectConfiguration.defaultPassTimeoutMinutes
+    )
+    #expect(!explicitDefault.renderedTOML.contains("pass_timeout_minutes"))
+}
+
 // MARK: - Machine file round-trip
 
 @Test("A minimal machine file (no Board Connections, no CLI adapters, no routing) round-trips")

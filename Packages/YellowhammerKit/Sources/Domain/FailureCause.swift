@@ -27,6 +27,9 @@ public struct FailureCause: Equatable, Sendable {
             detail = "reported"
         case .hardFailure(.contractViolation(let error)):
             detail = "contract violation: \(Self.violationKind(error))"
+        case .hardFailure(.timedOut):
+            // Without the duration, so changing the configured limit does not change the recurrence hash.
+            detail = "timed out"
         case .roundsExhausted:
             detail = lens?.rawValue ?? "unknown lens"
         case .crashedUnknown(.resultFile):

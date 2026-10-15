@@ -50,7 +50,7 @@ struct CardRunAttemptTests {
         let resetting = RecordingAttemptResetting(log: log)
         let run = CardRun(
             resolver: twoRouteResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3, passTimeoutMinutes: 60,
             resetting: resetting
         )
 
@@ -103,7 +103,7 @@ struct CardRunAttemptTests {
         let dispatch = SequencedDispatch(log: log, sequences: [.worker: [.workerFailed, .workerFailed]])
         let run = CardRun(
             resolver: twoRouteResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 2,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 2, passTimeoutMinutes: 60,
             resetting: RecordingAttemptResetting()
         )
 
@@ -131,6 +131,7 @@ struct CardRunAttemptTests {
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log, script: [.worker: .workerFailed]),
             check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
+            passTimeoutMinutes: 60,
             resetting: RecordingAttemptResetting()
         )
 
@@ -156,7 +157,7 @@ struct CardRunAttemptTests {
         let dispatch = CompletedWithoutCommitDispatch()
         let run = CardRun(
             resolver: twoRouteResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3, passTimeoutMinutes: 60,
             resetting: RecordingAttemptResetting(log: log)
         )
 
@@ -182,6 +183,7 @@ struct CardRunAttemptTests {
         let run = CardRun(
             resolver: twoRouteResolver(), dispatch: LoggingDispatch(log: log, script: [.worker: .workerEmpty]),
             check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 2,
+            passTimeoutMinutes: 60,
             resetting: RecordingAttemptResetting()
         )
 
@@ -222,6 +224,7 @@ struct CardRunAttemptTests {
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log, script: .empty),
             check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 1,
+            passTimeoutMinutes: 60,
             resetting: RecordingAttemptResetting(log: log)
         )
 
@@ -249,7 +252,7 @@ struct CardRunAttemptTests {
         )
         let run = CardRun(
             resolver: twoRouteResolver(), dispatch: dispatch, check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 1, attemptsPerWorkCard: 2,
+            checks: ["backend": .none], reviewRoundsMax: 1, attemptsPerWorkCard: 2, passTimeoutMinutes: 60,
             resetting: RecordingAttemptResetting()
         )
 
@@ -276,6 +279,7 @@ struct CardRunAttemptTests {
         let firstRun = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log, script: [.worker: .workerQuestion]),
             check: RecordingCheck(log: log), checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 1,
+            passTimeoutMinutes: 60,
             resetting: RecordingAttemptResetting()
         )
 
@@ -294,7 +298,7 @@ struct CardRunAttemptTests {
         let secondRun = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: secondLog),
             check: RecordingCheck(log: secondLog), checks: ["backend": .none], reviewRoundsMax: 2,
-            attemptsPerWorkCard: 1,
+            attemptsPerWorkCard: 1, passTimeoutMinutes: 60,
             resetting: RecordingAttemptResetting()
         )
         try await secondRun.run("BACK-1", in: world)
@@ -323,7 +327,7 @@ struct CardRunAttemptTests {
         let resetLog = CallLog()
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log), check: RecordingCheck(log: log),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 2,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 2, passTimeoutMinutes: 60,
             resetting: RecordingAttemptResetting(log: resetLog)
         )
 
@@ -352,7 +356,7 @@ struct CardRunAttemptTests {
         let secondRun = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: secondLog),
             check: RecordingCheck(log: secondLog), checks: ["backend": .none], reviewRoundsMax: 2,
-            attemptsPerWorkCard: 2,
+            attemptsPerWorkCard: 2, passTimeoutMinutes: 60,
             resetting: RecordingAttemptResetting()
         )
         try await secondRun.run("BACK-1", in: world)

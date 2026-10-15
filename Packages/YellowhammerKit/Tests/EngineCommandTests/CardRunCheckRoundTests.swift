@@ -29,7 +29,7 @@ struct CardRunCheckRoundTests {
         let check = RecordingCheck(log: log, results: results)
         let card = CardRun(
             resolver: cardRunResolver(), dispatch: dispatch, check: check, checks: checks,
-            reviewRoundsMax: roundsMax, attemptsPerWorkCard: attemptsPerWorkCard,
+            reviewRoundsMax: roundsMax, attemptsPerWorkCard: attemptsPerWorkCard, passTimeoutMinutes: 60,
             resetting: RecordingAttemptResetting()
         )
         return Run(card: card, dispatch: dispatch, check: check, log: log)
@@ -265,7 +265,7 @@ struct CardRunCheckRoundTests {
         let log = CallLog()
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log), check: WorktreeCheck(),
-            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
+            checks: ["backend": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3, passTimeoutMinutes: 60,
             resetting: RecordingAttemptResetting()
         )
 

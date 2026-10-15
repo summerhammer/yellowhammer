@@ -22,6 +22,28 @@ func failedRunCrashedUnknownMapsThrough(_ cause: CrashedUnknownCause) {
     #expect(ending == .crashedUnknown(cause))
 }
 
+@Test("A timed-out run maps to hardFailure(.timedOut), which consumes the Attempt and excludes the Route (#507)")
+func timedOutRunMapsToHardFailure() throws {
+    let ending = try #require(AttemptEnding(failedRun: .timedOut(after: .seconds(3600))))
+    #expect(ending == .hardFailure(.timedOut(after: .seconds(3600))))
+    #expect(ending.excludesRoute)
+    #expect(ending.consumesAttempt)
+    #expect(ending.outcome == .hardFailure)
+    #expect(ending.exclusionReason == "timed out")
+    #expect(ending.classification == "timed out after 60 min")
+    #expect(ending.consumedHow == "consumed; route excluded (timed out)")
+    #expect(ending.description == "hard failure (timed out after 60 min)")
+}
+
+@Test("A timeout's FailureCause omits the duration, so changing the limit keeps the same recurrence hash")
+func timedOutFailureCauseOmitsDuration() throws {
+    let short = try #require(FailureCause(ending: .hardFailure(.timedOut(after: .seconds(1800)))))
+    let long = try #require(FailureCause(ending: .hardFailure(.timedOut(after: .seconds(3600)))))
+    #expect(short.canonical == "hard failure|timed out")
+    #expect(short.summary == "hard failure (timed out)")
+    #expect(short.hash == long.hash)
+}
+
 @Test("A completed run maps to nil: its ending is decided later, not by the run")
 func failedRunCompletedMapsToNil() {
     let result = DispatchResult.worker(WorkerResult(outcome: .completed(commit: "abc123", summary: "done")))
@@ -34,6 +56,7 @@ func failedRunCompletedMapsToNil() {
     arguments: [
         (AttemptEnding.success, false),
         (AttemptEnding.hardFailure(.exitStatus(1)), true),
+        (AttemptEnding.hardFailure(.timedOut(after: .seconds(3600))), true),
         (AttemptEnding.roundsExhausted(rounds: 3), true),
         (AttemptEnding.crashedUnknown(.signaled(9)), false),
         (AttemptEnding.question, false),

@@ -18,6 +18,7 @@ private let fallback = Route(cli: "codex", model: "gpt-5.4", effort: "high")!
 private enum Behaviour {
     case refuse
     case exit(Int32)
+    case timeOut
     case crash
     case answer(DispatchResult)
 }
@@ -43,6 +44,8 @@ private final class ScriptedRouteDispatch: AgentDispatch, Sendable {
             throw AgentDispatchRefusal(reason: "no executable")
         case .exit(let status):
             return AgentDispatchReport(outcome: .failed(exitStatus: status))
+        case .timeOut:
+            return AgentDispatchReport(outcome: .timedOut(after: .seconds(3600)))
         case .crash:
             return AgentDispatchReport(outcome: .crashedUnknown(.signaled(9)))
         case .answer(let result):
@@ -119,7 +122,7 @@ struct AuthoringRouteDispatchTests {
     @Test(
         "A capability failure of the primary Route dispatches the first fallback next",
         arguments: [
-            Behaviour.refuse, Behaviour.exit(2), Behaviour.answer(selectionFailed)
+            Behaviour.refuse, Behaviour.exit(2), Behaviour.timeOut, Behaviour.answer(selectionFailed)
         ]
     )
     fileprivate func primaryFailureFallsBack(primaryBehaviour: Behaviour) async throws {

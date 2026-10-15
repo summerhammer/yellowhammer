@@ -31,6 +31,7 @@ struct CardRunBuildActTests {
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: rehearsal, check: RecordingCheck(log: log),
             checks: ["backend": .none, "mobile": .none], reviewRoundsMax: 2, attemptsPerWorkCard: 3,
+            passTimeoutMinutes: 60,
             resetting: RecordingAttemptResetting()
         )
         let board = try #require(world.context.act.board)
