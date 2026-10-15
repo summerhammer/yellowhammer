@@ -54,7 +54,7 @@ public struct MessageTemplate: Equatable, Hashable, Sendable, CustomStringConver
             case .pullRequestTitle:
                 [.type, .title, .key, .repository, .branch, .project, .partial, .scope]
             case .commitMessage:
-                [.type, .title, .key, .repository, .scope, .workCardKey, .workCardTitle, .story]
+                [.type, .title, .key, .repository, .scope, .workCardKey, .workCardTitle, .story, .specCommit]
             case .wipCommitMessage:
                 [.type, .repository, .branch, .project]
             }
@@ -83,6 +83,7 @@ public struct MessageTemplate: Equatable, Hashable, Sendable, CustomStringConver
         case workCardKey = "work_card_key"
         case workCardTitle = "work_card_title"
         case story
+        case specCommit = "spec_commit"
 
         public var description: String { "{\(rawValue)}" }
     }

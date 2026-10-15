@@ -80,11 +80,13 @@ func badTemplatesRefused() {
     #expect(unknown?.reason == .unknownTemplateToken(
         name: "branch", key: "commit_message",
         accepted: ["{type}", "{title}", "{key}", "{repository}", "{scope}",
-        "{work_card_key}", "{work_card_title}", "{story}"]
+        "{work_card_key}", "{work_card_title}", "{story}", "{spec_commit}"]
     ))
     #expect(unknown?.description.contains("names {branch}, which is not a commit_message token") == true)
 
     #expect(refusal("[github]\npull_request_title = \"{work_card_key}\"")?.key == "github.pull_request_title")
+    #expect(refusal("[git]\ncommit_message = \"{story} @ {spec_commit}\"") == nil)
+    #expect(refusal("[github]\npull_request_title = \"{spec_commit}\"")?.key == "github.pull_request_title")
     #expect(refusal("[git]\nwip_commit_message = \"{title}\"")?.key == "git.wip_commit_message")
     #expect(refusal("[git]\nwip_commit_message = \"\"")?.reason == .emptyString)
     #expect(refusal("[git]\nwip_commit_message = \"   \"")?.reason == .emptyString)

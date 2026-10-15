@@ -4,7 +4,9 @@ import Testing
 // graph-execution/run-a-card: the worker pass's instruction states the rendered commit message and
 // asks for a Yellowhammer-Work-Card trailer; no other pass renders the section.
 
-private func makeInstruction(pass: RunPass, commitMessage: CommitMessageRequest?) -> Instruction {
+private func makeInstruction(
+    pass: RunPass, commitMessage: CommitMessageRequest?, specCommit: String? = nil
+) -> Instruction {
     Instruction(
         pass: pass,
         card: InstructionCard(key: "YLH-42", title: "A card", description: "Do it."),
@@ -19,6 +21,7 @@ private func makeInstruction(pass: RunPass, commitMessage: CommitMessageRequest?
         route: Route(cli: "claude", model: "sonnet", effort: "medium")!,
         payloads: .none,
         commitMessage: commitMessage,
+        specCommit: specCommit,
         resultFilePath: "/worktrees/yellowhammer/YLH-42/result.json"
     )
 }
@@ -94,4 +97,44 @@ func stampingTheResultFilePathKeepsTheRequest() {
     #expect(text.contains("## Commit messages"))
     #expect(text.contains("Yellowhammer-Work-Card: YLH-42"))
     #expect(text.contains("/runs/proj/run-1/YLH-42/1-worker/result.json"))
+}
+
+// OQ165 (graph-execution/run-a-card#spec-commit): the worker instruction names the specification commit
+// and tells the worker not to search outside its Worktree; it adds no path to the specification.
+
+private let specSha = "0123456789abcdef0123456789abcdef01234567"
+private let neverSearch = "Never search the filesystem outside the Worktree — no `find ~`, no `find /`, "
+    + "no walking other directories."
+
+@Test("a worker instruction with a specification commit renders it and the never-search sentence")
+func workerRendersSpecificationCommitAndNeverSearch() {
+    let text = makeInstruction(pass: .worker, commitMessage: nil, specCommit: specSha).render()
+    #expect(text.contains("## Specification\n\nSpecification commit: \(specSha)\n"))
+    #expect(text.contains("given as a fact, not as a requirement to cite it"))
+    #expect(text.contains(neverSearch))
+    #expect(text.contains("report the `question` outcome and ask for it rather than searching."))
+    let repository = text.range(of: "## Repository")
+    let specification = text.range(of: "## Specification")
+    let contract = text.range(of: "## Result contract")
+    #expect(repository!.lowerBound < specification!.lowerBound)
+    #expect(specification!.lowerBound < contract!.lowerBound)
+}
+
+@Test("a worker instruction with no specification commit still carries the never-search sentence")
+func workerWithoutSpecificationCommitStillNeverSearches() {
+    let text = makeInstruction(pass: .worker, commitMessage: nil, specCommit: nil).render()
+    #expect(!text.contains("Specification commit:"))
+    #expect(text.contains(neverSearch))
+}
+
+@Test("architect and reviewer instructions render neither the commit nor the never-search sentence")
+func otherPassesRenderNoSpecificationSection() {
+    for pass in [RunPass.architect, .reviewer] {
+        let text = makeInstruction(pass: pass, commitMessage: nil, specCommit: specSha).render()
+        #expect(!text.contains(specSha))
+        #expect(!text.contains("## Specification"))
+        #expect(!text.contains("Never search the filesystem"))
+        #expect(Instruction.stayInsideSentence(for: pass) == nil)
+    }
+    #expect(Instruction.stayInsideSentence(for: .worker) != nil)
 }
