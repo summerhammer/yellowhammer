@@ -10,6 +10,36 @@ public struct AdoptionCandidate: Equatable, Sendable {
     }
 }
 
+/// A declared Repo Dependency whose consumer and producer a selected Feature both touches
+/// (feature-authoring/select-the-next-feature, `#repo-dependency-halt`).
+public struct SpannedRepoDependency: Equatable, Sendable {
+    public let consumer: String
+    public let producer: String
+    public let via: RepoDependencyVia
+
+    public init(consumer: String, producer: String, via: RepoDependencyVia) {
+        self.consumer = consumer
+        self.producer = producer
+        self.via = via
+    }
+}
+
+/// A consumer Repo the release gate holds back tonight: it reads `producer` by tag, and no release of the
+/// producer contains the producer's Feature `producerFeature` yet. Shown to the selection model so it does
+/// not select a Feature that touches the consumer.
+public struct HeldConsumer: Equatable, Sendable {
+    public let consumer: String
+    public let producer: String
+    /// The Feature reference shown to the model.
+    public let producerFeature: String
+
+    public init(consumer: String, producer: String, producerFeature: String) {
+        self.consumer = consumer
+        self.producer = producer
+        self.producerFeature = producerFeature
+    }
+}
+
 /// What the model-authored selection (``FeatureSelecting``) is handed to judge from: this Project's
 /// specification, its configured repositories and their Repo Roles, resolved mainlines, an Operator's
 /// forced Feature name (overriding selection when present), and the Blocked Cards a closed Feature
@@ -28,6 +58,8 @@ public struct FeatureSelectionRequest: Equatable, Sendable {
     /// bound-re-selections): the selector must not choose one of these again. Empty until the walk
     /// re-selects for the first time.
     public let refusedThisNight: [FeatureName]
+    /// Consumer Repos the release gate holds back tonight; empty until the release gate fills it.
+    public let heldConsumers: [HeldConsumer]
 
     public init(
         specificationSource: ProjectSpecificationSource,
@@ -36,7 +68,8 @@ public struct FeatureSelectionRequest: Equatable, Sendable {
         mainlines: ResolvedMainlines,
         namedFeature: FeatureName?,
         adoptionCandidates: [AdoptionCandidate],
-        refusedThisNight: [FeatureName] = []
+        refusedThisNight: [FeatureName] = [],
+        heldConsumers: [HeldConsumer] = []
     ) {
         self.specificationSource = specificationSource
         self.specificationMainline = specificationMainline
@@ -45,6 +78,7 @@ public struct FeatureSelectionRequest: Equatable, Sendable {
         self.namedFeature = namedFeature
         self.adoptionCandidates = adoptionCandidates
         self.refusedThisNight = refusedThisNight
+        self.heldConsumers = heldConsumers
     }
 }
 
@@ -144,6 +178,9 @@ public enum AuthoringHaltCause: Equatable, Sendable {
     /// speculatively without it.
     case contractUnreadable(contracts: [UnreadableContract])
     case authoringRepeatedlyFaulted(count: Int, lastReason: String)
+    /// The Feature touches both ends of a declared Repo Dependency (feature-authoring/select-the-next-feature,
+    /// `#repo-dependency-seam`): every spanning edge is named, never only the first.
+    case featureSpansRepoDependency(edges: [SpannedRepoDependency])
 
     /// A stable, machine-readable name for this cause, for the Journal's payload.
     public var kind: String {
@@ -153,6 +190,7 @@ public enum AuthoringHaltCause: Equatable, Sendable {
         case .contractOutsideProject: "contract-outside-project"
         case .contractUnreadable: "contract-unreadable"
         case .authoringRepeatedlyFaulted: "authoring-repeatedly-faulted"
+        case .featureSpansRepoDependency: "feature-spans-repo-dependency"
         }
     }
 
@@ -167,7 +205,17 @@ public enum AuthoringHaltCause: Equatable, Sendable {
         case .contractUnreadable(let contracts):
             contracts.map { "\($0.workCardTitle):\($0.repository):\($0.paths.joined(separator: ","))" }
                 .joined(separator: "; ")
+        case .featureSpansRepoDependency(let edges):
+            edges.map { "\($0.consumer)->\($0.producer)(\($0.via.rawValue))" }.joined(separator: "; ")
         }
+    }
+}
+
+extension AuthoringHaltCause {
+    /// Names in first-seen order, each once.
+    fileprivate static func listing(_ names: [String]) -> String {
+        var seen: Set<String> = []
+        return names.filter { seen.insert($0).inserted }.joined(separator: ", ")
     }
 }
 
@@ -188,6 +236,15 @@ extension AuthoringHaltCause: CustomStringConvertible {
                     "(\(contract.paths.joined(separator: ", "))) could not be read: \(contract.reason)"
             }.joined(separator: "; ")
             return "A contract this author Act cannot read blocks authoring: \(named)"
+        case .featureSpansRepoDependency(let edges):
+            let named = edges.map { "\($0.consumer) → \($0.producer) (via \($0.via.rawValue))" }
+                .joined(separator: ", ")
+            let producers = Self.listing(edges.map(\.producer))
+            let consumers = Self.listing(edges.map(\.consumer))
+            return "This Feature spans a declared Repo Dependency: \(named). Split it: author the producer side "
+                + "(\(producers)) as its own Feature first; the consumer work (\(consumers)) follows in a later "
+                + "Feature once the producer's work has an Observed Merge and, for a `tag` edge, an Observed "
+                + "Release. Force a narrower Feature to clear this halt."
         }
     }
 }

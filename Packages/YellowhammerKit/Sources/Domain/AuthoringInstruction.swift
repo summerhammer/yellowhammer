@@ -18,6 +18,8 @@ public struct AuthoringInstruction: Equatable, Sendable {
     /// Features refused earlier in this Night's re-selection walk (roadmap P11.6; bounds/
     /// bound-re-selections): the selector must not choose one of these again.
     public let refusedThisNight: [FeatureName]
+    /// Consumer Repos the release gate holds back tonight; rendered for the selection pass only.
+    public let heldConsumers: [HeldConsumer]
     /// The validated Feature to break down; non-nil exactly for the breakdown pass.
     public let selectedFeature: SelectedFeature?
     /// The absolute path where the CLI Adapter persists the final structured response.
@@ -36,6 +38,7 @@ public struct AuthoringInstruction: Equatable, Sendable {
         namedFeature: FeatureName?,
         adoptionCandidates: [AdoptionCandidate],
         refusedThisNight: [FeatureName] = [],
+        heldConsumers: [HeldConsumer] = [],
         selectedFeature: SelectedFeature?,
         resultFilePath: String,
         descriptionBudget: DescriptionBudget? = nil
@@ -49,6 +52,7 @@ public struct AuthoringInstruction: Equatable, Sendable {
         self.namedFeature = namedFeature
         self.adoptionCandidates = adoptionCandidates
         self.refusedThisNight = refusedThisNight
+        self.heldConsumers = heldConsumers
         self.selectedFeature = selectedFeature
         self.resultFilePath = resultFilePath
         self.descriptionBudget = descriptionBudget
@@ -60,7 +64,8 @@ public struct AuthoringInstruction: Equatable, Sendable {
             pass: pass, route: route, specificationSource: specificationSource,
             specificationMainline: specificationMainline, repos: repos, mainlines: mainlines,
             namedFeature: namedFeature, adoptionCandidates: adoptionCandidates,
-            refusedThisNight: refusedThisNight, selectedFeature: selectedFeature, resultFilePath: path,
+            refusedThisNight: refusedThisNight, heldConsumers: heldConsumers,
+            selectedFeature: selectedFeature, resultFilePath: path,
             descriptionBudget: descriptionBudget
         )
     }
