@@ -32,11 +32,14 @@ public struct HeldConsumer: Equatable, Sendable {
     public let producer: String
     /// The Feature reference shown to the model.
     public let producerFeature: String
+    /// The producer Feature's issue id, for the Journal and the Night Card; empty when not known.
+    public let producerFeatureIssueID: String
 
-    public init(consumer: String, producer: String, producerFeature: String) {
+    public init(consumer: String, producer: String, producerFeature: String, producerFeatureIssueID: String = "") {
         self.consumer = consumer
         self.producer = producer
         self.producerFeature = producerFeature
+        self.producerFeatureIssueID = producerFeatureIssueID
     }
 }
 

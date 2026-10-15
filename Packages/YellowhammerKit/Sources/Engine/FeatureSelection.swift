@@ -84,11 +84,14 @@ public struct FeatureSelection: FeatureAuthoring {
     /// glossary's own default of 2.
     public let reselectionsMax: Int
     public let consecutiveAuthoringFaultsMax: Int
+    /// The release gate for `tag` Repo Dependencies, run once before selection; nil holds nothing.
+    public let releaseGate: (any ReleaseGate)?
 
     public init(
         selector: any FeatureSelecting, transaction: (any SelectedFeatureAuthoring)? = nil, reselectionsMax: Int = 2,
-        consecutiveAuthoringFaultsMax: Int = 3
+        consecutiveAuthoringFaultsMax: Int = 3, releaseGate: (any ReleaseGate)? = nil
     ) {
+        self.releaseGate = releaseGate
         self.selector = selector
         self.transaction = transaction
         self.reselectionsMax = reselectionsMax
@@ -107,6 +110,8 @@ public struct FeatureSelection: FeatureAuthoring {
             AdoptionCandidate(issueID: $0.issueID, repository: $0.repository)
         }
         // The Operator named one Feature: the walk never re-selects (roadmap P11.6).
+        let held = try await releaseGate?.heldConsumers(context) ?? []
+        let scope = SelectionScope(repositories: repositories, candidates: candidates, held: held)
         var walk = WalkProgress(depth: 0, refusedThisNight: [], allowsReselection: context.trigger.namedFeature == nil)
 
         while true {
@@ -118,7 +123,7 @@ public struct FeatureSelection: FeatureAuthoring {
                 namedFeature: context.trigger.namedFeature,
                 adoptionCandidates: candidates,
                 refusedThisNight: walk.refusedThisNight,
-                heldConsumers: []
+                heldConsumers: held
             )
 
             let outcome: FeatureSelectionOutcome
@@ -140,9 +145,7 @@ public struct FeatureSelection: FeatureAuthoring {
             case .halted(let feature, let cause):
                 return try await recordHalt(feature: feature, cause: cause, context: context)
             case .selected(let selected):
-                if let stop = try await handleSelected(
-                    selected, repositories: repositories, candidates: candidates, walk: &walk, context: context
-                ) {
+                if let stop = try await handleSelected(selected, scope: scope, walk: &walk, context: context) {
                     return stop
                 }
             }
@@ -159,19 +162,25 @@ public struct FeatureSelection: FeatureAuthoring {
         let allowsReselection: Bool
     }
 
+    /// What a `.selected` outcome is validated against: this Project's repositories, the Blocked Cards
+    /// adoption may take, and the consumers the release gate holds tonight.
+    private struct SelectionScope {
+        let repositories: ProjectRepositories
+        let candidates: [AdoptionCandidate]
+        let held: [HeldConsumer]
+    }
+
     /// One `.selected` outcome of the re-selection walk (roadmap P11.6): validates and records it, then
     /// either returns the outcome to stop the walk with, or advances `walk` and returns nil to keep
     /// walking. Split out of `selectAndAuthor(_:)` to keep that function within the length limit.
     private func handleSelected(
-        _ selected: SelectedFeature, repositories: ProjectRepositories, candidates: [AdoptionCandidate],
-        walk: inout WalkProgress, context: ActContext
+        _ selected: SelectedFeature, scope: SelectionScope, walk: inout WalkProgress, context: ActContext
     ) async throws -> FeatureAuthoringOutcome? {
         if walk.refusedThisNight.contains(selected.name) {
             throw FeatureSelectionError.reselectedFeatureAlreadyRefused(selected.name)
         }
         let result = try await validateAndRecord(
-            selected, repositories: repositories, candidates: candidates, reselectionDepth: walk.depth,
-            context: context
+            selected, scope: scope, reselectionDepth: walk.depth, context: context
         )
         guard case .refused = result, walk.allowsReselection else { return result }
         guard walk.depth < reselectionsMax else {
@@ -218,15 +227,20 @@ public struct FeatureSelection: FeatureAuthoring {
     /// name must match, the repositories must resolve to this Project's own, and adoption is narrowed
     /// to real candidates before anything is recorded.
     private func validateAndRecord(
-        _ selected: SelectedFeature, repositories: ProjectRepositories,
-        candidates: [AdoptionCandidate], reselectionDepth: Int, context: ActContext
+        _ selected: SelectedFeature, scope: SelectionScope, reselectionDepth: Int, context: ActContext
     ) async throws -> FeatureAuthoringOutcome {
+        let repositories = scope.repositories
+        let candidates = scope.candidates
         if let named = context.trigger.namedFeature, named != selected.name {
             throw FeatureSelectionError.namedFeatureIgnored(named: named, selected: selected.name)
         }
         let sortedRepositories = Set(selected.repositories).sorted()
         if let cause = Self.haltCause(forRepositories: sortedRepositories, in: repositories) {
             return try await recordHalt(feature: selected.name, cause: cause, context: context)
+        }
+        let holding = scope.held.filter { sortedRepositories.contains($0.consumer) }
+        if let held = try recordReleaseGateHold(selected, holding: holding, context: context) {
+            return held
         }
 
         let candidateIDs = Set(candidates.map(\.issueID))
@@ -264,6 +278,25 @@ public struct FeatureSelection: FeatureAuthoring {
             throw EngineInvocationError.notImplemented(.author)
         }
         return try await transaction.author(validated, reselectionDepth: reselectionDepth, context: context)
+    }
+
+    /// Appends one `authoringReleaseGateHeld` per held consumer the selected Feature touches and returns
+    /// ``FeatureAuthoringOutcome/releaseGateHeld``; nil when it touches none. Runs after the seam halt and
+    /// before `.featureSelected` is recorded, so nothing is recorded as selected.
+    private func recordReleaseGateHold(
+        _ selected: SelectedFeature, holding: [HeldConsumer], context: ActContext
+    ) throws -> FeatureAuthoringOutcome? {
+        guard !holding.isEmpty else { return nil }
+        for edge in holding {
+            try context.journal.append(
+                .authoringReleaseGateHeld(
+                    featureName: selected.name.rawValue, consumer: edge.consumer, producer: edge.producer,
+                    producerFeatureIssueID: edge.producerFeatureIssueID
+                ),
+                act: context.act, runID: context.runID, nightID: context.night.id
+            )
+        }
+        return .releaseGateHeld
     }
 
     /// Why the selected `repositories` (sorted) cannot be authored: none were determined, one is outside this

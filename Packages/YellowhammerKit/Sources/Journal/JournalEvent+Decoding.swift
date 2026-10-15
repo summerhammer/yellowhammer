@@ -51,6 +51,10 @@ extension JournalEvent {
             try Self.decodeAuthoringPredecessorNotLanded(reader)
         case .authoringPredecessorIndeterminate:
             try Self.decodeAuthoringPredecessorIndeterminate(reader)
+        case .observedReleaseRecorded:
+            try Self.decodeObservedReleaseRecorded(reader)
+        case .authoringReleaseGateHeld:
+            try Self.decodeAuthoringReleaseGateHeld(reader)
         case .predecessorWalkSkippedReleasedFeature:
             .predecessorWalkSkippedReleasedFeature(featureIssueID: try reader.require("feature_issue_id"))
         case .predecessorAncestryObserved:

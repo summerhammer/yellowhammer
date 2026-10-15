@@ -5,6 +5,21 @@ import Foundation
 // exhaustive switch still dispatches to them) to keep that file under the file length limit.
 
 extension JournalEvent {
+    static func decodeObservedReleaseRecorded(_ reader: PayloadReader) throws -> JournalEvent {
+        .observedReleaseRecorded(
+            featureIssueID: try reader.require("feature_issue_id"), repository: try reader.require("repository"),
+            tagName: try reader.require("tag_name"), tagCommit: try reader.require("tag_commit")
+        )
+    }
+
+    static func decodeAuthoringReleaseGateHeld(_ reader: PayloadReader) throws -> JournalEvent {
+        .authoringReleaseGateHeld(
+            featureName: try reader.require("feature_name"), consumer: try reader.require("consumer"),
+            producer: try reader.require("producer"),
+            producerFeatureIssueID: try reader.require("producer_feature_issue_id")
+        )
+    }
+
     static func decodeAuthoringPredecessorNotLanded(_ reader: PayloadReader) throws -> JournalEvent {
         let raw = try reader.require("repositories")
         let repositories = raw.isEmpty ? [] : raw.components(separatedBy: "\u{1F}")

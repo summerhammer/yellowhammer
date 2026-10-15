@@ -39,6 +39,10 @@ extension JournalEvent {
             .authoringPredecessorNotLanded
         case .authoringPredecessorIndeterminate:
             .authoringPredecessorIndeterminate
+        case .observedReleaseRecorded:
+            .observedReleaseRecorded
+        case .authoringReleaseGateHeld:
+            .authoringReleaseGateHeld
         case .predecessorWalkSkippedReleasedFeature:
             .predecessorWalkSkippedReleasedFeature
         case .predecessorAncestryObserved:

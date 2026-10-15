@@ -175,4 +175,77 @@ struct FeatureSelectionRepoDependencyTests {
                 ]
         )
     }
+
+    @Test("A Feature touching a consumer the release gate holds is held: nothing selected, nothing authored")
+    func heldConsumerFeatureIsHeld() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBuildActBoards()
+        let transaction = ScriptedSelectedFeatureAuthoring()
+        let selector = ScriptedFeatureSelector(outcome: .selected(try feature(["backend"])))
+        let gate = ScriptedReleaseGate(held: [heldBackend])
+        let selection = FeatureSelection(selector: selector, transaction: transaction, releaseGate: gate)
+        let (context, _) = try makeSelectionContext(journal, repositories: dependencyRepositories(), boards: boards)
+
+        let outcome = try await selection.selectAndAuthor(context)
+
+        #expect(outcome == .releaseGateHeld)
+        #expect(transaction.callCount == 0)
+        #expect(selector.lastRequest?.heldConsumers == [heldBackend])
+        let events = try journal.events()
+        #expect(!events.contains { $0.type == .featureSelected })
+        #expect(events.filter { $0.type == .authoringReleaseGateHeld }.map(\.event) == [
+            .authoringReleaseGateHeld(
+                featureName: "FEAT-1", consumer: "backend", producer: "contracts", producerFeatureIssueID: "FEAT-K"
+            )
+        ])
+    }
+
+    @Test("A Feature touching only the producer is authored while the consumer is held")
+    func producerOnlyFeatureIsAuthored() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBuildActBoards()
+        let transaction = ScriptedSelectedFeatureAuthoring()
+        let selection = FeatureSelection(
+            selector: ScriptedFeatureSelector(outcome: .selected(try feature(["contracts"]))),
+            transaction: transaction, releaseGate: ScriptedReleaseGate(held: [heldBackend])
+        )
+        let (context, _) = try makeSelectionContext(journal, repositories: dependencyRepositories(), boards: boards)
+
+        let outcome = try await selection.selectAndAuthor(context)
+
+        #expect(outcome == .authored)
+        #expect(transaction.callCount == 1)
+        #expect(try !journal.events().contains { $0.type == .authoringReleaseGateHeld })
+    }
+
+    @Test("A Feature that spans the edge and touches the held consumer halts on the seam first")
+    func seamHaltWinsOverTheGate() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBuildActBoards()
+        let transaction = ScriptedSelectedFeatureAuthoring()
+        let selection = FeatureSelection(
+            selector: ScriptedFeatureSelector(outcome: .selected(try feature(["backend", "contracts"]))),
+            transaction: transaction, releaseGate: ScriptedReleaseGate(held: [heldBackend])
+        )
+        let (context, _) = try makeSelectionContext(journal, repositories: dependencyRepositories(), boards: boards)
+
+        let outcome = try await selection.selectAndAuthor(context)
+
+        #expect(outcome == .halted)
+        #expect(transaction.callCount == 0)
+        #expect(try !journal.events().contains { $0.type == .authoringReleaseGateHeld })
+    }
+}
+
+private let heldBackend = HeldConsumer(
+    consumer: "backend", producer: "contracts", producerFeature: "FEAT-K", producerFeatureIssueID: "FEAT-K"
+)
+
+private struct ScriptedReleaseGate: ReleaseGate {
+    let held: [HeldConsumer]
+
+    func heldConsumers(_ context: ActContext) async throws -> [HeldConsumer] { held }
 }

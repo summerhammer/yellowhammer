@@ -178,6 +178,20 @@ extension JournalMigrations {
             table.column("evidence", .text).notNull()
             table.primaryKey(["feature_id", "repository"])
         }
+
+        // The Observed Release of a Feature in a producer Repo (feature-authoring/select-the-next-feature,
+        // `#release-gate`): the release-shaped tag first observed to contain the Feature's work there.
+        // Recorded once per producer Repo per Feature and read from the record afterwards, so a tag
+        // deleted later does not re-close the gate. Journal-only: no board surface.
+        try db.create(table: "feature_release") { table in
+            table.column("feature_id", .integer).notNull()
+                .references("feature", column: "id", onDelete: .cascade)
+            table.column("repository", .text).notNull()
+            table.column("tag_name", .text).notNull()
+            table.column("tag_commit", .text).notNull()
+            table.column("observed_at", .text).notNull()
+            table.primaryKey(["feature_id", "repository"])
+        }
     }
 
     /// Records a Repo Lane's opened pull request, once (roadmap P10.4): `url` is nullable because

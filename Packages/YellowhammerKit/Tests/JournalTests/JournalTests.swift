@@ -163,6 +163,7 @@ let project2 = try #require(ProjectID(rawValue: "project-2"))
             "failure_cause",
             "feature",
             "feature_landing",
+            "feature_release",
             "feature_repository",
             "feature_verification",
             "lease",

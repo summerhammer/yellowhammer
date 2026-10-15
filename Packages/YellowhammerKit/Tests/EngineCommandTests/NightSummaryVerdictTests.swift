@@ -144,6 +144,24 @@ struct NightSummaryVerdictTests {
         #expect(line == "no decisions waiting · did not advance — quiet · closed")
     }
 
+    @Test("A Night whose only authoring event is a release gate hold reads as quiet")
+    func releaseGateHoldReadsAsQuiet() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let night = try await openNightForVerdictTest(journal: journal, board: board)
+        try journal.append(
+            .authoringReleaseGateHeld(
+                featureName: "Add login", consumer: "backend", producer: "contracts", producerFeatureIssueID: "FEAT-K"
+            ),
+            act: .author, runID: RunID(), nightID: night.id
+        )
+
+        let line = try NightSummary.verdictLine(night: night, journal: journal)
+        #expect(line == "no decisions waiting · did not advance — quiet · closed")
+    }
+
     @Test("A Card state transition reads back as 'advanced without landing'")
     func advancedWithoutLanding() async throws {
         let fixture = try NightCardJournalFixture()

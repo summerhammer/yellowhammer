@@ -18,6 +18,8 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case authoringSkippedFeatureInFlight = "AuthoringSkippedFeatureInFlight"
     case authoringPredecessorNotLanded = "AuthoringPredecessorNotLanded"
     case authoringPredecessorIndeterminate = "AuthoringPredecessorIndeterminate"
+    case observedReleaseRecorded = "ObservedReleaseRecorded"
+    case authoringReleaseGateHeld = "AuthoringReleaseGateHeld"
     case predecessorWalkSkippedReleasedFeature = "PredecessorWalkSkippedReleasedFeature"
     case predecessorAncestryObserved = "PredecessorAncestryObserved"
     case mainlineConflictDetected = "MainlineConflictDetected"
