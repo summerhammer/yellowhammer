@@ -1,4 +1,6 @@
+import Config
 import Darwin
+import Domain
 import Foundation
 
 /// Runs the bundled `yh` non-interactively and streams its merged stdout/stderr. The app never does the
@@ -73,9 +75,24 @@ final class SetupEngine {
             throw RunError.executableNotFound
         }
 
+        // These invocations bake their own `PATH` into every LaunchAgent, and a Finder-launched app's is
+        // launchd's bare one: run them with the login shell's, as a Terminal-run setup would have. Under
+        // the UI-test override no shell is spawned.
+        var launchEnvironment: [String: String]?
+        if SetupInvocation.composesScheduledJobPATH(arguments), !ConfigurationDirectory.isOverridden {
+            let result = await LoginShellPATH.read()
+            // A caller cancelled during the read must not go on to write LaunchAgents with the bare `PATH`.
+            if result == .failed(.cancelled) || Task.isCancelled { throw CancellationError() }
+            if case .failed(let reason) = result {
+                onOutput("\(reason.description) The LaunchAgents get the app\u{2019}s PATH instead.")
+            }
+            launchEnvironment = LoginShellPATH.environment(applying: result, to: ProcessInfo.processInfo.environment)
+        }
+
         let process = Process()
         process.executableURL = plan.executable
         process.arguments = plan.leadingArguments + arguments
+        process.environment = launchEnvironment
         let outputPipe = Pipe()
         process.standardOutput = outputPipe
         process.standardError = outputPipe
