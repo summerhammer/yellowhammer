@@ -39,6 +39,12 @@ struct FeatureDetailView: View {
             }
             .accessibilityIdentifier("feature-detail-state")
         } content: {
+            if feature.state == "returned" {
+                Section {
+                    ReturnedFeatureGuidance()
+                        .accessibilityIdentifier("feature-detail-returned-guidance")
+                }
+            }
             if let verification = feature.verification {
                 Section("Verification") {
                     Text(verification.summary).accessibilityIdentifier("feature-detail-verification")
