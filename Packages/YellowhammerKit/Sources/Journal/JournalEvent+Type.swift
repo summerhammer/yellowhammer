@@ -27,6 +27,8 @@ extension JournalEvent {
             .appInstallationTokenRefresh
         case .mainlineFetchFailed:
             .mainlineFetchFailed
+        case .tagFetchFailed:
+            .tagFetchFailed
         case .absentNightDetected:
             .absentNightDetected
         case .authoringNoWorkAvailable:

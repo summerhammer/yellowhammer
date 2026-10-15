@@ -3,7 +3,11 @@ extension AuthoringInstruction {
     /// payload is absent or empty are omitted entirely. Uses `\n` newlines only and ends with a single
     /// trailing newline; rendering the same instruction twice yields identical output.
     public func render() -> String {
-        var sections: [String] = [header, specificationSection, repositoriesSection]
+        var sections: [String] = [header, specificationSection, repositoriesSection, authoringInvariantSection]
+        if pass != .breakdown {
+            sections.append(repoDependenciesSection)
+            if let heldConsumersSection { sections.append(heldConsumersSection) }
+        }
         if let namedFeatureSection { sections.append(namedFeatureSection) }
         if let adoptionSection { sections.append(adoptionSection) }
         if let refusedThisNightSection { sections.append(refusedThisNightSection) }
@@ -40,6 +44,49 @@ extension AuthoringInstruction {
             lines.append("  Mainline: \(mainlines[repo]?.commit ?? "not resolved")")
         }
         return lines.joined(separator: "\n")
+    }
+
+    /// Both passes: the invariant every Work Card meets. The selection pass adds the sequence rule across a
+    /// declared Repo Dependency; the breakdown pass adds how a consumer Work Card reads its producers.
+    private var authoringInvariantSection: String {
+        var paragraphs = [
+            "## Authoring invariant",
+            "Every Work Card in a Feature must be completable and verifiable against the repositories as they "
+                + "exist at authoring time: nothing a Work Card needs may be work another Work Card in the same "
+                + "Feature has yet to do."
+        ]
+        if pass == .breakdown {
+            paragraphs.append(
+                "Every repository a Work Card reads from goes in its `contracts`. Bumping a version pin or "
+                    + "updating a lockfile in a consumer repository is that consumer Work Card's own work."
+            )
+        } else {
+            paragraphs.append(
+                "A Feature never touches both ends of a declared Repo Dependency. Where the work spans one, "
+                    + "select the upstream layer (the producer Repo) as its own Feature first and name the rest "
+                    + "in `followed_by`; the consumer's work follows in a later Feature once the producer's has an "
+                    + "Observed Merge and, for a `tag` edge, an Observed Release."
+            )
+        }
+        return paragraphs.joined(separator: "\n\n")
+    }
+
+    /// Selection pass only: every declared edge, consumer first.
+    private var repoDependenciesSection: String {
+        let edges = repos.flatMap { consumer in
+            consumer.consumes.map { "- \(consumer.name) consumes \($0.producer) via \($0.via.rawValue)" }
+        }
+        return (["## Repo Dependencies", ""] + (edges.isEmpty ? ["None declared."] : edges)).joined(separator: "\n")
+    }
+
+    /// Selection pass only, and only when the release gate holds a consumer back tonight.
+    private var heldConsumersSection: String? {
+        guard !heldConsumers.isEmpty else { return nil }
+        let bullets = heldConsumers.map {
+            "- \($0.consumer): it reads \($0.producer) by tag, and no release of \($0.producer) contains "
+                + "Feature \($0.producerFeature) yet. Do not select a Feature that touches \($0.consumer) tonight."
+        }
+        return (["## Held by the release gate tonight", ""] + bullets).joined(separator: "\n")
     }
 
     private var namedFeatureSection: String? {

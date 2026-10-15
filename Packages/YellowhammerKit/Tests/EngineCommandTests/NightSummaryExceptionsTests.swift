@@ -379,6 +379,26 @@ struct NightSummaryExceptionsTests {
         #expect(lines.contains { $0.contains("night_summary") && $0.contains("unreachable") })
     }
 
+    @Test("A failed tag fetch reads as an Exception that says the release gate stays closed")
+    func tagFetchFailureIsAnException() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let night = try await openNightForExceptionsTest(journal: journal, board: board) { context in
+            try journal.append(
+                .tagFetchFailed(repository: "contracts", reason: "would clobber existing tag"), act: context.act,
+                runID: context.runID, nightID: context.night.id
+            )
+        }
+
+        let lines = try NightSummary.exceptionLines(night: night, journal: journal)
+        #expect(lines.contains {
+            $0.hasPrefix("Fetching tags for `contracts` failed: would clobber existing tag.")
+                && $0.contains("keeps the gate closed")
+        })
+    }
+
     @Test("An abandoned Feature's predecessor walk names it in the Authoring section")
     func abandonedFeatureAuthoringLine() {
         let line = NightCardMaintenance.authoringLine(

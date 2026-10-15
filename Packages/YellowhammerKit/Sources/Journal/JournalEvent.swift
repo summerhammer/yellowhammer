@@ -68,6 +68,9 @@ public enum JournalEvent: Equatable, Sendable {
     /// One attempt to refresh the Board Connection's token pair, succeeded or refused. Carries no token.
     case appInstallationTokenRefresh(AppInstallationTokenRefresh)
     case mainlineFetchFailed(repository: String, reason: String)
+    /// The Act-start tag fetch of a `tag` producer failed (a rejected existing tag, offline, or no resolvable
+    /// credential). Separate from ``mainlineFetchFailed(repository:reason:)``: a good mainline refresh stays good.
+    case tagFetchFailed(repository: String, reason: String)
     /// The resumption self-audit found a Night that never opened (OQ12): a calendar date
     /// between two recorded Nights with no Night row. Recorded on the Night that resumed, by its
     /// first Act. Reported, never acted on — `overdue_nights_max` is spent only by Nights that ran.

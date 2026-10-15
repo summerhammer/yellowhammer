@@ -375,11 +375,11 @@ public struct EngineInvocation: Sendable {
     private func refreshMainlines(night: NightRecord) async -> ResolvedMainlines {
         guard let repositories else { return ResolvedMainlines() }
         let result = await mainlineRefresher.refresh(repositories: repositories)
-        for failure in result.failures {
-            _ = try? journal.append(
-                .mainlineFetchFailed(repository: failure.repository, reason: failure.reason),
-                act: act, runID: runID, nightID: night.id
-            )
+        let failures = result.failures
+            .map { JournalEvent.mainlineFetchFailed(repository: $0.repository, reason: $0.reason) }
+            + result.tagFetchFailures.map { JournalEvent.tagFetchFailed(repository: $0.repository, reason: $0.reason) }
+        for event in failures {
+            _ = try? journal.append(event, act: act, runID: runID, nightID: night.id)
         }
         return result.mainlines
     }

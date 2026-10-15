@@ -31,7 +31,7 @@ func eventTypeRawValues() {
     let expected = [
         "ActStarted", "ActEnded", "ActIdle", "ActIncomplete", "ActStoodDown", "LinearAuthorizationHalted",
         "LinearReached", "LinearUnreachableHalted",
-        "MainlineFetchFailed", "AbsentNightDetected", "AuthoringNoWorkAvailable",
+        "MainlineFetchFailed", "TagFetchFailed", "AbsentNightDetected", "AuthoringNoWorkAvailable",
         "AuthoringSkippedFeatureInFlight", "AuthoringPredecessorNotLanded",
         "AuthoringPredecessorIndeterminate", "PredecessorWalkSkippedReleasedFeature",
         "PredecessorAncestryObserved", "MainlineConflictDetected",

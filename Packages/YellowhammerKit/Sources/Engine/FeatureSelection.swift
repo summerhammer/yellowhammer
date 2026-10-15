@@ -117,7 +117,8 @@ public struct FeatureSelection: FeatureAuthoring {
                 mainlines: context.mainlines,
                 namedFeature: context.trigger.namedFeature,
                 adoptionCandidates: candidates,
-                refusedThisNight: walk.refusedThisNight
+                refusedThisNight: walk.refusedThisNight,
+                heldConsumers: []
             )
 
             let outcome: FeatureSelectionOutcome
@@ -223,16 +224,9 @@ public struct FeatureSelection: FeatureAuthoring {
         if let named = context.trigger.namedFeature, named != selected.name {
             throw FeatureSelectionError.namedFeatureIgnored(named: named, selected: selected.name)
         }
-        guard !selected.repositories.isEmpty else {
-            return try await recordHalt(
-                feature: selected.name, cause: .repositoriesUndetermined, context: context
-            )
-        }
         let sortedRepositories = Set(selected.repositories).sorted()
-        if let outside = sortedRepositories.first(where: { repositories.workingRepo(named: $0) == nil }) {
-            return try await recordHalt(
-                feature: selected.name, cause: .contractOutsideProject(repository: outside), context: context
-            )
+        if let cause = Self.haltCause(forRepositories: sortedRepositories, in: repositories) {
+            return try await recordHalt(feature: selected.name, cause: cause, context: context)
         }
 
         let candidateIDs = Set(candidates.map(\.issueID))
@@ -270,6 +264,32 @@ public struct FeatureSelection: FeatureAuthoring {
             throw EngineInvocationError.notImplemented(.author)
         }
         return try await transaction.author(validated, reselectionDepth: reselectionDepth, context: context)
+    }
+
+    /// Why the selected `repositories` (sorted) cannot be authored: none were determined, one is outside this
+    /// Project, or the Feature spans a declared Repo Dependency — checked in that order, before
+    /// `.featureSelected` is recorded. Nil when authoring may go on.
+    private static func haltCause(
+        forRepositories sorted: [String], in repositories: ProjectRepositories
+    ) -> AuthoringHaltCause? {
+        guard !sorted.isEmpty else { return .repositoriesUndetermined }
+        if let outside = sorted.first(where: { repositories.workingRepo(named: $0) == nil }) {
+            return .contractOutsideProject(repository: outside)
+        }
+        let spanning = spanningEdges(repositories.workingRepos, selected: sorted)
+        return spanning.isEmpty ? nil : .featureSpansRepoDependency(edges: spanning)
+    }
+
+    /// The declared Repo Dependencies whose consumer and producer are both among the `selected` repositories,
+    /// in the consumers' file order and then each consumer's edge order. Direct edges only: a consumer
+    /// reading a producer that reads a third Repo is never chained.
+    static func spanningEdges(_ repos: [Repo], selected: [String]) -> [SpannedRepoDependency] {
+        let touched = Set(selected)
+        return repos.filter { touched.contains($0.name) }.flatMap { consumer in
+            consumer.consumes.filter { touched.contains($0.producer) }.map {
+                SpannedRepoDependency(consumer: consumer.name, producer: $0.producer, via: $0.via)
+            }
+        }
     }
 
     /// Records a halt durably and routes it to Waiting on You, through the halt path

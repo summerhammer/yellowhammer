@@ -105,9 +105,22 @@ extension NightSummary {
         return "Card `\(issueID)`'s Lease, held by run `\(previousRunID)`, was reclaimed: \(mandated)"
     }
 
+    /// The Exception line for a failed mainline or tag fetch; nil for any other event.
+    private static func fetchFailureLine(_ event: JournalEvent) -> String? {
+        switch event {
+        case .mainlineFetchFailed(let repository, let reason):
+            "Fetching mainline for `\(repository)` failed: \(reason)."
+        case .tagFetchFailed(let repository, let reason):
+            "Fetching tags for `\(repository)` failed: \(reason). The release gate reads only the tags it "
+                + "already has, so a release it could not fetch keeps the gate closed."
+        default:
+            nil
+        }
+    }
+
     /// The `**Exceptions:**` section: `boardWriteFailed`, `rateBudgetExhausted`, `mainlineFetchFailed`,
-    /// `absentNightDetected`, `notificationDeliveryFailed`, `worktreeNameCollision`, a `flushFiringRan` that closed
-    /// the Night (the closing land did not), a `worktreeLost` that
+    /// `tagFetchFailed`, `absentNightDetected`, `notificationDeliveryFailed`, `worktreeNameCollision`, a
+    /// `flushFiringRan` that closed the Night (the closing land did not), a `worktreeLost` that
     /// recovered nothing (OQ133; ``worktreeLossLines(night:journal:)``) and `overrideRefused` — the last
     /// once per Card and reason, however many Acts refused it (OQ126) — plus one line per recovery of failed
     /// Acts (``recoveredFailureLines(events:renderingRunID:timeZone:)``, its time in `timeZone`). Empty when
@@ -136,8 +149,6 @@ extension NightSummary {
                 } else {
                     lines.append("The board's request budget was exhausted installation-wide: \(degradation).")
                 }
-            case .mainlineFetchFailed(let repository, let reason):
-                lines.append("Fetching mainline for `\(repository)` failed: \(reason).")
             case .absentNightDetected(let nightStart):
                 lines.append("Night `\(nightStart)` did not open: reported only, not spent against a Bound.")
             case .notificationDeliveryFailed(let notification, let reason):
@@ -155,7 +166,7 @@ extension NightSummary {
                         + "\(record.occurredAt.formatted(.iso8601))."
                 )
             default:
-                break
+                if let line = Self.fetchFailureLine(record.event) { lines.append(line) }
             }
         }
         return lines

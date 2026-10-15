@@ -37,6 +37,11 @@ extension JournalEvent {
                 repository: try reader.require("repository"),
                 reason: try reader.require("reason")
             )
+        case .tagFetchFailed:
+            .tagFetchFailed(
+                repository: try reader.require("repository"),
+                reason: try reader.require("reason")
+            )
         case .absentNightDetected:
             .absentNightDetected(nightStart: try reader.nightStart("night_start"))
         case .authoringNoWorkAvailable: .authoringNoWorkAvailable

@@ -91,7 +91,7 @@ public struct ProjectConfiguration: Sendable {
         let workingRepos = repos.map {
             Repo(
                 name: $0.name, path: ($0.path as NSString).expandingTildeInPath,
-                role: $0.role, protectedPaths: $0.protectedPaths
+                role: $0.role, protectedPaths: $0.protectedPaths, consumes: $0.consumes
             )
         }
         let spec = specSource.map { SpecSource(path: ($0 as NSString).expandingTildeInPath) }
@@ -232,13 +232,19 @@ public struct RepoDeclaration: Equatable, Sendable {
     /// nothing was wrong with, and with a round budget of two it does so quickly.
     public var check: Check
     public var protectedPaths: [String]
+    /// The Repo Dependencies this Repo, as consumer, declares (`consumes`); none when the key is absent.
+    public var consumes: [RepoDependency]
 
-    public init(name: String, path: String, role: RepoRole, check: Check, protectedPaths: [String] = []) {
+    public init(
+        name: String, path: String, role: RepoRole, check: Check, protectedPaths: [String] = [],
+        consumes: [RepoDependency] = []
+    ) {
         self.name = name
         self.path = path
         self.role = role
         self.check = check
         self.protectedPaths = protectedPaths
+        self.consumes = consumes
     }
 }
 

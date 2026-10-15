@@ -24,6 +24,8 @@ extension JournalEvent {
         case .appInstallationTokenRefresh(let refresh): Self.payload(of: refresh)
         case .mainlineFetchFailed(let repository, let reason):
             ["reason": reason, "repository": repository]
+        case .tagFetchFailed(let repository, let reason):
+            ["reason": reason, "repository": repository]
         case .absentNightDetected(let nightStart):
             ["night_start": nightStart.rawValue]
         case .authoringNoWorkAvailable: nil

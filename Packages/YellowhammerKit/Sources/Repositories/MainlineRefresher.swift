@@ -16,10 +16,16 @@ public struct MainlineFetchFailure: Equatable, Sendable {
 public struct MainlineRefreshResult: Sendable {
     public let mainlines: ResolvedMainlines
     public let failures: [MainlineFetchFailure]
+    /// Failures of the separate tag fetch of a `tag` producer; a good mainline refresh stays good.
+    public let tagFetchFailures: [MainlineFetchFailure]
 
-    public init(mainlines: ResolvedMainlines, failures: [MainlineFetchFailure] = []) {
+    public init(
+        mainlines: ResolvedMainlines, failures: [MainlineFetchFailure] = [],
+        tagFetchFailures: [MainlineFetchFailure] = []
+    ) {
         self.mainlines = mainlines
         self.failures = failures
+        self.tagFetchFailures = tagFetchFailures
     }
 }
 
@@ -33,6 +39,10 @@ public struct MainlineRefreshResult: Sendable {
 /// ``PushCredential`` the land push uses) and never falls back to ambient credentials: when the seam
 /// throws, no `git fetch` runs at all and the failure is recorded. A nil credential means no Code
 /// Hosting Connection is configured, and git runs plain.
+///
+/// For each producer of a `tag` Repo Dependency the refresh also fetches that Repo's tags, in a separate
+/// `git fetch` with a refspec that never overwrites a local tag, under the same credential and offline
+/// fallback. Yellowhammer never creates, pushes or moves a tag.
 public struct MainlineRefresher: Sendable {
     public let git: GitRunner
     private let credential: @Sendable () throws -> PushCredential?
@@ -46,6 +56,10 @@ public struct MainlineRefresher: Sendable {
     public func refresh(repositories: ProjectRepositories) async -> MainlineRefreshResult {
         var workingMainlines: [String: ResolvedMainline] = [:]
         var failures: [MainlineFetchFailure] = []
+        var tagFetchFailures: [MainlineFetchFailure] = []
+        let tagProducers = Set(
+            repositories.workingRepos.flatMap { $0.consumes.filter { $0.via == .tag }.map(\.producer) }
+        )
 
         // Resolved once for the whole Project, before any repo is touched.
         let resolution = resolveCredential()
@@ -57,6 +71,9 @@ public struct MainlineRefresher: Sendable {
             if let failure {
                 failures.append(failure)
             }
+            if tagProducers.contains(repo.name), let failure = await fetchTags(of: repo, resolution: resolution) {
+                tagFetchFailures.append(failure)
+            }
         }
 
         let specMainline: ResolvedMainline?
@@ -67,7 +84,7 @@ public struct MainlineRefresher: Sendable {
         }
 
         let mainlines = ResolvedMainlines(workingRepos: workingMainlines, specSource: specMainline)
-        return MainlineRefreshResult(mainlines: mainlines, failures: failures)
+        return MainlineRefreshResult(mainlines: mainlines, failures: failures, tagFetchFailures: tagFetchFailures)
     }
 
     /// Refreshes a single working repository.
@@ -98,10 +115,7 @@ public struct MainlineRefresher: Sendable {
             resolved = value
         case .failure(let error):
             // Fetching now would be the forbidden ambient attempt: record the failure and fall back.
-            let failure = MainlineFetchFailure(
-                repository: repo.name,
-                reason: "the Code Hosting Connection could not be resolved: \(error)"
-            )
+            let failure = MainlineFetchFailure(repository: repo.name, reason: Self.unresolvedCredentialReason(error))
             return (await offlineMainline(for: repo, branch: defaultBranch, in: path), failure)
         }
 
@@ -123,6 +137,42 @@ public struct MainlineRefresher: Sendable {
         let reason = rawStderr.isEmpty ? "git fetch exited with status \(fetchResult.exitCode)" : rawStderr
         let failure = MainlineFetchFailure(repository: repo.name, reason: reason)
         return (await offlineMainline(for: repo, branch: defaultBranch, in: path), failure)
+    }
+
+    private static func unresolvedCredentialReason(_ error: any Error) -> String {
+        "the Code Hosting Connection could not be resolved: \(error)"
+    }
+
+    /// Fetches every tag of a `tag` producer, in a fetch of its own so a rejected tag never fails the mainline
+    /// refresh. The refspec has no `+`: an existing local tag is never overwritten, and git's refusal is the
+    /// reported failure. Skipped when the path is missing or there is no `origin`; with no resolvable
+    /// credential nothing is fetched and the local tags stand.
+    private func fetchTags(
+        of repo: Repo, resolution: Result<PushCredential?, any Error>
+    ) async -> MainlineFetchFailure? {
+        let path = (repo.path as NSString).expandingTildeInPath
+        guard FileManager.default.fileExists(atPath: path), await hasRemote(named: "origin", in: path) else {
+            return nil
+        }
+        let resolved: PushCredential?
+        switch resolution {
+        case .success(let value):
+            resolved = value
+        case .failure(let error):
+            return MainlineFetchFailure(repository: repo.name, reason: Self.unresolvedCredentialReason(error))
+        }
+        let httpsURL = await git.httpsURL(for: resolved, in: path)
+        let result = await git.authenticated(with: resolved, httpsURL: httpsURL).run(
+            [
+                "-c", "transfer.timeout=10", "-C", path, "fetch", "--quiet",
+                httpsURL ?? "origin", "refs/tags/*:refs/tags/*"
+            ],
+            timeout: 15.0
+        )
+        guard !result.isSuccess else { return nil }
+        let rawStderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+        let reason = rawStderr.isEmpty ? "git fetch exited with status \(result.exitCode)" : rawStderr
+        return MainlineFetchFailure(repository: repo.name, reason: reason)
     }
 
     /// The cached `refs/remotes/origin/<branch>`, else the local mainline.

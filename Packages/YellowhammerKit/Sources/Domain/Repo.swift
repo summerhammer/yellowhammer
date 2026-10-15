@@ -1,3 +1,24 @@
+/// How a consumer Repo reads its producer (glossary: Repo Dependency).
+public enum RepoDependencyVia: String, CaseIterable, Sendable, Hashable {
+    /// The consumer reads the producer's mainline.
+    case mainline
+    /// The consumer reads a tag of the producer.
+    case tag
+}
+
+/// One declared Repo Dependency, carried on the consumer: the producer's Repo name and how it is read.
+public struct RepoDependency: Equatable, Hashable, Sendable {
+    /// The name of the producer Repo, a Repo of the same Project as the consumer.
+    public let producer: String
+    /// How the consumer reads the producer.
+    public let via: RepoDependencyVia
+
+    public init(producer: String, via: RepoDependencyVia) {
+        self.producer = producer
+        self.via = via
+    }
+}
+
 /// A working repository declared in a Project's configuration.
 public struct Repo: Equatable, Hashable, Sendable {
     public let name: String
@@ -7,19 +28,23 @@ public struct Repo: Equatable, Hashable, Sendable {
     /// A pre-dispatch scoping check, not a sandbox: the refusal happens before an agent CLI is invoked,
     /// and nothing stops an already-dispatched agent touching a protected path mid-run.
     public let protectedPaths: [String]
+    /// The Repo Dependencies this Repo, as consumer, declares on sibling Repos of its Project (its producers).
+    public let consumes: [RepoDependency]
 
     public init(
         name: String,
         path: String,
         role: RepoRole,
         defaultBranch: String? = nil,
-        protectedPaths: [String] = []
+        protectedPaths: [String] = [],
+        consumes: [RepoDependency] = []
     ) {
         self.name = name
         self.path = path
         self.role = role
         self.defaultBranch = defaultBranch
         self.protectedPaths = protectedPaths
+        self.consumes = consumes
     }
 }
 

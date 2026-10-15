@@ -117,6 +117,12 @@ enum ConfigurationRendering {
             let items = repo.protectedPaths.map { quoted($0) }.joined(separator: ", ")
             lines.append("protected_paths = [\(items)]")
         }
+        if !repo.consumes.isEmpty {
+            let items = repo.consumes.map {
+                "{ repo = \(quoted($0.producer)), via = \(quoted($0.via.rawValue)) }"
+            }.joined(separator: ", ")
+            lines.append("consumes = [\(items)]")
+        }
         return lines.joined(separator: "\n")
     }
 
