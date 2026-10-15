@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.17.0](https://github.com/summerhammer/yellowhammer/compare/v0.16.0...v0.17.0) (2026-10-15)
+
+
+### Features
+
+* **engine:** declare Repo Dependencies and halt a Feature that spans one ([#513](https://github.com/summerhammer/yellowhammer/issues/513)) ([0141d8e](https://github.com/summerhammer/yellowhammer/commit/0141d8e1ae4083eb4c7e67504804e4b7b6653c9b))
+* **engine:** halt a breakdown that consumes its own Feature's work ([#515](https://github.com/summerhammer/yellowhammer/issues/515)) ([e12b0ce](https://github.com/summerhammer/yellowhammer/commit/e12b0ce5e337cc376963099ecc53e41ec3d33a63))
+* **engine:** hold a `tag` consumer until the producer has an Observed Release ([#514](https://github.com/summerhammer/yellowhammer/issues/514)) ([e4c285c](https://github.com/summerhammer/yellowhammer/commit/e4c285c510a7737acbe73213cf524baf743f656f))
+* **engine:** make the pass timeout configurable, record a timeout as a hard failure, and tell the worker the limit ([#519](https://github.com/summerhammer/yellowhammer/issues/519)) ([e788890](https://github.com/summerhammer/yellowhammer/commit/e78889028e761b2a92dcb5db12979d3f7a174994))
+* **engine:** name the spec commit and forbid searching outside the Worktree in the worker instruction ([#510](https://github.com/summerhammer/yellowhammer/issues/510)) ([019ebae](https://github.com/summerhammer/yellowhammer/commit/019ebaeee8c71e422e51999a14f41ce719daa121))
+* **setup:** propose Repo Dependencies at setup for the Operator to confirm ([#516](https://github.com/summerhammer/yellowhammer/issues/516)) ([8f77a06](https://github.com/summerhammer/yellowhammer/commit/8f77a067ebd1be951b79b3e9fe0aa0d476318728))
+
+
+### Bug Fixes
+
+* **app:** run job-writing yh setup with the login shell's PATH ([#509](https://github.com/summerhammer/yellowhammer/issues/509)) ([dcf55cf](https://github.com/summerhammer/yellowhammer/commit/dcf55cf0da687cdb69ced5dbb04399ffda95d101))
+* **pulse:** explain when returned Feature choices are recorded ([936d971](https://github.com/summerhammer/yellowhammer/commit/936d97126aa776a52eb3b888c0f0f22f230a7064)), closes [#508](https://github.com/summerhammer/yellowhammer/issues/508)
+
 ## [0.16.0](https://github.com/summerhammer/yellowhammer/compare/v0.15.1...v0.16.0) (2026-10-14)
 
 
