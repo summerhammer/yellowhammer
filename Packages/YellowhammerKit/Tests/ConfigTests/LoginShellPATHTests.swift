@@ -6,6 +6,15 @@ import Testing
 struct LoginShellPATHTests {
     private let marker = "YH-MARK"
 
+    @Test("A read PATH replaces only PATH; a failed read leaves the environment unchanged")
+    func environmentApplyingResult() {
+        let inherited = ["PATH": "/usr/bin:/bin", "HOME": "/Users/x"]
+        let login = "/Users/x/.nvm/versions/node/v26.8.1/bin:/opt/homebrew/bin:/usr/bin"
+        #expect(LoginShellPATH.environment(applying: .path(login), to: inherited)
+            == ["PATH": login, "HOME": "/Users/x"])
+        #expect(LoginShellPATH.environment(applying: .failed(.timedOut(.seconds(10))), to: inherited) == inherited)
+    }
+
     @Test("parse ignores noise around the markers")
     func parseNoise() {
         let output = "Last login: today\nrc says hi\(marker)/a b/bin:/usr/bin\(marker)\nbye\n"

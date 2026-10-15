@@ -231,4 +231,25 @@ struct SetupInvocationTests {
         #expect(SetupInvocation.regenerateScheduledJobsArguments(project: "acme")
             == ["doctor", "--fix", "--project", "acme", "--check", "launchd", "--json"])
     }
+
+    @Test("Only the invocations that bake a PATH into the LaunchAgents compose the job PATH")
+    func composesScheduledJobPATH() throws {
+        let project = SetupInvocation.Project(id: "demo", linearProject: .existing("proj-1"))
+        let install = try SetupInvocation(project: project, jobs: .install).arguments()
+        let export = try SetupInvocation(project: project, jobs: .export(directory: "/tmp/jobs", cron: true))
+            .arguments()
+        #expect(SetupInvocation.composesScheduledJobPATH(install))
+        #expect(SetupInvocation.composesScheduledJobPATH(export))
+        #expect(SetupInvocation.composesScheduledJobPATH(
+            SetupInvocation.regenerateScheduledJobsArguments(project: "demo")))
+
+        let notNow = try SetupInvocation(project: project, jobs: .notNow).arguments()
+        #expect(!SetupInvocation.composesScheduledJobPATH(notNow))
+        #expect(!SetupInvocation.composesScheduledJobPATH(
+            SetupInvocation.choicesArguments(boardConnection: nil)))
+        #expect(!SetupInvocation.composesScheduledJobPATH(SetupInvocation.installLinearArguments()))
+        #expect(!SetupInvocation.composesScheduledJobPATH(["doctor", "--json"]))
+        #expect(!SetupInvocation.composesScheduledJobPATH(["probe", "claude"]))
+        #expect(!SetupInvocation.composesScheduledJobPATH(["recalibrate", "--project", "p", "--json"]))
+    }
 }

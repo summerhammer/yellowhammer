@@ -110,6 +110,16 @@ struct ScheduledJobPATHTests {
         #expect(composed == "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin")
     }
 
+    @Test("composePATH: login-shell directories survive after the tool directories")
+    func composePATHKeepsLoginShellDirectories() throws {
+        let composed = ScheduledJob.composePATH(
+            setupTimePATH: "/Users/x/.nvm/versions/node/v26.8.1/bin:/opt/homebrew/bin:/usr/bin",
+            resolvedToolPaths: ["/opt/homebrew/bin/git", "/Users/x/.local/bin/claude"]
+        )
+        #expect(composed == "/opt/homebrew/bin:/Users/x/.local/bin:/Users/x/.nvm/versions/node/v26.8.1/bin"
+            + ":/usr/bin:/bin:/usr/sbin:/sbin")
+    }
+
     @Test("composePATH: skips empty entries")
     func composePATHSkipsEmptyEntries() throws {
         let composed = ScheduledJob.composePATH(setupTimePATH: "/usr/local/bin::/usr/bin:", resolvedToolPaths: [])
