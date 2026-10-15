@@ -111,21 +111,24 @@ struct ProjectConfigurationDecoder {
             firstLines[repo.name] = table.line
             repos.append(repo)
         }
+        try requireResolvableAcyclicRepoDependencies(repos, elements: elements)
         return repos
     }
 
     private func repo(_ table: TOMLTable, path: String) throws(ConfigurationError) -> RepoDeclaration {
         try decoding.rejectUnknownKeys(
-            in: table, path: path, allowed: ["name", "path", "role", "check", "protected_paths"]
+            in: table, path: path, allowed: ["name", "path", "role", "check", "protected_paths", "consumes"]
         )
         let check = try decoding.requiredString("check", in: table, path: path)
+        let name = try decoding.requiredString("name", in: table, path: path)
         return RepoDeclaration(
-            name: try decoding.requiredString("name", in: table, path: path),
+            name: name,
             path: try decoding.requiredString("path", in: table, path: path),
             role: RepoRole(rawValue: try decoding.requiredString("role", in: table, path: path)),
             // A missing `check` was refused above: silence is never read as `none`.
             check: check == "none" ? .none : .command(check),
-            protectedPaths: try protectedPaths(in: table, path: path)
+            protectedPaths: try protectedPaths(in: table, path: path),
+            consumes: try repoDependencies(in: table, path: path, consumer: name)
         )
     }
 

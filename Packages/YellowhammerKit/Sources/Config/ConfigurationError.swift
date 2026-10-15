@@ -56,6 +56,16 @@ public struct ConfigurationError: Error, Equatable, Sendable {
         /// A Board Connection's `description_budget` is above 90% of its board's own description limit, which
         /// the board's adapter supplies.
         case aboveDescriptionBudgetCeiling(value: Int, ceiling: Int, limit: BoardDescriptionLimit)
+        /// A Repo Dependency's `repo` names no Repo of the same Project (the Spec Source is not a Repo).
+        case unknownRepoDependencyProducer(String)
+        /// A Repo Dependency points a Repo at itself.
+        case selfRepoDependency
+        /// A consumer declares the same producer twice; reported on the second edge.
+        case duplicateRepoDependency(producer: String, firstLine: Int)
+        /// The declared Repo Dependencies form a cycle; `path` names it, first Repo repeated at the end.
+        case repoDependencyCycle(path: [String])
+        /// A Repo Dependency's `via` is neither `mainline` nor `tag`.
+        case invalidRepoDependencyVia(String)
     }
 
     public let file: String
@@ -164,6 +174,16 @@ extension ConfigurationError.Reason: CustomStringConvertible {
         case .aboveDescriptionBudgetCeiling(let value, let ceiling, let limit):
             return "must be at most \(ceiling) (90% of the board's description limit of \(limit.maximum) "
                 + "\(limit.unit.plural)), got \(value)"
+        case .unknownRepoDependencyProducer(let name):
+            return "names \"\(name)\", which is no Repo of this Project (the Spec Source is not a Repo)"
+        case .selfRepoDependency:
+            return "a Repo cannot consume itself"
+        case .duplicateRepoDependency(let producer, let firstLine):
+            return "Repo \"\(producer)\" is already consumed on line \(firstLine)"
+        case .repoDependencyCycle(let path):
+            return "Repo Dependencies form a cycle: \(path.joined(separator: " -> "))"
+        case .invalidRepoDependencyVia(let value):
+            return "expected \"mainline\" or \"tag\", got \"\(value)\""
         }
     }
 }
