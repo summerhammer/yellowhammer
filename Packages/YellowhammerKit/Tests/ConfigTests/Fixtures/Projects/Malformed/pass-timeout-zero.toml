@@ -1,0 +1,15 @@
+id = "pass-timeout-zero"
+name = "Bounds Zero"
+board = { linear = { connection = "acme", project = "BZ" } }
+
+[[repos]]
+name = "repo"
+path = "~/path"
+role = "backend"
+check = "test"
+
+[limits]
+pass_timeout_minutes = 0
+
+[code_hosting]
+connection = "github"

@@ -143,8 +143,18 @@ enum ConfigurationRendering {
         return "\(template.kind.key) = \(quoted(template.text))"
     }
 
-    /// All seven Bounds, explicit — see the spec citation on ``ConfigurationRendering``.
-    static func renderedLimits(_ bounds: BoundsDraft) -> String {
+    /// All seven Bounds, explicit — see the spec citation on ``ConfigurationRendering``. `pass_timeout_minutes`
+    /// is not a Bound: it follows them only when its rendered value is not the default.
+    static func renderedLimits(_ bounds: BoundsDraft, passTimeoutMinutes: String) -> String {
+        var rendered = renderedBounds(bounds)
+        let passTimeout = boundValue(passTimeoutMinutes)
+        if passTimeout != String(ProjectConfiguration.defaultPassTimeoutMinutes) {
+            rendered += "\npass_timeout_minutes = \(passTimeout)"
+        }
+        return rendered
+    }
+
+    private static func renderedBounds(_ bounds: BoundsDraft) -> String {
         """
         [limits]
         review_rounds_max = \(boundValue(bounds.reviewRoundsMax))

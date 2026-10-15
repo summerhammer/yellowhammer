@@ -1,4 +1,5 @@
 import CLIAdapters
+import Config
 import Domain
 import Foundation
 
@@ -7,9 +8,10 @@ import Foundation
 /// and never decides: a Route with no adapter, no executable, or an effort its adapter refuses is a
 /// refusal — a failure of that Route for the Attempt — and never an engine fault.
 struct CLIAdapterDispatch: AgentDispatch {
-    /// How long one pass may run before the adapter sends SIGTERM to its process group. A repo-local
-    /// default: the spec gives no timeout value, so this is open in the spec.
-    static let defaultTimeout: Duration = .seconds(30 * 60)
+    /// How long one pass may run before the adapter sends SIGTERM to its process group, when the caller
+    /// sets none. A Project's `[limits] pass_timeout_minutes` sets it for every pass the Project dispatches
+    /// (issue #507); this is the default that key falls back to, 60 minutes.
+    static let defaultTimeout: Duration = .seconds(ProjectConfiguration.defaultPassTimeoutMinutes * 60)
 
     /// Where run directories live: `runs/<runID>/<issueID>/<attemptID>-<pass>` under the Project's
     /// directory in the configuration directory — Yellowhammer-owned and outside every Worktree, so an

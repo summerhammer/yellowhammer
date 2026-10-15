@@ -177,6 +177,9 @@ public struct ProjectFileDraft: Equatable, Sendable {
     public let specSource: String?
     public var repos: [RepoDraft]
     public var bounds: BoundsDraft
+    /// `[limits] pass_timeout_minutes` as typed. Not a Bound; rendered only when it is not the default,
+    /// so a file that never set it is not rewritten with a new line (``ConfigurationRendering/renderedLimits(_:passTimeoutMinutes:)``).
+    var passTimeoutMinutes: String
     public var routingOverrides: [RoutingEntryDraft]
     public var schedule: ScheduleDraft
     var changeType: ChangeType
@@ -195,6 +198,7 @@ public struct ProjectFileDraft: Equatable, Sendable {
         specSource = project.specSource
         repos = project.repos.map(RepoDraft.init)
         bounds = BoundsDraft(project.bounds)
+        passTimeoutMinutes = String(project.passTimeoutMinutes)
         routingOverrides = project.routingOverrides.map(RoutingEntryDraft.init)
         schedule = ScheduleDraft(project.schedule)
         changeType = project.changeType
@@ -250,7 +254,7 @@ extension ProjectFileDraft {
             sections.append(ConfigurationRendering.renderedRepo(repo))
         }
 
-        sections.append(ConfigurationRendering.renderedLimits(bounds))
+        sections.append(ConfigurationRendering.renderedLimits(bounds, passTimeoutMinutes: passTimeoutMinutes))
         sections.append(ConfigurationRendering.renderedSchedule(schedule))
 
         sections.append(contentsOf: ConfigurationRendering.routingSection(routingOverrides))

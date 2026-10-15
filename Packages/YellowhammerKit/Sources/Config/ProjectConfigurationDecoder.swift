@@ -58,7 +58,8 @@ struct ProjectConfigurationDecoder {
             routingOverrides: try decoding.routingTable(in: root),
             changeType: try changeType(in: root, unvalidated: &unvalidated),
             rehearsalLinearProject: board.rehearsalProject,
-            rehearsalJournal: try rehearsalJournal(in: root)
+            rehearsalJournal: try rehearsalJournal(in: root),
+            passTimeoutMinutes: try passTimeoutMinutes(in: root)
         )
         try applyGitHub(in: root, to: &configuration, unvalidated: &unvalidated)
         try applyGit(in: root, to: &configuration, unvalidated: &unvalidated)
@@ -165,7 +166,7 @@ struct ProjectConfigurationDecoder {
             allowed: [
                 "review_rounds_max", "attempts_per_work_card", "overdue_nights_max",
                 "reselections_max", "consecutive_refusals_max", "failed_adoptions_max",
-                "consecutive_authoring_faults_max"
+                "consecutive_authoring_faults_max", "pass_timeout_minutes"
             ]
         )
         func bound(_ key: String, _ defaultValue: Int) throws(ConfigurationError) -> Int {
@@ -182,6 +183,15 @@ struct ProjectConfigurationDecoder {
                 "consecutive_authoring_faults_max", defaults.consecutiveAuthoringFaultsMax
             )
         )
+    }
+
+    /// `[limits] pass_timeout_minutes`, or the default when absent. Not a Bound, but it lives in `[limits]`
+    /// and is refused (0, negatives) the way a Bound is; ``bounds(in:)`` has already rejected unknown keys.
+    private func passTimeoutMinutes(in root: TOMLTable) throws(ConfigurationError) -> Int {
+        let fallback = ProjectConfiguration.defaultPassTimeoutMinutes
+        guard let value = root["limits"] else { return fallback }
+        let table = try decoding.table(value, key: "limits")
+        return try decoding.positiveInteger("pass_timeout_minutes", in: table, path: "limits") ?? fallback
     }
 
     // MARK: - GitHub, git and templates

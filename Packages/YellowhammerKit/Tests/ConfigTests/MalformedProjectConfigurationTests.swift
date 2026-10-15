@@ -68,6 +68,8 @@ private let limitsAndScheduleFixtures: [MalformedFixture] = [
     MalformedFixture(
         "authoring-faults-negative", line: 12, key: "limits.consecutive_authoring_faults_max", .notPositive(-1)
     ),
+    MalformedFixture("pass-timeout-zero", line: 12, key: "limits.pass_timeout_minutes", .notPositive(0)),
+    MalformedFixture("pass-timeout-negative", line: 12, key: "limits.pass_timeout_minutes", .notPositive(-1)),
     MalformedFixture("bounds-zero", line: 12, key: "limits.overdue_nights_max", .notPositive(0)),
     MalformedFixture("bounds-negative", line: 12, key: "limits.attempts_per_work_card", .notPositive(-1)),
     MalformedFixture(
