@@ -69,7 +69,10 @@ public enum FeatureBreakdownError: Error, Equatable, Sendable, CustomStringConve
 /// Card stands alone against the repositories as they are — because that is model judgement: work that
 /// crosses repositories is split into a sequence of Features at selection, and work that is sequential
 /// inside one repository is authored as one coarser Card. The engine does not fake a check for it; a
-/// ``CardDraft`` simply has no way to link to another Card.
+/// ``CardDraft`` simply has no way to link to another Card. The one case it can see — a Card whose declared
+/// `contracts` name what another Card of the Feature writes — the engine catches through
+/// ``ContractOverlapCheck``, as an Authoring Halt recorded by ``AuthoringTransaction``, not here: it is not
+/// invalid output, so it must not walk the Routes again.
 enum FeatureBreakdownValidation {
     static func validate(_ breakdown: FeatureBreakdown, for selection: SelectedFeature) throws {
         let repositories = Set(selection.repositories)

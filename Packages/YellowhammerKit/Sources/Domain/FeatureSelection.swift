@@ -43,6 +43,22 @@ public struct HeldConsumer: Equatable, Sendable {
     }
 }
 
+/// One Work Card reading, as a contract, paths in a repository that another Work Card of the same Feature writes
+/// (feature-authoring/author-the-cycle-and-card-dag, `#contract-overlap`): the Feature carries its own upstream.
+public struct ContractOverlap: Equatable, Sendable {
+    public let readerTitle: String
+    public let writerTitle: String
+    public let repository: String
+    public let paths: [String]
+
+    public init(readerTitle: String, writerTitle: String, repository: String, paths: [String]) {
+        self.readerTitle = readerTitle
+        self.writerTitle = writerTitle
+        self.repository = repository
+        self.paths = paths
+    }
+}
+
 /// What the model-authored selection (``FeatureSelecting``) is handed to judge from: this Project's
 /// specification, its configured repositories and their Repo Roles, resolved mainlines, an Operator's
 /// forced Feature name (overriding selection when present), and the Blocked Cards a closed Feature
@@ -184,6 +200,10 @@ public enum AuthoringHaltCause: Equatable, Sendable {
     /// The Feature touches both ends of a declared Repo Dependency (feature-authoring/select-the-next-feature,
     /// `#repo-dependency-seam`): every spanning edge is named, never only the first.
     case featureSpansRepoDependency(edges: [SpannedRepoDependency])
+    /// A Work Card reads, as a contract, what another Work Card of the same Feature writes
+    /// (feature-authoring/author-the-cycle-and-card-dag, `#contract-overlap`): found at breakdown validation
+    /// with no model call, so it is an Authoring Halt, not invalid breakdown output.
+    case breakdownConsumesOwnFeatureWork(overlaps: [ContractOverlap])
 
     /// A stable, machine-readable name for this cause, for the Journal's payload.
     public var kind: String {
@@ -194,6 +214,7 @@ public enum AuthoringHaltCause: Equatable, Sendable {
         case .contractUnreadable: "contract-unreadable"
         case .authoringRepeatedlyFaulted: "authoring-repeatedly-faulted"
         case .featureSpansRepoDependency: "feature-spans-repo-dependency"
+        case .breakdownConsumesOwnFeatureWork: "breakdown-consumes-own-feature-work"
         }
     }
 
@@ -210,6 +231,9 @@ public enum AuthoringHaltCause: Equatable, Sendable {
                 .joined(separator: "; ")
         case .featureSpansRepoDependency(let edges):
             edges.map { "\($0.consumer)->\($0.producer)(\($0.via.rawValue))" }.joined(separator: "; ")
+        case .breakdownConsumesOwnFeatureWork(let overlaps):
+            overlaps.map { "\($0.readerTitle)|\($0.writerTitle)|\($0.repository)|\($0.paths.joined(separator: ","))" }
+                .joined(separator: "; ")
         }
     }
 }
@@ -239,6 +263,15 @@ extension AuthoringHaltCause: CustomStringConvertible {
                     "(\(contract.paths.joined(separator: ", "))) could not be read: \(contract.reason)"
             }.joined(separator: "; ")
             return "A contract this author Act cannot read blocks authoring: \(named)"
+        case .breakdownConsumesOwnFeatureWork(let overlaps):
+            let named = overlaps.map {
+                "Card '\($0.readerTitle)' reads \($0.repository) (\($0.paths.joined(separator: ", "))), "
+                    + "which Card '\($0.writerTitle)' writes in this Feature"
+            }.joined(separator: "; ")
+            return "This breakdown consumes its own Feature's work: \(named). A Work Card can only read what "
+                + "already exists at mainline. Declare the Repo Dependency (`consumes` on the consumer Repo) and "
+                + "split the Feature: the upstream layer first, the consumer work in a later Feature once it has "
+                + "merged."
         case .featureSpansRepoDependency(let edges):
             let named = edges.map { "\($0.consumer) → \($0.producer) (via \($0.via.rawValue))" }
                 .joined(separator: ", ")

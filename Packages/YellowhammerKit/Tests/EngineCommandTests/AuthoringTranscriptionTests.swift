@@ -189,7 +189,7 @@ struct AuthoringTranscriptionTests {
                     brief: "Approach for Backend one.",
                     definitionOfDone: [authoringClause("Backend one is done.")],
                     contracts: [ContractDraft(
-                        repository: "mobile", paths: ["a.swift"],
+                        repository: "spec_source", paths: ["a.swift"],
                         ranges: ["a.swift": [LineRange(start: 2, end: 6)]],
                         symbol: "Foo"
                     )]
@@ -217,7 +217,7 @@ struct AuthoringTranscriptionTests {
         let backendBlocks = try rig.journal.transcriptionBlocks(cardID: backendRow.id)
         #expect(backendBlocks.count == 1)
         let block = try #require(backendBlocks.first)
-        #expect(block.repository == "mobile")
+        #expect(block.repository == "spec_source")
         #expect(block.paths == ["a.swift"])
         #expect(block.symbol == "Foo")
         #expect(block.mainlineCommit != nil)
