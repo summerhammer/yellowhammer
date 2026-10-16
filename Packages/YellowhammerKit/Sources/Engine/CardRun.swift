@@ -79,6 +79,8 @@ public struct CardRun: CardRunner {
     public let changeType: ChangeType
     /// Reads the worker's reported commits for the `Yellowhammer-Work-Card` trailer, recorded only.
     public let commitTrailers: CommitTrailerReader
+    /// Discovers the local git metadata directories the worker must be able to write.
+    public let git: GitRunner
     /// How often a running Attempt checks the Journal for the Operator's abort request.
     public let operatorAbortPoll: Duration
     /// Runs every Card override's Route Pre-flight before an Attempt is recorded on it (OQ126), shared by
@@ -100,7 +102,8 @@ public struct CardRun: CardRunner {
         commitTrailers: CommitTrailerReader = CommitTrailerReader(),
         normalExitFencing: any NormalExitFencing = AttributedWorktreeFence(),
         operatorAbortPoll: Duration = .seconds(2),
-        preflighting: (any RoutePreflighting)? = nil
+        preflighting: (any RoutePreflighting)? = nil,
+        git: GitRunner = GitRunner()
     ) {
         self.resolver = resolver
         self.dispatch = dispatch
@@ -114,6 +117,7 @@ public struct CardRun: CardRunner {
         self.commitMessage = commitMessage
         self.changeType = changeType
         self.commitTrailers = commitTrailers
+        self.git = git
         self.normalExitFencing = normalExitFencing
         self.operatorAbortPoll = operatorAbortPoll
         self.routePreflight = preflighting.map(RoutePreflight.init)
@@ -296,6 +300,8 @@ public enum CardRunError: Error, Equatable, Sendable, CustomStringConvertible {
     /// attributed process still holding the Worktree after its quiescence timeout: the Check or the
     /// next pass must never start while a process this run spawned is still writing there.
     case worktreeNotQuiescentAfterRun(path: String, remaining: Int)
+    /// The worker cannot be dispatched safely without its Worktree's git metadata directories.
+    case gitDirectoryDiscoveryFailed(path: String, detail: String)
 
     public var description: String {
         switch self {
@@ -307,6 +313,8 @@ public enum CardRunError: Error, Equatable, Sendable, CustomStringConvertible {
             "the \(expected.rawValue) pass returned a \(found.rawValue) result"
         case .worktreeNotQuiescentAfterRun(let path, let remaining):
             "Worktree '\(path)' still holds \(remaining) attributed process(es) after the run"
+        case .gitDirectoryDiscoveryFailed(let path, let detail):
+            "could not discover git metadata directories for Worktree '\(path)': \(detail)"
         }
     }
 }

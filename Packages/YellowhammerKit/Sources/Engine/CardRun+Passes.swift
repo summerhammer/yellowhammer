@@ -183,8 +183,10 @@ extension CardRun {
             runID: frame.context.act.runID, issueID: frame.card.issueID, attemptID: attempt.id, route: route,
             pass: pass,
             instruction: .card(instruction(for: pass, route: route, frame: frame, payloads: effectivePayloads)),
-            worktreePath: frame.worktree.path, resumeSession: resumeSession
+            worktreePath: frame.worktree.path, resumeSession: resumeSession,
+            additionalWritableDirectories: try await workerWritableDirectories(for: pass, path: frame.worktree.path)
         )
+        try frame.revalidateLease()
         let report: AgentDispatchReport
         do {
             report = try await dispatch.dispatch(request)

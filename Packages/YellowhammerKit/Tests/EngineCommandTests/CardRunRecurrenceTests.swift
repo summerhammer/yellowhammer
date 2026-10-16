@@ -53,7 +53,9 @@ extension CardRunWorld {
             act: actContext, feature: context.feature, cycleID: context.cycleID,
             reconciliation: WorktreeReconciliation(), deltaRead: nil
         )
-        return CardRunWorld(journal: journal, runID: nextRunID, cardIDs: cardIDs, context: next, boards: nil)
+        return CardRunWorld(
+            journal: journal, runID: nextRunID, cardIDs: cardIDs, context: next, boards: nil, worktrees: worktrees
+        )
     }
 }
 

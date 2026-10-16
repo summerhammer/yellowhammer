@@ -2,6 +2,7 @@ import Domain
 @testable import Engine
 import Foundation
 import Journal
+import Repositories
 import Synchronization
 import Testing
 
@@ -28,6 +29,8 @@ struct CardRunWorld {
     let cardIDs: [String: Int64]
     let context: BuildActContext
     let boards: NightCardTestBoards?
+    /// Shared ownership keeps generated git repositories alive across copies and concurrent closures.
+    let worktrees: CardRunWorktreeFixture?
 
     func card(_ issueID: String) throws -> CardRecord {
         try journal.card(id: try #require(cardIDs[issueID]))
@@ -38,11 +41,27 @@ struct CardRunWorld {
     }
 }
 
+final class CardRunWorktreeFixture: Sendable {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("yh-cardrun-\(UUID().uuidString)")
+
+    func initialize(_ repository: String) async throws -> String {
+        let path = directory.appendingPathComponent(repository).path
+        try FileManager.default.createDirectory(atPath: path, withIntermediateDirectories: true)
+        let initialized = await GitRunner().run(["init"], workingDirectory: path)
+        #expect(initialized.isSuccess)
+        return path
+    }
+
+    deinit {
+        try? FileManager.default.removeItem(at: directory)
+    }
+}
+
 /// Each Card is `(issueID, repository)`. With `withBoard`, every Card has an issue on the in-memory
 /// Linear stand-in and the Outbox is bound to it, so state transitions post to the board.
 func makeCardRunWorld(
     journal: JournalStore, cards: [(issueID: String, repository: String)] = [("BACK-1", "backend")],
-    withBoard: Bool = true, worktreePath: @escaping (String) -> String = { "/tmp/yh-cardrun-\($0)" },
+    withBoard: Bool = true, worktreePath: ((String) -> String)? = nil,
     operatorIdentity: OperatorIdentity = .none
 ) async throws -> CardRunWorld {
     let runID = RunID()
@@ -58,10 +77,17 @@ func makeCardRunWorld(
             journal, cycleID: cycleID, issueID: issueID, repository: repository, state: .todo
         )
     }
+    let worktrees = worktreePath == nil ? CardRunWorktreeFixture() : nil
     for repository in Set(cards.map(\.repository)).sorted() {
+        let path: String
+        if let worktreePath {
+            path = worktreePath(repository)
+        } else {
+            path = try await #require(worktrees).initialize(repository)
+        }
         try journal.recordWorktree(
             featureID: featureID, repository: repository, worktreeID: "wt-\(repository)",
-            path: worktreePath(repository), runID: runID
+            path: path, runID: runID
         )
     }
     let night = try journal.openNight(nightStart: buildActNightStart, mode: .rehearsal, act: .build, runID: runID).night
@@ -84,10 +110,11 @@ func makeCardRunWorld(
     )
     let feature = try #require(try journal.inFlightFeature()).0
     let context = BuildActContext(
-        act: actContext, feature: feature, cycleID: cycleID, reconciliation: WorktreeReconciliation(),
-        deltaRead: nil
+        act: actContext, feature: feature, cycleID: cycleID, reconciliation: WorktreeReconciliation(), deltaRead: nil
     )
-    return CardRunWorld(journal: journal, runID: runID, cardIDs: cardIDs, context: context, boards: boards)
+    return CardRunWorld(
+        journal: journal, runID: runID, cardIDs: cardIDs, context: context, boards: boards, worktrees: worktrees
+    )
 }
 
 extension CardRun {

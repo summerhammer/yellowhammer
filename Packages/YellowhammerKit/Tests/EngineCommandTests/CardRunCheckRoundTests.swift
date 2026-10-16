@@ -256,12 +256,10 @@ struct CardRunCheckRoundTests {
         }
     }
 
-    @Test("check = none: nothing is spawned by the runner, and the Attempt records the declaration")
-    func declaredNoneSpawnsNothing() async throws {
+    @Test("check = none: the Check spawns no command, and the Attempt records the declaration")
+    func declaredNoneSpawnsNoCheckCommand() async throws {
         let fixture = try OutboxJournalFixture()
-        let world = try await makeCardRunWorld(
-            journal: try fixture.open(), worktreePath: { _ in "/nonexistent/yh-\(UUID().uuidString)" }
-        )
+        let world = try await makeCardRunWorld(journal: try fixture.open())
         let log = CallLog()
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: LoggingDispatch(log: log), check: WorktreeCheck(),
@@ -271,7 +269,7 @@ struct CardRunCheckRoundTests {
 
         try await run.run("BACK-1", in: world)
 
-        // A missing Worktree would have thrown had the runner tried to spawn anything.
+        // Git metadata discovery still runs for the worker; the Check itself has no command to spawn.
         #expect(try #require(try world.attempts("BACK-1").first).checkDeclaredNone)
         #expect(try world.card("BACK-1").state == .done)
     }

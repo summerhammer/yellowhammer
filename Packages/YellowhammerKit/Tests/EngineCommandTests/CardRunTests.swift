@@ -57,7 +57,8 @@ struct CardRunTests {
     @Test("Architect, worker, Check, reviewer run in that order, each in the lane's Worktree")
     func passesRunInOrderInTheLanesWorktree() async throws {
         let fixture = try OutboxJournalFixture()
-        let world = try await makeCardRunWorld(journal: try fixture.open(), worktreePath: { "/tmp/wt-\($0)" })
+        let world = try await makeCardRunWorld(journal: try fixture.open())
+        let path = try #require(world.worktrees).directory.appendingPathComponent("backend").path
         let rehearsal = RehearsalDispatch()
         let log = CallLog()
         let run = CardRun(
@@ -69,7 +70,7 @@ struct CardRunTests {
         try await run.run("BACK-1", in: world)
 
         #expect(rehearsal.answered.map(\.pass) == [.architect, .worker, .reviewer])
-        #expect(Set(rehearsal.answered.map(\.worktreePath)) == ["/tmp/wt-backend"])
+        #expect(Set(rehearsal.answered.map(\.worktreePath)) == [path])
         #expect(rehearsal.answered.allSatisfy { $0.route == cardRunOpus })
         #expect(log.all == ["check"])
     }
