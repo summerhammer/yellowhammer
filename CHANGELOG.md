@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.18.0](https://github.com/summerhammer/yellowhammer/compare/v0.17.0...v0.18.0) (2026-10-16)
+
+
+### Features
+
+* **graph-execution:** Block missing-upstream Work Cards as authoring defects ([#525](https://github.com/summerhammer/yellowhammer/issues/525)) ([75b0867](https://github.com/summerhammer/yellowhammer/commit/75b08675418f5528d5a7320a246e813c04dc469d))
+
+
+### Bug Fixes
+
+* **app:** show Act runs that stood down during a Night in its account ([c437589](https://github.com/summerhammer/yellowhammer/commit/c437589a1c30c21e77b472bf0d9a505fd2871223)), closes [#522](https://github.com/summerhammer/yellowhammer/issues/522)
+* **app:** show the Night's stored times in Settings, not shifted by the Mac's zone ([f2287fd](https://github.com/summerhammer/yellowhammer/commit/f2287fd214eeb67b298f3c641498425cb57825ab))
+* **engine:** tell the breakdown a contract path must be tracked at mainline ([9a82ba8](https://github.com/summerhammer/yellowhammer/commit/9a82ba87f8f4392df1106c10bced0457b6f4a514)), closes [#523](https://github.com/summerhammer/yellowhammer/issues/523)
+* **health:** distinguish gh authentication failures ([772dbab](https://github.com/summerhammer/yellowhammer/commit/772dbabad54a2b4948950987150f0085693a2b2c)), closes [#520](https://github.com/summerhammer/yellowhammer/issues/520)
+
 ## [0.17.0](https://github.com/summerhammer/yellowhammer/compare/v0.16.0...v0.17.0) (2026-10-15)
 
 
