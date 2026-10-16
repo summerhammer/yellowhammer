@@ -76,6 +76,38 @@ struct GitHubCLIDoctorSetupTests {
         #expect(findings[0].codeHosting?.projects == [try #require(ProjectID(rawValue: "alpha"))])
     }
 
+    @Test("Doctor JSON preserves distinct gh authentication diagnostics for exit 4 and HTTP 401")
+    func doctorAuthenticationDiagnosticsSurviveJSON() async throws {
+        let cases: [(mode: StubGitHubCLI.Mode, expected: String)] = [
+            (.loggedOut, "gh found no credentials for github.com (gh exit 4) "
+                + "(To get started with GitHub CLI, please run:  gh auth login)"),
+            (.unauthorized, "GitHub refused the gh token (HTTP 401, gh exit 1) (gh: HTTP 401)"),
+            (.unauthorizedWithoutDetail, "GitHub refused the gh token (HTTP 401, gh exit 1)")
+        ]
+        for testCase in cases {
+            let gh = try StubGitHubCLI(mode: testCase.mode)
+            defer { gh.remove() }
+            let directory = ConfigurationDirectory()
+            try directory.writeMachineFile(Self.machine)
+            try Self.writeProject(directory, id: "alpha")
+
+            let findings = await findings(directory, gh: gh).filter { $0.codeHosting?.name == "gh" }
+            let failure = try #require(findings.first)
+            let json = DoctorCommand.encodeFindingsJSON(findings)
+            let rows = try #require(DoctorFindingRow.decodeLastLine([json]))
+            let row = try #require(rows.first { $0.connection == "gh" })
+
+            #expect(failure.severity == .failure)
+            #expect(row.message == failure.message)
+            #expect(row.message.contains(testCase.expected))
+            if testCase.mode == .unauthorizedWithoutDetail {
+                #expect(!row.message.contains("()"))
+            }
+            #expect(!row.message.contains("second line must be omitted"))
+            #expect(row.message.contains("Check `gh auth status`"))
+        }
+    }
+
     @Test("A gh that is not found fails the connection with the shared message")
     func doctorMissing() async throws {
         let gh = try StubGitHubCLI()

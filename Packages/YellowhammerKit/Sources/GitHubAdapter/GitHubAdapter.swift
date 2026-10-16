@@ -39,6 +39,10 @@ public struct GitHubAdapter: Publication, Sendable {
         let response: HTTPURLResponse
         do {
             (data, response) = try await transport.send(request)
+        } catch GHCLITransportError.authenticationFailed {
+            throw .credentialsMissingOrInsufficient(
+                "GitHub refused the credentials for \(draft.owner)/\(draft.repository)"
+            )
         } catch {
             throw .transport("GitHub could not be reached (\(String(describing: type(of: error))))")
         }

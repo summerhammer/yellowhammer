@@ -57,15 +57,45 @@ struct GHCLITransportTests {
         #expect(String(bytes: data, encoding: .utf8) == #"{"message":"Not Found"}"#)
     }
 
-    @Test("A logged-out gh (exit 4, empty stdout) is a 401 with an empty body")
-    func loggedOutIsUnauthorized() async throws {
-        let gh = try StubGH(stderr: "To get started with GitHub CLI, please run:  gh auth login\n", exitCode: 4)
+    @Test("gh exit 4 preserves authentication evidence without inventing an HTTP response")
+    func authenticationRequiredPreservesEvidence() async throws {
+        let gh = try StubGH(
+            stderr: "gh: authentication required\nsecond line must be omitted\n", exitCode: 4
+        )
         defer { gh.remove() }
 
-        let (data, response) = try await GHCLITransport(executable: gh.executable).send(Self.get("/user"))
+        await #expect(throws: GHCLITransportError.authenticationFailed(
+            exitCode: 4, statusCode: nil, detail: "gh: authentication required"
+        )) {
+            _ = try await GHCLITransport(executable: gh.executable).send(Self.get("/user"))
+        }
+    }
 
-        #expect(response.statusCode == 401)
-        #expect(data.isEmpty)
+    @Test("A real HTTP 401 preserves status, exit code and only the first stderr line")
+    func githubUnauthorizedPreservesEvidence() async throws {
+        let gh = try StubGH(
+            stdout: "HTTP/2.0 401 Unauthorized\n\n{\"message\":\"Bad credentials\"}",
+            stderr: "gh: HTTP 401\nsecond line must be omitted\n", exitCode: 1
+        )
+        defer { gh.remove() }
+
+        await #expect(throws: GHCLITransportError.authenticationFailed(
+            exitCode: 1, statusCode: 401, detail: "gh: HTTP 401"
+        )) {
+            _ = try await GHCLITransport(executable: gh.executable).send(Self.get("/user"))
+        }
+    }
+
+    @Test("Authentication failure with empty stderr keeps the evidence field empty")
+    func authenticationRequiredWithoutStderr() async throws {
+        let gh = try StubGH(exitCode: 4)
+        defer { gh.remove() }
+
+        await #expect(throws: GHCLITransportError.authenticationFailed(
+            exitCode: 4, statusCode: nil, detail: ""
+        )) {
+            _ = try await GHCLITransport(executable: gh.executable).send(Self.get("/user"))
+        }
     }
 
     @Test("Another non-zero exit with no HTTP output throws, carrying the exit code and gh's first stderr line")
@@ -174,7 +204,7 @@ struct GHCLITransportTests {
         #expect(try gh.arguments().last == "/user")
     }
 
-    @Test("GitHubCredentialCheck over a logged-out gh is rejected")
+    @Test("GitHubCredentialCheck maps gh authentication-required to rejected")
     func credentialCheckLoggedOut() async throws {
         let gh = try StubGH(stderr: "To get started with GitHub CLI, please run:  gh auth login\n", exitCode: 4)
         defer { gh.remove() }
@@ -182,6 +212,15 @@ struct GHCLITransportTests {
 
         #expect(await check.authenticate(token: nil) == .rejected)
         #expect(await check.access(token: nil, owner: "o", repository: "r", scopes: nil) == .rejected)
+    }
+
+    @Test("GitHubCredentialCheck maps a real GitHub 401 to rejected")
+    func credentialCheckGitHubUnauthorized() async throws {
+        let gh = try StubGH(stdout: "HTTP/2.0 401 Unauthorized\n\n{}", exitCode: 1)
+        defer { gh.remove() }
+        let check = GitHubCredentialCheck(transport: GHCLITransport(executable: gh.executable))
+
+        #expect(await check.authenticate(token: nil) == .rejected)
     }
 
     @Test("A nil token sends no Authorization header over any transport")

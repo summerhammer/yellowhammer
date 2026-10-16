@@ -53,6 +53,8 @@ public struct GitHubCredentialCheck: Sendable {
     public func authenticate(token: String?) async -> GitHubAuthentication {
         let outcome = await get("https://api.github.com/user", token: token)
         switch outcome {
+        case .rejected:
+            return .rejected
         case .failure(let message):
             return .unavailable(message)
         case .success(let data, let response):
@@ -78,6 +80,8 @@ public struct GitHubCredentialCheck: Sendable {
     ) async -> GitHubRepositoryAccess {
         let outcome = await get("https://api.github.com/repos/\(owner)/\(repository)", token: token)
         switch outcome {
+        case .rejected:
+            return .rejected
         case .failure(let message):
             return .unavailable(message)
         case .success(let data, let response):
@@ -111,6 +115,7 @@ public struct GitHubCredentialCheck: Sendable {
 
     private enum Outcome {
         case success(Data, HTTPURLResponse)
+        case rejected
         case failure(String)
     }
 
@@ -125,6 +130,8 @@ public struct GitHubCredentialCheck: Sendable {
         do {
             let (data, response) = try await transport.send(request)
             return .success(data, response)
+        } catch GHCLITransportError.authenticationFailed {
+            return .rejected
         } catch {
             return .failure("GitHub could not be reached (\(String(describing: type(of: error))))")
         }

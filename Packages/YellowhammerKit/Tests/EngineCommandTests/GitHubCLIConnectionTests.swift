@@ -89,7 +89,7 @@ struct GitHubCLIConnectionTests {
         #expect(gh.calls.isEmpty)
     }
 
-    @Test("A logged-out gh refuses the connect pointing at gh auth login, and writes nothing")
+    @Test("gh without credentials refuses connect with a repair hint, and writes nothing")
     func connectRefusedWhenLoggedOut() async throws {
         let gh = try StubGitHubCLI(mode: .loggedOut)
         defer { gh.remove() }
@@ -100,7 +100,9 @@ struct GitHubCLIConnectionTests {
         let error = await connect("mac", in: directory, gh: gh)
 
         let message = try #require(error?.message)
-        #expect(message.contains("gh is not logged in to github.com; run `gh auth login`"))
+        #expect(message.contains("gh found no credentials for github.com"))
+        #expect(message.contains("Check `gh auth status`"))
+        #expect(message.contains("gh auth login"))
         #expect(message.contains("never changes gh's login"))
         #expect(try machineText(directory) == before)
     }

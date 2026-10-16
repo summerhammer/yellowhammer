@@ -4,14 +4,16 @@ import Repositories
 
 /// A `#!/bin/sh` stand-in for `gh` in a fresh temp directory. It answers `gh api -i … /user` with a canned
 /// HTTP 200 for the login in its `login` file and `/repos/…` with push permission per its `push` file, so a
-/// test can rewrite either between two calls. `mode` switches it to a logged-out gh (exit 4, empty stdout) or
-/// to one that fails with stderr only. Every invocation's arguments are appended to the `calls` file.
+/// test can rewrite either between two calls. `mode` can also produce authentication-required exit 4, HTTP
+/// 401 or another stderr-only failure. Every invocation's arguments are appended to the `calls` file.
 /// `EngineCommandTests` may not import the adapter (MB2), so ``GitHubCredentialValidation`` reaches it through
 /// its own `gh` transport.
 final class StubGitHubCLI: Sendable {
     enum Mode: String {
         case loggedIn = "ok"
         case loggedOut = "loggedout"
+        case unauthorized = "unauthorized"
+        case unauthorizedWithoutDetail = "unauthorized-no-detail"
         case failing = "fail"
     }
 
@@ -30,6 +32,16 @@ final class StubGitHubCLI: Sendable {
         loggedout)
             echo "To get started with GitHub CLI, please run:  gh auth login" 1>&2
             exit 4
+            ;;
+        unauthorized)
+            printf 'HTTP/2.0 401 Unauthorized\\n\\n{"message":"Bad credentials"}'
+            echo "gh: HTTP 401" 1>&2
+            echo "second line must be omitted" 1>&2
+            exit 1
+            ;;
+        unauthorized-no-detail)
+            printf 'HTTP/2.0 401 Unauthorized\\n\\n{}'
+            exit 1
             ;;
         fail)
             echo "gh: connection refused" 1>&2

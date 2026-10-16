@@ -110,24 +110,21 @@ struct GitHubCredentialValidation: Sendable {
         guard let path = resolveGitHubCLI(executable) else {
             return Self.gitHubCLIReport(.missing, GitHubCLIExecutable.notFoundMessage)
         }
-        let failure = Mutex<String?>(nil)
+        let cliFailure = Mutex<GHCLITransportError?>(nil)
         let check = GitHubCredentialCheck(transport: ClosureTransport { request in
             do {
                 return try await sendViaGitHubCLI(path, request)
-            } catch {
-                // The check reports only an error's type; for gh the first line of its stderr is the news.
-                if error is GHCLITransportError { failure.withLock { $0 = "\(error)" } }
+            } catch let error as GHCLITransportError {
+                cliFailure.withLock { $0 = error }
                 throw error
             }
         })
         switch await check.authenticate(token: nil) {
         case .rejected:
-            return Self.gitHubCLIReport(
-                .rejected,
-                "gh is not logged in to github.com; run `gh auth login`. Yellowhammer never changes gh's login."
-            )
+            let failure = cliFailure.withLock { $0 }
+            return Self.gitHubCLIReport(.rejected, Self.gitHubCLIAuthenticationMessage(failure))
         case .unavailable(let detail):
-            let reason = failure.withLock { $0 } ?? detail
+            let reason = cliFailure.withLock { $0 }.map { String(describing: $0) } ?? detail
             return Self.gitHubCLIReport(.unreachable, "gh could not reach GitHub: \(reason).")
         case .authenticated(let login, let scopes):
             var results: [GitHubCredentialReport.Repo] = []
@@ -143,6 +140,21 @@ struct GitHubCredentialValidation: Sendable {
 
     /// The `reference` a report about the GitHub CLI carries: it holds no Keychain item, so no reference.
     static let gitHubCLIReference = "gh"
+
+    private static func gitHubCLIAuthenticationMessage(_ error: GHCLITransportError?) -> String {
+        let suffix = " Yellowhammer never changes gh's login."
+        guard case .authenticationFailed(let exitCode, let statusCode, let detail) = error else {
+            return "GitHub refused the gh token (HTTP 401). Check `gh auth status`, refresh the gh "
+                + "authentication as needed, then retry." + suffix
+        }
+        let evidence = detail.isEmpty ? "" : " (\(detail))"
+        if let statusCode {
+            return "GitHub refused the gh token (HTTP \(statusCode), gh exit \(exitCode))\(evidence). "
+                + "Check `gh auth status`, refresh the gh authentication as needed, then retry." + suffix
+        }
+        return "gh found no credentials for github.com (gh exit \(exitCode))\(evidence). "
+            + "Check `gh auth status` and retry; if gh has no active login, run `gh auth login`." + suffix
+    }
 
     private static func gitHubCLIReport(
         _ state: GitHubCredentialReport.State, _ message: String

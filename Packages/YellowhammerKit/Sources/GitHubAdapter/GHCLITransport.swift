@@ -8,9 +8,11 @@ public enum GHCLITransportError: Error, Equatable, Sendable, CustomStringConvert
     case unsupportedHost
     /// `gh` could not be started (missing, not executable).
     case launchFailed
-    /// `gh` printed no HTTP response and did not exit with the logged-out code. `detail` is the first line
+    /// `gh` printed no HTTP response and did not exit with the authentication-required code. `detail` is the first line
     /// of its standard error, which names no token.
     case failed(exitCode: Int32, detail: String)
+    /// Authentication failed locally or GitHub returned HTTP 401.
+    case authenticationFailed(exitCode: Int32, statusCode: Int?, detail: String)
 
     public var description: String {
         switch self {
@@ -20,6 +22,10 @@ public enum GHCLITransportError: Error, Equatable, Sendable, CustomStringConvert
             return "gh could not be started"
         case .failed(let exitCode, let detail):
             return detail.isEmpty ? "gh exited with status \(exitCode)" : "gh exited with status \(exitCode): \(detail)"
+        case .authenticationFailed(let exitCode, let statusCode, let detail):
+            let status = statusCode.map { " (HTTP \($0))" } ?? ""
+            let reason = detail.isEmpty ? "" : ": \(detail)"
+            return "gh authentication failed with exit status \(exitCode)\(status)\(reason)"
         }
     }
 }
@@ -34,8 +40,8 @@ public struct GHCLITransport: GitHubTransport {
     static let outputLimit = 16 * 1024 * 1024
     /// Collected standard error is capped here.
     static let errorLimit = 64 * 1024
-    /// The exit code `gh` uses when it is not logged in.
-    static let loggedOutExitCode: Int32 = 4
+    /// The exit code `gh` uses when authentication is required.
+    static let authenticationRequiredExitCode: Int32 = 4
 
     private let executable: String
 
@@ -49,14 +55,18 @@ public struct GHCLITransport: GitHubTransport {
         let result = try await run(arguments, input: request.httpBody ?? Data())
 
         if let parsed = Self.parse(result.stdout, url: request.url) {
-            // A 404 exits 1 but is still a response: the exit code is only consulted when none was printed.
+            if parsed.1.statusCode == 401 {
+                throw GHCLITransportError.authenticationFailed(
+                    exitCode: result.exitCode, statusCode: 401, detail: result.firstErrorLine
+                )
+            }
+            // HTTP statuses other than 401 are responses, even when gh exits nonzero (for example 404).
             return parsed
         }
-        if result.exitCode == Self.loggedOutExitCode, let url = request.url,
-           let unauthorized = HTTPURLResponse(url: url, statusCode: 401, httpVersion: "HTTP/1.1", headerFields: [:]) {
-            // A logged-out gh is the same verdict as an unauthenticated request, so GitHubCredentialCheck
-            // reports `.rejected` and the adapter reports missing or insufficient credentials.
-            return (Data(), unauthorized)
+        if result.exitCode == Self.authenticationRequiredExitCode {
+            throw GHCLITransportError.authenticationFailed(
+                exitCode: result.exitCode, statusCode: nil, detail: result.firstErrorLine
+            )
         }
         throw GHCLITransportError.failed(exitCode: result.exitCode, detail: result.firstErrorLine)
     }
