@@ -140,9 +140,25 @@ extension AuthoringInstruction {
         Return one JSON object as your final structured response, conforming to the supplied JSON schema. The \
         CLI Adapter persists it to `\(resultFilePath)`; do not create or edit that file with tools. It must declare \
         `"schema": "\(pass.schemaIdentifier)"` and `"version": 1`. Permitted outcomes for this pass: \
-        \(permittedOutcomes.joined(separator: ", ")). \(fieldsSentence)\(descriptionBudgetSentence)\
-        \(briefAudienceSentence) Ending without a final structured response is treated as a crash.
+        \(permittedOutcomes.joined(separator: ", ")). \(fieldsSentence)\(trackedContractPathSentence)\
+        \(descriptionBudgetSentence)\(briefAudienceSentence) Ending without a final structured response is \
+        treated as a crash.
         """
+    }
+
+    /// Breakdown pass only: a contract path is read from git at the repository's mainline commit, not from
+    /// the working copy the pass browses, which can hold untracked, build-generated files (issue #523).
+    /// Empty for the selection pass.
+    private var trackedContractPathSentence: String {
+        guard pass == .breakdown else { return "" }
+        return " A contract path is read from git at the `Mainline` commit its repository shows under "
+            + "Repositories, not from the working copy at its `Path`: it must be a file git tracks at that "
+            + "commit. The working copy can hold files git does not track — a generated Xcode workspace and "
+            + "its `Package.resolved`, `DerivedData`, `node_modules`, `.build` — and those are never contracts; "
+            + "name the committed file they are generated from instead. Before naming a path, check it with "
+            + "`git -C <Path> cat-file -e <Mainline>:<path>`, or list the tracked tree with "
+            + "`git -C <Path> ls-tree -r --name-only <Mainline>`; a path absent at that commit halts the "
+            + "whole Feature."
     }
 
     /// Breakdown pass only: the size a Card's description must fit, kept apart from how a contract path is

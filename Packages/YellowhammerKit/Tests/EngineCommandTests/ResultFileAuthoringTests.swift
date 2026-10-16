@@ -308,6 +308,11 @@ struct AuthoringFixtureTests {
         #expect(rendered.contains("a path without a range is inlined whole into the worker's instruction"))
         #expect(rendered.contains("`{path, start, end}`, 1-based and inclusive"))
         #expect(rendered.contains("every range must lie within the file at mainline"))
+        // Contract paths are read from git at mainline, so untracked, generated files are ruled out (#523).
+        #expect(rendered.contains("not from the working copy at its `Path`: it must be a file git tracks"))
+        #expect(rendered.contains("a generated Xcode workspace and its `Package.resolved`, `DerivedData`"))
+        #expect(rendered.contains("`git -C <Path> cat-file -e <Mainline>:<path>`"))
+        #expect(rendered.contains("a path absent at that commit halts the whole Feature"))
         let selection = AuthoringInstruction(
             pass: .selection, route: Route(cli: "claude", model: "opus", effort: "high")!,
             specificationSource: .specSource(SpecSource(path: "/spec")), specificationMainline: nil,
@@ -315,6 +320,7 @@ struct AuthoringFixtureTests {
             namedFeature: nil, adoptionCandidates: [], selectedFeature: nil, resultFilePath: "/runs/result.json"
         )
         #expect(!selection.render().contains("autonomous worker agent CLI"))
+        #expect(!selection.render().contains("it must be a file git tracks at that commit"))
         #expect(instruction.withResultFilePath("/other.json").render().contains("/other.json"))
     }
 
