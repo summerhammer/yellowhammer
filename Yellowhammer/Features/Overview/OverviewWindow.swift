@@ -40,6 +40,9 @@ struct OverviewWindow: View {
     /// Only a synchronous launch failure is retained; the app never owns an Author run's state.
     @State private var authorFailure: String?
     @State private var launchFailureTitle = "Engine could not be launched"
+    /// An Act launch in flight: the login-shell `PATH` read precedes the spawn, so a second click must not
+    /// start a second Act meanwhile.
+    @State private var isLaunchingAct = false
     @State private var abort = AttemptAbortModel()
     /// The Attempt the Operator asked to abort, while its confirmation is shown.
     @State private var abortRequest: PendingAttemptAbort?
@@ -59,7 +62,8 @@ struct OverviewWindow: View {
     }
 
     private var canStartAuthor: Bool {
-        selectedSnapshot != nil && (!ConfigurationDirectory.isOverridden || SetupEngine.isStubbed)
+        selectedSnapshot != nil && !isLaunchingAct
+            && (!ConfigurationDirectory.isOverridden || SetupEngine.isStubbed)
     }
 
     private var canDeliverNow: Bool { canStartAuthor }
@@ -146,14 +150,18 @@ struct OverviewWindow: View {
     private func startAuthor() {
         guard canStartAuthor, let project = selectedSnapshot else { return }
         authorFailure = nil
-        do {
-            try SetupEngine().launchDetached(
-                arguments: ["author", "--project", project.id.rawValue],
-                logURL: SetupEngine.logURL(projectID: project.id.rawValue, command: "author")
-            )
-        } catch {
-            launchFailureTitle = "Author could not be launched"
-            authorFailure = "\(error)"
+        isLaunchingAct = true
+        Task {
+            defer { isLaunchingAct = false }
+            do {
+                try await SetupEngine().launchDetached(
+                    arguments: ["author", "--project", project.id.rawValue],
+                    logURL: SetupEngine.logURL(projectID: project.id.rawValue, command: "author")
+                )
+            } catch {
+                launchFailureTitle = "Author could not be launched"
+                authorFailure = "\(error)"
+            }
         }
     }
 
@@ -162,15 +170,19 @@ struct OverviewWindow: View {
     private func deliverNow() {
         guard canDeliverNow, let project = selectedSnapshot else { return }
         authorFailure = nil
-        do {
-            try SetupEngine().launchDetached(
-                arguments: ["build", "--project", project.id.rawValue],
-                logURL: SetupEngine.logURL(projectID: project.id.rawValue, command: "build"),
-                onCompletion: { Task { await model.load() } }
-            )
-        } catch {
-            launchFailureTitle = "Deliver now could not be launched"
-            authorFailure = "Deliver now could not be launched: \(error)"
+        isLaunchingAct = true
+        Task {
+            defer { isLaunchingAct = false }
+            do {
+                try await SetupEngine().launchDetached(
+                    arguments: ["build", "--project", project.id.rawValue],
+                    logURL: SetupEngine.logURL(projectID: project.id.rawValue, command: "build"),
+                    onCompletion: { Task { await model.load() } }
+                )
+            } catch {
+                launchFailureTitle = "Deliver now could not be launched"
+                authorFailure = "Deliver now could not be launched: \(error)"
+            }
         }
     }
 

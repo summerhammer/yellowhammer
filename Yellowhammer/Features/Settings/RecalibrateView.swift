@@ -189,7 +189,7 @@ private struct RecalibrateContentView: View {
                 isPresented: $showingRehearsalConfirmation,
                 titleVisibility: .visible
             ) {
-                Button("Run Rehearsal Night") { model.confirmRehearsal() }
+                Button("Run Rehearsal Night") { Task { await model.confirmRehearsal() } }
                     .accessibilityIdentifier("recalibrate-confirm-rehearsal")
                 Button("Cancel", role: .cancel) {}
             } message: {

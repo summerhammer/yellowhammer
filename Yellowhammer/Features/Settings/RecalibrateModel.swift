@@ -99,10 +99,10 @@ final class RecalibrateModel {
 
     /// Launches `yh rehearse --project <id>` fully detached (P14.7's done-when: it survives the app
     /// quitting). The button that triggers this is disabled while ``rehearsalUnavailable`` holds a
-    /// reason, and for the duration of the synchronous spawn call below — nothing is tracked
-    /// afterwards, no pid, no polling.
-    func confirmRehearsal() {
-        guard rehearsalUnavailable == nil else { return }
+    /// reason, and for the duration of the launch below (the login-shell `PATH` read and the spawn) —
+    /// nothing is tracked afterwards, no pid, no polling.
+    func confirmRehearsal() async {
+        guard rehearsalUnavailable == nil, !isLaunchingRehearsal else { return }
         rehearsalFailure = nil
         rehearsalStartedNote = nil
         rehearsalLogURL = nil
@@ -111,7 +111,7 @@ final class RecalibrateModel {
 
         let logURL = SetupEngine.rehearsalLogURL(projectID: project.rawValue)
         do {
-            try engine.launchDetached(
+            try await engine.launchDetached(
                 arguments: ["rehearse", "--project", project.rawValue], logURL: logURL
             )
             rehearsalLogURL = logURL

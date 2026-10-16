@@ -75,10 +75,12 @@ final class SetupEngine {
             throw RunError.executableNotFound
         }
 
-        // These invocations bake their own `PATH` into every LaunchAgent, and a Finder-launched app's is
-        // launchd's bare one: run them with the login shell's, as a Terminal-run setup would have. Under
-        // the UI-test override no shell is spawned.
-        var launchEnvironment: [String: String]?
+        // Always the app's own environment, never nil: on macOS 27.0 (build 26A434) an explicitly nil
+        // `Process.environment` spawns the child with no environment at all, so `yh` ran without `HOME`
+        // and `gh` found no login (#520). The invocations that bake their `PATH` into every LaunchAgent run with the login shell's
+        // `PATH`, as a Terminal-run setup would have; a Finder-launched app's own is launchd's bare one.
+        // Under the UI-test override no shell is spawned.
+        var launchEnvironment = ProcessInfo.processInfo.environment
         if SetupInvocation.composesScheduledJobPATH(arguments), !ConfigurationDirectory.isOverridden {
             let result = await LoginShellPATH.read()
             // A caller cancelled during the read must not go on to write LaunchAgents with the bare `PATH`.
@@ -86,7 +88,7 @@ final class SetupEngine {
             if case .failed(let reason) = result {
                 onOutput("\(reason.description) The LaunchAgents get the app\u{2019}s PATH instead.")
             }
-            launchEnvironment = LoginShellPATH.environment(applying: result, to: ProcessInfo.processInfo.environment)
+            launchEnvironment = LoginShellPATH.environment(applying: result, to: launchEnvironment)
         }
 
         let process = Process()
@@ -164,13 +166,24 @@ final class SetupEngine {
     /// once; only that shell is waited on, never the backgrounded child, which is reparented to `launchd`.
     /// With `onCompletion`, an EOF-only pipe reports when the command exits; app exit closes the reader and
     /// never signals the child. Throws on spawn failure or a non-zero shell exit.
+    ///
+    /// The command gets the app's environment with the login shell's `PATH`, as a scheduled Act gets its
+    /// LaunchAgent's: its Checks and workers need the Operator's toolchain, which launchd's bare `PATH`
+    /// lacks (#505). A failed read keeps the app's `PATH`; under the UI-test override no shell is spawned.
     func launchDetached(
         arguments: [String], logURL: URL, onCompletion: (@MainActor @Sendable () -> Void)? = nil
-    ) throws {
+    ) async throws {
         guard let plan = Self.launchPlan,
               FileManager.default.isExecutableFile(atPath: plan.executable.path(percentEncoded: false))
         else {
             throw RunError.executableNotFound
+        }
+
+        var environment = ProcessInfo.processInfo.environment
+        if !ConfigurationDirectory.isOverridden {
+            let result = await LoginShellPATH.read()
+            if result == .failed(.cancelled) || Task.isCancelled { throw CancellationError() }
+            environment = LoginShellPATH.environment(applying: result, to: environment)
         }
 
         do {
@@ -186,7 +199,9 @@ final class SetupEngine {
         var completionPipe = onCompletion == nil ? nil : try Self.makeCompletionPipe()
         defer { completionPipe?.forEach { if $0 >= 0 { close($0) } } }
 
-        let pid = try Self.spawnDetachedShell(arguments: shellArguments, completionPipe: completionPipe)
+        let pid = try Self.spawnDetachedShell(
+            arguments: shellArguments, environment: environment, completionPipe: completionPipe
+        )
         if let onCompletion, let descriptors = completionPipe {
             close(descriptors[1])
             completionPipe?[1] = -1
@@ -227,11 +242,15 @@ final class SetupEngine {
     }
 
     private nonisolated static func spawnDetachedShell(
-        arguments: [String], completionPipe: [Int32]?
+        arguments: [String], environment: [String: String], completionPipe: [Int32]?
     ) throws -> pid_t {
         var argv: [UnsafeMutablePointer<CChar>?] = arguments.map { strdup($0) }
         argv.append(nil)
         defer { argv.forEach { free($0) } }
+        // An explicit `envp`, never the app's `environ`: the detached command runs with the `PATH` resolved above.
+        var envp: [UnsafeMutablePointer<CChar>?] = environment.map { strdup("\($0.key)=\($0.value)") }
+        envp.append(nil)
+        defer { envp.forEach { free($0) } }
 
         var attributes: posix_spawnattr_t?
         guard posix_spawnattr_init(&attributes) == 0 else {
@@ -258,7 +277,7 @@ final class SetupEngine {
         }
 
         var pid: pid_t = 0
-        let result = posix_spawn(&pid, "/bin/sh", &fileActions, &attributes, argv, environ)
+        let result = posix_spawn(&pid, "/bin/sh", &fileActions, &attributes, argv, envp)
         guard result == 0 else { throw RunError.launchFailed("posix_spawn failed with errno \(result)") }
         return pid
     }
