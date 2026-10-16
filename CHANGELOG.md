@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.2](https://github.com/summerhammer/yellowhammer/compare/v0.18.1...v0.18.2) (2026-10-16)
+
+
+### Bug Fixes
+
+* **engine:** grant workers writable Git metadata directories ([1770ae3](https://github.com/summerhammer/yellowhammer/commit/1770ae37b1c22d8c779e836b931caef73c4567aa)), closes [#534](https://github.com/summerhammer/yellowhammer/issues/534)
+* **engine:** tell the breakdown what a Work Card's description is measured in ([566968e](https://github.com/summerhammer/yellowhammer/commit/566968e8fb147e85d8293ce426e6edae3538b372)), closes [#532](https://github.com/summerhammer/yellowhammer/issues/532)
+
 ## [0.18.1](https://github.com/summerhammer/yellowhammer/compare/v0.18.0...v0.18.1) (2026-10-16)
 
 
