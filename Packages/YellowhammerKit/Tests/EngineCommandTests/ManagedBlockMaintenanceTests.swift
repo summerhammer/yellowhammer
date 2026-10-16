@@ -246,9 +246,11 @@ struct ManagedBlockMaintenanceTests {
         let outbox = try heldOutbox(journal, board: board, cardID: cardID, runID: runID)
         let maintenance = ManagedBlockMaintenance(journal: journal, outbox: outbox, labels: nil)
 
-        let violation = "repo: yellowhammer-spec, missing: 2026-10-15-missing-upstream-ruling.md"
+        // A quote inside the report must not cut it short: the work and the repository named after it stay.
+        let violation = "missing \"Order\" table in backend"
         let reason = "authoring-invariant violation, not an ordering failure: the Feature was mis-authored, "
             + "and its Cards were never in an order that meant anything. Reported: \"\(violation)\""
+            + "; the likely hole: issue-1"
         try journal.append(
             .authoringInvariantBroken(cardID: cardID, issueID: "issue-2", reason: reason),
             act: .build, runID: runID
@@ -274,6 +276,22 @@ struct ManagedBlockMaintenanceTests {
         _ = try await maintenance.maintain(card: try journal.card(id: cardID), brief: brief)
         let other = try ManagedBlockFence.parts(of: await board.issue(issue)?.description).get().block
         #expect(!other.contains("Authoring Defect"))
+    }
+
+    @Test("The authoring-defect notice keeps the whole report, quotes included", arguments: [
+        ("Reported: \"repo: backend, missing: Order table\"", "repo: backend, missing: Order table"),
+        ("Reported: \"missing \"Order\" table in backend\"", "missing \"Order\" table in backend"),
+        ("Reported: \"missing \"Order\" in backend\"; the likely hole: issue-1, issue-2",
+         "missing \"Order\" in backend"),
+        ("Reported: \"\"Order\" table\"", "\"Order\" table")
+    ])
+    func authoringDefectNoticeKeepsTheWholeReport(reason: String, detail: String) {
+        #expect(AuthoringDefectNotice.extractDetail(from: "preamble. " + reason) == detail)
+    }
+
+    @Test("A reason with no recorded report renders whole")
+    func authoringDefectNoticeWithoutAReport() {
+        #expect(AuthoringDefectNotice.extractDetail(from: "no report recorded") == "no report recorded")
     }
 
     // MARK: - Fixtures

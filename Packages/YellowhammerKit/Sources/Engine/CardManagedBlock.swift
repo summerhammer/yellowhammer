@@ -151,14 +151,15 @@ public struct AuthoringDefectNotice: Equatable, Sendable {
     }
 
     /// Extracts the reported violation from the durable `reason` recorded alongside
-    /// `AuthoringInvariantBroken`.
+    /// `AuthoringInvariantBroken`. The report is model-authored and may itself contain quotes, so it
+    /// ends at the reason's last quote: what follows it, the likely hole's issue ids, never has one.
     public static func extractDetail(from reason: String) -> String {
         guard let start = reason.range(of: "Reported: \"") else {
             return reason
         }
         let after = reason[start.upperBound...]
-        if let end = after.range(of: "\"") {
-            return String(after[..<end.lowerBound])
+        if let end = after.lastIndex(of: "\"") {
+            return String(after[..<end])
         }
         return String(after)
     }
