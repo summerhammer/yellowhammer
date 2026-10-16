@@ -81,7 +81,7 @@ public struct AttemptHistory: Equatable, Sendable {
                 ? .engineFault : .hostCrash
         case AttemptOutcome.aborted.rawValue: return .operatorAbort
         default:
-            return .routeFailure
+            return last.consumedHow?.contains("authoring defect") == true ? .authoringDefect : .routeFailure
         }
     }
 
@@ -365,15 +365,10 @@ extension JournalStore {
         let rounds = try roundRows.map { roundRow -> RoundRecord in
             let roundID: Int64 = roundRow["id"]
             let roundOnError = { JournalError.roundUnreadable(id: roundID) }
-            guard let lens = Lens(rawValue: roundRow["lens"]) else {
-                throw roundOnError()
-            }
+            guard let lens = Lens(rawValue: roundRow["lens"]) else { throw roundOnError() }
             return RoundRecord(
-                id: roundID,
-                attemptID: attemptID,
-                lens: lens,
-                verdict: roundRow["verdict"],
-                requestedChanges: roundRow["requested_changes"],
+                id: roundID, attemptID: attemptID, lens: lens,
+                verdict: roundRow["verdict"], requestedChanges: roundRow["requested_changes"],
                 judgedCommit: roundRow["judged_commit"],
                 createdAt: try JournalStore.date(roundRow["created_at"], onError: roundOnError)
             )

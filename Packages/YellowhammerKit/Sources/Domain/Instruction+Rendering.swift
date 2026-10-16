@@ -33,6 +33,10 @@ extension Instruction {
 
     private var briefSection: String {
         var lines = ["## Architectural Brief", "", brief.prose]
+        if let siblingRule = siblingRepositoryReadSentence {
+            lines.append("")
+            lines.append(siblingRule)
+        }
         for block in brief.transcriptions {
             var mainlineLabel = block.mainlineCommit ?? "none"
             if block.authorSupplied {
@@ -51,6 +55,18 @@ extension Instruction {
             lines.append(header.joined(separator: "\n"))
         }
         return lines.joined(separator: "\n")
+    }
+
+    /// Work Card passes (architect, worker, reviewer) read another repository only through the
+    /// Architectural Brief's mainline transcription (Missing Upstream Ruling 2026-10-15, OQ175).
+    private var siblingRepositoryReadSentence: String? {
+        switch pass {
+        case .architect, .worker, .reviewer:
+            return "Another repository is read for Work Card work only through the Architectural Brief's "
+                + "mainline transcription, never through a sibling Worktree or another Feature Branch."
+        case .selection, .breakdown, .verifier:
+            return nil
+        }
     }
 
     private var definitionOfDoneSection: String {
@@ -262,12 +278,17 @@ extension Instruction {
     /// Only the architect and worker passes ever discover a Card cannot be completed against the
     /// repositories as authored (graph-execution/handle-a-block-mid-graph, P8.9): Cards in a Feature
     /// never depend on Cards, so this is an authoring-invariant violation, not an ordering failure.
+    /// Missing unmerged or unreleased upstream work is also an authoring-invariant violation (OQ175).
     private var authoringInvariantSentence: String? {
         switch pass {
         case .architect, .worker:
             return "Cards in a Feature never depend on each other; if this Card cannot be completed "
                 + "without work another Card has yet to do, report `failed` and describe that work in "
-                + "`authoring_invariant_violation`."
+                + "`authoring_invariant_violation`. Required work absent from another repository's usable "
+                + "mainline or release is an authoring-invariant violation: report `failed` with "
+                + "`authoring_invariant_violation` naming the repository and missing work, and never complete "
+                + "against unmerged or unreleased work. Raising a version pin or updating a lockfile to an "
+                + "available version that contains what this Card needs remains this Card's own work."
         case .reviewer, .selection, .breakdown, .verifier:
             return nil
         }

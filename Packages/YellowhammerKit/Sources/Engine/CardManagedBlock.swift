@@ -140,6 +140,30 @@ public struct UnadoptedStanding: Equatable, Sendable {
     }
 }
 
+/// The reported repository and missing work from an authoring-invariant violation, rendered in the
+/// Managed Block when a Card is Blocked under `authoring defect` (Missing Upstream Ruling 2026-10-15,
+/// OQ175).
+public struct AuthoringDefectNotice: Equatable, Sendable {
+    public var detail: String
+
+    public init(detail: String) {
+        self.detail = detail
+    }
+
+    /// Extracts the reported violation from the durable `reason` recorded alongside
+    /// `AuthoringInvariantBroken`.
+    public static func extractDetail(from reason: String) -> String {
+        guard let start = reason.range(of: "Reported: \"") else {
+            return reason
+        }
+        let after = reason[start.upperBound...]
+        if let end = after.range(of: "\"") {
+            return String(after[..<end.lowerBound])
+        }
+        return String(after)
+    }
+}
+
 public struct CardManagedBlock: Equatable, Sendable {
     public var kind: String
     public var repository: String
@@ -169,6 +193,9 @@ public struct CardManagedBlock: Equatable, Sendable {
     /// Set when this Card is left Blocked by a closed Feature (roadmap P12.1); nil for every other
     /// Card, and nil ⇒ the rendered output is byte-identical to before this field existed.
     public var unadoptedStanding: UnadoptedStanding?
+    /// Set when this Card is Blocked under `authoring defect` (Missing Upstream Ruling 2026-10-15, OQ175):
+    /// the reported repository and missing work from durable Journal data. Nil for every other Card.
+    public var authoringDefectNotice: AuthoringDefectNotice?
 
     public static let footer = "_Managed by Yellowhammer. This block is rewritten from the Journal; " +
         "write outside it and your text is kept._"
@@ -188,7 +215,8 @@ public struct CardManagedBlock: Equatable, Sendable {
         attemptsPerWorkCard: Int? = nil,
         failureRecurrence: FailureRecurrence? = nil,
         adoptionRefusalNotice: AdoptionRefusalNotice? = nil,
-        unadoptedStanding: UnadoptedStanding? = nil
+        unadoptedStanding: UnadoptedStanding? = nil,
+        authoringDefectNotice: AuthoringDefectNotice? = nil
     ) {
         self.kind = kind
         self.repository = repository
@@ -205,6 +233,7 @@ public struct CardManagedBlock: Equatable, Sendable {
         self.failureRecurrence = failureRecurrence
         self.adoptionRefusalNotice = adoptionRefusalNotice
         self.unadoptedStanding = unadoptedStanding
+        self.authoringDefectNotice = authoringDefectNotice
     }
 
     public func render() -> String {
@@ -242,6 +271,9 @@ public struct CardManagedBlock: Equatable, Sendable {
         lines.append(stateLine)
         if let failureRecurrence {
             lines.append("**Failure-Cause Recurrence:** \(failureRecurrence.reason)")
+        }
+        if let authoringDefectNotice {
+            lines.append("**Authoring Defect:** \(authoringDefectNotice.detail)")
         }
 
         // Repo Lane position

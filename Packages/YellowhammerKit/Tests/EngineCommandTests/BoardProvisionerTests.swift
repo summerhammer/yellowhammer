@@ -61,13 +61,13 @@ private func abandoned(_ subject: ProvisioningEntry.Subject) -> Bool {
 
 @Suite("Board provisioning")
 struct BoardProvisionerTests {
-    @Test("A bare team gets its four workflow states, both label groups and all thirteen labels, each reported")
+    @Test("A bare team gets its four workflow states, both label groups and all fourteen labels, each reported")
     func firstRunCreatesTheDeclaredSet() async throws {
         let board = board()
         let report = try await provision(board)
 
-        #expect(await board.creates == 19)
-        #expect(report.changes.count == 19)
+        #expect(await board.creates == 20)
+        #expect(report.changes.count == 20)
         #expect(outcome(of: report, waitingOnYou) == .created)
         #expect(outcome(of: report, blocked) == .created)
         #expect(outcome(of: report, keptInFlight) == .created)
@@ -79,12 +79,12 @@ struct BoardProvisionerTests {
         }
         let blockReasons = [
             "reviewer rejection", "check failure", "route failure", "host crash", "engine fault", "operator abort",
-            "reply overdue", "decision overdue", "feature abandoned", "failure recurrence"
+            "reply overdue", "decision overdue", "feature abandoned", "failure recurrence", "authoring defect"
         ]
         for name in blockReasons {
             #expect(outcome(of: report, label(name, in: "Block Reason")) == .created)
         }
-        // The ten Block Reason labels are provisioned in the ruled order (OQ127, OQ128).
+        // The eleven Block Reason labels are provisioned in the ruled order (OQ127, OQ128, OQ175).
         #expect(BoardProvisioner.blockReasonChildren == blockReasons)
     }
 
@@ -227,7 +227,7 @@ struct BoardProvisionerTests {
         let report = try await provision(board)
 
         #expect(outcome(of: report, waitingOnYou) == .present)
-        #expect(await board.creates == 18)
+        #expect(await board.creates == 19)
     }
 
     @Test("A missing Linear project with no team named is reported missing and nothing else is touched")
@@ -256,7 +256,7 @@ struct BoardProvisionerTests {
             return
         }
         #expect(report.entries[0].outcome == .created)
-        #expect(report.changes.count == 20)
+        #expect(report.changes.count == 21)
         #expect(report.linearProject?.id == BoardObjectID(rawValue: "fake-1"))
     }
 
@@ -269,7 +269,7 @@ struct BoardProvisionerTests {
 
         #expect(report.linearProject?.id == BoardObjectID(rawValue: "fake-1"))
         #expect(outcome(of: report, waitingOnYou) == .created)
-        #expect(await board.creates == 20)
+        #expect(await board.creates == 21)
     }
 
     @Test("Each team of the Linear project is provisioned on its own")
@@ -285,7 +285,7 @@ struct BoardProvisionerTests {
         }
         #expect(states.map(\.0) == ["ENG", "ENG", "ENG", "ENG", "PRD", "PRD", "PRD", "PRD"])
         #expect(states.map(\.1) == [.present, .created, .created, .created, .created, .created, .created, .created])
-        #expect(await board.creates == 37)
+        #expect(await board.creates == 39)
     }
 
     // MARK: - The Override label group (G-17 as amended by OQ126, P7.6)
@@ -310,8 +310,8 @@ struct BoardProvisionerTests {
             using: board, projectName: "Yellowhammer", createIn: nil, routingTable: Self.table
         )
 
-        // 19 without a table, plus the group and its three Routes.
-        #expect(await board.creates == 23)
+        // 20 without a table, plus the group and its three Routes.
+        #expect(await board.creates == 24)
         #expect(outcome(of: report, Self.overrideGroup) == .created)
         for name in ["claude/opus/high", "claude/sonnet/medium", "codex/gpt-5.4/medium"] {
             #expect(outcome(of: report, label(name, in: "Override")) == .created)
@@ -386,7 +386,7 @@ struct BoardProvisionerTests {
             #expect(reason.contains("(kind `review`, any Repo Role)"))
         }
         #expect(outcome(of: report, label("claude/sonnet/medium", in: "Override")) == .created)
-        #expect(await board.creates == 22)
+        #expect(await board.creates == 23)
         #expect(!report.hasUnfinishedSteps)
     }
 
@@ -429,8 +429,8 @@ struct BoardProvisionerTests {
         }
         #expect(prdStates.count == 4)
         #expect(prdStates.allSatisfy { $0.outcome == .created })
-        // No create call reached the board for ENG at all: only PRD's 4 states + 2 groups + 10 labels.
-        #expect(await board.creates == 19)
+        // No create call reached the board for ENG at all: only PRD's 4 states + 2 groups + 11 labels.
+        #expect(await board.creates == 20)
         #expect(report.hasUnfinishedSteps)
         #expect(report.createByHandGuideline?.contains("team ENG") == true)
     }
@@ -475,8 +475,8 @@ struct BoardProvisionerTests {
         #expect(outcome(of: report, blockReasonGroup) == .created)
         // Only the refused group and its three children are unfinished.
         #expect(report.unfinished.count == 4)
-        // 4 states + the refused Card Type attempt + Block Reason's group and 10 children.
-        #expect(await board.creates == 16)
+        // 4 states + the refused Card Type attempt + Block Reason's group and 11 children.
+        #expect(await board.creates == 17)
     }
 
     @Test("A fully provisioned member team reports no changes, unaffected by the membership check")
@@ -495,7 +495,7 @@ struct BoardProvisionerTests {
         let board = board()
         let report = try await provision(board)
 
-        #expect(await board.creates == 19)
+        #expect(await board.creates == 20)
         #expect(report.entries.allSatisfy { subject in
             if case .labelGroup(let name, _) = subject.subject { return !name.hasPrefix("Override") }
             return true

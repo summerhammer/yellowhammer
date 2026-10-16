@@ -232,6 +232,50 @@ struct ManagedBlockMaintenanceTests {
         #expect(!other.contains("Failure-Cause Recurrence"))
     }
 
+    @Test("""
+        A Card Blocked on authoring defect renders the reported missing work and repository, \
+        and preserves it across compaction
+        """)
+    func authoringDefectNoticeRendersAndPreservesAcrossCompaction() async throws {
+        let board = FakeWritingBoard()
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let issue = await board.seed(issue: "issue-2", description: ManagedBlockFence.initialDescription(rendered: ""))
+        let cardID = try insertFixtureCard(journal, issueID: "issue-2")
+        let runID = RunID()
+        let outbox = try heldOutbox(journal, board: board, cardID: cardID, runID: runID)
+        let maintenance = ManagedBlockMaintenance(journal: journal, outbox: outbox, labels: nil)
+
+        let violation = "repo: yellowhammer-spec, missing: 2026-10-15-missing-upstream-ruling.md"
+        let reason = "authoring-invariant violation, not an ordering failure: the Feature was mis-authored, "
+            + "and its Cards were never in an order that meant anything. Reported: \"\(violation)\""
+        try journal.append(
+            .authoringInvariantBroken(cardID: cardID, issueID: "issue-2", reason: reason),
+            act: .build, runID: runID
+        )
+
+        try setCard(journal, cardID, state: .blocked, blockReason: BlockReason.authoringDefect.rawValue)
+        _ = try await maintenance.maintain(card: try journal.card(id: cardID), brief: brief)
+        let parts = try ManagedBlockFence.parts(of: await board.issue(issue)?.description).get()
+        #expect(parts.block.contains("**Authoring Defect:** \(violation)"))
+
+        // Preserved across all compaction rungs
+        let block = CardManagedBlock(
+            kind: "impl", repository: "backend", state: .blocked, blockReason: BlockReason.authoringDefect.rawValue,
+            lanePosition: 1, laneLength: 1, brief: brief, definitionOfDone: [], attempts: [],
+            authoringDefectNotice: AuthoringDefectNotice(detail: violation)
+        )
+        for rendering in block.renderings() {
+            #expect(rendering.contains("**Authoring Defect:** \(violation)"))
+        }
+
+        // Not present when blocked on another reason
+        try setCard(journal, cardID, state: .blocked, blockReason: BlockReason.routeFailure.rawValue)
+        _ = try await maintenance.maintain(card: try journal.card(id: cardID), brief: brief)
+        let other = try ManagedBlockFence.parts(of: await board.issue(issue)?.description).get().block
+        #expect(!other.contains("Authoring Defect"))
+    }
+
     // MARK: - Fixtures
 
     /// A run holding the Project's Act-scoped Lease and the Card's Lease: what a build Act holds when it

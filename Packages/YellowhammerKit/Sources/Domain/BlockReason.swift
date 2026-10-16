@@ -3,8 +3,9 @@
 /// the final Attempt hard-failed, a `host crash` or an `engine fault` when it ended Crashed-Unknown,
 /// an `operator abort`, a `reply overdue` or `decision overdue` once the unanswered-Nights bound
 /// fires, a `feature abandoned` when its still-running Feature is released, and a
-/// `failure recurrence` when the same failure cause recurred across Nights; a Cancelled Card
-/// carries none.
+/// `failure recurrence` when the same failure cause recurred across Nights, and an
+/// `authoring defect` when an architect or worker pass reports an authoring-invariant violation;
+/// a Cancelled Card carries none.
 public enum BlockReason: String, CaseIterable, Sendable {
     case reviewerRejection = "reviewer rejection"
     case checkFailure = "check failure"
@@ -29,13 +30,16 @@ public enum BlockReason: String, CaseIterable, Sendable {
     /// it replaces the reason that Attempt's ending would have given, and wins over a spent Attempt
     /// budget on the same Attempt.
     case failureRecurrence = "failure recurrence"
+    /// An architect or worker pass reported `failed` with `authoring_invariant_violation`
+    /// (Missing Upstream Ruling 2026-10-15, OQ175). Blocks the Card immediately, excluding no route.
+    case authoringDefect = "authoring defect"
 
     /// Re-ready restarts automatic effort, while blocks unrelated to spent effort preserve it.
     /// Failure-cause recurrence is held separately and never resets with this budget.
     public var resetsBudgetOnReReady: Bool {
         switch self {
         case .reviewerRejection, .checkFailure, .routeFailure, .hostCrash,
-             .engineFault, .operatorAbort, .failureRecurrence: true
+             .engineFault, .operatorAbort, .failureRecurrence, .authoringDefect: true
         case .replyOverdue, .decisionOverdue, .featureAbandoned: false
         }
     }

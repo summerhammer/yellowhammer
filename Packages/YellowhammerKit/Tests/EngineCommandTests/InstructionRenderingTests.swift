@@ -221,7 +221,32 @@ func authoringInvariantSentenceOnlyForArchitectAndWorker(_ pass: RunPass) {
     case .architect, .worker:
         #expect(rendered.contains(sentence))
         #expect(rendered.contains("authoring_invariant_violation"))
+        #expect(rendered.contains(
+            "Required work absent from another repository's usable mainline or release is an "
+                + "authoring-invariant violation"
+        ))
+        #expect(rendered.contains("never complete against unmerged or unreleased work"))
+        #expect(rendered.contains(
+            "Raising a version pin or updating a lockfile to an available version that contains "
+                + "what this Card needs remains this Card's own work"
+        ))
     case .reviewer, .selection, .breakdown, .verifier:
+        #expect(!rendered.contains(sentence))
+    }
+}
+
+@Test(
+    "The sibling-repository read rule renders for architect, worker, and reviewer passes, never other passes",
+    arguments: RunPass.allCases
+)
+func siblingRepositoryReadRuleRendersForWorkCardPasses(_ pass: RunPass) {
+    let rendered = makeInstruction(payloads: .none, pass: pass).render()
+    let sentence = "Another repository is read for Work Card work only through the Architectural Brief's "
+        + "mainline transcription, never through a sibling Worktree or another Feature Branch."
+    switch pass {
+    case .architect, .worker, .reviewer:
+        #expect(rendered.contains(sentence))
+    case .selection, .breakdown, .verifier:
         #expect(!rendered.contains(sentence))
     }
 }
