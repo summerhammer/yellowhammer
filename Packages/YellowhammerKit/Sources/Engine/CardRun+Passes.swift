@@ -49,7 +49,9 @@ extension CardRun {
         }
         if case .failed(let reason) = plan.outcome {
             try recordAuthoringInvariantViolationIfNeeded(plan.authoringInvariantViolation, frame: frame)
-            return .ending(.hardFailure(.reported(reason: reason)))
+            return .ending(.hardFailure(
+                .reported(reason: reason, authoringInvariantViolation: plan.authoringInvariantViolation)
+            ))
         }
 
         guard let attempt = frame.attempt else {
@@ -112,7 +114,11 @@ extension CardRun {
             throw PassStop(ending: .question, question: text)
         case .failed(let reason):
             try recordAuthoringInvariantViolationIfNeeded(work.authoringInvariantViolation, frame: frame)
-            throw PassStop(ending: .hardFailure(.reported(reason: reason)))
+            throw PassStop(
+                ending: .hardFailure(
+                    .reported(reason: reason, authoringInvariantViolation: work.authoringInvariantViolation)
+                )
+            )
         }
     }
 

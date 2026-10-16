@@ -232,6 +232,68 @@ struct ManagedBlockMaintenanceTests {
         #expect(!other.contains("Failure-Cause Recurrence"))
     }
 
+    @Test("""
+        A Card Blocked on authoring defect renders the reported missing work and repository, \
+        and preserves it across compaction
+        """)
+    func authoringDefectNoticeRendersAndPreservesAcrossCompaction() async throws {
+        let board = FakeWritingBoard()
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let issue = await board.seed(issue: "issue-2", description: ManagedBlockFence.initialDescription(rendered: ""))
+        let cardID = try insertFixtureCard(journal, issueID: "issue-2")
+        let runID = RunID()
+        let outbox = try heldOutbox(journal, board: board, cardID: cardID, runID: runID)
+        let maintenance = ManagedBlockMaintenance(journal: journal, outbox: outbox, labels: nil)
+
+        // A quote inside the report must not cut it short: the work and the repository named after it stay.
+        let violation = "missing \"Order\" table in backend"
+        let reason = "authoring-invariant violation, not an ordering failure: the Feature was mis-authored, "
+            + "and its Cards were never in an order that meant anything. Reported: \"\(violation)\""
+            + "; the likely hole: issue-1"
+        try journal.append(
+            .authoringInvariantBroken(cardID: cardID, issueID: "issue-2", reason: reason),
+            act: .build, runID: runID
+        )
+
+        try setCard(journal, cardID, state: .blocked, blockReason: BlockReason.authoringDefect.rawValue)
+        _ = try await maintenance.maintain(card: try journal.card(id: cardID), brief: brief)
+        let parts = try ManagedBlockFence.parts(of: await board.issue(issue)?.description).get()
+        #expect(parts.block.contains("**Authoring Defect:** \(violation)"))
+
+        // Preserved across all compaction rungs
+        let block = CardManagedBlock(
+            kind: "impl", repository: "backend", state: .blocked, blockReason: BlockReason.authoringDefect.rawValue,
+            lanePosition: 1, laneLength: 1, brief: brief, definitionOfDone: [], attempts: [],
+            authoringDefectNotice: AuthoringDefectNotice(detail: violation)
+        )
+        for rendering in block.renderings() {
+            #expect(rendering.contains("**Authoring Defect:** \(violation)"))
+        }
+
+        // Not present when blocked on another reason
+        try setCard(journal, cardID, state: .blocked, blockReason: BlockReason.routeFailure.rawValue)
+        _ = try await maintenance.maintain(card: try journal.card(id: cardID), brief: brief)
+        let other = try ManagedBlockFence.parts(of: await board.issue(issue)?.description).get().block
+        #expect(!other.contains("Authoring Defect"))
+    }
+
+    @Test("The authoring-defect notice keeps the whole report, quotes included", arguments: [
+        ("Reported: \"repo: backend, missing: Order table\"", "repo: backend, missing: Order table"),
+        ("Reported: \"missing \"Order\" table in backend\"", "missing \"Order\" table in backend"),
+        ("Reported: \"missing \"Order\" in backend\"; the likely hole: issue-1, issue-2",
+         "missing \"Order\" in backend"),
+        ("Reported: \"\"Order\" table\"", "\"Order\" table")
+    ])
+    func authoringDefectNoticeKeepsTheWholeReport(reason: String, detail: String) {
+        #expect(AuthoringDefectNotice.extractDetail(from: "preamble. " + reason) == detail)
+    }
+
+    @Test("A reason with no recorded report renders whole")
+    func authoringDefectNoticeWithoutAReport() {
+        #expect(AuthoringDefectNotice.extractDetail(from: "no report recorded") == "no report recorded")
+    }
+
     // MARK: - Fixtures
 
     /// A run holding the Project's Act-scoped Lease and the Card's Lease: what a build Act holds when it

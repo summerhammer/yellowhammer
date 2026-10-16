@@ -158,6 +158,37 @@ func hardFailureReportedExcludes() throws {
     #expect(try journal.excludedRoutes(cardID: cardID) == [routeA])
 }
 
+@Test("Hard failure reported with authoring_invariant_violation does not exclude the Route (OQ175)")
+func hardFailureReportedWithAuthoringInvariantViolationDoesNotExclude() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let cardID = try insertFixtureCard(journal)
+    let runID = RunID()
+    try claimLease(journal, runID: runID)
+    let attempt = try journal.recordAttempt(cardID: cardID, route: routeA, runID: runID, now: epoch)
+
+    let ended = try journal.endAttempt(
+        attemptID: attempt.id,
+        ending: .hardFailure(
+            .reported(reason: "missing upstream", authoringInvariantViolation: "yellowhammer-spec: ruling")
+        ),
+        runID: runID, act: .build, now: epoch.addingTimeInterval(10)
+    )
+
+    #expect(ended.result == "hard failure")
+    #expect(ended.classification == "reported: missing upstream")
+    #expect(ended.consumedHow == "consumed; route not excluded (authoring defect)")
+    #expect(try journal.excludedRoutes(cardID: cardID).isEmpty)
+
+    let events = try journal.events(ofType: .attemptEnded)
+    #expect(events.count == 1)
+    guard case .attemptEnded(_, _, _, _, _, let routeExcluded) = events[0].event else {
+        Issue.record("expected attemptEnded")
+        return
+    }
+    #expect(routeExcluded == false)
+}
+
 @Test("Rounds-exhausted excludes the Route with reason rounds-exhausted")
 func roundsExhaustedExcludes() throws {
     let fixture = try JournalFixture()

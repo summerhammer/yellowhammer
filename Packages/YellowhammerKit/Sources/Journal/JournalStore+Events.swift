@@ -47,6 +47,25 @@ extension JournalStore {
         }
     }
 
+    /// The last recorded authoring-invariant violation reason for `cardID`, if any.
+    public func lastAuthoringInvariantViolationReason(cardID: Int64) throws -> String? {
+        try read { db in
+            guard let row = try Row.fetchOne(
+                db,
+                sql: """
+                SELECT json_extract(payload, '$.reason') AS reason
+                FROM event
+                WHERE type = ? AND json_extract(payload, '$.card_id') = ?
+                ORDER BY id DESC LIMIT 1
+                """,
+                arguments: [JournalEventType.authoringInvariantBroken.rawValue, String(cardID)]
+            ) else {
+                return nil
+            }
+            return row["reason"]
+        }
+    }
+
     /// Lifecycle event rows for one run, filtered in SQL so status reads decode no unrelated event rows.
     public func events(runID: RunID, ofTypes types: Set<JournalEventType>) throws -> [JournalEventRecord] {
         guard !types.isEmpty else { return [] }

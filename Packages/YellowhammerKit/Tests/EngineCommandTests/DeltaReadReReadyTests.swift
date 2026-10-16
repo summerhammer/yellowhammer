@@ -41,12 +41,12 @@ private func insertBlockedCard(
 private let reReadyRoute = Route(cli: "claude", model: "opus", effort: "high")!
 private let resettingReasons: Set<BlockReason> = [
     .reviewerRejection, .checkFailure, .routeFailure, .hostCrash,
-    .engineFault, .operatorAbort, .failureRecurrence
+    .engineFault, .operatorAbort, .failureRecurrence, .authoringDefect
 ]
 
 @Suite("Delta Read re-ready")
 struct DeltaReadReReadyTests {
-    @Test("Linear Todo re-readies all ten Block Reasons with their budget policy", arguments: BlockReason.allCases)
+    @Test("Linear Todo re-readies all eleven Block Reasons with their budget policy", arguments: BlockReason.allCases)
     func knownBlockIsReReadied(reason: BlockReason) async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()

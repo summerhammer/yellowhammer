@@ -34,9 +34,20 @@ extension CardRun {
                 try await frame.transition(.ready)
                 return .stop
             }
+            guard let attempt = frame.attempt else { return .stop }
+            if case .hardFailure(.reported(_, let violation)) = ending, violation != nil {
+                if let cause = FailureCause(ending: ending) {
+                    try frame.revalidateLease()
+                    _ = try frame.journal.recordFailureCause(
+                        cardID: frame.card.id, cause: cause, nightID: frame.context.act.night.id,
+                        runID: frame.context.act.runID, act: frame.context.act.act
+                    )
+                }
+                try await block(after: attempt, reason: .authoringDefect, frame: frame)
+                return .stop
+            }
             // A hard failure or Crashed-Unknown: a fresh Attempt on a different Route while the Attempt
             // budget has room (P8.7); the Card stays In Progress between Attempts.
-            guard let attempt = frame.attempt else { return .stop }
             return try await retryOrBlock(attempt: attempt, cause: FailureCause(ending: ending), frame: frame)
 
         case .roundsExhausted(let lens):

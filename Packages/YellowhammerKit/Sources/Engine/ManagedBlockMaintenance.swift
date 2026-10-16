@@ -134,7 +134,8 @@ public struct ManagedBlockMaintenance: Sendable {
             attemptConsumption: consumption,
             failureRecurrence: try failureRecurrence(card: card),
             adoptionRefusalNotice: try adoptionRefusalNotice(card: card),
-            unadoptedStanding: try unadoptedStanding(card: card)
+            unadoptedStanding: try unadoptedStanding(card: card),
+            authoringDefectNotice: try authoringDefectNotice(card: card)
         )
         return managedBlock.renderings()
     }
@@ -173,5 +174,16 @@ public struct ManagedBlockMaintenance: Sendable {
             return nil
         }
         return FailureRecurrence(cause: last.summary, nights: last.recurrenceCount)
+    }
+
+    /// The reported authoring-invariant violation to show on the Card: only while it is Blocked under
+    /// `authoring defect` (Missing Upstream Ruling 2026-10-15, OQ175), reading the durable Journal event.
+    private func authoringDefectNotice(card: CardRecord) throws -> AuthoringDefectNotice? {
+        guard card.state == .blocked, card.blockReason == BlockReason.authoringDefect.rawValue,
+              let reason = try journal.lastAuthoringInvariantViolationReason(cardID: card.id)
+        else {
+            return nil
+        }
+        return AuthoringDefectNotice(detail: AuthoringDefectNotice.extractDetail(from: reason))
     }
 }

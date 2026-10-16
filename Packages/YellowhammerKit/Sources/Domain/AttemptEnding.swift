@@ -26,8 +26,8 @@ public enum HardFailureCause: Equatable, Sendable {
     /// A non-zero exit status attributable to the CLI (`RunOutcome.failed`). Treated as a route failure.
     case exitStatus(Int32)
     /// The run completed under the dual key and its result reports failure (`WorkerOutcome.failed`,
-    /// `ArchitectOutcome.failed`).
-    case reported(reason: String)
+    /// `ArchitectOutcome.failed`), optionally carrying an authoring-invariant violation.
+    case reported(reason: String, authoringInvariantViolation: String? = nil)
     /// Exit 0 and a result file that declares a Yellowhammer result schema but breaks its contract
     /// (``RunOutcome/contractViolation(_:)``). The CLI answered, so the cause is the Route's (#445).
     case contractViolation(ResultFileError)
@@ -71,9 +71,12 @@ extension AttemptEnding {
     /// True for a capability failure — hard failure or rounds-exhausted — the only two endings that
     /// exclude the Route (routing/exclude-tried-routes-on-retry). Crashed-Unknown never excludes: "a
     /// dying host is ours, not the model's." A question never excludes, and neither does success, and
-    /// neither does a cancellation or an Operator abort.
+    /// neither does a cancellation or an Operator abort. A hard failure reporting an authoring-invariant
+    /// violation is an authoring defect, so it does not exclude the route (OQ175).
     public var excludesRoute: Bool {
         switch self {
+        case .hardFailure(.reported(_, let violation)) where violation != nil:
+            false
         case .hardFailure, .roundsExhausted:
             true
         case .success, .crashedUnknown, .question, .cancelled, .aborted:
@@ -92,6 +95,8 @@ extension AttemptEnding {
     /// only written, never read back, so a timeout names itself.
     public var exclusionReason: String? {
         switch self {
+        case .hardFailure(.reported(_, let violation)) where violation != nil:
+            nil
         case .hardFailure(.timedOut):
             "timed out"
         case .hardFailure:
@@ -110,7 +115,7 @@ extension AttemptEnding {
             "completed"
         case .hardFailure(.exitStatus(let status)):
             "exit status \(status)"
-        case .hardFailure(.reported(let reason)):
+        case .hardFailure(.reported(let reason, _)):
             "reported: \(reason)"
         case .hardFailure(.contractViolation(let error)):
             error.description
@@ -143,6 +148,8 @@ extension AttemptEnding {
         switch self {
         case .success:
             "consumed"
+        case .hardFailure(.reported(_, let violation)) where violation != nil:
+            "consumed; route not excluded (authoring defect)"
         case .hardFailure(.timedOut):
             "consumed; route excluded (timed out)"
         case .hardFailure:

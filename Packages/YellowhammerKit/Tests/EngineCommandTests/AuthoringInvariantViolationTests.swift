@@ -57,7 +57,7 @@ struct AuthoringInvariantViolationTests {
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: AuthoringViolationDispatch(violation: violation),
             check: RecordingCheck(log: CallLog()), checks: ["backend": .none], reviewRoundsMax: 2,
-            attemptsPerWorkCard: 1, passTimeoutMinutes: 60, resetting: RecordingAttemptResetting()
+            attemptsPerWorkCard: 3, passTimeoutMinutes: 60, resetting: RecordingAttemptResetting()
         )
 
         try await run.run(
@@ -65,10 +65,16 @@ struct AuthoringInvariantViolationTests {
             readiness: CardReadiness(brief: ArchitecturalBrief(prose: "", transcriptions: []), clauses: [])
         )
 
-        // The Attempt still ends hard failure: budget behaviour is unchanged.
+        // The Attempt ends hard failure, but does not exclude its route and blocks immediately as authoring defect.
+        let card2After = try world.card("BACK-2")
+        #expect(card2After.state == .blocked)
+        #expect(card2After.blockReason == BlockReason.authoringDefect.rawValue)
+
         let attempts = try world.attempts("BACK-2")
+        #expect(attempts.count == 1)
         #expect(attempts.map(\.result) == ["hard failure"])
-        #expect(try world.card("BACK-2").state == .blocked)
+        #expect(attempts.map(\.consumedHow) == ["consumed; route not excluded (authoring defect)"])
+        #expect(try journal.excludedRoutes(cardID: card2After.id).isEmpty)
 
         let broken = try journal.events(ofType: .authoringInvariantBroken)
         #expect(broken.count == 1)
@@ -107,13 +113,22 @@ struct AuthoringInvariantViolationTests {
         let run = CardRun(
             resolver: cardRunResolver(), dispatch: ArchitectViolationDispatch(),
             check: RecordingCheck(log: CallLog()), checks: ["backend": .none], reviewRoundsMax: 2,
-            attemptsPerWorkCard: 1, passTimeoutMinutes: 60, resetting: RecordingAttemptResetting()
+            attemptsPerWorkCard: 3, passTimeoutMinutes: 60, resetting: RecordingAttemptResetting()
         )
 
         try await run.run("BACK-1", in: world)
 
+        let card1After = try world.card("BACK-1")
+        #expect(card1After.state == .blocked)
+        #expect(card1After.blockReason == BlockReason.authoringDefect.rawValue)
+
+        let attempts = try world.attempts("BACK-1")
+        #expect(attempts.count == 1)
+        #expect(attempts.map(\.result) == ["hard failure"])
+        #expect(attempts.map(\.consumedHow) == ["consumed; route not excluded (authoring defect)"])
+        #expect(try journal.excludedRoutes(cardID: card1After.id).isEmpty)
+
         let broken = try journal.events(ofType: .authoringInvariantBroken)
         #expect(broken.count == 1)
-        #expect(try world.card("BACK-1").state == .blocked)
     }
 }
