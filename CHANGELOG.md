@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.1](https://github.com/summerhammer/yellowhammer/compare/v0.18.0...v0.18.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **app:** run every yh the app spawns with the app's environment, not an empty one ([28c499d](https://github.com/summerhammer/yellowhammer/commit/28c499db80dcca19ab893d5d2553705f66c4027f))
+
 ## [0.18.0](https://github.com/summerhammer/yellowhammer/compare/v0.17.0...v0.18.0) (2026-10-16)
 
 
