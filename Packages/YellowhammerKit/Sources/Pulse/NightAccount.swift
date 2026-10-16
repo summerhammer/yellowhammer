@@ -28,7 +28,8 @@ public struct NightAccount: Identifiable, Equatable, Sendable {
     public var closeReason: String?
     /// The Night Card's Linear issue; nil until the Delta Read has recorded its identifier and URL.
     public var nightCard: LinearIssueLink?
-    /// Every Act run of the Night, in the order its first event was recorded.
+    /// Every Act run of the Night, in the order its first event was recorded. It includes the runs that stood
+    /// down during the Night's span, though they never joined the Night.
     public var runs: [ActRun]
 
     public init(

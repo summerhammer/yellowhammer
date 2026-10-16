@@ -3,8 +3,8 @@ import SwiftUI
 
 /// The Night's lanes: one for each Act, and one for unstamped events when there are any, under a time axis.
 /// Each run is a bar from its first entry to its last, coloured by how it ended, a problem ringed in the
-/// warning colour. The run under the playhead is ringed in the system accent, and choosing a bar moves the
-/// playhead to the start of its run.
+/// warning colour; a run that stood down is drawn hollow. The run under the playhead is ringed in the system
+/// accent, and choosing a bar moves the playhead to the start of its run.
 struct NightLanes: View {
     let timeline: NightTimeline
     /// The id of the run under the playhead, if any.
@@ -76,8 +76,7 @@ struct NightLanes: View {
         return Button {
             select(run)
         } label: {
-            Capsule()
-                .fill(run.outcome.style.opacity(run.outcome.isQuiet ? 0.45 : 0.9))
+            barShape(run)
                 .overlay(Capsule().strokeBorder(.warning, lineWidth: run.hasProblem ? 2.5 : 0))
                 .overlay(
                     Capsule().strokeBorder(Color.accentColor, lineWidth: selection == run.id ? 2 : 0).padding(-3)
@@ -89,6 +88,17 @@ struct NightLanes: View {
         .accessibilityLabel("\(run.title), \(run.outcome.words)\(run.hasProblem ? ", has a problem" : "")")
         .accessibilityIdentifier("night-account-run-\(numbers[run.id] ?? 0)")
         .offset(x: left)
+    }
+
+    /// A run's capsule: filled, except a run that stood down, which is hollow, so it reads as a run that
+    /// never took the Project.
+    @ViewBuilder
+    private func barShape(_ run: NightAccount.ActRun) -> some View {
+        if run.outcome == .stoodDown {
+            Capsule().strokeBorder(run.outcome.style, lineWidth: 1.5)
+        } else {
+            Capsule().fill(run.outcome.style.opacity(run.outcome.isQuiet ? 0.45 : 0.9))
+        }
     }
 
     private var axisLabels: some View {

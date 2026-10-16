@@ -95,6 +95,33 @@ extension JournalStore {
         }
     }
 
+    /// Every event of one Night's account, in append order, filtered in SQL: the rows stamped with the Night,
+    /// plus the `ActStoodDown` rows no Night stamps. An Act that stands down never joins the Night, so its
+    /// row is unstamped; it is attributed to the Night whose span (`openedAt` to `completedAt`) its
+    /// `occurred_at` falls in. An open Night (`completedAt` nil) has no upper bound. A Night closes at
+    /// `night_end` or when the next Night opens, so two spans share at most that second. Other unstamped rows
+    /// stay out.
+    public func nightAccountEvents(
+        nightID: Int64, openedAt: Date, completedAt: Date?
+    ) throws -> [JournalEventRecord] {
+        try read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                SELECT * FROM event
+                WHERE night_id = ? OR (night_id IS NULL AND type = ? AND occurred_at >= ?
+                    AND (? IS NULL OR occurred_at <= ?))
+                ORDER BY id ASC
+                """,
+                arguments: [
+                    nightID, JournalEventType.actStoodDown.rawValue, Self.timestamp(openedAt),
+                    completedAt.map(Self.timestamp), completedAt.map(Self.timestamp)
+                ]
+            )
+            return try Self.decodeEvents(rows)
+        }
+    }
+
     /// Selected Night rows plus unstamped failures since the supplied boundary, filtered in SQL.
     /// Unstamped failures can precede Night opening when an Act fails during invocation setup.
     public func pulseEvents(nightID: Int64?, unstampedFailuresSince: Date) throws -> [JournalEventRecord] {

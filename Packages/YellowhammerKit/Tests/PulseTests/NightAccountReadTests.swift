@@ -413,3 +413,132 @@ func nightAccountNamesFeaturesByDisplayIdentifier() throws {
     let skipped = try #require(entries.first { $0.headline.contains("already in flight") })
     #expect(skipped.detail == unknownUUID)
 }
+
+// MARK: - Runs that stood down
+
+/// Opens a Night at `epoch + opened` and, when `closed` is given, closes it at `epoch + closed`.
+private func openNight(
+    _ journal: JournalStore, start: String, opened: TimeInterval, closed: TimeInterval? = nil
+) throws -> Int64 {
+    let run = RunID()
+    let night = try #require(NightStart(rawValue: start))
+    _ = try journal.claimActLease(act: .author, runID: run, mode: .real, now: epoch.addingTimeInterval(opened))
+    let id = try journal.openNight(
+        nightStart: night, mode: .real, act: .author, runID: run, now: epoch.addingTimeInterval(opened)
+    ).night.id
+    if let closed {
+        _ = try journal.closeNight(
+            id: id, reason: .nightEnd, act: .author, runID: run, now: epoch.addingTimeInterval(closed)
+        )
+    }
+    _ = try journal.releaseActLease(runID: run)
+    return id
+}
+
+/// Records a run that stood down at `epoch + at`: no Night stamp, as the Act never joined the Night.
+private func standDown(_ journal: JournalStore, at: TimeInterval, act: Act = .build) throws {
+    let holder = ActLease(
+        act: .author, runID: RunID(), mode: .real, claimedAt: epoch, heartbeatAt: epoch,
+        expiresAt: epoch.addingTimeInterval(600)
+    )
+    try journal.append(.actStoodDown(holder: holder), act: act, runID: RunID(), now: epoch.addingTimeInterval(at))
+}
+
+private func standDownRuns(_ night: NightAccount) -> [NightAccount.ActRun] {
+    night.runs.filter { $0.outcome == .stoodDown }
+}
+
+@Test("A run that stood down inside a closed Night's span is on its Act's lane, naming the holder")
+func nightAccountIncludesStandDownInsideSpan() throws {
+    let fixture = JournalsFixture()
+    let nightID: Int64
+    do {
+        let journal = try fixture.openJournal("alpha")
+        nightID = try openNight(journal, start: "2026-09-29", opened: 0, closed: 100)
+        try standDown(journal, at: 50)
+    }
+
+    let night = try account(try fixture.read(nightID, in: "alpha"))
+    let stoodDown = try #require(standDownRuns(night).first)
+
+    #expect(standDownRuns(night).count == 1)
+    #expect(stoodDown.act == "build")
+    #expect(stoodDown.entries.count == 1)
+    #expect(stoodDown.entries.first?.detail == "Held by the author Act")
+}
+
+@Test("A run that stood down before the Night opened is not in its account")
+func nightAccountExcludesStandDownBeforeOpening() throws {
+    let fixture = JournalsFixture()
+    let nightID: Int64
+    do {
+        let journal = try fixture.openJournal("alpha")
+        try standDown(journal, at: -10)
+        nightID = try openNight(journal, start: "2026-09-29", opened: 0, closed: 100)
+    }
+
+    #expect(standDownRuns(try account(try fixture.read(nightID, in: "alpha"))).isEmpty)
+}
+
+@Test("A run that stood down after a Night closed is not in its account")
+func nightAccountExcludesStandDownAfterClose() throws {
+    let fixture = JournalsFixture()
+    let nightID: Int64
+    do {
+        let journal = try fixture.openJournal("alpha")
+        nightID = try openNight(journal, start: "2026-09-29", opened: 0, closed: 100)
+        try standDown(journal, at: 101)
+    }
+
+    #expect(standDownRuns(try account(try fixture.read(nightID, in: "alpha"))).isEmpty)
+}
+
+@Test("A run that stood down after an open Night opened is in its account: an open Night has no end")
+func nightAccountIncludesStandDownInOpenNight() throws {
+    let fixture = JournalsFixture()
+    let nightID: Int64
+    do {
+        let journal = try fixture.openJournal("alpha")
+        nightID = try openNight(journal, start: "2026-09-29", opened: 0)
+        try standDown(journal, at: 5_000, act: .land)
+    }
+
+    let night = try account(try fixture.read(nightID, in: "alpha"))
+
+    #expect(night.state == .running)
+    #expect(standDownRuns(night).map(\.act) == ["land"])
+}
+
+@Test("A run that stood down inside the second Night's span is in its account, not the first's")
+func nightAccountAttributesStandDownToItsOwnNight() throws {
+    let fixture = JournalsFixture()
+    let first: Int64
+    let second: Int64
+    do {
+        let journal = try fixture.openJournal("alpha")
+        first = try openNight(journal, start: "2026-09-29", opened: 0, closed: 100)
+        second = try openNight(journal, start: "2026-09-30", opened: 200)
+        try standDown(journal, at: 250)
+    }
+
+    #expect(standDownRuns(try account(try fixture.read(first, in: "alpha"))).isEmpty)
+    #expect(standDownRuns(try account(try fixture.read(second, in: "alpha"))).count == 1)
+}
+
+@Test("An unstamped row that is not a stand-down stays out of the account, even inside the span")
+func nightAccountExcludesOtherUnstampedRows() throws {
+    let fixture = JournalsFixture()
+    let nightID: Int64
+    do {
+        let journal = try fixture.openJournal("alpha")
+        nightID = try openNight(journal, start: "2026-09-29", opened: 0, closed: 100)
+        try journal.append(
+            .actIncomplete(reason: "unstamped failure"), act: .build, runID: RunID(),
+            now: epoch.addingTimeInterval(50)
+        )
+    }
+
+    let night = try account(try fixture.read(nightID, in: "alpha"))
+
+    #expect(!night.runs.flatMap(\.entries).contains { $0.detail == "unstamped failure" })
+}

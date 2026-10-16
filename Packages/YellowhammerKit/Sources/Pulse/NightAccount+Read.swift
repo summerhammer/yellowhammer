@@ -27,12 +27,16 @@ extension NightAccount {
     }
 
     /// Fills one Night's account from `journal`. Nil when the Journal records no Night with `nightID`.
+    /// It holds the Night's stamped events plus the Act runs that stood down within its span, which never
+    /// join the Night and so carry no stamp.
     ///
     /// Like ``PulseSnapshot/read(from:status:asOf:)``, the read is HANDED a store and never opens one, so
     /// every value comes from this one store. It only reads.
     public static func read(from journal: JournalStore, nightID: Int64) throws -> NightAccount? {
         guard let night = try journal.night(id: nightID) else { return nil }
-        let records = try journal.events(nightID: nightID)
+        let records = try journal.nightAccountEvents(
+            nightID: nightID, openedAt: night.openedAt, completedAt: night.completedAt
+        )
         let cardNames = try cardNames(for: records, in: journal)
         let featureNames = try featureNames(for: records, in: journal)
         return NightAccount(
