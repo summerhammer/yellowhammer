@@ -202,6 +202,39 @@ struct AuthoringRouteDispatchTests {
         #expect(outcome == .authored)
         #expect(dispatch.requests.map(\.route) == [primary, fallback])
         #expect(try rig.journal.events(ofType: .featureBreakdownRejected).isEmpty)
+        // Both Routes are told the budget; only the second learns why the first was rejected.
+        let told = dispatch.requests.map { $0.instruction.render() }
+        #expect(told.allSatisfy { $0.contains("## Description budget") })
+        #expect(!told[0].contains("## Rejected on an earlier Route"))
+        let rejected = try #require(told[1].range(of: "## Rejected on an earlier Route"))
+        let contract = try #require(told[1].range(of: "## Result contract"))
+        #expect(rejected.upperBound <= contract.lowerBound)
+        let section = String(told[1][rejected.upperBound..<contract.lowerBound])
+        #expect(section.contains(primary.description))
+        for part in ["composes", "over the description budget of 2,000", "Architectural Brief"] {
+            #expect(section.contains(part), "\(part)")
+        }
+    }
+
+    @Test("A Route that was refused or exited is no rejection: the next Route is told nothing of it")
+    func refusalsAreNotRejections() async throws {
+        for unavailable in [Behaviour.refuse, .exit(1)] {
+            let rig = try await AuthoringRig()
+            rig.descriptionBudget = try DescriptionBudget(
+                configured: 2_000, limit: BoardDescriptionLimit(maximum: 250_000, unit: .utf16CodeUnits)
+            )
+            let dispatch = ScriptedRouteDispatch([
+                primary: unavailable, fallback: .answer(try briefedBreakdown("Approach."))
+            ])
+
+            let outcome = try await rangedSelection(dispatch).selectAndAuthor(try rig.context())
+
+            #expect(outcome == .authored)
+            #expect(dispatch.requests.map(\.route) == [primary, fallback])
+            let told = dispatch.requests.map { $0.instruction.render() }
+            #expect(told.allSatisfy { !$0.contains("## Rejected on an earlier Route") })
+            #expect(told.allSatisfy { $0.contains("## Description budget") })
+        }
     }
 
     @Test("The widest Route is taken from the whole Routing Table, fallbacks included")

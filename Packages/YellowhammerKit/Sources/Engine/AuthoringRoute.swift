@@ -40,17 +40,21 @@ public struct AuthoringRoute: Sendable {
     }
 
     /// Dispatches `pass` on the first Route that answers, in `worktreePath` (the specification source's
-    /// local path). `instruction` composes the pass's instruction for the Route it is about to run on.
-    /// `accept` judges a completed result: a reason excludes the Route as invalid output, like a broken
-    /// result contract, and the walk goes on. Throws ``AuthoringDispatchFault`` when no Route answered.
+    /// local path). `instruction` composes the pass's instruction for the Route it is about to run on, given
+    /// the invalid-output rejections of the Routes before it (`<route>: <rejection>`, in walk order) so the
+    /// next Route learns why the last drafting was refused; a refusal, an exit or a timeout is no rejection of
+    /// a drafting and is not among them. `accept` judges a completed result: a reason excludes the Route as
+    /// invalid output, like a broken result contract, and the walk goes on. Throws
+    /// ``AuthoringDispatchFault`` when no Route answered.
     func run(
         pass: RunPass, worktreePath: String, context: ActContext,
         additionalReadableDirectories: [String] = [],
         accept: (DispatchResult) async -> String? = { _ in nil },
-        instruction: (Route) -> AuthoringInstruction
+        instruction: (Route, [String]) -> AuthoringInstruction
     ) async throws -> DispatchResult {
         var tried: Set<Route> = []
         var lastFailure: String?
+        var earlierRejections: [String] = []
         var rejectedBreakdown = false
         var ordinal: Int64 = 0
         while true {
@@ -62,7 +66,7 @@ public struct AuthoringRoute: Sendable {
             ordinal += 1
             let dispatchRequest = AgentDispatchRequest(
                 runID: context.runID, issueID: Self.runDirectoryName, attemptID: ordinal, route: route,
-                pass: pass, instruction: .authoring(instruction(route)), worktreePath: worktreePath,
+                pass: pass, instruction: .authoring(instruction(route, earlierRejections)), worktreePath: worktreePath,
                 additionalReadableDirectories: additionalReadableDirectories
             )
             let report: AgentDispatchReport
@@ -82,6 +86,7 @@ public struct AuthoringRoute: Sendable {
                 } else if let rejection = await accept(result) {
                     rejectedBreakdown = rejectedBreakdown || Self.producedBreakdown(result)
                     tried.insert(route)
+                    earlierRejections.append("`\(route)`: \(rejection)")
                     lastFailure = "\(pass.rawValue) on \(route) returned invalid output: \(rejection)"
                 } else {
                     return result

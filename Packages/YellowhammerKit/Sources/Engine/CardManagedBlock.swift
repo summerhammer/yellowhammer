@@ -198,6 +198,10 @@ public struct CardManagedBlock: Equatable, Sendable {
     /// the reported repository and missing work from durable Journal data. Nil for every other Card.
     public var authoringDefectNotice: AuthoringDefectNotice?
 
+    /// The Definition of Done section's one line while no clause is authored. The description room is
+    /// measured against it, as the line n clauses replace.
+    static let noClausesLine = "_No clauses authored._"
+
     public static let footer = "_Managed by Yellowhammer. This block is rewritten from the Journal; " +
         "write outside it and your text is kept._"
 
@@ -314,7 +318,7 @@ public struct CardManagedBlock: Equatable, Sendable {
         lines.append("")
         lines.append("### Definition of Done")
         if definitionOfDone.isEmpty {
-            lines.append("_No clauses authored._")
+            lines.append(Self.noClausesLine)
         } else {
             for clause in definitionOfDone {
                 lines.append(

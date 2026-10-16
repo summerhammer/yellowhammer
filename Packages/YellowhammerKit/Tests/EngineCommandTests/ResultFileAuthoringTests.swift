@@ -330,26 +330,38 @@ struct AuthoringFixtureTests {
         let budget = try DescriptionBudget(
             configured: 12_345, limit: BoardDescriptionLimit(maximum: 250_000, unit: .utf16CodeUnits)
         )
-        func instruction(_ pass: RunPass, budget: DescriptionBudget?) -> AuthoringInstruction {
+        let room = BreakdownDescriptionRoom(
+            budget: budget, rooms: [.init(repository: "backend", room: 11_900)],
+            clauseOverhead: 31, referenceOverhead: 140, pathOverhead: 6
+        )
+        func instruction(_ pass: RunPass, room: BreakdownDescriptionRoom?) -> AuthoringInstruction {
             AuthoringInstruction(
                 pass: pass, route: route, specificationSource: .specSource(SpecSource(path: "/spec")),
                 specificationMainline: nil, repos: [Repo(name: "backend", path: "/b", role: .backend)],
                 mainlines: ResolvedMainlines(), namedFeature: nil, adoptionCandidates: [], selectedFeature: nil,
-                resultFilePath: "/runs/result.json", descriptionBudget: budget
+                resultFilePath: "/runs/result.json", descriptionRoom: room
             )
         }
-        let breakdown = instruction(.breakdown, budget: budget).render()
-        #expect(breakdown.contains("must fit the board's description budget of 12345 UTF-16 code units"))
-        #expect(breakdown.contains("holds its `brief` and `definition_of_done`"))
-        #expect(breakdown.contains("Contract files do not count against it."))
-        // The budget is its own point: it follows the contract-path sentence and names the board, not a vendor.
-        let paths = try #require(breakdown.range(of: "every range must lie within the file at mainline"))
-        let sentence = try #require(breakdown.range(of: "Separately from contract paths"))
-        #expect(paths.upperBound <= sentence.lowerBound)
+        let breakdown = instruction(.breakdown, room: room).render()
+        #expect(breakdown.contains("## Description budget"))
+        #expect(breakdown.contains("description budget of 12345 UTF-16 code units"))
+        #expect(breakdown.contains("- backend: 11900 UTF-16 code units"))
+        // The budget is its own point: the contract paragraph points at it after the contract-path
+        // sentence, and the section sits before the contract. Both name the board, not a vendor.
+        let paths = try #require(breakdown.range(of: "a path absent at that commit halts the whole Feature"))
+        let pointer = try #require(breakdown.range(of: "Separately from contract paths"))
+        #expect(paths.upperBound <= pointer.lowerBound)
+        let section = try #require(breakdown.range(of: "## Description budget"))
+        let contract = try #require(breakdown.range(of: "## Result contract"))
+        #expect(section.upperBound <= contract.lowerBound)
         #expect(!breakdown.contains("Linear"))
-        #expect(!instruction(.selection, budget: budget).render().contains("description budget"))
-        #expect(!instruction(.breakdown, budget: nil).render().contains("description budget"))
-        #expect(instruction(.breakdown, budget: budget).withResultFilePath("/other.json").render() == breakdown
+        let selection = instruction(.selection, room: room).render()
+        #expect(!selection.contains("description budget"))
+        #expect(!selection.contains("Description budget"))
+        let unbudgeted = instruction(.breakdown, room: nil).render()
+        #expect(!unbudgeted.contains("description budget"))
+        #expect(!unbudgeted.contains("Description budget"))
+        #expect(instruction(.breakdown, room: room).withResultFilePath("/other.json").render() == breakdown
             .replacingOccurrences(of: "/runs/result.json", with: "/other.json"))
     }
 }

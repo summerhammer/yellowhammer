@@ -64,17 +64,14 @@ struct AuthoringDescriptionBudget {
     private func workCardViolation(
         _ card: PlannedCard, draft: CardDraft, blocks: [TranscriptionBlock], lane: Int, created: [String]
     ) -> AuthoringBudgetViolation? {
-        let longestState = CardState.allCases.max { $0.rawValue.count < $1.rawValue.count } ?? .waitingOnYou
-        let block = CardManagedBlock(
-            kind: card.kind, repository: card.repository, state: longestState, lanePosition: lane, laneLength: lane,
+        let (block, maintained) = maintainedWorkCard(WorkCardShape(
+            kind: card.kind, repository: card.repository, lane: lane,
             brief: ArchitecturalBrief(prose: card.brief, transcriptions: blocks),
-            definitionOfDone: card.clauses.map {
+            clauses: card.clauses.map {
                 DoDClause(cid: $0.cid, text: $0.text, citation: $0.citation, citationProvenance: "")
             },
-            attempts: []
-        )
-        let rendered = longestRoute.map { block.renderReservingAttempts(longestRoute: $0) } ?? block.render()
-        let maintained = ManagedBlockFence.initialDescription(rendered: rendered) + "\n\n" + draft.unitOfWork
+            unitOfWork: draft.unitOfWork
+        ))
         let size = max(budget.measure(maintained), created.map(budget.measure).max() ?? 0)
         guard size > budget.value else { return nil }
 
@@ -84,14 +81,80 @@ struct AuthoringDescriptionBudget {
         let unit = budget.measure(draft.unitOfWork)
         let rest = max(0, size - brief - transcription - definition - unit)
         let sections = [
-            ("Architectural Brief", brief), ("Transcription Block references", transcription),
-            ("Definition of Done", definition),
-            ("unit of work", unit), ("the rest of the Managed Block", rest)
+            (WorkCardDescriptionSection.brief.title, brief),
+            (WorkCardDescriptionSection.transcriptionReferences.title, transcription),
+            (WorkCardDescriptionSection.definitionOfDone.title, definition),
+            (WorkCardDescriptionSection.unitOfWork.title, unit),
+            (WorkCardDescriptionSection.restOfManagedBlock.title, rest)
         ]
         return AuthoringBudgetViolation(
             subject: .workCard,
             reason: wording("Work Card \"\(card.title)\" (\(card.repository))", size: size, sections: sections)
         )
+    }
+
+    /// The one rendering of a Work Card at its largest maintained form, which both the check and the room
+    /// the breakdown is told are measured from: the Managed Block at the longest state and the widest
+    /// Attempts reserve, fenced, with the unit of work after it. Returns the block as well, for the sections.
+    private func maintainedWorkCard(_ shape: WorkCardShape) -> (block: CardManagedBlock, description: String) {
+        let longestState = CardState.allCases.max { $0.rawValue.count < $1.rawValue.count } ?? .waitingOnYou
+        let block = CardManagedBlock(
+            kind: shape.kind, repository: shape.repository, state: longestState, lanePosition: shape.lane,
+            laneLength: shape.lane, brief: shape.brief, definitionOfDone: shape.clauses, attempts: []
+        )
+        let rendered = longestRoute.map { block.renderReservingAttempts(longestRoute: $0) } ?? block.render()
+        return (block, ManagedBlockFence.initialDescription(rendered: rendered) + "\n\n" + shape.unitOfWork)
+    }
+
+    /// What of a Work Card its description depends on.
+    private struct WorkCardShape {
+        let kind: String
+        let repository: String
+        let lane: Int
+        let brief: ArchitecturalBrief
+        let clauses: [DoDClause]
+        let unitOfWork: String
+    }
+
+    // MARK: - Room
+
+    /// What the budget leaves a Work Card in each of `repositories`, and what one clause and one contract
+    /// reference cost beyond their content, measured from the very rendering ``workCardViolation`` measures.
+    ///
+    /// A Card with no clauses, no references and empty text renders a fixed part. With n clauses the
+    /// `_No clauses authored._` line is replaced by n clause lines joined by newlines, so each costs its
+    /// line plus one; the kind is measured as the root Kind `*`, whose length the room takes back, so the
+    /// kind's own text counts toward the room. The brief and the unit of work add exactly their length.
+    func room(repositories: [String]) -> BreakdownDescriptionRoom {
+        let lane = 99
+        let placeholder = budget.measure(CardManagedBlock.noClausesLine)
+        let root = Kind.any.description
+        let rooms = repositories.map { repository in
+            let empty = maintainedWorkCard(WorkCardShape(
+                kind: root, repository: repository, lane: lane,
+                brief: ArchitecturalBrief(prose: "", transcriptions: []), clauses: [], unitOfWork: ""
+            )).description
+            let fixed = budget.measure(empty) - budget.measure(root) - placeholder - budget.measure("\n")
+            return BreakdownDescriptionRoom.RepositoryRoom(repository: repository, room: budget.value - fixed)
+        }
+        let clause = DefinitionOfDoneClauseLine.render(cid: "c1", text: "", citation: "")
+        let reference = referenceLength(paths: [])
+        let path = referenceLength(paths: ["", ""]) - referenceLength(paths: [""])
+        return BreakdownDescriptionRoom(
+            budget: budget, rooms: rooms, clauseOverhead: budget.measure(clause) + 1,
+            referenceOverhead: reference, pathOverhead: path
+        )
+    }
+
+    /// A contract reference's length in the Managed Block with `paths` and nothing else named: the lines
+    /// of the block joined by newlines, and the newline joining it to what precedes. A second path costs
+    /// more than the first (the first has no separator before it), so the difference is an upper bound.
+    private func referenceLength(paths: [String]) -> Int {
+        let block = TranscriptionBlock(
+            repository: "", paths: paths, mainlineCommit: String(repeating: "0", count: 40), content: "",
+            contentHash: "", authorSupplied: false
+        )
+        return budget.measure(TranscriptionBlockLine.render(block).joined(separator: "\n")) + 1
     }
 
     // MARK: - Feature Card

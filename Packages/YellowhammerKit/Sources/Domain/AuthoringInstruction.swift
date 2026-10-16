@@ -24,9 +24,13 @@ public struct AuthoringInstruction: Equatable, Sendable {
     public let selectedFeature: SelectedFeature?
     /// The absolute path where the CLI Adapter persists the final structured response.
     public let resultFilePath: String
-    /// The description budget of the Board Connection the Cards are authored onto, which the breakdown is
-    /// told so it keeps each Card's description within it. Nil when the board enforces none.
-    public let descriptionBudget: DescriptionBudget?
+    /// The room the Board Connection's description budget leaves each repository's Work Card, which the
+    /// breakdown is told so it keeps each Card's whole description within it. Nil when the board enforces
+    /// no budget.
+    public let descriptionRoom: BreakdownDescriptionRoom?
+    /// The invalid-output rejections of earlier Routes in this same walk, each already prefixed with its
+    /// Route, so the next Route learns why the previous one's drafting was refused. Empty on the first Route.
+    public let earlierRejections: [String]
 
     public init(
         pass: RunPass,
@@ -41,7 +45,8 @@ public struct AuthoringInstruction: Equatable, Sendable {
         heldConsumers: [HeldConsumer] = [],
         selectedFeature: SelectedFeature?,
         resultFilePath: String,
-        descriptionBudget: DescriptionBudget? = nil
+        descriptionRoom: BreakdownDescriptionRoom? = nil,
+        earlierRejections: [String] = []
     ) {
         self.pass = pass
         self.route = route
@@ -55,7 +60,8 @@ public struct AuthoringInstruction: Equatable, Sendable {
         self.heldConsumers = heldConsumers
         self.selectedFeature = selectedFeature
         self.resultFilePath = resultFilePath
-        self.descriptionBudget = descriptionBudget
+        self.descriptionRoom = descriptionRoom
+        self.earlierRejections = earlierRejections
     }
 
     /// This instruction with its result file path replaced.
@@ -66,7 +72,7 @@ public struct AuthoringInstruction: Equatable, Sendable {
             namedFeature: namedFeature, adoptionCandidates: adoptionCandidates,
             refusedThisNight: refusedThisNight, heldConsumers: heldConsumers,
             selectedFeature: selectedFeature, resultFilePath: path,
-            descriptionBudget: descriptionBudget
+            descriptionRoom: descriptionRoom, earlierRejections: earlierRejections
         )
     }
 }

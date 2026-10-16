@@ -54,6 +54,36 @@ private func measuredSize(of breakdown: FeatureBreakdown, tooSmall: Int = 2_000)
     return try #require(Int(digits.replacingOccurrences(of: ",", with: "")))
 }
 
+private let spendingKind = "impl.boilerplate"
+private let spendingUnit = "Build it"
+private let spendingClauses = ["First clause.", "A second, longer clause."]
+private let spendingCitation = "resolvable/story"
+
+/// One backend Card whose brief is `briefLength` characters, with two clauses and the given contracts.
+private func spendingBreakdown(briefLength: Int, contracts: [ContractDraft] = []) throws -> FeatureBreakdown {
+    FeatureBreakdown(
+        definitionOfDone: [authoringClause("The Feature is done.")],
+        cards: [CardDraft(
+            repository: "backend", kind: try authoringKind(spendingKind), title: "Spender",
+            unitOfWork: spendingUnit, brief: String(repeating: "x", count: briefLength),
+            definitionOfDone: spendingClauses.map(authoringClause), contracts: contracts
+        )]
+    )
+}
+
+/// What the prompt's arithmetic says a Card spends outside its brief: the kind, the unit of work, each
+/// clause's overhead and text and citation, and each contract's overhead, paths and twice what it names.
+private func spendingOutsideTheBrief(_ room: BreakdownDescriptionRoom, contracts: [ContractDraft]) -> Int {
+    let clauses = spendingClauses.reduce(0) {
+        $0 + room.clauseOverhead + $1.utf16.count + spendingCitation.utf16.count
+    }
+    let references = contracts.reduce(0) { total, contract in
+        let named = contract.repository.utf16.count + contract.paths.reduce(0) { $0 + $1.utf16.count }
+        return total + room.referenceOverhead + room.pathOverhead * contract.paths.count + 2 * named
+    }
+    return spendingKind.utf16.count + spendingUnit.utf16.count + clauses + references
+}
+
 @Suite("Authoring: the description budget")
 struct AuthoringDescriptionBudgetTests {
     private let big = String(repeating: "Approach. ", count: 400)
@@ -178,5 +208,55 @@ struct AuthoringDescriptionBudgetTests {
 
         #expect(try await rig.run(rig.context()) == .authored)
         #expect(rig.drafting.callCount == 1)
+    }
+
+    @Test("A Work Card that spends exactly the room it is told is authored; one unit more is not")
+    func spendingTheRoomExactly() async throws {
+        let limit = try budget(10_000)
+        let room = AuthoringDescriptionBudget(budget: limit, longestRoute: first).room(repositories: ["backend"])
+        let briefLength = try #require(room.rooms.first).room - spendingOutsideTheBrief(room, contracts: [])
+
+        let fits = try await rig([try spendingBreakdown(briefLength: briefLength)], routes: [first], budget: limit)
+        #expect(try await fits.run(fits.context()) == .authored)
+        #expect(try cardRows(fits.journal).map(\.title) == ["Spender"])
+
+        let over = try await rig([try spendingBreakdown(briefLength: briefLength + 1)], routes: [first], budget: limit)
+        #expect(try await over.run(over.context()) == .authoringRolledBack)
+        #expect(try rejectedReason(over.journal).contains("Work Card \"Spender\" (backend) composes 10,001"))
+        #expect(try tableRowCount(over.journal, table: "outbox") == 0)
+    }
+
+    @Test("The room covers a contract reference: its measured size is within a few units of the told arithmetic")
+    func contractReferenceIsInTheRoom() async throws {
+        let limit = try budget(10_000)
+        let room = AuthoringDescriptionBudget(budget: limit, longestRoute: first).room(repositories: ["backend"])
+        let contracts = [ContractDraft(repository: "backend", paths: ["api.json"])]
+        let briefLength = try #require(room.rooms.first).room - spendingOutsideTheBrief(room, contracts: contracts)
+
+        let size = try await measuredSize(
+            of: try spendingBreakdown(briefLength: briefLength, contracts: contracts), tooSmall: 2_000
+        )
+
+        // A Card spending the told arithmetic to the unit is never measured over the budget, and at most one
+        // unit under: `pathOverhead` rounds up (the first path has no separator before it). The fake
+        // transcriber stamps the Project's mainline commit, which the arithmetic assumes is a 40-character sha.
+        #expect(size <= 10_000)
+        #expect(10_000 - size <= 1)
+    }
+
+    @Test("A rejection names every section the Work Card is measured in")
+    func rejectionNamesEverySection() async throws {
+        let contracts = [ContractDraft(repository: "backend", paths: ["api.json"])]
+        let rig = try await rig(
+            [try spendingBreakdown(briefLength: 3_000, contracts: contracts)], routes: [first],
+            budget: try budget(2_000)
+        )
+
+        #expect(try await rig.run(rig.context()) == .authoringRolledBack)
+
+        let reason = try rejectedReason(rig.journal)
+        for section in WorkCardDescriptionSection.allCases {
+            #expect(reason.contains(section.title), "\(section.title)")
+        }
     }
 }

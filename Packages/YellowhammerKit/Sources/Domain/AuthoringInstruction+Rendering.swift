@@ -12,6 +12,8 @@ extension AuthoringInstruction {
         if let adoptionSection { sections.append(adoptionSection) }
         if let refusedThisNightSection { sections.append(refusedThisNightSection) }
         if let selectedFeatureSection { sections.append(selectedFeatureSection) }
+        if let descriptionBudgetSection { sections.append(descriptionBudgetSection) }
+        if let earlierRejectionsSection { sections.append(earlierRejectionsSection) }
         sections.append(resultContractSection)
         return sections.joined(separator: "\n\n") + "\n"
     }
@@ -161,15 +163,65 @@ extension AuthoringInstruction {
             + "whole Feature."
     }
 
-    /// Breakdown pass only: the size a Card's description must fit, kept apart from how a contract path is
-    /// read. Contract files are not copied onto the Card, so what counts is its `brief` and Definition of
-    /// Done. Empty for the selection pass, and when the board enforces no budget.
+    /// Breakdown pass only: points at the description budget, kept apart from how a contract path is read.
+    /// Empty for the selection pass, and when the board enforces no budget.
     private var descriptionBudgetSentence: String {
-        guard pass == .breakdown, let descriptionBudget else { return "" }
-        return " Separately from contract paths: a Card's description on the board holds its `brief` and "
-            + "`definition_of_done`, and must fit the board's description budget of \(descriptionBudget.value) "
-            + "\(descriptionBudget.limit.unit.plural); a Card over it makes the breakdown invalid output. "
-            + "Contract files do not count against it."
+        guard pass == .breakdown, descriptionRoom != nil else { return "" }
+        return " Separately from contract paths: every Work Card's whole description must fit the board's "
+            + "description budget, as Description budget sets out; a Card over it makes the breakdown "
+            + "invalid output."
+    }
+
+    /// Breakdown pass only: what a Work Card's whole description is made of and how much room each
+    /// repository's Card has, from the same rendering the budget check measures. Section names come from
+    /// ``WorkCardDescriptionSection``, the check's own vocabulary. Plain integers: Domain formats no locale.
+    private var descriptionBudgetSection: String? {
+        guard pass == .breakdown, let descriptionRoom else { return nil }
+        let unit = descriptionRoom.budget.limit.unit.plural
+        let sections: [String] = WorkCardDescriptionSection.allCases.map { section in
+            let detail: String = switch section {
+            case .brief:
+                "the Card's `brief`, as written."
+            case .transcriptionReferences:
+                "one reference per `contracts` entry, \(descriptionRoom.referenceOverhead) \(unit) each, plus "
+                    + "\(descriptionRoom.pathOverhead) per path it names, plus about twice the length of its "
+                    + "`repository` and of each path, range and `symbol` it names (each is written in a hidden "
+                    + "stamp and in the visible line). File contents are not copied onto the Card."
+            case .definitionOfDone:
+                "one line per clause in the Card's `definition_of_done`, \(descriptionRoom.clauseOverhead) "
+                    + "\(unit) each plus its `text` and `citation`."
+            case .unitOfWork:
+                "the Card's `unit_of_work`, as written."
+            case .restOfManagedBlock:
+                "fixed by the engine, except for the Card's `kind`, which it names."
+            }
+            return "- \(section.title): \(detail)"
+        }
+        let rooms = descriptionRoom.rooms.map { "- \($0.repository): \($0.room) \(unit)" }
+        let lines = [
+            "## Description budget", "",
+            "Each Work Card's description on the board must fit the board's description budget of "
+                + "\(descriptionRoom.budget.value) \(unit). The whole composed description counts, in these "
+                + "sections:", ""
+        ] + sections + [
+            "",
+            "Room left after \(WorkCardDescriptionSection.restOfManagedBlock.title), for a Card's `kind` and the "
+                + "four sections above:", ""
+        ] + rooms
+        return lines.joined(separator: "\n")
+    }
+
+    /// Any pass: the invalid-output rejections of earlier Routes in this walk, so this Route drafts
+    /// something that avoids them instead of repeating the refused drafting.
+    private var earlierRejectionsSection: String? {
+        guard !earlierRejections.isEmpty else { return nil }
+        let lines = [
+            "## Rejected on an earlier Route", "",
+            "This pass was already drafted on another Route and rejected as invalid output. Draft one that "
+                + "avoids the rejection; for a description over the budget, cut the sections it names as "
+                + "largest:", ""
+        ] + earlierRejections.map { "- \($0)" }
+        return lines.joined(separator: "\n")
     }
 
     /// Breakdown pass only: who reads a Card's `brief` (issue #444). Empty for the selection pass.

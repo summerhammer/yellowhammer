@@ -17,7 +17,7 @@ public struct RoutedFeatureSelector: FeatureSelecting {
         let result = try await route.run(
             pass: .selection, worktreePath: request.specificationSource.path, context: context,
             additionalReadableDirectories: request.repos.map(\.path)
-        ) { route in
+        ) { route, _ in
             AuthoringInstruction(
                 pass: .selection, route: route, specificationSource: request.specificationSource,
                 specificationMainline: request.specificationMainline, repos: request.repos,
@@ -55,6 +55,11 @@ public struct RoutedFeatureBreakdown: FeatureBreakdownDrafting {
         case .specSource: specificationMainline = mainlines.specSource
         case .workingRepo(let repo): specificationMainline = mainlines[repo]
         }
+        // The Route is not known yet but the room is the same for all of them: it is sized with the widest.
+        let descriptionRoom = context.board?.descriptionBudget.map {
+            AuthoringDescriptionBudget(budget: $0, longestRoute: widestRoute)
+                .room(repositories: repositories.workingRepos.map(\.name))
+        }
         let result = try await route.run(
             pass: .breakdown, worktreePath: source.path, context: context,
             additionalReadableDirectories: repositories.workingRepos.map(\.path),
@@ -63,13 +68,13 @@ public struct RoutedFeatureBreakdown: FeatureBreakdownDrafting {
                 else { return nil }
                 return await accepting(drafted)
             },
-            instruction: { route in
+            instruction: { route, earlierRejections in
                 AuthoringInstruction(
                     pass: .breakdown, route: route, specificationSource: source,
                     specificationMainline: specificationMainline, repos: repositories.workingRepos,
                     mainlines: mainlines, namedFeature: context.trigger.namedFeature, adoptionCandidates: [],
                     selectedFeature: selection, resultFilePath: "",
-                    descriptionBudget: context.board?.descriptionBudget
+                    descriptionRoom: descriptionRoom, earlierRejections: earlierRejections
                 )
             }
         )
