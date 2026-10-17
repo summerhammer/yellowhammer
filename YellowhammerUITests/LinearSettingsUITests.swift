@@ -220,8 +220,9 @@ extension LinearSettingsUITests {
         XCTAssertTrue(progress.waitForExistence(timeout: 10))
         XCTAssertTrue(element("setup-linear-installed").waitForExistence(timeout: 10))
 
-        let recorded = recordedArguments()
-        XCTAssertEqual(recorded.count, 1, "\(recorded)")
+        // Opening Settings also reads (`config print-code-hosting-connections`); only installs are pinned.
+        let recorded = recordedArguments().filter { $0.hasPrefix("setup --install-linear") }
+        XCTAssertEqual(recorded.count, 1, "\(recordedArguments())")
         let line = recorded.first ?? ""
         XCTAssertTrue(line.contains("setup --install-linear --events json --board-connection scratch"), line)
         XCTAssertFalse(line.contains("--remote"), line)
