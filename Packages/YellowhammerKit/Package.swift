@@ -218,6 +218,7 @@ let package = Package(
                 "Journal",
                 "Ledger",
                 "Repositories",
+                "Pulse",
                 "ProcessTestSupport"
             ]
         )

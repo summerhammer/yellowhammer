@@ -144,6 +144,8 @@ extension NightWording {
             )
         case .featureAuthoringFailed(let name, _, let reason):
             NightWords(headline: "Authoring the Feature “\(name)” failed", detail: reason)
+        case .featureBreakdownRejected(let name, let reason):
+            NightWords(headline: "Authoring the Feature “\(name)” failed: breakdown rejected", detail: reason)
         case .featureSelectionFailed(let reason):
             NightWords(headline: "Selecting a Feature failed", detail: reason)
         default:

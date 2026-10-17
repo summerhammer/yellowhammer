@@ -87,7 +87,7 @@ extension NightAccount {
         .boardWriteFailed, .outboxGroupRolledBack, .managedBlockDelimiterBroken, .managedBlockOverBudget,
         .worktreeNameCollision,
         .boardScopeUnresolved, .rateBudgetExhausted, .authoringInvariantBroken, .worktreeLost,
-        .worktreeReconciliationFailed, .featureAuthoringFailed, .featureSelectionFailed,
+        .worktreeReconciliationFailed, .featureAuthoringFailed, .featureBreakdownRejected, .featureSelectionFailed,
         .mainlineConflictDetected, .readinessCheckFailed, .waitingOnYouUnbacked
     ]
 
