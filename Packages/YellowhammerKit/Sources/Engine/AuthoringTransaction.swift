@@ -274,10 +274,10 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
     /// Outbox to roll back (an undo here would hit the earlier Feature's own issues). Recording the failure
     /// closes the plan, so the next selection gets fresh keys, and its adoption re-parents the Card.
     private func recordNothingAuthored(
-        _ plan: FeatureAuthoringAcceptedPayload, featureIssueID: String, context: ActContext
+        _ plan: FeatureAuthoringAcceptedPayload, context: ActContext
     ) async throws -> FeatureAuthoringOutcome {
-        let reason = "the Feature Issue \(featureIssueID) already belongs to a Feature in the Journal, "
-            + "so this transaction authored nothing"
+        // Read on the Night Card, so it names no issue id: the plan's Feature key in the Journal does.
+        let reason = "its Feature Issue already belongs to an earlier Feature, so this transaction authored nothing"
         guard let feature = FeatureName(rawValue: plan.name) else { return .authoringRolledBack }
         return try await recordFault(
             feature: feature, reason: reason,
@@ -334,7 +334,7 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
             runID: context.runID, act: context.act, nightID: context.night.id
         )
         guard finalised != nil else {
-            return try await recordNothingAuthored(plan, featureIssueID: featureIssueID, context: context)
+            return try await recordNothingAuthored(plan, context: context)
         }
         // A clean authoring run resets only this Feature's consecutive-refusals count, closes its
         // Refusals so they leave the clock, and clears its Authoring Halts (roadmap P9.7, P9.8) — it
