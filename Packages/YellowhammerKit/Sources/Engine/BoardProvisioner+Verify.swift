@@ -30,7 +30,7 @@ extension BoardProvisioner {
     }
 
     /// Why verification reports an item `.missing`: setup has not created it yet.
-    static let notProvisioned = "not provisioned; run `yh setup`"
+    static let notProvisioned = "not provisioned; run `yh doctor --fix --check linear`"
 
     /// Verifies the Linear project's board without changing it: every item ``provision(using:projectName:createIn:routingTable:)``
     /// would create is reported `.missing` instead, and every other outcome — present, collision,

@@ -45,6 +45,21 @@ The authoritative product spec lives in a separate repository, checked out next 
   or `Spec-Exempt: <reason>` when it implements no story. CI checks for one of them. Other title types
   and release PRs need neither.
 
+## Repair a Project's Linear board after an upgrade
+
+When an Act or the Health card reports missing provisioned states or labels, choose **Repair**
+in that Project's Health card, or run:
+
+```sh
+yh doctor --fix --check linear --project <id>
+yh doctor --check linear --project <id>
+```
+
+Repair creates missing items and leaves existing ones alone. Repeating it is safe; it never
+renames or deletes an item and does not install or change LaunchAgents. Omit `--project` to
+repair every configured Project. Ordinary `yh doctor` remains read-only. A collision or refused
+create is reported as unfinished and needs the action named in the report.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).

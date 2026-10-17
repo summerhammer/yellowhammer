@@ -259,7 +259,7 @@ final class HealthGroupUITests: XCTestCase {
 
     /// Two Board Connections, two Code Hosting Connections and three Projects: `acme` and `github` serve
     /// `archive` and `owner`, `scratch` and `secondary` serve `reader`. No Journals.
-    private static func writeConfiguration(in directory: URL) throws {
+    static func writeConfiguration(in directory: URL) throws {
         let projects = directory.appending(component: "projects", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: projects, withIntermediateDirectories: true)
         let configFile = directory.appending(component: "config.toml")

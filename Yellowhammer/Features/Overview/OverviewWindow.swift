@@ -201,7 +201,14 @@ struct OverviewWindow: View {
                 } else {
                     PulseView(
                         project: selected, asOf: snapshot.asOf, inspected: inspected,
-                        deliverNow: deliverNow, canDeliverNow: canDeliverNow
+                        deliverNow: deliverNow, canDeliverNow: canDeliverNow,
+                        repairBoard: { Task { await model.repairBoard(for: selected.id) } },
+                        canRepairBoard: model.repairingBoard == nil
+                            && (!ConfigurationDirectory.isOverridden || SetupEngine.isStubbed),
+                        isRepairingBoard: model.repairingBoard == selected.id,
+                        boardRepairResult: model.boardRepairResult.flatMap {
+                            $0.project == selected.id ? $0.message : nil
+                        }
                     )
                 }
             } else if let scopedProject {

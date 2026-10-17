@@ -15,7 +15,7 @@ struct DoctorLinearFixture: ~Copyable {
     init(
         operators: [String: String] = ["acme": "user-op", "globex": "user-op"], extraMachine: String = "",
         projects: [(id: String, installation: String)] = [("alpha", "acme"), ("gamma", "acme"), ("beta", "globex")],
-        provisionAcme: Bool = true
+        provisionAcme: Bool = true, projectExtras: [String: String] = [:]
     ) async throws {
         func entry(_ name: String, workspace: String) -> String {
             let operatorLine = operators[name].map { "operator = \"\($0)\"\n" } ?? ""
@@ -44,6 +44,7 @@ struct DoctorLinearFixture: ~Copyable {
                 path = "~/Developer/\(project.id)-backend"
                 role = "backend"
                 check = "swift test"
+                \(projectExtras[project.id] ?? "")
                 """)
         }
         acme = await Self.board(workspaceName: "Acme Inc", project: "lp-alpha", provisioned: provisionAcme)
@@ -77,11 +78,11 @@ struct DoctorLinearFixture: ~Copyable {
     func doctor(
         credentials: RecordingCredentialStore = DoctorLinearFixture.credentials,
         output: RecordingOutput = RecordingOutput(), checks: [DoctorCheck] = [.configuration, .linear],
-        projectFilter: ProjectID? = nil
+        projectFilter: ProjectID? = nil, fix: Bool = false
     ) -> Doctor {
         makeDoctor(
             directory: directory, boards: ["acme": acme, "globex": globex], binds: binds, credentials: credentials,
-            output: output, checks: checks, projectFilter: projectFilter
+            output: output, fix: fix, checks: checks, projectFilter: projectFilter
         )
     }
 }

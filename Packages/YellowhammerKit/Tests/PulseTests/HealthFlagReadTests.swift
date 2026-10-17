@@ -176,3 +176,25 @@ func codeHostingDestination() {
     #expect(HealthFlag(kind: .codeHostingConnectionRefused, detail: "").destination == .codeHosting)
     #expect(HealthFlagKind.codeHostingConnectionRefused.rawValue == "Code Hosting Connection refused")
 }
+
+@Test("Board provisioning failures are repairable only on their Project; authorization stays in Settings")
+func boardRepairFindings() throws {
+    let rows = [
+        Finding("linear", "provisioning", "failure", "missing authoring defect", projects: ["demo"]),
+        Finding("linear", "provisioning", "pass", "all present", projects: ["demo"]),
+        Finding("linear", "authorization", "failure", "revoked", projects: ["demo"])
+    ]
+    let flags = HealthFlag.flags(in: rows.map(\.row), for: demo)
+    #expect(flags.filter(\.canRepairBoard).map(\.kind) == [.boardProvisioningFailure])
+    #expect(flags.first { $0.kind == .boardProvisioningFailure }?.destination == .linearWorkspaces)
+    #expect(HealthFlag.flags(in: rows.map(\.row), for: project("other")).isEmpty)
+}
+
+@Test("Only an unrecovered board-scope Act failure offers Repair")
+func boardRepairActFailures() {
+    let refusal = "build: The Project's board scope is unresolved, so this Act did no work. Re-run `yh setup`"
+    #expect(HealthFlag(kind: .actFailure, detail: refusal).canRepairBoard)
+    #expect(!HealthFlag(kind: .actFailure, detail: refusal, recoveredAt: .now).canRepairBoard)
+    #expect(!HealthFlag(kind: .actFailure, detail: "build: Linear authorization was refused").canRepairBoard)
+    #expect(!HealthFlag(kind: .probeFailure, detail: refusal).canRepairBoard)
+}

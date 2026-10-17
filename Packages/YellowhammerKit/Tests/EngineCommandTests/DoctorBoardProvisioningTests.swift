@@ -1,5 +1,6 @@
 import Domain
 import Engine
+import Foundation
 @testable import EngineCommand
 import Testing
 
@@ -57,8 +58,121 @@ struct DoctorBoardProvisioningTests {
         #expect(failures.contains { $0.message.contains("group label `Card Type` (team ENG) is missing") })
         #expect(failures.contains { $0.message.contains("group label `Override` (team ENG) is missing") })
         #expect(!failures.contains { $0.message.contains("Night Card") })
-        #expect(failures.allSatisfy { $0.message.contains("run `yh setup`") })
+        #expect(failures.allSatisfy { $0.message.contains("run `yh doctor --fix --check linear`") })
         #expect(await fixture.acme.creates == 0)
+    }
+
+    @Test("An upgrade's missing authoring defect label is read-only until repaired, then repair is idempotent")
+    func missingUpgradeLabel() async throws {
+        let fixture = try await DoctorLinearFixture()
+        await fixture.acme.remove(label: "authoring defect", team: engineeringTeam.id)
+        let before = await fixture.acme.creates
+        let project = ProjectID(rawValue: "alpha")
+        let missing = await fixture.doctor(projectFilter: project).run()
+        #expect(missing.linear("acme", subject: "provisioning").contains {
+            $0.severity == .failure && $0.message.contains("authoring defect")
+                && $0.message.contains("yh doctor --fix --check linear")
+        })
+        #expect(await fixture.acme.creates == before)
+        let repaired = await fixture.doctor(projectFilter: project, fix: true).run()
+        #expect(repaired.linear("acme", subject: "provisioning").allSatisfy { $0.severity == .pass })
+        #expect(await fixture.acme.creates == before + 1)
+        _ = await fixture.doctor(projectFilter: project, fix: true).run()
+        #expect(await fixture.acme.creates == before + 1)
+    }
+
+    @Test("Repair filters before mutations, including a sibling sharing the same Board Connection")
+    func repairIsolation() async throws {
+        let fixture = try await DoctorLinearFixture(provisionAcme: false)
+        let globexBefore = await fixture.globex.creates
+        _ = await fixture.doctor(projectFilter: ProjectID(rawValue: "alpha"), fix: true).run()
+        #expect(await fixture.acme.creates > 0)
+        #expect(await fixture.globex.creates == globexBefore)
+        #expect(fixture.binds.calls.allSatisfy {
+            $0.installation == "acme" && ($0.linearProjectID.isEmpty || $0.linearProjectID == "lp-alpha")
+        })
+    }
+
+    @Test("Repair refuses an unknown Project before touching any Board Connection")
+    func unknownProjectDoesNotRepair() async throws {
+        let fixture = try await DoctorLinearFixture(provisionAcme: false)
+        let findings = await fixture.doctor(projectFilter: ProjectID(rawValue: "ghost"), fix: true).run()
+        #expect(findings.contains { $0.severity == .failure && $0.check == .configuration })
+        #expect(fixture.binds.calls.isEmpty)
+        #expect(await fixture.acme.creates == 0)
+    }
+
+    @Test("Linear-only repair leaves jobs alone and provisions the Project's merged Routes")
+    func mergedRoutesWithoutJobs() async throws {
+        let fixture = try await DoctorLinearFixture(
+            extraMachine: """
+                [cli.claude]
+                [[routing]]
+                route = "claude/sonnet/medium"
+                """,
+            provisionAcme: false,
+            projectExtras: ["alpha": """
+                [[routing]]
+                route = "claude/opus/high"
+                """]
+        )
+        let jobs = RecordingLaunchAgentControl()
+        let doctor = makeDoctor(
+            directory: fixture.directory, boards: ["acme": fixture.acme, "globex": fixture.globex],
+            credentials: DoctorLinearFixture.credentials, launchAgents: jobs, fix: true,
+            checks: [.linear], projectFilter: ProjectID(rawValue: "alpha")
+        )
+        let findings = await doctor.run()
+        #expect(!findings.contains { $0.severity == .failure })
+        let labels = try await fixture.acme.labels(team: engineeringTeam.id)
+        #expect(labels.contains { $0.name == "claude/opus/high" })
+        #expect(!labels.contains { $0.name == "claude/sonnet/medium" })
+        #expect(jobs.calls.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: doctor.launchAgentsDirectory.path()))
+    }
+
+    @Test("Repair requires both authorization and membership before any creates")
+    func repairAuthorizationAndMembership() async throws {
+        let unauthorized = try await DoctorLinearFixture(provisionAcme: false)
+        let noCredentials = RecordingCredentialStore()
+        _ = await unauthorized.doctor(
+            credentials: noCredentials, projectFilter: ProjectID(rawValue: "alpha"), fix: true
+        ).run()
+        #expect(await unauthorized.acme.creates == 0)
+        let nonMember = try await DoctorLinearFixture(provisionAcme: false)
+        await nonMember.acme.excludeMembership(of: engineeringTeam.id)
+        _ = await nonMember.doctor(projectFilter: ProjectID(rawValue: "alpha"), fix: true).run()
+        #expect(await nonMember.acme.creates == 0)
+    }
+
+    @Test("Repair reports a refused create and preserves a colliding label")
+    func refusedAndCollision() async throws {
+        let fixture = try await DoctorLinearFixture()
+        await fixture.acme.remove(label: "authoring defect", team: engineeringTeam.id)
+        await fixture.acme.script(.refuse(.forbidden("forbidden")), for: "authoring defect")
+        let project = ProjectID(rawValue: "alpha")
+        let refused = await fixture.doctor(projectFilter: project, fix: true).run()
+        #expect(refused.linear("acme", subject: "provisioning").contains {
+            $0.severity == .failure && $0.message.contains("permission refused")
+        })
+        let existing = await fixture.acme.seed(label: "authoring defect", team: engineeringTeam.id)
+        let collision = await fixture.doctor(projectFilter: project, fix: true).run()
+        #expect(collision.linear("acme", subject: "provisioning").contains {
+            $0.severity == .failure && $0.message.contains("rename or delete")
+        })
+        #expect(try await fixture.acme.labels(team: engineeringTeam.id).contains { $0.id == existing })
+    }
+
+    @Test("A refused child in a newly created group remains an unfinished repair step")
+    func createdGroupRefusedChild() async throws {
+        let fixture = try await DoctorLinearFixture(provisionAcme: false)
+        await fixture.acme.script(.refuse(.forbidden("cannot create child")), for: "authoring defect")
+        let findings = await fixture.doctor(projectFilter: ProjectID(rawValue: "alpha"), fix: true).run()
+        let provisioning = findings.linear("acme", subject: "provisioning")
+        #expect(provisioning.count == 1)
+        #expect(provisioning.first?.severity == .failure)
+        #expect(provisioning.first?.message.contains("authoring defect") == true)
+        #expect(provisioning.first?.message.contains("permission refused") == true)
     }
 
     @Test("A board doctor cannot read fails the provisioning check, never passes it silently")

@@ -16,6 +16,10 @@ struct PulseView: View {
     let inspected: PulseSelection?
     let deliverNow: () -> Void
     let canDeliverNow: Bool
+    let repairBoard: () -> Void
+    let canRepairBoard: Bool
+    let isRepairingBoard: Bool
+    let boardRepairResult: String?
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -47,7 +51,12 @@ struct PulseView: View {
         case .now: NowGroup(now: pulse.now, asOf: asOf, inspected: inspected)
         case .feature: FeatureGroup(feature: pulse.feature, inspected: inspected)
         case .night: NightGroup(night: pulse.night)
-        case .health: HealthGroup(health: pulse.health, deliverNow: deliverNow, canDeliverNow: canDeliverNow)
+        case .health:
+            HealthGroup(
+                health: pulse.health, deliverNow: deliverNow, canDeliverNow: canDeliverNow,
+                repairBoard: repairBoard, canRepairBoard: canRepairBoard,
+                isRepairingBoard: isRepairingBoard, boardRepairResult: boardRepairResult
+            )
         }
     }
 }
