@@ -25,6 +25,8 @@ final class LinearWorkspacesModel {
         /// The Linear user the installation's app acts as, an opaque vendor ID.
         let appUser: BoardObjectID
         let operatorIdentity: BoardObjectID?
+        /// The configured `description_budget`; nil is the default (`DescriptionBudget.defaultValue`).
+        let descriptionBudget: Int?
         /// Ids of the Projects whose `[board.linear] installation` names this one, from the local files.
         let projects: [String]
 
@@ -69,6 +71,7 @@ final class LinearWorkspacesModel {
 
     @ObservationIgnored private var reconnectModels: [String: LinearInstallationModel] = [:]
     @ObservationIgnored private var operatorModels: [String: OperatorIdentityModel] = [:]
+    @ObservationIgnored private var budgetModels: [String: DescriptionBudgetModel] = [:]
     private let doctorEngine = SetupEngine()
     private let removalEngine = SetupEngine()
     private var didRefreshOnAppearance = false
@@ -119,6 +122,7 @@ final class LinearWorkspacesModel {
                     workspaceID: installation.workspace.rawValue,
                     appUser: installation.appUser,
                     operatorIdentity: installation.operatorIdentity,
+                    descriptionBudget: installation.descriptionBudget,
                     projects: configuration.projects
                         .filter { $0.linearInstallationName == installation.name }
                         .map(\.id.rawValue)
@@ -286,6 +290,7 @@ final class LinearWorkspacesModel {
             operatorModels[name]?.terminate()
             operatorModels[name] = nil
         }
+        syncBudgetModels(rows: rows)
         statuses = statuses.filter { names.contains($0.key) }
         removalFailures = removalFailures.filter { names.contains($0.key) }
         for row in rows {
@@ -322,5 +327,31 @@ final class LinearWorkspacesModel {
         }
         Task { await refreshStatus() }
         if isConnectAnother, let installed { onConnected?(installed) }
+    }
+}
+
+extension LinearWorkspacesModel {
+    func budgetModel(for name: String) -> DescriptionBudgetModel? { budgetModels[name] }
+
+    /// One description budget model per row, kept across reloads like the other child models: a row that
+    /// disappears drops its model, a row that stays follows `config.toml` unless the field holds an unsaved edit.
+    fileprivate func syncBudgetModels(rows: [Workspace]) {
+        let names = Set(rows.map(\.name))
+        for name in budgetModels.keys where !names.contains(name) {
+            budgetModels[name]?.terminate()
+            budgetModels[name] = nil
+        }
+        for row in rows {
+            if let existing = budgetModels[row.name] {
+                existing.update(configured: row.descriptionBudget)
+                continue
+            }
+            let model = DescriptionBudgetModel(installation: row.name, configured: row.descriptionBudget)
+            model.onSaved = { [weak self] in
+                self?.load()
+                self?.onChanged?()
+            }
+            budgetModels[row.name] = model
+        }
     }
 }

@@ -352,4 +352,46 @@ extension LinearSettingsUITests {
             recordedArguments().contains("config operator --board-connection scratch user-op"), "\(recordedArguments())"
         )
     }
+
+    func testEditDescriptionBudgetRecordsConfigDescriptionBudgetForThatInstallation() throws {
+        try writeTwoInstallations()
+        showBoardsSettings(waitingFor: nil)
+
+        // Nothing is configured, so the default is shown and marked.
+        let value = element("settings-linear-budget-scratch")
+        XCTAssertTrue(value.waitForExistence(timeout: 10))
+        XCTAssertTrue(text(of: value).contains("10,000 (default)"), text(of: value))
+        let field = element("settings-linear-budget-field-scratch")
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.click()
+        field.typeKey("a", modifierFlags: .command)
+        field.typeText("12000")
+        let save = element("settings-linear-budget-save-scratch")
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        save.click()
+
+        let expected = "config description-budget --board-connection scratch 12000"
+        let deadline = Date().addingTimeInterval(10)
+        while !recordedArguments().contains(expected), Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        XCTAssertTrue(recordedArguments().contains(expected), "\(recordedArguments())")
+    }
+
+    func testARefusedDescriptionBudgetShowsYhsReasonInline() throws {
+        try writeTwoInstallations()
+        app.launchEnvironment["YH_STUB_BUDGET_REFUSAL"] = "description_budget must be at most 225000, got 999999"
+        showBoardsSettings(waitingFor: nil)
+
+        let field = element("settings-linear-budget-field-scratch")
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        field.click()
+        field.typeKey("a", modifierFlags: .command)
+        field.typeText("999999")
+        element("settings-linear-budget-save-scratch").click()
+
+        let error = element("settings-linear-budget-error-scratch")
+        XCTAssertTrue(error.waitForExistence(timeout: 10))
+        XCTAssertTrue(text(of: error).contains("must be at most 225000"), text(of: error))
+    }
 }

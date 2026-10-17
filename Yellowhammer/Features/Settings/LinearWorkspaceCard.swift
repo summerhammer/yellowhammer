@@ -128,6 +128,12 @@ struct LinearWorkspaceCard: View {
                         .accessibilityIdentifier("settings-linear-yellowhammer-id-\(name)")
                 }
             }
+            if let budget = model.budgetModel(for: name) {
+                GridRow(alignment: .firstTextBaseline) {
+                    Text("Description budget").foregroundStyle(.secondary)
+                    DescriptionBudgetRow(model: budget, name: name)
+                }
+            }
             GridRow {
                 Text("Projects").foregroundStyle(.secondary)
                 projects

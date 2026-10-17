@@ -201,6 +201,19 @@ extension MachineConfiguration {
     }
 
     /// A textual edit of an existing, hand-maintained `config.toml`: preserves every other line,
+    /// including comments. Replaces the `description_budget` line inside `[board.linear.connections.<name>]`,
+    /// or inserts one after that table's last key when absent. Returns `text` unchanged when no such table
+    /// header exists. Applying it twice equals applying it once.
+    public static func settingDescriptionBudget(
+        _ budget: Int, installation name: String, inFileText text: String
+    ) -> String {
+        var lines = text.components(separatedBy: "\n")
+        guard let header = installationHeaderIndex(named: name, in: lines) else { return text }
+        setKey("description_budget", toLiteral: "\(budget)", tableAt: header, in: &lines)
+        return lines.joined(separator: "\n")
+    }
+
+    /// A textual edit of an existing, hand-maintained `config.toml`: preserves every other line,
     /// including comments. Removes the `[board.linear.connections.<name>]` header and every line after
     /// it up to, not including, the next table header (or the end of the file), except that a comment block
     /// directly above the next header stays with that table. No gap is doubled. Returns `text`

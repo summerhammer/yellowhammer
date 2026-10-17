@@ -39,4 +39,15 @@ struct ConfigInvocationContractTests {
         #expect(command.orphanProjects)
         #expect(command.yes)
     }
+
+    @Test("descriptionBudgetArguments parses back as ConfigDescriptionBudgetCommand")
+    func descriptionBudgetArgumentsParseBack() throws {
+        let arguments = ConfigInvocation.descriptionBudgetArguments(boardConnection: "acme", budget: 12_000)
+
+        let parsed = try ConfigCommand.parseAsRoot(Array(arguments.dropFirst()))
+
+        let command = try #require(parsed as? ConfigDescriptionBudgetCommand)
+        #expect(command.boardConnection == "acme")
+        #expect(command.budget == 12_000)
+    }
 }
