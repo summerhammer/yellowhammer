@@ -359,7 +359,7 @@ extension PulseSnapshot {
             cardsByDisposition: try dispositions(night: night, journal: journal, events: events),
             cardsAbsence: absence,
             nightCard: nightCard,
-            firstFailureHeadline: failures.firstHeadline
+            firstFailureHeadline: failures.firstHeadline, failureNotices: failures.notices
         )
     }
 

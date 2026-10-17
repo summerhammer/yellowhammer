@@ -11,6 +11,8 @@ struct JournalFailures {
     let recoveredRunCount: Int
     /// The headline of the first failure by event id, for the Sidebar's mark.
     let firstHeadline: String?
+    /// The failures folded into Failure Notices, in Journal order, recovered ones included.
+    let notices: [FailureNotice]
 
     init(events: [JournalEventRecord], nightCard: LinearIssueLink? = nil) {
         let byRun = Dictionary(grouping: events.filter { $0.runID != nil }, by: { $0.runID?.rawValue ?? "" })
@@ -57,6 +59,7 @@ struct JournalFailures {
                 nextAction: latest.nextAction
             )
         }
+        notices = Self.notices(failures, recovery: recovery)
         let runDetails = Dictionary(grouping: failures, by: \.runKey).mapValues { $0.map(\.detail) }
         recoveredRunCount = runDetails.values.count { details in
             details.allSatisfy { recoveredByDetail[$0] == true }
@@ -76,6 +79,48 @@ extension JournalFailures {
                             && act.reason.contains("\(lane.repository ?? ""): \(lane.reason)")))
             }
         }
+    }
+}
+
+extension JournalFailures {
+    /// Groups failures, in Journal order, into Failure Notices: a failure continues the notice of the same
+    /// reason (`detail`) that the run before it, or its own run, extended; a run without that reason in
+    /// between starts a new one (morning-report/disclose-a-failure#one-notice-per-run).
+    private static func notices(_ failures: [JournalFailure], recovery: Recovery) -> [FailureNotice] {
+        fold(failures).compactMap { group in
+            guard let first = group.first, let last = group.last else { return nil }
+            return FailureNotice(
+                headline: first.headline, count: Set(group.map(\.runKey)).count,
+                firstOccurredAt: first.record.occurredAt, lastOccurredAt: last.record.occurredAt,
+                firstEventID: first.record.id, isRecovered: recovery.date(for: last) != nil
+            )
+        }
+    }
+
+    static func fold(_ failures: [JournalFailure]) -> [[JournalFailure]] {
+        var runOrder: [String] = []
+        var byRun: [String: [JournalFailure]] = [:]
+        for failure in failures.sorted(by: { $0.record.id < $1.record.id }) {
+            if byRun[failure.runKey] == nil { runOrder.append(failure.runKey) }
+            byRun[failure.runKey, default: []].append(failure)
+        }
+        var groups: [[JournalFailure]] = []
+        // A reason's notice, while the latest run extended it.
+        var open: [String: Int] = [:]
+        for run in runOrder {
+            var extended: [String: Int] = [:]
+            for failure in byRun[run] ?? [] {
+                if let index = extended[failure.detail] ?? open[failure.detail] {
+                    groups[index].append(failure)
+                    extended[failure.detail] = index
+                } else {
+                    groups.append([failure])
+                    extended[failure.detail] = groups.count - 1
+                }
+            }
+            open = extended
+        }
+        return groups
     }
 }
 

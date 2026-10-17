@@ -20,6 +20,8 @@ import SwiftUI
 ///   of the selected Project, the main area shows the Night's account (its Journal events along a playhead)
 ///   in place of the Pulse, and the Inspector shows the Night's facts and its way out to the Night Card.
 ///   Both read the one model the window makes for that Night. Clearing `inspected` brings the Pulse back.
+///   A Failure Notice opens the account at its own moment through `playheadRequest`, which the account applies
+///   when it opens and again each time another notice is chosen.
 /// - **The snapshot** belongs to `OverviewModel`, and is read again on appear and whenever the app
 ///   becomes active.
 ///
@@ -34,6 +36,8 @@ struct OverviewWindow: View {
     /// The read of the Night `inspected` names, made when the selection comes to name one and dropped when it
     /// stops. A model is never re-pointed (`NightDetailModel`).
     @State private var nightAccount: NightDetailModel?
+    /// Where a Failure Notice asked the Night's account to put its playhead; nil opens it on its first problem.
+    @State private var playheadRequest: NightPlayheadRequest?
     @State private var inspectorShown = true
     @State private var stop = EngineStopModel()
     @State private var confirmingStop = false
@@ -195,7 +199,8 @@ struct OverviewWindow: View {
                     // One view per Night, so the playhead survives the account being read again.
                     NightAccountView(
                         model: model, projectName: selected.name, asOf: snapshot.asOf,
-                        close: { inspected = nil }
+                        playheadRequest: playheadRequest.flatMap { $0.night == night.night ? $0 : nil },
+                        close: closeNightAccount
                     )
                     .id(night)
                 } else {
@@ -245,6 +250,7 @@ struct OverviewWindow: View {
     private var route: OpenPulseDestinationAction {
         let inspected = $inspected
         let inspectorShown = $inspectorShown
+        let playheadRequest = $playheadRequest
         let openWindow = openWindow
         let openURL = openURL
         let settingsRequest = settingsRequest
@@ -252,7 +258,15 @@ struct OverviewWindow: View {
         return OpenPulseDestinationAction(scope: scopedProject) { destination in
             switch destination {
             case let .inspector(selection):
+                // A Night's account opened this way opens on its first problem.
+                playheadRequest.wrappedValue = nil
                 inspected.wrappedValue = selection
+                inspectorShown.wrappedValue = true
+            case let .nightAccount(id, at):
+                // A new request each time, so choosing a notice again moves a playhead the Operator has moved since.
+                let serial = (playheadRequest.wrappedValue?.serial ?? 0) + 1
+                playheadRequest.wrappedValue = NightPlayheadRequest(night: id, moment: at, serial: serial)
+                inspected.wrappedValue = .night(id)
                 inspectorShown.wrappedValue = true
             case .settings:
                 // Settings opens on this window's Project, even when it is already open.
@@ -309,6 +323,7 @@ struct OverviewWindow: View {
     private func rescope(_ id: ProjectID) {
         if id != scopedProject {
             inspected = nil
+            playheadRequest = nil
         }
         project = id
     }
@@ -317,6 +332,7 @@ struct OverviewWindow: View {
     /// when there is none. Clears the selection, as `rescope` does.
     private func unscope() {
         inspected = nil
+        playheadRequest = nil
         project = nil
     }
 
@@ -348,6 +364,12 @@ private extension OverviewWindow {
         guard case let .night(id)? = inspected, let selected = selectedSnapshot, selected.contains(.night(id))
         else { return nil }
         return InspectedNight(project: selected.id, night: id)
+    }
+
+    /// Back to the Pulse. A Failure Notice's request for the playhead goes with the account it was made for.
+    func closeNightAccount() {
+        inspected = nil
+        playheadRequest = nil
     }
 
     /// The window's read of `night`, once it has been made for exactly that Night of that Project. It is
