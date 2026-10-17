@@ -31,6 +31,7 @@ extension CardRun {
         case .ending(let ending):
             try endAttempt(ending, frame: frame)
             guard ending.consumesAttempt else {
+                try await resetUsageLimitedAttempt(ending, frame: frame)
                 try await frame.transition(.ready)
                 return .stop
             }
@@ -64,6 +65,11 @@ extension CardRun {
             let cause = FailureCause(ending: ending, lens: lens)
             return try await retryOrBlock(attempt: attempt, cause: cause, frame: frame)
         }
+    }
+
+    private func resetUsageLimitedAttempt(_ ending: AttemptEnding, frame: CardRunFrame) async throws {
+        guard case .usageLimited = ending, let attempt = frame.attempt else { return }
+        _ = try await attemptReset(priorAttemptID: attempt.id, frame: frame)
     }
 
     /// A worker's question ends the Attempt `question` — consuming no Round and no Attempt, and never

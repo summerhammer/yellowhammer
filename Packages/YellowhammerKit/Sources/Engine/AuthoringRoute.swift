@@ -58,9 +58,10 @@ public struct AuthoringRoute: Sendable {
         var rejectedBreakdown = false
         var ordinal: Int64 = 0
         while true {
-            let request = RouteRequest(kind: .authoring, repoRole: nil, override: .none, excludedRoutes: tried)
-            guard case .resolved(let resolved) = try resolver.resolve(request) else {
-                throw Self.exhausted(lastFailure: lastFailure, rejectedBreakdown: rejectedBreakdown)
+            let resolution = try resolve(tried: tried, context: context)
+            guard case .resolved(let resolved) = resolution else {
+                throw Self.exhausted(lastFailure: resolution.usageBackoffAccount ?? lastFailure,
+                                     rejectedBreakdown: rejectedBreakdown)
             }
             let route = resolved.route
             ordinal += 1
@@ -73,6 +74,10 @@ public struct AuthoringRoute: Sendable {
             do {
                 let report = try await dispatch.dispatch(dispatchRequest)
                 try record(report.origin, pass: pass, route: route, ordinal: Int(ordinal), context: context)
+                if try context.recordUsageLimit(report.outcome, route: route) {
+                    lastFailure = "\(route.cli) usage limit; authoring waits for CLI backoff"
+                    continue
+                }
                 judgement = try await judge(report.outcome, pass: pass, route: route, accept: accept)
             } catch let refusal as AgentDispatchRefusal {
                 judgement = .rejected(Rejection(
@@ -87,9 +92,7 @@ public struct AuthoringRoute: Sendable {
                 tried.insert(route)
                 lastFailure = rejection.lastFailure
                 rejectedBreakdown = rejectedBreakdown || rejection.producedBreakdown
-                if rejection.cause == .overDescriptionBudget || rejection.cause == .invalidOutput {
-                    earlierRejections.append("`\(route)`: \(rejection.reason)")
-                }
+                earlierRejections += rejection.draftingFeedback(route: route)
                 try recordRejection(
                     .authoringRouteRejected(
                         pass: pass, route: route.description, ordinal: Int(ordinal), cause: rejection.cause,
@@ -99,6 +102,11 @@ public struct AuthoringRoute: Sendable {
                 )
             }
         }
+    }
+
+    private func resolve(tried: Set<Route>, context: ActContext) throws -> RouteResolution {
+        try resolver.resolve(RouteRequest(kind: .authoring, repoRole: nil, excludedRoutes: tried),
+                             backingOffCLIs: context.journal.backingOffCLIs())
     }
 
     private enum Judgement {
@@ -112,6 +120,11 @@ public struct AuthoringRoute: Sendable {
         let reason: String
         let lastFailure: String
         var producedBreakdown = false
+
+        func draftingFeedback(route: Route) -> [String] {
+            guard cause == .overDescriptionBudget || cause == .invalidOutput else { return [] }
+            return ["`\(route)`: \(reason)"]
+        }
     }
 
     /// Judges a Route's outcome: an answer `accept` takes, or the rejection that excludes the Route. A
@@ -137,6 +150,8 @@ public struct AuthoringRoute: Sendable {
         case .failed, .contractViolation, .timedOut:
             let account = Self.failureAccount(of: outcome, pass: pass, route: route) ?? ""
             return .rejected(Rejection(cause: Self.cause(of: outcome), reason: account, lastFailure: account))
+        case .usageLimited:
+            throw AuthoringDispatchFault(reason: "agent CLI usage limit; authoring deferred")
         case .crashedUnknown(let cause):
             throw AuthoringDispatchFault(
                 reason: "\(pass.rawValue) on \(route) crashed with no outcome (\(cause)); a Crashed-Unknown "
@@ -155,7 +170,7 @@ public struct AuthoringRoute: Sendable {
             "\(pass.rawValue) on \(route) broke the result contract: \(error)"
         case .timedOut(let after):
             "\(pass.rawValue) on \(route) ran out of time after \(after.wholeMinutes) min"
-        case .completed, .crashedUnknown:
+        case .completed, .crashedUnknown, .usageLimited:
             nil
         }
     }
@@ -164,7 +179,7 @@ public struct AuthoringRoute: Sendable {
         switch outcome {
         case .contractViolation: .brokeResultContract
         case .timedOut: .timedOut
-        case .failed, .completed, .crashedUnknown: .exited
+        case .failed, .completed, .crashedUnknown, .usageLimited: .exited
         }
     }
 

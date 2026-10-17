@@ -21,8 +21,10 @@ extension FeatureVerification {
         var ordinal: Int64 = 0
         while true {
             let request = RouteRequest(kind: .authoring, repoRole: nil, override: .none, excludedRoutes: tried)
-            guard case .resolved(let resolved) = try resolver.resolve(request) else {
-                throw VerificationDispatchFault(reason: exhaustedReason(writers: writers, lastFailure: lastFailure))
+            let resolution = try resolver.resolve(request, backingOffCLIs: act.journal.backingOffCLIs())
+            guard case .resolved(let resolved) = resolution else {
+                throw VerificationDispatchFault(reason: resolution.usageBackoffAccount
+                    ?? exhaustedReason(writers: writers, lastFailure: lastFailure))
             }
             let route = resolved.route
             ordinal += 1
@@ -36,31 +38,45 @@ extension FeatureVerification {
                 continue
             }
             try record(report.origin, route: route, ordinal: Int(ordinal), context: act)
-            switch report.outcome {
-            case .completed(let result):
-                switch Self.verdicts(in: result, covering: pending) {
-                case .success(let verdicts):
-                    return (route, verdicts)
-                case .failure(let failure):
-                    tried.insert(route)
-                    lastFailure = "verifier on \(route) \(failure)"
-                }
-            case .failed(let exitStatus):
-                tried.insert(route)
-                lastFailure = "verifier on \(route) exited with status \(exitStatus)"
-            case .contractViolation(let error):
-                tried.insert(route)
-                lastFailure = "verifier on \(route) broke the result contract: \(error)"
-            case .timedOut(let after):
-                tried.insert(route)
-                lastFailure = "verifier on \(route) ran out of time after \(after.wholeMinutes) min"
-            case .crashedUnknown(let cause):
-                throw VerificationDispatchFault(
-                    reason: "verifier on \(route) crashed with no outcome (\(cause)); a Crashed-Unknown run "
-                        + "excludes no Route and ends Verification for this Act"
-                )
-            }
+            let judged = try judgeVerifier(report.outcome, pending: pending, route: route, act: act)
+            if let verdicts = judged.verdicts { return (route, verdicts) }
+            if !judged.usageLimited { tried.insert(route) }
+            lastFailure = judged.failure
         }
+    }
+
+    private struct JudgedVerifier {
+        let verdicts: [String: VerifiedClause]?
+        let failure: String?
+        var usageLimited = false
+    }
+
+    private func judgeVerifier(
+        _ outcome: RunOutcome, pending: [VerificationCandidate], route: Route, act: ActContext
+    ) throws -> JudgedVerifier {
+        let failure: String
+        switch outcome {
+        case .completed(let result):
+            switch Self.verdicts(in: result, covering: pending) {
+            case .success(let verdicts): return JudgedVerifier(verdicts: verdicts, failure: nil)
+            case .failure(let reason): failure = "verifier on \(route) \(reason)"
+            }
+        case .usageLimited:
+            _ = try act.recordUsageLimit(outcome, route: route)
+            return JudgedVerifier(
+                verdicts: nil, failure: "\(route.cli) usage limit; Verification waits for CLI backoff",
+                                  usageLimited: true)
+        case .failed(let exitStatus):
+            failure = "verifier on \(route) exited with status \(exitStatus)"
+        case .contractViolation(let error):
+            failure = "verifier on \(route) broke the result contract: \(error)"
+        case .timedOut(let after):
+            failure = "verifier on \(route) ran out of time after \(after.wholeMinutes) min"
+        case .crashedUnknown(let cause):
+            throw VerificationDispatchFault(reason: "verifier on \(route) crashed with no outcome (\(cause)); "
+                + "a Crashed-Unknown run excludes no Route and ends Verification for this Act")
+        }
+        return JudgedVerifier(verdicts: nil, failure: failure)
     }
 
     private static func verifierRequest(

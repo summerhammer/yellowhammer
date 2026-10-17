@@ -69,6 +69,7 @@ public struct AttemptHistory: Equatable, Sendable {
             $0.budgetEpoch == epoch && $0.endedAt != nil
                 && $0.result != AttemptOutcome.question.rawValue
                 && $0.result != AttemptOutcome.cancelled.rawValue
+                && $0.result != AttemptOutcome.usageLimited.rawValue
         }) else {
             return .routeFailure
         }
@@ -92,9 +93,9 @@ public struct AttemptHistory: Equatable, Sendable {
     public func consumption(inEpoch epoch: Int) -> AttemptConsumption {
         let ofEpoch = attempts.filter { $0.budgetEpoch == epoch }
         // An open Attempt (`result == nil`) counts as consumed: the row is written at dispatch precisely
-        // so an unclassified Attempt still binds the Bound. `question`, `cancelled` and `aborted` consume
+        // so an unclassified Attempt still binds the Bound. `question`, `cancelled`, `aborted` and `usage limited` consume
         // nothing: no resumable state to protect a budget for, and an abort is not the Route's failure.
-        let nonConsuming = [AttemptOutcome.question, .cancelled, .aborted].map(\.rawValue)
+        let nonConsuming = [AttemptOutcome.question, .cancelled, .aborted, .usageLimited].map(\.rawValue)
         let consumed = ofEpoch.filter { !nonConsuming.contains($0.result ?? "") }
         func count(_ outcome: AttemptOutcome) -> Int {
             ofEpoch.filter { $0.result == outcome.rawValue }.count
@@ -105,7 +106,7 @@ public struct AttemptHistory: Equatable, Sendable {
             roundsExhausted: count(.roundsExhausted),
             crashedUnknown: count(.crashedUnknown),
             succeeded: count(.success),
-            notConsumed: count(.question) + count(.cancelled) + count(.aborted)
+            notConsumed: count(.question) + count(.cancelled) + count(.aborted) + count(.usageLimited)
         )
     }
 }

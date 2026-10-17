@@ -202,6 +202,12 @@ extension CardRun {
         )
         try frame.recordDispatchOrigin(report.origin, attemptID: attempt.id, pass: pass, cli: route.cli)
         try frame.record(Self.step(of: pass), detail: Self.describe(report.outcome))
+        if case .usageLimited(let hint) = report.outcome {
+            try frame.revalidateLease()
+            try frame.journal.recordUsageLimit(route: route, resetHint: hint, runID: frame.context.act.runID,
+                act: frame.context.act.act, nightID: frame.context.act.night.id)
+            throw PassStop(ending: .usageLimited(beforeWorker: pass == .architect))
+        }
         if let ending = AttemptEnding(failedRun: report.outcome) {
             throw PassStop(ending: ending)
         }
@@ -272,6 +278,7 @@ extension CardRun {
     /// The kind of a run's outcome, never anything the model wrote.
     private static func describe(_ outcome: RunOutcome) -> String {
         switch outcome {
+        case .usageLimited: "usage-limited"
         case .completed: "completed"
         case .failed(let status): "failed(exit status \(status))"
         case .contractViolation: "contract-violation"

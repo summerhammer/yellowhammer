@@ -19,6 +19,9 @@ extension JournalEvent {
         reader: PayloadReader
     ) throws -> JournalEvent {
         switch type {
+        case .routeUsageLimited:
+            .routeUsageLimited(route: try reader.require("route"), cli: try reader.require("cli"),
+                               until: try reader.date("until"), resetHint: reader.payload?["reset_hint"])
         case .actStarted: .actStarted
         case .actEnded: .actEnded
         case .actIdle:

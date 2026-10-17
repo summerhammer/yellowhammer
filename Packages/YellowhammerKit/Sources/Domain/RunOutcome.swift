@@ -62,9 +62,12 @@ public enum RunOutcome: Equatable, Sendable {
     /// (``ResultFileError/isContractViolation``): the CLI answered, so the cause is attributable to the
     /// Route. A hard failure — consumes the Attempt and excludes the route (#445).
     case contractViolation(ResultFileError)
-    /// A non-zero exit status attributable to the CLI, recorded for route-failure classification. A
-    /// result file, if any, is NOT read: exit 0 is one of the two keys.
+    /// A non-zero exit status attributable to the CLI, after the adapter has ruled out a recognized
+    /// usage-limit refusal. A result file, if any, is NOT read: exit 0 is one of the two keys.
     case failed(exitStatus: Int32)
+    /// The CLI refused the pass because its account's usage limit was reached. The reset text is
+    /// an opaque hint, not a timestamp: the engine owns backoff and Attempt accounting (#547).
+    case usageLimited(resetHint: String?)
     /// Yellowhammer ended the run because the Project's pass timeout elapsed (`[limits] pass_timeout_minutes`).
     /// The CLI did not get to answer, so no result file is read. The engine's own decision, not an unknown
     /// crash: a hard failure that consumes the Attempt and excludes the Route (#507).
@@ -82,6 +85,8 @@ extension RunOutcome: CustomStringConvertible {
             "contractViolation(\(error))"
         case .failed(let exitStatus):
             "failed(exitStatus: \(exitStatus))"
+        case .usageLimited(let resetHint):
+            "usageLimited(\(resetHint ?? "reset time unavailable"))"
         case .timedOut(let after):
             "timedOut(after: \(after))"
         }
@@ -89,8 +94,8 @@ extension RunOutcome: CustomStringConvertible {
 }
 
 extension RunOutcome {
-    /// Applies the dual-key contract. Reads the file only when `end` is `.exited(status: 0)` — a
-    /// non-zero exit is already the answer, and the file is never consulted.
+    /// Applies the dual-key contract after adapter-specific usage-limit translation. Reads the file
+    /// only when `end` is `.exited(status: 0)`; a non-zero exit never consults the result file.
     public static func classify(end: RunEnd, resultFileAt url: URL, pass: RunPass) -> RunOutcome {
         guard case .exited(let status) = end, status == 0 else {
             return classify(nonZeroOrUnexited: end)

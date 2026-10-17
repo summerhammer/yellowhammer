@@ -60,6 +60,8 @@ public struct CardRouting: Sendable {
         /// it stands, untouched — no Attempt is recorded and the resolver is never asked (roadmap P8.7).
         /// The caller Blocks the Card; this type writes nothing but what selection already wrote.
         case attemptBudgetSpent(CardRecord)
+        /// All otherwise eligible Routes are temporarily unavailable; no Attempt or Block.
+        case backingOff(CardRecord)
     }
 
     /// Resolves and records for one Card. `repoRole` is the role of the Card's Repo and `override` the
@@ -103,7 +105,7 @@ public struct CardRouting: Sendable {
             override: override,
             excludedRoutes: try journal.excludedRoutes(cardID: card.id)
         )
-        var resolution = try resolver.resolve(request)
+        var resolution = try resolver.resolve(request, backingOffCLIs: journal.backingOffCLIs())
         if case .resolved(let resolved) = resolution, let override, let refusal = try await preflightRefusal(
             resolved, override: override
         ) {
@@ -117,6 +119,9 @@ public struct CardRouting: Sendable {
             )
             return .attempt(attempt, resolved)
         case .exhausted(let exhaustion):
+            if exhaustion.skipped.contains(where: { $0.reason == .usageLimit }) {
+                return .backingOff(card)
+            }
             _ = try journal.append(
                 .routeExhausted(cardID: card.id, issueID: card.issueID, reason: exhaustion.description),
                 act: act, runID: runID, nightID: nightID

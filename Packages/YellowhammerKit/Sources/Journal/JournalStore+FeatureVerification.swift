@@ -175,9 +175,11 @@ extension JournalStore {
                 sql: """
                 SELECT attempt.route_cli, attempt.route_model, attempt.route_effort
                 FROM attempt JOIN card ON card.id = attempt.card_id
-                WHERE card.cycle_id = ? ORDER BY attempt.id ASC
+                WHERE card.cycle_id = ? AND (
+                    attempt.classification IS NULL OR attempt.classification != ?
+                ) ORDER BY attempt.id ASC
                 """,
-                arguments: [cycleID]
+                arguments: [cycleID, AttemptEnding.usageLimitedBeforeWorkerClassification]
             )
             var seen: Set<Route> = []
             var ordered: [Route] = []
