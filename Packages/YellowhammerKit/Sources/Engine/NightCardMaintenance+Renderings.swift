@@ -9,6 +9,10 @@ extension NightCardMaintenance {
         // This Act renders the summary before its own terminal event, so the Night Summary counts it as ended.
         let renderingRunID = outbox.runID
         let verdict = try NightSummary.verdictLine(night: night, journal: journal, renderingRunID: renderingRunID)
+        let failureLines = try NightSummary.failureLines(
+            night: night, journal: journal, renderingRunID: renderingRunID,
+            consecutiveAuthoringFaultsMax: bounds.consecutiveAuthoringFaultsMax
+        )
         let findings = try authoringLines(night: night)
         let cardLines = try NightSummary.cardLines(night: night, journal: journal)
         let dispositionLines = try NightSummary.dispositionLines(night: night, journal: journal)
@@ -36,7 +40,8 @@ extension NightCardMaintenance {
         var renderings: [String] = []
         for compaction in ladder {
             let rendered = NightCardBlock.completed(
-                night: night, projectID: journal.projectID, verdictLine: verdict, authoringFindings: findings,
+                night: night, projectID: journal.projectID, verdictLine: verdict, failureLines: failureLines,
+                authoringFindings: findings,
                 cardLines: cardLines, dispositionLines: dispositionLines, pullRequestLines: pullRequestLines,
                 answerLines: answerLines, anomalies: anomalies, crashesAndReclaims: crashesAndReclaims,
                 leftoverProcesses: leftoverProcesses,
