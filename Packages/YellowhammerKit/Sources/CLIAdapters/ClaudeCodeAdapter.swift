@@ -123,7 +123,8 @@ public struct ClaudeCodeAdapter: CLIAdapter {
     ///
     /// Containment (issue #546) is the `--settings` file ``settingsJSON(for:protectedDirectories:)``
     /// writes: the read-only passes run in a sandbox that denies Yellowhammer's configuration directory
-    /// and the Keychains and refuses the vendor APIs; the worker gets permission deny rules only.
+    /// and the Keychains and refuses the vendor APIs; the worker is never sandboxed by Yellowhammer
+    /// (issue #553, ruled 2026-10-17; see `doc/agent-pass-containment.md`) and gets permission deny rules only.
     private static func permissions(for pass: RunPass) -> Permissions {
         switch pass {
         case .worker:
@@ -154,7 +155,8 @@ public struct ClaudeCodeAdapter: CLIAdapter {
     /// read exits 44 without a prompt, the configuration directory is "Operation not permitted", and the
     /// vendor APIs are refused, while `git` and the model API still work.
     ///
-    /// The worker is **not** sandboxed, and its deny rules are best-effort. SwiftPM runs its own
+    /// The worker is never sandboxed by Yellowhammer (issue #553, ruled 2026-10-17; see
+    /// `doc/agent-pass-containment.md`), and its deny rules are best-effort. SwiftPM runs its own
     /// `sandbox-exec` for package manifests, and a nested Seatbelt fails (`sandbox_apply: Operation not
     /// permitted`), so `swift build` would break under claude's sandbox. Rules on `Read`/`Edit`, on
     /// `security` and on `WebFetch` stop the direct routes, but a model can still reach the same
