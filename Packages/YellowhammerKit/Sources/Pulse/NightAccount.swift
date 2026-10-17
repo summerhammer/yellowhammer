@@ -109,13 +109,20 @@ public struct NightAccount: Identifiable, Equatable, Sendable {
         public var headline: String
         public var detail: String?
         public var isProblem: Bool
+        /// The Act whose log the app can point to: set only on a problem entry that records an Act
+        /// (morning-report/disclose-a-failure#log-path); nil on every running or successful entry.
+        public var failedAct: Act?
 
-        public init(id: Int64, occurredAt: Date, headline: String, detail: String? = nil, isProblem: Bool = false) {
+        public init(
+            id: Int64, occurredAt: Date, headline: String, detail: String? = nil, isProblem: Bool = false,
+            failedAct: Act? = nil
+        ) {
             self.id = id
             self.occurredAt = occurredAt
             self.headline = headline
             self.detail = detail
             self.isProblem = isProblem
+            self.failedAct = failedAct
         }
     }
 }

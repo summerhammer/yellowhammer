@@ -156,8 +156,21 @@ final class SetupEngine {
             return URL(filePath: stubPath).deletingLastPathComponent()
                 .appending(component: filename, directoryHint: .notDirectory)
         }
+        if let act = Act(rawValue: command), let project = ProjectID(rawValue: projectID) {
+            var home = FileManager.default.homeDirectoryForCurrentUser.path(percentEncoded: false)
+            while home.count > 1, home.hasSuffix("/") { home.removeLast() }
+            return URL(
+                filePath: act.logPath(projectID: project, homeDirectory: home), directoryHint: .notDirectory
+            )
+        }
         return FileManager.default.homeDirectoryForCurrentUser
             .appending(components: "Library", "Logs", "Yellowhammer", filename, directoryHint: .notDirectory)
+    }
+
+    /// An Act's log, the one way the app names it: the LaunchAgent's own file, or — under the UI-test stub
+    /// override — the file beside the stub, so a UI test never reads the real user's Logs.
+    static func logURL(projectID: String, act: Act) -> URL {
+        logURL(projectID: projectID, command: act.rawValue)
     }
 
     /// Launches `arguments` fully detached from the app (an Act or P14.7's rehearsal Night): the app must remain
