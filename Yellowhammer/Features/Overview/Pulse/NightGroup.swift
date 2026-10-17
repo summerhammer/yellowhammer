@@ -9,7 +9,9 @@ import SwiftUI
 /// along a playhead, take the Pulse's place in the main area, and the Inspector shows the Night's facts and
 /// its way out to the Night Card.
 ///
-/// The Journal read supplies a factual failure count; a full Night Summary remains unknown.
+/// The Journal read supplies a factual failure count; a full Night Summary remains unknown. Under the verdict,
+/// each Failure Notice no later run recovered gets a line that opens the Night's account at the notice's first
+/// event (spec: morning-report/disclose-a-failure).
 struct NightGroup: View {
     let night: NightPulse?
     @Environment(\.openPulseDestination) private var openDestination
@@ -37,6 +39,20 @@ struct NightGroup: View {
                     }
                     .help("The Night Card's link is recorded when the engine next reads the board")
                     .accessibilityIdentifier("night-card-verdict")
+                }
+                ForEach(night.failureNotices.filter { !$0.isRecovered }) { notice in
+                    Button {
+                        openDestination(.nightAccount(night.id, at: notice.firstOccurredAt))
+                    } label: {
+                        Label(notice.displayLine, systemImage: "exclamationmark.triangle.fill")
+                            .font(.callout)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Show it in the Night\u{2019}s account")
+                    .accessibilityIdentifier("night-failure-notice")
                 }
                 HStack(spacing: 8) {
                     PulseCountBadge(text: night.state.rawValue, style: night.state.style)
@@ -91,6 +107,17 @@ private struct NightDispositionCounts: View {
 private extension NightPulse {
     /// `verdict_line`, or a stated unknown while it is nil (only Engine's `NightSummary` computes it).
     var displayVerdict: String { verdictLine ?? "verdict unknown" }
+}
+
+private extension FailureNotice {
+    /// `Authoring “X” failed: over the description budget`, with `· 5 times, 14:00–14:21` when the notice
+    /// folds more than one run.
+    var displayLine: String {
+        guard count > 1 else { return headline }
+        let first = firstOccurredAt.formatted(date: .omitted, time: .shortened)
+        let last = lastOccurredAt.formatted(date: .omitted, time: .shortened)
+        return "\(headline) · \(count) times, \(first)\u{2013}\(last)"
+    }
 }
 
 private extension DispositionCount {

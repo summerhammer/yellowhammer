@@ -23,6 +23,9 @@ public enum PulseSelection: Hashable, Sendable {
 /// default browser, or the vendor's app, through `openURL`. The app composes no URL of its own.
 public enum PulseDestination: Hashable, Sendable {
     case inspector(PulseSelection)
+    /// A Night's account, by the Night's row id, opened with its playhead at `at`: where a Failure Notice starts.
+    /// `.inspector(.night(id))` opens the same account on its first problem.
+    case nightAccount(Int64, at: Date)
     case nightCard(URL)
     case settings
     /// The Settings window's Boards pane, where a Board Connection or Operator identity flag is fixed: its

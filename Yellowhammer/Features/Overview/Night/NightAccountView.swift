@@ -22,6 +22,8 @@ struct NightAccountView: View {
     let projectName: String
     /// The landing snapshot's instant. A new one means the snapshot was re-read, so the account is too.
     let asOf: Date
+    /// Where a Failure Notice asked for the playhead, for this Night; nil opens the account on its first problem.
+    let playheadRequest: NightPlayheadRequest?
     /// Returns to the Pulse.
     let close: () -> Void
 
@@ -57,7 +59,7 @@ struct NightAccountView: View {
             ProgressView()
                 .accessibilityIdentifier("night-account-loading")
         case let .account(account):
-            NightEditor(account: account)
+            NightEditor(account: account, playheadRequest: playheadRequest)
         case .noSuchNight:
             Text("The Journal no longer records this Night.")
                 .foregroundStyle(.secondary)

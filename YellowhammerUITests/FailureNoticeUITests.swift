@@ -28,6 +28,50 @@ final class FailureNoticeUITests: XCTestCase {
     }
 
     func testAuthoringFaultMarksTheSidebarRowAndShowsInHealth() throws {
+        try seedFault()
+        app.launch()
+
+        let mark = element("sidebar-archive-failure")
+        XCTAssertTrue(mark.waitForExistence(timeout: 10))
+        XCTAssertEqual(mark.label, "Authoring “Schedule read” failed: over the description budget")
+        XCTAssertEqual(element("sidebar-archive-status").label, "idle")
+        XCTAssertFalse(element("sidebar-owner-failure").exists)
+        XCTAssertFalse(element("sidebar-reader-failure").exists)
+
+        element("sidebar-archive").click()
+        let health = element("pulse-summary-health")
+        if health.waitForExistence(timeout: 10) { health.click() }
+        let row = app.descendants(matching: .any).matching(identifier: "health-flag")
+            .matching(NSPredicate(format: "label CONTAINS %@", "is 12,153 of 10,000 description budget")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertTrue(row.label.contains("Shorten or split the Feature's spec first"))
+    }
+
+    /// Tonight lists the unrecovered fault under its header, and choosing it opens the Night's account with the
+    /// playhead at the fault, not on the Night's first problem (morning-report/disclose-a-failure#where).
+    func testATonightFailureLineOpensTheNightsAccountAtTheFault() throws {
+        try seedFault()
+        app.launch()
+
+        let row = element("sidebar-archive")
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.click()
+        let line = element("night-failure-notice")
+        XCTAssertTrue(line.waitForExistence(timeout: 10), "Tonight shows no failure line")
+        XCTAssertTrue(line.label.contains("Authoring “Schedule read” failed: over the description budget"))
+        line.click()
+
+        let clock = element("night-account-clock")
+        XCTAssertTrue(clock.waitForExistence(timeout: 10), "the Night's account never opened")
+        let value = clock.value as? String ?? ""
+        XCTAssertEqual(value.isEmpty ? clock.label : value, Self.faultAt.formatted(.dateTime.hour().minute().second()))
+    }
+
+    /// The seeded fault's time, 2026-09-21T21:00:00Z.
+    private static let faultAt = Date(timeIntervalSince1970: 1_790_024_400)
+
+    /// Seeds one over-budget authoring fault into the archive Project's Night.
+    private func seedFault() throws {
         let journals = base.appending(component: "journals")
         try FileManager.default.createDirectory(at: journals, withIntermediateDirectories: true)
         let journal = journals.appending(component: "archive.db")
@@ -46,22 +90,6 @@ final class FailureNoticeUITests: XCTestCase {
         try seed.run()
         seed.waitUntilExit()
         XCTAssertEqual(seed.terminationStatus, 0)
-        app.launch()
-
-        let mark = element("sidebar-archive-failure")
-        XCTAssertTrue(mark.waitForExistence(timeout: 10))
-        XCTAssertEqual(mark.label, "Authoring “Schedule read” failed: over the description budget")
-        XCTAssertEqual(element("sidebar-archive-status").label, "idle")
-        XCTAssertFalse(element("sidebar-owner-failure").exists)
-        XCTAssertFalse(element("sidebar-reader-failure").exists)
-
-        element("sidebar-archive").click()
-        let health = element("pulse-summary-health")
-        if health.waitForExistence(timeout: 10) { health.click() }
-        let row = app.descendants(matching: .any).matching(identifier: "health-flag")
-            .matching(NSPredicate(format: "label CONTAINS %@", "is 12,153 of 10,000 description budget")).firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 10))
-        XCTAssertTrue(row.label.contains("Shorten or split the Feature's spec first"))
     }
 
     private func element(_ identifier: String) -> XCUIElement {

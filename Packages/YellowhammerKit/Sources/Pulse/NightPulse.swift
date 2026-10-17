@@ -20,6 +20,9 @@ public struct NightPulse: Equatable, Sendable {
     public var nightCard: LinearIssueLink?
     /// The headline of the Night's first Act failure; the Sidebar's failure mark. Nil when none failed.
     public var firstFailureHeadline: String?
+    /// The Night's Act failures in Journal order, consecutive runs failing for the same reason folded into one.
+    /// Recovered ones are kept, so Tonight and Health count the same runs; Tonight lists only the others.
+    public var failureNotices: [FailureNotice]
 
     public init(
         id: Int64,
@@ -29,7 +32,8 @@ public struct NightPulse: Equatable, Sendable {
         cardsByDisposition: [DispositionCount],
         cardsAbsence: String = "No Cards touched",
         nightCard: LinearIssueLink? = nil,
-        firstFailureHeadline: String? = nil
+        firstFailureHeadline: String? = nil,
+        failureNotices: [FailureNotice] = []
     ) {
         self.id = id
         self.state = state
@@ -39,6 +43,37 @@ public struct NightPulse: Equatable, Sendable {
         self.cardsAbsence = cardsAbsence
         self.nightCard = nightCard
         self.firstFailureHeadline = firstFailureHeadline
+        self.failureNotices = failureNotices
+    }
+}
+
+/// One Failure Notice: consecutive Act runs of a Night that failed for the same recorded reason
+/// (morning-report/disclose-a-failure#one-notice-per-run).
+public struct FailureNotice: Identifiable, Equatable, Sendable {
+    /// `Authoring “X” failed: over the description budget`: the failure's headline, which names its cause class.
+    public var headline: String
+    /// The runs folded into this notice.
+    public var count: Int
+    /// When the notice's first failure, and its last, were recorded.
+    public var firstOccurredAt: Date
+    public var lastOccurredAt: Date
+    /// The Journal event the notice starts at.
+    public var firstEventID: Int64
+    /// Whether a later run got past this notice's cause, by Health's recovery rule.
+    public var isRecovered: Bool
+
+    public var id: Int64 { firstEventID }
+
+    public init(
+        headline: String, count: Int = 1, firstOccurredAt: Date, lastOccurredAt: Date, firstEventID: Int64,
+        isRecovered: Bool = false
+    ) {
+        self.headline = headline
+        self.count = count
+        self.firstOccurredAt = firstOccurredAt
+        self.lastOccurredAt = lastOccurredAt
+        self.firstEventID = firstEventID
+        self.isRecovered = isRecovered
     }
 }
 

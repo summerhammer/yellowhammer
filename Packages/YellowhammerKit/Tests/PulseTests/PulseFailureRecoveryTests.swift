@@ -253,3 +253,68 @@ struct RouteRejectionAccountTests {
         #expect(broken.isProblem)
     }
 }
+
+@Suite("Failure Notices in Tonight")
+struct PulseFailureNoticeTests {
+    @Test("Consecutive runs failing for one reason are one notice, with a count and a span")
+    func consecutiveRunsFoldIntoOneNotice() throws {
+        let fixture = RecoveryFixture()
+        var night = try Night(fixture.open())
+        try night.add(.actIncomplete(reason: scopeReason), run: 0)
+        for _ in 0..<2 {
+            try night.add(.actIncomplete(reason: scopeReason), run: night.run())
+        }
+
+        let pulse = try #require(try night.read().night)
+        let notice = try #require(pulse.failureNotices.first)
+        #expect(pulse.failureNotices.count == 1)
+        #expect(notice.count == 3)
+        #expect(notice.headline == "The author Act did no work: the board scope is unresolved")
+        #expect(notice.firstOccurredAt == tick(10))
+        #expect(notice.lastOccurredAt == tick(30))
+        #expect(!notice.isRecovered)
+        #expect(pulse.verdictLine?.contains("3 Act runs failed") == true)
+    }
+
+    @Test("A run failing for another reason in between starts a new notice")
+    func anotherReasonBetweenSplitsTheNotice() throws {
+        let fixture = RecoveryFixture()
+        var night = try Night(fixture.open())
+        try night.add(.actIncomplete(reason: scopeReason), run: 0)
+        try night.add(.featureBreakdownRejected(name: featureName, reason: overBudget), run: night.run())
+        try night.add(.actIncomplete(reason: scopeReason), run: night.run())
+
+        let notices = try #require(try night.read().night).failureNotices
+        #expect(notices.map(\.count) == [1, 1, 1])
+        #expect(notices.map(\.headline) == [
+            "The author Act did no work: the board scope is unresolved",
+            "Authoring “Feature” failed: over the description budget",
+            "The author Act did no work: the board scope is unresolved"
+        ])
+    }
+
+    @Test("A notice a later run recovered is kept, marked recovered, as Health marks its row")
+    func recoveredNoticeIsKeptAndMarked() throws {
+        let fixture = RecoveryFixture()
+        var night = try Night(fixture.open())
+        try night.add(.featureBreakdownRejected(name: featureName, reason: overBudget), run: 0)
+        let later = night.run()
+        try night.add(selected(), run: later)
+        try night.add(accepted(), run: later)
+        try night.add(authored(), run: later)
+
+        let snapshot = try night.read()
+        let notice = try #require(snapshot.night?.failureNotices.first)
+        #expect(notice.isRecovered)
+        #expect(snapshot.health?.first?.recoveredAt != nil)
+    }
+
+    @Test("A Night with no Act failure has no notice")
+    func quietNightHasNoNotice() throws {
+        let fixture = RecoveryFixture()
+        var night = try Night(fixture.open())
+        try night.add(selected(), run: 0)
+
+        #expect(try #require(try night.read().night).failureNotices.isEmpty)
+    }
+}
