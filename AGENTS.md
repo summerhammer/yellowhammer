@@ -237,6 +237,13 @@ there; the repo-local consequences are:
   chosen. The one real artifact is the semantic text-style table, which maps 1:1 onto
   SwiftUI `Font.TextStyle`. Use Apple HIG defaults; do not invent brand values.
 
+## Issues
+
+Every GitHub issue an agent creates ends with a `## Recommended models` section: a
+table of models suited to the whole task (preferred first, with alternatives from
+Opus 5.5, Sonnet 5.5, Codex Sol 6.1, Codex Astra 6, Gemini Flash 3.8, Gemini Argon)
+and an effort level for each, plus one line on why.
+
 ## Git
 
 `origin`: `summerhammer/yellowhammer`; trunk: `main`. The main checkout's parent folder
