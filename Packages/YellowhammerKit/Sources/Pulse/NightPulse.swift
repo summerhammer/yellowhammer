@@ -92,10 +92,17 @@ public struct HealthFlag: Identifiable, Equatable, Sendable {
         self.lastError = lastError
     }
 
+    /// Board repair is offered only for current provisioning failures, including the Act's recorded refusal.
+    public var canRepairBoard: Bool {
+        recoveredAt == nil && (kind == .boardProvisioningFailure
+            || (kind == .actFailure
+                && detail.contains("The Project's board scope is unresolved, so this Act did no work.")))
+    }
+
     /// Settings destination for doctor findings. Journal failures are read-only Health rows.
     public var destination: PulseDestination {
         switch kind {
-        case .staleOperatorIdentity, .appInstallationRevoked: .linearWorkspaces
+        case .staleOperatorIdentity, .appInstallationRevoked, .boardProvisioningFailure: .linearWorkspaces
         case .codeHostingConnectionRefused: .codeHosting
         case .probeFailure, .actFailure, .undeliveredBoardWrites: .settings
         }
@@ -107,6 +114,7 @@ public enum HealthFlagKind: String, CaseIterable, Sendable {
     case appInstallationRevoked = "Board Connection revoked"
     case codeHostingConnectionRefused = "Code Hosting Connection refused"
     case probeFailure = "probe failure"
+    case boardProvisioningFailure = "board provisioning failure"
     case actFailure = "Act failure"
     case undeliveredBoardWrites = "undelivered Board writes"
 }

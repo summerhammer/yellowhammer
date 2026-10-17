@@ -11,7 +11,8 @@ extension Doctor {
     /// once, there. The `Override` group is verified for presence only: its children are Routes, which
     /// no Act requires of the board (OQ136).
     func boardProvisioningFindings(
-        project: ProjectConfiguration, installation: LinearInstallation, scope: DoctorInstallationScope
+        project: ProjectConfiguration, installation: LinearInstallation, routingTable: RoutingTable,
+        scope: DoctorInstallationScope
     ) async -> [DoctorFinding] {
         let prefix = "Project \(project.id) (Board Connection \(installation.name)): " // glossary:ignore GL001
         func provisioning(_ severity: DoctorSeverity, _ message: String) -> DoctorFinding {
@@ -23,14 +24,32 @@ extension Doctor {
         let board = bindProvisioning(installation, project.linearProject)
         let report: ProvisioningReport
         do {
-            report = try await BoardProvisioner.verify(
-                using: board, projectName: project.name, routingTable: RoutingTable(entries: [])
-            )
+            if fix {
+                report = try await BoardProvisioner.provision(
+                    using: board, projectName: project.name, createIn: nil, routingTable: routingTable
+                )
+            } else {
+                report = try await BoardProvisioner.verify(
+                    using: board, projectName: project.name, routingTable: RoutingTable(entries: [])
+                )
+            }
         } catch {
             // Never silent: a board doctor cannot read is not a board that passes.
-            return [provisioning(.failure, "the team's workflow states and labels could not be read: \(error)")]
+            return [provisioning(
+                .failure, "the team's workflow states and labels could not be \(fix ? "repaired" : "read"): \(error)"
+            )]
         }
-        let failures = report.unfinishedSteps
+        let failures = report.unfinishedSteps + (fix ? report.entries.compactMap { entry -> String? in
+            switch entry.outcome {
+            case .refused(let reason), .notAMember(let reason):
+                return "\(entry.subject): \(reason)"
+            case .missing(let reason):
+                if case .linearProject = entry.subject { return "\(entry.subject): \(reason)" }
+                return nil
+            default:
+                return nil
+            }
+        } : [])
         guard !failures.isEmpty else {
             let teams = report.linearProject?.teams.map(\.key).joined(separator: ", ") ?? ""
             guard !teams.isEmpty else { return [] }

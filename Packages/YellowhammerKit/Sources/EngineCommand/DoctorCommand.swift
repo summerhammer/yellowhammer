@@ -14,7 +14,7 @@ public struct DoctorCommand: AsyncParsableCommand {
         abstract: "Check configuration, Linear authorization, GitHub, git, probes, LaunchAgents and Orca ADE."
     )
 
-    @Flag(help: "Repair schedules and missing job executables, unload orphaned jobs, and repair the yh symlink.")
+    @Flag(help: "Create missing Linear board items; repair schedules, executables, orphaned jobs and the yh symlink.")
     public var fix: Bool = false
 
     @Flag(help: "With --fix, also repoint jobs naming a different Yellowhammer copy at the running yh.")

@@ -369,6 +369,7 @@ extension PulseSnapshot {
             case .codeHostingConnectionRefused: "Code Hosting Connection github: GitHub rejected the token."
             case .probeFailure: "codex failed its Probe: exit status 127."
             case .actFailure: "build · main: Worktree allocation failed."
+            case .boardProvisioningFailure: "The board is missing a provisioned label"
             case .undeliveredBoardWrites: "Linear not updated"
             }
             return HealthFlag(

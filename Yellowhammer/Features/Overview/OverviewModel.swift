@@ -37,6 +37,28 @@ final class OverviewModel {
     /// Why the configuration could not be read at all, in the loader's own words.
     private(set) var configurationFailure: String?
 
+    private(set) var repairingBoard: ProjectID?
+    private(set) var boardRepairResult: (project: ProjectID, message: String)?
+
+    /// Trigger the bundled CLI and show its report. All board decisions and writes belong to `yh`.
+    func repairBoard(for project: ProjectID) async {
+        guard repairingBoard == nil, !ConfigurationDirectory.isOverridden || SetupEngine.isStubbed else { return }
+        repairingBoard = project
+        boardRepairResult = nil
+        defer { repairingBoard = nil }
+        var lines: [String] = []
+        do {
+            let status = try await SetupEngine().run(
+                arguments: ["doctor", "--fix", "--check", "linear", "--project", project.rawValue]
+            ) { lines.append($0) }
+            let title = status == 0 ? "Board repair finished" : "Board repair has unfinished steps"
+            boardRepairResult = (project, ([title] + lines).joined(separator: "\n"))
+        } catch {
+            boardRepairResult = (project, "Board repair could not run: \(error)")
+        }
+        await load()
+    }
+
     private var journalSnapshot: LandingSnapshot?
     /// The rows of `yh doctor --json`, decoded once and filtered per Project in `snapshot`. Nil until
     /// `yh doctor` has been read, and whenever it cannot be.

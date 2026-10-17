@@ -110,7 +110,8 @@ public enum DispositionLabelsError: Error, Equatable, CustomStringConvertible {
     public var description: String {
         switch self {
         case .missing(let group, let label):
-            "The label \(label) in group \(group) is missing from the board; run `yh setup` to provision it"
+            "The label \(label) in group \(group) is missing from the board; "
+                + "run `yh doctor --fix --check linear` to provision it"
         }
     }
 }

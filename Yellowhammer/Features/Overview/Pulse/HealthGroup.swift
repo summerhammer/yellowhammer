@@ -2,12 +2,16 @@ import Pulse
 import SwiftUI
 
 /// The Pulse's Health group: recorded Act failures, undelivered Board writes and `yh doctor` findings. Runtime failures show
-/// their reason, count and last occurrence; doctor findings open Settings, where the Operator acts.
+/// their reason, count and last occurrence; provisioning failures offer Repair, and other doctor findings open Settings.
 /// Nil states that doctor was not read when there are no recorded failures to show.
 struct HealthGroup: View {
     let health: [HealthFlag]?
     let deliverNow: () -> Void
     let canDeliverNow: Bool
+    let repairBoard: () -> Void
+    let canRepairBoard: Bool
+    let isRepairingBoard: Bool
+    let boardRepairResult: String?
     @Environment(\.openPulseDestination) private var openDestination
 
     var body: some View {
@@ -23,7 +27,15 @@ struct HealthGroup: View {
                     .accessibilityIdentifier("health-absence")
             case let flags?:
                 ForEach(flags) { flag in
-                    if flag.kind == .actFailure {
+                    if flag.canRepairBoard {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HealthFlagRow(flag: flag)
+                            Button("Repair", action: repairBoard)
+                                .buttonStyle(.link)
+                                .disabled(!canRepairBoard)
+                                .accessibilityIdentifier("pulse-repair-board")
+                        }
+                    } else if flag.kind == .actFailure {
                         HealthFlagRow(flag: flag)
                     } else if flag.kind == .undeliveredBoardWrites {
                         VStack(alignment: .leading, spacing: 6) {
@@ -39,6 +51,16 @@ struct HealthGroup: View {
                             .help(help(for: flag.destination))
                     }
                 }
+            }
+            if isRepairingBoard {
+                ProgressView("Repairing board…")
+                    .accessibilityIdentifier("pulse-repair-board-progress")
+            }
+            if let boardRepairResult {
+                Text(boardRepairResult)
+                    .font(.callout)
+                    .textSelection(.enabled)
+                    .accessibilityIdentifier("pulse-repair-board-result")
             }
             Button("Open Settings") { openDestination(settingsDestination) }
                 .buttonStyle(.link)

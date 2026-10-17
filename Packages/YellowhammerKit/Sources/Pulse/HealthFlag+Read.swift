@@ -12,7 +12,7 @@ extension HealthFlag {
     }
 
     /// The flags `project`'s Health group shows: stale Operator identity, Board Connection revoked, refused
-    /// Code Hosting Connection, and probe failures, in `HealthFlagKind` order. Each flag's detail is the finding's own message, so the
+    /// Code Hosting Connection, board provisioning failures, and probe failures, in `HealthFlagKind` order. Each flag's detail is the finding's own message, so the
     /// app invents no wording.
     ///
     /// - Probe failures have no installation scope (Agent CLIs are machine-wide), so they appear on every
@@ -22,7 +22,7 @@ extension HealthFlag {
     ///   never of one only other Projects use.
     /// - A row whose `projects` is empty (an installation or connection no Project uses) is on no Project.
     /// - An installation or connection row whose `projects` is nil is dropped, never broadcast to every Project.
-    /// - A finding that is none of the four flags (git, `launchd`, a Project naming a missing
+    /// - A finding that is none of these flags (git, `launchd`, a Project naming a missing
     ///   installation or connection, a Linear that cannot be reached) is not a Health flag, and is left to `yh doctor`.
     public static func flags(in rows: [DoctorFindingRow], for project: ProjectID) -> [HealthFlag] {
         let flags = rows.compactMap { flag(for: $0, project: project) }
@@ -41,6 +41,8 @@ extension HealthFlag {
         switch (row.check, row.subject, row.severity) {
         // Warned both when the configured Operator identity is no longer a candidate and when none is
         // configured: either way Waiting on You issues go unassigned (OQ66).
+        case ("linear", "provisioning", "failure"):
+            .boardProvisioningFailure
         case ("linear", "operator", "warning"):
             .staleOperatorIdentity
         // No Installation token pair at all.

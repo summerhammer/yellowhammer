@@ -43,7 +43,7 @@ extension ProvisioningReport {
         case .collision:
             let existing = entry.collidesWith ?? "an existing item of the same name"
             return "\(entry.subject) is not provisioned: its name is held by the \(existing); "
-                + "rename or delete that one in Linear, then re-run `yh setup`"
+                + "rename or delete that one in Linear, then run `yh doctor --fix --check linear`"
         case .permissionRefused(let reason):
             return "\(entry.subject): permission refused (\(reason))"
         case .present, .created, .blocked, .notAMember, .refused:
@@ -54,7 +54,7 @@ extension ProvisioningReport {
     private func groupIsPresent(_ group: String, team: BoardTeam) -> Bool {
         entries.contains { entry in
             guard case .labelGroup(group, let groupTeam) = entry.subject, groupTeam == team else { return false }
-            return entry.outcome == .present
+            return entry.outcome == .present || entry.outcome == .created
         }
     }
 }

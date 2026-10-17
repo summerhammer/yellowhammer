@@ -24,8 +24,12 @@ extension Doctor {
         }
         var findings: [DoctorFinding] = []
         for installation in installations {
-            let served = configuration.projects.filter { $0.linearInstallationName == installation.name }
-            findings += await installationFindings(installation, serving: served)
+            let served = configuration.projects.filter {
+                $0.linearInstallationName == installation.name && (projectFilter == nil || $0.id == projectFilter)
+            }
+            // Filter before a repair can write, including other Projects on this Board Connection.
+            if projectFilter != nil, served.isEmpty { continue }
+            findings += await installationFindings(installation, serving: served, configuration: configuration)
         }
         return findings + missing
     }
@@ -56,7 +60,7 @@ extension Doctor {
     }
 
     private func installationFindings(
-        _ installation: LinearInstallation, serving served: [ProjectConfiguration]
+        _ installation: LinearInstallation, serving served: [ProjectConfiguration], configuration: Configuration
     ) async -> [DoctorFinding] {
         let projectIDs = served.map(\.id)
         func scope(
@@ -87,13 +91,14 @@ extension Doctor {
         }
 
         return await authorizedInstallationFindings(
-            installation: installation, serving: served, members: members, scope: installationScope
+            installation: installation, serving: served, members: members, scope: installationScope,
+            configuration: configuration
         )
     }
 
     private func authorizedInstallationFindings(
         installation: LinearInstallation, serving served: [ProjectConfiguration], members: [BoardMember],
-        scope installationScope: DoctorInstallationScope
+        scope installationScope: DoctorInstallationScope, configuration: Configuration
     ) async -> [DoctorFinding] {
         var findings = [
             linearFinding(
@@ -119,6 +124,7 @@ extension Doctor {
             guard membership.allSatisfy({ $0.severity == .pass }) else { continue }
             findings += await boardProvisioningFindings(
                 project: project, installation: installation,
+                routingTable: configuration.routingTable(for: project.id) ?? RoutingTable(entries: []),
                 scope: DoctorInstallationScope(
                     name: installation.name, workspace: installation.workspace.rawValue,
                     workspaceName: installationScope.workspaceName,

@@ -17,11 +17,12 @@ public struct BoardScopeUnresolved: Error, Equatable, CustomStringConvertible {
     /// names them (OQ85 item 2), then the fix.
     public var notificationReason: String {
         "No work ran: the Linear board is not fully provisioned: " + items.joined(separator: "; ")
-            + ". Re-run `yh setup` — `yh doctor` lists every item."
+            + ". Run `yh doctor --fix --check linear` — `yh doctor` lists every item."
     }
 
     public var description: String {
-        "The Project's board scope is unresolved, so this Act did no work. Re-run `yh setup`, or create the "
+        "The Project's board scope is unresolved, so this Act did no work. "
+            + "Run `yh doctor --fix --check linear`, or create the "
             + "item in Linear (`yh doctor` lists what is missing): " + steps.joined(separator: "; ")
     }
 }
