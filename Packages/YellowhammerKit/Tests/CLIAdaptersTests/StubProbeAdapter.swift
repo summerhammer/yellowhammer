@@ -6,7 +6,8 @@ import Foundation
 /// hands its stub `/bin/sh` executable the instruction, pass and resume session as plain argv, and
 /// its `collect` reads back two conventions the stub writes to stdout — `SESSION:<id>` and
 /// `RESULT:<json>` — mirroring how the real adapters read structured stdout and materialize
-/// `result.json`.
+/// `result.json`. Every launch also records the dispatch's protected directories in the run
+/// directory (``protectedDirectoriesFileName``), so a test can see what each probe dispatch carried.
 struct StubProbeAdapter: CLIAdapter {
     let cli = "stub"
     let adapterVersion = "test"
@@ -15,6 +16,10 @@ struct StubProbeAdapter: CLIAdapter {
     func launch(for dispatch: CLIDispatch) throws(CLIAdapterError) -> AgentCLILaunch {
         try validateRoute(dispatch)
         let resultFile = try prepareRunDirectory(dispatch)
+        let recorded = dispatch.protectedDirectories.joined(separator: "\n")
+        try? Data(recorded.utf8).write(
+            to: dispatch.runDirectory.appendingPathComponent(Self.protectedDirectoriesFileName)
+        )
         let arguments = [dispatch.instruction, dispatch.pass.rawValue, dispatch.resume?.rawValue ?? ""]
 
         return AgentCLILaunch(
@@ -49,5 +54,6 @@ struct StubProbeAdapter: CLIAdapter {
         return session
     }
 
+    static let protectedDirectoriesFileName = "protected-directories.txt"
     private static let stdoutFileName = "stdout.txt"
 }

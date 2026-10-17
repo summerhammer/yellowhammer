@@ -12,6 +12,9 @@ public struct ProbeReport: Equatable, Sendable {
     public let resultFileOnCleanExit: ProbeFinding
     public let processContainment: ProbeFinding
     public let sessionResumption: ProbeFinding
+    /// Whether a read-only pass was kept from the Keychain, Yellowhammer's configuration directory
+    /// and Linear (issue #557). Recorded, never gating.
+    public let stateContainment: ProbeFinding
     /// Non-nil whenever any finding above is not ``ProbeFinding/passed``: one Operator-facing
     /// sentence per non-passed finding, joined with `"; "`.
     public let reason: String?
@@ -27,6 +30,7 @@ public struct ProbeReport: Equatable, Sendable {
         resultFileOnCleanExit: ProbeFinding,
         processContainment: ProbeFinding,
         sessionResumption: ProbeFinding,
+        stateContainment: ProbeFinding,
         reason: String?,
         workDirectory: URL
     ) {
@@ -37,6 +41,7 @@ public struct ProbeReport: Equatable, Sendable {
         self.resultFileOnCleanExit = resultFileOnCleanExit
         self.processContainment = processContainment
         self.sessionResumption = sessionResumption
+        self.stateContainment = stateContainment
         self.reason = reason
         self.workDirectory = workDirectory
     }

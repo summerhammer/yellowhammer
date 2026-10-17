@@ -63,6 +63,7 @@ func probeRecordingMapsFields() {
         resultFileOnCleanExit: .passed,
         processContainment: .failed,
         sessionResumption: .notRun,
+        stateContainment: .failed,
         reason: "sigterm: outlived the process group"
     )
 
@@ -74,8 +75,61 @@ func probeRecordingMapsFields() {
     #expect(result.findingResultFileOnCleanExit == .passed)
     #expect(result.findingProcessContainment == .failed)
     #expect(result.findingSessionResumption == .notRun)
+    #expect(result.findingStateContainment == .failed)
     #expect(result.reason == "sigterm: outlived the process group")
     #expect(result.verdict == .failed)
+}
+
+@Test("A failed state containment is recorded but leaves a passing verdict alone")
+func probeRecordingStateContainmentDoesNotGate() {
+    let result = ProbeRecording.probeResult(
+        cli: "agy", probedAt: Date(timeIntervalSince1970: 1_800_000_000), adapterVersion: "1", cliVersion: "1",
+        unattendedDispatch: .passed, resultFileOnCleanExit: .passed, processContainment: .passed,
+        sessionResumption: .passed, stateContainment: .failed, reason: "state containment: config readable"
+    )
+
+    #expect(result.findingStateContainment == .failed)
+    #expect(result.verdict == .passed)
+    #expect(!ProbeCommand.everyFindingPassed(result))
+}
+
+// MARK: - Report
+
+@Test("The printed report has a state containment line between session resumption and the verdict")
+func reportPrintsStateContainment() throws {
+    let result = ProbeRecording.probeResult(
+        cli: "codex", probedAt: Date(timeIntervalSince1970: 1_800_000_000), adapterVersion: "3", cliVersion: "1",
+        unattendedDispatch: .passed, resultFileOnCleanExit: .passed, processContainment: .passed,
+        sessionResumption: .passed, stateContainment: .passed, reason: nil
+    )
+
+    let lines = ProbeCommand.reportLines(result, drift: nil)
+
+    let index = try #require(lines.firstIndex(of: "state containment: passed"))
+    #expect(lines[index - 1] == "session resumption: passed")
+    #expect(lines[index + 1] == "verdict: passed")
+    #expect(ProbeCommand.everyFindingPassed(result))
+}
+
+@Test("A state containment regression is named in the printed drift line")
+func reportNamesStateContainmentDrift() throws {
+    let previous = ProbeRecording.probeResult(
+        cli: "claude", probedAt: Date(timeIntervalSince1970: 1_800_000_000), adapterVersion: "1", cliVersion: "1",
+        unattendedDispatch: .passed, resultFileOnCleanExit: .passed, processContainment: .passed,
+        sessionResumption: .passed, stateContainment: .passed, reason: nil
+    )
+    let current = ProbeRecording.probeResult(
+        cli: "claude", probedAt: Date(timeIntervalSince1970: 1_800_000_100), adapterVersion: "1", cliVersion: "2",
+        unattendedDispatch: .passed, resultFileOnCleanExit: .passed, processContainment: .passed,
+        sessionResumption: .passed, stateContainment: .failed, reason: "state containment: keychain readable"
+    )
+
+    let lines = ProbeCommand.reportLines(current, drift: current.drift(since: previous))
+
+    #expect(lines.contains("state containment: failed"))
+    let driftLine = try #require(lines.last)
+    #expect(driftLine.hasPrefix("drift since the previous probe"))
+    #expect(driftLine.hasSuffix(": state containment"))
 }
 
 // MARK: - RootCommand parsing

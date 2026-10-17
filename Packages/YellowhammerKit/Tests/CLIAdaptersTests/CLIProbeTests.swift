@@ -10,13 +10,15 @@ import Testing
 @Suite("CLIProbe against stub CLIs", .serialized)
 struct CLIProbeTests {
     private static let route = Route(cli: "stub", model: "some-model", effort: "low")!
+    static let protectedDirectories = ["/Users/x/.config/yellowhammer", "/Users/x/Library/Keychains"]
 
-    private func makeProbe() -> CLIProbe {
+    private func makeProbe(keychain: ProbeKeychain = StubProbeKeychain().keychain) -> CLIProbe {
         CLIProbe(
             dispatchTimeout: .seconds(10),
             holdObservationTimeout: .seconds(5),
             pollInterval: .milliseconds(50),
-            gracePeriod: .milliseconds(300)
+            gracePeriod: .milliseconds(300),
+            keychain: keychain
         )
     }
 
@@ -50,13 +52,15 @@ struct CLIProbeTests {
 
         let report = await makeProbe().run(
             adapter: StubProbeAdapter(), route: Self.route, executable: executable,
-            environment: ProcessInfo.processInfo.environment, workDirectory: workDirectory
+            environment: ProcessInfo.processInfo.environment, workDirectory: workDirectory,
+            protectedDirectories: Self.protectedDirectories
         )
 
         #expect(report.unattendedDispatch == .passed)
         #expect(report.resultFileOnCleanExit == .passed)
         #expect(report.sessionResumption == .passed)
         #expect(report.processContainment == .passed)
+        #expect(report.stateContainment == .passed)
         #expect(report.reason == nil)
         #expect(report.cliVersion == "stub-cli 9.9.9")
         #expect(report.adapterVersion == "test")
@@ -70,7 +74,8 @@ struct CLIProbeTests {
 
         let report = await makeProbe().run(
             adapter: StubProbeAdapter(), route: Self.route, executable: executable,
-            environment: ProcessInfo.processInfo.environment, workDirectory: workDirectory
+            environment: ProcessInfo.processInfo.environment, workDirectory: workDirectory,
+            protectedDirectories: Self.protectedDirectories
         )
 
         #expect(report.unattendedDispatch == .failed)
@@ -90,10 +95,12 @@ struct CLIProbeTests {
 
         let report = await CLIProbe(
             dispatchTimeout: .seconds(1), holdObservationTimeout: .seconds(2),
-            pollInterval: .milliseconds(50), gracePeriod: .milliseconds(300)
+            pollInterval: .milliseconds(50), gracePeriod: .milliseconds(300),
+            keychain: StubProbeKeychain().keychain
         ).run(
             adapter: StubProbeAdapter(), route: Self.route, executable: executable,
-            environment: ProcessInfo.processInfo.environment, workDirectory: workDirectory
+            environment: ProcessInfo.processInfo.environment, workDirectory: workDirectory,
+            protectedDirectories: Self.protectedDirectories
         )
 
         #expect(report.unattendedDispatch == .failed)
@@ -109,7 +116,8 @@ struct CLIProbeTests {
 
         let report = await makeProbe().run(
             adapter: StubProbeAdapter(), route: Self.route, executable: executable,
-            environment: ProcessInfo.processInfo.environment, workDirectory: workDirectory
+            environment: ProcessInfo.processInfo.environment, workDirectory: workDirectory,
+            protectedDirectories: Self.protectedDirectories
         )
 
         // The escaped tool subprocess is a direct child of the CLI leader (`setsid` never changes
@@ -139,7 +147,8 @@ struct CLIProbeTests {
 
         let report = await makeProbe().run(
             adapter: StubProbeAdapter(), route: Self.route, executable: executable,
-            environment: ProcessInfo.processInfo.environment, workDirectory: workDirectory
+            environment: ProcessInfo.processInfo.environment, workDirectory: workDirectory,
+            protectedDirectories: Self.protectedDirectories
         )
 
         #expect(report.processContainment == .failed)
@@ -175,7 +184,8 @@ struct CLIProbeTests {
 
         let report = await makeProbe().run(
             adapter: StubProbeAdapter(), route: Self.route, executable: executable,
-            environment: ProcessInfo.processInfo.environment, workDirectory: workDirectory
+            environment: ProcessInfo.processInfo.environment, workDirectory: workDirectory,
+            protectedDirectories: Self.protectedDirectories
         )
 
         #expect(report.unattendedDispatch == .passed)

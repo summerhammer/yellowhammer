@@ -5,29 +5,16 @@ import Foundation
 /// resumption): building the architect-pass instructions, running them, and classifying their
 /// findings.
 extension CLIProbe {
-    // swiftlint:disable:next function_parameter_count
     func runDispatch(
         pass: RunPass,
         adapter: some CLIAdapter,
-        route: Route,
-        executable: String,
-        environment: [String: String],
-        worktree: URL,
+        context: ProbeDispatchContext,
         runDirectory: URL,
         instruction: String,
-        resume: CLISession?
+        resume: CLISession? = nil
     ) async -> Result<CLIRunReport, Error> {
-        let dispatch = CLIDispatch(
-            route: route,
-            pass: pass,
-            instruction: instruction,
-            worktreePath: worktree.path,
-            runDirectory: runDirectory,
-            timeout: dispatchTimeout,
-            resume: resume,
-            additionalWritableDirectories: [],
-            executable: executable,
-            environment: environment
+        let dispatch = context.dispatch(
+            pass: pass, instruction: instruction, runDirectory: runDirectory, timeout: dispatchTimeout, resume: resume
         )
         let runner = CLIRunner(process: AgentCLIProcess(gracePeriod: gracePeriod, pollInterval: pollInterval))
         do {
@@ -38,14 +25,9 @@ extension CLIProbe {
     }
 
     // Dispatch B only runs when Dispatch A completed with a session; otherwise it is `.notRun`.
-    // swiftlint:disable:next function_parameter_count
     func runSessionResumptionDispatch(
         adapter: some CLIAdapter,
-        route: Route,
-        executable: String,
-        environment: [String: String],
-        worktree: URL,
-        runsDirectory: URL,
+        context: ProbeDispatchContext,
         dispatchA: Result<CLIRunReport, Error>,
         nonce: String
     ) async -> (ProbeFinding, String?) {
@@ -55,10 +37,10 @@ extension CLIProbe {
             return (.notRun, "not run: the first dispatch did not complete with a session")
         }
 
-        let resumeRunDirectory = runsDirectory.appendingPathComponent("resume")
+        let resumeRunDirectory = context.runsDirectory.appendingPathComponent("resume")
         let dispatchB = await runDispatch(
-            pass: .architect, adapter: adapter, route: route, executable: executable, environment: environment,
-            worktree: worktree, runDirectory: resumeRunDirectory, instruction: Self.resumeInstruction, resume: session
+            pass: .architect, adapter: adapter, context: context, runDirectory: resumeRunDirectory,
+            instruction: Self.resumeInstruction, resume: session
         )
         return Self.sessionResumptionFinding(for: dispatchB, nonce: nonce)
     }

@@ -14,6 +14,7 @@ private func makeResult(
     findingUnattendedDispatch: ProbeFinding = .passed,
     findingProcessContainment: ProbeFinding = .passed,
     findingSessionResumption: ProbeFinding = .passed,
+    findingStateContainment: ProbeFinding = .notRun,
     adapterVersion: String = "1.0.0",
     cliVersion: String = "1.0.0",
     reason: String? = nil
@@ -27,6 +28,7 @@ private func makeResult(
         findingUnattendedDispatch: findingUnattendedDispatch,
         findingProcessContainment: findingProcessContainment,
         findingSessionResumption: findingSessionResumption,
+        findingStateContainment: findingStateContainment,
         reason: reason
     )
 }
@@ -39,8 +41,8 @@ func v2MigrationApplied() async throws {
     let store = try fixture.open()
 
     let applied = try store.appliedMigrations()
-    #expect(applied == ["v1-probe-result-history", "v2-probe-session-resumption"])
-    #expect(LedgerStore.migrationIdentifiers == ["v1-probe-result-history", "v2-probe-session-resumption"])
+    #expect(Array(applied.prefix(2)) == ["v1-probe-result-history", "v2-probe-session-resumption"])
+    #expect(applied == LedgerStore.migrationIdentifiers)
 }
 
 @Test("openReadOnly still succeeds once fully migrated through v2")

@@ -22,15 +22,19 @@ public struct ProbeResult: Equatable, Sendable {
     /// Whether a Round on the same worker can resume its session. Recorded for visibility but does
     /// not gate ``verdict``: it is not one of the three targets a route offering depends on.
     public let findingSessionResumption: ProbeFinding
+    /// Whether a read-only pass was kept from the Keychain, Yellowhammer's configuration directory
+    /// and Linear (issue #557). Recorded for visibility but does not gate ``verdict``: a gating
+    /// finding would silently drop a CLI that cannot be contained from routing.
+    public let findingStateContainment: ProbeFinding
     /// The Operator-facing reason a failed CLI is not offered as a route target. Required when
     /// ``verdict`` is failed. May also be non-nil on a passed verdict, to explain a non-gating
-    /// finding (``findingSessionResumption``) that failed even though the verdict passed — the DB
+    /// finding (``findingSessionResumption``, ``findingStateContainment``) that failed even though the verdict passed — the DB
     /// check constraint already allows that combination.
     public let reason: String?
 
     /// The verdict: passed if the three gating findings are passed, failed if any of them is not.
-    /// ``findingSessionResumption`` does not gate this — session resumption is recorded but never
-    /// excludes a CLI from routing. Computed from findings so the invariant is unrepresentable in
+    /// ``findingSessionResumption`` and ``findingStateContainment`` do not gate this — they are
+    /// recorded but never exclude a CLI from routing. Computed from findings so the invariant is unrepresentable in
     /// the wrong state.
     public var verdict: ProbeVerdict {
         if findingResultFileOnCleanExit == .passed &&
@@ -51,6 +55,7 @@ public struct ProbeResult: Equatable, Sendable {
         findingUnattendedDispatch: ProbeFinding,
         findingProcessContainment: ProbeFinding,
         findingSessionResumption: ProbeFinding,
+        findingStateContainment: ProbeFinding,
         reason: String?
     ) {
         self.cli = cli
@@ -61,6 +66,7 @@ public struct ProbeResult: Equatable, Sendable {
         self.findingUnattendedDispatch = findingUnattendedDispatch
         self.findingProcessContainment = findingProcessContainment
         self.findingSessionResumption = findingSessionResumption
+        self.findingStateContainment = findingStateContainment
         self.reason = reason
     }
 }
