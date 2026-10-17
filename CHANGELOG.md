@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.19.0](https://github.com/summerhammer/yellowhammer/compare/v0.18.2...v0.19.0) (2026-10-17)
+
+
+### Features
+
+* **app:** draw the Night's timeline as tracks and make its log navigable ([11a527b](https://github.com/summerhammer/yellowhammer/commit/11a527b4b9fe2ed1597b5a65ea324897de6ff36d))
+
+
+### Bug Fixes
+
+* **app:** flag a rejected Feature breakdown as a problem in the Night's account ([65615c3](https://github.com/summerhammer/yellowhammer/commit/65615c32fd5921ffc71ba0cb60fb9e3308978074)), closes [#533](https://github.com/summerhammer/yellowhammer/issues/533)
+* **engine:** give every authoring transaction its own Outbox keys ([#541](https://github.com/summerhammer/yellowhammer/issues/541)) ([c67574a](https://github.com/summerhammer/yellowhammer/commit/c67574a1e348fcbc70965ec8afe27c96afb2b5be))
+* **linear:** repair board provisioning from doctor and Health ([5452a5b](https://github.com/summerhammer/yellowhammer/commit/5452a5b98354fa679f8dfe72b8351a2a21c491c5))
+
 ## [0.18.2](https://github.com/summerhammer/yellowhammer/compare/v0.18.1...v0.18.2) (2026-10-16)
 
 
