@@ -7,7 +7,7 @@ import Ledger
 
 /// Probes one agent CLI Adapter and records the Probe Result in the machine-wide Ledger (P7.4:
 /// the spec's unattended-dispatch, result-file, process-containment and session-resumption probe
-/// targets). One probe run serves every Project on the machine.
+/// targets, plus state containment, issue #557). One probe run serves every Project on the machine.
 public struct ProbeCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "probe",
@@ -97,7 +97,10 @@ public struct ProbeCommand: AsyncParsableCommand {
             route: route,
             executable: executable,
             environment: ProcessInfo.processInfo.environment,
-            workDirectory: workDirectory
+            workDirectory: workDirectory,
+            protectedDirectories: CLIAdapterDispatch.protectedDirectories(
+                configurationDirectory: configurationDirectory
+            )
         )
 
         let probeResult = ProbeRecording.probeResult(
@@ -109,16 +112,13 @@ public struct ProbeCommand: AsyncParsableCommand {
             resultFileOnCleanExit: report.resultFileOnCleanExit,
             processContainment: report.processContainment,
             sessionResumption: report.sessionResumption,
+            stateContainment: report.stateContainment,
             reason: report.reason
         )
         let recorded = try store.record(probeResult)
         let drift = previous.flatMap { recorded.drift(since: $0) }
 
-        let everyFindingPassed = recorded.findingUnattendedDispatch == .passed
-            && recorded.findingResultFileOnCleanExit == .passed
-            && recorded.findingProcessContainment == .passed
-            && recorded.findingSessionResumption == .passed
-        if everyFindingPassed, !keep {
+        if Self.everyFindingPassed(recorded), !keep {
             try? FileManager.default.removeItem(at: workDirectory)
         } else {
             print("probe work directory kept at \(workDirectory.path)")
@@ -139,26 +139,43 @@ public struct ProbeCommand: AsyncParsableCommand {
 
     // MARK: - Reporting
 
+    /// Whether the scratch work directory can go: every finding passed, the non-gating ones included,
+    /// so a run worth investigating always keeps its evidence.
+    static func everyFindingPassed(_ recorded: ProbeResult) -> Bool {
+        ProbeTarget.allCases.allSatisfy { recorded.finding(for: $0) == .passed }
+    }
+
     private static func printReport(_ recorded: ProbeResult, drift: ProbeDrift?) {
-        print("cli: \(recorded.cli)")
-        print("cli version: \(recorded.cliVersion)")
-        print("adapter version: \(recorded.adapterVersion)")
-        print("unattended dispatch: \(recorded.findingUnattendedDispatch.rawValue)")
-        print("result file on clean exit: \(recorded.findingResultFileOnCleanExit.rawValue)")
-        print("process containment: \(recorded.findingProcessContainment.rawValue)")
-        print("session resumption: \(recorded.findingSessionResumption.rawValue)")
-        print("verdict: \(recorded.verdict.rawValue)")
+        for line in reportLines(recorded, drift: drift) {
+            print(line)
+        }
+    }
+
+    /// What `yh probe` prints for one recorded Probe Result, line by line.
+    static func reportLines(_ recorded: ProbeResult, drift: ProbeDrift?) -> [String] {
+        var lines = [
+            "cli: \(recorded.cli)",
+            "cli version: \(recorded.cliVersion)",
+            "adapter version: \(recorded.adapterVersion)",
+            "unattended dispatch: \(recorded.findingUnattendedDispatch.rawValue)",
+            "result file on clean exit: \(recorded.findingResultFileOnCleanExit.rawValue)",
+            "process containment: \(recorded.findingProcessContainment.rawValue)",
+            "session resumption: \(recorded.findingSessionResumption.rawValue)",
+            "state containment: \(recorded.findingStateContainment.rawValue)",
+            "verdict: \(recorded.verdict.rawValue)"
+        ]
         if let reason = recorded.reason {
-            print("reason: \(reason)")
+            lines.append("reason: \(reason)")
         }
         if let drift {
             let targets = drift.regressions.map(\.description).joined(separator: ", ")
-            print(
+            lines.append(
                 "drift since the previous probe "
                     + "(\(drift.previousCLIVersion)/\(drift.previousAdapterVersion) -> "
                     + "\(drift.currentCLIVersion)/\(drift.currentAdapterVersion)): \(targets)"
             )
         }
+        return lines
     }
 
     // MARK: - Route

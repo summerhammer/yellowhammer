@@ -19,6 +19,9 @@ enum LedgerMigrations {
         migrator.registerMigration("v2-probe-session-resumption") { db in
             try addSessionResumptionColumn(db)
         }
+        migrator.registerMigration("v3-probe-state-containment") { db in
+            try addStateContainmentColumn(db)
+        }
         return migrator
     }
 }

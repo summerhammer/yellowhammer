@@ -83,7 +83,8 @@ struct DoctorProbesTests {
         ProbeResult(
             cli: cli, probedAt: Date(), adapterVersion: "1", cliVersion: "1",
             findingResultFileOnCleanExit: .passed, findingUnattendedDispatch: .passed,
-            findingProcessContainment: .passed, findingSessionResumption: .passed, reason: nil
+            findingProcessContainment: .passed, findingSessionResumption: .passed,
+            findingStateContainment: .notRun, reason: nil
         )
     }
 }
