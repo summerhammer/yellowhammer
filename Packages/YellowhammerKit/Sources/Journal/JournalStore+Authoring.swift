@@ -62,6 +62,18 @@ extension JournalStore {
         }.count
     }
 
+    /// How many Features were ever authored under this name — the selection generation an Authoring Halt or
+    /// Refusal keys its Feature Issue by. Counts `featureAuthored`, which `finaliseAuthoring` appends only
+    /// when it writes a `feature` row, so a rolled-back authoring does not move it: a halt and a later stop
+    /// of one selection share one Feature Issue, while a name selected again after its Feature closed starts
+    /// a new one. ``authoringTransactionCount`` cannot serve: it also counts rolled-back transactions.
+    public func authoredFeatureCount(feature name: String) throws -> Int {
+        try events(ofType: .featureAuthored).filter {
+            if case .featureAuthored(let payload) = $0.event { return payload.name == name }
+            return false
+        }.count
+    }
+
     /// The latest recorded authoring plan with no `featureAuthored` / `featureAuthoringFailed` after it
     /// for the same group key — an authoring transaction a killed or deferred Act left unfinished.
     public func unfinishedAuthoringPlan() throws -> FeatureAuthoringAcceptedPayload? {
