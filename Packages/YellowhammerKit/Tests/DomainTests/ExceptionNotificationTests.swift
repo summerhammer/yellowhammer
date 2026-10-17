@@ -7,8 +7,10 @@ struct ExceptionNotificationTests {
     @Test(arguments: [
         ExceptionNotification.Event.halted(reason: "Bound reached: 3 attempts"),
         .haltedUnrecorded,
-        .closed,
-        .closedCompletionPending,
+        .closed(),
+        .closed(failureLine: "Authoring \u{201C}Sync\u{201D} failed: over the description budget"),
+        .closedCompletionPending(),
+        .closedCompletionPending(failureLine: "Selecting a Feature failed (and 1 more)"),
         .haltedNightOpen(reason: "Linear unreachable")
     ])
     func argumentsRoundTrip(event: ExceptionNotification.Event) throws {
@@ -29,7 +31,7 @@ struct ExceptionNotificationTests {
                       "--project", "yellowhammer", "--event", "closed"]
 
         #expect(try ExceptionNotification(arguments: launch)
-            == ExceptionNotification(project: project, event: .closed))
+            == ExceptionNotification(project: project, event: .closed()))
     }
 
     @Test func eachNotificationNamesItsProject() {
@@ -37,9 +39,16 @@ struct ExceptionNotificationTests {
 
         #expect(halted.title == "yellowhammer")
         #expect(halted.body == "Night halted: Linear unreachable")
-        #expect(ExceptionNotification(project: project, event: .closed).body == "Night closed")
-        #expect(ExceptionNotification(project: project, event: .closedCompletionPending).body ==
+        #expect(ExceptionNotification(project: project, event: .closed()).body == "Night closed")
+        #expect(ExceptionNotification(project: project, event: .closed(failureLine: "Selecting a Feature failed")).body
+            == "Night closed — Selecting a Feature failed")
+        #expect(ExceptionNotification(project: project, event: .closedCompletionPending()).body ==
             "Night closed — the Night Card is not updated in Linear yet")
+        #expect(
+            ExceptionNotification(
+                project: project, event: .closedCompletionPending(failureLine: "Selecting a Feature failed")
+            ).body == "Night closed — Selecting a Feature failed. The Night Card is not updated in Linear yet"
+        )
         #expect(ExceptionNotification(project: project, event: .haltedNightOpen(reason: "Linear unreachable")).body ==
             "Night halted: Linear unreachable — the Night is not closed and its Night Card is not updated in " +
                 "Linear yet")
@@ -57,15 +66,11 @@ struct ExceptionNotificationTests {
         (["--post-notification", "--project", "yellowhammer", "--event", "halted"], .missingReason),
         (["--post-notification", "--project", "yellowhammer", "--event", "halted", "--reason", "  "],
          .missingReason),
-        (["--post-notification", "--project", "yellowhammer", "--event", "closed", "--reason", "x"],
-         .unexpectedReason),
         (["--post-notification", "--project", "yellowhammer", "--event", "halted-night-open"], .missingReason),
         (["--post-notification", "--project", "yellowhammer", "--event", "halted-night-open", "--reason", " "],
          .missingReason),
         (["--post-notification", "--project", "yellowhammer", "--event", "halted-unrecorded", "--reason", "x"],
          .unexpectedReason),
-        (["--post-notification", "--project", "yellowhammer", "--event", "closed-completion-pending",
-          "--reason", "x"], .unexpectedReason),
         (["--post-notification", "--project", "yellowhammer", "--event"], .missingValue("--event")),
         (["--post-notification", "--project", "a", "--project", "b"], .duplicateArgument("--project")),
         (["--post-notification", "--silent", "yes"], .unknownArgument("--silent"))
@@ -74,5 +79,25 @@ struct ExceptionNotificationTests {
         #expect(throws: expected) {
             try ExceptionNotification(arguments: ["Yellowhammer"] + arguments)
         }
+    }
+
+    @Test func aClosedNotificationCarriesItsFailureLineAsTheReasonAndNothingElseChanges() throws {
+        let line = "Selecting a Feature failed"
+
+        #expect(ExceptionNotification(project: project, event: .closed()).arguments
+            == ["--post-notification", "--project", "yellowhammer", "--event", "closed"])
+        #expect(ExceptionNotification(project: project, event: .closed(failureLine: line)).arguments
+            == ["--post-notification", "--project", "yellowhammer", "--event", "closed", "--reason", line])
+        #expect(ExceptionNotification(project: project, event: .closedCompletionPending(failureLine: line)).arguments
+            == ["--post-notification", "--project", "yellowhammer", "--event", "closed-completion-pending",
+                "--reason", line])
+    }
+
+    @Test func aBlankReasonOnAClosedNotificationIsNoFailureLine() throws {
+        let launch = ["Yellowhammer", "--post-notification", "--project", "yellowhammer", "--event", "closed",
+                      "--reason", "   "]
+
+        #expect(try ExceptionNotification(arguments: launch)
+            == ExceptionNotification(project: project, event: .closed()))
     }
 }

@@ -21,13 +21,11 @@ extension NightSummary {
         consecutiveAuthoringFaultsMax: Int = 3, timeZone: TimeZone = .current
     ) throws -> [String] {
         let events = try nightEvents(night: night, journal: journal)
-        let failures = ActFailures(events: withoutFlushFirings(events), renderingRunID: renderingRunID)
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
         var lines: [String] = []
-        for notice in failures.notices {
-            guard let first = notice.first, let last = notice.last,
-                failures.recoveredAt(last, ignoringLaterFailures: true) == nil else { continue }
+        for notice in unrecoveredNotices(events: events, renderingRunID: renderingRunID) {
+            guard let first = notice.first, let last = notice.last else { continue }
             let runs = Set(notice.map(\.runKey)).count
             let from = clock(first.record.occurredAt, calendar)
             let until = clock(last.record.occurredAt, calendar)
@@ -44,6 +42,30 @@ extension NightSummary {
             lines.append(pointer)
         }
         return lines
+    }
+
+    /// The short copy of the closed Exception Notification: the headline of the Night's first unrecovered
+    /// Failure Notice, with ` (and N more)` when N more are unrecovered. Nil when there is none — failures
+    /// that are no Act failure (``alsoThisNightLine``) make no line on their own. The notification adds no
+    /// event; it carries what the Night Card's `**Failures:**` section states
+    /// (morning-report/notify-the-operator-of-exceptions).
+    public static func notificationFailureLine(
+        night: NightRecord, journal: JournalStore, renderingRunID: RunID? = nil
+    ) throws -> String? {
+        let events = try nightEvents(night: night, journal: journal)
+        let notices = unrecoveredNotices(events: events, renderingRunID: renderingRunID)
+        guard let headline = notices.first?.first?.headline else { return nil }
+        return notices.count > 1 ? "\(headline) (and \(notices.count - 1) more)" : headline
+    }
+
+    /// The Night's Failure Notices (each a fold of failures) that no later run recovered, in Journal order.
+    private static func unrecoveredNotices(
+        events: [JournalEventRecord], renderingRunID: RunID?
+    ) -> [[ActFailure]] {
+        let failures = ActFailures(events: withoutFlushFirings(events), renderingRunID: renderingRunID)
+        return failures.notices.filter { notice in
+            notice.last.map { failures.recoveredAt($0, ignoringLaterFailures: true) == nil } ?? false
+        }
     }
 
     /// The events without those of flush-firing runs: a flush firing neither fails nor recovers anything.
