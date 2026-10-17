@@ -43,7 +43,7 @@ func eventTypeRawValues() {
         "CardShelved", "CardReopened", "CardRestated", "CardRemovedFromBoard", "CardRestoredToBoard",
         "AuthoringInvariantBroken", "DeltaReadCompleted", "CardStateTransitioned", "WaitingOnYouUnbacked",
         "WorktreeLost", "WorktreeFenced", "WorktreeNotQuiescent", "WorktreeWIPCommitted",
-        "WorktreeReconciliationFailed", "RouteExhausted", "OverrideRefused", "RoutePreflightRan",
+        "WorktreeReconciliationFailed", "RouteUsageLimited", "RouteExhausted", "OverrideRefused", "RoutePreflightRan",
         "AttemptEnded", "RouteRetried", "BudgetEpochReset",
         "ExpiredCardLeasesSwept", "BoardStateReposted", "RepoLanesDerived", "RepoLaneStarted", "RepoLaneEnded",
         "ReadinessCheckPassed", "ReadinessCheckFailed", "CardDiverged", "TranscriptionStampVoided",

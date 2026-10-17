@@ -92,6 +92,18 @@ struct FeatureVerificationTests {
         #expect(try world.journal.featureVerification(cycleID: world.cycleID) == nil)
     }
 
+    @Test("A verifier usage refusal backs off its CLI and tries another CLI")
+    func usageRefusalFallsBack() async throws {
+        let world = try await VerificationWorld()
+        try world.addClause(issue: "BACK-1", cid: "c1")
+        let dispatch = ScriptedVerifierDispatch([routeOther: .usageLimit, routeThird: .judgeAll()])
+        let resolver = verificationResolver(primary: routeOther, fallbacks: [routeThird])
+        _ = try await world.verification(resolver: resolver, dispatch: dispatch).verify(world.featureContext)
+        #expect(dispatch.requests.map(\.route) == [routeOther, routeThird])
+        #expect(try world.journal.events(ofType: .routeUsageLimited).count == 1)
+        #expect(try world.journal.backingOffCLIs() == [routeOther.cli])
+    }
+
     // MARK: - Engine-decided outcomes
 
     @Test("A clause whose citation does not resolve is unresolved, never sent to the agent, never met")

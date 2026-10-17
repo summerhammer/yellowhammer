@@ -10,7 +10,7 @@ import Foundation
 /// id survives even a run whose stdout ``collect(end:dispatch:)`` cannot parse).
 public struct ClaudeCodeAdapter: CLIAdapter {
     public let cli = "claude"
-    public let adapterVersion = "1"
+    public let adapterVersion = "2"
     /// `claude --help`'s `--effort` choices.
     public let supportedEfforts = ["low", "medium", "high", "xhigh", "max"]
 
@@ -90,6 +90,14 @@ public struct ClaudeCodeAdapter: CLIAdapter {
     }
 
     // MARK: - Permissions
+
+    public func usageLimit(for dispatch: CLIDispatch) -> RunOutcome? {
+        let stdout = dispatch.runDirectory.appendingPathComponent(Self.stdoutFileName)
+        guard let data = try? Data(contentsOf: stdout), let object = Self.lastParseableObject(in: data),
+              object["type"] as? String == "result", object["is_error"] as? Bool == true,
+              object["api_error"] as? String == "usage_limit_reached" else { return nil }
+        return .usageLimited(resetHint: object["result"] as? String)
+    }
 
     private struct Permissions {
         let mode: String

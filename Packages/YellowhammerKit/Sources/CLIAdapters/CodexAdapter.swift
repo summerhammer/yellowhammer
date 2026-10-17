@@ -12,7 +12,7 @@ import Foundation
 /// `-c sandbox_workspace_write.writable_roots=[…]`; cwd is already the Worktree, set by `posix_spawn`.
 public struct CodexAdapter: CLIAdapter {
     public let cli = "codex"
-    public let adapterVersion = "1"
+    public let adapterVersion = "2"
     /// `codex exec --help`'s `-c model_reasoning_effort` values.
     public let supportedEfforts = ["minimal", "low", "medium", "high", "xhigh"]
 
@@ -97,6 +97,27 @@ public struct CodexAdapter: CLIAdapter {
     }
 
     // MARK: - Sandbox
+
+    public func usageLimit(for dispatch: CLIDispatch) -> RunOutcome? {
+        let stdout = dispatch.runDirectory.appendingPathComponent(Self.stdoutFileName)
+        guard let text = try? String(contentsOf: stdout, encoding: .utf8) else { return nil }
+        for line in text.split(separator: "\n") {
+            guard let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any]
+            else { continue }
+            let message: String?
+            switch object["type"] as? String {
+            case "error": message = object["message"] as? String
+            case "turn.failed": message = (object["error"] as? [String: Any])?["message"] as? String
+            default: message = nil
+            }
+            guard let message else { continue }
+            let normalized = message.replacingOccurrences(of: "’", with: "'").lowercased()
+            if normalized.hasPrefix("you've hit your usage limit.") {
+                return .usageLimited(resetHint: message)
+            }
+        }
+        return nil
+    }
 
     /// Per pass (spec `routing/add-an-agent-cli`): the worker edits and commits, so it needs
     /// `workspace-write`; the architect and reviewer never touch files, so they run `read-only`.

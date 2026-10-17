@@ -28,7 +28,13 @@ public struct CLIRunner: Sendable {
         let launch = try adapter.launch(for: dispatch)
         let execution = try await process.execute(launch)
         let session = adapter.collect(end: execution.end, dispatch: dispatch)
-        let outcome = RunOutcome.classify(end: execution.end, resultFileAt: launch.resultFile, pass: dispatch.pass)
+        let outcome: RunOutcome
+        if case .exited(let status) = execution.end, status != 0,
+           let refusal = adapter.usageLimit(for: dispatch) {
+            outcome = refusal
+        } else {
+            outcome = RunOutcome.classify(end: execution.end, resultFileAt: launch.resultFile, pass: dispatch.pass)
+        }
         return CLIRunReport(
             pid: execution.pid, end: execution.end, outcome: outcome, session: session,
             leftovers: execution.leftovers, snapshot: execution.snapshot

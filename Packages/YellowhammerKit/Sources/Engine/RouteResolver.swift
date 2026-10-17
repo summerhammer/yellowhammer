@@ -28,9 +28,9 @@ public struct RouteRequest: Equatable, Sendable {
 ///
 /// Resolution is two stages, not five ranked alternatives. It **selects** a Routing Entry — by
 /// Override, then Kind by longest dotted-prefix match, then Repo Role — and then **filters** the
-/// entry's candidates (its route, then its fallbacks in order) by attempt history and Probe failure.
+/// entry's candidates (its route, then its fallbacks in order) by attempt history, Probe failure and temporary CLI usage backoff.
 /// An Override names a whole Route; it beats Kind, Repo Role and attempt-history exclusion but never Probe
-/// failure, and under it the entry's fallbacks are not consulted (Decision Gates Ruling, G-17, as amended
+/// failure or CLI usage backoff, and under it the entry's fallbacks are not consulted (Decision Gates Ruling, G-17, as amended
 /// by the Override Ruling, OQ126).
 ///
 /// The table is the one the Act was handed: `EngineCommand` loads configuration on every Act, so the
@@ -69,7 +69,7 @@ public struct RouteResolver: Sendable {
     }
 
     /// Resolves a Route for one Card. Throws only what ``probeEligibility`` throws.
-    public func resolve(_ request: RouteRequest) throws -> RouteResolution {
+    public func resolve(_ request: RouteRequest, backingOffCLIs: Set<String> = []) throws -> RouteResolution {
         let entry = selectEntry(kind: request.kind, repoRole: request.repoRole)
         // The Ledger is asked at most once per distinct CLI in one resolution.
         var verdicts: [String: RouteTargetEligibility] = [:]
@@ -83,7 +83,12 @@ public struct RouteResolver: Sendable {
         }
 
         if let override = request.override {
-            return try resolveOverride(override, entry: entry, eligibility: eligibility)
+            let resolution = try resolveOverride(override, entry: entry, eligibility: eligibility)
+            if case .resolved(let resolved) = resolution, backingOffCLIs.contains(resolved.route.cli) {
+                return .exhausted(RouteExhaustion(kind: request.kind, repoRole: request.repoRole,
+                    entry: entry?.key, skipped: [SkippedCandidate(route: resolved.route, reason: .usageLimit)]))
+            }
+            return resolution
         }
 
         guard let entry else {
@@ -97,6 +102,10 @@ public struct RouteResolver: Sendable {
             }
             if case .excluded(let reason) = try eligibility(candidate.cli) {
                 skipped.append(SkippedCandidate(route: candidate, reason: .probe(reason)))
+                continue
+            }
+            if backingOffCLIs.contains(candidate.cli) {
+                skipped.append(SkippedCandidate(route: candidate, reason: .usageLimit))
                 continue
             }
             return .resolved(ResolvedRoute(route: candidate, entry: entry.key, selectedBy: .entry, skipped: skipped))

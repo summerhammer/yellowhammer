@@ -6,6 +6,9 @@ extension JournalEvent {
     /// Encodes this event as a payload dictionary with sorted keys (for byte-stable storage).
     var payload: [String: String]? {
         switch self {
+        case .routeUsageLimited(let route, let cli, let until, let resetHint):
+            ["route": route, "cli": cli, "until": JournalStore.timestamp(until)]
+                .merging(resetHint.map { ["reset_hint": $0] } ?? [:]) { _, new in new }
         case .actStarted, .actEnded: nil
         case .actIdle(let reason):
             ["reason": reason.rawValue]

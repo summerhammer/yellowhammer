@@ -109,9 +109,14 @@ public protocol CLIAdapter: Sendable {
     /// result file if this CLI does not write it itself, and extracts the session to resume next.
     /// Never throws: a stdout Yellowhammer cannot parse just means no session is offered.
     func collect(end: RunEnd, dispatch: CLIDispatch) -> CLISession?
+    /// Translates a recognized vendor usage-limit refusal from captured stdout. Called only for a
+    /// non-zero self-exit. Unknown payloads return nil, preserving ordinary exit classification.
+    func usageLimit(for dispatch: CLIDispatch) -> RunOutcome?
 }
 
 extension CLIAdapter {
+    public func usageLimit(for dispatch: CLIDispatch) -> RunOutcome? { nil }
+
     /// Shared refusal: every adapter validates the Route names it and accepts its effort before
     /// building a launch.
     func validateRoute(_ dispatch: CLIDispatch) throws(CLIAdapterError) {

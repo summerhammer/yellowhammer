@@ -205,36 +205,13 @@ public struct CardRun: CardRunner {
             )
             switch outcome {
             case .attempt(let attempt, let resolved):
-                frame.attempt = attempt
-                frame.route = resolved.route
-                try frame.record(.attemptStarted, detail: "attempt \(attempt.id) on \(resolved.route)")
+                if try await runAttempt(attempt, resolved: resolved, frame: &frame,
+                                        movedToInProgress: &movedToInProgress) { continue }
+                return
 
-                // The Card stays In Progress across a retry: only the first Attempt of the run moves it.
-                if !movedToInProgress {
-                    try await frame.transition(.inProgress)
-                    movedToInProgress = true
-                }
-                let end = try await runPassesWatchingForOperatorAbort(frame: frame)
-                // A pass the engine cancelled ends `.aborted`, which reads as Crashed-Unknown: concluding
-                // it would consume the Attempt and retry, spending the whole budget on the engine's own
-                // stop. The Attempt stays open instead, for the Expired Lease Sweep to classify.
-                try Task.checkCancellation()
-                switch try await conclude(end, frame: frame) {
-                case .stop:
-                    return
-                case .retry(let endedAttempt):
-                    // A new Attempt starts fresh, never as a rescue (OQ60): before dispatching it, the
-                    // prior Attempt's work is preserved and the Worktree reset to known-good. A failed
-                    // reset never dispatches the new Attempt: the Card returns to Ready instead.
-                    switch try await attemptReset(priorAttemptID: endedAttempt.id, frame: frame) {
-                    case .success(let wip):
-                        frame.wipContext = wip
-                        continue
-                    case .failure:
-                        try await frame.transition(.ready)
-                        return
-                    }
-                }
+            case .backingOff:
+                try await frame.transition(.ready)
+                return
 
             case .blocked(let blockedCard, _):
                 // Routing already wrote the Blocked transition; the reset still runs, so a Card that
@@ -250,6 +227,43 @@ public struct CardRun: CardRunner {
             case .attemptBudgetSpent(let spentCard):
                 try await blockOnSpentAttemptBudget(card: spentCard, frame: frame)
                 return
+            }
+        }
+    }
+
+    /// Runs one recorded Attempt, returning whether the held Card should resolve another Route.
+    private func runAttempt(
+        _ attempt: AttemptRecord, resolved: ResolvedRoute, frame: inout CardRunFrame,
+        movedToInProgress: inout Bool
+    ) async throws -> Bool {
+        frame.attempt = attempt
+        frame.route = resolved.route
+        try frame.record(.attemptStarted, detail: "attempt \(attempt.id) on \(resolved.route)")
+
+        // The Card stays In Progress across a retry: only the first Attempt of the run moves it.
+        if !movedToInProgress {
+            try await frame.transition(.inProgress)
+            movedToInProgress = true
+        }
+        let end = try await runPassesWatchingForOperatorAbort(frame: frame)
+        // A pass the engine cancelled ends `.aborted`, which reads as Crashed-Unknown: concluding
+        // it would consume the Attempt and retry, spending the whole budget on the engine's own
+        // stop. The Attempt stays open instead, for the Expired Lease Sweep to classify.
+        try Task.checkCancellation()
+        switch try await conclude(end, frame: frame) {
+        case .stop:
+            return false
+        case .retry(let endedAttempt):
+            // A new Attempt starts fresh, never as a rescue (OQ60): before dispatching it, the
+            // prior Attempt's work is preserved and the Worktree reset to known-good. A failed
+            // reset never dispatches the new Attempt: the Card returns to Ready instead.
+            switch try await attemptReset(priorAttemptID: endedAttempt.id, frame: frame) {
+            case .success(let wip):
+                frame.wipContext = wip
+                return true
+            case .failure:
+                try await frame.transition(.ready)
+                return false
             }
         }
     }

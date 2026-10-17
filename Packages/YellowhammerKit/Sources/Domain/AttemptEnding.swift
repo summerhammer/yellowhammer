@@ -10,6 +10,8 @@ public enum AttemptEnding: Equatable, Sendable {
     case roundsExhausted(rounds: Int)
     case crashedUnknown(CrashedUnknownCause)
     case question
+    /// Account usage refusal; no capability was tested and no Attempt budget is consumed.
+    case usageLimited(beforeWorker: Bool = false)
     /// The Card was read Cancelled while this Attempt was open (graph-execution/run-a-card, "A Card
     /// cancelled while it is running", P8.9). Like `question`, this is not an outcome: cancelling
     /// consumes no Attempt budget, excludes no Route, and is never a Block Reason source — there is no
@@ -43,6 +45,8 @@ public enum AttemptOutcome: String, CaseIterable, Sendable {
     case roundsExhausted = "rounds-exhausted"
     case crashedUnknown = "Crashed-Unknown"
     case question
+    /// Account usage refusal; no capability was tested and no Attempt budget is consumed.
+    case usageLimited = "usage limited"
     case cancelled
     case aborted
 }
@@ -63,6 +67,8 @@ extension AttemptEnding {
             .question
         case .cancelled:
             .cancelled
+        case .usageLimited:
+            .usageLimited
         case .aborted:
             .aborted
         }
@@ -79,16 +85,18 @@ extension AttemptEnding {
             false
         case .hardFailure, .roundsExhausted:
             true
-        case .success, .crashedUnknown, .question, .cancelled, .aborted:
+        case .success, .crashedUnknown, .question, .cancelled, .aborted, .usageLimited:
             false
         }
     }
 
-    /// True for every ending but a question, a cancellation or an Operator abort: asking consumes
-    /// neither a Round nor an Attempt, and the Card goes Waiting on You instead; a cancellation leaves
-    /// no resumable state to protect a budget for; an abort is the Operator's, not the route's.
+    /// Questions, cancellations, Operator aborts and account usage refusals consume no Attempt budget.
+    /// A usage refusal tests no capability; its CLI backs off while the Card remains unfinished.
     public var consumesAttempt: Bool {
-        self != .question && self != .cancelled && self != .aborted
+        switch self {
+        case .question, .cancelled, .aborted, .usageLimited: false
+        default: true
+        }
     }
 
     /// The `route_exclusion.reason` this ending writes, or nil when it excludes nothing. Free text that is
@@ -103,7 +111,7 @@ extension AttemptEnding {
             "hard failure"
         case .roundsExhausted:
             "rounds-exhausted"
-        case .success, .crashedUnknown, .question, .cancelled, .aborted:
+        case .success, .crashedUnknown, .question, .cancelled, .aborted, .usageLimited:
             nil
         }
     }
@@ -137,6 +145,8 @@ extension AttemptEnding {
             "asked a question"
         case .cancelled:
             "Card cancelled"
+        case .usageLimited(let beforeWorker):
+            beforeWorker ? Self.usageLimitedBeforeWorkerClassification : "agent CLI usage limit"
         case .aborted:
             "aborted by the Operator"
         }
@@ -164,10 +174,15 @@ extension AttemptEnding {
             "not consumed (asked a question)"
         case .cancelled:
             "not consumed (Card cancelled)"
+        case .usageLimited:
+            "not consumed; route not excluded (agent CLI usage limit)"
         case .aborted:
             "not consumed; route not excluded (stopped by the Operator)"
         }
     }
+
+    /// A refusal before any worker pass is not a Route that wrote code for Verification.
+    public static let usageLimitedBeforeWorkerClassification = "agent CLI usage limit before worker"
 
     /// The prefix `classification` uses for ``CrashedUnknownCause/engineStopped(cause:)``, so
     /// ``Journal/AttemptHistory/blockReason(inEpoch:)`` can recognize it from the stored string alone,
@@ -186,6 +201,8 @@ extension AttemptEnding {
             self = .hardFailure(.contractViolation(error))
         case .timedOut(let after):
             self = .hardFailure(.timedOut(after: after))
+        case .usageLimited:
+            self = .usageLimited()
         case .completed:
             return nil
         }

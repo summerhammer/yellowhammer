@@ -55,6 +55,7 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case worktreeNotQuiescent = "WorktreeNotQuiescent"
     case worktreeWIPCommitted = "WorktreeWIPCommitted"
     case worktreeReconciliationFailed = "WorktreeReconciliationFailed"
+    case routeUsageLimited = "RouteUsageLimited"
     case routeExhausted = "RouteExhausted"
     case overrideRefused = "OverrideRefused"
     case routePreflightRan = "RoutePreflightRan"

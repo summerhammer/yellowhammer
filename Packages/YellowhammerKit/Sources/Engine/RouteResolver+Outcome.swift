@@ -11,6 +11,14 @@ public enum RouteResolution: Equatable, Sendable {
     /// The Operator's Override cannot resolve, or pins a Route whose CLI failed its Probe: a Readiness
     /// Check failure, never a silent fallthrough (G-17). No Attempt, and the Card's state is untouched.
     case overrideRefused(OverrideRefusal)
+
+    /// Temporary availability is recorded separately from capability exhaustion, including on later Acts.
+    var usageBackoffAccount: String? {
+        guard case .exhausted(let exhaustion) = self else { return nil }
+        let clis = Set(exhaustion.skipped.filter { $0.reason == .usageLimit }.map { $0.route.cli })
+        guard !clis.isEmpty else { return nil }
+        return "waiting for CLI usage limit backoff: " + clis.sorted().joined(separator: ", ")
+    }
 }
 
 /// The Route a Card was resolved to, and how.
@@ -56,6 +64,8 @@ public struct ResolvedRoute: Equatable, Sendable {
 /// One of a Routing Entry's candidates a filter dropped, and which filter.
 public struct SkippedCandidate: Equatable, Sendable, CustomStringConvertible {
     public enum Reason: Equatable, Sendable {
+        /// The CLI account temporarily refused work; this is separate from capability exclusion.
+        case usageLimit
         /// Attempt history excludes the Route for this Card in its current budget epoch.
         case attemptHistory
         /// The Route's CLI is not offered as a route target: its latest Probe failed, or it was never
@@ -73,6 +83,8 @@ public struct SkippedCandidate: Equatable, Sendable, CustomStringConvertible {
 
     public var description: String {
         switch reason {
+        case .usageLimit:
+            "`\(route)` waiting for its CLI usage limit backoff"
         case .attemptHistory:
             "`\(route)` excluded by attempt history"
         case .probe(let reason):

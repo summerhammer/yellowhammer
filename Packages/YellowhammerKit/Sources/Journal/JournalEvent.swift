@@ -213,6 +213,8 @@ public enum JournalEvent: Equatable, Sendable {
     )
     /// A git step of reconciliation refused or failed; nothing was destroyed. `reason` says what.
     case worktreeReconciliationFailed(featureID: Int64, repository: String, path: String, reason: String)
+    /// An account usage refusal and the engine-owned retry time; vendor reset prose remains a hint.
+    case routeUsageLimited(route: String, cli: String, until: Date, resetHint: String?)
     /// Route resolution left zero candidates for the Card — fallbacks exhausted
     /// (routing/resolve-a-route-for-a-card, OQ13): the Card moved to Blocked with Block Reason
     /// `route failure`, no Attempt was recorded, and `reason` names every candidate and what dropped it.

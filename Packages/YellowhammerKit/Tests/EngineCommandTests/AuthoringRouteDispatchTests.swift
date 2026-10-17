@@ -19,6 +19,7 @@ private enum Behaviour {
     case refuse
     case exit(Int32)
     case timeOut
+    case usageLimit
     case crash
     case answer(DispatchResult)
 }
@@ -44,6 +45,8 @@ private final class ScriptedRouteDispatch: AgentDispatch, Sendable {
             throw AgentDispatchRefusal(reason: "no executable")
         case .exit(let status):
             return AgentDispatchReport(outcome: .failed(exitStatus: status))
+        case .usageLimit:
+            return AgentDispatchReport(outcome: .usageLimited(resetHint: "try again at 2:55 PM"))
         case .timeOut:
             return AgentDispatchReport(outcome: .timedOut(after: .seconds(3600)))
         case .crash:
@@ -137,6 +140,29 @@ struct AuthoringRouteDispatchTests {
         #expect(requests.allSatisfy { $0.issueID == "authoring" && $0.pass == .selection })
         #expect(requests.allSatisfy { $0.worktreePath == "/repos/spec" })
         #expect(requests.allSatisfy { $0.additionalReadableDirectories == ["/repos/backend", "/repos/mobile"] })
+    }
+
+    @Test("Usage refusal falls back to another CLI without a capability rejection")
+    func usageRefusalFallsBack() async throws {
+        let rig = try Rig([primary: .usageLimit, fallback: .answer(nothingSelectable)])
+        _ = try await rig.selection.selectAndAuthor(rig.context)
+        #expect(rig.dispatch.requests.map(\.route) == [primary, fallback])
+        #expect(try rig.journal.events(ofType: .authoringRouteRejected).isEmpty)
+        #expect(try rig.journal.backingOffCLIs() == [primary.cli])
+        #expect(try rig.journal.events(ofType: .routeUsageLimited).count == 1)
+    }
+
+    @Test("A later authoring invocation explains persisted CLI backoff without another dispatch")
+    func persistedUsageBackoffIsReported() async throws {
+        let rig = try Rig([primary: .usageLimit, fallback: .usageLimit])
+        _ = try await rig.selection.selectAndAuthor(rig.context)
+        let before = rig.dispatch.requests.count
+        _ = try await rig.selection.selectAndAuthor(rig.context)
+        #expect(rig.dispatch.requests.count == before)
+        let event = try #require(rig.journal.events(ofType: .featureSelectionFailed).last)
+        guard case .featureSelectionFailed(let reason) = event.event else { return }
+        #expect(reason.contains("waiting for CLI usage limit backoff: claude, codex"))
+        #expect(try rig.journal.events(ofType: .authoringRouteRejected).isEmpty)
     }
 
     @Test("A Crashed-Unknown run excludes nothing and ends authoring: the fallback is never tried, no throw")

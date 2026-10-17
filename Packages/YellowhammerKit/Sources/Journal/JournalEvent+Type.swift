@@ -113,6 +113,7 @@ extension JournalEvent {
             .worktreeWIPCommitted
         case .worktreeReconciliationFailed:
             .worktreeReconciliationFailed
+        case .routeUsageLimited: .routeUsageLimited
         case .routeExhausted:
             .routeExhausted
         case .overrideRefused:
