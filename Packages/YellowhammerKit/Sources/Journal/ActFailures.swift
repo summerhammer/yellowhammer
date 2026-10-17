@@ -73,7 +73,10 @@ public struct ActFailures: Sendable {
     public let all: [ActFailure]
     private let recovery: Recovery
 
-    public init(events: [JournalEventRecord]) {
+    /// `renderingRunID` is the Act writing a summary of `events`, before its own terminal event exists: with no
+    /// `ActEnded` of its own, its last recorded event is the checkpoint that recovers an earlier failed run
+    /// of its Act. Nil for every reader that sees finished runs only.
+    public init(events: [JournalEventRecord], renderingRunID: RunID? = nil) {
         let byRun = Dictionary(grouping: events.filter { $0.runID != nil }, by: { $0.runID?.rawValue ?? "" })
         func failure(_ record: JournalEventRecord, repository: String? = nil, reason: String) -> ActFailure? {
             let siblings = record.runID.map { byRun[$0.rawValue] ?? [] } ?? []
@@ -100,7 +103,7 @@ public struct ActFailures: Sendable {
         }
         failures = lanes + faults + Self.unwrapped(acts, lanes: lanes)
         all = lanes + faults + acts
-        recovery = Recovery(events: events, failures: all)
+        recovery = Recovery(events: events, failures: all, renderingRunID: renderingRunID)
     }
 
     /// The first failure of one run by event id, as `yh status` words the run's ending; nil when the run
@@ -119,8 +122,14 @@ public struct ActFailures: Sendable {
 
     /// When a later run of the same Night got past `failure` (disclose-a-failure#recovered); nil while
     /// it has not.
-    public func recoveredAt(_ failure: ActFailure) -> Date? {
-        recovery.date(for: failure)
+    ///
+    /// By default a recovery must also come after every other failure of the same class in its scope: Health
+    /// folds one reason's failures into a single row, so the row waits for the latest of them.
+    /// `ignoringLaterFailures` drops that wait for a reader that words each failed run on its own (the Night
+    /// Summary): the spec's rule is per failure, so a run that got past this one recovered it even if the
+    /// same failure came back later. A later run that itself failed the same way never recovers it either way.
+    public func recoveredAt(_ failure: ActFailure, ignoringLaterFailures: Bool = false) -> Date? {
+        recovery.date(for: failure, ignoringLaterFailures: ignoringLaterFailures)
     }
 
     /// The failures grouped, in Journal order, into one group per notice: a failure continues the notice
@@ -174,10 +183,11 @@ extension ActFailures {
 private struct Recovery: Sendable {
     let events: [JournalEventRecord]
     let failures: [ActFailure]
+    let renderingRunID: RunID?
 
     /// The recovery of `failure`: the first checkpoint, in event order, of another run in its scope that is
     /// later than every failure of the same class in that scope, and whose run did not fail the same way.
-    func date(for failure: ActFailure) -> Date? {
+    func date(for failure: ActFailure, ignoringLaterFailures: Bool) -> Date? {
         guard let nightID = failure.record.nightID, let runID = failure.record.runID,
             let act = failure.record.act, failure.cause != .authoringInvariantBroken else { return nil }
         let cause = failure.cause
@@ -186,7 +196,7 @@ private struct Recovery: Sendable {
             record.nightID == nightID && (wide || record.act == act)
         }
         let sameClass = failures.filter { inScope($0.record) && Self.sameClass($0.cause, cause) }
-        let latest = sameClass.map(\.record.id).max() ?? failure.record.id
+        let latest = ignoringLaterFailures ? failure.record.id : sameClass.map(\.record.id).max() ?? failure.record.id
         let failedRuns = Set(sameClass.compactMap(\.record.runID))
         var seen: [RunID] = []
         for record in events where inScope(record) {
@@ -195,7 +205,9 @@ private struct Recovery: Sendable {
         }
         for run in seen where !failedRuns.contains(run) {
             let runEvents = events.filter { $0.runID == run && inScope($0) }
-            guard let checkpoint = Self.checkpoint(cause, runEvents), checkpoint.id > failure.record.id,
+            let rendering = run == renderingRunID
+            guard let checkpoint = Self.checkpoint(cause, runEvents, rendering: rendering),
+                checkpoint.id > failure.record.id,
                 checkpoint.id > latest else { continue }
             return checkpoint.occurredAt
         }
@@ -214,7 +226,9 @@ private struct Recovery: Sendable {
         .linearAuthorizationHalted, .linearUnreachableHalted, .notificationDeliveryFailed
     ]
 
-    private static func checkpoint(_ cause: ActFailureCause, _ run: [JournalEventRecord]) -> JournalEventRecord? {
+    private static func checkpoint(
+        _ cause: ActFailureCause, _ run: [JournalEventRecord], rendering: Bool
+    ) -> JournalEventRecord? {
         func first(_ types: JournalEventType...) -> JournalEventRecord? {
             run.first { types.contains($0.type) }
         }
@@ -226,7 +240,7 @@ private struct Recovery: Sendable {
         case .noAuthoringRoute: return first(.authoringDispatched)
         case .authoringTransactionFailed: return first(.featureAuthored)
         case .authoringInvariantBroken: return nil
-        case .laneFailed, .actIncomplete: return first(.actEnded)
+        case .laneFailed, .actIncomplete: return first(.actEnded) ?? (rendering ? run.last : nil)
         }
     }
 }
