@@ -37,7 +37,10 @@ extension NightAccount {
         case .attemptEnded(let id, _, _, _, _, _),
             .checkRan(let id, _, _, _, _, _, _),
             .cardStateTransitioned(let id, _, _, _, _, _),
-            .cardLeaseReclaimed(let id, _, _):
+            .cardLeaseReclaimed(let id, _, _),
+            .readinessCheckFailed(let id, _, _):
+            id
+        case .waitingOnYouUnbacked(_, let id, _):
             id
         default:
             nil
@@ -79,7 +82,62 @@ extension NightAccount {
         }
     }
 
-    /// Event types that are a problem whatever their payload. ``isProblem(_:)`` adds the three events whose
+    /// An Authoring Halt's cause in words. `kind` is ``AuthoringHaltCause/kind``; an unknown kind reads as
+    /// itself. Only what the engine recorded about itself is added: a seam or a Work Card title is the
+    /// breakdown's own text, so those causes carry no detail.
+    static func words(haltKind kind: String, detail: String?) -> String {
+        let plain = haltPhrases[kind] ?? kind
+        guard let detail, haltKindsNamingDetail.contains(kind) || haltPhrases[kind] == nil else { return plain }
+        return "\(plain): \(detail)"
+    }
+
+    private static let haltPhrases: [String: String] = [
+        "no-backward-compatible-seam": "no backward-compatible seam was found",
+        "repositories-undetermined": "the repositories it touches could not be determined",
+        "contract-outside-project": "it names a repository outside this Project",
+        "contract-unreadable": "a contract could not be read from mainline",
+        "authoring-repeatedly-faulted": "authoring faulted repeatedly",
+        "feature-spans-repo-dependency": "it spans a Repo Dependency",
+        "breakdown-consumes-own-feature-work": "a Work Card reads what another of its Cards writes"
+    ]
+
+    /// The halt causes whose detail is the engine's own: a repository, a fault count and reason, a Repo
+    /// Dependency edge.
+    private static let haltKindsNamingDetail: Set<String> = [
+        "contract-outside-project", "authoring-repeatedly-faulted", "feature-spans-repo-dependency"
+    ]
+
+    /// A land step and what it yielded, in words: `seshes-backend: push failed`, `Verification failed`.
+    static func words(step: LandStep, outcome: LandStepOutcome, repository: String?) -> String {
+        let name = words(step: step)
+        let result = words(outcome: outcome)
+        guard let repository else { return "\(name.prefix(1).uppercased() + name.dropFirst()) \(result)" }
+        return "\(repository): \(name) \(result)"
+    }
+
+    private static func words(step: LandStep) -> String {
+        switch step {
+        case .mergeTest: "merge test"
+        case .push: "push"
+        case .openPullRequest: "pull request"
+        case .releaseWorktree: "Worktree release"
+        case .verification: "Verification"
+        case .returnFeature: "return of the Feature"
+        case .archiveCycle: "archiving the Cycle"
+        }
+    }
+
+    private static func words(outcome: LandStepOutcome) -> String {
+        switch outcome {
+        case .completed: "completed"
+        case .notWired: "not wired yet"
+        case .rehearsalBoundary: "not run — rehearsal"
+        case .skipped: "skipped"
+        case .failed: "failed"
+        }
+    }
+
+    /// Event types that are a problem whatever their payload. ``isProblem(_:)`` adds the five events whose
     /// payload decides.
     private static let problemTypes: Set<JournalEventType> = [
         .linearAuthorizationHalted, .linearUnreachableHalted, .mainlineFetchFailed, .absentNightDetected,
@@ -93,12 +151,16 @@ extension NightAccount {
 
     /// Whether the event is a problem the account puts first. Agrees with `JournalFailures` where they
     /// overlap: an `actIncomplete`, and a `repoLaneEnded` that records a failure. A Check declared none
-    /// ran nothing, so only a failed Check is one.
+    /// ran nothing, so only a failed Check is one; likewise only a failed land step and only an Attempt that
+    /// hard-failed. An Authoring Halt and a usage limit are decisions and deferrals, not failures, so they
+    /// are not (morning-report/disclose-a-failure).
     static func isProblem(_ record: JournalEventRecord) -> Bool {
         switch record.event {
         case .actIncomplete: true
         case .repoLaneEnded(_, _, .some, _): true
         case .checkRan(_, _, _, let result, _, _, _): result == .failed
+        case .landStep(_, _, let outcome, _): outcome == .failed
+        case .attemptEnded(_, _, _, _, let outcome, _): outcome == AttemptOutcome.hardFailure.rawValue
         default: problemTypes.contains(record.type)
         }
     }
@@ -160,7 +222,7 @@ struct NightWording {
     func count(_ number: Int, _ noun: String) -> String { "\(number) \(noun)\(number == 1 ? "" : "s")" }
 
     func words(for event: JournalEvent) -> NightWords {
-        lifecycle(event) ?? night(event) ?? infrastructure(event) ?? cards(event) ?? authoring(event)
-            ?? landing(event) ?? NightWords(headline: NightAccount.plainName(of: event.type))
+        lifecycle(event) ?? night(event) ?? infrastructure(event) ?? infrastructureFailures(event) ?? cards(event)
+            ?? authoring(event) ?? landing(event) ?? NightWords(headline: NightAccount.plainName(of: event.type))
     }
 }
