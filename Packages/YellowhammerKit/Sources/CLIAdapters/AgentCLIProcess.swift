@@ -75,7 +75,9 @@ public struct AgentCLIProcess: Sendable {
     /// it before it (and its intermediate parent) exit.
     public let snapshotInterval: Duration
     /// Watches for a macOS permission prompt raised by the run's own process tree (#555): nobody answers
-    /// one during a Night, so the run is ended at once instead of waiting out its pass timeout.
+    /// one during a Night, so the run is ended at once instead of waiting out its pass timeout. Ending the
+    /// run does not dismiss the dialog: on macOS 27 it stays until answered by hand, and the answer should
+    /// be Deny (see ``UnifiedLogPromptSource``).
     public let promptSource: any PromptSource
 
     public init(

@@ -47,6 +47,12 @@ public protocol PromptWatching: Sendable {
 ///
 /// TCC prompts are not watched: no retained `com.apple.TCC` line proves a dialog was shown rather than a
 /// policy evaluated.
+///
+/// Known limitation: ending the pass does not dismiss the dialog. On macOS 27 the `SecurityAgent` window
+/// stayed on screen after its client was killed, until someone answered it by hand (measured 2026-10-18).
+/// The dialog names the item. An Operator who later clicks Always Allow on it widens that item's ACL to the
+/// dead client's binary, so the Operator guidance stays Deny. Yellowhammer does not dismiss `SecurityAgent`
+/// itself.
 public struct UnifiedLogPromptSource: PromptSource {
     public static let predicate =
         #"process == "securityd" AND eventMessage BEGINSWITH "displaying keychain prompt for ""#
