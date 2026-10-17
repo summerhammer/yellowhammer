@@ -107,8 +107,11 @@ public struct FeatureSelection: FeatureAuthoring {
         }
         let specSource = try Self.specificationSource(repositories)
         let candidates = try context.journal.blockedCardsLeftByClosedFeatures().map {
-            AdoptionCandidate(issueID: $0.issueID, repository: $0.repository)
+            AdoptionCandidate(
+                issueID: $0.issueID, repository: $0.repository, title: $0.title, blockReason: $0.blockReason
+            )
         }
+        let boardState = try context.journal.selectionBoardState()
         // The Operator named one Feature: the walk never re-selects (roadmap P11.6).
         let held = try await releaseGate?.heldConsumers(context) ?? []
         let scope = SelectionScope(repositories: repositories, candidates: candidates, held: held)
@@ -123,7 +126,8 @@ public struct FeatureSelection: FeatureAuthoring {
                 namedFeature: context.trigger.namedFeature,
                 adoptionCandidates: candidates,
                 refusedThisNight: walk.refusedThisNight,
-                heldConsumers: held
+                heldConsumers: held,
+                boardState: boardState
             )
 
             let outcome: FeatureSelectionOutcome

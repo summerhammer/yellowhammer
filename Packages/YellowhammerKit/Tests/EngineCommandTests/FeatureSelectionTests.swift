@@ -86,6 +86,28 @@ struct FeatureSelectionTests {
         #expect(request.mainlines.workingRepos["backend"] != nil)
     }
 
+    @Test("The request carries the Journal's board state and the adoption candidates")
+    func requestCarriesBoardStateFromTheJournal() async throws {
+        let fixture = try OutboxJournalFixture()
+        let journal = try fixture.open()
+        let (featureID, cycleID) = try insertFeatureSelectionAdoptionFixture(journal, closedFeatureIssueID: "OLD-1")
+        try insertFeatureSelectionAdoptionCard(
+            journal, cycleID: cycleID, issueID: "BACK-1", repository: "backend", order: 1
+        )
+        try journal.write { db in
+            try db.execute(sql: "UPDATE feature SET issue_key = 'YLH-9' WHERE id = ?", arguments: [featureID])
+        }
+        let selector = ScriptedFeatureSelector(outcome: .noSelectableFeature)
+        let (context, _) = try makeSelectionContext(journal, repositories: selectionRepositories())
+
+        _ = try await FeatureSelection(selector: selector).selectAndAuthor(context)
+
+        let request = try #require(selector.lastRequest)
+        #expect(request.boardState.features.map(\.identifier) == ["YLH-9"])
+        #expect(request.adoptionCandidates.map(\.issueID) == ["BACK-1"])
+        #expect(request.boardState == (try journal.selectionBoardState()))
+    }
+
     @Test("A forced name the selector ignores throws namedFeatureIgnored; nothing is recorded as selected")
     func forcedNameIgnoredThrows() async throws {
         let fixture = try OutboxJournalFixture()
