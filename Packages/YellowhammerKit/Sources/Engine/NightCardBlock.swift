@@ -30,13 +30,15 @@ public enum NightCardBlock {
     public static let defaultVerdictLine = "no decisions waiting · did not advance · closed"
 
     /// The block a Night Card is completed with: the same header, when it was completed, the Night
-    /// Summary (roadmap P12.1) — a constant-time `**Verdict:**` line, then, while any exist, the quiet
-    /// authoring findings this Night recorded (P9.1), the Cards touched this Night and their
+    /// Summary (roadmap P12.1) — a constant-time `**Verdict:**` line, then, while any exist, the `**Failures:**`
+    /// (one Failure Notice per unrecovered Act failure, with a pointer to the failures stated below; never
+    /// compacted), the quiet authoring findings this Night recorded (P9.1), the Cards touched this Night and their
     /// Dispositions, pull requests, answers banked on landed Cards, and the Waiting on You anomalies
     /// the Delta Read found.
     public static func completed(
         night: NightRecord, projectID: ProjectID, verdictLine: String = defaultVerdictLine,
-        authoringFindings: [String] = [], cardLines: [String] = [], dispositionLines: [String] = [],
+        failureLines: [String] = [], authoringFindings: [String] = [], cardLines: [String] = [],
+        dispositionLines: [String] = [],
         pullRequestLines: [String] = [], answerLines: [String] = [], anomalies: [String] = [],
         crashesAndReclaims: [String] = [], leftoverProcesses: [String] = [], exceptions: [String] = [],
         bounds: [String] = [], standingItems: [String] = [], unadoptedCards: [String] = [],
@@ -54,6 +56,7 @@ public enum NightCardBlock {
         }
         lines.append("")
         lines.append("**Verdict:** \(verdictLine)")
+        appendSection("Failures", failureLines, to: &lines)
         appendAuthoringFindings(authoringFindings, to: &lines)
         appendSection("Cards", cardLines, to: &lines)
         appendSection("Dispositions", dispositionLines, to: &lines)

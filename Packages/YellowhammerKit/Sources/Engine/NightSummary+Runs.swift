@@ -82,11 +82,7 @@ extension NightSummary {
         calendar.timeZone = timeZone
         let runs = nightRuns(events: events, renderingRunID: renderingRunID)
         let crashed = Set(runs.filter { $0.outcome == .crashed }.map(\.runID.rawValue))
-        let flushRuns = Set(events.filter { $0.type == .flushFiringRan }.compactMap(\.runID))
-        let failures = ActFailures(
-            events: events.filter { record in record.runID.map { !flushRuns.contains($0) } ?? true },
-            renderingRunID: renderingRunID
-        )
+        let failures = ActFailures(events: withoutFlushFirings(events), renderingRunID: renderingRunID)
         let recoveredRuns = recoveredActFailureRuns(failures, excluding: crashed)
         var recoveries = recoveredRuns + runs.enumerated().compactMap { index, run -> RecoveredRun? in
             guard run.outcome == .crashed,
