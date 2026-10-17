@@ -116,6 +116,8 @@ private struct Recovery {
         return lhs == rhs || (legacy.contains(lhs) && legacy.contains(rhs))
     }
 
+    /// What a run records before, or instead of, getting past the board preflight. `linearReached` is here
+    /// because the board-scope check appends it before it refuses an unresolved scope, so it proves nothing.
     private static let preflight: Set<JournalEventType> = [
         .actStarted, .linearReached, .boardScopeUnresolved, .actIncomplete, .actStoodDown,
         .linearAuthorizationHalted, .linearUnreachableHalted, .notificationDeliveryFailed
