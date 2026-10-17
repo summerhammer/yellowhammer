@@ -69,8 +69,17 @@ extension EngineInvocation {
     /// morning is already in Linear. Called only from `closeNightIfNeeded`, right after this Act's own
     /// delivery of that completion, so there is nothing to gate here beyond that. Only this Night-closing
     /// write counts: a pending write still counts as recorded for every halted notification (OQ71).
+    ///
+    /// The copy carries the Night's failure line when it has an unrecovered Failure Notice; it adds no event.
+    /// Computed with this Act as the rendering run — it posts before its own `ActEnded`. A line that cannot
+    /// be computed never stops the notification: it posts without one (fire-and-forget).
     func notifyClosed(night: NightRecord, completionPending: Bool) async {
-        await notify(completionPending ? .closedCompletionPending : .closed, notification: "closed", night: night)
+        let line = try? NightSummary.notificationFailureLine(night: night, journal: journal, renderingRunID: runID)
+            .map { Self.collapsed($0) }
+        await notify(
+            completionPending ? .closedCompletionPending(failureLine: line) : .closed(failureLine: line),
+            notification: "closed", night: night
+        )
     }
 
     /// Posts `.halted(reason:)` from `runUnderLease`'s catch, after `.actIncomplete` is appended. The

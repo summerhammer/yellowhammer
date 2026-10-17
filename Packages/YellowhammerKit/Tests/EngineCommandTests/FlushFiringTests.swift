@@ -115,7 +115,7 @@ struct FlushFiringTests {
         #expect(try scene.journal.events(ofType: .nightClosed).count == 1)
         #expect(try scene.journal.events(ofType: .nightCardCompleted).count == 1)
         #expect(try scene.journal.pendingOutboxEntries().isEmpty)
-        #expect(scene.posts.events == [.closed])
+        #expect(scene.posts.events == [.closed()])
         // No trigger evaluation and no Roll-up: nothing idle was recorded.
         #expect(try scene.journal.events(ofType: .actIdle).isEmpty)
 

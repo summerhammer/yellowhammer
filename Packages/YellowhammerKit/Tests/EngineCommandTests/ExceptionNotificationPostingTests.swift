@@ -13,7 +13,7 @@ import Testing
 // a failure to dispatch is caught, recorded as `notificationDeliveryFailed`, and never fails the Act.
 
 private let notificationProjectID = ProjectID(rawValue: "fixture")!
-private let sampleNotification = ExceptionNotification(project: notificationProjectID, event: .closed)
+private let sampleNotification = ExceptionNotification(project: notificationProjectID, event: .closed())
 
 /// A test failure with a plain, controllable description — `runUnderLease` records
 /// `String(describing:)`, so this is what ends up in the Journal and the notification reason.
@@ -62,10 +62,8 @@ struct ExceptionNotificationPostingTests {
         #expect(recorder.notifications.count == 1)
         let notification = try #require(recorder.notifications.first)
         #expect(notification.project == fixture.projectID)
-        guard case .closed = notification.event else {
-            Issue.record("expected .closed, got \(notification.event)")
-            return
-        }
+        // A Night with no Failure Notice carries no failure line.
+        #expect(notification.event == .closed())
     }
 
     @Test("A non-closing Act never posts a local notification")
@@ -489,5 +487,61 @@ private struct ScratchDirectory: ~Copyable {
 
     private static func quoted(_ value: String) -> String {
         "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
+    }
+}
+
+private let overBudgetReason = "Work Card \"T\" (seshes-backend) composes 12,153 UTF-16 code units, over the "
+    + "description budget of 10,000: Brief 7,000"
+
+@Suite("The closed notification carries the Night's failure line")
+struct ClosedNotificationFailureLineTests {
+    /// Runs a closing land whose work appends `faults`, and returns the one notification it posts.
+    private func closedNotification(_ faults: [JournalEvent]) async throws -> ExceptionNotification {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let recorder = NotificationRecorder()
+        try await EngineInvocation(
+            act: .land, mode: .real, nightStart: nightCardNightStart, journal: journal,
+            trigger: .forced, runID: RunID(), closesNight: true, board: board,
+            notifier: ExceptionNotifier { recorder.record($0) },
+            work: { context in
+                for fault in faults {
+                    try journal.append(fault, act: context.act, runID: context.runID, nightID: context.night.id)
+                }
+            }
+        ).run()
+        #expect(recorder.notifications.count == 1)
+        return try #require(recorder.notifications.first)
+    }
+
+    @Test("After an over-budget authoring fault the closed notification names it")
+    func overBudgetFaultIsTheLine() async throws {
+        let notification = try await closedNotification(
+            [.featureBreakdownRejected(name: "Sync", reason: overBudgetReason)]
+        )
+        #expect(
+            notification.event
+                == .closed(failureLine: "Authoring \u{201C}Sync\u{201D} failed: over the description budget")
+        )
+    }
+
+    @Test("A clean Night posts closed with no failure line")
+    func cleanNightHasNoLine() async throws {
+        #expect(try await closedNotification([]).event == .closed())
+    }
+
+    @Test("Two unrecovered Failure Notices read as the first and one more")
+    func twoNoticesCountTheRest() async throws {
+        let notification = try await closedNotification([
+            .featureBreakdownRejected(name: "Sync", reason: overBudgetReason),
+            .featureSelectionFailed(reason: "no Feature could be selected")
+        ])
+        #expect(
+            notification.event == .closed(
+                failureLine: "Authoring \u{201C}Sync\u{201D} failed: over the description budget (and 1 more)"
+            )
+        )
     }
 }

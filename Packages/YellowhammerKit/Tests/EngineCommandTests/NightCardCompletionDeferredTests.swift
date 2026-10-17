@@ -70,7 +70,7 @@ struct NightCardCompletionDeferredTests {
         #expect(log.lines.first?.contains("deferred") == true)
         #expect(try journal.events(ofType: .nightClosed).count == 1)
         // The Night Card is not updated yet, so the notification must not say the Night merely closed.
-        #expect(closed.events == [.closedCompletionPending])
+        #expect(closed.events == [.closedCompletionPending()])
         #expect(try journal.events().map(\.type).contains(.nightCardCompleted) == false)
 
         // A later Act flushes it once the board is reachable again.
@@ -103,7 +103,7 @@ struct NightCardCompletionDeferredTests {
             work: { _ in }
         ).run()
 
-        #expect(closed.events == [.closed])
+        #expect(closed.events == [.closed()])
         #expect(try journal.events(ofType: .nightCardCompletionDeferred).isEmpty)
         #expect(try journal.events(ofType: .nightCardCompleted).count == 1)
         #expect(try journal.pendingOutboxEntries().isEmpty)

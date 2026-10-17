@@ -20,11 +20,14 @@ public struct ExceptionNotification: Hashable, Sendable {
         /// The Night halted and nothing was recorded on the Night Card first (OQ71): either no Night
         /// Card is open, or the halted comment write was aborted or permanently failed.
         case haltedUnrecorded
-        case closed
+        /// The Night closed. `failureLine` is the Night's failure line — the headline of its first unrecovered
+        /// Failure Notice — when it has one; the copy carries it and adds no event
+        /// (morning-report/notify-the-operator-of-exceptions).
+        case closed(failureLine: String? = nil)
         /// The Night closed, but the Night Card's completion is still pending in the Outbox (the board
         /// could not be reached), so the Night Card is not updated yet (Transient Board Failure Ruling,
-        /// item 7).
-        case closedCompletionPending
+        /// item 7). `failureLine` is as for `closed`.
+        case closedCompletionPending(failureLine: String? = nil)
         /// The Night-closing Act halted before it closed the Night (Transient Board Failure Ruling, item
         /// 12): the Night is not closed and its Night Card is not updated yet. `reason` names why it halted.
         case haltedNightOpen(reason: String)
@@ -64,14 +67,19 @@ public struct ExceptionNotification: Hashable, Sendable {
             arguments += ["--event", "halted", "--reason", reason]
         case .haltedUnrecorded:
             arguments += ["--event", "halted-unrecorded"]
-        case .closed:
-            arguments += ["--event", "closed"]
-        case .closedCompletionPending:
-            arguments += ["--event", "closed-completion-pending"]
+        case .closed(let failureLine):
+            arguments += ["--event", "closed"] + Self.reasonArguments(failureLine)
+        case .closedCompletionPending(let failureLine):
+            arguments += ["--event", "closed-completion-pending"] + Self.reasonArguments(failureLine)
         case .haltedNightOpen(let reason):
             arguments += ["--event", "halted-night-open", "--reason", reason]
         }
         return arguments
+    }
+
+    /// `--reason <line>` for a failure line, nothing without one — the argv of a clean Night is unchanged.
+    private static func reasonArguments(_ failureLine: String?) -> [String] {
+        failureLine.map { ["--reason", $0] } ?? []
     }
 
     /// Reads a notification from a process's launch arguments.
@@ -108,17 +116,23 @@ public struct ExceptionNotification: Hashable, Sendable {
         case "halted-night-open":
             guard let reason, !reason.allSatisfy(\.isWhitespace) else { throw .missingReason }
             return .haltedNightOpen(reason: reason)
+        case "closed":
+            return .closed(failureLine: Self.failureLine(reason))
+        case "closed-completion-pending":
+            return .closedCompletionPending(failureLine: Self.failureLine(reason))
         case let other?:
             throw .unknownEvent(other)
         }
     }
 
     /// The events that carry no `--reason`, by their `--event` name.
-    private static let reasonlessEvents: [String: Event] = [
-        "halted-unrecorded": .haltedUnrecorded,
-        "closed": .closed,
-        "closed-completion-pending": .closedCompletionPending
-    ]
+    private static let reasonlessEvents: [String: Event] = ["halted-unrecorded": .haltedUnrecorded]
+
+    /// A closed notification's optional failure line: a blank `--reason` is no line.
+    private static func failureLine(_ reason: String?) -> String? {
+        guard let reason, !reason.allSatisfy(\.isWhitespace) else { return nil }
+        return reason
+    }
 
     /// The `--name value` pairs after `postFlag`, each named at most once.
     private static func options(_ tail: ArraySlice<String>) throws(ArgumentError) -> [String: String] {
@@ -146,10 +160,12 @@ public struct ExceptionNotification: Hashable, Sendable {
         case .haltedUnrecorded:
             "\(project.rawValue) halted before its Night Card could be opened — nothing is recorded " +
                 "on the board for this Night. Check the Journal or run yh status."
-        case .closed: "Night closed"
+        case .closed(let failureLine): failureLine.map { "Night closed — \($0)" } ?? "Night closed"
         case .haltedNightOpen(let reason):
             "Night halted: \(reason) — the Night is not closed and its Night Card is not updated in Linear yet"
-        case .closedCompletionPending: "Night closed — the Night Card is not updated in Linear yet"
+        case .closedCompletionPending(let failureLine):
+            failureLine.map { "Night closed — \($0). The Night Card is not updated in Linear yet" }
+                ?? "Night closed — the Night Card is not updated in Linear yet"
         }
     }
 }
