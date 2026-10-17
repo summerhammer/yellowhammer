@@ -246,6 +246,14 @@ extension JournalEvent {
                 ordinal: try reader.int("ordinal"),
                 fixture: reader.payload?["fixture"]
             )
+        case .authoringRouteRejected:
+            .authoringRouteRejected(
+                pass: try reader.pass("pass"),
+                route: try reader.require("route"),
+                ordinal: try reader.int("ordinal"),
+                cause: try reader.rejectionCause("cause"),
+                reason: try reader.require("reason")
+            )
         case .featureSelectionFailed:
             .featureSelectionFailed(reason: try reader.require("reason"))
         case .refusalOpened:

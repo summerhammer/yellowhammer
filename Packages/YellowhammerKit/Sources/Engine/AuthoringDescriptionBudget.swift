@@ -206,7 +206,7 @@ struct AuthoringDescriptionBudget {
         let unit = budget.limit.unit.plural
         let named = sections.filter { $0.1 > 0 }.sorted { $0.1 > $1.1 }
             .map { "\($0.0) \(Self.grouped($0.1))" }.joined(separator: "; ")
-        return "\(card) composes \(Self.grouped(size)) \(unit), over the description budget of "
+        return "\(card) composes \(Self.grouped(size)) \(unit), \(DescriptionBudgetOverrun.marker) "
             + "\(Self.grouped(budget.value)): \(named)"
     }
 

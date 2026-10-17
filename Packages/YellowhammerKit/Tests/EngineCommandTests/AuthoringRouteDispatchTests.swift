@@ -397,4 +397,87 @@ extension AuthoringRouteDispatchTests {
         #expect(faults.lastReason.contains("description budget"))
         #expect(try rig.journal.events(ofType: .featureBreakdownRejected).count == 1)
     }
+
+    private func rejections(_ rig: AuthoringRig) throws -> [JournalEvent] {
+        try rig.journal.events(ofType: .authoringRouteRejected).map(\.event)
+    }
+
+    @Test("Two Routes rejected on a breakdown are two AuthoringRouteRejected events, one per Route, in walk order")
+    func eachRejectedRouteIsRecorded() async throws {
+        let rig = try await AuthoringRig()
+        rig.descriptionBudget = try DescriptionBudget(
+            configured: 2_000, limit: BoardDescriptionLimit(maximum: 250_000, unit: .utf16CodeUnits)
+        )
+        let dispatch = ScriptedRouteDispatch([
+            primary: .answer(try briefedBreakdown(String(repeating: "Approach. ", count: 400))),
+            fallback: .answer(try briefedBreakdown(String(repeating: "Approach. ", count: 500)))
+        ])
+        _ = try await rangedSelection(dispatch).selectAndAuthor(rig.context())
+
+        let recorded = try rejections(rig)
+        #expect(recorded.count == 2)
+        guard case .authoringRouteRejected(let pass, let route, let ordinal, let cause, let reason) = recorded[0],
+            case .authoringRouteRejected(_, let route2, let ordinal2, let cause2, let reason2) = recorded[1]
+        else {
+            Issue.record("expected two authoringRouteRejected events")
+            return
+        }
+        #expect(pass == .breakdown)
+        #expect([route, route2] == [primary.description, fallback.description])
+        #expect(ordinal == 1 && ordinal2 == 2)
+        #expect([cause, cause2] == [.overDescriptionBudget, .overDescriptionBudget])
+        // The reason `AuthoringDescriptionBudget` worded parses back to the numbers it states.
+        let first = try #require(DescriptionBudgetOverrun.parse(reason))
+        let second = try #require(DescriptionBudgetOverrun.parse(reason2))
+        #expect(first.budget == 2_000 && second.budget == 2_000)
+        #expect(first.size > 2_000 && second.size > first.size)
+        #expect(try rig.journal.events(ofType: .featureBreakdownRejected).count == 1)
+    }
+
+    @Test("A budget rejection and an invalid-output rejection carry their own causes")
+    func causesDiffer() async throws {
+        let rig = try await AuthoringRig()
+        rig.descriptionBudget = try DescriptionBudget(
+            configured: 2_000, limit: BoardDescriptionLimit(maximum: 250_000, unit: .utf16CodeUnits)
+        )
+        let dispatch = ScriptedRouteDispatch([
+            primary: .answer(try briefedBreakdown(String(repeating: "Approach. ", count: 400))),
+            fallback: .answer(try rangedBreakdown(LineRange(start: 900, end: 950)))
+        ])
+        _ = try await rangedSelection(dispatch).selectAndAuthor(rig.context())
+
+        let causes = try rejections(rig).compactMap { event -> AuthoringRouteRejectionCause? in
+            if case .authoringRouteRejected(_, _, _, let cause, _) = event { cause } else { nil }
+        }
+        #expect(causes == [.overDescriptionBudget, .invalidOutput])
+    }
+
+    @Test("A refusal, an exit and a timeout are recorded as unavailable, exited and timed out")
+    func nonAnswersAreRecorded() async throws {
+        let cases: [(Behaviour, AuthoringRouteRejectionCause)] = [
+            (.refuse, .unavailable), (.exit(2), .exited), (.timeOut, .timedOut),
+            (.answer(selectionFailed), .reportedFailed)
+        ]
+        for (behaviour, expected) in cases {
+            let rig = try Rig([primary: behaviour, fallback: .answer(nothingSelectable)])
+            _ = try await rig.selection.selectAndAuthor(rig.context)
+            let recorded = try rig.journal.events(ofType: .authoringRouteRejected).map(\.event)
+            #expect(recorded.count == 1)
+            guard case .authoringRouteRejected(.selection, let route, 1, let cause, _) = recorded.first else {
+                Issue.record("expected one rejection of the primary Route for \(expected)")
+                continue
+            }
+            #expect(route == primary.description)
+            #expect(cause == expected)
+        }
+    }
+
+    @Test("A Route that answers after one rejection leaves exactly one rejection event and no fault")
+    func answeringRouteLeavesNoFault() async throws {
+        let rig = try Rig([primary: .exit(1), fallback: .answer(nothingSelectable)])
+        _ = try await rig.selection.selectAndAuthor(rig.context)
+        #expect(try rig.journal.events(ofType: .authoringRouteRejected).count == 1)
+        #expect(try rig.journal.events(ofType: .featureSelectionFailed).isEmpty)
+        #expect(try rig.journal.events(ofType: .featureBreakdownRejected).isEmpty)
+    }
 }

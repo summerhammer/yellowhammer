@@ -49,8 +49,9 @@ public enum FeatureAuthoringOutcome: Equatable, Sendable {
     /// Feature Issue, Card, Cycle or row was left behind, and the fault is recorded on the Night Card.
     /// Covers both a board rollback of an accepted group and a breakdown `FeatureBreakdownValidation`
     /// rejected before anything was ever accepted into the Outbox — an authoring fault, not a halt: it
-    /// touches no Authoring Halt row and no Refusal. Like a halt, the Act itself still ends normally — a
-    /// quiet Night for this Act — and the next author Act authors afresh.
+    /// touches no Authoring Halt row and no Refusal. The Act still ends with `ActEnded`, but it is an Act
+    /// failure, not a quiet Night: the app shows it in Health (Authoring Fault in Health Ruling,
+    /// 2026-10-16). The next author Act authors afresh.
     case authoringRolledBack
     /// Authoring was accepted but not yet fully delivered — the board's rate limit, a transient outage or
     /// a lost Card Lease deferred it. Nothing is written to the Journal's Feature, Cycle or Card rows
@@ -91,7 +92,9 @@ public protocol FeatureAuthoring: Sendable {
 ///
 /// Each of steps 2, 3 and 5 (and a halt inside step 4) is a quiet Night, not a failure: the Act returns
 /// normally (the invocation records `ActEnded`) and the reason is put on the Night Card right away,
-/// before the Act's own write-back. This Act dispatches no Card, so its write-back also runs
+/// before the Act's own write-back. An authoring fault (a rolled-back transaction, a rejected breakdown,
+/// a failed selection) also ends with `ActEnded`, yet is an Act failure the app shows in Health
+/// (Authoring Fault in Health Ruling, 2026-10-16); only halts, release-gate holds and no-work stay quiet. This Act dispatches no Card, so its write-back also runs
 /// ``DeferredCardStateReplay`` (issue #96) before delivering pending Outbox entries: a Card
 /// state write a merge closure (P10.8) or a settle release (P10.9) deferred is otherwise never retried,
 /// because those seams release the Card Lease the instant the deferred write is accepted.

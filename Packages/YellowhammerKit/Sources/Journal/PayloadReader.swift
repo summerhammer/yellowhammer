@@ -118,6 +118,14 @@ struct PayloadReader: Sendable {
         return pass
     }
 
+    func rejectionCause(_ key: String) throws -> AuthoringRouteRejectionCause {
+        let text = try require(key)
+        guard let cause = AuthoringRouteRejectionCause(rawValue: text) else {
+            throw JournalError.eventUnreadable(id: rowID)
+        }
+        return cause
+    }
+
     func landStep(_ key: String) throws -> LandStep {
         let text = try require(key)
         guard let step = LandStep(rawValue: text) else {
