@@ -43,15 +43,23 @@ struct NightLog: View {
     }
 
     private func row(_ item: NightTimeline.Item, isAfter: Bool) -> some View {
-        Button {
-            chosen = (item.id, item.entry.occurredAt)
-            playhead = item.entry.occurredAt
-        } label: {
-            NightLogRow(item: item, isAfter: isAfter)
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                chosen = (item.id, item.entry.occurredAt)
+                playhead = item.entry.occurredAt
+            } label: {
+                NightLogRow(item: item, isAfter: isAfter)
+            }
+            .buttonStyle(NightLogRowStyle(isSelected: selection == item.id))
+            .accessibilityAddTraits(selection == item.id ? .isSelected : [])
+            .accessibilityIdentifier("night-account-entry-\(item.entry.id)")
+            // The last pointer of a failed entry's details, once it is the chosen one.
+            if selection == item.id, let failedAct = item.entry.failedAct {
+                ActLogPointer(act: failedAct)
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 6)
+            }
         }
-        .buttonStyle(NightLogRowStyle(isSelected: selection == item.id))
-        .accessibilityAddTraits(selection == item.id ? .isSelected : [])
-        .accessibilityIdentifier("night-account-entry-\(item.entry.id)")
     }
 
     private var playheadRow: some View {

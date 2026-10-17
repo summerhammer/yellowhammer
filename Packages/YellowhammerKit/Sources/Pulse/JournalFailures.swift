@@ -32,7 +32,8 @@ struct JournalFailures {
                 kind: .actFailure, detail: detail,
                 occurrenceCount: Set(group.map(\.runKey)).count, lastOccurredAt: last,
                 recoveredAt: recoveredAt, cause: latest.cause, fixLink: latest.fixLink(nightCard: nightCard),
-                nextAction: latest.nextAction
+                nextAction: latest.nextAction,
+                failedAct: latest.record.act
             )
         }
         notices = collected.notices.compactMap { group in
@@ -40,7 +41,8 @@ struct JournalFailures {
             return FailureNotice(
                 headline: first.headline, count: Set(group.map(\.runKey)).count,
                 firstOccurredAt: first.record.occurredAt, lastOccurredAt: last.record.occurredAt,
-                firstEventID: first.record.id, isRecovered: collected.recoveredAt(last) != nil
+                firstEventID: first.record.id, isRecovered: collected.recoveredAt(last) != nil,
+                failedAct: first.record.act
             )
         }
         let runDetails = Dictionary(grouping: failures, by: \.runKey).mapValues { $0.map(\.detail) }

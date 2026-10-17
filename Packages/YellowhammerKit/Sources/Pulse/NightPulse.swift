@@ -62,12 +62,15 @@ public struct FailureNotice: Identifiable, Equatable, Sendable {
     public var firstEventID: Int64
     /// Whether a later run got past this notice's cause, by Health's recovery rule.
     public var isRecovered: Bool
+    /// The Act that recorded the notice's first failure, whose log the app can point to
+    /// (morning-report/disclose-a-failure#log-path). Nil when the event records no Act.
+    public var failedAct: Act?
 
     public var id: Int64 { firstEventID }
 
     public init(
         headline: String, count: Int = 1, firstOccurredAt: Date, lastOccurredAt: Date, firstEventID: Int64,
-        isRecovered: Bool = false
+        isRecovered: Bool = false, failedAct: Act? = nil
     ) {
         self.headline = headline
         self.count = count
@@ -75,6 +78,7 @@ public struct FailureNotice: Identifiable, Equatable, Sendable {
         self.lastOccurredAt = lastOccurredAt
         self.firstEventID = firstEventID
         self.isRecovered = isRecovered
+        self.failedAct = failedAct
     }
 }
 
@@ -118,6 +122,9 @@ public struct HealthFlag: Identifiable, Equatable, Sendable {
     public var fixLink: PulseDestination?
     /// What to do first, when the cause has a known answer.
     public var nextAction: String?
+    /// The Act whose log the Operator can open: set only on an `.actFailure`, from its latest failure's Act
+    /// (morning-report/disclose-a-failure#log-path). Nil for every other kind, so no log is offered for them.
+    public var failedAct: Act?
 
     /// A flag is its kind and detail; repeated Journal failures update its count and time.
     public var id: String { "\(kind.rawValue): \(detail)" }
@@ -126,7 +133,8 @@ public struct HealthFlag: Identifiable, Equatable, Sendable {
         kind: HealthFlagKind, detail: String, occurrenceCount: Int = 1, lastOccurredAt: Date? = nil,
         recoveredAt: Date? = nil, pendingWriteCount: Int = 0, failedWriteCount: Int = 0,
         oldestUndeliveredAt: Date? = nil, lastError: String? = nil,
-        cause: ActFailureCause? = nil, fixLink: PulseDestination? = nil, nextAction: String? = nil
+        cause: ActFailureCause? = nil, fixLink: PulseDestination? = nil, nextAction: String? = nil,
+        failedAct: Act? = nil
     ) {
         self.kind = kind
         self.detail = detail
@@ -140,6 +148,7 @@ public struct HealthFlag: Identifiable, Equatable, Sendable {
         self.cause = cause
         self.fixLink = fixLink
         self.nextAction = nextAction
+        self.failedAct = failedAct
     }
 
     /// Board repair is offered only for current provisioning failures, including the Act's recorded refusal.

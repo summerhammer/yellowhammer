@@ -202,6 +202,7 @@ struct OverviewWindow: View {
                         playheadRequest: playheadRequest.flatMap { $0.night == night.night ? $0 : nil },
                         close: closeNightAccount
                     )
+                    .environment(\.actLogProject, selected.id)
                     .id(night)
                 } else {
                     PulseView(
@@ -215,6 +216,7 @@ struct OverviewWindow: View {
                             $0.project == selected.id ? $0.message : nil
                         }
                     )
+                    .environment(\.actLogProject, selected.id)
                 }
             } else if let scopedProject {
                 // Only a deep link keeps the window scoped to an id that is not configured: any other

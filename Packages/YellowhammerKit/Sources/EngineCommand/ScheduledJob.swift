@@ -28,7 +28,7 @@ struct ScheduledJob: Equatable {
     /// `~/Library/Logs/Yellowhammer/<project>.<act>.log`, expanded against `homeDirectory`. Never reads
     /// the real home: the caller injects it.
     func logPath(homeDirectory: String) -> String {
-        "\(homeDirectory)/Library/Logs/Yellowhammer/\(projectID.rawValue).\(act.rawValue).log"
+        act.logPath(projectID: projectID, homeDirectory: homeDirectory)
     }
 }
 

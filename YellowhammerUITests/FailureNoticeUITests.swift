@@ -67,6 +67,21 @@ final class FailureNoticeUITests: XCTestCase {
         XCTAssertEqual(value.isEmpty ? clock.label : value, Self.faultAt.formatted(.dateTime.hour().minute().second()))
     }
 
+    /// A failed Health row ends its details with its Act's log path and Reveal in Finder, and shows no excerpt
+    /// (morning-report/disclose-a-failure#log-path). Reveal is only looked for, never clicked.
+    func testAnActFailureRowOffersItsActLogWithRevealInFinder() throws {
+        try seedFault()
+        app.launch()
+
+        element("sidebar-archive").click()
+        let health = element("pulse-summary-health")
+        if health.waitForExistence(timeout: 10) { health.click() }
+        let path = element("act-log-path")
+        XCTAssertTrue(path.waitForExistence(timeout: 10), "the failed Health row shows no Act log path")
+        XCTAssertTrue((path.value as? String ?? path.label).contains("archive.author.log"))
+        XCTAssertTrue(element("act-log-reveal").exists)
+    }
+
     /// The seeded fault's time, 2026-09-21T21:00:00Z.
     private static let faultAt = Date(timeIntervalSince1970: 1_790_024_400)
 

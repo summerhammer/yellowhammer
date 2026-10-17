@@ -62,10 +62,9 @@ extension Status {
 
     /// `~/Library/Logs/Yellowhammer/<project>.<act>.log` (matches `ScheduledJob.logPath(homeDirectory:)`).
     private static func logPath(homeDirectory: URL, projectID: ProjectID, act: Act) -> URL {
-        homeDirectory.appending(
-            components: "Library", "Logs", "Yellowhammer", "\(projectID.rawValue).\(act.rawValue).log",
-            directoryHint: .notDirectory
-        )
+        var home = homeDirectory.path(percentEncoded: false)
+        while home.count > 1, home.hasSuffix("/") { home.removeLast() }
+        return URL(filePath: act.logPath(projectID: projectID, homeDirectory: home), directoryHint: .notDirectory)
     }
 
     /// The log's last non-empty line, reading at most its final 64 KiB — `launchd` appends to this

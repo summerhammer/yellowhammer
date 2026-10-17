@@ -27,36 +27,12 @@ struct HealthGroup: View {
                     .accessibilityIdentifier("health-absence")
             case let flags?:
                 ForEach(flags) { flag in
-                    if flag.canRepairBoard {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HealthFlagRow(flag: flag)
-                            Button("Repair", action: repairBoard)
-                                .buttonStyle(.link)
-                                .disabled(!canRepairBoard)
-                                .accessibilityIdentifier("pulse-repair-board")
+                    VStack(alignment: .leading, spacing: 6) {
+                        flagRow(flag)
+                        // The last pointer of a failed item's details; only an Act failure has one.
+                        if flag.kind == .actFailure, let failedAct = flag.failedAct {
+                            ActLogPointer(act: failedAct)
                         }
-                    } else if flag.kind == .actFailure {
-                        // An Act failure opens where it is fixed: Settings for a configuration cause, the
-                        // Work Card for a broken invariant, the Night Card otherwise (disclose-a-failure).
-                        if let fixLink = flag.fixLink {
-                            Button { openDestination(fixLink) } label: { HealthFlagRow(flag: flag) }
-                                .buttonStyle(.plain)
-                                .help(help(for: fixLink))
-                        } else {
-                            HealthFlagRow(flag: flag)
-                        }
-                    } else if flag.kind == .undeliveredBoardWrites {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HealthFlagRow(flag: flag)
-                            Button("Deliver now", action: deliverNow)
-                                .buttonStyle(.link)
-                                .disabled(!canDeliverNow)
-                                .accessibilityIdentifier("pulse-deliver-now")
-                        }
-                    } else {
-                        Button { openDestination(flag.destination) } label: { HealthFlagRow(flag: flag) }
-                            .buttonStyle(.plain)
-                            .help(help(for: flag.destination))
                     }
                 }
             }
@@ -75,6 +51,41 @@ struct HealthGroup: View {
                 .accessibilityIdentifier("pulse-health-settings")
         }
         .accessibilityIdentifier("pulse-health")
+    }
+
+    /// One flag and the way out it offers.
+    @ViewBuilder private func flagRow(_ flag: HealthFlag) -> some View {
+        if flag.canRepairBoard {
+            VStack(alignment: .leading, spacing: 6) {
+                HealthFlagRow(flag: flag)
+                Button("Repair", action: repairBoard)
+                    .buttonStyle(.link)
+                    .disabled(!canRepairBoard)
+                    .accessibilityIdentifier("pulse-repair-board")
+            }
+        } else if flag.kind == .actFailure {
+            // An Act failure opens where it is fixed: Settings for a configuration cause, the
+            // Work Card for a broken invariant, the Night Card otherwise (disclose-a-failure).
+            if let fixLink = flag.fixLink {
+                Button { openDestination(fixLink) } label: { HealthFlagRow(flag: flag) }
+                    .buttonStyle(.plain)
+                    .help(help(for: fixLink))
+            } else {
+                HealthFlagRow(flag: flag)
+            }
+        } else if flag.kind == .undeliveredBoardWrites {
+            VStack(alignment: .leading, spacing: 6) {
+                HealthFlagRow(flag: flag)
+                Button("Deliver now", action: deliverNow)
+                    .buttonStyle(.link)
+                    .disabled(!canDeliverNow)
+                    .accessibilityIdentifier("pulse-deliver-now")
+            }
+        } else {
+            Button { openDestination(flag.destination) } label: { HealthFlagRow(flag: flag) }
+                .buttonStyle(.plain)
+                .help(help(for: flag.destination))
+        }
     }
 
     /// A single repair destination is the useful way out; mixed findings need the Project's Settings.

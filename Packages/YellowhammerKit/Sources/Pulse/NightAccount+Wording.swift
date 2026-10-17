@@ -24,7 +24,8 @@ extension NightAccount.Entry {
             occurredAt: record.occurredAt,
             headline: words.headline,
             detail: words.detail,
-            isProblem: NightAccount.isProblem(record)
+            isProblem: NightAccount.isProblem(record),
+            failedAct: NightAccount.isProblem(record) ? record.act : nil
         )
     }
 }
