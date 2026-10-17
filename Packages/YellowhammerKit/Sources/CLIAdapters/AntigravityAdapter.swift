@@ -24,7 +24,8 @@ import Foundation
 /// **No containment at all (issue #546).** With `--dangerously-skip-permissions` and no sandbox, an agy
 /// pass can read Yellowhammer's configuration directory and the login Keychain and call vendor APIs.
 /// This adapter ignores `CLIDispatch.protectedDirectories`; only the prompt's boundary statement asks
-/// the pass not to. A known gap, tracked in issue #546.
+/// the pass not to. The Probe's state-containment finding (PR #575) reports it as failed; see
+/// `doc/agent-pass-containment.md`.
 ///
 /// A tool permission denied in headless mode still exits 0 with `status: "SUCCESS"` but carries no
 /// `structured_output`, so ``collect(end:dispatch:)`` materializes `result.json` only from a present

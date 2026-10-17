@@ -199,6 +199,10 @@ there; the repo-local consequences are:
   notifications itself: it launches `Yellowhammer.app` headless with
   `--post-notification`.
 - **Local git is not behind a Port** (see Architecture). Needs `git` 2.38 or later.
+- **The worker pass is never sandboxed by Yellowhammer** (issue #553): a nested Seatbelt breaks
+  SwiftPM, and there is no per-language workaround. Keychain items stay legacy login items (issue
+  #554), and a macOS Keychain prompt attributed to a pass ends it (issue #555). The per-CLI
+  containment table is in `doc/agent-pass-containment.md`.
 - **Schema migrations are GRDB `DatabaseMigrator`s, forward-only, owned by the engine.**
   The Journal and the Ledger each have their own migrator in their own module. The engine
   migrates on open; the app opens every store read-only, never migrates, and refuses to
