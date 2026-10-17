@@ -8,8 +8,10 @@ import Journal
 extension FeatureVerification {
     /// Dispatches `pending` as one verifier pass and returns the Route that answered with the verdicts by
     /// clause key. A capability failure of a Route — a refusal, a non-zero exit, a `failed` result, or a
-    /// result that does not cover exactly the dispatched clauses — moves on to the next Route; a
-    /// Crashed-Unknown run, or an exhausted table, throws ``VerificationDispatchFault``.
+    /// result that does not cover exactly the dispatched clauses — moves on to the next Route, and records
+    /// one `AuthoringRouteRejected` event (`pass: .verifier`) for it, as an authoring walk does, so the
+    /// Night's account keeps each Route's own account. A usage-limited Route is deferred, not excluded, and
+    /// records none. A Crashed-Unknown run, or an exhausted table, throws ``VerificationDispatchFault``.
     func dispatchVerifier(
         _ pending: [VerificationCandidate], context: LandActFeatureContext
     ) async throws -> (Route, [String: VerifiedClause]) {
@@ -35,6 +37,10 @@ extension FeatureVerification {
             } catch let refusal as AgentDispatchRefusal {
                 tried.insert(route)
                 lastFailure = "verifier on \(route) is unavailable: \(refusal)"
+                try recordRejection(
+                    VerifierRejection(cause: .unavailable, reason: "\(refusal)"),
+                    route: route, ordinal: Int(ordinal), act: act
+                )
                 continue
             }
             try record(report.origin, route: route, ordinal: Int(ordinal), context: act)
@@ -42,24 +48,38 @@ extension FeatureVerification {
             if let verdicts = judged.verdicts { return (route, verdicts) }
             if !judged.usageLimited { tried.insert(route) }
             lastFailure = judged.failure
+            if let rejection = judged.rejection {
+                try recordRejection(rejection, route: route, ordinal: Int(ordinal), act: act)
+            }
         }
+    }
+
+    /// One Route's failure as its `AuthoringRouteRejected` event records it: the class, and the account.
+    private struct VerifierRejection {
+        let cause: AuthoringRouteRejectionCause
+        let reason: String
     }
 
     private struct JudgedVerifier {
         let verdicts: [String: VerifiedClause]?
         let failure: String?
         var usageLimited = false
+        /// Set for a Route the walk excludes; nil for an answer and for a deferred, usage-limited Route.
+        var rejection: VerifierRejection?
     }
 
     private func judgeVerifier(
         _ outcome: RunOutcome, pending: [VerificationCandidate], route: Route, act: ActContext
     ) throws -> JudgedVerifier {
         let failure: String
+        let rejection: VerifierRejection
         switch outcome {
         case .completed(let result):
             switch Self.verdicts(in: result, covering: pending) {
             case .success(let verdicts): return JudgedVerifier(verdicts: verdicts, failure: nil)
-            case .failure(let reason): failure = "verifier on \(route) \(reason)"
+            case .failure(let verdictFailure):
+                failure = "verifier on \(route) \(verdictFailure)"
+                rejection = VerifierRejection(cause: verdictFailure.cause, reason: verdictFailure.reason)
             }
         case .usageLimited:
             _ = try act.recordUsageLimit(outcome, route: route)
@@ -68,15 +88,30 @@ extension FeatureVerification {
                                   usageLimited: true)
         case .failed(let exitStatus):
             failure = "verifier on \(route) exited with status \(exitStatus)"
+            rejection = VerifierRejection(cause: .exited, reason: failure)
         case .contractViolation(let error):
             failure = "verifier on \(route) broke the result contract: \(error)"
+            rejection = VerifierRejection(cause: .brokeResultContract, reason: failure)
         case .timedOut(let after):
             failure = "verifier on \(route) ran out of time after \(after.wholeMinutes) min"
+            rejection = VerifierRejection(cause: .timedOut, reason: failure)
         case .crashedUnknown(let cause):
             throw VerificationDispatchFault(reason: "verifier on \(route) crashed with no outcome (\(cause)); "
                 + "a Crashed-Unknown run excludes no Route and ends Verification for this Act")
         }
-        return JudgedVerifier(verdicts: nil, failure: failure)
+        return JudgedVerifier(verdicts: nil, failure: failure, rejection: rejection)
+    }
+
+    private func recordRejection(
+        _ rejection: VerifierRejection, route: Route, ordinal: Int, act: ActContext
+    ) throws {
+        try act.journal.append(
+            .authoringRouteRejected(
+                pass: .verifier, route: route.description, ordinal: ordinal, cause: rejection.cause,
+                reason: rejection.reason
+            ),
+            act: act.act, runID: act.runID, nightID: act.night.id
+        )
     }
 
     private static func verifierRequest(
@@ -109,26 +144,41 @@ extension FeatureVerification {
         in result: DispatchResult, covering pending: [VerificationCandidate]
     ) -> Result<[String: VerifiedClause], VerdictFailure> {
         guard case .verifier(let verifier) = result else {
-            return .failure(VerdictFailure("answered with a result that is not a verifier result"))
+            return .failure(VerdictFailure(
+                cause: .invalidOutput, reason: "answered with a result that is not a verifier result"
+            ))
         }
         switch verifier.outcome {
         case .failed(let reason):
-            return .failure(VerdictFailure("reported failed: \(reason)"))
+            return .failure(VerdictFailure(
+                cause: .reportedFailed, reason: reason, description: "reported failed: \(reason)"
+            ))
         case .reported(let clauses):
             var byKey: [String: VerifiedClause] = [:]
             for clause in clauses {
                 byKey["\(clause.issueID)\u{1F}\(clause.cid)"] = clause
             }
             guard byKey.count == clauses.count, Set(byKey.keys) == Set(pending.map(\.key)) else {
-                return .failure(VerdictFailure("did not judge exactly the clauses it was given"))
+                return .failure(VerdictFailure(
+                    cause: .invalidOutput, reason: "did not judge exactly the clauses it was given"
+                ))
             }
             return .success(byKey)
         }
     }
 
+    /// Why a completed result is a capability failure: its rejection class, the account its event records, and
+    /// the walk's last-failure wording (after `verifier on <Route> `).
     private struct VerdictFailure: Error, CustomStringConvertible {
+        let cause: AuthoringRouteRejectionCause
+        let reason: String
         let description: String
-        init(_ description: String) { self.description = description }
+
+        init(cause: AuthoringRouteRejectionCause, reason: String, description: String? = nil) {
+            self.cause = cause
+            self.reason = reason
+            self.description = description ?? reason
+        }
     }
 
     // MARK: - Instruction inputs

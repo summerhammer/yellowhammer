@@ -514,3 +514,19 @@ func authoringRouteRejectedRoundTrips() throws {
     #expect(records[0].event == event)
     #expect(records[0].type == .authoringRouteRejected)
 }
+
+@Test("authoringRouteRejected event round-trips for the verifier pass")
+func verifierRouteRejectedRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let event = JournalEvent.authoringRouteRejected(
+        pass: .verifier, route: "codex/gpt-5.4/high", ordinal: 1, cause: .brokeResultContract,
+        reason: "verifier on codex/gpt-5.4/high broke the result contract: empty"
+    )
+
+    _ = try journal.append(event, act: .land, runID: RunID(), now: epoch)
+    let records = try journal.events()
+
+    #expect(records.map(\.event) == [event])
+    #expect(records[0].act == .land)
+}

@@ -17,6 +17,8 @@ let routeThird = Route(cli: "gemini", model: "pro", effort: "high")!
 enum VerifierBehaviour {
     case refuse
     case exit(Int32)
+    /// Ends with a result file the contract refuses.
+    case contractViolation
     case crash
     case usageLimit
     /// Judges every clause the request names `met` (or, for those in `unmet`, `unmet`).
@@ -51,6 +53,8 @@ final class ScriptedVerifierDispatch: AgentDispatch, Sendable {
             throw AgentDispatchRefusal(reason: "no executable")
         case .exit(let status):
             return AgentDispatchReport(outcome: .failed(exitStatus: status))
+        case .contractViolation:
+            return AgentDispatchReport(outcome: .contractViolation(.empty))
         case .usageLimit:
             return AgentDispatchReport(outcome: .usageLimited(resetHint: nil))
         case .crash:

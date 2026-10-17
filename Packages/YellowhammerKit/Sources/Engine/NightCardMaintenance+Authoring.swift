@@ -67,23 +67,43 @@ extension NightCardMaintenance {
         return lines
     }
 
-    /// Buffers a Route rejection under its run; when that run's fault arrives, returns the buffered lines.
+    /// Buffers a Route rejection under its run; when that run's fault arrives, returns the buffered lines. An
+    /// authoring pass's rejections are flushed by the run's `FeatureBreakdownRejected` or
+    /// `FeatureSelectionFailed`; the verifier's, by the run's failed Verification land step. A walk that ended
+    /// in an answer has no fault, so what it buffered is never rendered.
     private static func bufferedRouteLines(
         for record: JournalEventRecord, rejections: inout [RunID: [RouteRejection]]
     ) -> [String] {
         guard let runID = record.runID else { return [] }
         switch record.event {
-        case .authoringRouteRejected(_, let route, _, let cause, let reason):
-            rejections[runID, default: []].append(RouteRejection(route: route, cause: cause, reason: reason))
+        case .authoringRouteRejected(let pass, let route, _, let cause, let reason):
+            rejections[runID, default: []].append(
+                RouteRejection(pass: pass, route: route, cause: cause, reason: reason)
+            )
             return []
         case .featureBreakdownRejected, .featureSelectionFailed:
-            return routeRejectionLines(rejections.removeValue(forKey: runID) ?? [])
+            return flush(&rejections, runID: runID, verifier: false)
+        case .landStep(.verification, _, .failed, _):
+            return flush(&rejections, runID: runID, verifier: true).map { "Verification: \($0)" }
         default:
             return []
         }
     }
 
+    /// The lines of the run's buffered rejections of the verifier pass (or of every other pass), which leave
+    /// the buffer; the other pass's stay.
+    private static func flush(
+        _ rejections: inout [RunID: [RouteRejection]], runID: RunID, verifier: Bool
+    ) -> [String] {
+        let buffered = rejections[runID] ?? []
+        let flushed = buffered.filter { ($0.pass == .verifier) == verifier }
+        let kept = buffered.filter { ($0.pass == .verifier) != verifier }
+        rejections[runID] = kept.isEmpty ? nil : kept
+        return routeRejectionLines(flushed)
+    }
+
     private struct RouteRejection {
+        let pass: RunPass
         let route: String
         let cause: AuthoringRouteRejectionCause
         let reason: String
