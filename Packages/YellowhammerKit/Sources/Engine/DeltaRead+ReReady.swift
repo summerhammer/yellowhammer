@@ -6,11 +6,12 @@ import Journal
 // replies, overdue decisions and abandoned Features preserve their budgets and exclusions.
 
 extension DeltaRead {
-    /// Accepts the Operator's re-ready. The caller has already ruled out pending board writes.
+    /// Accepts the Operator's re-ready, unless ``acceptsReReady`` is false. The caller has already ruled
+    /// out pending board writes.
     func reReadyIfBlocked(
         card: inout CardRecord, boardState: BoardWorkflowState, into report: inout DeltaReadReport
     ) throws -> Bool {
-        guard card.state == .blocked, boardState.name == CardState.todo.rawValue,
+        guard acceptsReReady, card.state == .blocked, boardState.name == CardState.todo.rawValue,
               let rawReason = card.blockReason, let reason = BlockReason(rawValue: rawReason)
         else {
             return false

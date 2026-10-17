@@ -86,9 +86,11 @@ public protocol FeatureAuthoring: Sendable {
 ///    (``JournalStore/recordAuthoringNoWorkAvailable(nightID:act:runID:)``).
 ///
 /// Before any of the above, the Refusal clock advances (``UnansweredPositionClock``, P9.7) and this Act
-/// reads and banks replies to Cards left Waiting on You in an already-landed Cycle
+/// reads the board for an already-landed Cycle and banks replies to Cards left Waiting on You in it
 /// (``PostLandingReplies``, roadmap P11.3) — the only place that ever happens once no build Act fires
-/// for that Cycle again.
+/// for that Cycle again. That read also comes before steps 2–4, so a Card the Operator cancelled is
+/// Shelved before anything closes, settles or selects (issue #559). If it degrades, none of steps 2–5
+/// runs: the Act only writes back.
 ///
 /// Each of steps 2, 3 and 5 (and a halt inside step 4) is a quiet Night, not a failure: the Act returns
 /// normally (the invocation records `ActEnded`) and the reason is put on the Night Card right away,
@@ -135,30 +137,26 @@ public struct AuthorAct: Sendable {
         try await UnansweredPositionClock.run(context: context, unansweredNightsMax: unansweredNightsMax)
 
         // Once a Feature has landed, no build Act ever fires again (P10.1) and so nothing else reads
-        // the board for a Card left Waiting on You — the author Act reads and banks its replies itself
-        // (roadmap P11.3), and then spends the unanswered-Nights clock for those same Cards (roadmap
-        // P11.4), strictly before the predecessor gate below, whose merge closure auto-Blocks a Waiting
-        // on You Card and would otherwise carry an unbanked reply, or an unspent Night, forward as lost.
-        try await runPostLandingRepliesAndClock(context: context)
+        // the board for that Cycle's Cards — the author Act reads it itself, banks replies (roadmap
+        // P11.3), and then spends the unanswered-Nights clock for those same Cards (roadmap P11.4),
+        // strictly before the predecessor gate below, whose merge closure auto-Blocks a Waiting on You
+        // Card and would otherwise carry an unbanked reply, or an unspent Night, forward as lost. The
+        // merge closure, the settle gesture and selection then see the Operator's Cancels (issue #559);
+        // a degraded read decides none of them this Act.
+        guard try await runPostLandingRepliesAndClock(context: context) != .degraded else {
+            try await writeBack(context: context)
+            return
+        }
 
         // The predecessor-ancestry gate's pass (P9.9) runs every Night, independently of the in-flight
         // skip below: it observes the in-flight Feature's landings when one is open (so they accumulate
         // before it becomes tomorrow's predecessor) and gates the predecessor when nothing is. It opens
         // no lane, consumes no Attempt, writes nothing to the board. The gate's own closure seam may
-        // close the in-flight Feature by merge (P10.8) — merge wins over a same-morning release.
-        var gateOutcome = try await checkPredecessorGate(context: context)
-
-        // The Operator's settle gesture (P10.9) applies to whatever Feature is still in flight after
-        // the gate's own merge closure. If it released the Feature, the Feature is no longer in flight
-        // (its Cycle is archived), so the gate is re-run: the walk skips a released Feature
-        // (JournalStore+Predecessor.swift), and this same Act goes on to decide whether authoring
-        // proceeds against the new predecessor.
-        if let (feature, cycleID) = try journal.inFlightFeature(), let settle {
-            try await settle.settle(feature: feature, cycleID: cycleID, context: context)
-            if try journal.inFlightFeature() == nil {
-                gateOutcome = try await checkPredecessorGate(context: context)
-            }
-        }
+        // close the in-flight Feature by merge (P10.8) — merge wins over a same-morning release, which
+        // the settle gesture then applies to whatever is still in flight.
+        let gateOutcome = try await settleInFlightFeature(
+            gateOutcome: try await checkPredecessorGate(context: context), context: context
+        )
 
         if let (feature, _) = try journal.inFlightFeature() {
             try journal.append(
@@ -203,25 +201,41 @@ public struct AuthorAct: Sendable {
         try await writeBack(context: context)
     }
 
+    /// The Operator's settle gesture (P10.9) applies to whatever Feature is still in flight after
+    /// the gate's own merge closure. If it released the Feature, the Feature is no longer in flight
+    /// (its Cycle is archived), so the gate is re-run: the walk skips a released Feature
+    /// (JournalStore+Predecessor.swift), and this same Act goes on to decide whether authoring
+    /// proceeds against the new predecessor. Returns the gate outcome authoring decides on.
+    private func settleInFlightFeature(
+        gateOutcome: PredecessorGateOutcome, context: ActContext
+    ) async throws -> PredecessorGateOutcome {
+        guard let (feature, cycleID) = try context.journal.inFlightFeature(), let settle else { return gateOutcome }
+        try await settle.settle(feature: feature, cycleID: cycleID, context: context)
+        guard try context.journal.inFlightFeature() == nil else { return gateOutcome }
+        return try await checkPredecessorGate(context: context)
+    }
+
     private func checkPredecessorGate(context: ActContext) async throws -> PredecessorGateOutcome {
         guard let predecessorGate else { return .landed }
         return try await predecessorGate.check(context)
     }
 
-    /// Reads and banks replies to Cards left Waiting on You after their Feature has landed
-    /// (``PostLandingReplies``, roadmap P11.3), then spends the unanswered-Nights clock for those same
-    /// Cards (``UnansweredCardClock``, roadmap P11.4) — skipped only when the read degraded, since an
-    /// unread answer must never be charged as silence, but spent when no Board is bound at all, exactly
-    /// like the Refusal clock. Split out of ``run(_:)`` to keep that function within the length limit.
-    private func runPostLandingRepliesAndClock(context: ActContext) async throws {
+    /// Reads the board for a landed Cycle and banks replies to Cards left Waiting on You after their
+    /// Feature has landed (``PostLandingReplies``, roadmap P11.3; issue #559), then spends the
+    /// unanswered-Nights clock for those same Cards (``UnansweredCardClock``, roadmap P11.4) — skipped
+    /// only when the read degraded, since an unread answer must never be charged as silence, but spent
+    /// when no Board is bound at all, exactly like the Refusal clock. Returns what the read did, so a
+    /// degraded read stops the Act. Split out of ``run(_:)`` to keep that function within the length limit.
+    private func runPostLandingRepliesAndClock(context: ActContext) async throws -> PostLandingRepliesOutcome {
         let postLandingOutcome = try await PostLandingReplies.run(
             context: context, unansweredNightsMax: unansweredNightsMax
         )
-        guard postLandingOutcome != .degraded else { return }
+        guard postLandingOutcome != .degraded else { return postLandingOutcome }
         let landedCycleIDs = try context.journal.landedCycleIDsWithWaitingOnYouCards()
         try await UnansweredCardClock.run(
             cycleIDs: landedCycleIDs, unansweredNightsMax: unansweredNightsMax, context: context
         )
+        return postLandingOutcome
     }
 
     /// Puts a quiet reason (or the idle verdict) on the Night Card right away, replays any Card state

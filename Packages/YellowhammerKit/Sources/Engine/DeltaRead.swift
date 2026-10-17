@@ -31,6 +31,9 @@ public struct DeltaRead: Sendable {
     public var pageSize: Int
     /// A read that has not reached its last page after this many requests stops rather than loop.
     public var requestLimit = 40
+    /// Whether an Operator re-ready (Blocked → Todo) is applied. The author Act's read sets this false:
+    /// it has no Cycle a Todo Card could run in (issue #559), so the re-ready is recorded as restated.
+    public var acceptsReReady = true
 
     let clock: @Sendable () -> Date
 

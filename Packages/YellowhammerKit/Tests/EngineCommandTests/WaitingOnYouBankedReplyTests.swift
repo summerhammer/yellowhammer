@@ -213,8 +213,8 @@ struct WaitingOnYouBankedReplyTests {
         #expect(calls.isEmpty, "an unlanded in-flight Cycle must never lose the build Act's own Delta Read")
     }
 
-    @Test("AuthorAct's post-landing step performs no Delta Read when nothing is Waiting on You in a landed Cycle")
-    func noReadWhenNothingToBank() async throws {
+    @Test("AuthorAct's post-landing step reads a landed in-flight Cycle even with nothing Waiting on You (#559)")
+    func readsALandedInFlightCycleWithNothingToBank() async throws {
         let fixture = try OutboxJournalFixture()
         let journal = try fixture.open()
         let world = try await makeReplyWorld(journal: journal, waitingReason: .question)
@@ -225,12 +225,13 @@ struct WaitingOnYouBankedReplyTests {
         )
         try world.markCycleLanded()
 
-        let reading = FakeReadingBoard([])
+        let reading = FakeReadingBoard([page()])
         let context = world.context(night: world.night, reading: reading, act: .author)
 
-        try await PostLandingReplies.run(context: context, unansweredNightsMax: 3)
+        let outcome = try await PostLandingReplies.run(context: context, unansweredNightsMax: 3)
 
+        #expect(outcome == .read)
         let calls = await reading.calls
-        #expect(calls.isEmpty, "a Project with nothing to bank must spend no request")
+        #expect(calls.count == 1, "the Operator's gestures on a landed Cycle are read before it settles")
     }
 }
