@@ -36,20 +36,44 @@ struct NightTimelineVariant: Identifiable {
                 + "playhead wears a time flag, problems are flagged on the ruler, hover shows a hairline, "
                 + "and a click anywhere in the tracks moves the playhead"
         ) { TracksTimeline(timeline: $0, playhead: $1) }
-        ,
+,
         NightTimelineVariant(
-            "B \u{00B7} Navigator",
-            idea: "Two scales: a strip of the whole Night with a framed window, and the lanes at the "
-                + "window's scale with every entry ticked on its bar. Night / 2 h / 30 min; drag the frame "
-                + "to pan; the window follows the playhead"
-        ) { NavigatorTimeline(timeline: $0, playhead: $1) }
-        ,
+            "B · Compact",
+            idea: "Single-line Act headers and slim bars keep the full Night in a shallow strip."
+        ) { TracksStudyTimeline(study: .compact, timeline: $0, playhead: $1) },
         NightTimelineVariant(
-            "C \u{00B7} Scrubber",
-            idea: "A consumer scrubber: a glass thumb carrying the time on a track filled to the playhead, "
-                + "problems as marks on the track, the Acts as thin ribbons under it, start and end at the "
-                + "corners. Drag anywhere; nothing is ringed"
-        ) { ScrubberTimeline(timeline: $0, playhead: $1) }
+            "C · Expanded",
+            idea: "Taller tracks put each substantial run’s outcome and time range inside its bar."
+        ) { TracksStudyTimeline(study: .expanded, timeline: $0, playhead: $1) },
+        NightTimelineVariant(
+            "D · Time grid",
+            idea: "Quarter-hour guides extend through every Act for comparing timing across tracks."
+        ) { TracksStudyTimeline(study: .grid, timeline: $0, playhead: $1) },
+        NightTimelineVariant(
+            "E · Outlined",
+            idea: "Outlined runs sit on fine track baselines; outcomes remain readable without solid fills."
+        ) { TracksStudyTimeline(study: .outline, timeline: $0, playhead: $1) },
+        NightTimelineVariant(
+            "F · Entry markers",
+            idea: "A second line of entry dots beneath each run exposes its recorded activity; hover for headlines."
+        ) { TracksStudyTimeline(study: .entries, timeline: $0, playhead: $1) },
+        NightTimelineVariant(
+            "G · Problem emphasis",
+            idea: "Problem runs retain full weight while other runs recede, preserving the whole Night for context."
+        ) { TracksStudyTimeline(study: .problems, timeline: $0, playhead: $1) },
+        NightTimelineVariant(
+            "H · Act focus",
+            idea: "Click an Act header to bring its track forward while keeping sibling tracks visible."
+        ) { TracksStudyTimeline(study: .focus, timeline: $0, playhead: $1) },
+        NightTimelineVariant(
+            "I · Bottom ruler",
+            idea: "The shared ruler and exact-time flag move below the tracks, closest to the window edge."
+        ) { TracksStudyTimeline(study: .bottomRuler, timeline: $0, playhead: $1) },
+        NightTimelineVariant(
+            "J · Inline problems",
+            idea: "Flush tracks with larger run indicators, solid warning and failure fills, and a border only "
+                + "on the selected run. Click a run to select it."
+        ) { TracksStudyTimeline(study: .inlineProblems, timeline: $0, playhead: $1) }
     ]
 
     static func named(_ name: String) -> NightTimelineVariant {
@@ -117,8 +141,12 @@ struct NightStripCloseUp: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(scenario.rawValue).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                     NightStripHost(account: scenario.account, variant: variant)
-                        .clipShape(.rect(cornerRadius: 8))
-                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator))
+                        .clipShape(.rect(cornerRadius: variant.name == "J · Inline problems" ? 0 : 8))
+                        .overlay {
+                            if variant.name != "J · Inline problems" {
+                                RoundedRectangle(cornerRadius: 8).strokeBorder(.separator)
+                            }
+                        }
                 }
             }
         }
@@ -187,8 +215,12 @@ struct NightTimelinePlayground: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(variant.name).font(.headline)
                 NightStripHost(account: NightAccountScenario.hostCrash.account, variant: variant)
-                    .clipShape(.rect(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator))
+                    .clipShape(.rect(cornerRadius: variant.name == "J · Inline problems" ? 0 : 8))
+                    .overlay {
+                            if variant.name != "J · Inline problems" {
+                                RoundedRectangle(cornerRadius: 8).strokeBorder(.separator)
+                            }
+                        }
             }
         }
     }
