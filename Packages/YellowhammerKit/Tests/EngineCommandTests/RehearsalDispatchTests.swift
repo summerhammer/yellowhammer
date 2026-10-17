@@ -22,8 +22,7 @@ private func cardInstruction(issueID: String, pass: RunPass = .worker, worktreeP
             repo: repo, worktreePath: worktreePath, featureBranch: "feature/\(issueID)", check: .none
         ),
         route: route,
-        payloads: .none,
-        resultFilePath: "\(worktreePath)/.yellowhammer/result.json"
+        payloads: .none
     ))
 }
 
@@ -36,7 +35,7 @@ private func authoringRequest(
         instruction: .authoring(AuthoringInstruction(
             pass: pass, route: route, specificationSource: .specSource(SpecSource(path: specPath)),
             specificationMainline: nil, repos: repos, mainlines: ResolvedMainlines(), namedFeature: namedFeature,
-            adoptionCandidates: adoptionCandidates, selectedFeature: nil, resultFilePath: ""
+            adoptionCandidates: adoptionCandidates, selectedFeature: nil
         )),
         worktreePath: "/repos/spec"
     )

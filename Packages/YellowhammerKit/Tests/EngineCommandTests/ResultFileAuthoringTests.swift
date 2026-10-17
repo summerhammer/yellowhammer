@@ -291,11 +291,13 @@ struct AuthoringFixtureTests {
             pass: .breakdown, route: Route(cli: "claude", model: "opus", effort: "high")!,
             specificationSource: .specSource(SpecSource(path: "/spec")), specificationMainline: nil,
             repos: [Repo(name: "backend", path: "/b", role: .backend)], mainlines: ResolvedMainlines(),
-            namedFeature: nil, adoptionCandidates: [], selectedFeature: nil, resultFilePath: "/runs/result.json"
+            namedFeature: nil, adoptionCandidates: [], selectedFeature: nil
         )
         let rendered = instruction.render()
         #expect(rendered == instruction.render())
-        #expect(rendered.contains("/runs/result.json"))
+        #expect(!rendered.contains("result.json"))
+        #expect(rendered.contains(PassBoundaries.statement))
+        #expect(rendered.contains("do not create or edit a result file with tools"))
         #expect(rendered.contains("yellowhammer.result.breakdown"))
         #expect(rendered.contains("where `citation` is a story ID `<epic>/<story>` or a goal ID"))
         #expect(rendered.hasSuffix("\n"))
@@ -317,11 +319,10 @@ struct AuthoringFixtureTests {
             pass: .selection, route: Route(cli: "claude", model: "opus", effort: "high")!,
             specificationSource: .specSource(SpecSource(path: "/spec")), specificationMainline: nil,
             repos: [Repo(name: "backend", path: "/b", role: .backend)], mainlines: ResolvedMainlines(),
-            namedFeature: nil, adoptionCandidates: [], selectedFeature: nil, resultFilePath: "/runs/result.json"
+            namedFeature: nil, adoptionCandidates: [], selectedFeature: nil
         )
         #expect(!selection.render().contains("autonomous worker agent CLI"))
         #expect(!selection.render().contains("it must be a file git tracks at that commit"))
-        #expect(instruction.withResultFilePath("/other.json").render().contains("/other.json"))
     }
 
     @Test("The breakdown is told the description budget, apart from how a contract path is read; selection is not")
@@ -339,7 +340,7 @@ struct AuthoringFixtureTests {
                 pass: pass, route: route, specificationSource: .specSource(SpecSource(path: "/spec")),
                 specificationMainline: nil, repos: [Repo(name: "backend", path: "/b", role: .backend)],
                 mainlines: ResolvedMainlines(), namedFeature: nil, adoptionCandidates: [], selectedFeature: nil,
-                resultFilePath: "/runs/result.json", descriptionRoom: room
+                descriptionRoom: room
             )
         }
         let breakdown = instruction(.breakdown, room: room).render()
@@ -354,14 +355,12 @@ struct AuthoringFixtureTests {
         let section = try #require(breakdown.range(of: "## Description budget"))
         let contract = try #require(breakdown.range(of: "## Result contract"))
         #expect(section.upperBound <= contract.lowerBound)
-        #expect(!breakdown.contains("Linear"))
+        #expect(!breakdown.replacingOccurrences(of: PassBoundaries.statement, with: "").contains("Linear"))
         let selection = instruction(.selection, room: room).render()
         #expect(!selection.contains("description budget"))
         #expect(!selection.contains("Description budget"))
         let unbudgeted = instruction(.breakdown, room: nil).render()
         #expect(!unbudgeted.contains("description budget"))
         #expect(!unbudgeted.contains("Description budget"))
-        #expect(instruction(.breakdown, room: room).withResultFilePath("/other.json").render() == breakdown
-            .replacingOccurrences(of: "/runs/result.json", with: "/other.json"))
     }
 }

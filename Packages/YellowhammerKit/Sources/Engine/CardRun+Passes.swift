@@ -240,8 +240,7 @@ extension CardRun {
             ),
             route: route, payloads: payloads, commitMessage: commitMessageRequest(for: pass, frame: frame),
             specCommit: pass == .worker ? frame.readiness.specCommit : nil,
-            passTimeoutMinutes: pass == .architect || pass == .worker ? passTimeoutMinutes : nil,
-            resultFilePath: ""
+            passTimeoutMinutes: pass == .architect || pass == .worker ? passTimeoutMinutes : nil
         )
     }
 

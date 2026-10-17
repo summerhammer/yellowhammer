@@ -22,7 +22,7 @@ private func request(
         repository: InstructionRepository(
             repo: repo, worktreePath: "/wt/backend", featureBranch: "yh-proj-feat", check: .none
         ),
-        route: route, payloads: .none, resultFilePath: ""
+        route: route, payloads: .none
     )
     return AgentDispatchRequest(
         runID: RunID(rawValue: "run-1")!, issueID: "BACK-1", attemptID: 7, route: route, pass: pass,
@@ -70,12 +70,34 @@ struct CLIAdapterDispatchTests {
 
     private func makeDispatch(
         declared: [String: String] = [:], path: String? = nil,
-        exists: @escaping @Sendable (String) -> Bool = { _ in false }
+        exists: @escaping @Sendable (String) -> Bool = { _ in false },
+        protectedDirectories: [String] = []
     ) -> CLIAdapterDispatch {
         CLIAdapterDispatch(
             runsDirectory: runs, timeout: .seconds(90), declaredExecutables: declared, path: path,
-            environment: ["HOME": "/home/operator"], fileExists: exists
+            environment: ["HOME": "/home/operator"], fileExists: exists,
+            protectedDirectories: protectedDirectories
         )
+    }
+
+    @Test("The dispatch carries the protected directories onto the CLI dispatch (issue #546)")
+    func dispatchCarriesProtectedDirectories() {
+        let protected = ["/config", "/home/operator/Library/Keychains"]
+        let mapped = makeDispatch(protectedDirectories: protected)
+            .makeDispatch(for: request(), executable: "/bin/claude")
+        #expect(mapped.protectedDirectories == protected)
+        #expect(makeDispatch().makeDispatch(for: request(), executable: "/bin/claude").protectedDirectories == [])
+    }
+
+    @Test("The protected directories are the configuration directory and the login Keychains, absolute")
+    func protectedDirectoriesAreAbsolute() {
+        let configuration = URL(filePath: "/Users/operator/.config/yellowhammer", directoryHint: .isDirectory)
+        let directories = CLIAdapterDispatch.protectedDirectories(configurationDirectory: configuration)
+        #expect(directories.count == 2)
+        #expect(directories.first == "/Users/operator/.config/yellowhammer")
+        let keychains = directories.last ?? ""
+        #expect(keychains.hasPrefix("/"))
+        #expect(keychains.hasSuffix("/Library/Keychains"))
     }
 
     @Test("A request maps onto the agent CLI dispatch: a run directory outside the Worktree holds the result file")
@@ -100,8 +122,9 @@ struct CLIAdapterDispatchTests {
                 == URL(filePath: "/config/runs/proj/run-1/BACK-1/7-worker", directoryHint: .isDirectory)
         )
         #expect(!mapped.runDirectory.path(percentEncoded: false).hasPrefix("/wt/backend"))
-        // The configured result path is where the adapter persists the response it validates.
-        #expect(mapped.instruction.contains("/config/runs/proj/run-1/BACK-1/7-worker/result.json"))
+        // The pass is not told where the adapter persists the response it validates (issue #546).
+        #expect(!mapped.instruction.contains("/config/runs/proj/run-1/BACK-1/7-worker"))
+        #expect(!mapped.instruction.contains("result.json"))
     }
 
     @Test("The text handed to the CLI keeps the worker's commit-message request after the result file is stamped")
@@ -114,8 +137,7 @@ struct CLIAdapterDispatchTests {
             pass: .worker, card: instruction.card, brief: instruction.brief,
             definitionOfDone: instruction.definitionOfDone, repository: instruction.repository,
             route: instruction.route, payloads: instruction.payloads,
-            commitMessage: CommitMessageRequest(message: "feat(auth): BACK-1 [YLH-7] backend", workCardKey: "YLH-7"),
-            resultFilePath: ""
+            commitMessage: CommitMessageRequest(message: "feat(auth): BACK-1 [YLH-7] backend", workCardKey: "YLH-7")
         )
         let stamped = AgentDispatchRequest(
             runID: worker.runID, issueID: worker.issueID, attemptID: worker.attemptID, route: worker.route,
@@ -129,7 +151,6 @@ struct CLIAdapterDispatchTests {
         #expect(mapped.instruction.contains("## Commit messages"))
         #expect(mapped.instruction.contains("    feat(auth): BACK-1 [YLH-7] backend\n"))
         #expect(mapped.instruction.contains("Yellowhammer-Work-Card: YLH-7"))
-        #expect(mapped.instruction.contains("/config/runs/proj/run-1/BACK-1/7-worker/result.json"))
     }
 
     @Test("A pass with no session to resume starts a fresh one")

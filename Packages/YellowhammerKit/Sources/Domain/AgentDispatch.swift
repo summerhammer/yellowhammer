@@ -11,8 +11,8 @@ public struct AgentDispatchRequest: Equatable, Sendable {
     public let attemptID: Int64
     public let route: Route
     public let pass: RunPass
-    /// The composed instruction. Its `resultFilePath` is the one the implementation stamps, because the
-    /// implementation owns the run directory the result file lives in.
+    /// The composed instruction. It names no result file: the implementation owns the run directory the
+    /// result file lives in, and keeps its path out of every prompt.
     public let instruction: AgentInstruction
     /// The directory the CLI runs in. For an authoring request (roadmap P9.11) it is the specification
     /// source's local path, and `issueID` is the fixed run-directory name `authoring`.
@@ -107,14 +107,4 @@ public struct AgentDispatchRefusal: Error, Equatable, Sendable, CustomStringConv
 /// an engine fault.
 public protocol AgentDispatch: Sendable {
     func dispatch(_ request: AgentDispatchRequest) async throws -> AgentDispatchReport
-}
-
-extension Instruction {
-    /// This instruction with its result file path replaced.
-    public func withResultFilePath(_ path: String) -> Instruction {
-        Instruction(
-            pass: pass, card: card, brief: brief, definitionOfDone: definitionOfDone, repository: repository,
-            route: route, payloads: payloads, commitMessage: commitMessage, resultFilePath: path
-        )
-    }
 }

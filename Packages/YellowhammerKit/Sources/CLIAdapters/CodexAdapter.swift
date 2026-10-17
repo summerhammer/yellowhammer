@@ -10,6 +10,13 @@ import Foundation
 /// `codex exec resume <thread_id>`. `codex exec resume` has neither `--sandbox` nor `-C`/`--add-dir`
 /// — the sandbox and any extra writable roots are re-stated with `-c sandbox_mode=…` and
 /// `-c sandbox_workspace_write.writable_roots=[…]`; cwd is already the Worktree, set by `posix_spawn`.
+///
+/// **Containment (issue #546), measured live with codex 0.163.0.** The `read-only` and
+/// `workspace-write` Seatbelt sandboxes already block Keychain reads and network access, so a pass
+/// cannot pull a credential out of the login Keychain or call a vendor API. They do not stop reads of
+/// Yellowhammer's configuration directory, so this adapter ignores `CLIDispatch.protectedDirectories`
+/// and a pass can still read the config, run artifacts and Journals; only the prompt's boundary
+/// statement asks it not to.
 public struct CodexAdapter: CLIAdapter {
     public let cli = "codex"
     public let adapterVersion = "2"

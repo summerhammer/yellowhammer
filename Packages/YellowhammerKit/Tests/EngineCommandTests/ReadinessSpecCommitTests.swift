@@ -64,8 +64,7 @@ func specCommitIsFixtureHeadAndInstructionOmitsPath() async throws {
         ),
         route: Route(cli: "claude", model: "sonnet", effort: "medium")!,
         payloads: .none,
-        specCommit: ready.specCommit,
-        resultFilePath: "/runs/result.json"
+        specCommit: ready.specCommit
     )
     let text = instruction.render()
     #expect(text.contains("Specification commit: \(head)"))

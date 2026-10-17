@@ -19,6 +19,7 @@ extension Instruction {
         if let bankedRepliesSection { sections.append(bankedRepliesSection) }
         if let previousRoundsSection { sections.append(previousRoundsSection) }
         if let timeLimitSection { sections.append(timeLimitSection) }
+        sections.append(PassBoundaries.section)
         sections.append(resultContractSection)
         return sections.joined(separator: "\n\n") + "\n"
     }
@@ -252,8 +253,7 @@ extension Instruction {
             ## Result contract
 
             Return one JSON object as your final structured response, conforming to the supplied JSON schema. The \
-            CLI Adapter persists it to `\(resultFilePath)`; do not create or edit that file with tools. It must \
-            declare \
+            CLI Adapter persists it; do not create or edit a result file with tools. It must declare \
             `"schema": "\(pass.schemaIdentifier)"` and `"version": 1`. Permitted outcomes for this pass: \
             \(permittedOutcomes.joined(separator: ", ")). Ending without a final structured response is treated as a \
             crash.

@@ -24,6 +24,9 @@ struct CLIAdapterDispatch: AgentDispatch {
     let environment: [String: String]
     let fileExists: @Sendable (String) -> Bool
     let runner: CLIRunner
+    /// Absolute directories no pass may read — Yellowhammer's configuration directory and the login
+    /// Keychains directory (issue #546). Carried into every ``CLIDispatch``.
+    let protectedDirectories: [String]
 
     init(
         runsDirectory: URL,
@@ -32,7 +35,8 @@ struct CLIAdapterDispatch: AgentDispatch {
         path: String? = ProcessInfo.processInfo.environment["PATH"],
         environment: [String: String] = ProcessInfo.processInfo.environment,
         fileExists: @escaping @Sendable (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) },
-        runner: CLIRunner = CLIRunner()
+        runner: CLIRunner = CLIRunner(),
+        protectedDirectories: [String] = []
     ) {
         self.runsDirectory = runsDirectory
         self.timeout = timeout
@@ -41,6 +45,20 @@ struct CLIAdapterDispatch: AgentDispatch {
         self.environment = environment
         self.fileExists = fileExists
         self.runner = runner
+        self.protectedDirectories = protectedDirectories
+    }
+
+    /// The directories a pass must not read: the configuration directory (config, run artifacts, the
+    /// Journals and their backups) and `<home>/Library/Keychains`. Absolute, because an app-spawned `yh`
+    /// can run with an empty environment, so `~` and `$HOME` are not reliable. The home directory comes
+    /// from `FileManager`, not `$HOME`.
+    static func protectedDirectories(configurationDirectory: URL) -> [String] {
+        let keychains = FileManager.default.homeDirectoryForCurrentUser
+            .appending(components: "Library", "Keychains", directoryHint: .isDirectory)
+        return [
+            configurationDirectory.path(percentEncoded: false).trimmingTrailingSlash(),
+            keychains.path(percentEncoded: false).trimmingTrailingSlash()
+        ]
     }
 
     /// `<configuration directory>/runs/<project id>`.
@@ -93,24 +111,33 @@ struct CLIAdapterDispatch: AgentDispatch {
         )
     }
 
-    /// The request as a ``CLIDispatch``. The Instruction's result file is the `result.json` the adapter
-    /// places in the run directory, where the adapter persists the structured response for validation.
+    /// The request as a ``CLIDispatch``. The rendered instruction names no result file: the adapter
+    /// persists the structured response as `result.json` in the run directory, for validation, without
+    /// the model being told where.
     func makeDispatch(for request: AgentDispatchRequest, executable: String) -> CLIDispatch {
         let directory = runDirectory(for: request)
-        let resultFile = directory.appending(component: "result.json", directoryHint: .notDirectory)
-        let instruction = request.instruction.withResultFilePath(resultFile.path(percentEncoded: false))
         return CLIDispatch(
             route: request.route,
             pass: request.pass,
-            instruction: instruction.render(),
+            instruction: request.instruction.render(),
             worktreePath: request.worktreePath,
             runDirectory: directory,
             timeout: timeout,
             resume: request.resumeSession.map { CLISession(rawValue: $0) },
             additionalReadableDirectories: request.additionalReadableDirectories,
             additionalWritableDirectories: request.additionalWritableDirectories,
+            protectedDirectories: protectedDirectories,
             executable: executable,
             environment: environment
         )
+    }
+}
+
+private extension String {
+    /// The path without a trailing `/`, so `Read(//<dir>/**)` rules do not carry a double slash.
+    func trimmingTrailingSlash() -> String {
+        var trimmed = self
+        while trimmed.count > 1, trimmed.hasSuffix("/") { trimmed.removeLast() }
+        return trimmed
     }
 }

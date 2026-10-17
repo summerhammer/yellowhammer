@@ -19,6 +19,7 @@ enum CLIDispatchFixture {
             resume: CLISession? = nil,
             additionalReadableDirectories: [String] = [],
             additionalWritableDirectories: [String] = [],
+            protectedDirectories: [String] = [],
             executable: String = "/usr/bin/true",
             environment: [String: String] = [:]
         ) -> CLIDispatch {
@@ -33,6 +34,7 @@ enum CLIDispatchFixture {
                 resume: resume,
                 additionalReadableDirectories: additionalReadableDirectories,
                 additionalWritableDirectories: additionalWritableDirectories,
+                protectedDirectories: protectedDirectories,
                 executable: executable,
                 environment: environment
             )

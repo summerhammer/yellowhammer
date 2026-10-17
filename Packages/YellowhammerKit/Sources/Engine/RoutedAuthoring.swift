@@ -23,7 +23,7 @@ public struct RoutedFeatureSelector: FeatureSelecting {
                 specificationMainline: request.specificationMainline, repos: request.repos,
                 mainlines: request.mainlines, namedFeature: request.namedFeature,
                 adoptionCandidates: request.adoptionCandidates, refusedThisNight: request.refusedThisNight,
-                heldConsumers: request.heldConsumers, selectedFeature: nil, resultFilePath: ""
+                heldConsumers: request.heldConsumers, selectedFeature: nil
             )
         }
         guard case .selection(let selection) = result, let outcome = selection.featureSelectionOutcome else {
@@ -73,7 +73,7 @@ public struct RoutedFeatureBreakdown: FeatureBreakdownDrafting {
                     pass: .breakdown, route: route, specificationSource: source,
                     specificationMainline: specificationMainline, repos: repositories.workingRepos,
                     mainlines: mainlines, namedFeature: context.trigger.namedFeature, adoptionCandidates: [],
-                    selectedFeature: selection, resultFilePath: "",
+                    selectedFeature: selection,
                     descriptionRoom: descriptionRoom, earlierRejections: earlierRejections
                 )
             }

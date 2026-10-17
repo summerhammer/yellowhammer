@@ -84,10 +84,12 @@ struct StructuredResultDeliveryTests {
 
     private func assertPrompt(_ result: DeliveryResult) throws {
         let prompt = result.prompt
-        let resultPath = result.runDirectory.appendingPathComponent("result.json").path
         #expect(prompt.contains("Return one JSON object as your final structured response"))
-        #expect(prompt.contains("CLI Adapter persists it to `\(resultPath)`"))
-        #expect(prompt.contains("do not create or edit that file with tools"))
+        #expect(prompt.contains("The CLI Adapter persists it; do not create or edit a result file with tools."))
+        // The pass is never told where its run directory is (issue #546).
+        #expect(!prompt.contains(result.runDirectory.path))
+        #expect(!prompt.contains("result.json"))
+        #expect(prompt.contains(PassBoundaries.statement))
         #expect(prompt.contains("Ending without a final structured response is treated as a crash"))
         #expect(!prompt.contains("Write the result file"))
         #expect(!prompt.contains("result file is treated as a crash"))
@@ -110,7 +112,7 @@ struct StructuredResultDeliveryTests {
         case "codex":
             try assertCodexArguments(args, pass: pass, result: result, schemaPath: schemaPath)
         case "claude":
-            assertClaudeArguments(args, pass: pass)
+            assertClaudeArguments(args, pass: pass, runDirectory: result.runDirectory)
         case "agy":
             assertAntigravityArguments(args, pass: pass, resume: result.testCase.resume)
         default:
@@ -129,7 +131,9 @@ struct StructuredResultDeliveryTests {
         #expect(args.contains("--sandbox\n\(sandbox)\n") || args.contains("sandbox_mode=\"\(sandbox)\""))
     }
 
-    private func assertClaudeArguments(_ args: String, pass: RunPass) {
+    private func assertClaudeArguments(_ args: String, pass: RunPass, runDirectory: URL) {
+        let settingsPath = runDirectory.appendingPathComponent("claude-settings.json").path
+        #expect(args.contains("--settings\n\(settingsPath)\n"))
         let permissionMode = pass == .worker ? "acceptEdits" : "dontAsk"
         #expect(args.contains("--permission-mode\n\(permissionMode)\n"))
         #expect(args.contains(pass.schemaIdentifier))
@@ -182,7 +186,7 @@ struct StructuredResultDeliveryTests {
             return .authoring(AuthoringInstruction(
                 pass: pass, route: route, specificationSource: .specSource(SpecSource(path: "/repos/spec")),
                 specificationMainline: nil, repos: [repo], mainlines: ResolvedMainlines(), namedFeature: nil,
-                adoptionCandidates: [], selectedFeature: nil, resultFilePath: ""
+                adoptionCandidates: [], selectedFeature: nil
             ))
         case .verifier:
             return .verification(VerificationInstruction(
@@ -190,8 +194,7 @@ struct StructuredResultDeliveryTests {
                 specificationSource: .specSource(SpecSource(path: "/repos/spec")),
                 repositories: [VerificationRepository(
                     name: repo.name, directory: repo.path, featureBranch: "feature"
-                )],
-                resultFilePath: ""
+                )]
             ))
         case .architect, .worker, .reviewer:
             return .card(Instruction(
@@ -202,8 +205,7 @@ struct StructuredResultDeliveryTests {
                     repo: repo, worktreePath: "/worktree", featureBranch: "feature", check: .none
                 ),
                 route: route, payloads: .none,
-                commitMessage: pass == .worker ? CommitMessageRequest(message: "fix: complete BACK-1") : nil,
-                resultFilePath: ""
+                commitMessage: pass == .worker ? CommitMessageRequest(message: "fix: complete BACK-1") : nil
             ))
         }
     }

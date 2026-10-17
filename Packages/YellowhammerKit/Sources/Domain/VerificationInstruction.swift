@@ -39,37 +39,27 @@ public struct VerificationInstruction: Equatable, Sendable {
     public let clauses: [VerificationClause]
     public let specificationSource: ProjectSpecificationSource
     public let repositories: [VerificationRepository]
-    /// The absolute path where the CLI Adapter persists the final structured response.
-    public let resultFilePath: String
 
     public init(
         route: Route,
         featureTitle: String,
         clauses: [VerificationClause],
         specificationSource: ProjectSpecificationSource,
-        repositories: [VerificationRepository],
-        resultFilePath: String
+        repositories: [VerificationRepository]
     ) {
         self.route = route
         self.featureTitle = featureTitle
         self.clauses = clauses
         self.specificationSource = specificationSource
         self.repositories = repositories
-        self.resultFilePath = resultFilePath
-    }
-
-    /// This instruction with its result file path replaced.
-    public func withResultFilePath(_ path: String) -> VerificationInstruction {
-        VerificationInstruction(
-            route: route, featureTitle: featureTitle, clauses: clauses,
-            specificationSource: specificationSource, repositories: repositories, resultFilePath: path
-        )
     }
 
     /// Deterministic Markdown in a fixed section order, `\n` newlines, one trailing newline.
     public func render() -> String {
-        [header, featureSection, rulesSection, clausesSection, repositoriesSection, resultContractSection]
-            .joined(separator: "\n\n") + "\n"
+        [
+            header, featureSection, rulesSection, clausesSection, repositoriesSection, PassBoundaries.section,
+            resultContractSection
+        ].joined(separator: "\n\n") + "\n"
     }
 
     private var header: String { "# Verification pass — land Act" }
@@ -120,7 +110,7 @@ public struct VerificationInstruction: Equatable, Sendable {
         ## Result contract
 
         Return one JSON object as your final structured response, conforming to the supplied JSON schema. The \
-        CLI Adapter persists it to `\(resultFilePath)`; do not create or edit that file with tools. It must declare \
+        CLI Adapter persists it; do not create or edit a result file with tools. It must declare \
         `"schema": "\(RunPass.verifier.schemaIdentifier)"` and `"version": 1`. Permitted outcomes for \
         this pass: reported, failed. `reported` carries `clauses`, one entry per clause with `issue_id`, \
         `cid`, `verdict` (`met` or `unmet`), `what_was_checked` and `interpretation`; `failed` carries \
