@@ -55,6 +55,10 @@ public struct ProjectSnapshot: Identifiable, Equatable, Sendable {
         self.journalFailure = journalFailure
     }
 
+    /// The Sidebar's failure mark: the headline of this Night's first Act failure. Nil when the Journal could
+    /// not be read, and when no Act failed this Night (a new Night opening clears it).
+    public var failureMark: String? { journalFailure == nil ? pulse.night?.firstFailureHeadline : nil }
+
     /// The Sidebar's `idle`/`working`: the same value the Pulse's Now group shows.
     public var status: ProjectStatus { pulse.now.status }
 

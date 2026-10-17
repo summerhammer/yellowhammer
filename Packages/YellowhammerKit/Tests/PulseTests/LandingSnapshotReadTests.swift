@@ -510,3 +510,27 @@ func landingSchemaOneJournal() throws {
     let alpha = try #require(landing.projects.first)
     #expect(alpha.journalFailure?.contains("created by an earlier build") == true)
 }
+
+@Test("The failure mark is nil without a failure, the first headline with one, and clear once a new Night opens")
+func landingFailureMark() throws {
+    let fixture = try ConfigurationFixture()
+    try fixture.addProject(id: "alpha", name: "Alpha", repos: ["backend"])
+    let configuration = try fixture.load()
+    let journal = try fixture.openJournal("alpha")
+    let run = RunID()
+    _ = try journal.claimActLease(act: .author, runID: run, mode: .real, now: epoch)
+    let night = try journal.openNight(nightStart: nightStart, mode: .real, act: .author, runID: run, now: epoch).night
+    #expect(fixture.read(configuration, asOf: epoch).projects.first?.failureMark == nil)
+
+    try journal.append(.featureSelectionFailed(reason: "none"), act: .author, runID: run, nightID: night.id, now: epoch)
+    #expect(fixture.read(configuration, asOf: epoch).projects.first?.failureMark == "Selecting a Feature failed")
+
+    try journal.append(.actEnded, act: .author, runID: run, nightID: night.id, now: epoch)
+    let later = RunID()
+    _ = try journal.claimActLease(act: .author, runID: later, mode: .real, now: epoch.addingTimeInterval(90_000))
+    let nextNight = try #require(NightStart(rawValue: "2026-09-30"))
+    _ = try journal.openNight(
+        nightStart: nextNight, mode: .real, act: .author, runID: later, now: epoch.addingTimeInterval(90_000)
+    )
+    #expect(fixture.read(configuration, asOf: epoch.addingTimeInterval(90_001)).projects.first?.failureMark == nil)
+}

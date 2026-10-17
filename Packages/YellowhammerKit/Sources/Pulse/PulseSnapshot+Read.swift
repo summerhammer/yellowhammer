@@ -32,7 +32,10 @@ extension PulseSnapshot {
             nightID: selectedNight?.id,
             unstampedFailuresSince: selectedNight?.openedAt ?? Date(timeIntervalSince1970: 0)
         )
-        let failures = JournalFailures(events: events)
+        let failures = JournalFailures(
+            events: events,
+            nightCard: selectedNight.flatMap(nightCardLink)
+        )
         let outboxFlags = try Self.undeliveredBoardWrites(journal)
         let liveRunID = runningAct != nil ? try journal.currentActLease()?.runID : nil
         return PulseSnapshot(
@@ -320,17 +323,26 @@ extension PulseSnapshot {
 
     // MARK: Night
 
+    private static func nightCardLink(_ night: NightRecord) -> LinearIssueLink? {
+        LinearIssueLink.link(
+            key: night.nightCardIssueIDForDisplay ?? night.nightCardIssueKey, url: night.nightCardIssueURL
+        )
+    }
+
     private static func night(
         _ night: NightRecord, journal: JournalStore, events: [JournalEventRecord]
     ) throws -> NightPulse {
         // Unstamped invocation failures belong in Health, not in a Night they never reached.
-        let count = JournalFailures(events: events.filter { $0.nightID == night.id }).failedRunCount
+        let nightCard = nightCardLink(night)
+        let nightEvents = events.filter { $0.nightID == night.id }
+        let failures = JournalFailures(events: nightEvents, nightCard: nightCard)
         let opening = try journal.openingReadyState(nightID: night.id)
-        let eligibility = opening == .zero ? "no eligible Cards at opening" : "opening eligibility unknown"
-        let absence: String = if count > 0, opening == .nonzero {
-            "No Cards touched — eligible Cards were available; Act failures recorded"
-        } else if count > 0 {
-            "No Cards touched — Acts failed; \(eligibility)"
+        let absence: String = if failures.failedRunCount > 0 {
+            switch opening {
+            case .nonzero: "Act runs failed before any Card was touched — eligible Cards were available"
+            case .zero: "Act runs failed before any Card was touched"
+            default: "Act runs failed before any Card was touched — opening eligibility unknown"
+            }
         } else if opening == .zero {
             "No Cards touched — no eligible Cards at opening"
         } else {
@@ -341,14 +353,13 @@ extension PulseSnapshot {
             state: night.state == .opened ? .running : .done,
             startedAt: night.openedAt,
             verdictLine: try verdictLine(
-                nightEvents: events.filter { $0.nightID == night.id }, failedRunCount: count, journal: journal
+                nightEvents: nightEvents, failedRunCount: failures.failedRunCount,
+                recoveredRunCount: failures.recoveredRunCount, journal: journal
             ),
             cardsByDisposition: try dispositions(night: night, journal: journal, events: events),
             cardsAbsence: absence,
-            nightCard: LinearIssueLink.link(
-                key: night.nightCardIssueIDForDisplay ?? night.nightCardIssueKey,
-                url: night.nightCardIssueURL
-            )
+            nightCard: nightCard,
+            firstFailureHeadline: failures.firstHeadline
         )
     }
 

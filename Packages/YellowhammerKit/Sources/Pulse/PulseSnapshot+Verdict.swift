@@ -7,14 +7,16 @@ extension PulseSnapshot {
     /// First the Feature fact — a Feature returned with unmet clauses, else a Feature verified with every
     /// clause met — then the count of failed Act runs. Nil when neither applies.
     static func verdictLine(
-        nightEvents: [JournalEventRecord], failedRunCount: Int, journal: JournalStore
+        nightEvents: [JournalEventRecord], failedRunCount: Int, recoveredRunCount: Int, journal: JournalStore
     ) throws -> String? {
         var facts: [String] = []
         if let feature = try featureFact(nightEvents: nightEvents, journal: journal) {
             facts.append(feature)
         }
         if failedRunCount > 0 {
-            facts.append("\(failedRunCount) Act run\(failedRunCount == 1 ? "" : "s") failed — see Health")
+            let failed = "\(failedRunCount) Act run\(failedRunCount == 1 ? "" : "s") failed"
+            let recovered = recoveredRunCount > 0 ? ", \(recoveredRunCount) recovered" : ""
+            facts.append("\(failed)\(recovered) — see Health")
         }
         return facts.isEmpty ? nil : facts.joined(separator: " · ")
     }
