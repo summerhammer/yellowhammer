@@ -1,7 +1,8 @@
 import ArgumentParser
 
-/// `yh config`: a command group for machine-wide configuration edits that are not Setup. Two
-/// subcommands: `operator` (change one Board Connection's Operator identity) and `remove-board-connection`
+/// `yh config`: a command group for machine-wide configuration edits that are not Setup. The Board Connection
+/// subcommands: `operator` (change one Board Connection's Operator identity), `description-budget` (change one
+/// Board Connection's `description_budget`) and `remove-board-connection`
 /// (spec `install-the-linear-app`, *Removing a connection*; OQ66; OQ109 items 7, 8 and 14; OQ116).
 /// `remove-board-connection --orphan-projects` (OQ121) is the one override of its refusal while Projects name
 /// the connection, gated on the connection's authorization being permanently refused.
@@ -10,7 +11,7 @@ public struct ConfigCommand: AsyncParsableCommand {
         commandName: "config",
         abstract: "Machine-wide configuration edits.",
         subcommands: [
-            ConfigOperatorCommand.self, ConfigRemoveBoardConnectionCommand.self,
+            ConfigOperatorCommand.self, ConfigDescriptionBudgetCommand.self, ConfigRemoveBoardConnectionCommand.self,
             ConfigConnectCodeHostingCommand.self, ConfigReplaceCodeHostingTokenCommand.self,
             ConfigRemoveCodeHostingConnectionCommand.self, ConfigPrintCodeHostingConnectionsCommand.self,
             ConfigCheckCodeHostingCredentialCommand.self, ProjectSetCodeHostingConnectionCommand.self

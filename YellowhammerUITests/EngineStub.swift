@@ -12,7 +12,7 @@ enum EngineStub {
     static func write(in directory: URL) throws -> URL {
         let script = "#!/bin/sh\nall_args=\"$*\"\n" + waitForGate + "shift\ncase \"$1\" in\n"
             + printChoicesCase + initCase + checkCase + installLinearCase + printCodeHostingCases
-            + operatorCase
+            + operatorCase + descriptionBudgetCase
             + removeInstallationCase + projectRemoveCase + projectSetCodeHostingCase
             + "  *)\n    exit 1\n    ;;\nesac\n"
         let stubURL = directory.appending(component: "yh.sh", directoryHint: .notDirectory)
@@ -303,6 +303,25 @@ enum EngineStub {
             fi
             if [ -n "$YH_STUB_CODE_HOSTING_CHANGE_GATES" ]; then wait_for_gate code-hosting-changed; fi
             echo "Code Hosting Connection for Project $2 set to $3."
+            exit 0
+            ;;
+
+        """
+}
+
+extension EngineStub {
+    /// `yh config description-budget --board-connection <name> <budget>`: appends the full argument vector to
+    /// `YH_STUB_ARGV_LOG` when set, then prints the real command's success lines and exits 0. When
+    /// `YH_STUB_BUDGET_REFUSAL` is set it echoes that text and exits 1 instead.
+    static let descriptionBudgetCase = """
+          description-budget)
+            if [ -n "$YH_STUB_ARGV_LOG" ]; then echo "$all_args" >> "$YH_STUB_ARGV_LOG"; fi
+            if [ -n "$YH_STUB_BUDGET_REFUSAL" ]; then
+              echo "$YH_STUB_BUDGET_REFUSAL"
+              exit 1
+            fi
+            echo "Board Connection $3: description budget is now $4"
+            echo "Lowering it changes no card already written until that card's next rewrite."
             exit 0
             ;;
 

@@ -10,6 +10,14 @@ struct ConfigInvocationTests {
         )
     }
 
+    @Test("descriptionBudgetArguments passes --board-connection and the budget as the one positional")
+    func descriptionBudgetArgumentsVector() {
+        #expect(
+            ConfigInvocation.descriptionBudgetArguments(boardConnection: "acme", budget: 12_000)
+                == ["config", "description-budget", "--board-connection", "acme", "12000"]
+        )
+    }
+
     @Test("removeBoardConnectionArguments passes the name as the one positional")
     func removeInstallationArgumentsVector() {
         #expect(

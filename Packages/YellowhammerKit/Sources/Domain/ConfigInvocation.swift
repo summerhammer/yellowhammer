@@ -10,6 +10,13 @@ public enum ConfigInvocation {
         ["config", "operator", "--board-connection", boardConnection, userID]
     }
 
+    /// `["config", "description-budget", "--board-connection", <boardConnection>, <budget>]`: sets one Board
+    /// Connection's `description_budget`. The command validates it against the board's own limit, which the app
+    /// does not know.
+    public static func descriptionBudgetArguments(boardConnection: String, budget: Int) -> [String] {
+        ["config", "description-budget", "--board-connection", boardConnection, String(budget)]
+    }
+
     /// `["config", "remove-board-connection", <name>]`: removes one Board Connection from `config.toml` and
     /// deletes its Keychain items. With `orphanProjects`, `--orphan-projects --yes`: removes it even while
     /// Project files name it, once its authorization is permanently refused (OQ121); the app has already
