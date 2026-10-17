@@ -18,6 +18,8 @@ public struct NightPulse: Equatable, Sendable {
     public var cardsAbsence: String
     /// The Night Card's Linear issue; nil until the Delta Read has recorded its identifier and URL.
     public var nightCard: LinearIssueLink?
+    /// The headline of the Night's first Act failure; the Sidebar's failure mark. Nil when none failed.
+    public var firstFailureHeadline: String?
 
     public init(
         id: Int64,
@@ -26,7 +28,8 @@ public struct NightPulse: Equatable, Sendable {
         verdictLine: String?,
         cardsByDisposition: [DispositionCount],
         cardsAbsence: String = "No Cards touched",
-        nightCard: LinearIssueLink? = nil
+        nightCard: LinearIssueLink? = nil,
+        firstFailureHeadline: String? = nil
     ) {
         self.id = id
         self.state = state
@@ -35,6 +38,7 @@ public struct NightPulse: Equatable, Sendable {
         self.cardsByDisposition = cardsByDisposition
         self.cardsAbsence = cardsAbsence
         self.nightCard = nightCard
+        self.firstFailureHeadline = firstFailureHeadline
     }
 }
 
@@ -72,6 +76,12 @@ public struct HealthFlag: Identifiable, Equatable, Sendable {
     public var failedWriteCount: Int
     public var oldestUndeliveredAt: Date?
     public var lastError: String?
+    /// The class of an `.actFailure`; nil for every other kind.
+    public var cause: ActFailureCause?
+    /// Where the Operator fixes the failure, when the Journal knows one.
+    public var fixLink: PulseDestination?
+    /// What to do first, when the cause has a known answer.
+    public var nextAction: String?
 
     /// A flag is its kind and detail; repeated Journal failures update its count and time.
     public var id: String { "\(kind.rawValue): \(detail)" }
@@ -79,7 +89,8 @@ public struct HealthFlag: Identifiable, Equatable, Sendable {
     public init(
         kind: HealthFlagKind, detail: String, occurrenceCount: Int = 1, lastOccurredAt: Date? = nil,
         recoveredAt: Date? = nil, pendingWriteCount: Int = 0, failedWriteCount: Int = 0,
-        oldestUndeliveredAt: Date? = nil, lastError: String? = nil
+        oldestUndeliveredAt: Date? = nil, lastError: String? = nil,
+        cause: ActFailureCause? = nil, fixLink: PulseDestination? = nil, nextAction: String? = nil
     ) {
         self.kind = kind
         self.detail = detail
@@ -90,16 +101,20 @@ public struct HealthFlag: Identifiable, Equatable, Sendable {
         self.failedWriteCount = failedWriteCount
         self.oldestUndeliveredAt = oldestUndeliveredAt
         self.lastError = lastError
+        self.cause = cause
+        self.fixLink = fixLink
+        self.nextAction = nextAction
     }
 
     /// Board repair is offered only for current provisioning failures, including the Act's recorded refusal.
     public var canRepairBoard: Bool {
         recoveredAt == nil && (kind == .boardProvisioningFailure
             || (kind == .actFailure
-                && detail.contains("The Project's board scope is unresolved, so this Act did no work.")))
+                && (cause == .boardScopeUnresolved
+                    || detail.contains("The Project's board scope is unresolved, so this Act did no work."))))
     }
 
-    /// Settings destination for doctor findings. Journal failures are read-only Health rows.
+    /// Settings destination for doctor findings. An Act failure opens its own `fixLink` instead.
     public var destination: PulseDestination {
         switch kind {
         case .staleOperatorIdentity, .appInstallationRevoked, .boardProvisioningFailure: .linearWorkspaces

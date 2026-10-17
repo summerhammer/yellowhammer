@@ -19,6 +19,11 @@ extension JournalEvent {
                 }
                 return dict
             }()
+        case .authoringRouteRejected(let pass, let route, let ordinal, let cause, let reason):
+            [
+                "pass": pass.rawValue, "route": route, "ordinal": String(ordinal), "cause": cause.rawValue,
+                "reason": reason
+            ]
         case .featureSelectionFailed(let reason):
             ["reason": reason]
         default:

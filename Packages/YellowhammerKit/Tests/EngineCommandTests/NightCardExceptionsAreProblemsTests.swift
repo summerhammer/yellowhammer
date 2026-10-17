@@ -55,4 +55,17 @@ struct NightCardExceptionsAreProblemsTests {
             #expect(NightAccount.isProblem(record), "\(label) is an exception on the Night Card but not a problem")
         }
     }
+
+    @Test("A per-Route rejection is no exception and no problem: only the fault it folds into is")
+    func routeRejectionIsNotAProblem() async throws {
+        let event = JournalEvent.authoringRouteRejected(
+            pass: .breakdown, route: "claude/fable/high", ordinal: 1, cause: .unavailable, reason: "no"
+        )
+        #expect(NightCardMaintenance.authoringLine(for: event) == nil)
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        try journal.append(event, act: .author, runID: RunID(), nightID: nil)
+        let record = try #require(try journal.events(ofType: .authoringRouteRejected).first)
+        #expect(!NightAccount.isProblem(record))
+    }
 }

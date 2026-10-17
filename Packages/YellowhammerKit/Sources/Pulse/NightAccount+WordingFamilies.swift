@@ -149,6 +149,21 @@ extension NightWording {
         case .featureSelectionFailed(let reason):
             NightWords(headline: "Selecting a Feature failed", detail: reason)
         default:
+            authoringWalk(event)
+        }
+    }
+
+    /// One authoring Route's rejection in a walk, and a Work Card breaking an authoring invariant.
+    private func authoringWalk(_ event: JournalEvent) -> NightWords? {
+        switch event {
+        case .authoringRouteRejected(let pass, let route, let ordinal, let cause, let reason):
+            NightWords(
+                headline: "\(route): \(cause.phrase) — \(DescriptionBudgetOverrun.oneLineReason(reason))",
+                detail: "\(pass.rawValue) pass, Route \(ordinal) of the walk"
+            )
+        case .authoringInvariantBroken(_, _, let reason):
+            NightWords(headline: "A Work Card broke an authoring invariant", detail: reason)
+        default:
             nil
         }
     }

@@ -54,7 +54,8 @@ func eventTypeRawValues() {
         "CardCommitTrailerMissing", "CardCommitTrailersUnread",
         "LeftoverProcessRecorded",
         "FeatureSelected", "FeatureAuthoringHalted", "FeatureAuthoringAccepted", "FeatureAuthored",
-        "FeatureAuthoringFailed", "FeatureBreakdownRejected", "AuthoringDispatched", "FeatureSelectionFailed",
+        "FeatureAuthoringFailed", "FeatureBreakdownRejected", "AuthoringDispatched", "AuthoringRouteRejected",
+        "FeatureSelectionFailed",
         "RefusalOpened", "RefusalRepeated", "RefusalExpired", "RefusalCountReset",
         "LandStep", "CycleLanded", "NoPushedBranchOutcome", "LandedPinFailed", "FeatureVerified",
         "FeatureReturned", "CycleArchived",
@@ -495,4 +496,21 @@ func appInstallationTokenRefreshRoundTrips() throws {
     for case .appInstallationTokenRefresh(let decoded) in records.map(\.event) {
         #expect(decoded.installation == label)
     }
+}
+
+@Test("authoringRouteRejected event round-trips with its cause and reason")
+func authoringRouteRejectedRoundTrips() throws {
+    let fixture = try JournalFixture()
+    let journal = try fixture.open()
+    let event = JournalEvent.authoringRouteRejected(
+        pass: .breakdown, route: "claude/fable/high", ordinal: 2, cause: .overDescriptionBudget,
+        reason: "Work Card \"T\" composes 12,153 UTF-16 code units, over the description budget of 10,000"
+    )
+
+    _ = try journal.append(event, act: .author, runID: RunID(), now: epoch)
+    let records = try journal.events()
+
+    #expect(records.count == 1)
+    #expect(records[0].event == event)
+    #expect(records[0].type == .authoringRouteRejected)
 }

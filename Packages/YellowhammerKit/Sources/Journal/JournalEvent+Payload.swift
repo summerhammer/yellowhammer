@@ -322,7 +322,8 @@ extension JournalEvent {
                 "cycle_id": String(payload.cycleID), "card_count": String(payload.cardCount),
                 "adopted_count": String(payload.adoptedCount)
             ]
-        case .featureAuthoringFailed, .featureBreakdownRejected, .authoringDispatched, .featureSelectionFailed:
+        case .featureAuthoringFailed, .featureBreakdownRejected, .authoringDispatched, .authoringRouteRejected,
+            .featureSelectionFailed:
             authoringFaultPayload
         case .checkRan(
             let cardID, let issueID, let attemptID, let result, let exitStatus, let output, let judgedCommit

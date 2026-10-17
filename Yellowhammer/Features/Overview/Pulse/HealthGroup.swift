@@ -36,7 +36,15 @@ struct HealthGroup: View {
                                 .accessibilityIdentifier("pulse-repair-board")
                         }
                     } else if flag.kind == .actFailure {
-                        HealthFlagRow(flag: flag)
+                        // An Act failure opens where it is fixed: Settings for a configuration cause, the
+                        // Work Card for a broken invariant, the Night Card otherwise (disclose-a-failure).
+                        if let fixLink = flag.fixLink {
+                            Button { openDestination(fixLink) } label: { HealthFlagRow(flag: flag) }
+                                .buttonStyle(.plain)
+                                .help(help(for: fixLink))
+                        } else {
+                            HealthFlagRow(flag: flag)
+                        }
                     } else if flag.kind == .undeliveredBoardWrites {
                         VStack(alignment: .leading, spacing: 6) {
                             HealthFlagRow(flag: flag)
@@ -82,6 +90,10 @@ struct HealthGroup: View {
             "Open Settings → Boards"
         case .codeHosting:
             "Open Settings → Code Hosting"
+        case .nightCard:
+            "Open the Night Card in Linear"
+        case .inspector:
+            "Show the Work Card"
         default:
             "Open the Project's Settings"
         }
@@ -105,6 +117,11 @@ private struct HealthFlagRow: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
+                if let nextAction = flag.nextAction {
+                    Text(nextAction)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 if flag.kind == .undeliveredBoardWrites {
                     Text(outboxSummary)
                         .font(.caption)
@@ -149,7 +166,7 @@ private struct HealthFlagRow: View {
     }
 
     private var accessibilityDescription: String {
-        let detail = "\(flag.kind.displayName): \(flag.detail)"
+        let detail = "\(flag.kind.displayName): \(flag.detail)" + (flag.nextAction.map { ". \($0)" } ?? "")
         if flag.kind == .undeliveredBoardWrites {
             let error = flag.lastError.map { ". Last error: \($0)" } ?? ""
             return "\(detail). \(outboxSummary)\(error)"

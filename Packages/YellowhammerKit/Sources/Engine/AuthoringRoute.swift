@@ -69,37 +69,79 @@ public struct AuthoringRoute: Sendable {
                 pass: pass, instruction: .authoring(instruction(route, earlierRejections)), worktreePath: worktreePath,
                 additionalReadableDirectories: additionalReadableDirectories
             )
-            let report: AgentDispatchReport
+            let judgement: Judgement
             do {
-                report = try await dispatch.dispatch(dispatchRequest)
+                let report = try await dispatch.dispatch(dispatchRequest)
+                try record(report.origin, pass: pass, route: route, ordinal: Int(ordinal), context: context)
+                judgement = try await judge(report.outcome, pass: pass, route: route, accept: accept)
             } catch let refusal as AgentDispatchRefusal {
-                tried.insert(route)
-                lastFailure = "\(pass.rawValue) on \(route) is unavailable: \(refusal)"
-                continue
+                judgement = .rejected(Rejection(
+                    cause: .unavailable, reason: "\(refusal)",
+                    lastFailure: "\(pass.rawValue) on \(route) is unavailable: \(refusal)"
+                ))
             }
-            try record(report.origin, pass: pass, route: route, ordinal: Int(ordinal), context: context)
-            switch report.outcome {
-            case .completed(let result):
-                if let reason = result.authoringFailureReason {
-                    tried.insert(route)
-                    lastFailure = "\(pass.rawValue) on \(route) reported failed: \(reason)"
-                } else if let rejection = await accept(result) {
-                    rejectedBreakdown = rejectedBreakdown || Self.producedBreakdown(result)
-                    tried.insert(route)
-                    earlierRejections.append("`\(route)`: \(rejection)")
-                    lastFailure = "\(pass.rawValue) on \(route) returned invalid output: \(rejection)"
-                } else {
-                    return result
-                }
-            case .failed, .contractViolation, .timedOut:
+            switch judgement {
+            case .answered(let result):
+                return result
+            case .rejected(let rejection):
                 tried.insert(route)
-                lastFailure = Self.failureAccount(of: report.outcome, pass: pass, route: route)
-            case .crashedUnknown(let cause):
-                throw AuthoringDispatchFault(
-                    reason: "\(pass.rawValue) on \(route) crashed with no outcome (\(cause)); a Crashed-Unknown "
-                        + "run excludes no Route and ends authoring for this Act"
+                lastFailure = rejection.lastFailure
+                rejectedBreakdown = rejectedBreakdown || rejection.producedBreakdown
+                if rejection.cause == .overDescriptionBudget || rejection.cause == .invalidOutput {
+                    earlierRejections.append("`\(route)`: \(rejection.reason)")
+                }
+                try recordRejection(
+                    .authoringRouteRejected(
+                        pass: pass, route: route.description, ordinal: Int(ordinal), cause: rejection.cause,
+                        reason: rejection.reason
+                    ),
+                    context: context
                 )
             }
+        }
+    }
+
+    private enum Judgement {
+        case answered(DispatchResult)
+        case rejected(Rejection)
+    }
+
+    /// One Route's failure: its cause class, the account recorded on its event, and the walk's last-failure text.
+    private struct Rejection {
+        let cause: AuthoringRouteRejectionCause
+        let reason: String
+        let lastFailure: String
+        var producedBreakdown = false
+    }
+
+    /// Judges a Route's outcome: an answer `accept` takes, or the rejection that excludes the Route. A
+    /// Crashed-Unknown run throws, ending authoring for this Act.
+    private func judge(
+        _ outcome: RunOutcome, pass: RunPass, route: Route, accept: (DispatchResult) async -> String?
+    ) async throws -> Judgement {
+        switch outcome {
+        case .completed(let result):
+            if let reason = result.authoringFailureReason {
+                return .rejected(Rejection(
+                    cause: .reportedFailed, reason: reason,
+                    lastFailure: "\(pass.rawValue) on \(route) reported failed: \(reason)"
+                ))
+            }
+            guard let rejection = await accept(result) else { return .answered(result) }
+            let overBudget = rejection.contains(DescriptionBudgetOverrun.marker)
+            return .rejected(Rejection(
+                cause: overBudget ? .overDescriptionBudget : .invalidOutput, reason: rejection,
+                lastFailure: "\(pass.rawValue) on \(route) returned invalid output: \(rejection)",
+                producedBreakdown: Self.producedBreakdown(result)
+            ))
+        case .failed, .contractViolation, .timedOut:
+            let account = Self.failureAccount(of: outcome, pass: pass, route: route) ?? ""
+            return .rejected(Rejection(cause: Self.cause(of: outcome), reason: account, lastFailure: account))
+        case .crashedUnknown(let cause):
+            throw AuthoringDispatchFault(
+                reason: "\(pass.rawValue) on \(route) crashed with no outcome (\(cause)); a Crashed-Unknown "
+                    + "run excludes no Route and ends authoring for this Act"
+            )
         }
     }
 
@@ -118,6 +160,14 @@ public struct AuthoringRoute: Sendable {
         }
     }
 
+    private static func cause(of outcome: RunOutcome) -> AuthoringRouteRejectionCause {
+        switch outcome {
+        case .contractViolation: .brokeResultContract
+        case .timedOut: .timedOut
+        case .failed, .completed, .crashedUnknown: .exited
+        }
+    }
+
     private static func producedBreakdown(_ result: DispatchResult) -> Bool {
         if case .breakdown(let breakdown) = result, case .drafted = breakdown.outcome { return true }
         return false
@@ -129,6 +179,10 @@ public struct AuthoringRoute: Sendable {
             reason: lastFailure.map { "\(table); last failure: \($0)" } ?? table,
             rejectedBreakdown: rejectedBreakdown
         )
+    }
+
+    private func recordRejection(_ event: JournalEvent, context: ActContext) throws {
+        try context.journal.append(event, act: context.act, runID: context.runID, nightID: context.night.id)
     }
 
     private func record(

@@ -96,6 +96,7 @@ public enum JournalEventType: String, CaseIterable, Sendable {
     case featureAuthoringFailed = "FeatureAuthoringFailed"
     case featureBreakdownRejected = "FeatureBreakdownRejected"
     case authoringDispatched = "AuthoringDispatched"
+    case authoringRouteRejected = "AuthoringRouteRejected"
     case featureSelectionFailed = "FeatureSelectionFailed"
     case refusalOpened = "RefusalOpened"
     case refusalRepeated = "RefusalRepeated"

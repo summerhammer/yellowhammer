@@ -37,7 +37,11 @@ extension NightCardMaintenance {
         var acceptedOrder: [String] = []
         var acceptedPlans: [String: FeatureAuthoringAcceptedPayload] = [:]
         var resolvedGroupKeys: Set<String> = []
+        var rejections: [RunID: [RouteRejection]] = [:]
         for record in try journal.events() where record.nightID == night.id {
+            for line in Self.bufferedRouteLines(for: record, rejections: &rejections) where seen.insert(line).inserted {
+                lines.append(line)
+            }
             if let line = Self.authoringLine(for: record.event, journal: journal), seen.insert(line).inserted {
                 lines.append(line)
             }
@@ -61,6 +65,50 @@ extension NightCardMaintenance {
                 """)
         }
         return lines
+    }
+
+    /// Buffers a Route rejection under its run; when that run's fault arrives, returns the buffered lines.
+    private static func bufferedRouteLines(
+        for record: JournalEventRecord, rejections: inout [RunID: [RouteRejection]]
+    ) -> [String] {
+        guard let runID = record.runID else { return [] }
+        switch record.event {
+        case .authoringRouteRejected(_, let route, _, let cause, let reason):
+            rejections[runID, default: []].append(RouteRejection(route: route, cause: cause, reason: reason))
+            return []
+        case .featureBreakdownRejected, .featureSelectionFailed:
+            return routeRejectionLines(rejections.removeValue(forKey: runID) ?? [])
+        default:
+            return []
+        }
+    }
+
+    private struct RouteRejection {
+        let route: String
+        let cause: AuthoringRouteRejectionCause
+        let reason: String
+    }
+
+    /// One line per cause, in the walk order the causes first appear: the Routes sharing it, then each
+    /// Route's own one-line reason. When every reason is an overrun of the same budget the numbers fold
+    /// into one (`12,153 and 11,987 of 10,000`).
+    private static func routeRejectionLines(_ rejections: [RouteRejection]) -> [String] {
+        var order: [AuthoringRouteRejectionCause] = []
+        for rejection in rejections where !order.contains(rejection.cause) { order.append(rejection.cause) }
+        return order.map { cause in
+            let group = rejections.filter { $0.cause == cause }
+            let routes = group.map { "`\($0.route)`" }.joined(separator: ", ")
+            let overruns = group.compactMap { DescriptionBudgetOverrun.parse($0.reason) }
+            let detail: String
+            if group.count > 1, overruns.count == group.count, Set(overruns.map(\.budget)).count == 1 {
+                let sizes = overruns.map { DescriptionBudgetOverrun.grouped($0.size) }
+                let listed = sizes.dropLast().joined(separator: ", ") + " and " + sizes[sizes.count - 1]
+                detail = "\(listed) of \(DescriptionBudgetOverrun.grouped(overruns[0].budget))"
+            } else {
+                detail = group.map { DescriptionBudgetOverrun.oneLineReason($0.reason) }.joined(separator: "; ")
+            }
+            return "\(routes): \(cause.phrase) — \(detail)"
+        }
     }
 
     private static func renderFeatureReference(issueID: String, journal: JournalStore?) -> String {
