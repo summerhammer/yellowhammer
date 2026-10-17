@@ -55,9 +55,10 @@ because:
 - Debug `yh` and `swift test` lose access (-34018) until every test goes through an in-memory store.
 - Existing items need a one-time migration.
 
-The hazard is closed instead by prompt detection (next section), the guidance "answer Deny", and a
-planned `yh doctor` finding for an item whose access or partition list was widened
-([#573](https://github.com/summerhammer/yellowhammer/issues/573)).
+The unattended hazard is closed by prompt detection (next section): a Night loses seconds, not the
+pass timeout. The attended hazard remains, because the dialog stays on screen; it rests on the
+guidance "answer Deny" and on a planned `yh doctor` finding for an item whose access or partition
+list was widened ([#573](https://github.com/summerhammer/yellowhammer/issues/573)).
 
 Preconditions to revisit data protection: prove an embedded Developer ID `yh` gets the access
 group without a profile, or embed one; add a `CredentialStore` seam with an in-memory fake; and
