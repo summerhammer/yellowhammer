@@ -37,6 +37,10 @@ public struct CLIDispatch: Sendable {
     /// Extra directories the CLI must be able to write to beyond the Worktree — e.g. a linked
     /// Worktree's git common dir, so the worker can commit.
     public var additionalWritableDirectories: [String]
+    /// Absolute directories no pass may read: Yellowhammer's configuration directory (config, run
+    /// artifacts, the Journals and their backups) and the login Keychains directory. An adapter that can
+    /// contain its CLI uses them to deny reads; empty means nothing is denied (issue #546).
+    public var protectedDirectories: [String]
     /// The CLI's absolute path, already resolved by the caller from `CLIAdapterDeclaration.executable`.
     public var executable: String
     public var environment: [String: String]
@@ -51,6 +55,7 @@ public struct CLIDispatch: Sendable {
         resume: CLISession? = nil,
         additionalReadableDirectories: [String] = [],
         additionalWritableDirectories: [String] = [],
+        protectedDirectories: [String] = [],
         executable: String,
         environment: [String: String] = [:]
     ) {
@@ -63,6 +68,7 @@ public struct CLIDispatch: Sendable {
         self.resume = resume
         self.additionalReadableDirectories = additionalReadableDirectories
         self.additionalWritableDirectories = additionalWritableDirectories
+        self.protectedDirectories = protectedDirectories
         self.executable = executable
         self.environment = environment
     }

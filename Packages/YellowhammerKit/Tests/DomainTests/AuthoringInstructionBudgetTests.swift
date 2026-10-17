@@ -22,7 +22,7 @@ private func instruction(
             Repo(name: "mobile", path: "/m", role: .mobile), Repo(name: "backend", path: "/b", role: .backend)
         ],
         mainlines: ResolvedMainlines(), namedFeature: nil, adoptionCandidates: [], selectedFeature: nil,
-        resultFilePath: "/runs/result.json", descriptionRoom: hasRoom ? try makeRoom() : nil,
+        descriptionRoom: hasRoom ? try makeRoom() : nil,
         earlierRejections: earlierRejections
     )
 }
@@ -47,7 +47,8 @@ struct AuthoringInstructionBudgetTests {
         let backend = try #require(rendered.range(of: "- backend: 9612 UTF-16 code units"))
         #expect(mobile.upperBound <= backend.lowerBound)
         #expect(!rendered.contains("9,613"))
-        #expect(!rendered.contains("Linear"))
+        // The board is not named in the budget text; only the shared boundary statement says Linear.
+        #expect(!rendered.replacingOccurrences(of: PassBoundaries.statement, with: "").contains("Linear"))
     }
 
     @Test("The section precedes the result contract, which points at it")
@@ -87,15 +88,5 @@ struct AuthoringInstructionBudgetTests {
     @Test("With no earlier rejection there is no such section")
     func noRejectionsNoSection() throws {
         #expect(!(try instruction(.breakdown).render().contains("Rejected on an earlier Route")))
-    }
-
-    @Test("A result file path replacement keeps the room and the earlier rejections")
-    func replacingThePathKeepsBoth() throws {
-        let original = try instruction(.breakdown, earlierRejections: ["`a/b/c`: a reason"])
-        let moved = original.withResultFilePath("/other.json")
-        #expect(moved.descriptionRoom == (try makeRoom()))
-        #expect(moved.earlierRejections == ["`a/b/c`: a reason"])
-        let expected = original.render().replacingOccurrences(of: "/runs/result.json", with: "/other.json")
-        #expect(moved.render() == expected)
     }
 }

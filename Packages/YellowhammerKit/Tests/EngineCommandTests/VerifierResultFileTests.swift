@@ -127,8 +127,7 @@ struct VerificationInstructionTests {
         specificationSource: .specSource(SpecSource(path: "/repos/spec")),
         repositories: [
             VerificationRepository(name: "backend", directory: "/wt/backend", featureBranch: "yh-proj-feat")
-        ],
-        resultFilePath: "/runs/verification/result.json"
+        ]
     )
 
     @Test("It renders each clause with its citation, the specification path, each repository and the result file")
@@ -141,10 +140,10 @@ struct VerificationInstructionTests {
         #expect(text.contains("Specification path: /repos/spec"))
         #expect(text.contains("Finished code: /wt/backend"))
         #expect(text.contains("Feature Branch: yh-proj-feat"))
-        #expect(text.contains("`/runs/verification/result.json`"))
+        #expect(!text.contains("result.json"))
         #expect(text.contains("final structured response"))
         #expect(text.contains("CLI Adapter persists it"))
-        #expect(text.contains("do not create or edit that file with tools"))
+        #expect(text.contains("do not create or edit a result file with tools"))
         #expect(!text.contains("Write the result file"))
         #expect(text.contains("\"schema\": \"yellowhammer.result.verifier\""))
         #expect(text.contains("read-only"))
@@ -153,10 +152,12 @@ struct VerificationInstructionTests {
         #expect(text == instruction.render())
     }
 
-    @Test("It travels as an AgentInstruction and takes the stamped result file path")
+    @Test("It travels as an AgentInstruction that names no result file path")
     func agentInstruction() {
-        let wrapped = AgentInstruction.verification(instruction).withResultFilePath("/other/result.json")
-        #expect(wrapped.render().contains("`/other/result.json`"))
+        let wrapped = AgentInstruction.verification(instruction)
+        #expect(wrapped.render() == instruction.render())
+        #expect(!wrapped.render().contains("result.json"))
+        #expect(wrapped.render().contains(PassBoundaries.statement))
         #expect(wrapped.cardInstruction == nil)
     }
 

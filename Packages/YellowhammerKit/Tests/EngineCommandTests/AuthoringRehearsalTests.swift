@@ -134,7 +134,7 @@ struct AuthoringRehearsalTests {
                     pass: pass, route: Route(cli: "claude", model: "opus", effort: "high")!,
                     specificationSource: .specSource(SpecSource(path: "/repos/spec")),
                     specificationMainline: nil, repos: [], mainlines: ResolvedMainlines(), namedFeature: nil,
-                    adoptionCandidates: [], selectedFeature: nil, resultFilePath: ""
+                    adoptionCandidates: [], selectedFeature: nil
                 )),
                 worktreePath: "/repos/spec"
             ))

@@ -10,7 +10,8 @@ import Foundation
 /// id survives even a run whose stdout ``collect(end:dispatch:)`` cannot parse).
 public struct ClaudeCodeAdapter: CLIAdapter {
     public let cli = "claude"
-    public let adapterVersion = "2"
+    /// "3": the argv gained `--settings <run directory>/claude-settings.json` (issue #546).
+    public let adapterVersion = "3"
     /// `claude --help`'s `--effort` choices.
     public let supportedEfforts = ["low", "medium", "high", "xhigh", "max"]
 
@@ -38,6 +39,17 @@ public struct ClaudeCodeAdapter: CLIAdapter {
             try? freshSessionID.write(to: sessionIDFile, atomically: true, encoding: .utf8)
             arguments += ["--session-id", freshSessionID]
         }
+
+        let settingsFile = dispatch.runDirectory.appendingPathComponent(Self.settingsFileName)
+        do {
+            let settings = try Self.settingsJSON(
+                for: dispatch.pass, protectedDirectories: dispatch.protectedDirectories
+            )
+            try settings.write(to: settingsFile, options: .atomic)
+        } catch {
+            throw .runDirectoryUnwritable("\(error)")
+        }
+        arguments += ["--settings", settingsFile.path(percentEncoded: false)]
 
         let permissions = Self.permissions(for: dispatch.pass)
         arguments += ["--permission-mode", permissions.mode, "--allowedTools", permissions.allowed]
@@ -108,6 +120,10 @@ public struct ClaudeCodeAdapter: CLIAdapter {
     /// Per pass (spec `routing/add-an-agent-cli`): the worker edits and commits unattended under
     /// `acceptEdits`; the architect and reviewer never touch files, so they run under `dontAsk` with
     /// `Edit`/`Write`/`NotebookEdit` explicitly denied.
+    ///
+    /// Containment (issue #546) is the `--settings` file ``settingsJSON(for:protectedDirectories:)``
+    /// writes: the read-only passes run in a sandbox that denies Yellowhammer's configuration directory
+    /// and the Keychains and refuses the vendor APIs; the worker gets permission deny rules only.
     private static func permissions(for pass: RunPass) -> Permissions {
         switch pass {
         case .worker:
@@ -121,8 +137,65 @@ public struct ClaudeCodeAdapter: CLIAdapter {
         }
     }
 
+    // MARK: - Containment settings
+
+    /// Vendor API domains a read-only pass's sandbox refuses (issue #546): Yellowhammer alone writes the
+    /// board and opens pull requests.
+    private static let deniedVendorDomains = [
+        "linear.app", "*.linear.app", "github.com", "*.github.com", "api.github.com"
+    ]
+
+    /// The `--settings` file for one pass, serialized with sorted keys so it is deterministic.
+    ///
+    /// Read-only passes run in claude's sandbox, failing closed (`failIfUnavailable`) and never escaping
+    /// it (`allowUnsandboxedCommands: false`): `denyRead` covers the protected directories, the network
+    /// allowlist is strict with the vendor APIs denied, and `WebFetch`/`WebSearch` and `Read` of the
+    /// protected directories are denied as permissions too. Measured live (claude 2.1.302): the Keychain
+    /// read exits 44 without a prompt, the configuration directory is "Operation not permitted", and the
+    /// vendor APIs are refused, while `git` and the model API still work.
+    ///
+    /// The worker is **not** sandboxed, and its deny rules are best-effort. SwiftPM runs its own
+    /// `sandbox-exec` for package manifests, and a nested Seatbelt fails (`sandbox_apply: Operation not
+    /// permitted`), so `swift build` would break under claude's sandbox. Rules on `Read`/`Edit`, on
+    /// `security` and on `WebFetch` stop the direct routes, but a model can still reach the same
+    /// resources through another interpreter or tool.
+    ///
+    /// Paths are absolute: an app-spawned `yh` can run with an empty environment, and in a permission
+    /// rule an absolute path is written with a leading `//`.
+    static func settingsJSON(for pass: RunPass, protectedDirectories: [String]) throws -> Data {
+        let readRules = protectedDirectories.map { "Read(/\($0)/**)" }
+        var settings: [String: Any]
+        switch pass {
+        case .worker:
+            let editRules = protectedDirectories.map { "Edit(/\($0)/**)" }
+            settings = [
+                "permissions": [
+                    "deny": readRules + editRules + [
+                        "Bash(security *)", "Bash(/usr/bin/security *)",
+                        "WebFetch(domain:linear.app)", "WebFetch(domain:api.linear.app)",
+                        "WebFetch(domain:api.github.com)"
+                    ]
+                ]
+            ]
+        case .architect, .reviewer, .selection, .breakdown, .verifier:
+            settings = [
+                "sandbox": [
+                    "enabled": true,
+                    "failIfUnavailable": true,
+                    "autoAllowBashIfSandboxed": true,
+                    "allowUnsandboxedCommands": false,
+                    "filesystem": ["denyRead": protectedDirectories],
+                    "network": ["strictAllowlist": true, "deniedDomains": deniedVendorDomains]
+                ],
+                "permissions": ["deny": ["WebFetch", "WebSearch"] + readRules]
+            ]
+        }
+        return try JSONSerialization.data(withJSONObject: settings, options: [.sortedKeys, .prettyPrinted])
+    }
+
     // MARK: - Stdout parsing
 
+    private static let settingsFileName = "claude-settings.json"
     private static let stdoutFileName = "stdout.json"
     private static let sessionIDFileName = ".session-id"
 

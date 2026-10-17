@@ -22,8 +22,7 @@ private func makeInstruction(
         payloads: .none,
         commitMessage: commitMessage,
         specCommit: specCommit,
-        passTimeoutMinutes: passTimeoutMinutes,
-        resultFilePath: "/worktrees/yellowhammer/YLH-42/result.json"
+        passTimeoutMinutes: passTimeoutMinutes
     )
 }
 
@@ -64,7 +63,7 @@ func workerWithoutCardKeyOmitsTrailer() {
         let text = makeInstruction(
             pass: .worker, commitMessage: CommitMessageRequest(message: "feat: a card", workCardKey: key)
         ).render()
-        #expect(text.contains("Write each commit message in this format:\n\n    feat: a card\n\n## Result contract"))
+        #expect(text.contains("Write each commit message in this format:\n\n    feat: a card\n\n## Boundaries"))
         #expect(!text.contains("Yellowhammer-Work-Card"))
     }
 }
@@ -85,19 +84,16 @@ func noRequestRendersNoSection() {
     #expect(!text.contains("## Commit messages"))
 }
 
-@Test("stamping the result file path keeps the request, so the text the CLI receives still asks for the trailer")
-func stampingTheResultFilePathKeepsTheRequest() {
-    // Night 2026-10-12: every worker commit lacked the trailer because the stamped copy dropped the request.
+@Test("the request is rendered as given, so the text the CLI receives asks for the trailer")
+func theRequestIsRenderedAsGiven() {
+    // Night 2026-10-12: every worker commit lacked the trailer because a stamped copy dropped the request.
     let request = CommitMessageRequest(message: "feat: YLH-42 a card", workCardKey: "YLH-42")
-    let stamped = makeInstruction(pass: .worker, commitMessage: request)
-        .withResultFilePath("/runs/proj/run-1/YLH-42/1-worker/result.json")
+    let instruction = makeInstruction(pass: .worker, commitMessage: request)
 
-    #expect(stamped.commitMessage == request)
-    #expect(stamped.resultFilePath == "/runs/proj/run-1/YLH-42/1-worker/result.json")
-    let text = stamped.render()
+    #expect(instruction.commitMessage == request)
+    let text = instruction.render()
     #expect(text.contains("## Commit messages"))
     #expect(text.contains("Yellowhammer-Work-Card: YLH-42"))
-    #expect(text.contains("/runs/proj/run-1/YLH-42/1-worker/result.json"))
 }
 
 // OQ165 (graph-execution/run-a-card#spec-commit): the worker instruction names the specification commit
@@ -168,7 +164,7 @@ func workerRendersTimeLimit() {
     #expect(commits!.lowerBound < limit!.lowerBound)
     #expect(limit!.lowerBound < contract!.lowerBound)
     #expect(text.contains("A trailer separated from that block by a blank line is not read.\n\n## Time limit"))
-    #expect(text.contains("not finish within the limit.\n\n## Result contract"))
+    #expect(text.contains("not finish within the limit.\n\n## Boundaries"))
 }
 
 @Test("an architect instruction states the shorter time limit")
@@ -177,7 +173,7 @@ func architectRendersShorterTimeLimit() {
     #expect(
         text.contains(
             "## Time limit\n\nThis pass may run for at most 45 minutes, after which Yellowhammer stops it and "
-                + "the Attempt is spent.\n\n## Result contract"
+                + "the Attempt is spent.\n\n## Boundaries"
         )
     )
     #expect(!text.contains("commit a coherent step"))

@@ -84,7 +84,7 @@ extension FeatureVerification {
     ) -> AgentDispatchRequest {
         let instruction = VerificationInstruction(
             route: route, featureTitle: base.featureTitle, clauses: base.clauses,
-            specificationSource: base.source, repositories: base.repositories, resultFilePath: ""
+            specificationSource: base.source, repositories: base.repositories
         )
         return AgentDispatchRequest(
             runID: runID, issueID: runDirectoryName, attemptID: ordinal, route: route,

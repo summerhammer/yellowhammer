@@ -12,7 +12,7 @@ private func instruction(
             Repo(name: "contracts", path: "/c", role: .backend)
         ],
         mainlines: ResolvedMainlines(), namedFeature: nil, adoptionCandidates: [], heldConsumers: held,
-        selectedFeature: nil, resultFilePath: "/runs/result.json"
+        selectedFeature: nil
     ).render()
 }
 

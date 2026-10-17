@@ -51,8 +51,7 @@ private func makeInstruction(
             check: check
         ),
         route: route,
-        payloads: payloads,
-        resultFilePath: "/worktrees/yellowhammer/ENG-1/.yellowhammer/result.json"
+        payloads: payloads
     )
 }
 
@@ -135,8 +134,7 @@ func operatorSuppliedBlockMainlineLabel() {
             repo: repo, worktreePath: "/worktrees/yellowhammer/ENG-1", featureBranch: "feature/eng-1",
             check: .command("swift test")
         ),
-        route: Route(cli: "claude", model: "sonnet", effort: "medium")!, payloads: .none,
-        resultFilePath: "/worktrees/yellowhammer/ENG-1/.yellowhammer/result.json"
+        route: Route(cli: "claude", model: "sonnet", effort: "medium")!, payloads: .none
     )
     #expect(copy.render().contains("Mainline: abc1234 (Operator-supplied)\n"))
 }
@@ -159,19 +157,32 @@ func wipSectionContainsCommitNotKnownGood() {
     #expect(!rendered.contains("is known-good"))
 }
 
-@Test("Result contract names the file path, schema identifier and permitted outcomes")
-func resultContractNamesPathSchemaAndOutcomes() {
+@Test("Result contract names no file path, and states the schema identifier and permitted outcomes")
+func resultContractNamesSchemaAndOutcomesButNoPath() {
     let instruction = makeInstruction(payloads: .none)
     let rendered = instruction.render()
-    #expect(rendered.contains(instruction.resultFilePath))
+    #expect(!rendered.contains("result.json"))
     #expect(rendered.contains("final structured response"))
-    #expect(rendered.contains("CLI Adapter persists it"))
-    #expect(rendered.contains("do not create or edit that file with tools"))
+    #expect(rendered.contains(
+        "conforming to the supplied JSON schema. The CLI Adapter persists it; do not create or edit a result "
+            + "file with tools."
+    ))
     #expect(!rendered.contains("Write the result file"))
     #expect(rendered.contains("yellowhammer.result.worker"))
     #expect(rendered.contains("completed"))
     #expect(rendered.contains("question"))
     #expect(rendered.contains("failed"))
+}
+
+@Test("Every Card pass states the boundary just before the Result contract")
+func everyCardPassStatesTheBoundary() throws {
+    for pass in [RunPass.architect, .worker, .reviewer] {
+        let rendered = makeInstruction(payloads: .none, pass: pass).render()
+        #expect(rendered.contains(PassBoundaries.statement))
+        let boundaries = try #require(rendered.range(of: "## Boundaries"))
+        let contract = try #require(rendered.range(of: "## Result contract"))
+        #expect(boundaries.upperBound <= contract.lowerBound)
+    }
 }
 
 @Test("The worker result contract states the commit obligation and its precedence; other passes do not")
@@ -180,7 +191,7 @@ func workerResultContractStatesCommitObligation() {
     #expect(worker.contains("`completed` carries `commit` (the 40-hex SHA of the commit you made) and `summary`"))
     #expect(worker.contains("nothing in the Card, the Architectural Brief, or the Definition of Done overrides it"))
     #expect(worker.contains("not to commit or to leave your work uncommitted does not apply"))
-    #expect(worker.contains("do not create or edit that file with tools"))
+    #expect(worker.contains("do not create or edit a result file with tools"))
     #expect(!worker.contains("not to write the result file does not apply"))
     for pass in [RunPass.architect, .reviewer] {
         let rendered = makeInstruction(payloads: .none, pass: pass).render()
@@ -285,8 +296,7 @@ func renderedInstructionNeverCarriesTheSpecSourcePath() async throws {
             check: .command("swift test")
         ),
         route: Route(cli: "claude", model: "sonnet", effort: "medium")!,
-        payloads: .none,
-        resultFilePath: "/worktrees/yellowhammer/ENG-1/.yellowhammer/result.json"
+        payloads: .none
     )
 
     let rendered = instruction.render()
@@ -320,8 +330,7 @@ func rangedBlockHeaderNamesItsLines() {
             repo: repo, worktreePath: "/worktrees/yellowhammer/ENG-1", featureBranch: "feature/eng-1",
             check: .command("swift test")
         ),
-        route: Route(cli: "claude", model: "sonnet", effort: "medium")!, payloads: .none,
-        resultFilePath: "/worktrees/yellowhammer/ENG-1/.yellowhammer/result.json"
+        route: Route(cli: "claude", model: "sonnet", effort: "medium")!, payloads: .none
     )
 
     let rendered = instruction.render()

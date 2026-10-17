@@ -22,8 +22,6 @@ public struct AuthoringInstruction: Equatable, Sendable {
     public let heldConsumers: [HeldConsumer]
     /// The validated Feature to break down; non-nil exactly for the breakdown pass.
     public let selectedFeature: SelectedFeature?
-    /// The absolute path where the CLI Adapter persists the final structured response.
-    public let resultFilePath: String
     /// The room the Board Connection's description budget leaves each repository's Work Card, which the
     /// breakdown is told so it keeps each Card's whole description within it. Nil when the board enforces
     /// no budget.
@@ -44,7 +42,6 @@ public struct AuthoringInstruction: Equatable, Sendable {
         refusedThisNight: [FeatureName] = [],
         heldConsumers: [HeldConsumer] = [],
         selectedFeature: SelectedFeature?,
-        resultFilePath: String,
         descriptionRoom: BreakdownDescriptionRoom? = nil,
         earlierRejections: [String] = []
     ) {
@@ -59,21 +56,8 @@ public struct AuthoringInstruction: Equatable, Sendable {
         self.refusedThisNight = refusedThisNight
         self.heldConsumers = heldConsumers
         self.selectedFeature = selectedFeature
-        self.resultFilePath = resultFilePath
         self.descriptionRoom = descriptionRoom
         self.earlierRejections = earlierRejections
-    }
-
-    /// This instruction with its result file path replaced.
-    public func withResultFilePath(_ path: String) -> AuthoringInstruction {
-        AuthoringInstruction(
-            pass: pass, route: route, specificationSource: specificationSource,
-            specificationMainline: specificationMainline, repos: repos, mainlines: mainlines,
-            namedFeature: namedFeature, adoptionCandidates: adoptionCandidates,
-            refusedThisNight: refusedThisNight, heldConsumers: heldConsumers,
-            selectedFeature: selectedFeature, resultFilePath: path,
-            descriptionRoom: descriptionRoom, earlierRejections: earlierRejections
-        )
     }
 }
 
@@ -94,15 +78,6 @@ public enum AgentInstruction: Equatable, Sendable {
         case .card(let instruction): instruction.render()
         case .authoring(let instruction): instruction.render()
         case .verification(let instruction): instruction.render()
-        }
-    }
-
-    /// This instruction with its result file path replaced.
-    public func withResultFilePath(_ path: String) -> AgentInstruction {
-        switch self {
-        case .card(let instruction): .card(instruction.withResultFilePath(path))
-        case .authoring(let instruction): .authoring(instruction.withResultFilePath(path))
-        case .verification(let instruction): .verification(instruction.withResultFilePath(path))
         }
     }
 }

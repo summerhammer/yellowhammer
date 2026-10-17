@@ -24,7 +24,10 @@ enum DispatchBinding {
                     configurationDirectory: configurationDirectory, projectID: project.id
                 ),
                 timeout: project.passTimeout,
-                declaredExecutables: declaredExecutables(configuration)
+                declaredExecutables: declaredExecutables(configuration),
+                protectedDirectories: CLIAdapterDispatch.protectedDirectories(
+                    configurationDirectory: configurationDirectory
+                )
             )
         }
     }
