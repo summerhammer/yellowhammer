@@ -1,5 +1,5 @@
-/// Why one authoring Route failed in an author Act's walk (the `AuthoringRouteRejected` event): the
-/// class the Night Card groups its per-Route lines by.
+/// Why one Route failed in a pass's walk (the `AuthoringRouteRejected` event): an authoring pass in the
+/// author Act, or the verifier pass in the land Act. The class the Night Card groups its per-Route lines by.
 public enum AuthoringRouteRejectionCause: String, Sendable, CaseIterable {
     case overDescriptionBudget = "over_description_budget"
     case invalidOutput = "invalid_output"

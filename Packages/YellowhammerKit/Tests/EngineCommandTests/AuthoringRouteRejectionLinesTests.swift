@@ -74,4 +74,42 @@ struct AuthoringRouteRejectionLinesTests {
         let event = rejected("claude/fable/high", 1, .unavailable, "no executable")
         #expect(NightCardMaintenance.authoringLine(for: event) == nil)
     }
+
+    private func verifierRejected(
+        _ route: String, _ ordinal: Int, _ cause: AuthoringRouteRejectionCause, _ reason: String
+    ) -> JournalEvent {
+        .authoringRouteRejected(pass: .verifier, route: route, ordinal: ordinal, cause: cause, reason: reason)
+    }
+
+    @Test("A Verification that faulted renders its rejected verifier Routes, in walk order, under a label")
+    func verifierFaultRendersItsRoutes() async throws {
+        let result = try await lines([
+            verifierRejected("claude/opus/high", 1, .unavailable, "no executable"),
+            verifierRejected("codex/gpt-5.4/high", 2, .exited, "verifier on codex/gpt-5.4/high exited with status 2"),
+            .landStep(step: .verification, repository: nil, outcome: .failed, detail: "no Route left")
+        ])
+        #expect(result == [
+            "Verification: `claude/opus/high`: unavailable — no executable",
+            "Verification: `codex/gpt-5.4/high`: exited — verifier on codex/gpt-5.4/high exited with status 2"
+        ])
+    }
+
+    @Test("A verifier walk that recovered on a later Route renders nothing: only a fault flushes")
+    func recoveredVerifierWalkRendersNothing() async throws {
+        let result = try await lines([
+            verifierRejected("claude/opus/high", 1, .unavailable, "no executable"),
+            .landStep(step: .verification, repository: nil, outcome: .completed, detail: nil)
+        ])
+        #expect(result.isEmpty)
+    }
+
+    @Test("A failed Verification does not flush another pass's rejections of the same run, and vice versa")
+    func passesFlushSeparately() async throws {
+        let result = try await lines([
+            rejected("claude/fable/high", 1, .exited, "breakdown on claude/fable/high exited with status 2"),
+            verifierRejected("codex/gpt-5.4/high", 1, .unavailable, "no executable"),
+            .landStep(step: .verification, repository: nil, outcome: .failed, detail: "x")
+        ])
+        #expect(result == ["Verification: `codex/gpt-5.4/high`: unavailable — no executable"])
+    }
 }

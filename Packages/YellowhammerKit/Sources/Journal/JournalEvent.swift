@@ -373,9 +373,11 @@ public enum JournalEvent: Equatable, Sendable {
     /// answered (roadmap P9.11): `route` is the Route's description, `ordinal` the 1-based candidate tried
     /// in this Act, and `fixture` the rehearsal fixture that answered — nil when an agent CLI process ran.
     case authoringDispatched(pass: RunPass, route: String, ordinal: Int, fixture: String?)
-    /// One authoring Route failed in a walk: `route` is the Route's description, `ordinal` its 1-based place in
-    /// the walk, `cause` the class of failure and `reason` its account. The folded `FeatureBreakdownRejected`
-    /// or `FeatureSelectionFailed` still records the fault; this keeps each earlier Route's own account.
+    /// One Route failed in a pass's walk: `pass` says which (an authoring pass in the author Act, or the
+    /// verifier in the land Act), `route` is the Route's description, `ordinal` its 1-based place in the
+    /// walk, `cause` the class of failure and `reason` its account. The folded fault — `FeatureBreakdownRejected`,
+    /// `FeatureSelectionFailed`, or the failed Verification land step — still records it; this keeps each
+    /// earlier Route's own account.
     case authoringRouteRejected(
         pass: RunPass, route: String, ordinal: Int, cause: AuthoringRouteRejectionCause, reason: String
     )
