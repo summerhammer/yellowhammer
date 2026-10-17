@@ -6,29 +6,19 @@ import Foundation
 /// script in the foreground, observes its two pids, cancels the dispatch (the engine abort path),
 /// and confirms nothing from it survives.
 extension CLIProbe {
-    // swiftlint:disable:next function_parameter_count
     func runContainmentVariant(
         _ variant: String,
         adapter: some CLIAdapter,
-        route: Route,
-        executable: String,
-        environment: [String: String],
-        worktree: URL,
-        runsDirectory: URL,
+        context: ProbeDispatchContext,
         gracePeriod: Duration
     ) async -> (ProbeFinding, String?) {
-        let runDirectory = runsDirectory.appendingPathComponent(variant)
-        let dispatch = CLIDispatch(
-            route: route,
+        let runDirectory = context.runsDirectory.appendingPathComponent(variant)
+        let dispatch = context.dispatch(
             pass: .worker,
             instruction: Self.containmentInstruction(variant: variant),
-            worktreePath: worktree.path,
             runDirectory: runDirectory,
             timeout: dispatchTimeout,
-            resume: nil,
-            additionalWritableDirectories: [],
-            executable: executable,
-            environment: environment
+            resume: nil
         )
         let runner = CLIRunner(process: AgentCLIProcess(gracePeriod: gracePeriod, pollInterval: pollInterval))
 
@@ -42,7 +32,7 @@ extension CLIProbe {
             }
         }
 
-        let holdsFile = worktree.appendingPathComponent(".yh-probe/holds-\(variant)")
+        let holdsFile = context.worktree.appendingPathComponent(".yh-probe/holds-\(variant)")
         let pids = await observeHoldPIDs(at: holdsFile, box: box)
 
         // Record the hold pids' actual process group and their ancestry before cancelling — both

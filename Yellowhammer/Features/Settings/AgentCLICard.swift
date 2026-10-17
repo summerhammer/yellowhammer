@@ -246,6 +246,7 @@ private extension ProbeTarget {
         case .resultFileOnCleanExit: "Result file on clean exit"
         case .processContainment: "Process containment"
         case .sessionResumption: "Session resumption"
+        case .stateContainment: "State containment"
         }
     }
 
@@ -256,9 +257,15 @@ private extension ProbeTarget {
         case .resultFileOnCleanExit: "Writes its schema-forced result file when it exits cleanly"
         case .processContainment: "Leaves nothing it spawned running after SIGTERM or SIGKILL"
         case .sessionResumption: "Resumes the same session for a new Round"
+        case .stateContainment: "Read-only passes cannot read the Keychain, Yellowhammer\u{2019}s state or Linear"
         }
     }
 
-    /// Session resumption is recorded but never decides the verdict.
-    var gatesVerdict: Bool { self != .sessionResumption }
+    /// Session resumption and state containment are recorded but never decide the verdict.
+    var gatesVerdict: Bool {
+        switch self {
+        case .unattendedDispatch, .resultFileOnCleanExit, .processContainment: true
+        case .sessionResumption, .stateContainment: false
+        }
+    }
 }

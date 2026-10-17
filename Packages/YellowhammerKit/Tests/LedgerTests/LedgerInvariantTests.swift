@@ -21,6 +21,7 @@ func tiebreakOnSameSecond() async throws {
         findingUnattendedDispatch: .passed,
         findingProcessContainment: .passed,
         findingSessionResumption: .notRun,
+        findingStateContainment: .notRun,
         reason: nil
     )
 
@@ -33,6 +34,7 @@ func tiebreakOnSameSecond() async throws {
         findingUnattendedDispatch: .passed,
         findingProcessContainment: .passed,
         findingSessionResumption: .notRun,
+        findingStateContainment: .notRun,
         reason: nil
     )
 
@@ -64,6 +66,7 @@ func mixedFindingsIsFailedVerdict() async throws {
         findingUnattendedDispatch: .passed,
         findingProcessContainment: .passed,
         findingSessionResumption: .notRun,
+        findingStateContainment: .notRun,
         reason: "Result file finding failed"
     )
 
@@ -91,6 +94,7 @@ func disagreeingVerdictThrowsUnreadable() async throws {
         findingUnattendedDispatch: .passed,
         findingProcessContainment: .passed,
         findingSessionResumption: .notRun,
+        findingStateContainment: .notRun,
         reason: nil
     )
     _ = try store.record(valid)

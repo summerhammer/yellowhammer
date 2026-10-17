@@ -1,13 +1,15 @@
 import Domain
 
 /// One probe target a Probe Result reports a finding for. Distinct from the three gating findings
-/// in ``ProbeResult/verdict`` — ``sessionResumption`` is recorded but never gates routing — this
+/// in ``ProbeResult/verdict`` — ``sessionResumption`` and ``stateContainment`` are recorded but
+/// never gate routing — this
 /// covers every finding a Probe Result can drift on.
 public enum ProbeTarget: String, CaseIterable, Sendable {
     case unattendedDispatch
     case resultFileOnCleanExit
     case processContainment
     case sessionResumption
+    case stateContainment
 }
 
 extension ProbeTarget: CustomStringConvertible {
@@ -22,6 +24,8 @@ extension ProbeTarget: CustomStringConvertible {
             "session handling (session resumption)"
         case .processContainment:
             "process containment"
+        case .stateContainment:
+            "state containment"
         }
     }
 }
@@ -59,6 +63,7 @@ extension ProbeResult {
         case .resultFileOnCleanExit: findingResultFileOnCleanExit
         case .processContainment: findingProcessContainment
         case .sessionResumption: findingSessionResumption
+        case .stateContainment: findingStateContainment
         }
     }
 

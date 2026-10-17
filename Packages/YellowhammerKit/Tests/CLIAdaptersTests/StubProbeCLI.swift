@@ -6,7 +6,9 @@ import Foundation
 /// invocation, which ``CLIProbe`` runs separately from a dispatch.
 enum StubProbeCLI {
     /// Completes every pass; echoes the nonce it is asked for, resumes sessions, and actually runs
-    /// the hold script a worker pass is told to run.
+    /// the hold script a worker pass is told to run. Asked to run the reach script, it never runs it
+    /// (that would touch the real Keychain and network): it reports `$STUB_REACH_LINE`, by default
+    /// the fully blocked line.
     static let healthy = shell(
         """
         if [ "$1" = "--version" ]; then
@@ -18,7 +20,10 @@ enum StubProbeCLI {
         resume="$3"
         case "$pass" in
             architect)
-                if [ -n "$resume" ]; then
+                if echo "$instruction" | grep -q 'yh-probe-reach.sh'; then
+                    printf 'RESULT:{"schema":"yellowhammer.result.architect","version":1,\
+        "outcome":"failed","reason":"%s"}\\n' "${STUB_REACH_LINE:-keychain=blocked config=blocked linear=blocked}"
+                elif [ -n "$resume" ]; then
                     prior=$(cat .yh-probe-nonce 2>/dev/null)
                     printf 'SESSION:stub-session\\n'
                     printf 'RESULT:{"schema":"yellowhammer.result.architect","version":1,\
