@@ -12,6 +12,10 @@ public enum RunEnd: Equatable, Sendable {
     /// Yellowhammer ended the run because the engine aborted (Task cancellation). Same escalation;
     /// `forcedKill` says whether SIGKILL was needed.
     case aborted(forcedKill: Bool)
+    /// Yellowhammer ended the run because a macOS permission prompt was attributed to the CLI's own
+    /// process tree: nobody answers a prompt during a Night, so the pass could only wait out its
+    /// timeout (#555). Same escalation; `detail` names the prompt and the process that raised it.
+    case promptBlocked(detail: String, forcedKill: Bool)
 }
 
 extension RunEnd: CustomStringConvertible {
@@ -25,6 +29,8 @@ extension RunEnd: CustomStringConvertible {
             "timedOut(after: \(after), forcedKill: \(forcedKill))"
         case .aborted(let forcedKill):
             "aborted(forcedKill: \(forcedKill))"
+        case .promptBlocked(let detail, let forcedKill):
+            "promptBlocked(\(detail), forcedKill: \(forcedKill))"
         }
     }
 }
@@ -36,7 +42,8 @@ public enum CrashedUnknownCause: Equatable, Sendable {
     /// contract is ``RunOutcome/contractViolation(_:)`` instead.
     case resultFile(ResultFileError)
     /// Yellowhammer ended the run because the engine aborted. Only ``RunEnd/aborted(forcedKill:)`` is ever
-    /// stored here: a run ended at the pass timeout is ``RunOutcome/timedOut(after:)``, a hard failure (#507).
+    /// stored here: a run ended at the pass timeout is ``RunOutcome/timedOut(after:)``, a hard failure (#507),
+    /// and one ended by a permission prompt is ``engineStopped(cause:)`` (#555).
     case terminated(RunEnd)
     /// A signal Yellowhammer did not send ended the process.
     case signaled(Int32)
@@ -45,10 +52,29 @@ public enum CrashedUnknownCause: Equatable, Sendable {
     /// step recorded either (loop-state/reclaim-an-expired-lease, P8.10). `String` is a short,
     /// Operator-facing account of what was missing, e.g. "no result file for the worker pass".
     case reclaimed(String)
-    /// A later Act reclaimed a run that recorded, via ``CardRunStep/leaseLeftToExpire``, that the
-    /// engine stopped it and left its Lease to expire — not a dying host. Same Crashed-Unknown
-    /// classification; `String` is the recorded cause (OQ92).
+    /// The engine stopped the run itself, for a cause that is the host's, not the Route's. Two sources:
+    /// a later Act reclaimed a run that recorded, via ``CardRunStep/leaseLeftToExpire``, that the engine
+    /// stopped it and left its Lease to expire — not a dying host (OQ92); or the engine ended a live pass
+    /// because a macOS permission prompt blocked it (``RunEnd/promptBlocked(detail:forcedKill:)``, #555;
+    /// see ``permissionPrompt(_:)``). Same Crashed-Unknown classification; `String` is the cause.
     case engineStopped(cause: String)
+}
+
+extension CrashedUnknownCause {
+    /// How the cause of ``permissionPrompt(_:)`` begins, so a reader of the stored classification can tell
+    /// a permission prompt from any other engine stop.
+    public static let permissionPromptCausePrefix = "a macOS permission prompt blocked the pass: "
+
+    /// The engine stop for a pass that a macOS permission prompt blocked (#555). `detail` names the prompt.
+    public static func permissionPrompt(_ detail: String) -> CrashedUnknownCause {
+        .engineStopped(cause: permissionPromptCausePrefix + detail)
+    }
+
+    /// True for the engine stop ``permissionPrompt(_:)`` builds.
+    public var isPermissionPrompt: Bool {
+        guard case .engineStopped(let cause) = self else { return false }
+        return cause.hasPrefix(Self.permissionPromptCausePrefix)
+    }
 }
 
 /// The dual-key completion verdict of one CLI run: an Attempt completes only with exit status
@@ -133,8 +159,9 @@ extension RunOutcome {
     }
 
     /// Shared for every `end` other than a clean exit(0): a non-zero exit is attributable to the
-    /// CLI, a timeout is the engine's own hard-failure decision (#507), and an abort or a foreign signal
-    /// is Crashed-Unknown by construction.
+    /// CLI, a timeout is the engine's own hard-failure decision (#507), an abort or a foreign signal
+    /// is Crashed-Unknown by construction, and a permission prompt is an engine stop — the host's
+    /// fault, not the Route's (#555).
     private static func classify(nonZeroOrUnexited end: RunEnd) -> RunOutcome {
         switch end {
         case .exited(let status):
@@ -145,6 +172,8 @@ extension RunOutcome {
             .timedOut(after: after)
         case .aborted:
             .crashedUnknown(.terminated(end))
+        case .promptBlocked(let detail, _):
+            .crashedUnknown(.permissionPrompt(detail))
         }
     }
 }

@@ -81,6 +81,8 @@ extension CLIProbe {
                     .failed,
                     "no exit within \(after) — likely waiting on an interactive auth or permission prompt"
                 )
+            case .promptBlocked(let detail, _):
+                return (.failed, "waited on a macOS permission prompt: \(detail)")
             case .signaled, .aborted:
                 return (.failed, "ended unexpectedly: \(report.end)")
             }

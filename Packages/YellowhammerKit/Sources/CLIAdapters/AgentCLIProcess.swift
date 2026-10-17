@@ -74,14 +74,18 @@ public struct AgentCLIProcess: Sendable {
     /// tests. Must poll faster than a tool process's own lifetime for the normal-exit sweep to see
     /// it before it (and its intermediate parent) exit.
     public let snapshotInterval: Duration
+    /// Watches for a macOS permission prompt raised by the run's own process tree (#555): nobody answers
+    /// one during a Night, so the run is ended at once instead of waiting out its pass timeout.
+    public let promptSource: any PromptSource
 
     public init(
         gracePeriod: Duration = .seconds(3), pollInterval: Duration = .milliseconds(20),
-        snapshotInterval: Duration = .milliseconds(100)
+        snapshotInterval: Duration = .milliseconds(100), promptSource: any PromptSource = UnifiedLogPromptSource()
     ) {
         self.gracePeriod = gracePeriod
         self.pollInterval = pollInterval
         self.snapshotInterval = snapshotInterval
+        self.promptSource = promptSource
     }
 
     public func run(_ launch: AgentCLILaunch) async throws(AgentCLILaunchError) -> AgentCLIRunReport {
@@ -103,6 +107,9 @@ public struct AgentCLIProcess: Sendable {
             throw .worktreeMissing(launch.worktreePath)
         }
 
+        // Started before the spawn, so a prompt the CLI raises as it starts is seen; stopped on every path.
+        let promptWatch = await promptSource.start()
+
         // Captured before the spawn, so every process the run starts is strictly later (rule 2 of the
         // attributed fence compares against this).
         var dispatchedAtTV = timeval()
@@ -123,10 +130,14 @@ public struct AgentCLIProcess: Sendable {
         case .success(let spawnedPID):
             pid = spawnedPID
         case .failure(let errorCode):
+            await promptWatch?.stop()
             throw .spawnFailed(errno: errorCode, executable: launch.executable)
         }
 
-        let result = await self.wait(pid: pid, timeout: launch.timeout, dispatchedAt: dispatchedAt)
+        let result = await self.wait(
+            pid: pid, timeout: launch.timeout, dispatchedAt: dispatchedAt, promptWatch: promptWatch
+        )
+        await promptWatch?.stop()
         return AgentCLIExecution(
             pid: pid, processGroup: pid, end: result.end, leftovers: result.leftovers, snapshot: result.snapshot
         )
@@ -134,7 +145,7 @@ public struct AgentCLIProcess: Sendable {
 
     // MARK: - Waiting
 
-    /// How ``wait(pid:timeout:dispatchedAt:)`` ended: the run's ending, what a normal exit swept, and
+    /// How ``wait(pid:timeout:dispatchedAt:promptWatch:)`` ended: the run's ending, what a normal exit swept, and
     /// the running snapshot.
     private struct WaitResult {
         let end: RunEnd
@@ -150,8 +161,12 @@ public struct AgentCLIProcess: Sendable {
     /// a stale entry in the snapshot is harmless, because every signal against it is re-checked by
     /// identity before it is sent. On a NORMAL exit, that snapshot is handed to
     /// ``sweepAfterExit(tracked:)`` — the only place a normal exit's leftovers can still be found,
-    /// since macOS reparents children to `launchd` at exit, not at reap.
-    private func wait(pid: pid_t, timeout: Duration, dispatchedAt: ProcessStartTime) async -> WaitResult {
+    /// since macOS reparents children to `launchd` at exit, not at reap. A permission prompt attributed
+    /// to the run (``attributedPrompt(in:leaderPID:tracked:)``) ends it at once, checked after the reap,
+    /// so a CLI that has already exited ends normally whatever prompt line trails in.
+    private func wait(
+        pid: pid_t, timeout: Duration, dispatchedAt: ProcessStartTime, promptWatch: (any PromptWatching)?
+    ) async -> WaitResult {
         let clock = ContinuousClock()
         let start = clock.now
         var tracked = Set<ProcessTree.TrackedProcess>()
@@ -170,6 +185,11 @@ public struct AgentCLIProcess: Sendable {
                 let leftovers = await sweepAfterExit(tracked: tracked)
                 return WaitResult(end: end, leftovers: leftovers, snapshot: snapshot())
             }
+            if let promptWatch,
+               let prompt = await Self.attributedPrompt(in: promptWatch, leaderPID: pid, tracked: &tracked) {
+                let end = await terminate(pid: pid, reason: .permissionPrompt(prompt.detail))
+                return WaitResult(end: end, leftovers: [], snapshot: snapshot())
+            }
             if Task.isCancelled {
                 let end = await terminate(pid: pid, reason: .aborted)
                 return WaitResult(end: end, leftovers: [], snapshot: snapshot())
@@ -180,6 +200,25 @@ public struct AgentCLIProcess: Sendable {
             }
             try? await Task.sleep(for: pollInterval)
         }
+    }
+
+    /// The first prompt `watch` saw since the last poll whose client is the leader or one of its
+    /// descendants, or `nil`. A prompt for any other process — the Operator using Keychain Access by
+    /// day, another Project's pass — never ends this run. `tracked` lags the tree by up to one
+    /// `snapshotInterval`, and a tool can raise a prompt as soon as it starts, so a prompt that matches
+    /// nothing tracked gets one fresh walk before it is dismissed; the blocked client is still alive.
+    private static func attributedPrompt(
+        in watch: any PromptWatching, leaderPID: pid_t, tracked: inout Set<ProcessTree.TrackedProcess>
+    ) async -> PromptEvent? {
+        let prompts = await watch.drain()
+        guard !prompts.isEmpty else { return nil }
+        func firstAttributed() -> PromptEvent? {
+            let pids = Set(tracked.map(\.pid)).union([leaderPID])
+            return prompts.first { $0.clientPID.map(pids.contains) == true }
+        }
+        if let prompt = firstAttributed() { return prompt }
+        tracked.formUnion(ProcessTree.descendants(of: leaderPID))
+        return firstAttributed()
     }
 
     /// Builds the running snapshot from the cumulative descendant walk `wait` accumulated, plus
@@ -237,5 +276,7 @@ public struct AgentCLIProcess: Sendable {
     enum TerminationReason {
         case timedOut(after: Duration)
         case aborted
+        /// A macOS permission prompt was attributed to the run; the associated value is its detail.
+        case permissionPrompt(String)
     }
 }
