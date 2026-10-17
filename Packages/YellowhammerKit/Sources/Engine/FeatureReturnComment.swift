@@ -95,7 +95,7 @@ public struct FeatureReturnComment: Equatable, Sendable {
 
     /// Deduplicates clauses so each Definition of Done clause is listed exactly once.
     /// Prefers Feature-level when present; otherwise keeps the first occurrence.
-    /// Merges verdicts: `.unmet` if any instance is unmet, `.unresolved` if any is unresolved, else `.met`.
+    /// Merges verdicts: `.unmet` > `.unresolved` > `.notChecked` > `.met`.
     private var groupedClauses: [ClauseVerificationRecord] {
         var orderedKeys: [UniqueClauseKey] = []
         var map: [UniqueClauseKey: ClauseVerificationRecord] = [:]
@@ -108,25 +108,31 @@ public struct FeatureReturnComment: Equatable, Sendable {
                     verdict = .unmet
                 } else if existing.verdict == .unresolved || clause.verdict == .unresolved {
                     verdict = .unresolved
+                } else if existing.verdict == .notChecked || clause.verdict == .notChecked {
+                    verdict = .notChecked
                 } else {
                     verdict = .met
                 }
 
-                let failingClause: ClauseVerificationRecord?
+                let decidingClause: ClauseVerificationRecord?
                 if existing.verdict == .unmet {
-                    failingClause = existing
+                    decidingClause = existing
                 } else if clause.verdict == .unmet {
-                    failingClause = clause
+                    decidingClause = clause
                 } else if existing.verdict == .unresolved {
-                    failingClause = existing
+                    decidingClause = existing
                 } else if clause.verdict == .unresolved {
-                    failingClause = clause
+                    decidingClause = clause
+                } else if existing.verdict == .notChecked {
+                    decidingClause = existing
+                } else if clause.verdict == .notChecked {
+                    decidingClause = clause
                 } else {
-                    failingClause = nil
+                    decidingClause = nil
                 }
 
                 let preferred = (clause.level == "feature" && existing.level != "feature") ? clause : existing
-                let reportingClause = failingClause ?? preferred
+                let reportingClause = decidingClause ?? preferred
                 map[key] = ClauseVerificationRecord(
                     issueID: preferred.issueID,
                     cid: preferred.cid,
@@ -151,6 +157,7 @@ public struct FeatureReturnComment: Equatable, Sendable {
 
     private var unmet: [ClauseVerificationRecord] { groupedClauses.filter { $0.verdict == .unmet } }
     private var unresolved: [ClauseVerificationRecord] { groupedClauses.filter { $0.verdict == .unresolved } }
+    private var notChecked: [ClauseVerificationRecord] { groupedClauses.filter { $0.verdict == .notChecked } }
     private var met: [ClauseVerificationRecord] { groupedClauses.filter { $0.verdict == .met } }
 
     private func line(for clause: ClauseVerificationRecord) -> String {
@@ -174,7 +181,7 @@ public struct FeatureReturnComment: Equatable, Sendable {
             .filter { !$0.isEmpty }.joined(separator: " ")
     }
 
-    /// The comment body: an opening statement of the disposition, then unmet, unresolved and met clauses
+    /// The comment body: an opening statement of the disposition, then unmet, unresolved, not checked and met clauses
     /// (a section omitted when it has nothing to list), then the pull requests still open, then the
     /// story's limitation statement.
     public func body() -> String {
@@ -195,6 +202,14 @@ public struct FeatureReturnComment: Equatable, Sendable {
                 "## Unresolved clauses (citations for the Specification Author to repair, not unfinished work)"
             )
             lines += unresolved.map { "- " + line(for: $0) }
+        }
+
+        if !notChecked.isEmpty {
+            lines.append("")
+            lines.append(
+                "## Not checked clauses (checks that never ran, not unfinished work)"
+            )
+            lines += notChecked.map { "- " + line(for: $0) }
         }
 
         if !met.isEmpty {

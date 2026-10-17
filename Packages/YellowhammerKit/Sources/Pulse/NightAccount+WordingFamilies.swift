@@ -188,15 +188,15 @@ extension NightWording {
         switch event {
         case .cycleLanded:
             NightWords(headline: "The Cycle landed")
-        case .featureVerified(_, let met, let unmet, let unresolved):
+        case .featureVerified(_, let met, let unmet, let unresolved, let notChecked):
             NightWords(
                 headline: "The Feature was verified",
-                detail: "\(met) met, \(unmet) unmet, \(unresolved) unresolved"
+                detail: "\(met) met, \(unmet) unmet, \(unresolved) unresolved, \(notChecked) not checked"
             )
-        case .featureReturned(_, let featureIssueID, let unmet, let unresolved):
+        case .featureReturned(_, let featureIssueID, let unmet, let unresolved, let notChecked):
             NightWords(
                 headline: "The Feature \(feature(featureIssueID)) was returned to you",
-                detail: "\(unmet) unmet, \(unresolved) unresolved"
+                detail: "\(unmet) unmet, \(unresolved) unresolved, \(notChecked) not checked"
             )
         case .landStep(let step, let repository, let outcome, let detail):
             NightWords(

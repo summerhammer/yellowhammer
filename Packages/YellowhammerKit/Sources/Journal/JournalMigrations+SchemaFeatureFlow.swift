@@ -244,7 +244,7 @@ extension JournalMigrations {
             table.column("citation_provenance", .text).notNull()
                 .check(sql: "citation_provenance IN ('machine-found','Author-supplied')")
             table.column("verdict", .text).notNull()
-                .check(sql: "verdict IN ('met','unmet','unresolved')")
+                .check(sql: "verdict IN ('met','unmet','unresolved','not checked')")
             table.column("what_was_checked", .text).notNull()
             table.column("interpretation", .text).notNull()
             table.column("invalidated_cause", .text)

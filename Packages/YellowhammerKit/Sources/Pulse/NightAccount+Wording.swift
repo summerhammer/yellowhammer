@@ -54,7 +54,7 @@ extension NightAccount {
         switch event {
         case .authoringSkippedFeatureInFlight(let id),
             .authoringPredecessorNotLanded(let id, _),
-            .featureReturned(_, let id, _, _):
+            .featureReturned(_, let id, _, _, _):
             id
         case .featureAuthored(let payload):
             payload.featureIssueID

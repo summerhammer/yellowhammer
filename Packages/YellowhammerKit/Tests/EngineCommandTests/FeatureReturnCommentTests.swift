@@ -179,4 +179,53 @@ struct FeatureReturnCommentTests {
         #expect(!body.contains(uuidRegex))
         #expect(body.contains("Work Card [Parse YAML](https://linear.app/team/issue/YAML-1) c1"))
     }
+
+    @Test("Not checked clauses render in their own section with proper heading")
+    func rendersNotCheckedSection() {
+        let comment = FeatureReturnComment(
+            clauses: [
+                clause("c1", verdict: .notChecked)
+            ],
+            pullRequests: [:]
+        )
+        let body = comment.body()
+        #expect(body.contains("## Not checked clauses (checks that never ran, not unfinished work)"))
+        #expect(body.contains("BACK-1 c1"))
+        #expect(body.contains("not checked"))
+        #expect(!body.contains("## Unmet clauses"))
+        #expect(!body.contains("## Unresolved clauses"))
+        #expect(!body.contains("## Met clauses"))
+    }
+
+    @Test("Duplicate clause precedence is unmet > unresolved > not checked > met; the deciding clause supplies detail")
+    func duplicatePrecedence() {
+        let metClause = ClauseVerificationRecord(
+            issueID: "BACK-1", cid: "c1", level: "card", text: "Check something.",
+            locationID: "epic/story", citationProvenance: "machine-found", verdict: .met,
+            whatWasChecked: "checked code", interpretation: "as written", judgedBy: .agent
+        )
+        let notCheckedClause = ClauseVerificationRecord(
+            issueID: "BACK-2", cid: "c1", level: "card", text: "Check something.",
+            locationID: "epic/story", citationProvenance: "machine-found", verdict: .notChecked,
+            whatWasChecked: "network access missing", interpretation: "as written", judgedBy: .agent
+        )
+        let unresolvedClause = ClauseVerificationRecord(
+            issueID: "BACK-3", cid: "c1", level: "card", text: "Check something.",
+            locationID: "epic/story", citationProvenance: "machine-found", verdict: .unresolved,
+            whatWasChecked: "citation unresolvable", interpretation: "as written", judgedBy: .engine
+        )
+
+        // notChecked > met: verdict is notChecked, reports from notChecked clause
+        let comment1 = FeatureReturnComment(clauses: [metClause, notCheckedClause], pullRequests: [:])
+        let body1 = comment1.body()
+        #expect(body1.contains("## Not checked clauses (checks that never ran, not unfinished work)"))
+        #expect(body1.contains("network access missing"))
+        #expect(!body1.contains("## Met clauses"))
+
+        // unresolved > notChecked: verdict is unresolved
+        let comment2 = FeatureReturnComment(clauses: [notCheckedClause, unresolvedClause], pullRequests: [:])
+        let body2 = comment2.body()
+        #expect(body2.contains("## Unresolved clauses"))
+        #expect(!body2.contains("## Not checked clauses"))
+    }
 }

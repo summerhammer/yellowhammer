@@ -38,7 +38,9 @@ extension ResultFile {
     private static func verifiedClause(_ item: [String: Any], path: String) throws(ResultFileError) -> VerifiedClause {
         let verdictRaw = try field(item, "verdict", path: path)
         guard let verdict = ClauseVerdict(rawValue: verdictRaw), verdict != .unresolved else {
-            throw .invalid(field: "\(path).verdict", reason: "must be `met` or `unmet`, not `\(verdictRaw)`")
+            throw .invalid(
+                field: "\(path).verdict", reason: "must be `met`, `unmet` or `not checked`, not `\(verdictRaw)`"
+            )
         }
         return VerifiedClause(
             cid: try nonEmptyField(item, "cid", path: path),

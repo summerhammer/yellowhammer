@@ -45,3 +45,37 @@ func managedBlockUnmetClauses() async throws {
     let description = try #require(await world.board.issue(BoardObjectID(rawValue: "FEAT-1"))?.description)
     #expect(description.contains("waiting · 1 of 1 Cards landed · 0 of 1 merged · 2 clauses unmet"))
 }
+
+@Test("Managed Block counts unmet and unresolved separately from not checked")
+func managedBlockNotCheckedClauses() async throws {
+    let fixture = try OutboxJournalFixture()
+    let journal = try fixture.open()
+    let world = try makeRollUpWorld(journal)
+    await world.board.seed(issue: "FEAT-1", description: ManagedBlockFence.initialDescription(rendered: ""))
+    let featureID = try insertGateFeature(
+        journal, issueID: "FEAT-1", branch: "yh-proj-feat", repositories: ["backend"]
+    )
+    let cycleID = try gateCycleID(journal, featureID: featureID)
+    try insertRollUpCard(
+        journal, cycleID: cycleID, .init(issueID: "BACK-1", repository: "backend", order: 1, state: .done)
+    )
+    try journal.markCycleLanded(cycleID: cycleID, runID: world.runID)
+    let clauses = [ClauseVerdict.met, .unmet, .unresolved, .notChecked].enumerated().map { index, verdict in
+        ClauseVerificationRecord(
+            issueID: "BACK-1", cid: "c\(index)", level: "card", text: "Fixture clause \(index)",
+            locationID: "fixture#clause-\(index)", citationProvenance: "machine-found", verdict: verdict,
+            whatWasChecked: "Fixture", interpretation: "Fixture", judgedBy: .engine
+        )
+    }
+    try journal.recordFeatureVerification(NewFeatureVerification(
+        featureID: featureID, cycleID: cycleID, route: nil, nightID: world.night.id,
+        runID: world.runID, clauses: clauses
+    ))
+    let feature = try #require(try journal.feature(issueID: "FEAT-1"))
+    _ = try await FeatureRollUpMaintenance(journal: journal, outbox: world.outbox)
+        .maintain(feature: feature, cycleID: cycleID)
+    let description = try #require(await world.board.issue(BoardObjectID(rawValue: "FEAT-1"))?.description)
+    #expect(description.contains(
+        "waiting · 1 of 1 Cards landed · 0 of 1 merged · 2 clauses unmet, 1 clauses not checked"
+    ))
+}

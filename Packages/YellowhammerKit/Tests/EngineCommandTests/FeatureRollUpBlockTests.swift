@@ -237,4 +237,15 @@ struct FeatureRollUpBlockTests {
         let firstLine = rendered.components(separatedBy: "\n").first!
         #expect(firstLine == "**\(rollUp.sentence)** [conflict: api] [conflict: web]")
     }
+
+    @Test("largestRendering includes both unmet and not checked clause count fragments")
+    func largestRenderingIncludesBothCounts() {
+        let members = [
+            member("B-1", repo: "backend", order: 0, state: .done),
+            member("W-1", repo: "web", order: 1, state: .done)
+        ]
+        let largest = FeatureRollUpBlock.largestRendering(of: members, repositories: ["backend", "web"])
+        #expect(largest.contains("clauses unmet"))
+        #expect(largest.contains("clauses not checked"))
+    }
 }

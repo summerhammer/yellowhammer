@@ -110,8 +110,21 @@ struct VerifierResultFileTests {
         #expect(RunPass.verifier.isAuthoring == false)
         #expect(RunPass.verifier.schemaIdentifier == "yellowhammer.result.verifier")
         let schema = ResultSchema.jsonSchema(for: .verifier)
-        #expect(schema.contains("\"enum\": [\"met\", \"unmet\"]"))
+        #expect(schema.contains("\"enum\": [\"met\", \"unmet\", \"not checked\"]"))
         #expect(!schema.contains("unresolved"))
+    }
+
+    @Test("reported accepts not checked and records missing capability in what_was_checked")
+    func reportedNotChecked() throws {
+        let result = try decode(verifier(
+            #""outcome": "reported", "clauses": [\#(clauseJSON(verdict: "not checked", what: "network access"))]"#
+        ))
+        guard case .verifier(let decoded) = result, case .reported(let clauses) = decoded.outcome else {
+            Issue.record("expected a reported verifier result")
+            return
+        }
+        #expect(clauses[0].verdict == .notChecked)
+        #expect(clauses[0].whatWasChecked == "network access")
     }
 }
 
@@ -148,6 +161,17 @@ struct VerificationInstructionTests {
         #expect(text.contains("\"schema\": \"yellowhammer.result.verifier\""))
         #expect(text.contains("read-only"))
         #expect(text.contains("never an aggregate verdict"))
+        #expect(text.contains("Report `met`, `unmet` or `not checked` for each clause"))
+        #expect(text.contains("Report `not checked` when you could not perform the check"))
+        #expect(text.contains("naming in `what_was_checked` the capability that was missing"))
+        #expect(text.contains("network access, a writable directory, or a tool"))
+        #expect(text.contains(
+            "You read the specification source and the finished code in the repositories you are given"
+        ))
+        #expect(text.contains("may run commands that change nothing"))
+        #expect(text.contains("whether you have either depends on your Route"))
+        #expect(text.contains("`verdict` (`met`, `unmet` or `not checked`)"))
+        #expect(text.contains("guaranteed neither network access nor a writable directory"))
         #expect(text.hasSuffix("\n") && !text.hasSuffix("\n\n"))
         #expect(text == instruction.render())
     }

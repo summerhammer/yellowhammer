@@ -78,11 +78,15 @@ public struct VerificationInstruction: Equatable, Sendable {
         """
         ## Rules
 
-        This pass is read-only: change nothing. Judge each clause below individually, against its Spec \
-        Citation in the specification source and the finished code in the repositories. For every clause \
-        state what you checked and the interpretation of the clause you verified it under. Report `met` \
-        or `unmet` for each clause and never an aggregate verdict such as "passed". Report every clause \
-        listed, and no other.
+        This pass is read-only: change nothing. You read the specification source and the finished code in \
+        the repositories you are given, and may run commands that change nothing. You are guaranteed \
+        neither network access nor a writable directory; whether you have either depends on your Route. \
+        Judge each clause below individually, against its Spec Citation in the specification source and the \
+        finished code in the repositories. For every clause state what you checked and the interpretation of \
+        the clause you verified it under. Report `met`, `unmet` or `not checked` for each clause and never \
+        an aggregate verdict such as "passed". Report `not checked` when you could not perform the check the \
+        clause needs in your environment, naming in `what_was_checked` the capability that was missing: \
+        network access, a writable directory, or a tool. Report every clause listed, and no other.
         """
     }
 
@@ -113,7 +117,7 @@ public struct VerificationInstruction: Equatable, Sendable {
         CLI Adapter persists it; do not create or edit a result file with tools. It must declare \
         `"schema": "\(RunPass.verifier.schemaIdentifier)"` and `"version": 1`. Permitted outcomes for \
         this pass: reported, failed. `reported` carries `clauses`, one entry per clause with `issue_id`, \
-        `cid`, `verdict` (`met` or `unmet`), `what_was_checked` and `interpretation`; `failed` carries \
+        `cid`, `verdict` (`met`, `unmet` or `not checked`), `what_was_checked` and `interpretation`; `failed` carries \
         `reason`. Ending without a final structured response is treated as a crash.
         """
     }

@@ -90,7 +90,8 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
             .featureVerified(
                 cycleID: context.cycleID, met: recorded.clauses.filter { $0.verdict == .met }.count,
                 unmet: recorded.clauses.filter { $0.verdict == .unmet }.count,
-                unresolved: recorded.clauses.filter { $0.verdict == .unresolved }.count
+                unresolved: recorded.clauses.filter { $0.verdict == .unresolved }.count,
+                notChecked: recorded.clauses.filter { $0.verdict == .notChecked }.count
             ),
             act: context.act.act, runID: context.act.runID, nightID: context.act.night.id
         )
@@ -99,13 +100,14 @@ public struct FeatureVerification: FeatureVerifying, Sendable {
     }
 
     /// The land Act's two-way verdict from a recorded Verification: all clauses met only when every clause
-    /// is `met`; the unmet ones (unmet and unresolved, `<issue> <cid>`) otherwise.
+    /// is `met`; the remaining verdicts named separately as `<issue> <cid>` otherwise.
     static func verdict(of record: FeatureVerificationRecord) -> VerificationVerdict {
         func name(_ clause: ClauseVerificationRecord) -> String { "\(clause.issueID) \(clause.cid)" }
         return VerificationVerdict(
             allClausesMet: !record.clauses.isEmpty && record.clauses.allSatisfy { $0.verdict == .met },
             unmetClauses: record.clauses.filter { $0.verdict == .unmet }.map(name),
-            unresolvedClauses: record.clauses.filter { $0.verdict == .unresolved }.map(name)
+            unresolvedClauses: record.clauses.filter { $0.verdict == .unresolved }.map(name),
+            notCheckedClauses: record.clauses.filter { $0.verdict == .notChecked }.map(name)
         )
     }
 

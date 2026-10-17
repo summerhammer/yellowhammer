@@ -14,12 +14,13 @@ public enum RollUpLattice {
     /// Feature Issue's own standing, which this function does not see.
     public static func rollUp(
         liveCardStates: [CardState], lanesPushed: Bool, verificationPassed: Bool, unmetClauseCount: Int?,
-        mergedFraction: MergedFraction
+        notCheckedClauseCount: Int = 0, mergedFraction: MergedFraction
     ) -> (state: RollUpState, sentence: String) {
         lanesPushed
             ? closedHalf(
                 live: liveCardStates, verificationPassed: verificationPassed,
-                unmetClauseCount: unmetClauseCount, mergedFraction: mergedFraction
+                unmetClauseCount: unmetClauseCount, notCheckedClauseCount: notCheckedClauseCount,
+                mergedFraction: mergedFraction
             )
             : runningHalf(live: liveCardStates)
     }
@@ -46,7 +47,8 @@ public enum RollUpLattice {
     }
 
     private static func closedHalf(
-        live: [CardState], verificationPassed: Bool, unmetClauseCount: Int?, mergedFraction: MergedFraction
+        live: [CardState], verificationPassed: Bool, unmetClauseCount: Int?, notCheckedClauseCount: Int,
+        mergedFraction: MergedFraction
     ) -> (state: RollUpState, sentence: String) {
         let liveCount = live.count
         let doneCount = live.count { $0 == .done }
@@ -69,7 +71,18 @@ public enum RollUpLattice {
             // All Done without passing Verification is a Feature-level waiting disposition,
             // not a Partial Landing: no live member is Blocked or Waiting on You.
             word = .waiting
-            top = unmetClauseCount.map { "\($0) clauses unmet" } ?? "verification not recorded"
+            if let unmet = unmetClauseCount {
+                var fragments: [String] = []
+                if unmet > 0 {
+                    fragments.append("\(unmet) clauses unmet")
+                }
+                if notCheckedClauseCount > 0 {
+                    fragments.append("\(notCheckedClauseCount) clauses not checked")
+                }
+                top = fragments.isEmpty ? "0 clauses unmet" : fragments.joined(separator: ", ")
+            } else {
+                top = "verification not recorded"
+            }
         }
 
         var slots = ["\(word.rawValue)", "\(doneCount) of \(liveCount) Cards landed"]

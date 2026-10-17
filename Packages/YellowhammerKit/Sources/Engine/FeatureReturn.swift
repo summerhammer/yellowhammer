@@ -35,10 +35,11 @@ public struct FeatureReturn: FeatureReturning, Sendable {
         if firstReturn {
             let unmet = recorded.clauses.filter { $0.verdict == .unmet }.count
             let unresolved = recorded.clauses.filter { $0.verdict == .unresolved }.count
+            let notChecked = recorded.clauses.filter { $0.verdict == .notChecked }.count
             try journal.append(
                 .featureReturned(
                     cycleID: context.cycleID, featureIssueID: context.feature.issueID, unmet: unmet,
-                    unresolved: unresolved
+                    unresolved: unresolved, notChecked: notChecked
                 ),
                 act: context.act.act, runID: context.act.runID, nightID: context.act.night.id
             )

@@ -106,7 +106,8 @@ struct FeatureVerificationStoreTests {
         let clauses = [
             record("c2", issue: "FEAT-1", provenance: "Author-supplied"),
             record("c1", verdict: .unmet, judgedBy: .engine, invalidatedCause: "text_edited"),
-            record("c3", verdict: .unresolved, judgedBy: .engine)
+            record("c3", verdict: .unresolved, judgedBy: .engine),
+            record("c4", verdict: .notChecked)
         ]
         let runID = RunID()
 
@@ -155,6 +156,9 @@ struct FeatureVerificationStoreTests {
             featureID: world.featureID, cycleID: world.cycleID, route: nil, nightID: world.nightID,
             runID: RunID(), clauses: [record("c1")]
         ), now: epoch)
+        try journal.write { db in
+            try db.execute(sql: "UPDATE clause_verification SET verdict = 'not checked'")
+        }
         #expect(throws: (any Error).self) {
             try journal.write { db in
                 try db.execute(sql: "UPDATE clause_verification SET verdict = 'passed'")
@@ -182,6 +186,24 @@ struct FeatureVerificationStoreTests {
         #expect(try journal.attemptRoutes(cycleID: world.cycleID + 1).isEmpty)
     }
 
+    @Test("Legacy Verification count payloads default not checked to zero")
+    func legacyCounts() throws {
+        let verified = try JournalEvent.decodeLandAct(
+            .featureVerified,
+            PayloadReader(payload: ["cycle_id": "7", "met": "3", "unmet": "2", "unresolved": "1"], rowID: 1)
+        )
+        #expect(verified == .featureVerified(cycleID: 7, met: 3, unmet: 2, unresolved: 1, notChecked: 0))
+        let returned = try JournalEvent.decodeLandAct(
+            .featureReturned,
+            PayloadReader(
+                payload: ["cycle_id": "7", "feature_issue_id": "FEAT-1", "unmet": "2", "unresolved": "1"], rowID: 2
+            )
+        )
+        #expect(returned == .featureReturned(
+            cycleID: 7, featureIssueID: "FEAT-1", unmet: 2, unresolved: 1, notChecked: 0
+        ))
+    }
+
     @Test("featureVerified round-trips with counts only")
     func eventRoundTrips() throws {
         let fixture = try JournalFixture()
@@ -189,11 +211,12 @@ struct FeatureVerificationStoreTests {
         let run = RunID()
 
         try journal.append(
-            .featureVerified(cycleID: 7, met: 3, unmet: 2, unresolved: 1), act: .land, runID: run, now: epoch
+            .featureVerified(cycleID: 7, met: 3, unmet: 2, unresolved: 1, notChecked: 4),
+            act: .land, runID: run, now: epoch
         )
 
         let records = try journal.events(ofType: .featureVerified)
-        #expect(records.map(\.event) == [.featureVerified(cycleID: 7, met: 3, unmet: 2, unresolved: 1)])
+        #expect(records.map(\.event) == [.featureVerified(cycleID: 7, met: 3, unmet: 2, unresolved: 1, notChecked: 4)])
         #expect(JournalEventType.featureVerified.rawValue == "FeatureVerified")
     }
 
@@ -204,13 +227,13 @@ struct FeatureVerificationStoreTests {
         let run = RunID()
 
         try journal.append(
-            .featureReturned(cycleID: 9, featureIssueID: "FEAT-1", unmet: 2, unresolved: 1),
+            .featureReturned(cycleID: 9, featureIssueID: "FEAT-1", unmet: 2, unresolved: 1, notChecked: 3),
             act: .land, runID: run, now: epoch
         )
 
         let records = try journal.events(ofType: .featureReturned)
         #expect(records.map(\.event) == [
-            .featureReturned(cycleID: 9, featureIssueID: "FEAT-1", unmet: 2, unresolved: 1)
+            .featureReturned(cycleID: 9, featureIssueID: "FEAT-1", unmet: 2, unresolved: 1, notChecked: 3)
         ])
         #expect(JournalEventType.featureReturned.rawValue == "FeatureReturned")
     }

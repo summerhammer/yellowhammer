@@ -85,6 +85,8 @@ public struct FeatureRollUp: Sendable {
     public let verificationPassed: Bool
     /// Unmet or unresolved clauses in the recorded Verification; nil means no record exists.
     public let unmetClauseCount: Int?
+    /// Clauses that could not be checked in this environment in the recorded Verification.
+    public let notCheckedClauseCount: Int
     public let mergedFraction: MergedFraction
     public let conflictingRepositories: [String]
     /// The repositories with a No-Pushed-Branch Outcome (roadmap P19.7; risks OQ108): each is shown as a
@@ -112,6 +114,7 @@ public struct FeatureRollUp: Sendable {
         lanesPushed: Bool,
         verificationPassed: Bool,
         unmetClauseCount: Int? = nil,
+        notCheckedClauseCount: Int = 0,
         mergedFraction: MergedFraction,
         conflictingRepositories: [String] = [],
         noPullRequestRepositories: [String] = [],
@@ -122,6 +125,7 @@ public struct FeatureRollUp: Sendable {
         self.lanesPushed = lanesPushed
         self.verificationPassed = verificationPassed
         self.unmetClauseCount = unmetClauseCount
+        self.notCheckedClauseCount = notCheckedClauseCount
         self.mergedFraction = mergedFraction
         self.conflictingRepositories = conflictingRepositories
         self.noPullRequestRepositories = noPullRequestRepositories
@@ -130,7 +134,10 @@ public struct FeatureRollUp: Sendable {
 
         let (state, sentence) = Self.compute(
             members: members, lanesPushed: lanesPushed,
-            verification: (verificationPassed, unmetClauseCount),
+            verification: VerificationSummary(
+                passed: verificationPassed, unmetClauseCount: unmetClauseCount,
+                notCheckedClauseCount: notCheckedClauseCount
+            ),
             mergedFraction: mergedFraction, issueStanding: issueStanding
         )
         self.state = state
@@ -147,9 +154,15 @@ public struct FeatureRollUp: Sendable {
         repositories.sorted().map { "[no pull request: \($0)]" }.joined(separator: " ")
     }
 
+    private struct VerificationSummary {
+        let passed: Bool
+        let unmetClauseCount: Int?
+        let notCheckedClauseCount: Int
+    }
+
     private static func compute(
         members: [RollUpMember], lanesPushed: Bool,
-        verification: (passed: Bool, unmetClauseCount: Int?),
+        verification: VerificationSummary,
         mergedFraction: MergedFraction, issueStanding: FeatureIssueStanding
     ) -> (RollUpState?, String) {
         guard !members.isEmpty else {
@@ -161,7 +174,9 @@ public struct FeatureRollUp: Sendable {
         }
         return RollUpLattice.rollUp(
             liveCardStates: live.map(\.state), lanesPushed: lanesPushed, verificationPassed: verification.passed,
-            unmetClauseCount: verification.unmetClauseCount, mergedFraction: mergedFraction
+            unmetClauseCount: verification.unmetClauseCount,
+            notCheckedClauseCount: verification.notCheckedClauseCount,
+            mergedFraction: mergedFraction
         )
     }
 

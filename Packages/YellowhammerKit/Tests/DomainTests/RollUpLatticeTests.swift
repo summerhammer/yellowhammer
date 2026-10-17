@@ -94,6 +94,36 @@ struct RollUpLatticeClosedHalfTests {
         #expect(result.sentence == "waiting · 2 of 2 Cards landed · 4 clauses unmet")
     }
 
+    @Test("Every Card done with both unmet and not checked clauses names both")
+    func waitingOnUnmetAndNotCheckedClauses() {
+        let result = RollUpLattice.rollUp(
+            liveCardStates: [.done, .done], lanesPushed: true, verificationPassed: false,
+            unmetClauseCount: 2, notCheckedClauseCount: 3, mergedFraction: fullyMerged
+        )
+        #expect(result.state == .waiting)
+        #expect(result.sentence == "waiting · 2 of 2 Cards landed · 2 clauses unmet, 3 clauses not checked")
+    }
+
+    @Test("Every Card done with only not checked clauses names not checked")
+    func waitingOnOnlyNotCheckedClauses() {
+        let result = RollUpLattice.rollUp(
+            liveCardStates: [.done, .done], lanesPushed: true, verificationPassed: false,
+            unmetClauseCount: 0, notCheckedClauseCount: 1, mergedFraction: fullyMerged
+        )
+        #expect(result.state == .waiting)
+        #expect(result.sentence == "waiting · 2 of 2 Cards landed · 1 clauses not checked")
+    }
+
+    @Test("Every Card done with 0 unmet and 0 not checked keeps 0 clauses unmet")
+    func waitingOnZeroUnmetAndZeroNotChecked() {
+        let result = RollUpLattice.rollUp(
+            liveCardStates: [.done, .done], lanesPushed: true, verificationPassed: false,
+            unmetClauseCount: 0, notCheckedClauseCount: 0, mergedFraction: fullyMerged
+        )
+        #expect(result.state == .waiting)
+        #expect(result.sentence == "waiting · 2 of 2 Cards landed · 0 clauses unmet")
+    }
+
     @Test("Every Card done with no Verification recorded says so")
     func waitingOnNoVerificationRecord() {
         let result = closed([.done, .done])
