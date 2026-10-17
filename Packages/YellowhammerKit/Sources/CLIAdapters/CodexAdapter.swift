@@ -11,15 +11,27 @@ import Foundation
 /// — the sandbox and any extra writable roots are re-stated with `-c sandbox_mode=…` and
 /// `-c sandbox_workspace_write.writable_roots=[…]`; cwd is already the Worktree, set by `posix_spawn`.
 ///
-/// **Containment (issue #546), measured live with codex 0.163.0.** The `read-only` and
+/// **Containment (issues #546 and #557), measured live with codex-cli 0.163.0.** The `read-only` and
 /// `workspace-write` Seatbelt sandboxes already block Keychain reads and network access, so a pass
 /// cannot pull a credential out of the login Keychain or call a vendor API. They do not stop reads of
-/// Yellowhammer's configuration directory, so this adapter ignores `CLIDispatch.protectedDirectories`
-/// and a pass can still read the config, run artifacts and Journals; only the prompt's boundary
-/// statement asks it not to.
+/// Yellowhammer's configuration directory. A read-only pass with `CLIDispatch.protectedDirectories`
+/// therefore runs under a named permissions profile instead of `--sandbox read-only`:
+/// `default_permissions="yellowhammer"`, a profile that `extends = ":read-only"` and marks each
+/// protected directory `"deny"` in its `filesystem` table, all given as `-c` overrides. Measured: the
+/// configuration directory reads as "Operation not permitted" while the Worktree stays readable, on a
+/// fresh `codex exec` and on `codex exec resume`. The `--sandbox` flag overrides `default_permissions`
+/// (with both, the directory was readable again), so the flag is dropped, not added alongside; on
+/// resume the profile replaces `-c sandbox_mode`. With no protected directories the plain
+/// `read-only` sandbox is kept.
+///
+/// The worker keeps `--sandbox workspace-write` and is not denied anything: its writable roots
+/// (`--add-dir`, the linked Worktree's git common dir it commits through) were not measured under a
+/// profile, and only the read-only shape is measured by the Probe's state-containment finding. A
+/// worker can still read the configuration directory; only the prompt's boundary statement asks it
+/// not to.
 public struct CodexAdapter: CLIAdapter {
     public let cli = "codex"
-    public let adapterVersion = "2"
+    public let adapterVersion = "3"
     /// `codex exec --help`'s `-c model_reasoning_effort` values.
     public let supportedEfforts = ["minimal", "low", "medium", "high", "xhigh"]
 
@@ -35,15 +47,10 @@ public struct CodexAdapter: CLIAdapter {
             throw .runDirectoryUnwritable("\(error)")
         }
 
-        let sandbox = Self.sandboxMode(for: dispatch.pass)
         var arguments = ["exec"]
 
         if let resume = dispatch.resume {
-            arguments += ["resume", "--json", "-c", "sandbox_mode=\(Self.tomlString(sandbox))"]
-            if sandbox == "workspace-write", !dispatch.additionalWritableDirectories.isEmpty {
-                let writableRoots = Self.tomlStringArray(dispatch.additionalWritableDirectories)
-                arguments += ["-c", "sandbox_workspace_write.writable_roots=\(writableRoots)"]
-            }
+            arguments += ["resume", "--json"] + Self.sandboxArguments(for: dispatch)
             arguments += [
                 "-m", dispatch.route.model,
                 "-c", "model_reasoning_effort=\(Self.tomlString(dispatch.route.effort))",
@@ -52,7 +59,7 @@ public struct CodexAdapter: CLIAdapter {
                 "--", resume.rawValue, dispatch.instruction
             ]
         } else {
-            arguments += ["--json", "--sandbox", sandbox]
+            arguments += ["--json"] + Self.sandboxArguments(for: dispatch)
             arguments += [
                 "-m", dispatch.route.model,
                 "-c", "model_reasoning_effort=\(Self.tomlString(dispatch.route.effort))",
@@ -133,6 +140,41 @@ public struct CodexAdapter: CLIAdapter {
         case .worker: "workspace-write"
         case .architect, .reviewer, .selection, .breakdown, .verifier: "read-only"
         }
+    }
+
+    /// How the pass is sandboxed. A fresh dispatch names the sandbox with `--sandbox`; `codex exec resume`
+    /// has no such flag, so a Round re-states it, and any extra writable roots, with `-c`. A read-only
+    /// pass with protected directories uses the deny profile instead, fresh or resumed.
+    private static func sandboxArguments(for dispatch: CLIDispatch) -> [String] {
+        let sandbox = sandboxMode(for: dispatch.pass)
+        let protectedDirectories = dispatch.protectedDirectories
+        if let profile = readOnlyProfileOverrides(sandbox: sandbox, protectedDirectories: protectedDirectories) {
+            return profile
+        }
+        guard dispatch.resume != nil else { return ["--sandbox", sandbox] }
+        var arguments = ["-c", "sandbox_mode=\(tomlString(sandbox))"]
+        if sandbox == "workspace-write", !dispatch.additionalWritableDirectories.isEmpty {
+            let writableRoots = tomlStringArray(dispatch.additionalWritableDirectories)
+            arguments += ["-c", "sandbox_workspace_write.writable_roots=\(writableRoots)"]
+        }
+        return arguments
+    }
+
+    /// The name of the permissions profile a contained read-only pass runs under. Distinct enough not
+    /// to merge with a `[permissions.*]` profile in the Operator's own `~/.codex/config.toml`.
+    static let permissionsProfileName = "yellowhammer"
+
+    /// The `-c` overrides that select a read-only profile denying every protected directory, or `nil`
+    /// when the pass is not read-only or there is nothing to deny (then the plain sandbox is used).
+    private static func readOnlyProfileOverrides(sandbox: String, protectedDirectories: [String]) -> [String]? {
+        guard sandbox == "read-only", !protectedDirectories.isEmpty else { return nil }
+        let name = permissionsProfileName
+        let denials = protectedDirectories.map { "\(tomlString($0))=\"deny\"" }.joined(separator: ",")
+        return [
+            "-c", "default_permissions=\(tomlString(name))",
+            "-c", "permissions.\(name).extends=\(tomlString(":read-only"))",
+            "-c", "permissions.\(name).filesystem={\(denials)}"
+        ]
     }
 
     // MARK: - TOML literals for `-c`
