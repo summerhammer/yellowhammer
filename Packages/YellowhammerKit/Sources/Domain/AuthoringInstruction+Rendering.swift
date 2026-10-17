@@ -10,6 +10,7 @@ extension AuthoringInstruction {
         }
         if let namedFeatureSection { sections.append(namedFeatureSection) }
         if let adoptionSection { sections.append(adoptionSection) }
+        if let boardStateSection { sections.append(boardStateSection) }
         if let refusedThisNightSection { sections.append(refusedThisNightSection) }
         if let selectedFeatureSection { sections.append(selectedFeatureSection) }
         if let descriptionBudgetSection { sections.append(descriptionBudgetSection) }
@@ -99,11 +100,45 @@ extension AuthoringInstruction {
 
     private var adoptionSection: String? {
         guard !adoptionCandidates.isEmpty else { return nil }
-        let bullets = adoptionCandidates.map { "- \($0.issueID) (repository: \($0.repository))" }
+        let bullets = adoptionCandidates.map { candidate in
+            var bullet = "- \(candidate.issueID) (repository: \(candidate.repository))"
+            if let title = candidate.title, !title.isEmpty { bullet += ": \(title)" }
+            if let reason = candidate.blockReason, !reason.isEmpty { bullet += " — blocked: \(reason)" }
+            return bullet
+        }
         return (
             ["## Adoption candidates", "", "Blocked Cards left by a closed Feature, which a Feature may adopt:", ""]
                 + bullets
         ).joined(separator: "\n")
+    }
+
+    /// Selection pass only: what the Journal already knows of this Project's board, so the pass has no
+    /// reason to search for state. Adoption candidates are rendered in their own section; they only decide
+    /// whether there is anything to say at all.
+    private var boardStateSection: String? {
+        guard pass != .breakdown, let boardState else { return nil }
+        if boardState.isEmpty && adoptionCandidates.isEmpty {
+            return "## Board state\n\nNo Feature has been authored for this Project yet."
+        }
+        var groups: [String] = []
+        if !boardState.features.isEmpty {
+            let bullets = boardState.features.map { feature in
+                feature.name.map { "- \($0) (\(feature.identifier)): \(feature.outcome)" }
+                    ?? "- \(feature.identifier): \(feature.outcome)"
+            }
+            groups.append((["Features already authored for this Project, most recent first:", ""] + bullets)
+                .joined(separator: "\n"))
+        }
+        if !boardState.waitingCards.isEmpty {
+            let bullets = boardState.waitingCards.map {
+                "- \($0.identifier) (repository: \($0.repository)): \($0.title) — waiting on you: \($0.reason)"
+            }
+            groups.append((["Cards in Waiting on You:", ""] + bullets).joined(separator: "\n"))
+        }
+        if groups.isEmpty {
+            groups.append("Blocked Cards left by closed Features are listed under Adoption candidates.")
+        }
+        return (["## Board state"] + groups).joined(separator: "\n\n")
     }
 
     /// Features refused earlier in this Night's re-selection walk (roadmap P11.6): must not be chosen again.

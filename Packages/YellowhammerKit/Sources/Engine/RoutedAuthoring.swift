@@ -23,7 +23,7 @@ public struct RoutedFeatureSelector: FeatureSelecting {
                 specificationMainline: request.specificationMainline, repos: request.repos,
                 mainlines: request.mainlines, namedFeature: request.namedFeature,
                 adoptionCandidates: request.adoptionCandidates, refusedThisNight: request.refusedThisNight,
-                heldConsumers: request.heldConsumers, selectedFeature: nil
+                heldConsumers: request.heldConsumers, selectedFeature: nil, boardState: request.boardState
             )
         }
         guard case .selection(let selection) = result, let outcome = selection.featureSelectionOutcome else {
