@@ -62,7 +62,8 @@ public struct AttemptHistory: Equatable, Sendable {
     /// is any still-open Attempt. An `aborted` one is NOT (unlike in ``consumption(inEpoch:)``): as the last,
     /// the Card blocks `operator abort`. `rounds-exhausted` blocks by that Attempt's last Round's Lens; a hard
     /// failure blocks `route failure`; a Crashed-Unknown blocks `host crash`, or `engine fault` when its run
-    /// recorded that the engine stopped it (OQ92); no such Attempt at all blocks `route failure`. Every Block
+    /// recorded that the engine stopped it (OQ92), or the engine ended its pass on a macOS permission prompt
+    /// (#555); no such Attempt at all blocks `route failure`. Every Block
     /// path reads this, except a Block under `failure recurrence`, which names its reason itself (`retryOrBlock`).
     public func blockReason(inEpoch epoch: Int) -> BlockReason {
         guard let last = attempts.last(where: {
