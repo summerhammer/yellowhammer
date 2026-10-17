@@ -1,5 +1,6 @@
 import Domain
 import Foundation
+import Journal
 
 // MARK: - Night Pulse
 

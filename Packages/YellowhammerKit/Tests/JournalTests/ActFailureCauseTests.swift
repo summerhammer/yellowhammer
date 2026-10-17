@@ -3,7 +3,6 @@ import Foundation
 import Testing
 
 @testable import Journal
-@testable import Pulse
 
 private let overBudget = "Work Card \"T\" (seshes-backend) composes 12,153 UTF-16 code units, over the description "
     + "budget of 10,000: Brief 7,000"
