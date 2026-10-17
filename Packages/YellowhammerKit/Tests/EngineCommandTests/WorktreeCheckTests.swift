@@ -120,13 +120,14 @@ struct WorktreeCheckTests {
     func cancellationTerminatesTheChild() async throws {
         let directory = try makeDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let started = ContinuousClock.now
-
-        let task = Task { try await run("exec sleep 30", in: directory) }
+        let task = Task { try await run("exec sleep 600", in: directory) }
         try await Task.sleep(for: .milliseconds(300))
+        let cancelled = ContinuousClock.now
         task.cancel()
 
         await #expect(throws: CancellationError.self) { try await task.value }
-        #expect(ContinuousClock.now - started < .seconds(5))
+        // Prompt means the teardown (SIGTERM, then SIGKILL after 3 s), not the child's own 600 s. The bound
+        // is loose on purpose: whole-package load has been seen to add ~20 s of scheduling lag alone.
+        #expect(ContinuousClock.now - cancelled < .seconds(40))
     }
 }

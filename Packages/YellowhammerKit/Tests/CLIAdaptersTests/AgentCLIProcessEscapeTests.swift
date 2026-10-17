@@ -8,10 +8,13 @@ import Testing
 /// commands routinely escape the CLI's process group (`setsid`, or a new group leader), and these
 /// scenarios prove the escaped tool is still contained — on timeout, on engine abort, and even
 /// when it is spawned only after the first SIGTERM has already gone out.
+///
+/// The timeouts are 6 s because each stub must reach its `trap` and `setsid` before the first SIGTERM, and
+/// whole-package load has delayed that past the 2 s they used to be (2026-10-17).
 @Suite("Agent CLI process escape containment", .timeLimit(.minutes(1)))
 struct AgentCLIProcessEscapeTests {
     /// Polls (never sleeps a fixed duration) until `url` exists, or fails the test via `#require`.
-    private static func awaitFile(_ url: URL, timeout: Duration = .seconds(2)) async throws {
+    private static func awaitFile(_ url: URL, timeout: Duration = .seconds(20)) async throws {
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: timeout)
         while !FileManager.default.fileExists(atPath: url.path), clock.now < deadline {
@@ -20,10 +23,10 @@ struct AgentCLIProcessEscapeTests {
         #expect(FileManager.default.fileExists(atPath: url.path))
     }
 
-    /// Polls until `pid` is dead, up to 500 ms — a generous bound for a process that has already
+    /// Polls until `pid` is dead, up to 5 s — a generous bound for a process that has already
     /// been signalled by the time this is called.
     private static func awaitDead(_ pid: pid_t) async {
-        for _ in 0..<25 {
+        for _ in 0..<250 {
             if StubAgentCLI.isDead(pid) { return }
             try? await Task.sleep(for: .milliseconds(20))
         }
@@ -34,7 +37,7 @@ struct AgentCLIProcessEscapeTests {
         let fixture = try StubAgentCLI.makeFixture(script: StubAgentCLI.leaderExitsOnTermLeavingEscapedChild)
         defer { fixture.cleanUp() }
 
-        let timeout = Duration.seconds(2)
+        let timeout = Duration.seconds(6)
         let runner = AgentCLIProcess(gracePeriod: .milliseconds(400), pollInterval: .milliseconds(20))
         let report = try await runner.run(fixture.launch(timeout: timeout))
 
@@ -53,7 +56,7 @@ struct AgentCLIProcessEscapeTests {
         let fixture = try StubAgentCLI.makeFixture(script: StubAgentCLI.escapedChildIgnoresTerm)
         defer { fixture.cleanUp() }
 
-        let timeout = Duration.seconds(2)
+        let timeout = Duration.seconds(6)
         let runner = AgentCLIProcess(gracePeriod: .zero, pollInterval: .milliseconds(20))
         let report = try await runner.run(fixture.launch(timeout: timeout))
 
@@ -69,7 +72,7 @@ struct AgentCLIProcessEscapeTests {
         let fixture = try StubAgentCLI.makeFixture(script: StubAgentCLI.escapedChildIgnoresTerm)
         defer { fixture.cleanUp() }
 
-        let timeout = Duration.seconds(2)
+        let timeout = Duration.seconds(6)
         let runner = AgentCLIProcess(gracePeriod: .milliseconds(400), pollInterval: .milliseconds(20))
         let report = try await runner.run(fixture.launch(timeout: timeout))
 
@@ -110,12 +113,12 @@ struct AgentCLIProcessEscapeTests {
         let fixture = try StubAgentCLI.makeFixture(script: StubAgentCLI.spawnsEscapedChildOnTerm)
         defer { fixture.cleanUp() }
 
-        let timeout = Duration.seconds(2)
+        let timeout = Duration.seconds(6)
         let runner = AgentCLIProcess(gracePeriod: .milliseconds(400), pollInterval: .milliseconds(20))
         _ = try await runner.run(fixture.launch(timeout: timeout))
 
         let lateFile = fixture.scratch.appendingPathComponent("late")
-        try await Self.awaitFile(lateFile, timeout: .seconds(1))
+        try await Self.awaitFile(lateFile, timeout: .seconds(5))
         let latePID = try #require(StubAgentCLI.readPID(at: lateFile))
         await Self.awaitDead(latePID)
         #expect(StubAgentCLI.isDead(latePID))

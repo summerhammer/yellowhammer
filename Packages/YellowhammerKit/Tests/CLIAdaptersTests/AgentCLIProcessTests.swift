@@ -166,8 +166,9 @@ struct AgentCLIProcessTests {
         let fixture = try StubAgentCLI.makeFixture(script: StubAgentCLI.groupIgnoresTermEverywhere)
         defer { fixture.cleanUp() }
 
-        // 2 s, not a few hundred ms: the stub must reach its `trap` before the SIGTERM, see above.
-        let timeout = Duration.seconds(2)
+        // 6 s, not a few hundred ms: the stub must reach its `trap` before the SIGTERM, see above. 2 s was
+        // not enough under whole-package load (2026-10-17), where spawning the stub alone lagged past it.
+        let timeout = Duration.seconds(6)
         let gracePeriod = Duration.milliseconds(400)
         let runner = AgentCLIProcess(gracePeriod: gracePeriod, pollInterval: .milliseconds(20))
 
@@ -177,8 +178,8 @@ struct AgentCLIProcessTests {
         let elapsed = clock.now - start
 
         #expect(report.end == .timedOut(after: timeout, forcedKill: true))
-        // Upper bound proving the grace window is honored, not skipped: timeout + grace + slack.
-        #expect(elapsed < timeout + gracePeriod + .seconds(2))
+        // Upper bound proving the run ends at the timeout, not at the stub's own 60 s: timeout + grace + slack.
+        #expect(elapsed < timeout + gracePeriod + .seconds(20))
         #expect(StubAgentCLI.isDead(report.pid))
 
         let childFile = fixture.scratch.appendingPathComponent("child")

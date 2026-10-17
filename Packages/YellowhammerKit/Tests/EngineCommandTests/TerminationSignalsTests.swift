@@ -30,8 +30,12 @@ struct TerminationSignalsTests {
         let bodyStarted = DispatchSemaphore(value: 0)
         let bodyObservedCancellation = Mutex(false)
 
+        // No short wall-clock bound anywhere: under whole-package load the hook's dispatch and the
+        // body's resumption have each been seen to lag by ~20 s (the 2026-10-17 Night's Check failed on
+        // a 5 s bound). The body sleeps until cancelled, and the suite's time limit is what catches a
+        // signal that never cancels it. The run's deadline stays under that limit but far above any lag.
         try? await TerminationSignals.run(
-            deadline: .seconds(5),
+            deadline: .seconds(40),
             exit: { code in exitCalls.withLock { $0.append(code) } },
             signalHook: { hook in
                 DispatchQueue.global().async {
@@ -41,11 +45,7 @@ struct TerminationSignalsTests {
             },
             body: {
                 bodyStarted.signal()
-                let deadline = ContinuousClock.now.advanced(by: .seconds(5))
-                while !Task.isCancelled {
-                    guard ContinuousClock.now < deadline else { break }
-                    try? await Task.sleep(for: .milliseconds(5))
-                }
+                try? await Task.sleep(for: .seconds(50))
                 bodyObservedCancellation.withLock { $0 = Task.isCancelled }
             }
         )
