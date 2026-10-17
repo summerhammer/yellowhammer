@@ -3,12 +3,13 @@ import Pulse
 import SwiftUI
 
 /// The viewer at the top of the editor: the Night's title and state, the clock, one tile for each Act, and
-/// the entries either side of the playhead.
+/// the Night's log around the playhead.
 ///
 /// The title and the clock share a row while they fit, and stack when they do not; the tiles wrap the same
 /// way, so nothing overflows the narrowest the main area can be.
 struct NightEditorViewer: View {
     let moment: NightMoment
+    @Binding var playhead: Date
 
     private var account: NightAccount { moment.timeline.account }
 
@@ -18,7 +19,7 @@ struct NightEditorViewer: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 12, alignment: .top)], spacing: 12) {
                 ForEach(moment.acts) { NightActTile(state: $0) }
             }
-            NightLog(moment: moment)
+            NightLog(moment: moment, playhead: $playhead)
         }
     }
 

@@ -71,7 +71,7 @@ extension NightPulseState {
 extension NightAccount.RunOutcome {
     var style: some ShapeStyle { token }
 
-    /// Never `warning`: that rings a problem, and a run with one is ringed separately.
+    /// Never `warning`: that fills a run with a problem, which the timeline does separately.
     fileprivate var token: ThemeShapeStyle<Color> {
         switch self {
         case .ended: .success

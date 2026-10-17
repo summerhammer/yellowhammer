@@ -17,6 +17,7 @@ struct NightEditorTransport: View {
         .buttonStyle(.borderless)
         .padding(.horizontal, 20)
         .padding(.vertical, 8)
+        .background(.background.secondary)
     }
 
     private func bar(showsSpan: Bool) -> some View {

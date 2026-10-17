@@ -1,20 +1,57 @@
 import Pulse
 import SwiftUI
 
-/// The entries either side of the playhead as a log, the playhead a row of its own. The entries up to the
-/// playhead read in full, the ones after it dimmed.
+/// Every entry of the Night as a log that fills the height it is given and scrolls on its own, the playhead a
+/// row of its own among them. The entries up to the playhead read in full, the ones after it dimmed. The log
+/// keeps the playhead row in view as the playhead moves; choosing an entry moves the playhead to it and marks
+/// the entry as chosen.
 struct NightLog: View {
     let moment: NightMoment
+    @Binding var playhead: Date
+    /// The entry last chosen in the log. Shown as chosen only while the playhead stays on its time.
+    @State private var chosen: (id: NightTimeline.Item.ID, at: Date)?
+
+    private static let playheadID = "night-log-playhead"
+
+    private var items: [NightTimeline.Item] { moment.timeline.items }
+
+    /// The chosen entry, while the playhead is still on it.
+    private var selection: NightTimeline.Item.ID? {
+        guard let chosen, chosen.at == moment.time else { return nil }
+        return chosen.id
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(moment.before(6)) { NightLogRow(item: $0, isAfter: false) }
-            playheadRow
-            ForEach(moment.after(4)) { NightLogRow(item: $0, isAfter: true) }
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(moment.before(items.count)) { row($0, isAfter: false) }
+                    playheadRow.id(Self.playheadID)
+                    ForEach(moment.after(items.count)) { row($0, isAfter: true) }
+                }
+            }
+            .onAppear { proxy.scrollTo(Self.playheadID, anchor: .center) }
+            .onChange(of: moment.time) {
+                // An entry chosen here is already in view: recentring would move it out from under the pointer.
+                if selection == nil { proxy.scrollTo(Self.playheadID, anchor: .center) }
+            }
         }
+        .frame(minHeight: 160, maxHeight: .infinity)
         .font(.system(.callout, design: .monospaced))
         .background(.surface, in: .rect(cornerRadius: 10))
         .clipShape(.rect(cornerRadius: 10))
+    }
+
+    private func row(_ item: NightTimeline.Item, isAfter: Bool) -> some View {
+        Button {
+            chosen = (item.id, item.entry.occurredAt)
+            playhead = item.entry.occurredAt
+        } label: {
+            NightLogRow(item: item, isAfter: isAfter)
+        }
+        .buttonStyle(NightLogRowStyle(isSelected: selection == item.id))
+        .accessibilityAddTraits(selection == item.id ? .isSelected : [])
+        .accessibilityIdentifier("night-account-entry-\(item.entry.id)")
     }
 
     private var playheadRow: some View {
@@ -33,6 +70,24 @@ struct NightLog: View {
         .background(Color.accentColor)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("night-account-log-playhead")
+    }
+}
+
+/// A log row as a button: the whole row takes the click, a chosen row is tinted in the accent, and a row
+/// being pressed is shaded.
+private struct NightLogRowStyle: ButtonStyle {
+    let isSelected: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(.rect)
+            .background {
+                if isSelected {
+                    Color.accentColor.opacity(0.18)
+                } else if configuration.isPressed {
+                    Color.primary.opacity(0.06)
+                }
+            }
     }
 }
 
@@ -57,14 +112,14 @@ struct NightLogRow: View {
                     Text(detail).foregroundStyle(.secondary)
                 }
             }
-            .textSelection(.enabled)
+            .multilineTextAlignment(.leading)
             Spacer(minLength: 0)
         }
+        .foregroundStyle(.primary)
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
         .opacity(isAfter ? 0.5 : 1)
         .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("night-account-entry-\(item.entry.id)")
     }
 
     /// Always laid out, so the headlines line up; only a problem's is shown and read.
