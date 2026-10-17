@@ -110,6 +110,16 @@ extension NightWording {
                 detail: blockReason.map { "Block Reason: \($0.rawValue)" }
                     ?? waitingReason.map { "Waiting on You: \($0.rawValue)" }
             )
+        case .readinessCheckFailed(let cardID, _, let failures):
+            NightWords(
+                headline: "\(card(cardID)): readiness check failed",
+                detail: "\(failures.joined(separator: "; ")). Not dispatched, and no Attempt was spent."
+            )
+        case .waitingOnYouUnbacked(_, let cardID, let reason):
+            NightWords(
+                headline: "\(cardID.map(card) ?? "A Card"): in Waiting on You with no record behind it",
+                detail: "\(reason). Not dispatched."
+            )
         default:
             nil
         }
@@ -148,6 +158,11 @@ extension NightWording {
             NightWords(headline: "Authoring the Feature “\(name)” failed: breakdown rejected", detail: reason)
         case .featureSelectionFailed(let reason):
             NightWords(headline: "Selecting a Feature failed", detail: reason)
+        case .featureAuthoringHalted(let name, let reasonKind, let detail):
+            NightWords(
+                headline: "Authoring the Feature “\(name)” halted",
+                detail: NightAccount.words(haltKind: reasonKind, detail: detail)
+            )
         default:
             authoringWalk(event)
         }
@@ -182,6 +197,10 @@ extension NightWording {
             NightWords(
                 headline: "The Feature \(feature(featureIssueID)) was returned to you",
                 detail: "\(unmet) unmet, \(unresolved) unresolved"
+            )
+        case .landStep(let step, let repository, let outcome, let detail):
+            NightWords(
+                headline: NightAccount.words(step: step, outcome: outcome, repository: repository), detail: detail
             )
         default:
             nil
