@@ -35,9 +35,11 @@ struct AuthoringPlanner {
 
     private var prefix: String { "\(selection.name.rawValue):\(attempt)" }
     private var featureKey: String {
-        existingFeatureIssueID == nil ? "feature:\(prefix):create" : "feature:\(selection.name.rawValue):halt:create"
+        existingFeatureIssueID == nil ? "feature:\(prefix):create" : stopCreateKey
     }
     let existingFeatureIssueID: BoardObjectID?
+    /// The key the stop that opened `existingFeatureIssueID` created it under (``AuthoringStopBoard/createKey(_:_:)``).
+    let stopCreateKey: String
 
     /// The group: the Feature Issue create, one adoption per adopted Card, then one Card create per draft
     /// nested under the Feature Issue — so the Feature Issue is applied before anything names it, and a

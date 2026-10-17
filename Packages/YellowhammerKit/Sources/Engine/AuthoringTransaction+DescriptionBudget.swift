@@ -43,14 +43,19 @@ extension AuthoringTransaction {
         guard let board = context.board else { throw AuthoringTransactionError.noBoard }
         let scope = try await BoardStateScope.resolve(using: board.provisioning)
         let attempt = try context.journal.authoringTransactionCount(feature: selection.name.rawValue)
-        // A known issue id a Feature row already holds belongs to an earlier, closed Feature: not reusable.
+        let stopCreateKey = try AuthoringStopBoard.createKey(selection.name, context.journal)
+        // Reuse a stop's Feature Issue only when this generation's stop created it: finalise reads the id
+        // back from that create's entry, so an id some other key created would never finalise (issue #542).
+        let stopCreated = try context.outbox.flatMap {
+            try context.journal.outboxEntry(clientID: $0.clientID(for: stopCreateKey))?.result
+        }
         let known = try AuthoringStopBoard.knownIssueID(selection.name, context.journal)
-        let existing = try known.flatMap { try context.journal.feature(issueID: $0.rawValue) == nil ? $0 : nil }
+        let existing = known.flatMap { $0.rawValue == stopCreated ? $0 : nil }
         let planner = AuthoringPlanner(
             selection: selection, breakdown: breakdown, scope: scope, attempt: attempt,
             nightID: context.night.id, journal: context.journal, citations: resolution,
             transcriptions: transcriptions,
-            existingFeatureIssueID: existing
+            existingFeatureIssueID: existing, stopCreateKey: stopCreateKey
         )
         let plan = try planner.plan()
         guard let budget = board.descriptionBudget else { return (plan, nil) }
