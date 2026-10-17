@@ -1,8 +1,7 @@
 import Domain
 import Foundation
-import Journal
 
-/// The class of one Act failure the Pulse reads from the Journal (morning-report/disclose-a-failure#act-failure).
+/// The class of one Act failure the Journal records (morning-report/disclose-a-failure#act-failure).
 /// Recovery, the Health row's fix and the Sidebar's mark are all decided by it.
 public enum ActFailureCause: String, Sendable, CaseIterable {
     case boardScopeUnresolved
@@ -32,8 +31,8 @@ public enum ActFailureCause: String, Sendable, CaseIterable {
         }
     }
 
-    static let boardScopePrefix = "The Project's board scope is unresolved"
-    static let noRouteReason = "the Routing Table has no Route left for the authoring Kind"
+    public static let boardScopePrefix = "The Project's board scope is unresolved"
+    public static let noRouteReason = "the Routing Table has no Route left for the authoring Kind"
 
     /// Classifies one failure `event`, given the other events of the same run; nil when it is no failure.
     public static func classify(_ event: JournalEvent, runEvents: [JournalEvent] = []) -> ActFailureCause? {

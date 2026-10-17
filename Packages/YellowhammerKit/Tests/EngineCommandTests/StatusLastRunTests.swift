@@ -84,28 +84,66 @@ struct StatusLastRunTests {
         #expect(reason == .noFeatureInFlight)
     }
 
-    @Test("ActIncomplete reads back as incomplete with its reason")
-    func incomplete() async throws {
+    /// Records `events` in one run of `act` on a fresh Journal and returns how `yh status` reads its ending.
+    private func endingText(act: Act = .build, events: [JournalEvent]) async throws -> String {
         let directory = ConfigurationDirectory()
         try directory.writeMachineFile()
         try directory.writeValidProjectFile(id: "alpha")
         let journal = try JournalStore.openSeeded(configurationDirectory: directory.url, projectID: Self.projectID)
         let runID = RunID()
-        let night = try Self.openedNight(in: journal, runID: runID)
-        try journal.append(
-            .actIncomplete(reason: "board unreachable"), act: .build, runID: runID, nightID: night.id,
-            now: Self.runStart.addingTimeInterval(30)
-        )
-
-        let status = makeStatus(directory: directory, now: Self.now)
-        let report = await status.run()
-
-        let lastRun = report.projectStatuses.first?.lastRun
-        guard case .run(_, _, _, .incomplete(let reason)) = lastRun else {
-            Issue.record("expected .run(..., ending: .incomplete), got \(String(describing: lastRun))")
-            return
+        let night = try Self.openedNight(in: journal, runID: runID, act: act)
+        for (offset, event) in events.enumerated() {
+            try journal.append(
+                event, act: act, runID: runID, nightID: night.id,
+                now: Self.runStart.addingTimeInterval(Double(offset + 1) * 10)
+            )
         }
-        #expect(reason == "board unreachable")
+        let output = RecordingOutput()
+        let status = makeStatus(directory: directory, output: output, now: Self.now)
+        _ = await status.run()
+        let line = output.lines.first { $0.contains("\(act.rawValue) run \(runID.rawValue)") }
+        let text = try #require(line)
+        return String(try #require(text.split(separator: "started ", maxSplits: 1).last))
+            .split(separator: ": ", maxSplits: 1).last.map(String.init) ?? text
+    }
+
+    @Test("ActIncomplete reads back as failed with its headline and reason")
+    func incomplete() async throws {
+        let text = try await endingText(events: [.actIncomplete(reason: "board unreachable")])
+        #expect(text == "failed: The build Act could not complete \u{2014} board unreachable")
+    }
+
+    @Test("A board-scope ActIncomplete reads back as failed, naming the board scope")
+    func boardScopeIncomplete() async throws {
+        let text = try await endingText(
+            events: [.actIncomplete(reason: "\(ActFailureCause.boardScopePrefix): no Linear project")]
+        )
+        #expect(text == "failed: The build Act did no work: the board scope is unresolved")
+    }
+
+    @Test("A rejected breakdown before ActEnded reads back as failed, never ended")
+    func rejectedBreakdownThenEnded() async throws {
+        let reason = "Work Card \"T\" (seshes-backend) composes 12,153 UTF-16 code units, over the description "
+            + "budget of 10,000: Brief 7,000"
+        let text = try await endingText(
+            act: .author, events: [.featureBreakdownRejected(name: "Sync", reason: reason), .actEnded]
+        )
+        #expect(text == "failed: Authoring \u{201C}Sync\u{201D} failed: over the description budget")
+    }
+
+    @Test("A failed lane then ActIncomplete reads back as failed at the lane, with its reason")
+    func failedLaneThenIncomplete() async throws {
+        let text = try await endingText(events: [
+            .repoLaneEnded(repository: "backend", cardsRun: 1, failure: "the Check failed"),
+            .actIncomplete(reason: "the build Act's lanes failed: backend: the Check failed")
+        ])
+        #expect(text == "failed: The build Act's backend lane failed \u{2014} the Check failed")
+    }
+
+    @Test("A run with no failure still reads back as ended")
+    func cleanRunStillEnded() async throws {
+        let text = try await endingText(events: [.actEnded])
+        #expect(text == "ended")
     }
 
     @Test("A held, unexpired Lease with no terminal event reads back as running now")

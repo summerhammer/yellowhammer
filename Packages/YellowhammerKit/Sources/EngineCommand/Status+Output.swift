@@ -64,6 +64,7 @@ extension Status {
         case .ended: "ended"
         case .idle(let reason): "idle (\(reason.rawValue))"
         case .incomplete(let reason): "incomplete: \(reason)"
+        case .failed(let headline): "failed: \(headline)"
         case .stoodDown: "stood down"
         case .runningNow: "running now"
         case .noEndingRecorded: "no ending recorded"

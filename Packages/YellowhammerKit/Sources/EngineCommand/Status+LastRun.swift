@@ -62,19 +62,38 @@ extension Status {
         return (.run(act: act, runID: runID, firstEventAt: firstEventAt, ending: ending), lastNight)
     }
 
+    /// The failure's headline; a lane or an incomplete Act keeps its reason's first line, which the
+    /// headline alone would lose.
+    private static func headline(of failure: ActFailure) -> String {
+        switch failure.cause {
+        case .laneFailed, .actIncomplete:
+            let firstLine = failure.reason.split(separator: "\n", omittingEmptySubsequences: false).first
+                .map(String.init) ?? failure.reason
+            return "\(failure.headline) — \(firstLine)"
+        default:
+            return failure.headline
+        }
+    }
+
     /// The run's own terminal event, or — with none recorded — whether the Act-scoped Lease still
     /// belongs to it right now.
     private static func ending(
         for runEvents: [JournalEventRecord], runID: RunID, journal: JournalStore, now: Date
     ) throws -> LastRunEnding {
         for record in runEvents {
+            let terminal: LastRunEnding
             switch record.event {
-            case .actEnded: return .ended
-            case .actIdle(let reason): return .idle(reason)
-            case .actIncomplete(let reason): return .incomplete(reason: reason)
-            case .actStoodDown: return .stoodDown
+            case .actEnded: terminal = .ended
+            case .actIdle(let reason): terminal = .idle(reason)
+            case .actIncomplete(let reason): terminal = .incomplete(reason: reason)
+            case .actStoodDown: terminal = .stoodDown
             default: continue
             }
+            // A run that recorded an Act failure never reads as a clean ending.
+            if let failure = ActFailures.firstFailure(inRun: runEvents) {
+                return .failed(headline: headline(of: failure))
+            }
+            return terminal
         }
         let lease = try journal.currentActLease()
         guard let lease, lease.runID == runID, lease.isHeld(at: now) else {

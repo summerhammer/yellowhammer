@@ -148,6 +148,9 @@ enum LastRunEnding: Sendable {
     case ended
     case idle(ActIdleReason)
     case incomplete(reason: String)
+    /// The run ended, but it recorded an Act failure: `headline` is the first one, never plain `ended`
+    /// (morning-report/disclose-a-failure, surface `yh status`).
+    case failed(headline: String)
     case stoodDown
     /// No ending event was recorded, but the Act-scoped Lease is still held by this run at `now`.
     case runningNow
