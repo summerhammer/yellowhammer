@@ -458,7 +458,7 @@ struct NightSummaryExceptionsTests {
         let lines = try NightSummary.exceptionLines(
             night: night, journal: journal, renderingRunID: closingLand, timeZone: utc
         )
-        #expect(lines == ["1 Act failed, recovered 00:15"])
+        #expect(lines == ["1 Act failed (the Act could not complete), recovered 00:15"])
         let verdict = try NightSummary.verdictLine(night: night, journal: journal, renderingRunID: closingLand)
         #expect(verdict.hasSuffix(" · closed"))
     }
@@ -492,7 +492,12 @@ struct NightSummaryExceptionsTests {
         try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T02:01:00Z", ending: .halted)
 
         let lines = try NightSummary.exceptionLines(night: night, journal: journal, timeZone: utc)
-        #expect(lines == ["1 Act failed, recovered 00:15", "1 Act failed, recovered 01:15"])
+        #expect(
+            lines == [
+                "1 Act failed (the Act could not complete), recovered 00:15",
+                "1 Act failed (the Act could not complete), recovered 01:15"
+            ]
+        )
     }
 
     @Test("The recovering Act's start is rendered in the injected time zone")
@@ -507,7 +512,7 @@ struct NightSummaryExceptionsTests {
 
         let kyiv = try #require(TimeZone(identifier: "Europe/Kyiv"))
         let lines = try NightSummary.exceptionLines(night: night, journal: journal, timeZone: kyiv)
-        #expect(lines == ["1 Act failed, recovered 03:15"])
+        #expect(lines == ["1 Act failed (the Act could not complete), recovered 03:15"])
     }
 
     @Test("Flush firings neither fail nor recover: no recovered line for a failure only a flush firing followed")
@@ -549,5 +554,108 @@ struct NightSummaryExceptionsTests {
             try NightSummary.verdictLine(night: second, journal: journal)
                 == "no decisions waiting · did not advance · closed"
         )
+    }
+}
+
+@Suite("Night Summary: recovered lines name the cause a later run got past")
+struct NightSummaryRecoveryByCauseTests {
+    @Test("The board-scope halt of one author run is recovered by the next author run getting past the preflight")
+    func boardScopeHaltRecoveredByCause() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let night = try await openNightForExceptionsTest(journal: journal, board: board)
+        let first = try seededInstant("2026-10-08T14:00:00Z")
+        let runA = RunID()
+        try journal.append(.actStarted, act: .author, runID: runA, nightID: night.id, now: first)
+        try journal.append(
+            .boardScopeUnresolved(steps: "no Linear project"), act: .author, runID: runA, nightID: night.id,
+            now: first.addingTimeInterval(1)
+        )
+        try journal.append(
+            .actIncomplete(reason: "\(ActFailureCause.boardScopePrefix): no Linear project"),
+            act: .author, runID: runA, nightID: night.id, now: first.addingTimeInterval(2)
+        )
+        let second = try seededInstant("2026-10-08T14:28:00Z")
+        let runB = RunID()
+        try journal.append(.actStarted, act: .author, runID: runB, nightID: night.id, now: second)
+        try journal.append(
+            .authoringDispatched(pass: .selection, route: "primary", ordinal: 1, fixture: nil),
+            act: .author, runID: runB, nightID: night.id, now: second.addingTimeInterval(5)
+        )
+        let overBudget = "Work Card \"T\" (seshes-backend) composes 12,153 UTF-16 code units, over the description "
+            + "budget of 10,000: Brief 7,000"
+        try journal.append(
+            .featureBreakdownRejected(name: "Sync", reason: overBudget), act: .author, runID: runB,
+            nightID: night.id, now: second.addingTimeInterval(10)
+        )
+        try journal.append(.actEnded, act: .author, runID: runB, nightID: night.id, now: second.addingTimeInterval(11))
+
+        let lines = try NightSummary.exceptionLines(night: night, journal: journal, timeZone: utc)
+        #expect(lines == ["1 Act failed (the board scope is unresolved), recovered 14:28"])
+    }
+
+    @Test("A later run that fails the same way recovers nothing")
+    func sameCauseLaterFailureRecoversNothing() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let night = try await openNightForExceptionsTest(journal: journal, board: board)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T01:00:00Z", ending: .halted)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T02:00:00Z", ending: .halted)
+
+        let lines = try NightSummary.exceptionLines(night: night, journal: journal, timeZone: utc)
+        #expect(!lines.contains { $0.contains("recovered") })
+    }
+
+    @Test("The closing land, still rendering, recovers an earlier land halt at its last recorded event")
+    func renderingRunRecoversEarlierHalt() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let night = try await openNightForExceptionsTest(journal: journal, board: board)
+        try appendSeededRun(to: journal, night: night, startedAt: "2026-10-08T01:00:00Z", ending: .halted)
+        let closingLand = try appendSeededRun(
+            to: journal, night: night, startedAt: "2026-10-08T03:00:00Z", ending: .unterminated
+        )
+        try journal.append(
+            .authoringDispatched(pass: .selection, route: "primary", ordinal: 1, fixture: nil),
+            act: .land, runID: closingLand, nightID: night.id,
+            now: try seededInstant("2026-10-08T03:00:05Z")
+        )
+
+        let lines = try NightSummary.exceptionLines(
+            night: night, journal: journal, renderingRunID: closingLand, timeZone: utc
+        )
+        #expect(lines == ["1 Act failed (the Act could not complete), recovered 03:00"])
+    }
+
+    @Test("A build lane failure is not recovered by a later author run: another Act recovers nothing")
+    func otherActDoesNotRecoverALaneFailure() async throws {
+        let fixture = try NightCardJournalFixture()
+        let journal = try fixture.open()
+        let boards = try await makeBoards()
+        let board = ActBoard(reading: FakeReadingBoard([]), writing: boards.writing, provisioning: boards.provisioning)
+        let night = try await openNightForExceptionsTest(journal: journal, board: board)
+        let start = try seededInstant("2026-10-08T01:00:00Z")
+        let build = RunID()
+        try journal.append(.actStarted, act: .build, runID: build, nightID: night.id, now: start)
+        try journal.append(
+            .repoLaneEnded(repository: "backend", cardsRun: 1, failure: "the Check failed"),
+            act: .build, runID: build, nightID: night.id, now: start.addingTimeInterval(1)
+        )
+        try journal.append(
+            .actIncomplete(reason: "the build Act's lanes failed: backend: the Check failed"),
+            act: .build, runID: build, nightID: night.id, now: start.addingTimeInterval(2)
+        )
+        try appendSeededRun(
+            to: journal, night: night, startedAt: "2026-10-08T02:00:00Z", ending: .ended, act: .author
+        )
+
+        let lines = try NightSummary.exceptionLines(night: night, journal: journal, timeZone: utc)
+        #expect(!lines.contains { $0.contains("recovered") })
     }
 }

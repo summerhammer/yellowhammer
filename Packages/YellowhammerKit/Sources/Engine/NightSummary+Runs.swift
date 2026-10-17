@@ -68,28 +68,70 @@ extension NightSummary {
         }
     }
 
-    /// One line per recovery: the consecutive failed runs that the same later ended run recovered share a
-    /// line, worded `1 Act failed, recovered 00:15`. Failures nothing recovered get no line (the verdict and
-    /// the flush-firing line report them).
+    /// One line per recovery minute, in the order the recoveries happened: `1 Act failed (the Act could not
+    /// complete), recovered 00:15`. A failed run is recovered by cause (`Journal.ActFailures`,
+    /// morning-report/disclose-a-failure#recovered) — a later run of the same Act getting past what failed —
+    /// at that run's checkpoint. A crashed run records no cause, so the next later ended run recovers it, at
+    /// that run's start, and the line says it died without recording why (a notice never invents a cause).
+    /// Failures nothing recovered get no line (the verdict and the flush-firing line report them). The
+    /// parenthetical is the cause when every run on the line shares one.
     static func recoveredFailureLines(
         events: [JournalEventRecord], renderingRunID: RunID?, timeZone: TimeZone
     ) -> [String] {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
-        var lines: [String] = []
-        var failed = 0
-        for run in nightRuns(events: events, renderingRunID: renderingRunID) {
-            if run.failed {
-                failed += 1
-                continue
-            }
-            if failed > 0 {
-                let parts = calendar.dateComponents([.hour, .minute], from: run.startedAt)
-                let time = String(format: "%02d:%02d", parts.hour ?? 0, parts.minute ?? 0)
-                lines.append("\(failed) Act\(failed == 1 ? "" : "s") failed, recovered \(time)")
-            }
-            failed = 0
+        let runs = nightRuns(events: events, renderingRunID: renderingRunID)
+        let crashed = Set(runs.filter { $0.outcome == .crashed }.map(\.runID.rawValue))
+        let flushRuns = Set(events.filter { $0.type == .flushFiringRan }.compactMap(\.runID))
+        let failures = ActFailures(
+            events: events.filter { record in record.runID.map { !flushRuns.contains($0) } ?? true },
+            renderingRunID: renderingRunID
+        )
+        let recoveredRuns = recoveredActFailureRuns(failures, excluding: crashed)
+        var recoveries = recoveredRuns + runs.enumerated().compactMap { index, run -> RecoveredRun? in
+            guard run.outcome == .crashed,
+                let next = runs[(index + 1)...].first(where: { $0.outcome == .ended }) else { return nil }
+            return RecoveredRun(at: next.startedAt, cause: Self.crashedCause)
         }
-        return lines
+        recoveries.sort { $0.at < $1.at }
+        var order: [String] = []
+        var groups: [String: [RecoveredRun]] = [:]
+        for recovery in recoveries {
+            let parts = calendar.dateComponents([.hour, .minute], from: recovery.at)
+            let time = String(format: "%02d:%02d", parts.hour ?? 0, parts.minute ?? 0)
+            if groups[time] == nil { order.append(time) }
+            groups[time, default: []].append(recovery)
+        }
+        return order.map { time in
+            let group = groups[time] ?? []
+            let causes = Set(group.map(\.cause))
+            let cause = causes.count == 1 ? causes.first.flatMap { $0 }.map { " (\($0))" } ?? "" : ""
+            return "\(group.count) Act\(group.count == 1 ? "" : "s") failed\(cause), recovered \(time)"
+        }
+    }
+
+    /// The cause of a run that died: it recorded none (morning-report/disclose-a-failure, "A notice never
+    /// invents a cause").
+    private static let crashedCause = "the run died without recording why"
+
+    /// One failed run that a later run recovered: when, and the one cause it failed with (nil when it
+    /// recorded several).
+    private struct RecoveredRun {
+        let at: Date
+        let cause: String?
+    }
+
+    /// Each run whose every Act failure was recovered, once, at its latest recovery.
+    private static func recoveredActFailureRuns(
+        _ failures: ActFailures, excluding crashed: Set<String>
+    ) -> [RecoveredRun] {
+        let byRun = Dictionary(grouping: failures.all.filter { !crashed.contains($0.runKey) }, by: \.runKey)
+        let causes = Dictionary(grouping: failures.failures, by: \.runKey).mapValues { Set($0.map(\.cause)) }
+        return byRun.compactMap { runKey, runFailures -> RecoveredRun? in
+            let dates = runFailures.compactMap { failures.recoveredAt($0, ignoringLaterFailures: true) }
+            guard dates.count == runFailures.count, let at = dates.max() else { return nil }
+            let runCauses = causes[runKey] ?? []
+            return RecoveredRun(at: at, cause: runCauses.count == 1 ? runCauses.first?.phrase : nil)
+        }
     }
 }
