@@ -7,7 +7,9 @@ import SwiftUI
 /// running in it while one runs. Projects are in configured order, and nothing is re-sorted.
 ///
 /// A Project row shows the Project's icon and name, and its derived `idle`/`working` status as a dot on
-/// the icon, and nothing else: no count, roll-up word or health indicator (R20). The status comes from
+/// the icon. The one other mark it admits is the failure mark: a glyph, with no count or words, while the
+/// Project's latest Night has an Act failure, until the next Night opens (Sidebar Failure Mark Ruling,
+/// 2026-10-16). It is not a status value, and there is no roll-up word or count (R20). The status comes from
 /// the Project's `launchd` Act jobs, not its Journal, so the dot shows even when the Journal could not be
 /// read; the Pulse states why. A Repo row shows a lane dot only while that Repo is in lane, so the dot, not the row's position,
 /// marks an active Repo. An Attempt row shows how long the Attempt has run, measured to `asOf`.
@@ -43,7 +45,8 @@ struct OverviewSidebar: View {
                         ProjectRow(
                             id: row.snapshot.id,
                             name: row.snapshot.name,
-                            status: row.snapshot.status
+                            status: row.snapshot.status,
+                            failureMark: row.snapshot.failureMark
                         )
                     case let .repo(repo):
                         RepoRow(projectID: row.snapshot.id, repo: repo, lane: row.snapshot.laneState(for: repo))
@@ -111,17 +114,31 @@ struct OverviewSidebar: View {
 }
 
 /// A Project row: the Project's icon and name, with its derived `idle`/`working` status as a dot on the
-/// icon, and nothing else.
+/// icon, and the failure mark while its latest Night has an Act failure.
 private struct ProjectRow: View {
     let id: ProjectID
     let name: String
     let status: ProjectStatus
+    /// The headline of the latest Night's first Act failure; nil when it has none.
+    let failureMark: String?
 
     var body: some View {
         Label {
-            Text(name)
-                .lineLimit(1)
-                .accessibilityIdentifier("sidebar-\(id.rawValue)")
+            HStack(spacing: 4) {
+                Text(name)
+                    .lineLimit(1)
+                    .accessibilityIdentifier("sidebar-\(id.rawValue)")
+                if let failureMark {
+                    Spacer(minLength: 4)
+                    // Beside the name, not on the icon: a Label hides its icon from accessibility.
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.warning)
+                        .help(failureMark)
+                        .accessibilityElement()
+                        .accessibilityLabel(failureMark)
+                        .accessibilityIdentifier("sidebar-\(id.rawValue)-failure")
+                }
+            }
         } icon: {
             Image(systemName: "folder.fill")
                 .overlay(alignment: .bottomTrailing) {

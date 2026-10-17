@@ -211,7 +211,7 @@ struct JournalFailure {
     var nextAction: String? {
         cause == .overDescriptionBudget
             ? "Shorten or split the Feature's spec first, or raise the description budget in "
-            + "Settings › Board connections"
+            + "Settings → Board connections"
             : nil
     }
 }

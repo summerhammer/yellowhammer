@@ -114,7 +114,7 @@ public struct HealthFlag: Identifiable, Equatable, Sendable {
                     || detail.contains("The Project's board scope is unresolved, so this Act did no work."))))
     }
 
-    /// Settings destination for doctor findings. Journal failures are read-only Health rows.
+    /// Settings destination for doctor findings. An Act failure opens its own `fixLink` instead.
     public var destination: PulseDestination {
         switch kind {
         case .staleOperatorIdentity, .appInstallationRevoked, .boardProvisioningFailure: .linearWorkspaces
