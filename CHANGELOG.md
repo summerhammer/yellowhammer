@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.20.0](https://github.com/summerhammer/yellowhammer/compare/v0.19.0...v0.20.0) (2026-10-17)
+
+
+### Features
+
+* **app:** list Tonight's unrecovered Failure Notices, each opening the Night's account at its failure ([c73cffe](https://github.com/summerhammer/yellowhammer/commit/c73cffedbadccc2f3a41fd68574f79f0d2dccbf9)), closes [#533](https://github.com/summerhammer/yellowhammer/issues/533)
+* **app:** offer a failed item's Act log with Reveal in Finder ([83a2e99](https://github.com/summerhammer/yellowhammer/commit/83a2e993685647167eb577f78f914128657480e2)), closes [#549](https://github.com/summerhammer/yellowhammer/issues/549)
+* **engine:** carry the Night's failure line on the closed notification ([7f22230](https://github.com/summerhammer/yellowhammer/commit/7f2223051947caa90d9a01f71522f1d0244f8967)), closes [#549](https://github.com/summerhammer/yellowhammer/issues/549)
+* **engine:** state the Night's failures on the Night Card, under verdict_line ([92973ef](https://github.com/summerhammer/yellowhammer/commit/92973ef0f2d6048715fa01b2022b8779e3de02fe)), closes [#549](https://github.com/summerhammer/yellowhammer/issues/549)
+* **pulse:** word every failure event in the Night's account ([bc87a30](https://github.com/summerhammer/yellowhammer/commit/bc87a307293eb4885af13fb3b10b6955e7d26762)), closes [#549](https://github.com/summerhammer/yellowhammer/issues/549)
+* **settings:** show and edit a Board Connection's description budget ([0345077](https://github.com/summerhammer/yellowhammer/commit/03450774fd278828c6051e4ea7c80284a142d03b)), closes [#549](https://github.com/summerhammer/yellowhammer/issues/549)
+* **status:** read a failed last run as `failed: <headline>`, never `ended` ([b009d93](https://github.com/summerhammer/yellowhammer/commit/b009d939e8345d7e19c91905117bf8fa05a71112)), closes [#549](https://github.com/summerhammer/yellowhammer/issues/549)
+
+
+### Bug Fixes
+
+* **app:** show an authoring fault as a failure in Health, Tonight and the Sidebar ([#548](https://github.com/summerhammer/yellowhammer/issues/548)) ([a77f2cd](https://github.com/summerhammer/yellowhammer/commit/a77f2cddec0e0d24288a4eb691106ed5a1a64ee5)), closes [#533](https://github.com/summerhammer/yellowhammer/issues/533)
+* **dispatch:** keep agent passes out of the Keychain and Yellowhammer's state ([4b5a90f](https://github.com/summerhammer/yellowhammer/commit/4b5a90f23c1d1c825c6add56ca5a8b0823a265be)), closes [#546](https://github.com/summerhammer/yellowhammer/issues/546)
+* **engine:** defer agent CLI usage-limit refusals ([38bd05e](https://github.com/summerhammer/yellowhammer/commit/38bd05ece5c593642acb611aa66a9a876c86ecbf)), closes [#547](https://github.com/summerhammer/yellowhammer/issues/547)
+* **engine:** open a re-selected Feature's stop on its own Feature Issue ([bc8d7a7](https://github.com/summerhammer/yellowhammer/commit/bc8d7a74ede56d0eeddcbf79943b9e24d9e1ce4a))
+* **engine:** read a landed Cycle's board before the author Act settles or selects ([cfe0bd2](https://github.com/summerhammer/yellowhammer/commit/cfe0bd21aa3cefbdbe83b26694bfcd90c270d8d2)), closes [#559](https://github.com/summerhammer/yellowhammer/issues/559)
+* **engine:** record each Route the verifier's walk excludes ([3f46ed3](https://github.com/summerhammer/yellowhammer/commit/3f46ed3ed8f4628af55a4d3d714ede9602c7964e)), closes [#549](https://github.com/summerhammer/yellowhammer/issues/549)
+* **engine:** recover the Night Summary's failed Acts by cause ([07e9c77](https://github.com/summerhammer/yellowhammer/commit/07e9c774b7677255f530abfe5c0e80f5bff964c7)), closes [#549](https://github.com/summerhammer/yellowhammer/issues/549)
+
 ## [0.19.0](https://github.com/summerhammer/yellowhammer/compare/v0.18.2...v0.19.0) (2026-10-17)
 
 
