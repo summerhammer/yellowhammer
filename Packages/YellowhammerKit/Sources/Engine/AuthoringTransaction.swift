@@ -269,6 +269,23 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
         return .authoringRolledBack
     }
 
+    /// A finalise that wrote nothing because the Feature Issue already belongs to a Feature is a failed
+    /// transaction, never an authored one (issue #538). Every entry is applied, so there is nothing for the
+    /// Outbox to roll back (an undo here would hit the earlier Feature's own issues). Recording the failure
+    /// closes the plan, so the next selection gets fresh keys, and its adoption re-parents the Card.
+    private func recordNothingAuthored(
+        _ plan: FeatureAuthoringAcceptedPayload, context: ActContext
+    ) async throws -> FeatureAuthoringOutcome {
+        // Read on the Night Card, so it names no issue id: the plan's Feature key in the Journal does.
+        let reason = "its Feature Issue already belongs to an earlier Feature, so this transaction authored nothing"
+        guard let feature = FeatureName(rawValue: plan.name) else { return .authoringRolledBack }
+        return try await recordFault(
+            feature: feature, reason: reason,
+            event: .featureAuthoringFailed(name: plan.name, groupKey: plan.groupKey, reason: reason),
+            operationKey: "transaction:\(plan.groupKey)", context: context
+        )
+    }
+
     public func resumeUnfinished(_ context: ActContext) async throws -> FeatureAuthoringOutcome? {
         guard let plan = try context.journal.unfinishedAuthoringPlan() else { return nil }
         guard let outbox = context.outbox else { throw AuthoringTransactionError.noBoard }
@@ -311,10 +328,14 @@ public struct AuthoringTransaction: SelectedFeatureAuthoring {
                 title: $0.title, clauses: $0.clauses, brief: $0.brief, transcriptions: $0.transcriptions
             )
         }
-        try journal.finaliseAuthoring(
-            AuthoredFeature(plan: plan, featureIssueID: try createdID(plan.featureKey), cards: cards),
+        let featureIssueID = try createdID(plan.featureKey)
+        let finalised = try journal.finaliseAuthoring(
+            AuthoredFeature(plan: plan, featureIssueID: featureIssueID, cards: cards),
             runID: context.runID, act: context.act, nightID: context.night.id
         )
+        guard finalised != nil else {
+            return try await recordNothingAuthored(plan, context: context)
+        }
         // A clean authoring run resets only this Feature's consecutive-refusals count, closes its
         // Refusals so they leave the clock, and clears its Authoring Halts (roadmap P9.7, P9.8) — it
         // never answers a Refusal; only a Spec Citation does. Recorded right after `finaliseAuthoring`'s own

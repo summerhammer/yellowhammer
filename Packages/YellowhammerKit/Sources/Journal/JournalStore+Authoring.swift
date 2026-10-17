@@ -51,11 +51,13 @@ public struct AuthoredFeature: Equatable, Sendable {
 }
 
 extension JournalStore {
-    /// How many authoring transactions for this Feature name were rolled back — the `<n>` that keeps a
-    /// retry's keys distinct from the failed entries an earlier transaction left in the Outbox.
-    public func failedAuthoringTransactionCount(feature name: String) throws -> Int {
-        try events(ofType: .featureAuthoringFailed).filter {
-            if case .featureAuthoringFailed(let failed, _, _) = $0.event { return failed == name }
+    /// How many authoring transactions for this Feature name were ever accepted, authored or rolled back —
+    /// the `<n>` that keeps every transaction's Outbox keys its own, so a retry never meets a failed entry
+    /// and a Feature selected again under a closed Feature's name never resolves to that Feature's creates.
+    /// A failed transaction was always accepted first, so this stays above any key an older Journal used.
+    public func authoringTransactionCount(feature name: String) throws -> Int {
+        try events(ofType: .featureAuthoringAccepted).filter {
+            if case .featureAuthoringAccepted(let plan) = $0.event { return plan.name == name }
             return false
         }.count
     }
@@ -99,7 +101,9 @@ extension JournalStore {
     /// Writes the Feature, its Cycle and its Cards in ONE transaction and appends `featureAuthored`.
     /// Adopted Cards move into the new Cycle: `cycle_id` and `authored_order` change and nothing else —
     /// counters, Block Reason, state and budget epoch are untouched, so an adopted Card gets no new
-    /// budgets. Idempotent: a Feature row with this issue id already there writes nothing and returns nil.
+    /// budgets. Idempotent: a Feature row with this issue id already there writes nothing and returns nil —
+    /// the Feature Issue already belongs to a Feature, which the authoring transaction records as a failed
+    /// transaction.
     /// Returns the new Cycle's id. `nightID` stamps the event; the Feature's own `selected_night_id` is the plan's.
     @discardableResult
     public func finaliseAuthoring(

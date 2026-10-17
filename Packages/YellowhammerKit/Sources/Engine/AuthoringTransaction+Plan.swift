@@ -17,8 +17,8 @@ struct AuthoringPlan: Equatable {
     let record: FeatureAuthoringAcceptedPayload
 }
 
-/// Builds one authoring transaction's group. `attempt` is the number of earlier rolled-back transactions
-/// for this Feature name, so a retry's keys differ from the failed entries an earlier one left behind.
+/// Builds one authoring transaction's group. `attempt` is the number of earlier authoring transactions
+/// for this Feature name, accepted or failed, so every transaction's keys are its own.
 struct AuthoringPlanner {
     let selection: SelectedFeature
     let breakdown: FeatureBreakdown
