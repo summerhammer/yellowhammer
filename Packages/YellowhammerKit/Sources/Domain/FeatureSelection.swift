@@ -3,11 +3,64 @@
 public struct AdoptionCandidate: Equatable, Sendable {
     public let issueID: String
     public let repository: String
+    /// The Card's title, when the Journal recorded one; rendered so the selector can recognise the Card.
+    public let title: String?
+    /// Why the Card was left Blocked, when the Journal recorded a reason.
+    public let blockReason: String?
 
-    public init(issueID: String, repository: String) {
+    public init(issueID: String, repository: String, title: String? = nil, blockReason: String? = nil) {
         self.issueID = issueID
         self.repository = repository
+        self.title = title
+        self.blockReason = blockReason
     }
+}
+
+/// What this Project's own Journal already knows about its board, handed to the selection pass so it has
+/// no reason to go looking for state itself (issue #556). Plain values: no Journal types, and no issue
+/// ids — only the human identifiers an Operator would recognise.
+public struct SelectionBoardState: Equatable, Sendable {
+    /// A Feature authored for this Project earlier.
+    public struct AuthoredFeature: Equatable, Sendable {
+        /// The Feature's name, when the event log still holds it.
+        public let name: String?
+        /// The Feature Issue's board identifier (e.g. `YLH-360`).
+        public let identifier: String
+        /// `landed`, `abandoned`, or the Feature's recorded state.
+        public let outcome: String
+
+        public init(name: String?, identifier: String, outcome: String) {
+            self.name = name
+            self.identifier = identifier
+            self.outcome = outcome
+        }
+    }
+
+    /// A Card in Waiting on You.
+    public struct WaitingCard: Equatable, Sendable {
+        public let identifier: String
+        public let title: String
+        public let repository: String
+        public let reason: String
+
+        public init(identifier: String, title: String, repository: String, reason: String) {
+            self.identifier = identifier
+            self.title = title
+            self.repository = repository
+            self.reason = reason
+        }
+    }
+
+    /// Most recent first.
+    public let features: [AuthoredFeature]
+    public let waitingCards: [WaitingCard]
+
+    public init(features: [AuthoredFeature] = [], waitingCards: [WaitingCard] = []) {
+        self.features = features
+        self.waitingCards = waitingCards
+    }
+
+    public var isEmpty: Bool { features.isEmpty && waitingCards.isEmpty }
 }
 
 /// A declared Repo Dependency whose consumer and producer a selected Feature both touches
@@ -79,6 +132,8 @@ public struct FeatureSelectionRequest: Equatable, Sendable {
     public let refusedThisNight: [FeatureName]
     /// Consumer Repos the release gate holds back tonight; empty until the release gate fills it.
     public let heldConsumers: [HeldConsumer]
+    /// What the Journal knows of this Project's board, so the selection pass need not search for it.
+    public let boardState: SelectionBoardState
 
     public init(
         specificationSource: ProjectSpecificationSource,
@@ -88,7 +143,8 @@ public struct FeatureSelectionRequest: Equatable, Sendable {
         namedFeature: FeatureName?,
         adoptionCandidates: [AdoptionCandidate],
         refusedThisNight: [FeatureName] = [],
-        heldConsumers: [HeldConsumer] = []
+        heldConsumers: [HeldConsumer] = [],
+        boardState: SelectionBoardState = SelectionBoardState()
     ) {
         self.specificationSource = specificationSource
         self.specificationMainline = specificationMainline
@@ -98,6 +154,7 @@ public struct FeatureSelectionRequest: Equatable, Sendable {
         self.adoptionCandidates = adoptionCandidates
         self.refusedThisNight = refusedThisNight
         self.heldConsumers = heldConsumers
+        self.boardState = boardState
     }
 }
 

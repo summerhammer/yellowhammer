@@ -2,12 +2,15 @@ import Foundation
 import Subprocess
 import System
 
-/// The Worktree, hold script and nonce every probe run needs before any dispatch, plus the
-/// separate `--version` probe (not a dispatch: no adapter, no schema, no session).
+/// The Worktree, hold and reach scripts and nonce every probe run needs before any dispatch, plus
+/// the separate `--version` probe (not a dispatch: no adapter, no schema, no session).
 extension CLIProbe {
-    /// Creates the Worktree, `git init`s it, and writes the hold script. Returns a fully-failed
-    /// ``ProbeReport`` when any step fails (setup failures are reported honestly, not thrown).
-    static func setUp(worktree: URL, adapter: some CLIAdapter, workDirectory: URL) async -> ProbeReport? {
+    /// Creates the Worktree, `git init`s it, and writes the hold and reach scripts. Returns a
+    /// fully-failed ``ProbeReport`` when any step fails (setup failures are reported honestly, not
+    /// thrown). No Keychain item exists yet at this point: it is created only around the reach dispatch.
+    static func setUp(
+        worktree: URL, adapter: some CLIAdapter, workDirectory: URL, reachTargets: ReachTargets
+    ) async -> ProbeReport? {
         let fileManager = FileManager.default
 
         func failEverything(_ reason: String) -> ProbeReport {
@@ -19,6 +22,7 @@ extension CLIProbe {
                 resultFileOnCleanExit: .failed,
                 processContainment: .failed,
                 sessionResumption: .notRun,
+                stateContainment: .notRun,
                 reason: reason,
                 workDirectory: workDirectory
             )
@@ -41,6 +45,14 @@ extension CLIProbe {
             return failEverything("setup failed: could not write the hold script: \(error)")
         }
 
+        let reachScript = worktree.appendingPathComponent(reachScriptName)
+        do {
+            try reachScriptContents(reachTargets).write(to: reachScript, atomically: true, encoding: .utf8)
+            try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: reachScript.path)
+        } catch {
+            return failEverything("setup failed: could not write the reach script: \(error)")
+        }
+
         return nil
     }
 
@@ -58,6 +70,46 @@ extension CLIProbe {
         echo $! >> .yh-probe/holds-"$variant"
         wait
         """
+
+    static let reachScriptName = "yh-probe-reach.sh"
+
+    /// What the reach script tries to read: the probe's own Keychain item and the configuration
+    /// directory. Both are written into the script, not passed on its command line: a codex pass that
+    /// sees a path its permissions profile denies in the command refuses to run it at all (measured
+    /// with codex-cli 0.163.0), which would hide whether the sandbox holds.
+    struct ReachTargets {
+        let keychainAccount: String
+        /// Empty when the probe has no protected directories; the script then reports it blocked.
+        let configurationDirectory: String
+    }
+
+    /// Tries the three reads a read-only pass must not manage — the probe's own Keychain item, the
+    /// configuration directory and Linear's API — and prints exactly one line, e.g.
+    /// `keychain=blocked config=blocked linear=blocked`. Any HTTP status from Linear, even an error,
+    /// means it was reachable; only a curl failure counts as blocked. Absolute tool paths, because a
+    /// launchd `PATH` is minimal.
+    static func reachScriptContents(_ targets: ReachTargets) -> String {
+        """
+        #!/bin/sh
+        config_dir=\(shellQuoted(targets.configurationDirectory))
+        service="\(ProbeKeychain.service)"
+        account="\(targets.keychainAccount)"
+        secret=$(/usr/bin/security find-generic-password -s "$service" -a "$account" -w 2>/dev/null)
+        if [ "$secret" = "$account" ]; then keychain=readable; else keychain=blocked; fi
+        if [ -n "$config_dir" ] && ls "$config_dir" >/dev/null 2>&1; then
+            config=readable
+        else
+            config=blocked
+        fi
+        if /usr/bin/curl -sS -m 10 -o /dev/null https://api.linear.app/graphql >/dev/null 2>&1; then
+            linear=reachable
+        else
+            linear=blocked
+        fi
+        printf 'keychain=%s config=%s linear=%s\\n' "$keychain" "$config" "$linear"
+
+        """
+    }
 
     static func runGitInit(in worktree: URL) async -> Bool {
         do {

@@ -39,6 +39,8 @@ struct Doctor {
     var repoint: Bool = false
     var executableSchema: (String) async -> String? = ScheduledExecutable.schema
     var fileExists: (String) -> Bool = ExecutableFile.isRunnable
+    /// Reads the ACL of the Keychain items the keychain check inspects; attributes only, never the secret.
+    var keychainAccess: any KeychainAccessReading = KeychainAccessReader()
 
     var machineFileURL: URL {
         configurationDirectory.appending(component: "config.toml", directoryHint: .notDirectory)
@@ -78,6 +80,9 @@ struct Doctor {
         }
         if checks.contains(.github) {
             findings += await runGitHubCheck(configuration: configuration)
+        }
+        if checks.contains(.keychain) {
+            findings += runKeychainCheck(configuration: configuration)
         }
         if checks.contains(.launchd) {
             findings += await runLaunchdCheck(configuration: configuration)

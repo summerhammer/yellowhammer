@@ -3,15 +3,20 @@ import Foundation
 import Journal
 
 extension PulseSnapshot {
-    /// The Night's `verdictLine`: up to two Journal facts joined by " · ", never the engine's verdict_line.
+    /// The Night's `verdictLine`: Journal facts joined by " · ", never the engine's verdict_line.
     /// First the Feature fact — a Feature returned with unmet clauses, else a Feature verified with every
-    /// clause met — then the count of failed Act runs. Nil when neither applies.
+    /// clause met — then open authoring decisions and the count of failed Act runs. Nil when no fact applies.
     static func verdictLine(
-        nightEvents: [JournalEventRecord], failedRunCount: Int, recoveredRunCount: Int, journal: JournalStore
+        nightEvents: [JournalEventRecord], failedRunCount: Int, recoveredRunCount: Int, journal: JournalStore,
+        authoringDecisions: [AuthoringDecision] = []
     ) throws -> String? {
         var facts: [String] = []
         if let feature = try featureFact(nightEvents: nightEvents, journal: journal) {
             facts.append(feature)
+        }
+        for decision in authoringDecisions {
+            let outcome = decision.kind == .halt ? "halted" : "refused"
+            facts.append("Authoring Feature “\(decision.title)” \(outcome) — awaiting an Operator turn in Linear")
         }
         if failedRunCount > 0 {
             let failed = "\(failedRunCount) Act run\(failedRunCount == 1 ? "" : "s") failed"

@@ -45,7 +45,8 @@ private func passedProbe(cli: String) -> ProbeResult {
     ProbeResult(
         cli: cli, probedAt: Date(timeIntervalSince1970: 1_800_000_000), adapterVersion: "1", cliVersion: "1.0.0",
         findingResultFileOnCleanExit: .passed, findingUnattendedDispatch: .passed,
-        findingProcessContainment: .passed, findingSessionResumption: .passed, reason: nil
+        findingProcessContainment: .passed, findingSessionResumption: .passed,
+        findingStateContainment: .notRun, reason: nil
     )
 }
 

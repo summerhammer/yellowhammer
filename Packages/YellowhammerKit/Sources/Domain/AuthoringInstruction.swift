@@ -29,6 +29,9 @@ public struct AuthoringInstruction: Equatable, Sendable {
     /// The invalid-output rejections of earlier Routes in this same walk, each already prefixed with its
     /// Route, so the next Route learns why the previous one's drafting was refused. Empty on the first Route.
     public let earlierRejections: [String]
+    /// What the Journal knows of the board, rendered as `## Board state` for the selection pass only.
+    /// Nil omits the section.
+    public let boardState: SelectionBoardState?
 
     public init(
         pass: RunPass,
@@ -43,7 +46,8 @@ public struct AuthoringInstruction: Equatable, Sendable {
         heldConsumers: [HeldConsumer] = [],
         selectedFeature: SelectedFeature?,
         descriptionRoom: BreakdownDescriptionRoom? = nil,
-        earlierRejections: [String] = []
+        earlierRejections: [String] = [],
+        boardState: SelectionBoardState? = nil
     ) {
         self.pass = pass
         self.route = route
@@ -58,6 +62,7 @@ public struct AuthoringInstruction: Equatable, Sendable {
         self.selectedFeature = selectedFeature
         self.descriptionRoom = descriptionRoom
         self.earlierRejections = earlierRejections
+        self.boardState = boardState
     }
 }
 

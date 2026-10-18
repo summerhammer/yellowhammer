@@ -184,6 +184,7 @@ public final class LedgerStore: Sendable {
             findingUnattendedDispatch: probeResult.findingUnattendedDispatch,
             findingProcessContainment: probeResult.findingProcessContainment,
             findingSessionResumption: probeResult.findingSessionResumption,
+            findingStateContainment: probeResult.findingStateContainment,
             reason: probeResult.reason
         )
 
@@ -193,8 +194,9 @@ public final class LedgerStore: Sendable {
                 INSERT INTO probe_result
                 (cli, probed_at, adapter_version, cli_version,
                  finding_result_file_on_clean_exit, finding_unattended_dispatch,
-                 finding_process_containment, finding_session_resumption, verdict, reason)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 finding_process_containment, finding_session_resumption, finding_state_containment,
+                 verdict, reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 arguments: [
                     storedResult.cli,
@@ -205,6 +207,7 @@ public final class LedgerStore: Sendable {
                     storedResult.findingUnattendedDispatch.rawValue,
                     storedResult.findingProcessContainment.rawValue,
                     storedResult.findingSessionResumption.rawValue,
+                    storedResult.findingStateContainment.rawValue,
                     // Verdict is computed from findings; this materializes it for query efficiency.
                     storedResult.verdict.rawValue,
                     storedResult.reason
@@ -225,7 +228,8 @@ public final class LedgerStore: Sendable {
                 sql: """
                 SELECT cli, probed_at, adapter_version, cli_version,
                        finding_result_file_on_clean_exit, finding_unattended_dispatch,
-                       finding_process_containment, finding_session_resumption, verdict, reason
+                       finding_process_containment, finding_session_resumption, finding_state_containment,
+                       verdict, reason
                 FROM probe_result
                 WHERE cli = ?
                 ORDER BY probed_at DESC, id DESC
@@ -248,7 +252,8 @@ public final class LedgerStore: Sendable {
                 sql: """
                 SELECT cli, probed_at, adapter_version, cli_version,
                        finding_result_file_on_clean_exit, finding_unattended_dispatch,
-                       finding_process_containment, finding_session_resumption, verdict, reason
+                       finding_process_containment, finding_session_resumption, finding_state_containment,
+                       verdict, reason
                 FROM probe_result
                 WHERE cli = ?
                 ORDER BY probed_at DESC, id DESC
@@ -298,6 +303,15 @@ public final class LedgerStore: Sendable {
             LedgerError.probeResultUnreadable
         }
 
+        // NULL on a row recorded before v3, which never measured state containment.
+        let findingStateContainment: ProbeFinding
+        if let rawValue = row["finding_state_containment"] as? String {
+            guard let finding = ProbeFinding(rawValue: rawValue) else { throw LedgerError.probeResultUnreadable }
+            findingStateContainment = finding
+        } else {
+            findingStateContainment = .notRun
+        }
+
         let reason = row["reason"] as? String
 
         let result = ProbeResult(
@@ -309,6 +323,7 @@ public final class LedgerStore: Sendable {
             findingUnattendedDispatch: findingUnattended,
             findingProcessContainment: findingProcess,
             findingSessionResumption: findingSessionResumption,
+            findingStateContainment: findingStateContainment,
             reason: reason
         )
 

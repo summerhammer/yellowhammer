@@ -7,7 +7,7 @@ import Ledger
 
 /// Probes one agent CLI Adapter and records the Probe Result in the machine-wide Ledger (P7.4:
 /// the spec's unattended-dispatch, result-file, process-containment and session-resumption probe
-/// targets). One probe run serves every Project on the machine.
+/// targets, plus state containment, issue #557). One probe run serves every Project on the machine.
 public struct ProbeCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "probe",
@@ -82,8 +82,10 @@ public struct ProbeCommand: AsyncParsableCommand {
         guard let adapter = CLIAdapterRegistry.adapter(named: cli) else {
             throw ValidationError("no CLI Adapter for `\(cli)`")
         }
-        let route = try Self.resolveRoute(cli: cli, model: model, effort: effort)
-        let executable = try Self.resolveExecutable(cli: cli, configurationDirectory: configurationDirectory)
+        let machine = try Self.loadMachineConfiguration(configurationDirectory: configurationDirectory)
+        let (route, source) = try Self.resolveRoute(cli: cli, model: model, effort: effort, machine: machine)
+        let executable = try Self.resolveExecutable(cli: cli, machine: machine)
+        print("probing route: \(route.cli) / \(route.model) / \(route.effort) (\(source.description))")
 
         let workDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("yh-probe-\(cli)-\(UUID().uuidString)", isDirectory: true)
@@ -97,7 +99,10 @@ public struct ProbeCommand: AsyncParsableCommand {
             route: route,
             executable: executable,
             environment: ProcessInfo.processInfo.environment,
-            workDirectory: workDirectory
+            workDirectory: workDirectory,
+            protectedDirectories: CLIAdapterDispatch.protectedDirectories(
+                configurationDirectory: configurationDirectory
+            )
         )
 
         let probeResult = ProbeRecording.probeResult(
@@ -109,76 +114,137 @@ public struct ProbeCommand: AsyncParsableCommand {
             resultFileOnCleanExit: report.resultFileOnCleanExit,
             processContainment: report.processContainment,
             sessionResumption: report.sessionResumption,
+            stateContainment: report.stateContainment,
             reason: report.reason
         )
         let recorded = try store.record(probeResult)
         let drift = previous.flatMap { recorded.drift(since: $0) }
 
-        let everyFindingPassed = recorded.findingUnattendedDispatch == .passed
-            && recorded.findingResultFileOnCleanExit == .passed
-            && recorded.findingProcessContainment == .passed
-            && recorded.findingSessionResumption == .passed
-        if everyFindingPassed, !keep {
+        if Self.everyFindingPassed(recorded), !keep {
             try? FileManager.default.removeItem(at: workDirectory)
         } else {
             print("probe work directory kept at \(workDirectory.path)")
         }
 
         Self.printReport(recorded, drift: drift)
+        if recorded.findingUnattendedDispatch == .failed, source != .flags {
+            print(Self.retryHint(route: route, source: source))
+        }
 
-        let eligibility = try store.routeTargetEligibility(cli: cli)
+        try Self.printEligibility(try store.routeTargetEligibility(cli: cli))
+
+        return (recorded.verdict, drift)
+    }
+
+    private static func printEligibility(_ eligibility: RouteTargetEligibility) {
         switch eligibility {
         case .offered:
             print("offered as a route target")
         case .excluded(let reason):
             print("excluded from routing: \(reason)")
         }
-
-        return (recorded.verdict, drift)
     }
 
     // MARK: - Reporting
 
+    /// Whether the scratch work directory can go: every finding passed, the non-gating ones included,
+    /// so a run worth investigating always keeps its evidence.
+    static func everyFindingPassed(_ recorded: ProbeResult) -> Bool {
+        ProbeTarget.allCases.allSatisfy { recorded.finding(for: $0) == .passed }
+    }
+
     private static func printReport(_ recorded: ProbeResult, drift: ProbeDrift?) {
-        print("cli: \(recorded.cli)")
-        print("cli version: \(recorded.cliVersion)")
-        print("adapter version: \(recorded.adapterVersion)")
-        print("unattended dispatch: \(recorded.findingUnattendedDispatch.rawValue)")
-        print("result file on clean exit: \(recorded.findingResultFileOnCleanExit.rawValue)")
-        print("process containment: \(recorded.findingProcessContainment.rawValue)")
-        print("session resumption: \(recorded.findingSessionResumption.rawValue)")
-        print("verdict: \(recorded.verdict.rawValue)")
+        for line in reportLines(recorded, drift: drift) {
+            print(line)
+        }
+    }
+
+    /// What `yh probe` prints for one recorded Probe Result, line by line.
+    static func reportLines(_ recorded: ProbeResult, drift: ProbeDrift?) -> [String] {
+        var lines = [
+            "cli: \(recorded.cli)",
+            "cli version: \(recorded.cliVersion)",
+            "adapter version: \(recorded.adapterVersion)",
+            "unattended dispatch: \(recorded.findingUnattendedDispatch.rawValue)",
+            "result file on clean exit: \(recorded.findingResultFileOnCleanExit.rawValue)",
+            "process containment: \(recorded.findingProcessContainment.rawValue)",
+            "session resumption: \(recorded.findingSessionResumption.rawValue)",
+            "state containment: \(recorded.findingStateContainment.rawValue)",
+            "verdict: \(recorded.verdict.rawValue)"
+        ]
         if let reason = recorded.reason {
-            print("reason: \(reason)")
+            lines.append("reason: \(reason)")
         }
         if let drift {
             let targets = drift.regressions.map(\.description).joined(separator: ", ")
-            print(
+            lines.append(
                 "drift since the previous probe "
                     + "(\(drift.previousCLIVersion)/\(drift.previousAdapterVersion) -> "
                     + "\(drift.currentCLIVersion)/\(drift.currentAdapterVersion)): \(targets)"
             )
         }
+        return lines
     }
 
     // MARK: - Route
 
-    private static func resolveRoute(cli: String, model: String?, effort: String?) throws -> Route {
-        let defaults = defaultRoute(for: cli)
-        guard let resolvedModel = model ?? defaults?.model else {
+    /// Where a probed Route's model and effort came from, so a refusal is attributable.
+    enum RouteSource: Equatable, CustomStringConvertible {
+        /// `--model` and `--effort` named the whole Route.
+        case flags
+        /// The first Route in the machine's base Routing Table that names the CLI.
+        case routingTable
+        /// The hard-coded pair, used only because no Route names the CLI.
+        case builtInDefault
+
+        var description: String {
+            switch self {
+            case .flags: "from --model/--effort"
+            case .routingTable: "first Route naming this CLI in the base Routing Table"
+            case .builtInDefault: "built-in default; no Route in the base Routing Table names this CLI"
+            }
+        }
+    }
+
+    /// The Route to probe: each of `--model`/`--effort` wins over the base Routing Table's first Route
+    /// naming `cli` (its entry's route, then its fallbacks, in table order), which wins over the built-in
+    /// pair. The Probe exists to validate the Routes the Operator will use, and a built-in model may be one
+    /// the installed account refuses (issue #577).
+    static func resolveRoute(
+        cli: String,
+        model: String?,
+        effort: String?,
+        machine: MachineConfiguration?
+    ) throws -> (route: Route, source: RouteSource) {
+        let declared = machine?.routingTable.lazy
+            .flatMap { [$0.route] + $0.fallbacks }
+            .first { $0.cli == cli }
+        let builtIn = defaultRoute(for: cli)
+        guard let resolvedModel = model ?? declared?.model ?? builtIn?.model else {
             throw ValidationError("`\(cli)` has no default model; pass --model")
         }
-        guard let resolvedEffort = effort ?? defaults?.effort else {
+        guard let resolvedEffort = effort ?? declared?.effort ?? builtIn?.effort else {
             throw ValidationError("`\(cli)` has no default effort; pass --effort")
         }
         guard let route = Route(cli: cli, model: resolvedModel, effort: resolvedEffort) else {
             throw ValidationError("`--model` and `--effort` must not be empty")
         }
-        return route
+        let source: RouteSource =
+            if model != nil, effort != nil { .flags } else if declared != nil { .routingTable } else { .builtInDefault }
+        return (route, source)
     }
 
-    /// The default Route probed when `--model`/`--effort` are omitted (spec `routing/add-an-agent-cli`
-    /// evidence: a probe should be cheap, so both defaults name a low-cost model and effort).
+    /// What to tell the Operator when a Route they did not name was refused: the Route used and the flags to
+    /// retry with. The vendor's own message is in the `reason` line above.
+    static func retryHint(route: Route, source: RouteSource) -> String {
+        "the probed route (\(route.cli) / \(route.model) / \(route.effort)) was not named with flags "
+            + "(\(source.description)); if the vendor's message above says the account refuses this model, "
+            + "retry with `yh probe \(route.cli) --model <model> --effort <effort>`"
+    }
+
+    /// The default Route probed when nothing in the base Routing Table names the CLI (spec
+    /// `routing/add-an-agent-cli` evidence: a probe should be cheap, so both defaults name a low-cost model
+    /// and effort).
     private static func defaultRoute(for cli: String) -> (model: String, effort: String)? {
         switch cli {
         case "claude": ("haiku", "low")
@@ -190,13 +256,14 @@ public struct ProbeCommand: AsyncParsableCommand {
 
     // MARK: - Executable
 
-    private static func resolveExecutable(cli: String, configurationDirectory: URL) throws -> String {
+    private static func loadMachineConfiguration(configurationDirectory: URL) throws -> MachineConfiguration? {
         let machineFile = configurationDirectory.appending(component: "config.toml", directoryHint: .notDirectory)
-        var declared: String?
-        if FileManager.default.fileExists(atPath: machineFile.path(percentEncoded: false)) {
-            let machine = try MachineConfiguration.load(contentsOf: machineFile)
-            declared = machine.cliAdapters.first { $0.name == cli }?.executable
-        }
+        guard FileManager.default.fileExists(atPath: machineFile.path(percentEncoded: false)) else { return nil }
+        return try MachineConfiguration.load(contentsOf: machineFile)
+    }
+
+    private static func resolveExecutable(cli: String, machine: MachineConfiguration?) throws -> String {
+        let declared = machine?.cliAdapters.first { $0.name == cli }?.executable
         guard let executable = ProbeExecutable.resolve(
             name: cli,
             declared: declared,

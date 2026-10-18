@@ -93,6 +93,94 @@ struct CodexAdapterTests {
         #expect(config["sandbox_workspace_write.writable_roots"] == nil)
     }
 
+    // MARK: - Protected directories (issue #557)
+
+    private static let protectedDirectories = ["/Users/x/.config/yellowhammer", "/Users/x/Library/Keychains"]
+    private static let expectedDenials =
+        "{\"/Users/x/.config/yellowhammer\"=\"deny\",\"/Users/x/Library/Keychains\"=\"deny\"}"
+
+    @Test(
+        "First dispatch, read-only pass with protected directories: a deny profile replaces --sandbox",
+        arguments: [RunPass.architect, .reviewer, .selection, .breakdown, .verifier]
+    )
+    func firstReadOnlyDispatchDeniesProtectedDirectories(pass: RunPass) throws {
+        let fixture = try CLIDispatchFixture.make()
+        defer { fixture.cleanUp() }
+        let dispatch = fixture.dispatch(cli: "codex", pass: pass, protectedDirectories: Self.protectedDirectories)
+
+        let args = try adapter.launch(for: dispatch).arguments
+        let config = Self.configValues(in: args)
+
+        // `--sandbox` overrides `default_permissions` (measured with codex-cli 0.163.0), so it must be gone.
+        #expect(!args.contains("--sandbox"))
+        #expect(config["sandbox_mode"] == nil)
+        #expect(config["default_permissions"] == "\"yellowhammer\"")
+        #expect(config["permissions.yellowhammer.extends"] == "\":read-only\"")
+        #expect(config["permissions.yellowhammer.filesystem"] == Self.expectedDenials)
+        let dashIndex = try #require(args.firstIndex(of: "--"))
+        #expect(args[dashIndex + 1] == dispatch.instruction)
+        #expect(args.count == dashIndex + 2)
+    }
+
+    @Test("Round, read-only pass with protected directories: the deny profile replaces -c sandbox_mode")
+    func roundReadOnlyDispatchDeniesProtectedDirectories() throws {
+        let fixture = try CLIDispatchFixture.make()
+        defer { fixture.cleanUp() }
+        let dispatch = fixture.dispatch(
+            cli: "codex", pass: .architect, resume: CLISession(rawValue: "thread-7"),
+            protectedDirectories: Self.protectedDirectories
+        )
+
+        let args = try adapter.launch(for: dispatch).arguments
+        let config = Self.configValues(in: args)
+
+        #expect(args[0] == "exec")
+        #expect(args[1] == "resume")
+        #expect(!args.contains("--sandbox"))
+        #expect(config["sandbox_mode"] == nil)
+        #expect(config["default_permissions"] == "\"yellowhammer\"")
+        #expect(config["permissions.yellowhammer.extends"] == "\":read-only\"")
+        #expect(config["permissions.yellowhammer.filesystem"] == Self.expectedDenials)
+        let dashIndex = try #require(args.firstIndex(of: "--"))
+        #expect(args[dashIndex + 1] == "thread-7")
+        #expect(args[dashIndex + 2] == dispatch.instruction)
+    }
+
+    @Test("The worker is never given the deny profile, fresh or resumed")
+    func workerIgnoresProtectedDirectories() throws {
+        let fixture = try CLIDispatchFixture.make()
+        defer { fixture.cleanUp() }
+        let fresh = fixture.dispatch(cli: "codex", pass: .worker, protectedDirectories: Self.protectedDirectories)
+        let resumed = fixture.dispatch(
+            cli: "codex", pass: .worker, resume: CLISession(rawValue: "thread-8"),
+            protectedDirectories: Self.protectedDirectories
+        )
+
+        let freshArgs = try adapter.launch(for: fresh).arguments
+        #expect(ClaudeCodeAdapterTests.value(after: "--sandbox", in: freshArgs) == "workspace-write")
+        #expect(Self.configValues(in: freshArgs)["default_permissions"] == nil)
+
+        let resumedConfig = Self.configValues(in: try adapter.launch(for: resumed).arguments)
+        #expect(resumedConfig["sandbox_mode"] == "\"workspace-write\"")
+        #expect(resumedConfig["default_permissions"] == nil)
+    }
+
+    @Test("A protected directory with a quote is escaped as a TOML string key")
+    func protectedDirectoryIsTOMLEscaped() throws {
+        let fixture = try CLIDispatchFixture.make()
+        defer { fixture.cleanUp() }
+        let dispatch = fixture.dispatch(cli: "codex", pass: .reviewer, protectedDirectories: ["/a \"b\"/c"])
+
+        let config = Self.configValues(in: try adapter.launch(for: dispatch).arguments)
+
+        #expect(config["permissions.yellowhammer.filesystem"] == "{\"/a \\\"b\\\"/c\"=\"deny\"}")
+    }
+
+    @Test("The adapter version moved to 3 with the deny profile")
+    func adapterVersionIsThree() {
+        #expect(adapter.adapterVersion == "3")
+    }
+
     @Test("Additional writable directories become repeated --add-dir flags on a first dispatch")
     func addDirFlagsOnFirstDispatch() throws {
         let fixture = try CLIDispatchFixture.make()

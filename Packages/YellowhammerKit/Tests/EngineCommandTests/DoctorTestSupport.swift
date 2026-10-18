@@ -52,7 +52,8 @@ func makeDoctor(
     ),
     runningExecutablePath: String = "/opt/yellowhammer/yh",
     setupTimePATH: String? = "/usr/bin:/bin",
-    fileExists: @escaping (String) -> Bool = { $0 == "/opt/yellowhammer/yh" || $0 == "/opt/yh" }
+    fileExists: @escaping (String) -> Bool = { $0 == "/opt/yellowhammer/yh" || $0 == "/opt/yh" },
+    keychainAccess: any KeychainAccessReading = FakeKeychainAccess()
 ) -> Doctor {
     Doctor(
         configurationDirectory: directory.url,
@@ -78,7 +79,8 @@ func makeDoctor(
         runningExecutablePath: runningExecutablePath,
         setupTimePATH: setupTimePATH,
         repoint: repoint,
-        fileExists: fileExists
+        fileExists: fileExists,
+        keychainAccess: keychainAccess
     )
 }
 
@@ -101,5 +103,15 @@ struct DoctorGitFixture: ~Copyable {
 
     func initRepo() async {
         _ = await git.run(["-C", path, "init", "--initial-branch=main"])
+    }
+}
+
+/// Answers the keychain check from a table keyed by reference; an unlisted reference is absent. Never touches
+/// the real Keychain.
+struct FakeKeychainAccess: KeychainAccessReading {
+    var reports: [String: KeychainAccessReport] = [:]
+
+    func report(for reference: CredentialReference) -> KeychainAccessReport {
+        reports[reference.rawValue] ?? .absent
     }
 }

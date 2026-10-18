@@ -16,6 +16,7 @@ enum ProbeRecording {
         resultFileOnCleanExit: ProbeFinding,
         processContainment: ProbeFinding,
         sessionResumption: ProbeFinding,
+        stateContainment: ProbeFinding,
         reason: String?
     ) -> ProbeResult {
         ProbeResult(
@@ -27,6 +28,7 @@ enum ProbeRecording {
             findingUnattendedDispatch: unattendedDispatch,
             findingProcessContainment: processContainment,
             findingSessionResumption: sessionResumption,
+            findingStateContainment: stateContainment,
             reason: reason
         )
     }

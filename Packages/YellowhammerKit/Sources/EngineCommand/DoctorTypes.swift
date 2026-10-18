@@ -7,6 +7,7 @@ enum DoctorCheck: String, CaseIterable, Sendable {
     case git
     case linear
     case github
+    case keychain
     case launchd
     case orphans
     case orca

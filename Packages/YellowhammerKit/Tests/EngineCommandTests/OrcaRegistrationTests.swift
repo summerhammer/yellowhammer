@@ -80,7 +80,7 @@ struct OrcaRegistrationTests {
         try directory.writeValidProjectFile(id: "beta", repoPath: "/repos/beta")
         let command = try DoctorCommand.parse(["--check", "orca", "--project", "alpha", "--json"])
         try command.validate()
-        #expect(DoctorCheck.allCases.count == 8)
+        #expect(DoctorCheck.allCases.count == 9)
         #expect(DoctorCheck.allCases.last == .orca)
         let workspace = RegistrationWorkspace(paths: ["/repos/backend/../backend/"])
         let findings = await makeDoctor(

@@ -2,8 +2,8 @@ import Darwin
 import Domain
 import Foundation
 
-/// The termination sweep `AgentCLIProcess.wait(pid:timeout:)` falls into on timeout or engine
-/// abort (``terminate(pid:reason:)``), plus the normal-exit sweep it runs after every other exit
+/// The termination sweep `AgentCLIProcess.wait(pid:timeout:)` falls into on timeout, engine
+/// abort or an attributed permission prompt (``terminate(pid:reason:)``), plus the normal-exit sweep it runs after every other exit
 /// (``sweepAfterExit(tracked:)`` — Normal-Exit Sweep Ruling). Split out from `AgentCLIProcess.swift`
 /// because containing an escaped tool subprocess (see ``ProcessTree``) needs real logic, not just a
 /// group signal.
@@ -186,6 +186,8 @@ extension AgentCLIProcess {
             .timedOut(after: after, forcedKill: forcedKill)
         case .aborted:
             .aborted(forcedKill: forcedKill)
+        case .permissionPrompt(let detail):
+            .promptBlocked(detail: detail, forcedKill: forcedKill)
         }
     }
 }

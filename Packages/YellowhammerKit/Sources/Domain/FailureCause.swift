@@ -32,19 +32,29 @@ public struct FailureCause: Equatable, Sendable {
             detail = "timed out"
         case .roundsExhausted:
             detail = lens?.rawValue ?? "unknown lens"
-        case .crashedUnknown(.resultFile):
-            detail = "result file"
-        case .crashedUnknown(.terminated):
-            detail = "terminated"
-        case .crashedUnknown(.signaled(let signal)):
-            detail = "signaled \(signal)"
-        case .crashedUnknown(.reclaimed), .crashedUnknown(.engineStopped):
-            // Classification is unchanged by OQ92: an engine stop counts as the same structural cause as
-            // any other reclaimed Crashed-Unknown, so recurrence still counts across the two.
-            detail = "reclaimed"
+        case .crashedUnknown(let cause):
+            detail = Self.detail(of: cause)
         }
         self.canonical = "\(outcome)|\(detail)"
         self.summary = "\(outcome) (\(detail))"
+    }
+
+    private static func detail(of cause: CrashedUnknownCause) -> String {
+        switch cause {
+        case .resultFile:
+            "result file"
+        case .terminated:
+            "terminated"
+        case .signaled(let signal):
+            "signaled \(signal)"
+        case .engineStopped where cause.isPermissionPrompt:
+            // Without the prompt's detail (a pid), so the same prompt recurring hashes the same (#555).
+            "permission prompt"
+        case .reclaimed, .engineStopped:
+            // Classification is unchanged by OQ92: an engine stop counts as the same structural cause as
+            // any other reclaimed Crashed-Unknown, so recurrence still counts across the two.
+            "reclaimed"
+        }
     }
 
     /// The structural kind of a contract violation, taken from the error case alone: the field name is
