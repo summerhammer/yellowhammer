@@ -168,7 +168,7 @@ struct StepHeading: View {
     }
 }
 
-/// The hub's footer: the privacy-prompt guidance, then Cancel; what is still needed; Add Project — or,
+/// The hub's footer: the privacy-prompt and Keychain-dialog guidance, then Cancel; what is still needed; Add Project — or,
 /// after the run, only Done or Close.
 struct SetupWizardFooter: View {
     let model: SetupWizardModel
@@ -184,12 +184,16 @@ struct SetupWizardFooter: View {
     }
 
     /// In the footer, so it is on screen whichever steps were opened, until Done (OQ165, R24): a recorded
-    /// denial makes a stray access fail at once instead of holding a pass on an unanswered prompt.
+    /// denial makes a stray access fail at once instead of holding a pass on an unanswered prompt, and
+    /// choosing Deny on a pass's Keychain dialog keeps the item from being widened to a dead client binary
+    /// (yellowhammer-spec#114, yellowhammer#578).
     private var privacyPromptGuidance: some View {
         Label {
             Text("If macOS asks to let Yellowhammer.app access your music, photos, contacts, calendars or a "
                 + "folder, choose Don\u{2019}t Allow \u{2014} unless the folder holds one of this Project\u{2019}s "
-                + "repositories. An unanswered prompt holds the work until it times out.")
+                + "repositories. An unanswered prompt holds the work until it times out. "
+                + "If macOS says \u{2018}security wants to use your confidential information stored in "
+                + "dev.yellowhammer\u{2019}, choose Deny \u{2014} even when the dialog is left over from a Night.")
                 .fixedSize(horizontal: false, vertical: true)
         } icon: {
             Image(systemName: "hand.raised")

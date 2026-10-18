@@ -174,7 +174,8 @@ final class AddProjectUITests: XCTestCase {
 
     /// Before it completes, the sheet tells the Operator to answer Don't Allow to a macOS privacy prompt
     /// unless it names a folder holding one of the Project's repositories (OQ165,
-    /// app/add-a-project-via-the-setup-wizard#privacy-prompt-guidance).
+    /// app/add-a-project-via-the-setup-wizard#privacy-prompt-guidance), and to answer Deny to an agent pass's
+    /// Keychain dialog (yellowhammer-spec#114, yellowhammer#578).
     func testSheetShowsThePrivacyPromptGuidanceBeforeCompletion() throws {
         try launchApp(machine: Self.readyMachineTOML)
         let sheet = openAddProjectSheet()
@@ -184,6 +185,10 @@ final class AddProjectUITests: XCTestCase {
         let text = try XCTUnwrap(guidance.value as? String)
         XCTAssertTrue(text.contains("choose Don\u{2019}t Allow"))
         XCTAssertTrue(text.contains("unless the folder holds one of this Project\u{2019}s repositories"))
+        XCTAssertTrue(text.contains("choose Deny"))
+        XCTAssertTrue(text.contains("dev.yellowhammer"))
+        XCTAssertTrue(text.contains("security wants to use your confidential information"))
+        XCTAssertTrue(text.contains("left over from a Night"))
         XCTAssertTrue(sheet.buttons["setup-continue"].exists || sheet.buttons["setup-add-project"].exists)
     }
 
