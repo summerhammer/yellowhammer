@@ -164,7 +164,26 @@ extension NightWording {
                 detail: NightAccount.words(haltKind: reasonKind, detail: detail)
             )
         default:
-            authoringWalk(event)
+            authoringDecision(event) ?? authoringWalk(event)
+        }
+    }
+
+    private func authoringDecision(_ event: JournalEvent) -> NightWords? {
+        switch event {
+        case .authoringHaltOpened(let name, let kind, let detail),
+             .authoringHaltRepeated(let name, let kind, let detail):
+            NightWords(
+                headline: "Authoring the Feature “\(name)” halted — Waiting on You",
+                detail: NightAccount.words(haltKind: kind, detail: detail) + "; requires an Operator turn in Linear"
+            )
+        case .refusalOpened(let name, _, let clauses, _), .refusalRepeated(let name, _, let clauses, _):
+            NightWords(
+                headline: "Authoring the Feature “\(name)” refused — Waiting on You",
+                detail: "Specification too thin to cite a Definition of Done. " + clauses
+                    + " Requires an Operator turn in Linear."
+            )
+        default:
+            nil
         }
     }
 

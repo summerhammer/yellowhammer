@@ -31,7 +31,7 @@ public struct PulseSnapshot: Equatable, Sendable {
 }
 
 /// A Linear issue's way out: the identifier a person reads and the board URL the Journal recorded for
-/// it. The app opens `url` as it is, and composes none.
+/// it. Authoring decisions can fall back to Linear's canonical issue URL from a validated recorded UUID.
 public struct LinearIssueLink: Equatable, Sendable {
     /// Linear's issue identifier, e.g. `YH-142`.
     public var identifier: String

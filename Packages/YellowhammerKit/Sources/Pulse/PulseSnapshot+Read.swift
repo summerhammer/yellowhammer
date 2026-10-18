@@ -71,57 +71,6 @@ extension PulseSnapshot {
         health = (health ?? []) + flags
     }
 
-    // MARK: Needs you
-
-    private static func needsYou(
-        _ journal: JournalStore, inFlight: (feature: FeatureRecord, cycleID: Int64)?
-    ) throws -> NeedsYou {
-        let cards = try journal.cards().compactMap { card -> DecisionCard? in
-            guard card.state == .blocked || card.state == .waitingOnYou else { return nil }
-            return DecisionCard(
-                id: card.issueID,
-                issueIDForDisplay: card.issueIDForDisplay ?? card.issueKey,
-                title: card.displayTitle,
-                state: card.state,
-                blockReason: card.state == .blocked ? card.blockReason.flatMap { BlockReason(rawValue: $0) } : nil,
-                repo: card.repository,
-                link: LinearIssueLink.link(key: card.issueIDForDisplay ?? card.issueKey, url: card.issueURL)
-            )
-        }
-        return NeedsYou(cards: cards, returnedFeature: try returnedFeature(journal, inFlight: inFlight))
-    }
-
-    /// The Journal's Feature state once the land Act has returned the Feature to the Operator.
-    private static let returnedState = "returned"
-
-    /// The in-flight Feature as a Needs you row when the land Act returned it to the Operator.
-    private static func returnedFeature(
-        _ journal: JournalStore, inFlight: (feature: FeatureRecord, cycleID: Int64)?
-    ) throws -> ReturnedFeature? {
-        guard let inFlight, inFlight.feature.state == Self.returnedState else { return nil }
-        let feature = inFlight.feature
-        let key = feature.issueIDForDisplay ?? feature.issueKey
-        return ReturnedFeature(
-            id: feature.issueID,
-            issueIDForDisplay: key,
-            verification: try verificationCounts(journal, cycleID: inFlight.cycleID),
-            link: LinearIssueLink.link(key: key, url: feature.issueURL)
-        )
-    }
-
-    /// The verdict tally of the Cycle's recorded Verification; nil when none is recorded.
-    private static func verificationCounts(_ journal: JournalStore, cycleID: Int64) throws -> VerificationCounts? {
-        try journal.featureVerification(cycleID: cycleID).map(counts(of:))
-    }
-
-    private static func counts(of record: FeatureVerificationRecord) -> VerificationCounts {
-        VerificationCounts(
-            met: record.clauses.count { $0.verdict == .met },
-            unmet: record.clauses.count { $0.verdict == .unmet },
-            unresolved: record.clauses.count { $0.verdict == .unresolved }
-        )
-    }
-
     // MARK: Now
 
     private static func now(
@@ -337,7 +286,10 @@ extension PulseSnapshot {
         let nightEvents = events.filter { $0.nightID == night.id }
         let failures = JournalFailures(events: nightEvents, nightCard: nightCard)
         let opening = try journal.openingReadyState(nightID: night.id)
-        let absence: String = if failures.failedRunCount > 0 {
+        let decisions = try authoringDecisions(journal).filter { $0.openedNightID <= night.id }
+        let absence: String = if !decisions.isEmpty {
+            "No Cards touched — authoring halted or refused; awaiting an Operator turn in Linear"
+        } else if failures.failedRunCount > 0 {
             switch opening {
             case .nonzero: "Act runs failed before any Card was touched — eligible Cards were available"
             case .zero: "Act runs failed before any Card was touched"
@@ -354,7 +306,7 @@ extension PulseSnapshot {
             startedAt: night.openedAt,
             verdictLine: try verdictLine(
                 nightEvents: nightEvents, failedRunCount: failures.failedRunCount,
-                recoveredRunCount: failures.recoveredRunCount, journal: journal
+                recoveredRunCount: failures.recoveredRunCount, journal: journal, authoringDecisions: decisions
             ),
             cardsByDisposition: try dispositions(night: night, journal: journal, events: events),
             cardsAbsence: absence,

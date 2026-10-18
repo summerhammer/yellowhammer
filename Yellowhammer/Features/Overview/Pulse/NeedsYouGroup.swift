@@ -32,6 +32,9 @@ struct NeedsYouGroup: View {
                     ReturnedFeatureGuidance()
                         .accessibilityIdentifier("needs-you-feature-guidance")
                 }
+                ForEach(needsYou.authoringDecisions) { decision in
+                    AuthoringDecisionRow(decision: decision)
+                }
                 ForEach(needsYou.cards) { card in
                     Button { openDestination(.inspector(.card(card.id))) } label: {
                         DecisionCardRow(card: card)
